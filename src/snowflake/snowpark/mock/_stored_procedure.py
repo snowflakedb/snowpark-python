@@ -3,17 +3,13 @@
 #
 
 import json
-import os
-import shutil
-import sys
-import tempfile
 import typing
-from contextlib import ExitStack
 from copy import copy
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,
     process_registration_inputs,
@@ -21,36 +17,20 @@ from snowflake.snowpark._internal.udf_utils import (
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 from snowflake.snowpark.mock._plan import calculate_expression
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
-from snowflake.snowpark.mock._udf_utils import extract_import_dir_and_module_name
-from snowflake.snowpark.mock._util import get_fully_qualified_name
+from snowflake.snowpark.mock._udf_utils import (
+    extract_import_dir_and_module_name,
+    types_are_compatible,
+)
+from snowflake.snowpark.mock._util import ImportContext, get_fully_qualified_name
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.stored_procedure import (
     StoredProcedure,
     StoredProcedureRegistration,
 )
-from snowflake.snowpark.types import (
-    ArrayType,
-    DataType,
-    MapType,
-    StructType,
-    _FractionalType,
-    _IntegralType,
-)
-
-
-def sproc_types_are_compatible(x, y):
-    if (
-        isinstance(x, type(y))
-        or isinstance(x, _IntegralType)
-        and isinstance(y, _IntegralType)
-        or isinstance(x, _FractionalType)
-        and isinstance(y, _FractionalType)
-    ):
-        return True
-    return False
+from snowflake.snowpark.types import ArrayType, DataType, MapType, StructType
 
 
 class MockStoredProcedure(StoredProcedure):
@@ -63,8 +43,10 @@ class MockStoredProcedure(StoredProcedure):
         imports: Set[str],
         execute_as: typing.Literal["caller", "owner"] = "owner",
         anonymous_sp_sql: Optional[str] = None,
+        strict=False,
     ) -> None:
         self.imports = imports
+        self.strict = strict
         super().__init__(
             func,
             return_type,
@@ -81,6 +63,8 @@ class MockStoredProcedure(StoredProcedure):
         statement_params: Optional[Dict[str, str]] = None,
     ) -> Any:
         args, session = self._validate_call(args, session)
+        if self.strict and any([arg is None for arg in args]):
+            return None
 
         # Unpack columns if passed
         parsed_args = []
@@ -90,10 +74,10 @@ class MockStoredProcedure(StoredProcedure):
 
                 # If expression does not define its datatype we cannot verify it's compatibale.
                 # This is potentially unsafe.
-                if expr.datatype and not sproc_types_are_compatible(
+                if expr.datatype and not types_are_compatible(
                     expr.datatype, expected_type
                 ):
-                    raise ValueError(
+                    raise SnowparkLocalTestingException(
                         f"Unexpected type {expr.datatype} for sproc argument of type {expected_type}"
                     )
 
@@ -110,57 +94,27 @@ class MockStoredProcedure(StoredProcedure):
 
                 # If the length of the resolved expression is not a single value we cannot pass it as a literal.
                 if len(resolved_expr) != 1:
-                    raise ValueError(
-                        "[Local Testing] Unexpected argument type {expr.__class__.__name__} for call to sproc"
+                    raise SnowparkLocalTestingException(
+                        f"Unexpected type {expr.__class__.__name__} for sproc argument of type {expected_type}"
                     )
+
+                if not types_are_compatible(
+                    resolved_expr.sf_type.datatype, expected_type
+                ):
+                    raise SnowparkLocalTestingException(
+                        f"Unexpected type {resolved_expr.sf_type.datatype} for sproc argument of type {expected_type}"
+                    )
+
                 parsed_args.append(resolved_expr[0])
             else:
+                inferred_type = infer_type(arg)
+                if not types_are_compatible(expected_type, inferred_type):
+                    raise SnowparkLocalTestingException(
+                        f"Unexpected type {inferred_type} for sproc argument of type {expected_type}"
+                    )
                 parsed_args.append(arg)
 
-                # Initialize import directory
-
-        temporary_import_path = tempfile.TemporaryDirectory()
-        last_import_directory = sys._xoptions.get("snowflake_import_directory")
-        sys._xoptions["snowflake_import_directory"] = temporary_import_path.name
-
-        # Save a copy of module cache
-        frozen_sys_module_keys = set(sys.modules.keys())
-        # Save a copy of sys path
-        frozen_sys_path = list(sys.path)
-
-        def cleanup_imports():
-            added_path = set(sys.path) - set(frozen_sys_path)
-            for module_path in self.imports:
-                if module_path in added_path:
-                    sys.path.remove(module_path)
-
-            # Clear added entries in sys.modules cache
-            added_keys = set(sys.modules.keys()) - frozen_sys_module_keys
-            for key in added_keys:
-                del sys.modules[key]
-
-            # Cleanup import directory
-            temporary_import_path.cleanup()
-
-            # Restore snowflake_import_directory
-            if last_import_directory is not None:
-                sys._xoptions["snowflake_import_directory"] = last_import_directory
-            else:
-                del sys._xoptions["snowflake_import_directory"]
-
-        with ExitStack() as stack:
-            stack.callback(cleanup_imports)
-
-            for module_path in self.imports:
-                if module_path not in sys.path:
-                    sys.path.append(module_path)
-                if os.path.isdir(module_path):
-                    shutil.copytree(
-                        module_path, temporary_import_path.name, dirs_exist_ok=True
-                    )
-                else:
-                    shutil.copy2(module_path, temporary_import_path.name)
-
+        with ImportContext(self.imports):
             # Resolve handler callable
             if type(self.func) is tuple:
                 module_name, handler_name = self.func
@@ -169,7 +123,12 @@ class MockStoredProcedure(StoredProcedure):
             else:
                 sproc_handler = self.func
 
-            result = sproc_handler(session, *parsed_args)
+            try:
+                result = sproc_handler(session, *parsed_args)
+            except Exception as err:
+                SnowparkLocalTestingException.raise_from_error(
+                    err, error_message=f"Python Interpreter Error: {err}"
+                )
 
         # Semi-structured types are serialized in json
         if isinstance(
@@ -251,6 +210,20 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         comment: Optional[str] = None,
         native_app_params: Optional[Dict[str, Any]] = None,
     ) -> StoredProcedure:
+
+        if is_permanent:
+            self._session._conn.log_not_supported_error(
+                external_feature_name="sproc",
+                error_message="Registering permanent sproc is not currently supported.",
+                raise_error=NotImplementedError,
+            )
+
+        if anonymous:
+            self._session._conn.log_not_supported_error(
+                external_feature_name="sproc",
+                error_message="Registering anonymous sproc is not currently supported.",
+                raise_error=NotImplementedError,
+            )
         (
             sproc_name,
             is_pandas_udf,
@@ -275,8 +248,14 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
 
         check_python_runtime_version(self._session._runtime_version_from_requirement)
 
+        if replace and if_not_exists:
+            raise ValueError("options replace and if_not_exists are incompatible")
+
+        if sproc_name in self._registry and if_not_exists:
+            return self._registry[sproc_name]
+
         if sproc_name in self._registry and not replace:
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"002002 (42710): SQL compilation error: \nObject '{sproc_name}' already exists.",
                 error_code="1304",
             )
@@ -292,11 +271,17 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
 
         if imports is not None:
             for _import in imports:
-                if type(_import) is str:
+                if isinstance(_import, str):
                     self._import_file(_import, sproc_name=sproc_name)
-                else:
+                elif isinstance(_import, tuple) and all(
+                    isinstance(item, str) for item in _import
+                ):
                     local_path, import_path = _import
                     self._import_file(local_path, import_path, sproc_name=sproc_name)
+                else:
+                    raise TypeError(
+                        "stored-proc-level import can only be a file path (str) or a tuple of the file path (str) and the import path (str)"
+                    )
 
         if type(func) is tuple:  # register from file
             if sproc_name not in self._sproc_level_imports:
@@ -316,6 +301,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             sproc_name,
             sproc_imports,
             execute_as=execute_as,
+            strict=strict,
         )
 
         self._registry[sproc_name] = sproc
@@ -336,8 +322,8 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         )
 
         if sproc_name not in self._registry:
-            raise SnowparkSQLException(
-                f"[Local Testing] sproc {sproc_name} does not exist."
+            raise SnowparkLocalTestingException(
+                f"Unknown function {sproc_name}. Stored procedure by that name does not exist."
             )
 
         return self._registry[sproc_name](

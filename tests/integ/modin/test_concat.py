@@ -9,17 +9,18 @@ import modin.pandas as pd
 import pandas as native_pd
 import pytest
 from pandas import Index, MultiIndex
-from pandas.testing import assert_index_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
+    assert_index_equal,
     assert_series_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.utils import TestFiles
 
 
 @pytest.fixture(scope="function")
@@ -30,7 +31,7 @@ def df1():
             "A": ["a", "b", "c"],
             "D": [3, 2, 1],
         },
-        index=Index([3, 1, 2], name="left_i"),
+        index=pd.Index([3, 1, 2], name="left_i"),
     )
 
 
@@ -42,7 +43,7 @@ def df2():
             "A": ["a", "b", "c", "a"],
             "C": [1, 2, 3, 2],
         },
-        index=Index([2, 0, 3, 4], name="right_i"),
+        index=pd.Index([2, 0, 3, 4], name="right_i"),
     )
 
 
@@ -58,7 +59,7 @@ def zero_rows_df():
 
 @pytest.fixture(scope="function")
 def zero_columns_df():
-    return pd.DataFrame(index=Index([1, 2]))
+    return pd.DataFrame(index=pd.Index([1, 2]))
 
 
 @pytest.fixture(scope="function")
@@ -655,9 +656,11 @@ def test_concat_keys_with_none(df1, df2, axis):
     "name1, name2", [("one", "two"), ("one", None), (None, "two"), (None, None)]
 )
 def test_concat_with_keys_and_names(df1, df2, names, name1, name2, axis):
-    with SqlCounter(query_count=0 if name1 is None or axis == 1 else 3, join_count=0):
+    # One extra query to convert index to native pandas when creating df
+    with SqlCounter(query_count=0 if name1 is None or axis == 1 else 4, join_count=0):
         df1 = df1.rename_axis(name1, axis=axis)
-    with SqlCounter(query_count=0 if name2 is None or axis == 1 else 3, join_count=0):
+    # One extra query to convert index to native pandas when creating df
+    with SqlCounter(query_count=0 if name2 is None or axis == 1 else 4, join_count=0):
         df2 = df2.rename_axis(name2, axis=axis)
 
     expected_join_count = (
@@ -670,6 +673,7 @@ def test_concat_with_keys_and_names(df1, df2, names, name1, name2, axis):
             expected_join_count += 1
         if name1 is not None and name2 is not None:
             expected_join_count += 1
+    # One extra query to convert index to native pandas when creating df
     with SqlCounter(query_count=3, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             "pd",
@@ -868,7 +872,7 @@ def test_concat_verify_integrity_axis1_with_keys():
         (_multiindex([(1, 1), (1, 2)]), _multiindex([(2, 1), (2, 2)])),
     ],
 )
-@sql_count_checker(query_count=5, union_count=3)
+@sql_count_checker(query_count=4, union_count=2)
 def test_concat_verify_integrity_axis0(index1, index2):
     df1 = pd.DataFrame([1, 2], columns=["a"], index=index1)
     df2 = pd.DataFrame([1, 2], columns=["a"], index=index2)
@@ -881,7 +885,7 @@ def test_concat_verify_integrity_axis0(index1, index2):
     "index1, index2",
     [([0, 1], [0, 1]), (_multiindex([(1, 1), (1, 2)]), _multiindex([(2, 1), (1, 2)]))],
 )
-@sql_count_checker(query_count=5, union_count=3)
+@sql_count_checker(query_count=4, union_count=2)
 def test_concat_verify_integrity_axis0_with_keys(index1, index2):
     # Even though original frames have duplicate columns, after adding keys to column
     # labels duplicates are resolved, hence no error.
@@ -919,7 +923,7 @@ def test_concat_verify_integrity_axis0_with_ignore_index(index1, index2):
         ([1, 1], [2, 3]),
     ],
 )
-@sql_count_checker(query_count=5, union_count=3)
+@sql_count_checker(query_count=4, union_count=2)
 def test_concat_verify_integrity_axis0_negative(index1, index2):
     df1 = pd.DataFrame([1, 2], columns=["a"], index=index1)
     df2 = pd.DataFrame([1, 2], columns=["a"], index=index2)
@@ -933,7 +937,7 @@ def test_concat_verify_integrity_axis0_negative(index1, index2):
     )
 
 
-@sql_count_checker(query_count=3, union_count=3)
+@sql_count_checker(query_count=2, union_count=2)
 def test_concat_verify_integrity_axis0_large_overlap_negative():
     df = pd.DataFrame(data=list(range(100)))
     msg = "Indexes have overlapping values. Few of them are: .* Please run "
@@ -1041,3 +1045,33 @@ def test_concat_none_index_name(index1, index2):
         "native_pd",
         _concat_operation([df1, df2]),
     )
+
+
+@sql_count_checker(query_count=5, union_count=1)
+def test_concat_from_file(resources_path):
+    test_files = TestFiles(resources_path)
+    df1 = pd.read_csv(test_files.test_concat_file1_csv)
+    df2 = pd.read_csv(test_files.test_concat_file1_csv)
+    eval_snowpark_pandas_result(
+        "pd",
+        "native_pd",
+        _concat_operation([df1, df2]),
+    )
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_concat_keys():
+    native_data = {
+        "one": native_pd.Series([1, 2, 3], index=["a", "b", "c"]),
+        "two": native_pd.Series([2, 3, 4, 5], index=["a", "b", "c", "d"]),
+        "three": native_pd.Series([3, 4, 5], index=["b", "c", "d"]),
+    }
+    native_df = native_pd.concat(native_data.values(), axis=1, keys=native_data.keys())
+
+    data = {
+        "one": pd.Series([1, 2, 3], index=["a", "b", "c"]),
+        "two": pd.Series([2, 3, 4, 5], index=["a", "b", "c", "d"]),
+        "three": pd.Series([3, 4, 5], index=["b", "c", "d"]),
+    }
+    snow_df = pd.concat(data.values(), axis=1, keys=data.keys())
+    assert_frame_equal(snow_df, native_df, check_dtype=False)

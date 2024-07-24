@@ -37,6 +37,14 @@ from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles,
 test_file_csv = "testCSV.csv"
 tmp_stage_name1 = Utils.random_stage_name()
 
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="Async Job is a SQL feature",
+        run=False,
+    )
+]
+
 
 def test_async_collect_common(session):
     df = session.create_dataframe(
@@ -112,13 +120,18 @@ def test_async_to_pandas_common(session):
 def test_async_to_pandas_batches(session):
     df = session.range(100000).cache_result()
     async_job = df.to_pandas_batches(block=False)
+
     res = list(async_job.result())
     expected_res = list(df.to_pandas_batches())
     assert len(res) > 0
     assert len(expected_res) > 0
-    for r, er in zip(res, expected_res):
-        assert_frame_equal(r, er)
-        break
+    res = pd.concat(res, axis=0).sort_values(by="ID").reset_index(level=0, drop=True)
+    expected_res = (
+        pd.concat(expected_res, axis=0)
+        .sort_values(by="ID")
+        .reset_index(level=0, drop=True)
+    )
+    assert_frame_equal(res, expected_res, check_dtype=False)
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
@@ -465,3 +478,12 @@ def test_async_job_to_df(session, create_async_job_from_query_id):
     new_df = async_job.to_df()
     assert "result_scan" in new_df.queries["queries"][0].lower()
     Utils.check_answer(df, new_df)
+
+
+def test_async_job_result_wait_no_result(session):
+    async_job = session.sql("select system$wait(3)").collect_nowait()
+    t0 = time()
+    result = async_job.result("no_result")
+    t1 = time()
+    assert t1 - t0 >= 3.0
+    assert result is None

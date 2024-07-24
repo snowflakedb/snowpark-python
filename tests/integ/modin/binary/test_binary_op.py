@@ -16,7 +16,7 @@ from pandas.testing import assert_frame_equal, assert_series_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.conftest import running_on_public_ci
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from tests.integ.modin.series.test_bitwise_operators import try_cast_to_snow_series
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
@@ -26,6 +26,7 @@ from tests.integ.modin.utils import (
     create_test_series,
     eval_snowpark_pandas_result,
 )
+from tests.utils import running_on_public_ci
 
 
 @pytest.mark.parametrize(
@@ -403,8 +404,8 @@ def list_like_rhs_params(values):
         # The ndarray is created with the float dtype to avoid raising TypeError for operations between
         # a float and NoneType.
         pytest.param(np.array(values, dtype=float), id="ndarray"),
-        pytest.param(pd.Index(values), id="index"),
-        pytest.param(pd.Index(values, name="some name"), id="index_with_name"),
+        pytest.param(native_pd.Index(values), id="index"),
+        pytest.param(native_pd.Index(values, name="some name"), id="index_with_name"),
     ]
 
 
@@ -782,7 +783,7 @@ class TestFillValue:
         # fill_value is supposed to be used when either the lhs or rhs is NaN, not when both are NaN.
         def op_helper(ser):
             other = rhs
-            if isinstance(other, pd.Index) and isinstance(ser, native_pd.Series):
+            if isinstance(other, native_pd.Index) and isinstance(ser, native_pd.Series):
                 # Native pandas does not support binary operations between a Series and list-like objects -
                 # Series <op> list-like works as expected for all cases except when rhs is an Index object.
                 index_as_list = other.tolist()
@@ -1008,7 +1009,9 @@ def test_binary_arithmetic_ops_between_df_and_list_like_on_axis_1(op, rhs):
 def test_binary_div_between_series_and_list_like(op, rhs):
     lhs = [25, 2.5, 0.677, -3.33, -12]
     eval_snowpark_pandas_result(
-        *create_test_series(lhs), lambda df: getattr(df, op)(rhs), atol=0.001
+        *create_test_series(lhs),
+        lambda df: getattr(df, op)(try_convert_index_to_native(rhs)),
+        atol=0.001,
     )
 
 
@@ -2302,8 +2305,8 @@ DATAFRAME_DATAFRAME_TEST_LIST = [
     ),
     # test with np.Nan as well
     (
-        native_pd.DataFrame([[np.NaN, None, 3], [4, 5, 6]]),
-        native_pd.DataFrame([[1, -2, 3], [6, -5, np.NaN]]),
+        native_pd.DataFrame([[np.nan, None, 3], [4, 5, 6]]),
+        native_pd.DataFrame([[1, -2, 3], [6, -5, np.nan]]),
     ),
     # Test column alignment.
     (
@@ -2535,4 +2538,31 @@ def test_binary_single_row_dataframe_and_series(func):
         snow_df,
         native_df,
         func,
+    )
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_df_sub_series():
+
+    series1 = native_pd.Series(np.random.randn(3), index=["a", "b", "c"])
+    series2 = native_pd.Series(np.random.randn(4), index=["a", "b", "c", "d"])
+    series3 = native_pd.Series(np.random.randn(3), index=["b", "c", "d"])
+
+    native_df = native_pd.DataFrame(
+        {
+            "one": series1,
+            "two": series2,
+            "three": series3,
+        }
+    )
+    snow_df = pd.DataFrame(
+        {
+            "one": pd.Series(series1),
+            "two": pd.Series(series2),
+            "three": pd.Series(series3),
+        }
+    )
+
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df.sub(df["two"], axis="index"), inplace=True
     )

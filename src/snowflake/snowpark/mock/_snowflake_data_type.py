@@ -3,9 +3,11 @@
 #
 from typing import Dict, NamedTuple, Optional, Union
 
-from snowflake.connector.options import installed_pandas, pandas as pd
+from snowflake.snowpark.mock._options import installed_pandas, pandas as pd
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
+    ArrayType,
     BooleanType,
     DataType,
     DateType,
@@ -14,6 +16,13 @@ from snowflake.snowpark.types import (
     FloatType,
     IntegerType,
     LongType,
+    MapType,
+    NullType,
+    StringType,
+    TimestampType,
+    TimeType,
+    VariantType,
+    _FractionalType,
     _IntegralType,
     _NumericType,
 )
@@ -122,8 +131,10 @@ class ColumnType(NamedTuple):
 
 def normalize_decimal(d: DecimalType):
     if d.scale > d.precision or d.scale > 38 or d.scale < 0 or d.precision < 0:
-        raise ValueError(
-            f"Inferred data type DecimalType({d.precision}, {d.scale}) is invalid."
+        SnowparkLocalTestingException.raise_from_error(
+            ValueError(
+                f"Inferred data type DecimalType({d.precision}, {d.scale}) is invalid."
+            )
         )
     d.precision = min(38, d.precision)
 
@@ -147,7 +158,7 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
     """op, left, right decide what's next."""
     t1, t2 = c1.datatype, c2.datatype
     nullable = c1.nullable or c2.nullable
-    decimal_types = (IntegerType, LongType, DecimalType)
+    decimal_types = (_IntegralType, DecimalType)
     if isinstance(t1, decimal_types) and isinstance(t2, decimal_types):
         p1, s1 = get_number_precision_scale(t1)
         p2, s2 = get_number_precision_scale(t2)
@@ -217,18 +228,99 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
             FloatType,
             DoubleType,
         ) or op not in ("+", "-"):
-            raise ValueError(
-                f"Result data type can't be calculated: (type1: {t1}, op: '{op}', type2: {t2})."
+            SnowparkLocalTestingException.raise_from_error(
+                ValueError(
+                    f"Result data type can't be calculated: (type1: {t1}, op: '{op}', type2: {t2})."
+                )
             )
         return ColumnType(DateType(), nullable)
 
-    raise TypeError(
-        f"Result data type can't be calculated: (type1: {t1}, op: '{op}', type2: {t2})."
+    SnowparkLocalTestingException.raise_from_error(
+        TypeError(
+            f"Result data type can't be calculated: (type1: {t1}, op: '{op}', type2: {t2})."
+        )
     )
 
 
+def coerce_t1_into_t2(t1: DataType, t2: DataType) -> Optional[DataType]:
+    """Based on result of SELECT system$typeof("RES") FROM (SELECT CASE WHEN (<pred>) THEN <t1> ELSE <t2> END AS "RES")"""
+    if t1 == t2:
+        return t2
+    elif isinstance(t1, NullType):
+        return t2
+    if isinstance(t1, StringType):
+        if isinstance(t2, StringType):
+            if t1.length is None or t2.length is None:
+                return StringType()
+            return StringType(max(t1.length, t2.length))
+        elif isinstance(
+            t2,
+            (
+                _FractionalType,
+                _IntegralType,
+                DateType,
+                TimeType,
+                TimestampType,
+                VariantType,
+            ),
+        ):
+            return t2
+    elif isinstance(t1, _IntegralType):
+        if isinstance(t2, _IntegralType):
+            res = calculate_type(ColumnType(t1, True), ColumnType(t2, True), "+")
+            return res.datatype
+        elif isinstance(t2, (_FractionalType, VariantType, BooleanType)):
+            return t2
+    elif isinstance(t1, _FractionalType):
+        if isinstance(t2, _FractionalType):
+            res = calculate_type(ColumnType(t1, True), ColumnType(t2, True), "+")
+            return res.datatype
+        elif isinstance(t2, (BooleanType, VariantType)):
+            return t2
+    elif isinstance(t1, BooleanType):
+        if isinstance(t2, (StringType, VariantType)):
+            return t2
+    elif isinstance(t1, DateType):
+        if isinstance(t2, (TimestampType, VariantType)):
+            return t2
+    elif isinstance(t1, ArrayType):
+        if isinstance(t2, ArrayType):
+            if t1.element_type == t2.element_type:
+                return t2
+            else:
+                return ArrayType(VariantType())
+        elif isinstance(t2, VariantType):
+            return t2
+    elif isinstance(t1, MapType):
+        if isinstance(t2, MapType):
+            if t1.key_type == t2.key_type and t2.value_type == t1.value_type:
+                return t2
+            else:
+                return MapType(key_type=VariantType(), value_type=VariantType())
+        elif isinstance(t2, VariantType):
+            return t2
+    elif isinstance(t1, (TimeType, TimestampType, MapType, ArrayType)):
+        if isinstance(t2, VariantType):
+            return t2
+    return None
+
+
+def get_coerce_result_type(c1: ColumnType, c2: ColumnType):
+    nullability = c1.nullable or c2.nullable
+    if sf_datatype := coerce_t1_into_t2(c1.datatype, c2.datatype):
+        return ColumnType(sf_datatype, nullability)
+    if sf_datatype := coerce_t1_into_t2(c2.datatype, c1.datatype):
+        return ColumnType(sf_datatype, nullability)
+    return None
+
+
 class TableEmulator(PandasDataframeType):
-    _metadata = ["sf_types", "sf_types_by_col_index", "_null_rows_idxs_map"]
+    _metadata = [
+        "sf_types",
+        "sf_types_by_col_index",
+        "_null_rows_idxs_map",
+        "sorted_by",
+    ]
 
     @property
     def _constructor(self):
@@ -245,6 +337,11 @@ class TableEmulator(PandasDataframeType):
         sf_types_by_col_index: Optional[Dict[int, ColumnType]] = None,
         **kwargs,
     ) -> None:
+        if TableEmulator.__base__ == object:
+            raise RuntimeError(
+                "Local Testing requires pandas as dependency, "
+                "please make sure pandas is installed in the environment.\n"
+            )
         super().__init__(*args, **kwargs)
         self.sf_types = {} if not sf_types else sf_types
         # TODO: SNOW-976145, move to index based approach to store col type mapping
@@ -252,6 +349,7 @@ class TableEmulator(PandasDataframeType):
             {} if not sf_types_by_col_index else sf_types_by_col_index
         )
         self._null_rows_idxs_map = {}
+        self.sorted_by = []
 
     def __getitem__(self, item):
         result = super().__getitem__(item)
@@ -279,7 +377,7 @@ class TableEmulator(PandasDataframeType):
 
 
 def get_number_precision_scale(t: DataType):
-    if isinstance(t, (IntegerType, LongType)):
+    if isinstance(t, _IntegralType):
         return 38, 0
     if isinstance(t, DecimalType):
         return t.precision, t.scale
@@ -300,7 +398,9 @@ def add_date_and_number(
             DateType(), col1.sf_type.nullable or col2.sf_type.nullable
         )
         return result
-    raise ValueError(f"Can't add {col1.sf_type.datatype} and {col2.sf_type.datatype}")
+    SnowparkLocalTestingException.raise_from_error(
+        ValueError(f"Can't add {col1.sf_type.datatype} and {col2.sf_type.datatype}")
+    )
 
 
 class ColumnEmulator(PandasSeriesType):
@@ -315,6 +415,11 @@ class ColumnEmulator(PandasSeriesType):
         return TableEmulator
 
     def __init__(self, *args, **kwargs) -> None:
+        if ColumnEmulator.__base__ == object:
+            raise RuntimeError(
+                "Local Testing requires pandas as dependency, "
+                "please make sure pandas is installed in the environment.\n"
+            )
         sf_type = kwargs.pop("sf_type", None)
         super().__init__(*args, **kwargs)
         self.sf_type: ColumnType = sf_type

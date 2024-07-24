@@ -10,31 +10,32 @@ Resampling
 .. autosummary::
     :toctree: pandas_api/
 
+    Resampler.get_group
     Resampler.groups
     Resampler.indices
-    Resampler.get_group
-
 
 .. rubric:: Function application
 
 .. autosummary::
     :toctree: pandas_api/
 
-    Resampler.apply
     Resampler.aggregate
+    Resampler.apply
+    Resampler.pipe
     Resampler.transform
-
 
 .. rubric:: Upsampling
 
 .. autosummary::
     :toctree: pandas_api/
 
-    Resampler.ffill
-    Resampler.bfill
-    Resampler.nearest
-    Resampler.fillna
     Resampler.asfreq
+    Resampler.backfill
+    Resampler.bfill
+    Resampler.ffill
+    Resampler.fillna
+    Resampler.interpolate
+    Resampler.nearest
 
 .. rubric:: Computations / descriptive stats
 
@@ -42,21 +43,19 @@ Resampling
     :toctree: pandas_api/
 
     Resampler.count
-    Resampler.nunique
     Resampler.first
     Resampler.last
     Resampler.max
     Resampler.mean
     Resampler.median
     Resampler.min
-    Resampler.interpolate
+    Resampler.nunique
     Resampler.ohlc
     Resampler.pad
-    Resampler.pipe
     Resampler.prod
     Resampler.quantile
     Resampler.sem
-    Resampler.size
     Resampler.std
+    Resampler.size
     Resampler.sum
     Resampler.var

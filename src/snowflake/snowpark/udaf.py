@@ -13,6 +13,9 @@ import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.open_telemetry import (
+    open_telemetry_udf_context_manager,
+)
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
@@ -108,7 +111,7 @@ class UserDefinedAggregateFunction:
 class UDAFRegistration:
     """
     Provides methods to register lambdas and functions as UDAFs in the Snowflake database.
-    For more information about Snowflake Python UDAFs, see `Python UDAFs <https://docs.snowflake.com/en/LIMITEDACCESS/python-aggregate-functions>`__.
+    For more information about Snowflake Python UDAFs, see `Python UDAFs <https://docs.snowflake.com/developer-guide/udf/python/udf-python-aggregate-functions>`__.
 
     :attr:`session.udaf <snowflake.snowpark.Session.udaf>` returns an object of this class.
     You can use this object to register UDAFs that you plan to use in the current session or
@@ -406,50 +409,53 @@ class UDAFRegistration:
                 The secrets can be accessed from handler code. The secrets specified as values must
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
-            comment: Adds a comment for the created object object. See
+            comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udaf`
             - :meth:`register_from_file`
         """
-        if not isinstance(handler, type):
-            raise TypeError(
-                f"Invalid handler: expecting a class type, but get {type(handler)}"
+        with open_telemetry_udf_context_manager(
+            self.register, handler=handler, name=name
+        ):
+            if not isinstance(handler, type):
+                raise TypeError(
+                    f"Invalid handler: expecting a class type, but get {type(handler)}"
+                )
+
+            check_register_args(
+                TempObjectType.AGGREGATE_FUNCTION,
+                name,
+                is_permanent,
+                stage_location,
+                parallel,
             )
 
-        check_register_args(
-            TempObjectType.AGGREGATE_FUNCTION,
-            name,
-            is_permanent,
-            stage_location,
-            parallel,
-        )
+            native_app_params = kwargs.get("native_app_params", None)
 
-        native_app_params = kwargs.get("native_app_params", None)
-
-        # register udaf
-        return self._do_register_udaf(
-            handler,
-            return_type,
-            input_types,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            statement_params=statement_params,
-            source_code_display=source_code_display,
-            api_call_source="UDAFRegistration.register",
-            is_permanent=is_permanent,
-            immutable=immutable,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            comment=comment,
-            native_app_params=native_app_params,
-        )
+            # register udaf
+            return self._do_register_udaf(
+                handler,
+                return_type,
+                input_types,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                statement_params=statement_params,
+                source_code_display=source_code_display,
+                api_call_source="UDAFRegistration.register",
+                is_permanent=is_permanent,
+                immutable=immutable,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                comment=comment,
+                native_app_params=native_app_params,
+            )
 
     def register_from_file(
         self,
@@ -554,7 +560,7 @@ class UDAFRegistration:
                 The secrets can be accessed from handler code. The secrets specified as values must
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
-            comment: Adds a comment for the created object object. See
+            comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
         Note::
@@ -567,37 +573,43 @@ class UDAFRegistration:
             - :func:`~snowflake.snowpark.functions.udaf`
             - :meth:`register`
         """
-        file_path = process_file_path(file_path)
-        check_register_args(
-            TempObjectType.AGGREGATE_FUNCTION,
-            name,
-            is_permanent,
-            stage_location,
-            parallel,
-        )
+        with open_telemetry_udf_context_manager(
+            self.register_from_file,
+            file_path=file_path,
+            handler_name=handler_name,
+            name=name,
+        ):
+            file_path = process_file_path(file_path)
+            check_register_args(
+                TempObjectType.AGGREGATE_FUNCTION,
+                name,
+                is_permanent,
+                stage_location,
+                parallel,
+            )
 
-        # register udaf
-        return self._do_register_udaf(
-            (file_path, handler_name),
-            return_type,
-            input_types,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            statement_params=statement_params,
-            source_code_display=source_code_display,
-            api_call_source="UDAFRegistration.register_from_file",
-            skip_upload_on_content_match=skip_upload_on_content_match,
-            is_permanent=is_permanent,
-            immutable=immutable,
-            comment=comment,
-        )
+            # register udaf
+            return self._do_register_udaf(
+                (file_path, handler_name),
+                return_type,
+                input_types,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                statement_params=statement_params,
+                source_code_display=source_code_display,
+                api_call_source="UDAFRegistration.register_from_file",
+                skip_upload_on_content_match=skip_upload_on_content_match,
+                is_permanent=is_permanent,
+                immutable=immutable,
+                comment=comment,
+            )
 
     def _do_register_udaf(
         self,

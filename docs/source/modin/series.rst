@@ -2,7 +2,7 @@
 Series
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.pandas
+.. currentmodule:: modin.pandas
 .. rubric:: :doc:`All supported Series APIs <supported/series_supported>`
 
 .. rubric:: Constructor
@@ -23,6 +23,7 @@ Series
     Series.dtype
     Series.dtypes
     Series.duplicated
+    Series.equals
     Series.empty
     Series.hasnans
     Series.name
@@ -33,6 +34,14 @@ Series
     Series.values
 
 
+.. rubric:: Snowflake Specific
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    Series.to_snowflake
+    Series.to_snowpark
+    Series.cache_result
 
 .. rubric:: Conversion
 
@@ -46,8 +55,6 @@ Series
     Series.to_list
     Series.to_numpy
     Series.to_pandas
-    Series.to_snowflake
-    Series.to_snowpark
     Series.__array__
 
 
@@ -123,18 +130,17 @@ Series
     Series.cumsum
     Series.describe
     Series.diff
-    Series.is_unique
     Series.max
     Series.mean
     Series.median
     Series.min
+    Series.pct_change
     Series.quantile
     Series.rank
     Series.skew
     Series.std
     Series.sum
     Series.var
-    Series.kurtosis
     Series.unique
     Series.nunique
     Series.is_unique
@@ -146,9 +152,9 @@ Series
 .. autosummary::
     :toctree: pandas_api/
 
+    Series.case_when
     Series.drop
     Series.drop_duplicates
-    Series.duplicated
     Series.get
     Series.head
     Series.idxmax
@@ -174,6 +180,8 @@ Series
 .. autosummary::
     :toctree: pandas_api/
 
+    Series.backfill
+    Series.bfill
     Series.dropna
     Series.ffill
     Series.fillna
@@ -191,6 +199,8 @@ Series
 
     Series.sort_values
     Series.sort_index
+    Series.nlargest
+    Series.nsmallest
     Series.squeeze
 
 .. rubric:: Combining / comparing / joining / merging
@@ -198,6 +208,7 @@ Series
 .. autosummary::
     :toctree: pandas_api/
 
+    Series.compare
     Series.update
 
 .. rubric:: Time Series-related
@@ -215,9 +226,72 @@ Series
 
 .. autosummary::
     :toctree: pandas_api/
+    :template: autosummary/modin_accessor.rst
 
     Series.str
     Series.dt
 
-.. rubric:: :doc:`All supported Series str APIs <supported/series_str_supported>`
-.. rubric:: :doc:`All supported Series dt APIs <supported/series_dt_supported>`
+
+.. rubric:: Datetime accessor properties
+
+:doc:`All supported Series dt APIs <supported/series_dt_supported>`
+
+.. autosummary::
+    :toctree: pandas_api/
+    :template: autosummary/modin_accessor_attribute.rst
+
+    Series.dt.date
+    Series.dt.year
+    Series.dt.month
+    Series.dt.day
+    Series.dt.hour
+    Series.dt.minute
+    Series.dt.second
+    Series.dt.microsecond
+    Series.dt.nanosecond
+    Series.dt.dayofweek
+    Series.dt.day_of_week
+    Series.dt.dayofyear
+    Series.dt.day_of_year
+    Series.dt.quarter
+    Series.dt.isocalendar
+
+
+.. rubric:: String accessor methods
+
+:doc:`All supported Series str APIs <supported/series_str_supported>`
+
+.. autosummary::
+    :toctree: pandas_api/
+    :template: autosummary/modin_accessor_method.rst
+
+    Series.str.capitalize
+    Series.str.casefold
+    Series.str.center
+    Series.str.contains
+    Series.str.count
+    Series.str.endswith
+    Series.str.get
+    Series.str.isdigit
+    Series.str.islower
+    Series.str.istitle
+    Series.str.isupper
+    Series.str.len
+    Series.str.lower
+    Series.str.lstrip
+    Series.str.match
+    Series.str.replace
+    Series.str.rstrip
+    Series.str.slice
+    Series.str.split
+    Series.str.startswith
+    Series.str.strip
+    Series.str.translate
+    Series.str.upper
+
+.. rubric:: Serialization / IO / conversion
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    Series.to_csv

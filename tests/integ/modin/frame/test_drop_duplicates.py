@@ -23,17 +23,34 @@ def test_drop_duplicates_with_misspelled_column_name_or_empty_subset(subset):
         if "B" in subset
         else native_pd.DataFrame(columns=["A", "B", "C"])
     )
-    query_count = 1
-    join_count = 1
-    if "B" in subset:
+    query_count = 0
+    join_count = 0
+    if subset == []:
         join_count += 1
+        query_count += 1
     with SqlCounter(query_count=query_count, join_count=join_count):
-        assert_frame_equal(
-            pd.DataFrame(df).drop_duplicates(subset),
-            expected_res,
-            check_dtype=False,
-            check_index_type=False,
-        )
+        if subset == []:
+            assert_frame_equal(
+                pd.DataFrame(df).drop_duplicates(subset),
+                expected_res,
+                check_dtype=False,
+                check_index_type=False,
+            )
+        else:
+            if isinstance(subset, list):
+                if all(label not in df.columns for label in subset):
+                    match_str = r"None of .* are in the \[columns\]"
+                else:
+                    match_str = r".* not in index"
+            else:
+                match_str = r"None of .* are in the \[columns\]"
+            with pytest.raises(KeyError, match=match_str):
+                assert_frame_equal(
+                    pd.DataFrame(df).drop_duplicates(subset),
+                    expected_res,
+                    check_dtype=False,
+                    check_index_type=False,
+                )
 
 
 @pytest.mark.parametrize("subset", ["A", ["A"], ["B"], ["A", "B"]])
@@ -47,7 +64,8 @@ def test_drop_duplicates(subset, keep, ignore_index):
     query_count = 1
     join_count = 2
     if ignore_index is True:
-        query_count += 2
+        # One extra query to convert index to native pandas in series constructor
+        query_count += 3
         join_count += 3
     with SqlCounter(query_count=query_count, join_count=join_count):
         assert_frame_equal(
@@ -62,9 +80,9 @@ def test_drop_duplicates(subset, keep, ignore_index):
         )
 
 
-@pytest.mark.parametrize("subset", ["A", ["A"], ["B"], ["A", "B"]])
+@pytest.mark.parametrize("subset", ["a", ["a"], ["b"], ["a", "b"]])
 @pytest.mark.parametrize("keep", ["first", "last", False])
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_drop_duplicates_on_empty_frame(subset, keep):
     pandas_df = native_pd.DataFrame(columns=["a", "b"])
     snow_df = pd.DataFrame(pandas_df)
@@ -72,6 +90,21 @@ def test_drop_duplicates_on_empty_frame(subset, keep):
     assert_frame_equal(
         snow_df.drop_duplicates(subset=subset, keep=keep),
         pandas_df.drop_duplicates(subset=subset, keep=keep),
+        check_dtype=False,
+        check_index_type=False,
+    )
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_drop_duplicates_post_sort_values():
+    pandas_df = native_pd.DataFrame(
+        {"A": [0, 1, 1, 2, 0], "B": ["a", "b", "c", "b", "a"]}
+    )
+    snow_df = pd.DataFrame(pandas_df)
+
+    assert_frame_equal(
+        snow_df.sort_values("A").drop_duplicates(),
+        pandas_df.sort_values("A").drop_duplicates(),
         check_dtype=False,
         check_index_type=False,
     )

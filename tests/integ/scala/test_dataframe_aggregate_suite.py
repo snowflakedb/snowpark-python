@@ -68,6 +68,91 @@ def test_pivot(session):
     )
 
 
+@pytest.mark.parametrize(
+    "func,expected",
+    [
+        (
+            avg,
+            [
+                Row(
+                    1,
+                    "A",
+                    Decimal("10000.000000"),
+                    None,
+                    Decimal("5200.000000"),
+                    Decimal("5000.000000"),
+                ),
+                Row(
+                    1,
+                    "B",
+                    Decimal("8000.000000"),
+                    Decimal("4000.000000"),
+                    None,
+                    Decimal("6000.000000"),
+                ),
+                Row(
+                    2,
+                    "A",
+                    Decimal("2650.000000"),
+                    Decimal("45350.000000"),
+                    Decimal("4500.000000"),
+                    None,
+                ),
+                Row(
+                    2, "B", None, None, Decimal("35000.000000"), Decimal("6000.000000")
+                ),
+            ],
+        ),
+        (
+            count,
+            [
+                Row(1, "A", 1, 0, 2, 1),
+                Row(1, "B", 1, 2, 0, 1),
+                Row(2, "A", 2, 2, 1, 0),
+                Row(2, "B", 0, 0, 1, 2),
+            ],
+        ),
+        (
+            max,
+            [
+                Row(1, "A", 10000, None, 10000, 5000),
+                Row(1, "B", 8000, 5000, None, 6000),
+                Row(2, "A", 4500, 90500, 4500, None),
+                Row(2, "B", None, None, 35000, 9500),
+            ],
+        ),
+        (
+            min,
+            [
+                Row(1, "A", 10000, None, 400, 5000),
+                Row(1, "B", 8000, 3000, None, 6000),
+                Row(2, "A", 800, 200, 4500, None),
+                Row(2, "B", None, None, 35000, 2500),
+            ],
+        ),
+        (
+            sum,
+            [
+                Row(1, "A", 10000, None, 10400, 5000),
+                Row(1, "B", 8000, 8000, None, 6000),
+                Row(2, "A", 5300, 90700, 4500, None),
+                Row(2, "B", None, None, 35000, 12000),
+            ],
+        ),
+    ],
+)
+def test_pivot_agg_functions(session, func, expected):
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by(["empid", "team"])
+        .pivot("month")
+        .agg(func(col("amount")))
+        .sort(col("empid"), col("team")),
+        expected,
+        sort=False,
+    )
+
+
 def test_group_by_pivot(session):
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
@@ -116,7 +201,8 @@ def test_group_by_pivot_dynamic_any(session, caplog):
         sort=False,
     )
 
-    if "snowflake.snowpark.modin.plugin" not in sys.modules:
+    if not IS_IN_STORED_PROC and "snowflake.snowpark.modin.plugin" not in sys.modules:
+        # SNOW-1437979: caplog.text is empty in sp pre-commit env
         # Snowpark pandas users don't get warnings about dynamic pivot
         # features. See SNOW-1344848.
         assert PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING in caplog.text
@@ -137,6 +223,10 @@ def test_group_by_pivot_dynamic_any(session, caplog):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Pivot does not support values from subqueries yet.",
+)
 def test_group_by_pivot_dynamic_subquery(session):
     src = TestData.monthly_sales(session)
     subquery_df = src.select(col("month")).filter(col("month") == "JAN")
@@ -199,17 +289,15 @@ def test_pivot_on_join(session):
     )
 
 
-# TODO (SNOW-916206)  If the source is a temp table with inlined data, then we need to validate that
-# pivot will materialize the data before executing pivot, otherwise would fail with not finding the
-# data when doing a later schema call.
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="pivot does not work in stored proc")
-def test_pivot_dynamic_any_with_temp_table_inlined_data(session):
+def test_pivot_dynamic_any_with_temp_table_inlined_data(session, local_testing_mode):
     original_df = session.create_dataframe(
         [tuple(range(26)) for r in range(20)], schema=list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
     )
 
-    # Validate the data is backed by a temporary table
-    assert len(original_df.queries.get("post_actions", [])) > 0
+    if not local_testing_mode:
+        # Validate the data is backed by a temporary table
+        assert len(original_df.queries.get("post_actions", [])) > 0
 
     pivot_op_df = original_df.pivot("a").agg(sum(col("b"))).sort(col("c"))
 
@@ -236,6 +324,10 @@ def test_pivot_dynamic_any(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1370114 pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
+)
 def test_pivot_dynamic_subquery(session):
     src = TestData.monthly_sales(session)
     subquery_df = src.select(col("month")).filter(col("month") == "JAN")
@@ -336,13 +428,13 @@ def test_pivot_default_on_none(session, caplog):
             sort=False,
         )
 
-    if "snowflake.snowpark.modin.plugin" not in sys.modules:
+    if not IS_IN_STORED_PROC and "snowflake.snowpark.modin.plugin" not in sys.modules:
+        # SNOW-1437979: caplog.text is empty in sp pre-commit env
         # Snowpark pandas users don't get warnings about dynamic pivot
         # features. See SNOW-1344848.
         assert PIVOT_DEFAULT_ON_NULL_WARNING in caplog.text
 
 
-@pytest.mark.localtest
 def test_rel_grouped_dataframe_agg(session):
     df = (
         session.create_dataframe([[1, "One"], [2, "Two"], [3, "Three"]])
@@ -367,7 +459,6 @@ def test_rel_grouped_dataframe_agg(session):
     ]
 
 
-@pytest.mark.localtest
 def test_group_by(session):
     result = (
         TestData.nurse(session)
@@ -399,6 +490,10 @@ def test_group_by(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: SNOW-977749 grouping by grouping sets not supported",
+)
 def test_group_by_grouping_sets(session):
     result = (
         TestData.nurse(session)
@@ -500,7 +595,6 @@ def test_group_by_grouping_sets(session):
     )
 
 
-@pytest.mark.localtest
 def test_rel_grouped_dataframe_max(session):
     df1 = session.create_dataframe(
         [("a", 1, 11, "b"), ("b", 2, 22, "c"), ("a", 3, 33, "d"), ("b", 4, 44, "e")]
@@ -519,7 +613,6 @@ def test_rel_grouped_dataframe_max(session):
     assert df1.group_by("key").agg([max("value1"), max("value2")]).collect() == expected
 
 
-@pytest.mark.localtest
 def test_rel_grouped_dataframe_avg_mean(session):
     df1 = session.create_dataframe(
         [("a", 1, 11, "b"), ("b", 2, 22, "c"), ("a", 3, 33, "d"), ("b", 4, 44, "e")]
@@ -548,7 +641,6 @@ def test_rel_grouped_dataframe_avg_mean(session):
     )
 
 
-@pytest.mark.localtest
 def test_rel_grouped_dataframe_median(session):
     df1 = session.create_dataframe(
         [
@@ -593,7 +685,6 @@ def test_rel_grouped_dataframe_median(session):
     )
 
 
-@pytest.mark.localtest
 def test_builtin_functions(session):
     df = session.create_dataframe([(1, 11), (2, 12), (1, 13)]).to_df(["a", "b"])
 
@@ -607,7 +698,6 @@ def test_builtin_functions(session):
     ]
 
 
-@pytest.mark.localtest
 def test_non_empty_arg_functions(session):
     func_name = "avg"
     with pytest.raises(ValueError) as ex_info:
@@ -650,7 +740,6 @@ def test_non_empty_arg_functions(session):
     )
 
 
-@pytest.mark.localtest
 def test_null_count(session):
     assert TestData.test_data3(session).group_by("a").agg(
         count(col("b"))
@@ -678,7 +767,6 @@ def test_null_count(session):
     ).collect() == [Row(1, 1, 2)]
 
 
-@pytest.mark.localtest
 def test_distinct(session):
     df = session.create_dataframe(
         [(1, "one", 1.0), (2, "one", 2.0), (2, "two", 1.0)]
@@ -703,7 +791,6 @@ def test_distinct(session):
     assert df.filter(col("i") < 0).distinct().collect() == []
 
 
-@pytest.mark.localtest
 def test_distinct_and_joins(session):
     lhs = session.create_dataframe([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
         "i", "s", '"i"'
@@ -733,7 +820,6 @@ def test_distinct_and_joins(session):
     assert res == [Row("one", "one")]
 
 
-@pytest.mark.localtest
 def test_groupBy(session):
     assert TestData.test_data2(session).group_by("a").agg(sum(col("b"))).collect() == [
         Row(1, 3),
@@ -785,7 +871,6 @@ def test_groupBy(session):
     ]
 
 
-@pytest.mark.localtest
 def test_agg_should_be_order_preserving(session):
     df = (
         session.range(2)
@@ -802,13 +887,16 @@ def test_agg_should_be_order_preserving(session):
     assert df.collect() == [Row(0, 0, 1, 0), Row(1, 1, 1, 1)]
 
 
-@pytest.mark.localtest
 def test_count(session):
     assert TestData.test_data2(session).agg(
         [count(col("a")), sum_distinct(col("a"))]
     ).collect() == [Row(6, 6.0)]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: stddev not supported",
+)
 def test_stddev(session):
     test_data_dev = sqrt(4 / 5)
 
@@ -828,6 +916,10 @@ def test_stddev(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: variance not supported",
+)
 def test_sn_moments(session):
     test_data2 = TestData.test_data2(session)
     var = test_data2.agg(variance(col("a")))
@@ -860,6 +952,10 @@ def test_sn_moments(session):
     Utils.check_answer(kurtosis_, agg_kurtosis_result[0])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: stddev not supportedg",
+)
 def test_sn_zero_moments(session):
     input = session.create_dataframe([[1, 2]]).to_df("a", "b")
     Utils.check_answer(
@@ -895,6 +991,10 @@ def test_sn_zero_moments(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: variance not supported",
+)
 def test_sn_null_moments(session):
     empty_table_data = session.create_dataframe([[]]).to_df("a")
 
@@ -926,22 +1026,17 @@ def test_sn_null_moments(session):
 
 
 def test_decimal_sum_over_window_should_work(session):
-    assert session.sql(
-        "select sum(a) over () from values (1.0), (2.0), (3.0) T(a)"
-    ).collect() == [Row(6.0), Row(6.0), Row(6.0)]
-    assert session.sql(
-        "select avg(a) over () from values (1.0), (2.0), (3.0) T(a)"
-    ).collect() == [Row(2.0), Row(2.0), Row(2.0)]
+    df = session.create_dataframe([1.0, 2.0, 3.0], schema=["a"])
+    assert df.select(sum("a").over()).collect() == [Row(6.0), Row(6.0), Row(6.0)]
+    assert df.select(avg("a").over()).collect() == [Row(2.0), Row(2.0), Row(2.0)]
 
 
-@pytest.mark.localtest
 def test_aggregate_function_in_groupby(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data4(session).group_by(sum(col('"KEY"'))).count().collect()
     assert "is not a valid group by expression" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session):
     assert TestData.test_data2(session).group_by(lit(3), lit(4)).agg(
         [lit(6), lit(7), sum(col("b"))]
@@ -952,6 +1047,11 @@ def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session):
     ).collect() == [Row(3, 4, 6, 1, 3), Row(3, 4, 6, 2, 6)]
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query not supported",
+    run=False,
+)
 def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal_sql(session):
 
     testdata2str = "(SELECT * FROM VALUES (1,1),(1,2),(2,1),(2,2),(3,1),(3,2) T(a, b) )"
@@ -964,7 +1064,6 @@ def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal_sql(session):
     ).collect() == [Row(3, 4, 9)]
 
 
-@pytest.mark.localtest
 def test_distinct_and_unions(session: object) -> object:
     lhs = session.create_dataframe([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
         "i", "s", '"i"'
@@ -992,7 +1091,6 @@ def test_distinct_and_unions(session: object) -> object:
     assert res == [Row("one")]
 
 
-@pytest.mark.localtest
 def test_distinct_and_unionall(session):
     lhs = session.create_dataframe([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
         "i", "s", '"i"'
@@ -1020,6 +1118,10 @@ def test_distinct_and_unionall(session):
     assert res == [Row("one"), Row("one")]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: count_if not suppored in snowpark python",
+)
 def test_count_if(session):
     temp_view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     session.create_dataframe(
@@ -1071,17 +1173,14 @@ def test_count_if(session):
         session.sql(f"SELECT COUNT_IF(x) FROM {temp_view_name}").collect()
 
 
-@pytest.mark.localtest
 def test_agg_without_groups(session):
     assert TestData.test_data2(session).agg(sum(col("b"))).collect() == [Row(9)]
 
 
-@pytest.mark.localtest
 def test_agg_without_groups_and_functions(session):
     assert TestData.test_data2(session).agg(lit(1)).collect() == [Row(1)]
 
 
-@pytest.mark.localtest
 def test_null_average(session):
     assert TestData.test_data3(session).agg(avg(col("b"))).collect() == [Row(2.0)]
 
@@ -1094,7 +1193,6 @@ def test_null_average(session):
     ).collect() == [Row(2.0, 2.0)]
 
 
-@pytest.mark.localtest
 def test_zero_average(session):
     df = session.create_dataframe([[]]).to_df(["a"])
     assert df.agg(avg(col("a"))).collect() == [Row(None)]
@@ -1104,7 +1202,6 @@ def test_zero_average(session):
     ]
 
 
-@pytest.mark.localtest
 def test_multiple_column_distinct_count(session):
     df1 = session.create_dataframe(
         [
@@ -1163,7 +1260,6 @@ def test_multiple_column_distinct_count(session):
     ).collect() == [Row(2.25)]
 
 
-@pytest.mark.localtest
 def test_zero_count(session):
     empty_table = session.create_dataframe([[]]).to_df(["a"])
     assert empty_table.agg([count(col("a")), sum_distinct(col("a"))]).collect() == [
@@ -1171,6 +1267,10 @@ def test_zero_count(session):
     ]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: stddev not supported",
+)
 def test_zero_stddev(session):
     df = session.create_dataframe([[]]).to_df(["a"])
     assert df.agg(
@@ -1178,19 +1278,16 @@ def test_zero_stddev(session):
     ).collect() == [Row(None, None, None)]
 
 
-@pytest.mark.localtest
 def test_zero_sum(session):
     df = session.create_dataframe([[]]).to_df(["a"])
     assert df.agg([sum(col("a"))]).collect() == [Row(None)]
 
 
-@pytest.mark.localtest
 def test_zero_sum_distinct(session):
     df = session.create_dataframe([[]]).to_df(["a"])
     assert df.agg([sum_distinct(col("a"))]).collect() == [Row(None)]
 
 
-@pytest.mark.localtest
 def test_limit_and_aggregates(session):
     df = session.create_dataframe([("a", 1), ("b", 2), ("c", 1), ("d", 5)]).to_df(
         "id", "value"
@@ -1201,7 +1298,6 @@ def test_limit_and_aggregates(session):
     )
 
 
-@pytest.mark.localtest
 def test_listagg(session):
     df = session.create_dataframe(
         [
@@ -1221,6 +1317,10 @@ def test_listagg(session):
     assert len(result) == 4
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: aggregate expression within group not supported",
+)
 def test_listagg_within_group(session):
     df = session.create_dataframe(
         [

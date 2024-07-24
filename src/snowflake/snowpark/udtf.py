@@ -27,6 +27,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.open_telemetry import (
+    open_telemetry_udf_context_manager,
+)
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
@@ -629,50 +632,57 @@ class UDTFRegistration:
                 every batch by setting a smaller batch size. Note that setting a larger value does not
                 guarantee that Snowflake will encode batches with the specified number of rows. It will
                 be ignored when registering a non-vectorized UDTF.
-            comment: Adds a comment for the created object object. See
+            comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udtf`
             - :meth:`register_from_file`
         """
-        if not callable(handler):
-            raise TypeError(
-                "Invalid function: not a function or callable "
-                f"(__call__ is not defined): {type(handler)}"
+        with open_telemetry_udf_context_manager(
+            self.register, handler=handler, name=name
+        ):
+            if not callable(handler):
+                raise TypeError(
+                    "Invalid function: not a function or callable "
+                    f"(__call__ is not defined): {type(handler)}"
+                )
+
+            check_register_args(
+                TempObjectType.TABLE_FUNCTION,
+                name,
+                is_permanent,
+                stage_location,
+                parallel,
             )
 
-        check_register_args(
-            TempObjectType.TABLE_FUNCTION, name, is_permanent, stage_location, parallel
-        )
+            native_app_params = kwargs.get("native_app_params", None)
 
-        native_app_params = kwargs.get("native_app_params", None)
-
-        # register udtf
-        return self._do_register_udtf(
-            handler,
-            output_schema,
-            input_types,
-            input_names,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            strict,
-            secure,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            immutable=immutable,
-            max_batch_size=max_batch_size,
-            comment=comment,
-            statement_params=statement_params,
-            api_call_source="UDTFRegistration.register",
-            is_permanent=is_permanent,
-            native_app_params=native_app_params,
-        )
+            # register udtf
+            return self._do_register_udtf(
+                handler,
+                output_schema,
+                input_types,
+                input_names,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                strict,
+                secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                max_batch_size=max_batch_size,
+                comment=comment,
+                statement_params=statement_params,
+                api_call_source="UDTFRegistration.register",
+                is_permanent=is_permanent,
+                native_app_params=native_app_params,
+            )
 
     def register_from_file(
         self,
@@ -777,7 +787,7 @@ class UDTFRegistration:
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
             immutable: Whether the UDTF result is deterministic or not for the same input.
-            comment: Adds a comment for the created object object. See
+            comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
         Note::
@@ -790,35 +800,45 @@ class UDTFRegistration:
             - :func:`~snowflake.snowpark.functions.udtf`
             - :meth:`register`
         """
-        file_path = process_file_path(file_path)
-        check_register_args(
-            TempObjectType.TABLE_FUNCTION, name, is_permanent, stage_location, parallel
-        )
+        with open_telemetry_udf_context_manager(
+            self.register_from_file,
+            file_path=file_path,
+            handler_name=handler_name,
+            name=name,
+        ):
+            file_path = process_file_path(file_path)
+            check_register_args(
+                TempObjectType.TABLE_FUNCTION,
+                name,
+                is_permanent,
+                stage_location,
+                parallel,
+            )
 
-        # register udtf
-        return self._do_register_udtf(
-            (file_path, handler_name),
-            output_schema,
-            input_types,
-            input_names,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            strict,
-            secure,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            immutable=immutable,
-            comment=comment,
-            statement_params=statement_params,
-            api_call_source="UDTFRegistration.register_from_file",
-            skip_upload_on_content_match=skip_upload_on_content_match,
-            is_permanent=is_permanent,
-        )
+            # register udtf
+            return self._do_register_udtf(
+                (file_path, handler_name),
+                output_schema,
+                input_types,
+                input_names,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                strict,
+                secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                comment=comment,
+                statement_params=statement_params,
+                api_call_source="UDTFRegistration.register_from_file",
+                skip_upload_on_content_match=skip_upload_on_content_match,
+                is_permanent=is_permanent,
+            )
 
     def _do_register_udtf(
         self,

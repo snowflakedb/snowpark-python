@@ -58,12 +58,11 @@ def test_df_add_prefix_time_column_df(
     )
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=2)
 def test_df_add_prefix_snowpark_pandas_series(
     default_index_snowpark_pandas_df, default_index_native_df
 ):
-    prefix_series = native_pd.Series([1, 2, 3])
+    prefix_series = native_pd.Series([1.0, 2.2, 3.6])
     eval_snowpark_pandas_result(
         default_index_snowpark_pandas_df,
         default_index_native_df,

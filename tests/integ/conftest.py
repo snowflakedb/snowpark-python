@@ -4,7 +4,6 @@
 #
 
 import os
-import uuid
 from typing import Dict
 
 import pytest
@@ -14,23 +13,7 @@ from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.parameters import CONNECTION_PARAMETERS
-from tests.utils import Utils
-
-RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
-RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
-TEST_SCHEMA = f"GH_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
-if RUNNING_ON_JENKINS:
-    TEST_SCHEMA = f"JENKINS_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
-
-
-def running_on_public_ci() -> bool:
-    """Whether or not tests are currently running on one of our public CIs."""
-    return RUNNING_ON_GH
-
-
-def running_on_jenkins() -> bool:
-    """Whether or not tests are currently running on a Jenkins node."""
-    return RUNNING_ON_JENKINS
+from tests.utils import TEST_SCHEMA, Utils, running_on_jenkins, running_on_public_ci
 
 
 def print_help() -> None:
@@ -132,7 +115,7 @@ def clean_up_external_access_integration_resources(
 
 
 @pytest.fixture(scope="session")
-def db_parameters() -> Dict[str, str]:
+def db_parameters(local_testing_mode) -> Dict[str, str]:
     # If its running on our public CI or Jenkins, replace the schema
     if running_on_public_ci() or running_on_jenkins():
         # tests related to external access integration requires secrets, network rule to be created ahead
@@ -143,6 +126,7 @@ def db_parameters() -> Dict[str, str]:
         )
     else:
         CONNECTION_PARAMETERS["schema_with_secret"] = CONNECTION_PARAMETERS["schema"]
+    CONNECTION_PARAMETERS["local_testing"] = local_testing_mode
     return CONNECTION_PARAMETERS
 
 

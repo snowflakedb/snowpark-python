@@ -3,6 +3,7 @@
 #
 
 import datetime
+import pathlib
 import sys
 
 import cloudpickle
@@ -15,6 +16,7 @@ from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
@@ -201,7 +203,6 @@ class TestFuncReturnsDataFrame:
             ).apply(func),
         )
 
-    @pytest.mark.skip(reason="SNOW-1358681")
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
@@ -305,7 +306,6 @@ class TestFuncReturnsDataFrame:
             check_index_type=False,
         )
 
-    @pytest.mark.skip(reason="SNOW-1358681")
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         join_count=JOIN_COUNT,
@@ -490,8 +490,10 @@ class TestFuncReturnsDataFrame:
                         ["k0", 16, "b"],
                         [None, 17, "a"],
                     ],
-                    "index": pd.Index(["i0", "i1", "i2", "i1", None], name="index"),
-                    "columns": pd.Index(
+                    "index": native_pd.Index(
+                        ["i0", "i1", "i2", "i1", None], name="index"
+                    ),
+                    "columns": native_pd.Index(
                         ["string_col_1", "int_col", "string_col_2"], name="x"
                     ),
                 },
@@ -505,8 +507,8 @@ class TestFuncReturnsDataFrame:
                         ["k0", 15, "c"],
                         ["k0", 16, "b"],
                     ],
-                    "index": pd.Index(["i1", None, "i0", "i2"], name="index"),
-                    "columns": pd.Index(
+                    "index": native_pd.Index(["i1", None, "i0", "i2"], name="index"),
+                    "columns": native_pd.Index(
                         ["string_col_1", "int_col", "string_col_2"], name="x"
                     ),
                 },
@@ -685,8 +687,10 @@ class TestFuncReturnsDataFrame:
                 ["k0", 16, "b"],
                 [None, 17, "a"],
             ],
-            index=pd.Index(["i1", None, "i0", "i2", None], name="index"),
-            columns=pd.Index(["string_col_1", "int_col", "string_col_2"], name="x"),
+            index=native_pd.Index(["i1", None, "i0", "i2", None], name="index"),
+            columns=native_pd.Index(
+                ["string_col_1", "int_col", "string_col_2"], name="x"
+            ),
         )
 
         def groupby_apply_without_sort(df):
@@ -768,7 +772,6 @@ class TestFuncReturnsScalar:
             ),
         )
 
-    @pytest.mark.skip(reason="SNOW-1358681")
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
@@ -850,7 +853,7 @@ class TestFuncReturnsScalar:
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 operation(snow_df),
                 native_pd.Series(
-                    [None, None], index=pd.Index(["i0", "i1"], name="level_0")
+                    [None, None], index=native_pd.Index(["i0", "i1"], name="level_0")
                 ),
             )
         else:
@@ -858,6 +861,40 @@ class TestFuncReturnsScalar:
                 snow_df,
                 pandas_df,
                 operation,
+            )
+
+    @sql_count_checker(
+        query_count=8,
+        udtf_count=UDTF_COUNT,
+        join_count=JOIN_COUNT,
+    )
+    def test_group_apply_return_df_from_lambda(self):
+        diamonds_path = (
+            pathlib.Path(__file__).parent.parent.parent.parent
+            / "resources"
+            / "diamonds.csv"
+        )
+        diamonds_pd = native_pd.read_csv(diamonds_path)
+        eval_snowpark_pandas_result(
+            pd.DataFrame(diamonds_pd),
+            diamonds_pd,
+            lambda diamonds: diamonds.groupby("cut").apply(
+                # Use the stable "mergesort" algorithm to make the result order
+                # deterministic (see SNOW-1434962).
+                lambda x: x.sort_values(
+                    "price", ascending=False, kind="mergesort"
+                ).head(5),
+                include_groups=True,
+            ),
+        )
+
+        with pytest.raises(
+            NotImplementedError,
+            match="No support for groupby.apply with include_groups = False",
+        ):
+            pd.DataFrame(diamonds_pd).groupby("cut").apply(
+                lambda x: x.sort_values("price", ascending=False).head(5),
+                include_groups=False,
             )
 
 
@@ -929,13 +966,14 @@ class TestFuncReturnsSeries:
 
     @pytest.mark.parametrize("dropna", [True, False])
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        # One extra query to convert index to native pandas in dataframe constructor to create test dataframes
+        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK + 1,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
     @pytest.mark.parametrize("index", [[2.0, np.nan, 2.0, 1.0], [np.nan] * 4])
     def test_dropna(self, dropna, index):
-        pandas_index = pd.Index(index, name="index")
+        pandas_index = native_pd.Index(index, name="index")
         if dropna and pandas_index.isna().all():
             pytest.xfail(
                 reason="We drop all the rows, apply the UDTF, and try to "
@@ -953,7 +991,9 @@ class TestFuncReturnsSeries:
                     ["k0", 16, "b"],
                 ],
                 index=pandas_index,
-                columns=pd.Index(["string_col_1", "int_col", "string_col_2"], name="x"),
+                columns=native_pd.Index(
+                    ["string_col_1", "int_col", "string_col_2"], name="x"
+                ),
             ),
             lambda df: df.groupby("index", dropna=dropna).apply(
                 lambda group: native_pd.Series(
@@ -1042,7 +1082,8 @@ class TestSeriesGroupBy:
             # (pd.NA, k1) that we cannot serialize.
             pytest.xfail(reason="SNOW-1229760")
         with SqlCounter(
-            query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK
+            # one additional query for converting index to native pandas in dataframe constructor
+            query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK + 1
             if not group_keys
             and func
             in (
@@ -1051,7 +1092,7 @@ class TestSeriesGroupBy:
                 series_transform_returns_frame,
                 series_transform_returns_series,
             )
-            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK + 1,
             udtf_count=UDTF_COUNT,
             join_count=JOIN_COUNT,
         ):
@@ -1064,8 +1105,8 @@ class TestSeriesGroupBy:
                         ["k0", 16, "b"],
                         [None, 17, "a"],
                     ],
-                    index=pd.Index(["i1", None, "i0", "i2", "i3"], name="index"),
-                    columns=pd.Index(
+                    index=native_pd.Index(["i1", None, "i0", "i2", "i3"], name="index"),
+                    columns=native_pd.Index(
                         ["string_col_1", "int_col", "string_col_2"], name="x"
                     ),
                 ),
@@ -1091,7 +1132,10 @@ class TestSeriesGroupBy:
         eval_snowpark_pandas_result(
             *create_test_series([0, 1, 2], index=["a", "a", "b"]),
             lambda s: s.groupby(
-                s.index, dropna=dropna, group_keys=group_keys, sort=sort
+                try_convert_index_to_native(s.index),
+                dropna=dropna,
+                group_keys=group_keys,
+                sort=sort,
             ).apply(func),
         )
 

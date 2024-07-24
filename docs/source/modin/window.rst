@@ -5,6 +5,29 @@ Window
 .. currentmodule:: snowflake.snowpark.modin.pandas.window
 .. rubric:: :doc:`All supported window APIs <supported/window_supported>`
 
+.. rubric:: Expanding window functions
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    Expanding.aggregate
+    Expanding.apply
+    Expanding.corr
+    Expanding.count
+    Expanding.cov
+    Expanding.kurt
+    Expanding.max
+    Expanding.mean
+    Expanding.median
+    Expanding.min
+    Expanding.quantile
+    Expanding.rank
+    Expanding.sem
+    Expanding.skew
+    Expanding.std
+    Expanding.sum
+    Expanding.var
+
 .. rubric:: Rolling window functions
 
 .. autosummary::

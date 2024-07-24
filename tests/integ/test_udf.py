@@ -50,7 +50,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import call_udf, col, pandas_udf, udf
+from snowflake.snowpark.functions import call_udf, col, pandas_udf, parse_json, udf
 from snowflake.snowpark.types import (
     LTZ,
     NTZ,
@@ -164,18 +164,20 @@ def test_basic_udf(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
 )
-def test_call_named_udf(session, temp_schema, db_parameters):
+def test_call_named_udf(session, temp_schema, db_parameters, local_testing_mode):
     mult_udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    session._run_query("drop function if exists test_mul(int, int)")
+    if not local_testing_mode:
+        session._run_query("drop function if exists test_mul(int, int)")
     udf(
         lambda x, y: x * y,
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
         name=mult_udf_name,
     )
-    Utils.check_answer(
-        session.sql(f"select {mult_udf_name}(13, 19)").collect(), [Row(13 * 19)]
-    )
+    if not local_testing_mode:
+        Utils.check_answer(
+            session.sql(f"select {mult_udf_name}(13, 19)").collect(), [Row(13 * 19)]
+        )
 
     df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
     Utils.check_answer(
@@ -196,45 +198,45 @@ def test_call_named_udf(session, temp_schema, db_parameters):
         [Row(42), Row(42)],
     )
 
-    # create a UDF when the session doesn't have a schema
-    new_session = (
-        Session.builder.configs(db_parameters)._remove_config("schema").create()
-    )
-    new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
-    try:
-        assert not new_session.get_current_schema()
-        add_udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-        tmp_stage_name_in_temp_schema = (
-            f"{temp_schema}.{Utils.random_name_for_temp_object(TempObjectType.STAGE)}"
+    if not local_testing_mode:  # this test case does not apply to Local Testing
+        # create a UDF when the session doesn't have a schema
+        new_session = (
+            Session.builder.configs(db_parameters)._remove_config("schema").create()
         )
-        new_session._run_query(f"create temp stage {tmp_stage_name_in_temp_schema}")
-        full_udf_name = f"{temp_schema}.{add_udf_name}"
-        new_session._run_query(f"drop function if exists {full_udf_name}(int, int)")
-        new_session.udf.register(
-            lambda x, y: x + y,
-            return_type=IntegerType(),
-            input_types=[IntegerType(), IntegerType()],
-            name=[*temp_schema.split("."), add_udf_name],
-            stage_location=unwrap_stage_location_single_quote(
-                tmp_stage_name_in_temp_schema
-            ),
-            is_permanent=True,
-        )
-        Utils.check_answer(
-            new_session.sql(f"select {full_udf_name}(13, 19)").collect(), [Row(13 + 19)]
-        )
-        # oen result in the temp schema
-        assert (
-            len(
-                new_session.sql(
-                    f"show functions like '%{add_udf_name}%' in schema {temp_schema}"
-                ).collect()
+        new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
+        try:
+            assert not new_session.get_current_schema()
+            add_udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+            tmp_stage_name_in_temp_schema = f"{temp_schema}.{Utils.random_name_for_temp_object(TempObjectType.STAGE)}"
+            new_session._run_query(f"create temp stage {tmp_stage_name_in_temp_schema}")
+            full_udf_name = f"{temp_schema}.{add_udf_name}"
+            new_session._run_query(f"drop function if exists {full_udf_name}(int, int)")
+            new_session.udf.register(
+                lambda x, y: x + y,
+                return_type=IntegerType(),
+                input_types=[IntegerType(), IntegerType()],
+                name=[*temp_schema.split("."), add_udf_name],
+                stage_location=unwrap_stage_location_single_quote(
+                    tmp_stage_name_in_temp_schema
+                ),
+                is_permanent=True,
             )
-            == 1
-        )
-    finally:
-        new_session.close()
-        # restore active session
+            Utils.check_answer(
+                new_session.sql(f"select {full_udf_name}(13, 19)").collect(),
+                [Row(13 + 19)],
+            )
+            # oen result in the temp schema
+            assert (
+                len(
+                    new_session.sql(
+                        f"show functions like '%{add_udf_name}%' in schema {temp_schema}"
+                    ).collect()
+                )
+                == 1
+            )
+        finally:
+            new_session.close()
+            # restore active session
 
 
 def test_recursive_udf(session):
@@ -373,7 +375,7 @@ def test_annotation_syntax_udf(session):
     assert "must be Column, column name, or a list of them" in str(ex_info)
 
 
-def test_session_register_udf(session):
+def test_session_register_udf(session, local_testing_mode):
     df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
     add_udf = session.udf.register(
         lambda x, y: x + y,
@@ -388,26 +390,26 @@ def test_session_register_udf(session):
             Row(7),
         ],
     )
+    # Query tags not supported in local testing.
+    if not local_testing_mode:
+        query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
+        add_udf_with_statement_params = session.udf.register(
+            lambda x, y: x + y,
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            statement_params={"QUERY_TAG": query_tag},
+        )
+        assert isinstance(add_udf_with_statement_params.func, Callable)
+        Utils.check_answer(
+            df.select(add_udf_with_statement_params("a", "b")).collect(),
+            [
+                Row(3),
+                Row(7),
+            ],
+        )
+        Utils.assert_executed_with_query_tag(session, query_tag)
 
-    query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
-    add_udf_with_statement_params = session.udf.register(
-        lambda x, y: x + y,
-        return_type=IntegerType(),
-        input_types=[IntegerType(), IntegerType()],
-        statement_params={"QUERY_TAG": query_tag},
-    )
-    assert isinstance(add_udf_with_statement_params.func, Callable)
-    Utils.check_answer(
-        df.select(add_udf_with_statement_params("a", "b")).collect(),
-        [
-            Row(3),
-            Row(7),
-        ],
-    )
-    Utils.assert_executed_with_query_tag(session, query_tag)
 
-
-@pytest.mark.localtest
 def test_register_udf_from_file(session, resources_path):
     test_files = TestFiles(resources_path)
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
@@ -430,6 +432,10 @@ def test_register_udf_from_file(session, resources_path):
 
 
 @pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Vectorized UDF is not supported in Local Testing",
+)
+@pytest.mark.skipif(
     not is_pandas_available, reason="pandas is required to register vectorized UDFs"
 )
 def test_register_vectorized_udf_from_file(session, resources_path):
@@ -451,7 +457,6 @@ def test_register_vectorized_udf_from_file(session, resources_path):
     )
 
 
-@pytest.mark.localtest
 def test_register_udf_from_zip_file(session, resources_path, tmpdir):
     test_files = TestFiles(resources_path)
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
@@ -476,7 +481,6 @@ def test_register_udf_from_zip_file(session, resources_path, tmpdir):
     )
 
 
-@pytest.mark.localtest
 def test_register_udf_from_remote_file(session, resources_path):
     test_files = TestFiles(resources_path)
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
@@ -495,7 +499,6 @@ def test_register_udf_from_remote_file(session, resources_path):
     )
 
 
-@pytest.mark.localtest
 def test_register_udf_from_remote_file_with_statement_params(
     session, resources_path, local_testing_mode
 ):
@@ -568,7 +571,6 @@ def test_register_from_file_with_skip_upload(session, resources_path, caplog):
         Utils.drop_stage(session, stage_name)
 
 
-@pytest.mark.localtest
 def test_add_import_local_file(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -615,7 +617,6 @@ def test_add_import_local_file(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 def test_add_import_local_directory(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -659,7 +660,6 @@ def test_add_import_local_directory(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 def test_add_import_stage_file(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -686,7 +686,6 @@ def test_add_import_stage_file(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is required")
 def test_add_import_package(session):
     def plus_one_month(x):
@@ -707,7 +706,6 @@ def test_add_import_package(session):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
@@ -736,7 +734,6 @@ def test_add_import_duplicate(session, resources_path, caplog, local_testing_mod
     assert len(session.get_imports()) == 0
 
 
-@pytest.mark.localtest
 def test_udf_level_import(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
 
@@ -766,17 +763,10 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
         input_types=[IntegerType()],
     )
 
-    expected_exception = (
-        SnowparkSQLException if not local_testing_mode else ModuleNotFoundError
-    )
-
-    with pytest.raises(expected_exception) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(plus4_then_mod5_udf("a")).collect(),
 
-    if not local_testing_mode:
-        assert "No module named" in ex_info.value.message
-    else:
-        assert "No module named" in ex_info.value.msg
+    assert "No module named" in ex_info.value.message
 
     session.add_import(test_files.test_udf_py_file, "test_udf_dir.test_udf_file")
 
@@ -788,19 +778,15 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
         input_types=[IntegerType()],
         imports=[],
     )
-    with pytest.raises(expected_exception) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(plus4_then_mod5_udf("a")).collect(),
 
-    if not local_testing_mode:
-        assert "No module named" in ex_info.value.message
-    else:
-        assert "No module named" in ex_info.value.msg
+    assert "No module named" in ex_info.value.message
 
     # clean
     session.clear_imports()
 
 
-@pytest.mark.localtest
 def test_add_import_namespace_collision(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -836,7 +822,6 @@ def test_add_import_namespace_collision(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 def test_add_import_namespace_collision_snowflake_package(session, tmp_path):
     fake_snowflake_dir = tmp_path / "snowflake" / "task"
     fake_snowflake_dir.mkdir(parents=True)
@@ -869,7 +854,7 @@ def test_add_import_namespace_collision_snowflake_package(session, tmp_path):
     session.clear_imports()
 
 
-def test_type_hints(session):
+def test_type_hints(session, local_testing_mode):
     @udf
     def add_udf(x: int, y: int) -> int:
         return x + y
@@ -919,18 +904,19 @@ def test_type_hints(session):
         [Row('{\n  "Tree": "Tree Pine"\n}')],
     )
 
-    Utils.check_answer(
-        TestData.geography_type(session).select(return_geography_dict_udf("geo")),
-        [Row('{\n  "coordinates": [\n    30,\n    10\n  ],\n  "type": "Point"\n}')],
-    )
+    if not local_testing_mode:
+        # TODO: SNOW-946829 support Geometry and Geography datatypes
+        Utils.check_answer(
+            TestData.geography_type(session).select(return_geography_dict_udf("geo")),
+            [Row('{\n  "coordinates": [\n    30,\n    10\n  ],\n  "type": "Point"\n}')],
+        )
 
-    Utils.check_answer(
-        TestData.geometry_type(session).select(return_geometry_dict_udf("geo")),
-        [Row('{\n  "coordinates": [\n    20,\n    81\n  ],\n  "type": "Point"\n}')],
-    )
+        Utils.check_answer(
+            TestData.geometry_type(session).select(return_geometry_dict_udf("geo")),
+            [Row('{\n  "coordinates": [\n    20,\n    81\n  ],\n  "type": "Point"\n}')],
+        )
 
 
-@pytest.mark.localtest
 def test_type_hint_no_change_after_registration(session):
     def add(x: int, y: int) -> int:
         return x + y
@@ -940,7 +926,6 @@ def test_type_hint_no_change_after_registration(session):
     assert annotations == add.__annotations__
 
 
-@pytest.mark.localtest
 def test_register_udf_from_file_type_hints(session, tmpdir):
     source = """
 import datetime
@@ -994,6 +979,11 @@ def return_dict(v: dict) -> Dict[str, str]:
     )
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Database objects are session scoped in Local Testing",
+    run=False,
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_permanent_udf(session, db_parameters):
     stage_name = Utils.random_stage_name()
@@ -1022,6 +1012,11 @@ def test_permanent_udf(session, db_parameters):
             Utils.drop_stage(session, stage_name)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Database objects are session scoped in Local Testing",
+    run=False,
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_permanent_udf_negative(session, db_parameters):
     stage_name = Utils.random_stage_name()
@@ -1053,7 +1048,7 @@ def test_permanent_udf_negative(session, db_parameters):
             Utils.drop_stage(session, stage_name)
 
 
-def test_udf_negative(session):
+def test_udf_negative(session, local_testing_mode):
     def f(x):
         return x
 
@@ -1083,9 +1078,10 @@ def test_udf_negative(session):
         in str(ex_info)
     )
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        session.sql("select f(1)").collect()
-    assert "Unknown function" in str(ex_info)
+    if not local_testing_mode:
+        with pytest.raises(SnowparkSQLException) as ex_info:
+            session.sql("select f(1)").collect()
+        assert "Unknown function" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df1.select(call_udf("f", "x")).collect()
@@ -1104,7 +1100,11 @@ def test_udf_negative(session):
     udf2 = udf(lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()])
     with pytest.raises(SnowparkSQLException) as ex_info:
         df1.select(udf2("x")).collect()
-    assert "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
+    assert (
+        local_testing_mode
+        or "Numeric value" in str(ex_info)
+        and "is not recognized" in str(ex_info)
+    )
     df2 = session.create_dataframe([1, None]).to_df("x")
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.select(udf2("x")).collect()
@@ -1162,6 +1162,10 @@ def test_udf_negative(session):
     assert "stage_location must be specified for permanent udf" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1374204: Align error behavior when UDF/Sproc registration receives bad import",
+)
 def test_add_import_negative(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -1213,7 +1217,7 @@ def test_add_import_negative(session, resources_path):
     )
 
 
-def test_udf_variant_type(session):
+def test_udf_variant_type(session, local_testing_mode):
     def variant_get_data_type(v):
         return str(type(v))
 
@@ -1287,10 +1291,12 @@ def test_udf_variant_type(session):
     )
 
     # dynamic typing on one single column
-    df = session.sql(
-        "select parse_json(column1) as a from values"
-        "('1'), ('1.1'), ('\"2\"'), ('true'), ('[1, 2, 3]'),"
-        ' (\'{"a": "foo"}\')'
+    df = (
+        session.create_dataframe(
+            [("1"), ("1.1"), ('"2"'), ("true"), ("[1, 2, 3]"), ('{"a": "foo"}')]
+        )
+        .to_df(["a"])
+        .select(parse_json("a").alias("a"))
     )
     Utils.check_answer(
         df.select(variant_udf("a")).collect(),
@@ -1305,6 +1311,10 @@ def test_udf_variant_type(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-946829 Support Geography datatype in Local Testing",
+)
 def test_udf_geography_type(session):
     def get_type(g):
         return str(type(g))
@@ -1319,6 +1329,10 @@ def test_udf_geography_type(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-946829 Support Geometry datatype in Local Testing",
+)
 def test_udf_geometry_type(session):
     def get_type(g):
         return str(type(g))
@@ -1506,6 +1520,11 @@ def test_udf_parallel(session):
     assert "Supported values of parallel are from 1 to 99" in str(ex_info)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Comment is a SQL feature",
+    run=False,
+)
 def test_udf_comment(session):
     comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
 
@@ -1518,6 +1537,10 @@ def test_udf_comment(session):
     assert comment in session.sql(ddl_sql).collect()[0][0]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Describe UDF is not supported in Local Testing",
+)
 @pytest.mark.skipif(
     (not is_pandas_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
@@ -1557,6 +1580,10 @@ def test_udf_describe(session):
             break
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Vectorized UDF is not supported in Local Testing",
+)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_basic_pandas_udf(session):
     def return1():
@@ -1609,6 +1636,10 @@ def test_basic_pandas_udf(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Vectorized UDF is not supported in Local Testing",
+)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_pandas_udf_type_hints(session):
     def return1() -> PandasSeries[str]:
@@ -1663,6 +1694,10 @@ def test_pandas_udf_type_hints(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Vectorized UDF is not supported in Local Testing",
+)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.parametrize(
     "_type, data, expected_types, expected_dtypes",
@@ -1773,6 +1808,10 @@ def test_pandas_udf_input_types(session, _type, data, expected_types, expected_d
     ), f"returned dtype is {returned_dtype} instead of {expected_dtypes}"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Vectorized UDF is not supported in Local Testing",
+)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_pandas_udf_input_variant(session):
     data = [
@@ -1817,6 +1856,10 @@ def test_pandas_udf_input_variant(session):
     Utils.check_answer(rows, expected_results)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Vectorized UDF is not supported in Local Testing",
+)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.parametrize(
     "_type, data, expected_types, expected_dtypes",
@@ -1856,6 +1899,7 @@ def test_pandas_udf_input_variant(session):
             [[True]],
             (
                 "<class 'bool'>",
+                "<class 'numpy.bool'>",
                 "<class 'numpy.bool_'>",
             ),
             ("bool",),
@@ -1916,6 +1960,10 @@ def test_pandas_udf_return_types(session, _type, data, expected_types, expected_
     ), f"returned dtype is {result_df.dtypes[0]} instead of {expected_dtypes}"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Vectorized UDF is not supported in Local Testing",
+)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_pandas_udf_return_variant(session):
     schema = StructType([StructField("a", VariantType())])
@@ -1961,6 +2009,10 @@ def test_pandas_udf_return_variant(session):
         ), f"returned type is {type(row[0])} instead of {expected_types[i]}"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Vectorized UDF is not supported in Local Testing",
+)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_pandas_udf_max_batch_size(session):
     def check_len(s):
@@ -1990,6 +2042,10 @@ def test_pandas_udf_max_batch_size(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Vectorized UDF is not supported in Local Testing",
+)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_pandas_udf_negative(session):
 
@@ -2023,6 +2079,11 @@ def test_pandas_udf_negative(session):
     assert "The return type must be specified" in str(ex_info)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="This is testing SQL feature",
+    run=False,
+)
 def test_register_udf_no_commit(session):
     def plus1(x: int) -> int:
         return x + 1
@@ -2053,7 +2114,6 @@ def test_register_udf_no_commit(session):
         session._run_query(f"drop function if exists {perm_func_name}(int)")
 
 
-@pytest.mark.localtest
 def test_udf_class_method(session):
     # Note that we never mention in the doc that we support registering UDF from a class method.
     # However, some users might still be interested in doing that.
@@ -2113,6 +2173,11 @@ def test_udf_class_method(session):
     )
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local Testing doesn't pickle",
+    run=False,
+)
 def test_udf_pickle_failure(session):
     from weakref import WeakValueDictionary
 
@@ -2127,6 +2192,11 @@ def test_udf_pickle_failure(session):
     )
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Comment is a SQL feature",
+    run=False,
+)
 def test_comment_in_udf_description(session):
     def return1():
         return "1"
@@ -2164,7 +2234,6 @@ def test_comment_in_udf_description(session):
             break
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
@@ -2194,6 +2263,11 @@ def test_strict_udf(session):
     )
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Secure UDF is a SQL feature",
+    run=False,
+)
 def test_secure_udf(session):
     @udf(secure=True)
     def echo(num: int) -> int:
@@ -2211,7 +2285,6 @@ def test_secure_udf(session):
     (not is_pandas_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-@pytest.mark.localtest
 @pytest.mark.parametrize("func", numpy_funcs)
 def test_numpy_udf(session, func):
     numpy_udf = udf(
@@ -2282,6 +2355,94 @@ def test_udf_timestamp_type_hint(session):
         expected_res,
     )
 
+
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas required for vectorized UDF"
+)
+def test_udf_return_none(session):
+    data = [
+        [
+            1,
+            "a",
+            "a",
+        ],
+        [
+            2,
+            "b",
+            "b",
+        ],
+        [None, None, None],
+    ]
+    schema = StructType(
+        [
+            StructField('"int"', IntegerType()),
+            StructField('"str"', StringType()),
+            StructField('"var"', VariantType()),
+        ]
+    )
+    df = session.create_dataframe(data, schema=schema)
+
+    def f(x):
+        return x if x is not None else None
+
+    @udf
+    def func_int_udf(x: int) -> int:
+        return f(x)
+
+    @udf
+    def func_str_udf(x: str) -> str:
+        return f(x)
+
+    @udf
+    def func_var_udf(x: Variant) -> Variant:
+        return f(x)
+
+    Utils.check_answer(
+        df.select(
+            func_int_udf('"int"'),
+            func_str_udf('"str"'),
+            func_var_udf('"var"'),
+        ),
+        [Row(1, "a", '"a"'), Row(2, "b", '"b"'), Row(None, None, None)],
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Vectorized UDTF is not supported in Local Testing",
+)
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
+)
+def test_vectorized_udf_timestamp_type_hint(session):
+    data = [
+        [
+            datetime.datetime(2023, 1, 1, 1, 1, 1),
+            datetime.datetime(2023, 1, 1),
+            datetime.datetime.now(datetime.timezone.utc),
+            datetime.datetime.now().astimezone(),
+        ],
+        [
+            datetime.datetime(2022, 12, 30, 12, 12, 12),
+            datetime.datetime(2022, 12, 30),
+            datetime.datetime(2023, 1, 1, 1, 1, 1).astimezone(datetime.timezone.utc),
+            datetime.datetime(2023, 1, 1, 1, 1, 1, tzinfo=datetime.timezone.utc),
+        ],
+        [None, None, None, None],
+    ]
+    schema = StructType(
+        [
+            StructField('"tz_default"', TimestampType()),
+            StructField('"ntz"', TimestampType(TimestampTimeZone.NTZ)),
+            StructField('"ltz"', TimestampType(TimestampTimeZone.LTZ)),
+            StructField('"tz"', TimestampType(TimestampTimeZone.TZ)),
+        ]
+    )
+    df = session.create_dataframe(data, schema=schema)
+
+    def f(x):
+        return x + datetime.timedelta(days=1, hours=2) if x is not None else None
+
     @udf
     def func_tz_default_vectorized_udf(
         x: PandasSeries[Timestamp],
@@ -2305,6 +2466,8 @@ def test_udf_timestamp_type_hint(session):
         x: PandasSeries[Timestamp[TZ]],
     ) -> PandasSeries[Timestamp[TZ]]:
         return f(x)
+
+    expected_res = [Row(*[f(e) for e in row]) for row in data]
 
     Utils.check_answer(
         df.select(
@@ -2362,7 +2525,6 @@ def test_udf_external_access_integration(session, db_parameters):
         pytest.skip("External Access Integration is not supported on the deployment.")
 
 
-@pytest.mark.localtest
 def test_access_snowflake_import_directory(session, resources_path):
     test_files = TestFiles(resources_path)
 

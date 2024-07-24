@@ -576,7 +576,8 @@ def test_dataframe_where_with_np_array_cond():
     )
 
 
-@sql_count_checker(query_count=1, join_count=2)
+# one extra query to convert index to native pandas when creating the snowpark pandas dataframe
+@sql_count_checker(query_count=2, join_count=2)
 def test_dataframe_where_with_np_array_cond_mismatched_labels():
     data = [1, 2, 3]
     cond = np.array([[False, True, False]]).T
@@ -589,7 +590,7 @@ def test_dataframe_where_with_np_array_cond_mismatched_labels():
 
     native_df = native_pd.DataFrame(data, columns=["A"])
     native_other_df = native_pd.DataFrame(
-        other, columns=["B"], index=pd.Index([1, 2, 3], name="A")
+        other, columns=["B"], index=native_pd.Index([1, 2, 3], name="A")
     )
 
     eval_snowpark_pandas_result(
@@ -601,7 +602,7 @@ def test_dataframe_where_with_np_array_cond_mismatched_labels():
     )
 
 
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=2, join_count=2)
 def test_dataframe_where_with_dataframe_cond_single_index_different_names():
     data = [1, 2, 3]
     cond = [False, True, False]
@@ -616,7 +617,7 @@ def test_dataframe_where_with_dataframe_cond_single_index_different_names():
     native_df = native_pd.DataFrame(data, columns=["A"])
     native_cond_df = native_pd.DataFrame(cond, columns=["A"])
     native_other_df = native_pd.DataFrame(
-        other, columns=["B"], index=pd.Index([1, 2, 3], name="A")
+        other, columns=["B"], index=native_pd.Index([1, 2, 3], name="A")
     )
 
     eval_snowpark_pandas_result(
@@ -628,7 +629,8 @@ def test_dataframe_where_with_dataframe_cond_single_index_different_names():
     )
 
 
-@sql_count_checker(query_count=1, join_count=2)
+# one extra query to convert index to native pandas when creating the snowpark pandas dataframe
+@sql_count_checker(query_count=2, join_count=2)
 def test_dataframe_where_with_dataframe_cond_single_index_different_names_2():
     data = [1, 2, 3]
     cond = [False, True, False]
@@ -639,7 +641,7 @@ def test_dataframe_where_with_dataframe_cond_single_index_different_names_2():
     snow_other_df = pd.DataFrame(other, columns=["B"])
 
     native_df = native_pd.DataFrame(
-        data, columns=["A"], index=pd.Index([1, 2, 3], name="B")
+        data, columns=["A"], index=native_pd.Index([1, 2, 3], name="B")
     )
     native_cond_df = native_pd.DataFrame(cond, columns=["A"])
     native_other_df = native_pd.DataFrame(other, columns=["B"])
@@ -674,16 +676,17 @@ def test_dataframe_where_with_duplicated_index_aligned(cond_frame, other):
     data = [3, 4, 5, 2]
     # index with duplicated value 2
     index = pd.Index([2, 1, 2, 3], name="index")
+    native_index = native_pd.Index([2, 1, 2, 3], name="index")
     snow_df = pd.DataFrame({"A": data}, index=index)
-    native_df = native_pd.DataFrame({"A": data}, index=index)
+    native_df = native_pd.DataFrame({"A": data}, index=native_index)
 
     native_cond = cond_frame
-    native_cond.index = index
+    native_cond.index = native_index
     snow_cond = pd.DataFrame(native_cond)
 
     if isinstance(other, native_pd.DataFrame):
         native_other = other
-        native_other.index = index
+        native_other.index = native_index
         snow_other = pd.DataFrame(native_other)
     else:
         native_other = other
@@ -700,7 +703,8 @@ def test_dataframe_where_with_duplicated_index_aligned(cond_frame, other):
         )
 
 
-@sql_count_checker(query_count=1, join_count=2)
+# 3 extra queries to convert index to native pandas when creating the 3 snowpark pandas dataframe
+@sql_count_checker(query_count=4, join_count=2)
 def test_dataframe_where_with_duplicated_index_unaligned():
     data = [3, 4, 5, 2]
     df_index = pd.Index([2, 1, 2, 3], name="index")
@@ -720,7 +724,7 @@ def test_dataframe_where_with_duplicated_index_unaligned():
     # requires eager evaluation.
     expected_pandas = native_pd.DataFrame(
         {"A": [3, 3, 5, 6, 4, 5, 5, 5, 6, 2]},
-        index=pd.Index([2, 2, 2, 2, 1, 2, 2, 2, 2, 3], name="index"),
+        index=native_pd.Index([2, 2, 2, 2, 1, 2, 2, 2, 2, 3], name="index"),
     )
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         snow_res, expected_pandas
@@ -997,3 +1001,27 @@ def test_where_series_cond_after_join():
     native_df = native_df1.join(native_df1, lsuffix="_l", rsuffix="_r")
     native_df = native_df.where(native_df["A_l"] != native_df["A_r"])
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
+
+
+@sql_count_checker(query_count=1, join_count=0)
+def test_where_with_zero_other_mixed_types_SNOW_1372268():
+    data = {"n": ["A", "B", "B", "C", "C", "C"]}
+    df = pd.DataFrame(data)
+    native_df = native_pd.DataFrame(data)
+    df_result = df.where(df["n"] == "C", 0)
+    native_df_result = native_df.where(native_df["n"] == "C", 0)
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        df_result, native_df_result.astype("str")
+    )
+
+
+@sql_count_checker(query_count=1, join_count=0)
+def test_where_with_zero_other_SNOW_1372268():
+    data = {"n": [99, 99, 99, -99, -99, -99]}
+    df = pd.DataFrame(data)
+    native_df = native_pd.DataFrame(data)
+    df_result = df.where(df["n"] == -99, 0)
+    native_df_result = native_df.where(native_df["n"] == -99, 0)
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        df_result, native_df_result
+    )

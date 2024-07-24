@@ -9,13 +9,13 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.utils import running_on_public_ci
 
 
 # This whole suite is skipped in ci run because those are tests for unsupported
@@ -136,10 +136,8 @@ def test_empty_str_self_cat():
         (lambda ser: ser.str.replace("a", "b")),
     ],
 )
-def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
-    with SqlCounter(
-        query_count=query_count, fallback_count=fallback_count, sproc_count=sproc_count
-    ):
+def test_empty_str_methods(fn, query_count=1, sproc_count=0):
+    with SqlCounter(query_count=query_count, sproc_count=sproc_count):
         eval_snowpark_pandas_result(
             pd.Series(dtype=object),
             native_pd.Series(dtype=object),
@@ -149,13 +147,12 @@ def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
 
 
 @pytest.mark.parametrize(
-    "method, expected, query_count, fallback_count, sproc_count",
+    "method, expected, query_count, sproc_count",
     [
         pytest.param(
             "isalnum",
             [True, True, True, True, True, False, True, True, False, False],
             9,
-            1,
             1,
             marks=pytest.mark.xfail(
                 reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
@@ -168,7 +165,6 @@ def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
             [True, True, True, False, False, False, True, False, False, False],
             9,
             1,
-            1,
             marks=pytest.mark.xfail(
                 reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
                 strict=True,
@@ -180,13 +176,11 @@ def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
             [False, False, False, True, False, False, False, True, False, False],
             2,
             0,
-            0,
         ),
         pytest.param(
             "isnumeric",
             [False, False, False, True, False, False, False, True, False, False],
             9,
-            1,
             1,
             marks=pytest.mark.xfail(
                 reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
@@ -199,7 +193,6 @@ def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
             [False, False, False, False, False, False, False, False, False, True],
             9,
             1,
-            1,
             marks=pytest.mark.xfail(
                 reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
                 strict=True,
@@ -211,13 +204,11 @@ def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
             [False, True, False, False, False, False, False, False, False, False],
             2,
             0,
-            0,
         ),
         (
             "isupper",
             [True, False, False, False, True, False, True, False, False, False],
             2,
-            0,
             0,
         ),
         (
@@ -225,19 +216,16 @@ def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
             [True, False, True, False, True, False, False, False, False, False],
             2,
             0,
-            0,
         ),
     ],
 )
-def test_ismethods(method, expected, query_count, fallback_count, sproc_count):
+def test_ismethods(method, expected, query_count, sproc_count):
     data = ["A", "b", "Xy", "4", "3A", "", "TT", "55", "-", "  "]
     native_ser = native_pd.Series(data, dtype=object)
     ser = pd.Series(data, dtype=object)
 
     expected = native_pd.Series(expected, dtype=bool)
-    with SqlCounter(
-        query_count=query_count, fallback_count=fallback_count, sproc_count=sproc_count
-    ):
+    with SqlCounter(query_count=query_count, sproc_count=sproc_count):
         result = getattr(ser.str, method)()
         assert_snowpark_pandas_equal_to_pandas(result, expected)
 
@@ -371,7 +359,7 @@ def test_index_raises_not_implemented_error(method):
     msg = f"{method} is not yet implemented for Series.str"
 
     with pytest.raises(NotImplementedError, match=msg):
-        getattr(obj.str, method)(0)
+        getattr(obj.str, method)("sub")
 
 
 @pytest.mark.xfail(
@@ -395,11 +383,6 @@ def test_index_missing(method, exp):
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "start, stop, step, expected",
     [
@@ -410,7 +393,7 @@ def test_index_missing(method, exp):
         (3, 0, -1, ["ofa", "aba", np.nan, "aba"]),
     ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=1)
 def test_slice(start, stop, step, expected):
     ser = pd.Series(["aafootwo", "aabartwo", np.nan, "aabazqux"], dtype=object)
     result = ser.str.slice(start, stop, step)
@@ -447,11 +430,6 @@ def test_slice_replace(start, stop, repl, expected):
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "method, exp",
     [
@@ -459,7 +437,7 @@ def test_slice_replace(start, stop, repl, expected):
         ["rstrip", ["  aa", " bb", np.nan, "cc"]],
     ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=1)
 def test_lstrip_rstrip(method, exp):
     ser = pd.Series(["  aa   ", " bb \n", np.nan, "cc  "], dtype=object)
 

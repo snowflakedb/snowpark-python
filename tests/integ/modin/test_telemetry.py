@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import json
+import sys
 from typing import Any, Optional
 from unittest.mock import ANY, MagicMock, patch
 
@@ -139,7 +140,13 @@ def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
         expected_func_name="DataFrame.to_snowflake",
         session=df1._query_compiler._modin_frame.ordered_dataframe.session,
     )
-    assert set(data.keys()) == {"category", "api_calls", "sfqids", "func_name"}
+    assert set(data.keys()) == {
+        "category",
+        "api_calls",
+        "sfqids",
+        "func_name",
+        "error_msg",
+    }
     assert data["category"] == "snowpark_pandas"
     assert data["api_calls"] == df1_expected_api_calls + [
         {
@@ -182,7 +189,11 @@ def test_send_snowpark_pandas_telemetry_helper(send_mock):
             "python_version": ANY,
             "operating_system": ANY,
             "type": "test_send_type",
-            "data": {"func_name": "test_send_func", "category": "snowpark_pandas"},
+            "data": {
+                "func_name": "test_send_func",
+                "category": "snowpark_pandas",
+                "error_msg": None,
+            },
         }
     )
 
@@ -350,10 +361,11 @@ def test_telemetry_with_not_implemented_error():
 
     snowpark_pandas_error_test_helper(
         func=snowpark_pandas_telemetry_method_decorator,
-        error=NotImplementedError,
+        error=NotImplementedError("Method bfill is not implemented for Resampler!"),
         telemetry_type=error_to_telemetry_type(
             NotImplementedError("Method bfill is not implemented for Resampler!")
         ),
+        error_msg="Method bfill is not implemented for Resampler!",
         loc_pref="mock_class",
         mock_arg=mock_arg,
     )
@@ -510,6 +522,45 @@ def test_telemetry_property_iloc(
     )
     assert data["api_calls"] == [
         {"name": f"DataFrame.property.{name}_get"},
+    ]
+
+
+def _set_iloc(df: pd.DataFrame) -> None:
+    df.iloc = 3
+
+
+def _del_iloc(df: pd.DataFrame) -> None:
+    del df.iloc
+
+
+@pytest.mark.parametrize(
+    "method_verb, name, method, method_noun",
+    [("set", "iloc", _set_iloc, "setter"), ("delete", "iloc", _del_iloc, "deleter")],
+)
+def test_telemetry_property_missing_methods(method_verb, name, method, method_noun):
+    """Test telemetry for property methods that don't exist, e.g. users can't assign a value to the `iloc` property."""
+    df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+    df._query_compiler.snowpark_pandas_api_calls.clear()
+    # Clear connector telemetry client buffer to avoid flush triggered by the next API call, ensuring log extraction.
+    df._query_compiler._modin_frame.ordered_dataframe.session._conn._telemetry_client.telemetry.send_batch()
+    # This trigger eager evaluation and the messages should have been flushed to the connector, so we have to extract
+    # the telemetry log from the connector to validate
+    with SqlCounter(query_count=0), pytest.raises(
+        AttributeError,
+        match=f"can't {method_verb} attribute"
+        if sys.version_info < (3, 11)
+        else f"property of 'DataFrame' object has no {method_noun}",
+    ):
+        method(df)
+    expected_func_name = f"DataFrame.property.{name}_{method_verb}"
+    data = _extract_snowpark_pandas_telemetry_log_data(
+        expected_func_name=expected_func_name,
+        session=df._query_compiler._modin_frame.ordered_dataframe.session,
+    )
+    assert data["api_calls"] == [
+        {
+            "name": expected_func_name,
+        }
     ]
 
 

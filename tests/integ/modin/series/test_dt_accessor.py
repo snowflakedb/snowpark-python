@@ -9,13 +9,58 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.utils import create_test_series, eval_snowpark_pandas_result
 
 dt_properties = pytest.mark.parametrize(
     "property_name",
-    ["date", "hour", "minute", "second", "year", "month", "day", "quarter"],
+    [
+        "date",
+        "hour",
+        "minute",
+        "second",
+        "microsecond",
+        "nanosecond",
+        "year",
+        "month",
+        "day",
+        "quarter",
+    ],
 )
+
+
+@pytest.fixture
+def day_of_week_or_year_data() -> native_pd.Series:
+    return native_pd.Series(
+        [
+            pd.Timestamp(
+                year=2017,
+                month=1,
+                day=1,
+                hour=10,
+                minute=59,
+                second=59,
+                microsecond=5959,
+            ),
+            pd.Timestamp(year=2000, month=2, day=1),
+            pd.NaT,
+            pd.Timestamp(year=2024, month=7, day=29),
+        ],
+    )
+
+
+@pytest.fixture
+def set_week_start(request):
+    original_start = (
+        pd.session.sql("SHOW PARAMETERS LIKE 'WEEK_START'").collect()[0].value
+    )
+    pd.session.connection.cursor().execute(
+        f"ALTER SESSION SET WEEK_START = {request.param};"
+    )
+    yield
+    pd.session.connection.cursor().execute(
+        f"ALTER SESSION SET WEEK_START = {original_start};"
+    )
 
 
 @pytest.mark.parametrize(
@@ -38,15 +83,56 @@ def test_date(datetime_index_value):
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.dt.date)
 
 
+def test_isocalendar():
+    with SqlCounter(query_count=1):
+        date_range = native_pd.date_range("2020-05-01", periods=5, freq="4D")
+        native_ser = native_pd.Series(date_range)
+        snow_ser = pd.Series(native_ser)
+        eval_snowpark_pandas_result(
+            snow_ser, native_ser, lambda ser: ser.dt.isocalendar()
+        )
+    with SqlCounter(query_count=1):
+        native_ser = native_pd.to_datetime(native_pd.Series(["2010-01-01", None]))
+        snow_ser = pd.Series(native_ser)
+        eval_snowpark_pandas_result(
+            snow_ser, native_ser, lambda ser: ser.dt.isocalendar()
+        )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("property", ["dayofyear", "day_of_year"])
+def test_day_of_year(property, day_of_week_or_year_data):
+    eval_snowpark_pandas_result(
+        *create_test_series(day_of_week_or_year_data),
+        lambda df: getattr(df.dt, property),
+    )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("property", ["dayofweek", "day_of_week"])
+@pytest.mark.parametrize(
+    "set_week_start",
+    # Test different WEEK_START values because WEEK_START changes the DAYOFWEEK
+    # in Snowflake.
+    list(range(8)),
+    indirect=True,
+)
+def test_day_of_week(property, day_of_week_or_year_data, set_week_start):
+    eval_snowpark_pandas_result(
+        *create_test_series(day_of_week_or_year_data),
+        lambda df: getattr(df.dt, property),
+    )
+
+
 @dt_properties
 @sql_count_checker(query_count=1)
 def test_dt_property_with_tz(property_name):
     datetime_index = native_pd.DatetimeIndex(
         [
-            "2014-04-04 23:56",
-            "2014-07-18 21:24",
-            "2015-11-22 22:14",
-            "2015-11-23",
+            "2014-04-04 23:56:01.000000001",
+            "2014-07-18 21:24:02.000000002",
+            "2015-11-22 22:14:03.000000003",
+            "2015-11-23 20:12:04.1234567890",
             pd.NaT,
         ],
         tz="US/Eastern",
@@ -60,7 +146,9 @@ def test_dt_property_with_tz(property_name):
 
 
 @dt_properties
-@pytest.mark.parametrize("freq", ["d", "h", "min", "s", "y", "m", "D", "3m"])
+@pytest.mark.parametrize(
+    "freq", ["d", "h", "min", "s", "y", "m", "D", "3m", "ms", "us", "ns"]
+)
 @sql_count_checker(query_count=1)
 def test_dt_properties(property_name, freq):
     native_ser = native_pd.Series(

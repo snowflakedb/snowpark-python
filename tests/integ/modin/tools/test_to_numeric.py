@@ -88,7 +88,6 @@ def test_series_to_numeric(input, dtype, expected_dtype):
     assert pd.to_numeric(snow_series).dtype == expected_dtype
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize(
     "input, dtype",
     [
@@ -237,7 +236,6 @@ def test_tuple():
     assert_series_equal(res, expected)
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize(
     "input, expected_dtype",
     [
@@ -325,7 +323,9 @@ def test_datetime_like(errors):
         (
             "bin binary",
             "values ('48454C50'),('48454C50')",
-            native_pd.Series([b"HELP", b"HELP"], index=pd.Index([0, 1]), name="BIN"),
+            native_pd.Series(
+                [b"HELP", b"HELP"], index=native_pd.Index([0, 1]), name="BIN"
+            ),
         ),
     ],
 )

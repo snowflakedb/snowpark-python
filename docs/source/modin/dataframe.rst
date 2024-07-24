@@ -2,7 +2,7 @@
 DataFrame
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.pandas
+.. currentmodule:: modin.pandas
 .. rubric:: :doc:`All supported DataFrame APIs <supported/dataframe_supported>`
 
 .. rubric:: Constructor
@@ -29,6 +29,16 @@ DataFrame
     DataFrame.shape
     DataFrame.empty
 
+.. rubric:: Snowflake Specific
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    DataFrame.to_pandas
+    DataFrame.to_snowflake
+    DataFrame.to_snowpark
+    DataFrame.cache_result
+
 .. rubric:: Conversion
 
 .. autosummary::
@@ -43,6 +53,7 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.assign
     DataFrame.head
     DataFrame.loc
     DataFrame.iloc
@@ -77,7 +88,6 @@ DataFrame
     DataFrame.rfloordiv
     DataFrame.rmod
     DataFrame.rpow
-    DataFrame.round
     DataFrame.lt
     DataFrame.gt
     DataFrame.le
@@ -116,6 +126,7 @@ DataFrame
     DataFrame.mean
     DataFrame.median
     DataFrame.min
+    DataFrame.pct_change
     DataFrame.quantile
     DataFrame.rank
     DataFrame.round
@@ -137,6 +148,7 @@ DataFrame
     DataFrame.drop
     DataFrame.drop_duplicates
     DataFrame.duplicated
+    DataFrame.equals
     DataFrame.first
     DataFrame.get
     DataFrame.head
@@ -157,6 +169,8 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.backfill
+    DataFrame.bfill
     DataFrame.dropna
     DataFrame.ffill
     DataFrame.fillna
@@ -172,11 +186,18 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
-    DataFrame.pivot_table
-    DataFrame.sort_values
-    DataFrame.sort_index
     DataFrame.melt
+    DataFrame.nlargest
+    DataFrame.nsmallest
+    DataFrame.pivot
+    DataFrame.pivot_table
+    DataFrame.sort_index
+    DataFrame.nlargest
+    DataFrame.nsmallest
+    DataFrame.melt
+    DataFrame.sort_values
     DataFrame.squeeze
+    DataFrame.stack
     DataFrame.T
     DataFrame.transpose
 
@@ -185,6 +206,7 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.compare
     DataFrame.join
     DataFrame.merge
     DataFrame.update
@@ -204,6 +226,4 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
-    DataFrame.to_pandas
-    DataFrame.to_snowflake
-    DataFrame.to_snowpark
+    DataFrame.to_csv

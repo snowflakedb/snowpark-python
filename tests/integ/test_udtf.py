@@ -45,6 +45,10 @@ except ImportError:
 
 pytestmark = [
     pytest.mark.udf,
+    pytest.mark.skipif(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="UDTF not supported in Local Testing",
+    ),
 ]
 
 
@@ -1111,6 +1115,7 @@ def test_register_udtf_from_type_hints_where_process_returns_None(
 
 
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skip("SNOW-1529353: failing on AWS, re-enable it after fix")
 def test_udtf_external_access_integration(session, db_parameters):
     try:
 
