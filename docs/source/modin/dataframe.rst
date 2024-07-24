@@ -2,7 +2,7 @@
 DataFrame
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.pandas
+.. currentmodule:: modin.pandas
 .. rubric:: :doc:`All supported DataFrame APIs <supported/dataframe_supported>`
 
 .. rubric:: Constructor
@@ -206,6 +206,7 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.compare
     DataFrame.join
     DataFrame.merge
     DataFrame.update
