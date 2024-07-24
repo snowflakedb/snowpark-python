@@ -519,10 +519,8 @@ class SnowflakePlanBuilder:
         else:
             assert (
                 child.schema_query is not None
-            ), "No schema query available for the child"
-            new_schema_query = (
-                schema_query if schema_query else sql_generator(child.schema_query)
-            )
+            ), "No schema query is available in child SnowflakePlan"
+            new_schema_query = schema_query or sql_generator(child.schema_query)
 
         placeholder_query = (
             sql_generator(select_child._id)
