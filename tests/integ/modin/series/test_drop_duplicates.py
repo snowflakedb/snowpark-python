@@ -68,8 +68,8 @@ def test_drop_duplicates_post_sort_values():
     snow_ser = pd.Series(pandas_ser)
 
     assert_series_equal(
-        snow_ser.sort_values().drop_duplicates(),
-        pandas_ser.sort_values().drop_duplicates(),
+        snow_ser.sort_values(kind="stable").drop_duplicates(),
+        pandas_ser.sort_values(kind="stable").drop_duplicates(),
         check_dtype=False,
         check_index_type=False,
     )
