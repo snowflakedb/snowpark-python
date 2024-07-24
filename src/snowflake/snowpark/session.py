@@ -53,6 +53,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import Cast
 from snowflake.snowpark._internal.ast import AstBatch
 from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_python_val,
+    build_proto_from_struct_type,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -2815,6 +2816,15 @@ class Session:
                 raise TypeError(
                     f"Unsupported type {type(origin_data)} in create_dataframe."
                 )
+
+            if schema is not None:
+                if isinstance(schema, list):
+                    for name in schema:
+                        ast.schema.sp_dataframe_schema__list.vs.append(name)
+                elif isinstance(schema, StructType):
+                    build_proto_from_struct_type(
+                        schema, ast.schema.sp_dataframe_schema__struct.v
+                    )
 
             df._ast_id = stmt.var_id.bitfield1
 

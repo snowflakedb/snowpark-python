@@ -166,6 +166,21 @@ def build_expr_from_python_val(obj: Any, expr_builder: proto.Expr) -> None:
         raise NotImplementedError("not supported type: %s" % type(obj))
 
 
+def build_proto_from_struct_type(
+    schema: "snowflake.snowpark.types.StructType", expr: proto.SpStructType
+) -> None:
+    from snowflake.snowpark.types import StructType
+
+    assert isinstance(schema, StructType)
+
+    expr.structured = schema.structured
+    for field in schema.fields:
+        ast_field = expr.fields.add()
+        ast_field.column_identifier.name = field.column_identifier.name
+        field.datatype._fill_ast(ast_field.data_type)
+        ast_field.nullable = field.nullable
+
+
 def build_fn_apply(
     ast: proto.Expr,
     builtin_name: str,
