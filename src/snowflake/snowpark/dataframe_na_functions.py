@@ -344,9 +344,9 @@ class DataFrameNaFunctions:
                 if isinstance(k, str):
                     entry = ast.value_map.list.add()
                     entry._1 = k
-                    build_expr_from_python_val(v, entry._2)
+                    build_expr_from_python_val(entry._2, v)
         else:
-            build_expr_from_python_val(value, ast.value)
+            build_expr_from_python_val(ast.value, value)
         if isinstance(subset, str):
             ast.subset.list.append(subset)
         elif isinstance(subset, Iterable):
@@ -531,21 +531,21 @@ class DataFrameNaFunctions:
         if isinstance(to_replace, dict):
             for k, v in to_replace.items():
                 entry = ast.replacement_map.list.add()
-                build_expr_from_python_val(k, entry._1)
-                build_expr_from_python_val(v, entry._2)
+                build_expr_from_python_val(entry._1, k)
+                build_expr_from_python_val(entry._2, v)
         elif isinstance(to_replace, Iterable):
             for v in to_replace:
                 entry = ast.to_replace_list.list.add()
-                build_expr_from_python_val(v, entry)
+                build_expr_from_python_val(entry, v)
         else:
-            build_expr_from_python_val(to_replace, ast.to_replace_value)
+            build_expr_from_python_val(ast.to_replace_value, to_replace)
 
         if isinstance(value, Iterable):
             for v in value:
                 entry = ast.values.list.add()
-                build_expr_from_python_val(v, entry)
+                build_expr_from_python_val(entry, v)
         else:
-            build_expr_from_python_val(value, ast.value)
+            build_expr_from_python_val(ast.value, value)
 
         if subset is not None:
             ast.subset.list.extend(subset)
