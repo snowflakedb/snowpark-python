@@ -277,7 +277,7 @@ def _disambiguate(
             )
             for name in lhs_names
         ],
-        _suppress_ast=True,
+        _emit_ast=False,
     )
 
     rhs_remapped = rhs.select(
@@ -285,7 +285,7 @@ def _disambiguate(
             _alias_if_needed(rhs, name, rhs_prefix, rsuffix, common_col_names)
             for name in rhs_names
         ],
-        _suppress_ast=True,
+        _emit_ast=False,
     )
     return lhs_remapped, rhs_remapped
 
@@ -1131,7 +1131,7 @@ class DataFrame:
             Iterable[Union[ColumnOrName, TableFunctionCall]],
         ],
         _ast_stmt: proto.Assign = None,
-        _suppress_ast: bool = False,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -1186,7 +1186,7 @@ class DataFrame:
         stmt = _ast_stmt
         ast = None
 
-        if not _suppress_ast and _ast_stmt is None:
+        if _emit_ast and _ast_stmt is None:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
             self.set_ast_ref(ast.df)
@@ -1199,7 +1199,7 @@ class DataFrame:
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
-                if not _suppress_ast and ast:
+                if _emit_ast and ast:
                     ast.cols.append(e._ast)
 
             elif isinstance(e, str):
@@ -1898,9 +1898,9 @@ class DataFrame:
         )
         rownum_name = generate_random_alphanumeric()
         df = (
-            self.select(*output_cols, rownum.as_(rownum_name), _suppress_ast=True)
+            self.select(*output_cols, rownum.as_(rownum_name), _emit_ast=False)
             .where(col(rownum_name) == 1, _supress_ast=True)
-            .select(output_cols, _suppress_ast=True)
+            .select(output_cols, _emit_ast=False)
         )
         # Reformat the extra API calls
         adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=3)
@@ -2037,7 +2037,7 @@ class DataFrame:
         n: int,
         offset: int = 0,
         _ast_stmt: proto.Assign = None,
-        _suppress_ast: bool = False,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
@@ -2048,7 +2048,7 @@ class DataFrame:
             n: Number of rows to return.
             offset: Number of rows to skip before the start of the result set. The default value is 0.
             _ast_stmt: Overridding AST statement. Used in cases where this function is invoked internally.
-            _suppress_ast: Whether to suppress AST statements.
+            _emit_ast: Whether to emit AST statements.
 
         Example::
 
@@ -2069,7 +2069,7 @@ class DataFrame:
             <BLANKLINE>
         """
         # AST.
-        if not _suppress_ast:
+        if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.sp_dataframe_limit, stmt)
@@ -4089,7 +4089,7 @@ class DataFrame:
         ast.block = block
         if n is None:
             ast.num = 1
-            df = self.limit(1, _suppress_ast=True)
+            df = self.limit(1, _emit_ast=False)
             add_api_call(df, "DataFrame.first")
             result = df._internal_collect_with_tag(
                 statement_params=statement_params, block=block
@@ -4106,7 +4106,7 @@ class DataFrame:
             )
         else:
             ast.num = n
-            df = self.limit(n, _suppress_ast=True)
+            df = self.limit(n, _emit_ast=False)
             add_api_call(df, "DataFrame.first")
             return df._internal_collect_with_tag(
                 statement_params=statement_params, block=block
@@ -4501,7 +4501,7 @@ class DataFrame:
                     SKIP_LEVELS_TWO,
                 ),
             )
-        cached_df = self._session.table(temp_table_name, suppress_ast=True)
+        cached_df = self._session.table(temp_table_name, emit_ast=False)
         cached_df.is_cached = True
         cached_df._ast_id = stmt.var_id.bitfield1
         return cached_df
