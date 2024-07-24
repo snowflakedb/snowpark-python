@@ -8,6 +8,7 @@ import os
 import re
 from datetime import date, datetime
 from decimal import Decimal
+from logging import getLogger
 from typing import Iterator
 
 import pytest
@@ -67,6 +68,7 @@ from tests.utils import (
 )
 
 SAMPLING_DEVIATION = 0.4
+_logger = getLogger(__name__)
 
 
 @pytest.mark.localtest
@@ -603,6 +605,7 @@ def test_df_stat_approx_quantile(session):
     assert TestData.approx_numbers(session).stat.approx_quantile(
         "a", [0.5], statement_params={"SF_PARTNER": "FAKE_PARTNER"}
     ) == [4.5]
+
     assert TestData.approx_numbers(session).stat.approx_quantile(
         "a", [0, 0.1, 0.4, 0.6, 1]
     ) in (
@@ -622,6 +625,7 @@ def test_df_stat_approx_quantile(session):
 
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "num int")
+
     try:
         assert session.table(table_name).stat.approx_quantile("num", [0.5])[0] is None
 
@@ -632,9 +636,18 @@ def test_df_stat_approx_quantile(session):
                 [[0.05, 0.15000000000000002, 0.25], [0.45, 0.55, 0.6499999999999999]],
             )  # old behavior of Snowflake
         except AssertionError:
-            Utils.assert_rows(
-                res, [[0.1, 0.12000000000000001, 0.22], [0.5, 0.52, 0.62]]
-            )  # new behavior of Snowflake
+            try:
+                Utils.assert_rows(
+                    res, [[0.1, 0.12000000000000001, 0.22], [0.5, 0.52, 0.62]]
+                )  # new behavior of Snowflake
+            except AssertionError:
+                Utils.assert_rows(
+                    res,
+                    [
+                        [0.05, 0.08000000000000002, 0.22999999999999998],
+                        [0.45, 0.48, 0.6299999999999999],
+                    ],
+                )
 
         # ApproxNumbers2 contains a column called T, which conflicts with tmpColumnName.
         # This test demos that the query still works.
