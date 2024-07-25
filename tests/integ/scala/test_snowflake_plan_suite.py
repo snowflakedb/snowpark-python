@@ -260,6 +260,7 @@ def test_create_scoped_temp_table(session):
                 None,
                 use_scoped_temp_objects=True,
                 is_generated=True,
+                child_attributes=df._plan.attributes,
             )
             .queries[0]
             .sql
@@ -277,6 +278,7 @@ def test_create_scoped_temp_table(session):
                 None,
                 use_scoped_temp_objects=False,
                 is_generated=True,
+                child_attributes=df._plan.attributes,
             )
             .queries[0]
             .sql
@@ -295,6 +297,7 @@ def test_create_scoped_temp_table(session):
                 None,
                 use_scoped_temp_objects=True,
                 is_generated=False,
+                child_attributes=df._plan.attributes,
             )
             .queries[0]
             .sql
@@ -314,6 +317,7 @@ def test_create_scoped_temp_table(session):
                 None,
                 use_scoped_temp_objects=True,
                 is_generated=True,
+                child_attributes=df._plan.attributes,
             )
     finally:
         Utils.drop_table(session, table_name)
