@@ -6,6 +6,7 @@
 
 #### Improvements
 - Added support server side string size limitations.
+- Added support for passing `INFER_SCHEMA` options to `DataFrameReader` via `INFER_SCHEMA_OPTIONS`.
 
 #### Bug Fixes
 - Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
@@ -30,7 +31,6 @@
 - Added support for `Series.dt.microsecond` and `Series.dt.nanosecond`.
 - Added support for `Index.is_unique` and `Index.has_duplicates`.
 - Added support for `Index.equals`.
-- Added support for passing `INFER_SCHEMA` options to `DataFrameReader` via `INFER_SCHEMA_OPTIONS`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
