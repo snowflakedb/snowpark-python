@@ -254,7 +254,7 @@ class RelationalGroupedDataFrame:
             if _ast_stmt is None:
                 stmt = self._df._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.sp_relational_grouped_dataframe_agg, stmt)
-                self._set_ast_ref(ast.rgdf)
+                self._set_ast_ref(ast.grouped_df)
                 ast.variadic = is_variadic
                 for e in exprs:
                     build_expr_from_python_val(ast.exprs.add(), e)
