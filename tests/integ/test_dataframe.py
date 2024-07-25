@@ -1462,6 +1462,25 @@ def test_df_col(session):
     assert isinstance(c._expression, Star)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Session.query_history is not supported",
+    run=False,
+)
+def test_cache_result_query(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    with session.query_history() as history:
+        df.cache_result()
+
+    assert len(history.queries) == 2
+    assert "CREATE  SCOPED TEMPORARY  TABLE" in history.queries[0].sql_text
+    assert (
+        "INSERT  INTO" in history.queries[1].sql_text
+        and 'SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, 2 :: INT)'
+        in history.queries[1].sql_text
+    )
+
+
 def test_create_dataframe_with_basic_data_types(session):
     data1 = [
         1,
@@ -3963,3 +3982,26 @@ def test_create_empty_dataframe(session):
         ]
     )
     assert not session.create_dataframe(data=[], schema=schema).collect()
+
+
+def test_dataframe_to_local_iterator_with_to_pandas_isolation(
+    session, local_testing_mode
+):
+    df = session.create_dataframe(
+        [["xyz", int("1" * 19)] for _ in range(200000)], schema=["a1", "b1"]
+    )
+    trigger_df = session.create_dataframe(
+        [[1.0]], schema=StructType([StructField("A", DecimalType())])
+    )
+    my_iter = df.to_pandas_batches()
+    batch_count = 0
+    for pdf in my_iter:
+        # modify result_cursor and trigger _fix_pandas_df_fixed_type()
+        trigger_df.select(col("A")).collect()
+        # column name should remain unchanged
+        assert tuple(pdf.columns) == ("A1", "B1")
+        batch_count += 1
+        print(batch_count)
+    # local testing always give 1 chunk
+    if not local_testing_mode:
+        assert batch_count > 1

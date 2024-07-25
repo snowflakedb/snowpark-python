@@ -8,6 +8,10 @@
 - Exposed `SessionBuilder.appName` as an alias for `SessionBuilder.app_name`
 - Added support server side string size limitations.
 
+#### Bug Fixes
+- Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
+- Fixed a bug in `DataFrame.to_pandas_batches` where the iterator could throw an error if certain transformation is made to the pandas dataframe due to wrong isolation level.
+
 ### Snowpark Local Testing Updates
 #### New Features
 
@@ -21,13 +25,20 @@
     - datediff
 
 ### Snowpark pandas API Updates
-
 #### New Features
 - Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
 - Added support for `DataFrame.compare` and `Series.compare` with default parameters.
+- Added support for `Series.dt.microsecond` and `Series.dt.nanosecond`.
+- Added support for `Index.is_unique` and `Index.has_duplicates`.
+- Added support for `Index.equals`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
+
+#### Bug Fixes
+- Made passing an unsupported aggregation function to `pivot_table` raise `NotImplementedError` instead of `KeyError`.
+- Removed axis labels and callable names from error messages and telemetry about unsupported aggregations.
+- Fixed AssertionError in `Series.drop_duplicates` and `DataFrame.drop_duplicates` when called after `sort_values`.
 
 
 ## 1.20.0 (2024-07-17)

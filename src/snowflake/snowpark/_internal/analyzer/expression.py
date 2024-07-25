@@ -226,7 +226,14 @@ class Star(Expression):
         self.df_alias = df_alias
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(*self.expressions)
+        # When the column is `df['*']`, `expressions` contains Attributes from all columns
+        # When the column is `col('*')` or just '*' string, `expressions` is empty,
+        # but its dependent columns should be all columns too
+        return (
+            derive_dependent_columns(*self.expressions)
+            if self.expressions
+            else COLUMN_DEPENDENCY_ALL
+        )
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:

@@ -970,6 +970,7 @@ class Analyzer:
             return self.plan_builder.table(logical_plan.name, logical_plan)
 
         if isinstance(logical_plan, SnowflakeCreateTable):
+            resolved_child = resolved_children[logical_plan.children[0]]
             return self.plan_builder.save_as_table(
                 logical_plan.table_name,
                 logical_plan.column_names,
@@ -980,8 +981,11 @@ class Analyzer:
                     for x in logical_plan.clustering_exprs
                 ],
                 logical_plan.comment,
-                resolved_children[logical_plan.children[0]],
+                resolved_child,
                 logical_plan,
+                self.session._use_scoped_temp_objects,
+                logical_plan.is_generated,
+                resolved_child.attributes,
             )
 
         if isinstance(logical_plan, Limit):

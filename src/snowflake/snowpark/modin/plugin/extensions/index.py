@@ -320,7 +320,6 @@ class Index:
         # TODO: SNOW-1458134 implement is_monotonic_decreasing
 
     @property
-    @is_lazy_check
     def is_unique(self) -> bool:
         """
         Return if the index has unique values.
@@ -354,9 +353,9 @@ class Index:
         >>> idx.is_unique
         True
         """
-        # TODO: SNOW-1458131 implement is_unique
-        WarningMessage.index_to_pandas_warning("is_unique")
-        return self.to_pandas().is_unique
+        if not self.is_lazy:
+            return self._index.is_unique
+        return self._query_compiler._modin_frame.has_unique_index()
 
     @property
     @is_lazy_check
@@ -393,7 +392,6 @@ class Index:
         >>> idx.has_duplicates
         False
         """
-        # TODO: SNOW-1458131 implement has_duplicates
         return not self.is_unique
 
     @is_lazy_check
@@ -1010,7 +1008,6 @@ class Index:
         WarningMessage.index_to_pandas_warning("duplicated")
         return self.to_pandas().duplicated(keep=keep)
 
-    @is_lazy_check
     def equals(self, other: Any) -> bool:
         """
         Determine if two Index objects are equal.
@@ -1046,7 +1043,7 @@ class Index:
         Index(['1', '2', '3'], dtype='object')
 
         >>> idx1.equals(idx2)
-        False
+        True
 
         The order is compared
 
@@ -1072,9 +1069,29 @@ class Index:
         >>> int64_idx.equals(uint64_idx)
         True
         """
-        # TODO: SNOW-1458148 implement equals
-        WarningMessage.index_to_pandas_warning("equals")
-        return self.to_pandas().equals(try_convert_index_to_native(other))
+        if self is other:
+            return True
+
+        if not isinstance(other, (Index, native_pd.Index)):
+            return False
+
+        if isinstance(other, native_pd.Index):
+            # Same as DataFrame/Series equals. Convert native Index to Snowpark pandas
+            # Index for comparison.
+            other = Index(other, convert_to_lazy=self.is_lazy)
+
+        left = self
+        right = other
+        # If both are cached compare underlying cached value locally.
+        if not left.is_lazy and not right.is_lazy:
+            return left._index.equals(right._index)
+
+        # Ensure both sides are lazy before calling index_equals on query_compiler.
+        if not left.is_lazy:
+            left = Index(left._index, convert_to_lazy=True)
+        if not right.is_lazy:
+            right = Index(right._index, convert_to_lazy=True)
+        return left._query_compiler.index_equals(right._query_compiler)
 
     @index_not_implemented()
     def identical(self) -> None:
