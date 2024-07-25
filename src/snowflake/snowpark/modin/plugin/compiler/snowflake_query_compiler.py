@@ -5048,54 +5048,59 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     ) -> "SnowflakeQueryCompiler":
         level = groupby_kwargs.get("level", None)
         as_index = groupby_kwargs.get("as_index", True)
+        groupby_sort = groupby_kwargs.get("sort", True)
         is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
         if not is_supported:
             ErrorMessage.not_implemented(
-                "Snowpark pandas GroupBy.value_counts does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+                f"Snowpark pandas GroupBy.value_counts {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
             )
         if not is_list_like(by):
             by = [by]
         if subset is not None:
             if not isinstance(subset, (list, tuple)):
                 subset = [subset]
-            else:
-                subset = [
-                    label
-                    for label in self._modin_frame.data_column_pandas_labels
-                    if label not in by
-                ]
+            # All "by" columns must be included in the subset list passed to value_counts
+            subset = [by_label for by_label in by if by_label not in subset] + subset
+        else:
+            # If subset is unspecified, then all columns are part of it
+            subset = self._modin_frame.data_column_pandas_labels
 
         if as_index:
             # When as_index=True, the result is a Series with a MultiIndex index.
             result = self.value_counts(
+                # Use sort=False to preserve the original order
+                sort=False,
                 subset=subset,
                 normalize=normalize,
-                sort=sort,
                 bins=bins,
                 dropna=dropna,
+                normalize_within_groups=by,
             )
         else:
             # When as_index=False, the result is a DataFrame where count/proportion is appended as a new named column.
-            sort_cols = by
             result = self.value_counts(
+                # Use sort=False to preserve the original order
+                sort=False,
                 subset=subset,
                 normalize=normalize,
                 bins=bins,
                 dropna=dropna,
+                normalize_within_groups=by,
             ).reset_index()
             result = result.set_columns(
                 result._modin_frame.data_column_pandas_labels[:-1]
                 + ["proportion" if normalize else "count"]
             )
-        # Always sort the result by all columns except proportion/count
-        sort_cols = [
-            label
-            for label in self._modin_frame.data_column_pandas_labels
-            if label in result._modin_frame.data_column_pandas_labels
-        ]
+        # Within groups, rows are ordered based on their first appearance in the input frame.
+        # Note that in native pandas, preservation of order on non-grouping columns is not guaranteed:
+        # https://github.com/pandas-dev/pandas/issues/59307
+        sort_cols = []
+        if groupby_sort:
+            # When groupby(sort=True), sort the result on the grouping columns
+            sort_cols = by
         ascending_cols = [True] * len(sort_cols)
         if sort:
-            # When sort=True, also sort on the value column (always the last)
+            # When sort=True, also sort on the count/proportion column (always the last)
             sort_cols.append(
                 result._modin_frame.data_column_pandas_labels[-1],
             )
@@ -5103,7 +5108,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return result.sort_rows_by_column_values(
             columns=sort_cols,
             ascending=ascending_cols,
-            kind="quicksort",
+            kind="stable",
             na_position="last",
             ignore_index=not as_index,  # When as_index=False, take the default positional index
         )
@@ -11552,6 +11557,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ascending: bool = False,
         bins: Optional[int] = None,
         dropna: bool = True,
+        *,
+        normalize_within_groups: Optional[list[str]] = None,
     ) -> "SnowflakeQueryCompiler":
         """
         Counts the frequency or number of unique values of SnowflakeQueryCompiler.
@@ -11576,6 +11583,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 This argument is not supported yet.
             dropna : bool, default True
                 Don't include counts of NaN.
+            normalize_within_groups : list[str], optional
+                If set, the normalize parameter will normalize based on the specified groups
+                rather than the entire dataset. This parameter is exclusive to the Snowpark pandas
+                query compiler and is only used internally to implement groupby_value_counts.
         """
         # TODO: SNOW-924742 Support bins in Series.value_counts
         if bins is not None:
@@ -11647,9 +11658,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # they are normalized to percentages as [2/(2+1+1), 1/(2+1+1), 1/(2+1+1)] = [0.5, 0.25, 0.25]
         # by default, ratio_to_report returns a decimal column, whereas pandas returns a float column
         if normalize:
+            if normalize_within_groups:
+                # If normalize_within_groups is set, then the denominator for ratio_to_report should
+                # be the size of each group instead.
+                normalize_snowflake_quoted_identifiers = [
+                    entry[0]
+                    for entry in internal_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                        normalize_within_groups
+                    )
+                ]
+                window = Window.partition_by(normalize_snowflake_quoted_identifiers)
+            else:
+                window = None
             internal_frame = query_compiler._modin_frame.project_columns(
                 [COUNT_LABEL],
-                builtin("ratio_to_report")(col(count_identifier)).over(),
+                builtin("ratio_to_report")(col(count_identifier)).over(window),
             )
             count_identifier = internal_frame.data_column_snowflake_quoted_identifiers[
                 0
