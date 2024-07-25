@@ -5,7 +5,8 @@ The following table is structured as follows: The first column contains the meth
 The second column is a flag for whether or not there is an implementation in Snowpark for
 the method in the left column.
 
-Currently, there is no MultiIndex support.
+Currently, there is no lazy MultiIndex support. This lazy Index object is only a single Index object.
+However, existing Snowpark pandas DataFrame and Series APIs may support native pandas MultiIndex objects.
 
 .. note::
     ``Y`` stands for yes, i.e., supports distributed implementation, ``N`` stands for no and API simply errors out,
