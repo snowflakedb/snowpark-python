@@ -4,17 +4,42 @@
 
 ### Snowpark Python API Updates
 
+#### Improvements
+- Added support server side string size limitations.
+
+#### Bug Fixes
+- Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
+- Fixed a bug in `DataFrame.to_pandas_batches` where the iterator could throw an error if certain transformation is made to the pandas dataframe due to wrong isolation level.
+
 ### Snowpark Local Testing Updates
+#### New Features
+
+- Added support for the following APIs:
+  - snowflake.snowpark.functions
+    - rank
+    - dense_rank
+    - percent_rank
+    - cume_dist
+    - ntile
+    - datediff
 
 ### Snowpark pandas API Updates
-
 #### New Features
 - Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
 - Added support for `DataFrame.compare` and `Series.compare` with default parameters.
+- Added support for `Series.dt.microsecond` and `Series.dt.nanosecond`.
+- Added support for `Index.is_unique` and `Index.has_duplicates`.
+- Added support for `Index.equals`.
 - Added support for `Index.value_counts`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
+- Removed unnecessary count query from `SnowflakeQueryCompiler.is_series_like` method.
+
+#### Bug Fixes
+- Made passing an unsupported aggregation function to `pivot_table` raise `NotImplementedError` instead of `KeyError`.
+- Removed axis labels and callable names from error messages and telemetry about unsupported aggregations.
+- Fixed AssertionError in `Series.drop_duplicates` and `DataFrame.drop_duplicates` when called after `sort_values`.
 
 
 ## 1.20.0 (2024-07-17)
@@ -78,6 +103,9 @@
 - Added support for `DataFrame.corr`.
 - Added support for `DataFrame.equals` and `Series.equals`.
 - Added support for `DataFrame.reindex` and `Series.reindex`.
+- Added support for `Index.astype`.
+- Added support for `Index.unique` and `Index.nunique`.
+- Added support for `Index.sort_values`.
 
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
@@ -152,7 +180,7 @@
 - Added support for `DataFrame.stack`.
 - Added support for `DataFrame.pivot` and `pd.pivot`.
 - Added support for `DataFrame.to_csv` and `Series.to_csv`.
-- Added support for `Index.sort_values`.
+- Added support for `Index.T`.
 
 #### Bug Fixes
 

@@ -970,6 +970,7 @@ class Analyzer:
             return self.plan_builder.table(logical_plan.name, logical_plan)
 
         if isinstance(logical_plan, SnowflakeCreateTable):
+            resolved_child = resolved_children[logical_plan.children[0]]
             return self.plan_builder.save_as_table(
                 logical_plan.table_name,
                 logical_plan.column_names,
@@ -980,7 +981,11 @@ class Analyzer:
                     for x in logical_plan.clustering_exprs
                 ],
                 logical_plan.comment,
-                resolved_children[logical_plan.children[0]],
+                resolved_child,
+                logical_plan,
+                self.session._use_scoped_temp_objects,
+                logical_plan.is_generated,
+                resolved_child.attributes,
             )
 
         if isinstance(logical_plan, Limit):
@@ -1109,6 +1114,7 @@ class Analyzer:
                 resolved_children[logical_plan.child],
                 is_temp,
                 logical_plan.comment,
+                logical_plan,
             )
 
         if isinstance(logical_plan, CreateDynamicTableCommand):
@@ -1118,6 +1124,7 @@ class Analyzer:
                 logical_plan.lag,
                 logical_plan.comment,
                 resolved_children[logical_plan.child],
+                logical_plan,
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):
@@ -1134,6 +1141,7 @@ class Analyzer:
                 path=logical_plan.file_path,
                 table_name=logical_plan.table_name,
                 files=logical_plan.files,
+                source_plan=logical_plan,
                 pattern=logical_plan.pattern,
                 file_format=logical_plan.file_format,
                 format_type_options=format_type_options,
@@ -1154,6 +1162,7 @@ class Analyzer:
             return self.plan_builder.copy_into_location(
                 query=resolved_children[logical_plan.child],
                 stage_location=logical_plan.stage_location,
+                source_plan=logical_plan,
                 partition_by=self.analyze(
                     logical_plan.partition_by, df_aliased_col_name_to_real_col_name
                 )

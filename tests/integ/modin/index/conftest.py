@@ -25,7 +25,9 @@ NATIVE_INDEX_TEST_DATA = [
 ]
 
 NATIVE_INDEX_UNIQUE_TEST_DATA = [
-    native_pd.Index([], dtype="object"),
+    native_pd.Index([], dtype="object", name="empty"),
+    native_pd.Index([None], name="single_none"),
+    native_pd.Index([None, None], name="all none"),
     native_pd.Index([1, 2, 3.55, -0.992, 1, 3, 2, 1, 2, 3, 4, 2, 1]),
     native_pd.Index([3, np.nan, 5, np.nan, np.nan, 5, 5, 5.0], name="my_index"),
     native_pd.Index([5, None, 7, None]),
