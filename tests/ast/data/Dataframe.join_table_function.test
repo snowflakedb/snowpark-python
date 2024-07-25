@@ -1,0 +1,11 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+split = table_function("STRTOK_SPLIT_TO_TABLE")
+
+df = df.join_table_function(split("one two three", lit(" "))).over(partition_by="str", order_by="num")
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
