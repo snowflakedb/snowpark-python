@@ -103,8 +103,8 @@ def test_drop_duplicates_post_sort_values():
     snow_df = pd.DataFrame(pandas_df)
 
     assert_frame_equal(
-        snow_df.sort_values("A").drop_duplicates(),
-        pandas_df.sort_values("A").drop_duplicates(),
+        snow_df.sort_values("A", kind="stable").drop_duplicates(),
+        pandas_df.sort_values("A", kind="stable").drop_duplicates(),
         check_dtype=False,
         check_index_type=False,
     )
