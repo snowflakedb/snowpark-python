@@ -2922,6 +2922,12 @@ class DataFrame:
             - :meth:`Session.table_function`, which creates a new :class:`DataFrame` by using the SQL table function.
 
         """
+
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_join_table_function, stmt)
+        self.set_ast_ref(ast.lhs)
+
         func_expr = _create_table_function_expression(
             func, *func_arguments, **func_named_arguments
         )
