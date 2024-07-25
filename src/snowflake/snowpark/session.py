@@ -2355,6 +2355,19 @@ class Session:
         Returns:
             A new :class:`DataFrame` with data from calling the generator table function.
         """
+        # AST.
+        stmt = self._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_generator)
+        col_names, is_variadic = parse_positional_args_to_list_variadic(*columns)
+        for col_name in col_names:
+            ast.columns.append(col_name._ast)
+        ast.row_count = rowcount
+        ast.time_limit_seconds = timelimit
+        ast.variadic = is_variadic
+
+        if self._conn._suppress_not_implemented_error:
+            return None
+
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
                 external_feature_name="DataFrame.generator",
@@ -3205,6 +3218,14 @@ class Session:
             [Row(ID=1), Row(ID=3), Row(ID=5), Row(ID=7), Row(ID=9)]
         """
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
+
+        # AST.
+        stmt = self._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_range)
+        ast.start = start
+        if end:
+            ast.end.value = end
+        ast.step.value = step
 
         if self.sql_simplifier_enabled:
             df = DataFrame(

@@ -1727,7 +1727,7 @@ class DataFrame:
         col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
         for c in col_list:
             build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
-        
+
         rollup_exprs = self._convert_cols_to_exprs("rollup()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
@@ -1783,12 +1783,14 @@ class DataFrame:
                 stmt = self._session._ast_batch.assign()
                 expr = with_src_position(stmt.expr.sp_dataframe_group_by, stmt)
                 self.set_ast_ref(expr.df)
-                col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
+                col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(
+                    *cols
+                )
                 for c in col_list:
                     build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
             else:
                 stmt = _ast_stmt
-        
+
         grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
@@ -1837,7 +1839,9 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         expr = with_src_position(stmt.expr.sp_dataframe_group_by_grouping_sets, stmt)
         self.set_ast_ref(expr.df)
-        grouping_set_list, expr.variadic = parse_positional_args_to_list_variadic(*grouping_sets)
+        grouping_set_list, expr.variadic = parse_positional_args_to_list_variadic(
+            *grouping_sets
+        )
         for gs in grouping_set_list:
             expr.grouping_sets.append(gs._ast)
 
@@ -1866,7 +1870,7 @@ class DataFrame:
         col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
         for c in col_list:
             build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
-        
+
         cube_exprs = self._convert_cols_to_exprs("cube()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
