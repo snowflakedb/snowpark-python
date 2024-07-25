@@ -171,9 +171,11 @@ def test_save_as_table_no_drop(session):
 def test_auto_clean_up_temp_table_enabled_parameter(db_parameters, session, caplog):
     with caplog.at_level(logging.WARNING):
         session.auto_clean_up_temp_table_enabled = True
+    assert session.auto_clean_up_temp_table_enabled is True
     assert "auto_clean_up_temp_table_enabled is experimental" in caplog.text
     assert session._temp_table_cleaner.is_alive()
     session.auto_clean_up_temp_table_enabled = False
+    assert session.auto_clean_up_temp_table_enabled is False
     assert not session._temp_table_cleaner.is_alive()
     with pytest.raises(
         ValueError,

@@ -9,7 +9,7 @@ from queue import Queue
 from typing import TYPE_CHECKING, Dict
 
 if TYPE_CHECKING:
-    from snowflake.snowpark.session import Session
+    from snowflake.snowpark.session import Session  # pragma: no cover
 
 
 class TempTableCleaner:
@@ -60,7 +60,9 @@ class TempTableCleaner:
                 cursor.execute(f"drop table if exists {name}")
             logging.debug(f"Cleanup Thread: Successfully dropped {common_log_text}")
         except Exception:
-            logging.debug(f"Cleanup Thread: Failed to drop {common_log_text}")
+            logging.debug(
+                f"Cleanup Thread: Failed to drop {common_log_text}"
+            )  # pragma: no cover
 
     def is_alive(self) -> bool:
         return self.cleanup_thread is not None and self.cleanup_thread.is_alive()
