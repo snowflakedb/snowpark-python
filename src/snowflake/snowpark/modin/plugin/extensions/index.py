@@ -26,6 +26,7 @@ from __future__ import annotations
 from functools import wraps
 from typing import Any, Callable, Hashable, Iterator, Literal
 
+import modin
 import numpy as np
 import pandas as native_pd
 from pandas._libs import lib
@@ -1602,9 +1603,9 @@ class Index:
     @is_lazy_check
     def to_frame(
         self, index: bool = True, name: Hashable | None = lib.no_default
-    ) -> DataFrame:
+    ) -> modin.pandas.DataFrame:
         """
-        Create a DataFrame with a column containing the Index.
+        Create a :class:`DataFrame` with a column containing the Index.
 
         Parameters
         ----------
@@ -1617,8 +1618,8 @@ class Index:
 
         Returns
         -------
-        DataFrame
-            DataFrame containing the original Index data.
+        :class:`DataFrame`
+            :class:`DataFrame` containing the original Index data.
 
         See Also
         --------
