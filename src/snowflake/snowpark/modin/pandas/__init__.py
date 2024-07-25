@@ -346,3 +346,71 @@ import snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.default  #
 modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register = (
     snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register
 )
+
+
+from snowflake.snowpark.types import register_user_defined_type, TimestampType, register_user_defined_binary_expression_behavior
+from snowflake.snowpark._internal.analyzer.binary_expression import Add, Subtract
+from snowflake.snowpark.functions import Column, dateadd, Literal, datediff
+
+import pandas
+
+
+TimedeltaType = register_user_defined_type(
+    "TimedeltaType",
+    to_pandas=lambda v: pandas.Timedelta(v, "ns")
+)
+
+
+# TODO: here, can we avoid accessing Snowpark internals like the expression Add itself,
+# or the internals of Add, like Add.children ?
+# can we move the entire type tracking up to the Snowpark DataFrame and define custom behaviors for Snowpark functions instead?
+
+register_user_defined_binary_expression_behavior(
+    Add,
+    left_type=TimestampType,
+    right_type=TimedeltaType,
+    new_type=TimestampType,
+    rewrite=lambda expr: dateadd("ns", Column(expr.children[1]), Column(expr.children[0]))._expression
+)
+
+register_user_defined_binary_expression_behavior(
+    Add,
+    left_type=TimedeltaType,
+    right_type=TimestampType,
+    new_type=TimestampType,
+    rewrite=lambda expr: dateadd("ns", Column(expr.children[0]), Column(expr.children[1]))._expression
+)
+
+
+register_user_defined_binary_expression_behavior(
+    Add,
+    left_type=TimedeltaType,
+    right_type=TimedeltaType,
+    new_type=TimedeltaType,
+    # no rewrite. just add with the usual arithmetic.
+)
+
+register_user_defined_binary_expression_behavior(
+    Subtract,
+    left_type=TimestampType,
+    right_type=TimestampType,
+    new_type=TimedeltaType,
+    rewrite=lambda expr: datediff("ns", Column(expr.children[1]), Column(expr.children[0]))._expression
+)
+
+register_user_defined_binary_expression_behavior(
+    Subtract,
+    left_type=TimedeltaType,
+    right_type=TimedeltaType,
+    new_type=TimedeltaType,
+    # no rewrite. just subtract with the usual arithmetic.
+)
+
+register_user_defined_binary_expression_behavior(
+    Subtract,
+    left_type=TimestampType,
+    right_type=TimedeltaType,
+    new_type=TimedeltaType,
+    rewrite=lambda expr: dateadd("ns", -Column(expr.children[1]), Column(expr.children[0]))._expression
+)
+

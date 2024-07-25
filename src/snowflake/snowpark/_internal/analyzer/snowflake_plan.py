@@ -11,7 +11,6 @@ from enum import Enum
 from .expression import FunctionExpression, UnresolvedAttribute
 from snowflake.snowpark._internal.utils import quote_name
 from functools import cached_property
-from snowflake.snowpark.column import TimestampType, TimedeltaType
 from typing import (
     TYPE_CHECKING,
     Any,

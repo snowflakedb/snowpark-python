@@ -7,7 +7,6 @@ from collections import Counter, defaultdict
 from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
 
 import snowflake.snowpark
-from snowflake.snowpark.column import TimestampType, TimedeltaType
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     alias_expression,
     binary_arithmetic_expression,
@@ -154,7 +153,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.utils import quote_name
-from snowflake.snowpark.types import _NumericType
+from snowflake.snowpark.types import _NumericType, get_user_defined_binary_expression_rewrite
 
 ARRAY_BIND_THRESHOLD = 512
 
@@ -694,17 +693,12 @@ class Analyzer:
             # TODO: it doesn't seem appropriate to rewrite the expression at this stage,
             # but on the other hand Column and Expression themselves do not have access
             # to types.
-            if isinstance(expr, Subtract) and isinstance(expr.left.datatype, TimestampType) and isinstance(expr.right.datatype, TimestampType):
-                return f'datediff("ns", {right_sql_expr}, {left_sql_expr})'
-
-            if isinstance(expr, Add):
-                if isinstance(expr.left.datatype, TimestampType) and isinstance(expr.right.datatype, TimedeltaType):
-                    return f'dateadd("ns", {right_sql_expr}, {left_sql_expr})'
-                if isinstance(expr.left.datatype, TimedeltaType) and isinstance(expr.right.datatype, TimestampType):
-                    return f'dateadd("ns", {left_sql_expr}, {right_sql_expr})'
+            rewrite = get_user_defined_binary_expression_rewrite(expr)
+            
+            if rewrite is not None:
+                return self.analyze(rewrite, df_aliased_col_name_to_real_col_name, parse_local_name)
 
             return binary_arithmetic_expression(
-
                 expr.sql_operator,
                 left_sql_expr,
                 right_sql_expr,

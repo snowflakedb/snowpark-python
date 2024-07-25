@@ -96,7 +96,7 @@ class Alias(UnaryExpression, NamedExpression):
         self.child.resolve_datatype(input_attributes)
         self.datatype = self.child.datatype
         if self.datatype is None:
-            raise RuntimeError        
+            raise NotImplementedError('Alias could not resolve datatype')
 
 class UnresolvedAlias(UnaryExpression, NamedExpression):
     sql_operator = "AS"

@@ -154,7 +154,7 @@ from snowflake.snowpark.table_function import (
     _get_cols_after_explode_join,
     _get_cols_after_join_table,
 )
-from snowflake.snowpark.types import StringType, StructType, _NumericType
+from snowflake.snowpark.types import StringType, StructType, _NumericType, UserDefinedType
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -812,11 +812,9 @@ class DataFrame:
                 ),
                 **kwargs,
             )
-            from snowflake.snowpark.types import TimedeltaType
-            import pandas            
             for i, attribute in enumerate(self.schema):
-                if isinstance(attribute.datatype, TimedeltaType):
-                    result.iloc[:, i] = result.iloc[:, i].apply(lambda v: pandas.Timedelta(v, "ns"))
+                if isinstance(attribute.datatype, UserDefinedType):
+                    result.iloc[:, i] = result.iloc[:, i].apply(type(attribute.datatype).to_pandas)
 
         # if the returned result is not a pandas dataframe, raise Exception
         # this might happen when calling this method with non-select commands

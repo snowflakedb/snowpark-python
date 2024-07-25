@@ -18,9 +18,6 @@ df = pd.DataFrame(
 # check we can print dataframe
 print(df)
 
-# The schema has the correct snowpark types.
-print(df._query_compiler._modin_frame.ordered_dataframe._dataframe_ref.snowpark_dataframe.schema)
-
 # subracting two timestamps.
 time_delta = df[0] - df[1]
 
@@ -41,6 +38,9 @@ print(time_delta_sum)
 # add the resulting timedelta to a timestamp again
 
 print(df[0] + time_delta_sum)
+
+
+# construct from literal
 
 ### Section 2. Interval
 
