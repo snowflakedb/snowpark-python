@@ -33,6 +33,7 @@
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
+- Removed unnecessary count query from `SnowflakeQueryCompiler.is_series_like` method.
 
 #### Bug Fixes
 - Made passing an unsupported aggregation function to `pivot_table` raise `NotImplementedError` instead of `KeyError`.
