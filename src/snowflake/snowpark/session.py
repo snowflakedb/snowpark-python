@@ -15,7 +15,6 @@ import sys
 import tempfile
 import warnings
 from array import array
-from collections import defaultdict
 from functools import reduce
 from logging import getLogger
 from threading import RLock
@@ -66,6 +65,7 @@ from snowflake.snowpark._internal.packaging_utils import (
 )
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.telemetry import set_api_call_source
+from snowflake.snowpark._internal.temp_table_cleaner import TempTableCleaner
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sp_to_sf_type,
@@ -199,6 +199,9 @@ _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING = "PYTHON_SNOWPARK_USE_CTE_OPTIMIZA
 #               at server side
 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
     "PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED"
+)
+_PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = (
+    "PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED"
 )
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
@@ -538,13 +541,19 @@ class Session:
                 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED, False
             )
         )
+        self._auto_clean_up_temp_table_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED, False
+            )
+        )
+
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
         self._runtime_version_from_requirement: str = None
-        # this dict maintains key-value pair from Snowpark-generated temp table fully-qualified name
-        # to its reference count for later temp table management
-        self._temp_table_ref_count_map: Dict[str, int] = defaultdict(int)
+        self._temp_table_cleaner: TempTableCleaner = TempTableCleaner(self)
+        if self._auto_clean_up_temp_table_enabled:
+            self._temp_table_cleaner.start()
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -561,14 +570,6 @@ class Session:
             f"role={self.get_current_role()}, database={self.get_current_database()}, "
             f"schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
         )
-
-    def _dec_temp_table_ref_count(self, name: str) -> None:
-        """Decrements the reference count."""
-        # TODO: SNOW-1531493 Remove this function once we can hook
-        # the cleanup function with SnowflakeTable._finalizer
-        self._temp_table_ref_count_map[name] -= 1
-        if self._temp_table_ref_count_map[name] == 0:
-            self._temp_table_ref_count_map.pop(name)
 
     def _generate_new_action_id(self) -> int:
         self._last_action_id += 1
@@ -593,6 +594,8 @@ class Session:
         finally:
             try:
                 self._conn.close()
+                if self._temp_table_cleaner.is_alive():
+                    self._temp_table_cleaner.stop()
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
@@ -618,6 +621,10 @@ class Session:
     @property
     def eliminate_numeric_sql_value_cast_enabled(self) -> bool:
         return self._eliminate_numeric_sql_value_cast_enabled
+
+    @property
+    def auto_clean_up_temp_table_enabled(self) -> bool:
+        return self._auto_clean_up_temp_table_enabled
 
     @property
     def custom_package_usage_config(self) -> Dict:
@@ -694,6 +701,25 @@ class Session:
         else:
             raise ValueError(
                 "value for eliminate_numeric_sql_value_cast_enabled must be True or False!"
+            )
+
+    @auto_clean_up_temp_table_enabled.setter
+    @experimental_parameter(version="1.21.0")
+    def auto_clean_up_temp_table_enabled(self, value: bool) -> None:
+        """Set the value for auto_clean_up_temp_table_enabled"""
+        if value in [True, False]:
+            self._conn._telemetry_client.send_auto_clean_up_temp_table_telemetry(
+                self._session_id, value
+            )
+            self._auto_clean_up_temp_table_enabled = value
+            is_alive = self._temp_table_cleaner.is_alive()
+            if value and not is_alive:
+                self._temp_table_cleaner.start()
+            elif not value and is_alive:
+                self._temp_table_cleaner.stop()
+        else:
+            raise ValueError(
+                "value for auto_clean_up_temp_table_enabled must be True or False!"
             )
 
     @custom_package_usage_config.setter
