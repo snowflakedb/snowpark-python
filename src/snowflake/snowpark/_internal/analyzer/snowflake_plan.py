@@ -365,6 +365,7 @@ class SnowflakePlan(LogicalPlan):
         # first time we get here, self.source_plan is a SnowflakeValues here. don't want to touch attributes.
         # second time we get here, self.source_plan is a SelectStatement selecting function calls and aliases from innner node.
         from .select_statement import SelectStatement
+        from .unary_plan_node import Aggregate
         if isinstance(self.source_plan, SelectStatement):
             # first is 'select *' from another SelectStatement whose projection has the goods            
             if self.source_plan.projection is None:
@@ -375,6 +376,16 @@ class SnowflakePlan(LogicalPlan):
                 if not hasattr(each_projection, 'name'):
                     raise NotImplementedError('cannot find name of projection')                
                 my_attributes.append(Attribute(name=each_projection.name, datatype=each_projection.datatype, nullable=each_projection.nullable))
+            return my_attributes
+        if isinstance(self.source_plan, Aggregate):
+            if len(self.source_plan.grouping_expressions) > 0:
+                # not sure how we order grouping and aggregate expressions
+                raise NotImplementedError
+            my_attributes = []
+            for each_aggregation in self.source_plan.aggregate_expressions:
+                if not hasattr(each_aggregation, 'name'):
+                    raise NotImplementedError('cannot find name of aggregation')
+                my_attributes.append(Attribute(name=each_aggregation.name, datatype=each_aggregation.datatype, nullable=each_aggregation.nullable))
             return my_attributes
 
         # otherwise, fall back to snowflake

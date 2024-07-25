@@ -67,6 +67,7 @@ from snowflake.snowpark.types import (
     VariantType,
     VectorType,
     _NumericType,
+    UserDefinedType
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -301,6 +302,8 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
         return "GEOMETRY"
     if isinstance(datatype, VectorType):
         return f"VECTOR({datatype.element_type},{datatype.dimension})"
+    if isinstance(datatype, UserDefinedType):
+        return datatype.cast_type
     raise TypeError(f"Unsupported data type: {datatype.__class__.__name__}")
 
 

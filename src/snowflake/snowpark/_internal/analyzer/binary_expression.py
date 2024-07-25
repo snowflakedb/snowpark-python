@@ -11,7 +11,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
 )
-from snowflake.snowpark.types import get_user_defined_binary_expression_result_type, TimestampType
+from snowflake.snowpark.types import get_user_defined_binary_expression_result_type, TimestampType, LongType
 
 
 class BinaryExpression(Expression):
@@ -84,6 +84,13 @@ class Add(BinaryArithmeticExpression):
 
 class Subtract(BinaryArithmeticExpression):
     sql_operator = "-"
+
+    def resolve_datatype(self, input_attributes):
+        super().resolve_datatype(input_attributes)
+        if self.datatype is None and type(self.left.datatype) is type(self.right.datatype):
+            self.datatype = self.left.datatype
+        if self.datatype is None:
+            raise NotImplementedError('should figure out type.')
 
 class Multiply(BinaryArithmeticExpression):
     sql_operator = "*"

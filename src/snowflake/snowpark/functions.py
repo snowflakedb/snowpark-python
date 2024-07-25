@@ -212,7 +212,8 @@ from snowflake.snowpark.types import (
     StringType,
     StructType,
     TimestampType,
-    LongType
+    LongType,
+    VariantType
 )
 from snowflake.snowpark.udaf import UDAFRegistration, UserDefinedAggregateFunction
 from snowflake.snowpark.udf import UDFRegistration, UserDefinedFunction
@@ -698,12 +699,12 @@ def count(e: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(e, "count")
+    type_resolver = lambda children, input_types: LongType()
     return_column  = (
-        builtin("count")(Literal(1))
+        builtin("count", type_resolver)(Literal(1))
         if isinstance(c._expression, Star)
-        else builtin("count")(c._expression)
+        else builtin("count", type_resolver)(c._expression)
     )
-    return_column._expression.datatype = LongType
     return return_column
 
 
@@ -848,8 +849,11 @@ def max(e: ColumnOrName) -> Column:
         >>> df.select(max("x").as_("x")).collect()
         [Row(X=10)]
     """
+    # max() is a unary expression that preserves input type.
+    def type_resolver(children, input_types):
+        return children[0].datatype
     c = _to_col_if_str(e, "max")
-    return builtin("max")(c)
+    return builtin("max", type_resolver)(c)
 
 
 def mean(e: ColumnOrName) -> Column:
@@ -877,8 +881,10 @@ def median(e: ColumnOrName) -> Column:
         >>> df.select(median("x").as_("x")).collect()
         [Row(X=Decimal('3.000'))]
     """
+    # median() is a unary expression that preserves input type.
+    type_resolver = lambda children, input_types: children[0].datatype
     c = _to_col_if_str(e, "median")
-    return builtin("median")(c)
+    return builtin("median", type_resolver)(c)
 
 
 def min(e: ColumnOrName) -> Column:
@@ -892,8 +898,10 @@ def min(e: ColumnOrName) -> Column:
         >>> df.select(min("x").as_("x")).collect()
         [Row(X=1)]
     """
+    # max() is a unary expression that preserves input type.
+    type_resolver = lambda children, input_types: children[0].datatype
     c = _to_col_if_str(e, "min")
-    return builtin("min")(c)
+    return builtin("min", type_resolver)(c)
 
 
 def mode(e: ColumnOrName) -> Column:
@@ -1444,9 +1452,14 @@ def coalesce(*e: ColumnOrName) -> Column:
         -----------------------------------
         <BLANKLINE>
     """
+    def resolve_datatype(children, input_attributes):
+        if len(set((expression.datatype for expression in children))) > 1:
+            # TODO: figuring out output type correctly requires knowing the hierarchy
+            # of possible type casts. For example, coalescing int and float returns a float.
+            raise NotImplementedError
+        return input_attributes[0].datatype
     c = [_to_col_if_str(ex, "coalesce") for ex in e]
-    return builtin("coalesce")(*c)
-
+    return builtin("coalesce", resolve_datatype)(*c)
 
 def equal_nan(e: ColumnOrName) -> Column:
     """
@@ -3184,12 +3197,12 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         [Row(ANS=datetime.datetime(1970, 1, 1, 0, 0, 20)), Row(ANS=datetime.datetime(1971, 1, 1, 0, 0)), Row(ANS=datetime.datetime(1971, 1, 1, 0, 0)), Row(ANS=datetime.datetime(1971, 1, 1, 0, 0))]
     """
     c = _to_col_if_str(e, "to_timestamp")
+    type_resolver = lambda children, input_types: TimestampType()
     return_value = (
-        builtin("to_timestamp")(c, fmt)
+        builtin("to_timestamp", type_resolver)(c, fmt)
         if fmt is not None
-        else builtin("to_timestamp")(c)
+        else builtin("to_timestamp", type_resolver)(c)
     )
-    return_value._expression.datatype = TimestampType()
     return return_value
 
 
@@ -5119,9 +5132,9 @@ def typeof(col: ColumnOrName) -> Column:
         >>> df.select(typeof(col("A")).as_("ans")).collect()
         [Row(ANS='INTEGER'), Row(ANS='DECIMAL'), Row(ANS='VARCHAR')]
 
-    """
+    """    
     c = _to_col_if_str(col, "typeof")
-    return builtin("typeof")(c)
+    return builtin("typeof", type_resolver=lambda _, __: StringType())(c)
 
 
 def check_json(col: ColumnOrName) -> Column:
@@ -5205,8 +5218,10 @@ def parse_json(e: ColumnOrName) -> Column:
         ----------------
         <BLANKLINE>
     """
+    def resolve_datatype(children, input_attributes):
+        return VariantType()    
     c = _to_col_if_str(e, "parse_json")
-    return builtin("parse_json")(c)
+    return builtin("parse_json", resolve_datatype)(c)
 
 
 def parse_xml(e: ColumnOrName) -> Column:
@@ -6410,8 +6425,10 @@ def to_variant(e: ColumnOrName) -> Column:
         >>> df_conv.union(df_other).select(typeof(col("ans")).as_("ans")).collect()
         [Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='VARCHAR'), Row(ANS='OBJECT'), Row(ANS='ARRAY')]
     """
+    def resolve_datatype(children, input_attributes):
+        return VariantType()
     c = _to_col_if_str(e, "to_variant")
-    return builtin("to_variant")(c)
+    return builtin("to_variant", resolve_datatype)(c)
 
 
 def to_xml(e: ColumnOrName) -> Column:
@@ -6569,9 +6586,14 @@ def get(col1: Union[ColumnOrName, int], col2: Union[ColumnOrName, int]) -> Colum
         |1        |
         -----------
         <BLANKLINE>"""
+    def resolve_datatype(children, input_attributes):
+        # "If the input object is a semi-structured OBJECT, ARRAY, or VARIANT, the function returns a VARIANT"
+        if isinstance(children[0].datatype, VariantType):
+            return VariantType()
+        raise NotImplementedError
     c1 = _to_col_if_str_or_int(col1, "get")
     c2 = _to_col_if_str_or_int(col2, "get")
-    return builtin("get")(c1, c2)
+    return builtin("get", resolve_datatype)(c1, c2)
 
 
 element_at = get
@@ -6838,7 +6860,8 @@ def row_number() -> Column:
         ------------
         <BLANKLINE>
     """
-    return builtin("row_number")()
+    type_resolver = lambda children, input_types: LongType()
+    return builtin("row_number", type_resolver)()
 
 
 def lag(
@@ -8187,7 +8210,7 @@ def table_function(function_name: str) -> Callable:
     return lambda *args, **kwargs: call_table_function(function_name, *args, **kwargs)
 
 
-def call_function(function_name: str, *args: ColumnOrLiteral) -> Column:
+def call_function(function_name: str, *args: ColumnOrLiteral, type_resolver=None) -> Column:
     """Invokes a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function) with the specified name
     and arguments.
 
@@ -8210,11 +8233,12 @@ def call_function(function_name: str, *args: ColumnOrLiteral) -> Column:
 
     """
 
-    return _call_function(function_name, False, *args)
+    return _call_function(function_name, False, *args, type_resolver=type_resolver)
 
 
 def function(
     function_name: str,
+    type_resolver=None,
 ) -> Callable:
     """
     Function object to invoke a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function). Use this to invoke
@@ -8244,7 +8268,7 @@ def function(
         ----------------
         <BLANKLINE>
     """
-    return lambda *args: call_function(function_name, *args)
+    return lambda *args: call_function(function_name, *args, type_resolver=type_resolver)
 
 
 def _call_function(
@@ -8253,6 +8277,7 @@ def _call_function(
     *args: ColumnOrLiteral,
     api_call_source: Optional[str] = None,
     is_data_generator: bool = False,
+    type_resolver = None
 ) -> Column:
     expressions = [Column._to_expr(arg) for arg in parse_positional_args_to_list(*args)]
     return Column(
@@ -8262,6 +8287,7 @@ def _call_function(
             is_distinct=is_distinct,
             api_call_source=api_call_source,
             is_data_generator=is_data_generator,
+            type_resolver=type_resolver,
         )
     )
 

@@ -155,7 +155,7 @@ class WindowExpression(Expression):
         self.window_function.resolve_datatype(input_datatypes)
         self.datatype = self.window_function.datatype
         if self.datatype is None:
-            raise RuntimeError        
+            raise NotImplementedError('type should not be None here for the demo, but in the future, we can fall back to snowflake.')
 
 class RankRelatedFunctionExpression(Expression):
     sql: str

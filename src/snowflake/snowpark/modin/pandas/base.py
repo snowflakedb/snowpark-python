@@ -797,13 +797,15 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         if is_dict_like(func) and not uses_named_kwargs:
             kwargs.clear()
 
-        result = self.__constructor__(
-            query_compiler=self._query_compiler.agg(
+        qc_result =self._query_compiler.agg(
                 func=func,
                 axis=axis,
                 args=args,
                 kwargs=kwargs,
             )
+
+        result = self.__constructor__(
+            query_compiler=qc_result
         )
 
         if need_reduce_dimension:

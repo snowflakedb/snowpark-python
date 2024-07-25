@@ -40,7 +40,9 @@ print(time_delta_sum)
 print(df[0] + time_delta_sum)
 
 
-# construct from literal
+# take max of timedelta column
+
+print(time_delta.max())
 
 ### Section 2. Interval
 

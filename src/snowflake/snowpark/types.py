@@ -564,9 +564,10 @@ class UserDefinedType(DataType):
 
 def register_user_defined_type(
         name,
-        to_pandas
+        to_pandas,
+        cast_type
 ):
-    return type(name, (UserDefinedType,), {'to_pandas': to_pandas})
+    return type(name, (UserDefinedType,), {'to_pandas': to_pandas, 'cast_type': cast_type})
 
 from collections import namedtuple
 CustomBehavior = namedtuple('CustomBehavior', ['new_type', 'rewrite'])

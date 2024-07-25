@@ -50,6 +50,8 @@ class Cast(UnaryExpression):
         self.to = to
         self.try_ = try_
 
+    def resolve_datatype(self, input_attributes):
+        self.datatype = self.to
 
 class UnaryMinus(UnaryExpression):
     sql_operator = "-"
@@ -96,7 +98,7 @@ class Alias(UnaryExpression, NamedExpression):
         self.child.resolve_datatype(input_attributes)
         self.datatype = self.child.datatype
         if self.datatype is None:
-            raise NotImplementedError('Alias could not resolve datatype')
+            raise NotImplementedError('type should not be None here for the demo, but in the future, we can fall back to snowflake.')
 
 class UnresolvedAlias(UnaryExpression, NamedExpression):
     sql_operator = "AS"
