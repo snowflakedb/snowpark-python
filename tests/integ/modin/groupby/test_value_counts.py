@@ -7,7 +7,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     create_test_dfs,
@@ -238,14 +238,17 @@ def test_value_counts_pandas_issue_59307(
 
 
 @pytest.mark.parametrize("test_data", TEST_DATA)
-@pytest.mark.parametrize("subset", [["by"], []])
-def test_value_counts_subset_negative(test_data, subset):
-    with SqlCounter(query_count=1 if len(subset) > 0 else 0):
-        eval_snowpark_pandas_result(
-            *create_test_dfs(test_data),
-            lambda x: x.groupby(by=["by"]).value_counts(subset=subset),
-            expect_exception=True,
-        )
+@pytest.mark.parametrize("subset", [["bad_key"], ["by", "bad_key"]])
+# 1 query always runs to validate the length of the by list
+@sql_count_checker(query_count=1)
+def test_value_counts_bad_subset(test_data, subset):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(test_data),
+        lambda x: x.groupby(by=["by"]).value_counts(subset=subset),
+        expect_exception=True,
+        expect_exception_type=KeyError,
+        assert_exception_equal=False,
+    )
 
 
 @pytest.mark.parametrize("test_data", TEST_DATA)
