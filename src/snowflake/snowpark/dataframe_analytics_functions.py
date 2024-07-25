@@ -5,6 +5,8 @@
 from typing import Callable, Dict, List, Tuple, Union
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.ast_utils import with_src_position
+from snowflake.snowpark._internal.tcm import proto
 from snowflake.snowpark._internal.utils import experimental
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import (
@@ -329,6 +331,18 @@ class DataFrameAnalyticsFunctions:
         self._validate_positive_integer_list_argument(window_sizes, "window_sizes")
         self._validate_formatter_argument(col_formatter)
 
+        # AST.
+        stmt = self._df._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_analytics_moving_agg, stmt)
+        self._df.set_ast_ref(ast.df)
+        for col_name, agg_funcs in aggs:
+            agg_funcs_ast = proto.Expr()
+            agg_funcs_ast.extend(agg_funcs)
+            ast.aggs.append((col_name, agg_funcs_ast))
+        ast.window_sizes.extend(window_sizes)
+        ast.group_by.extend(group_by)
+        ast.order_by.extend(order_by)
+
         # Perform window aggregation
         agg_df = self._df
         for column, agg_funcs in aggs.items():
@@ -344,6 +358,7 @@ class DataFrameAnalyticsFunctions:
                     agg_col = builtin(agg_func)(col(column)).over(window_spec)
 
                     formatted_col_name = col_formatter(column, agg_func, window_size)
+                    ast.formatted_col_names.append(formatted_col_name)
                     agg_df = agg_df.with_column(formatted_col_name, agg_col)
 
         return agg_df
@@ -410,6 +425,18 @@ class DataFrameAnalyticsFunctions:
         self._validate_string_list_argument(group_by, "group_by")
         self._validate_formatter_argument(col_formatter)
 
+        # AST.
+        stmt = self._df._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_analytics_cumulative_agg, stmt)
+        self._df.set_ast_ref(ast.df)
+        for col_name, agg_funcs in aggs:
+            agg_funcs_ast = proto.Expr()
+            agg_funcs_ast.extend(agg_funcs)
+            ast.aggs.append((col_name, agg_funcs_ast))
+        ast.group_by.extend(group_by)
+        ast.order_by.extend(order_by)
+        ast.is_forward = is_forward
+
         window_spec = Window.partition_by(group_by).order_by(order_by)
         if is_forward:
             window_spec = window_spec.rows_between(0, Window.UNBOUNDED_FOLLOWING)
@@ -424,6 +451,7 @@ class DataFrameAnalyticsFunctions:
                 agg_col = builtin(agg_func)(col(column)).over(window_spec)
 
                 formatted_col_name = col_formatter(column, agg_func)
+                ast.formatted_col_names.append(formatted_col_name)
                 agg_df = agg_df.with_column(formatted_col_name, agg_col)
 
         return agg_df
@@ -478,6 +506,21 @@ class DataFrameAnalyticsFunctions:
             ------------------------------------------------------------------------------------------
             <BLANKLINE>
         """
+        # AST.
+        stmt = self._df._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lag, stmt)
+        self._df.set_ast_ref(ast.df)
+        ast.cols.extend([col._ast if isinstance(col, Column) else col for col in cols])
+        ast.lags.extend(lags)
+        ast.group_by.extend(group_by)
+        ast.order_by.extend(order_by)
+        for c in cols:
+            for _lag in lags:
+                column = _to_col_if_str(c, "transform.compute_lag")
+                formatted_col_name = col_formatter(
+                    column.get_name().replace('"', ""), "LAG", _lag
+                )
+                ast.formatted_col_names.append(formatted_col_name)
         return self._compute_window_function(
             cols, lags, order_by, group_by, col_formatter, lag, "LAG"
         )
@@ -532,6 +575,21 @@ class DataFrameAnalyticsFunctions:
             --------------------------------------------------------------------------------------------
             <BLANKLINE>
         """
+        # AST.
+        stmt = self._df._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lead, stmt)
+        self._df.set_ast_ref(ast.df)
+        ast.cols.extend([col._ast if isinstance(col, Column) else col for col in cols])
+        ast.leads.extend(leads)
+        ast.group_by.extend(group_by)
+        ast.order_by.extend(order_by)
+        for c in cols:
+            for _lead in leads:
+                column = _to_col_if_str(c, "transform.compute_lead")
+                formatted_col_name = col_formatter(
+                    column.get_name().replace('"', ""), "LEAD", _lead
+                )
+                ast.formatted_col_names.append(formatted_col_name)
         return self._compute_window_function(
             cols, leads, order_by, group_by, col_formatter, lead, "LEAD"
         )
@@ -613,6 +671,28 @@ class DataFrameAnalyticsFunctions:
 
         if not time_col or not isinstance(time_col, str):
             raise ValueError("time_col must be a string")
+
+        # AST.
+        stmt = self._df._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_analytics_time_series_agg, stmt)
+        self._df.set_ast_ref(ast.df)
+        ast.time_col = time_col
+        for col_name, agg_funcs in aggs:
+            agg_funcs_ast = proto.Expr()
+            agg_funcs_ast.extend(agg_funcs)
+            ast.aggs.append((col_name, agg_funcs_ast))
+        ast.group_by.extend(windows)
+        ast.group_by.extend(group_by)
+        ast.sliding_interval = sliding_interval
+        for window in windows:
+            for column, funcs in aggs.items():
+                for func in funcs:
+                    agg_column_name = (
+                        col_formatter(column, func, window)
+                        if col_formatter
+                        else f"{column}_{func}B"
+                    )
+                    ast.formatted_col_names.append(agg_column_name)
 
         slide_duration, slide_unit = self._validate_and_extract_time_unit(
             sliding_interval, "sliding_interval", allow_negative=False
