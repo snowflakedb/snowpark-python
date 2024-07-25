@@ -77,7 +77,6 @@ from snowflake.snowpark.types import (
     StringType,
     TimestampTimeZone,
     TimestampType,
-    TimedeltaType
 )
 from snowflake.snowpark.window import Window, WindowSpec
 

@@ -11,7 +11,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
 )
-from snowflake.snowpark.types import TimestampType, TimedeltaType
+from snowflake.snowpark.types import get_user_defined_binary_expression_result_type, TimestampType
 
 
 class BinaryExpression(Expression):
@@ -34,6 +34,10 @@ class BinaryExpression(Expression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.LOW_IMPACT
 
+    def resolve_datatype(self, input_attributes):
+        self.left.resolve_datatype(input_attributes)
+        self.right.resolve_datatype(input_attributes)
+        self.datatype = get_user_defined_binary_expression_result_type(self)
 
 class BinaryArithmeticExpression(BinaryExpression):
     pass
@@ -78,36 +82,8 @@ class Or(BinaryArithmeticExpression):
 class Add(BinaryArithmeticExpression):
     sql_operator = "+"
 
-    def resolve_datatype(self, input_attributes):        
-        self.children[0].resolve_datatype(input_attributes)
-        self.children[1].resolve_datatype(input_attributes)
-        if (
-            (isinstance(self.children[0].datatype, TimestampType) and isinstance(self.children[1].datatype, TimedeltaType)) or
-            (isinstance(self.children[0].datatype, TimedeltaType) and isinstance(self.children[1].datatype, TimestampType))
-        ):
-            self.datatype = TimestampType()
-        if (
-            (isinstance(self.children[0].datatype, TimedeltaType) and isinstance(self.children[1].datatype, TimedeltaType))
-        ):
-            self.datatype = TimedeltaType()
-        if self.datatype is None:
-            raise RuntimeError
-
 class Subtract(BinaryArithmeticExpression):
     sql_operator = "-"
-
-    def resolve_datatype(self, input_attributes):
-        self.children[0].resolve_datatype(input_attributes)
-        self.children[1].resolve_datatype(input_attributes)
-        if isinstance(self.children[0].datatype, TimestampType) and isinstance(self.children[1].datatype, TimestampType):
-            self.datatype = TimedeltaType()
-        elif isinstance(self.children[0].datatype, TimestampType) and isinstance(self.children[1].datatype, TimedeltaType):
-            self.datatype = TimestampType
-        elif isinstance(self.children[0].datatype, TimedeltaType) and isinstance(self.children[1].datatype, TimedeltaType):
-            self.datatype = TimedeltaType
-
-        if self.datatype is None:
-            raise RuntimeError
 
 class Multiply(BinaryArithmeticExpression):
     sql_operator = "*"

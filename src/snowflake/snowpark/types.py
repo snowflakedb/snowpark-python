@@ -460,8 +460,6 @@ class GeometryType(DataType):
 
     pass
 
-class TimedeltaType(DataType):
-    pass
 
 class _PandasType(DataType):
     pass
@@ -560,3 +558,38 @@ if installed_pandas:  # pragma: no cover
             """
 
             pass
+
+class UserDefinedType(DataType):
+    pass
+
+def register_user_defined_type(
+        name,
+        to_pandas
+):
+    return type(name, (UserDefinedType,), {'to_pandas': to_pandas})
+
+from collections import namedtuple
+CustomBehavior = namedtuple('CustomBehavior', ['new_type', 'rewrite'])
+
+user_defined_type_rewrites = {}
+
+def register_user_defined_binary_expression_behavior(
+    expression_type,
+    left_type,
+    right_type,
+    new_type,
+    rewrite = None,
+):
+    user_defined_type_rewrites[(expression_type, left_type, right_type)] = CustomBehavior(new_type, rewrite)
+
+def get_user_defined_binary_expression_rewrite(binary_expression):
+    behavior = user_defined_type_rewrites.get((type(binary_expression), type(binary_expression.left.datatype), type(binary_expression.right.datatype)), None)
+    if behavior is None or behavior.rewrite is None:
+        return None
+    return behavior.rewrite(binary_expression)
+
+def get_user_defined_binary_expression_result_type(binary_expression):
+    behavior = user_defined_type_rewrites.get((type(binary_expression), type(binary_expression.left.datatype), type(binary_expression.right.datatype)), None)
+    if behavior is None:
+        return behavior
+    return behavior.new_type()

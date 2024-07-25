@@ -326,6 +326,9 @@ class Literal(Expression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.LITERAL
 
+    def resolve_datatype(self, input_attributes):
+        # already has datatype
+        pass
 
 class Interval(Expression):
     def __init__(
