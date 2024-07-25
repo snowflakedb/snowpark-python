@@ -555,7 +555,7 @@ class RelationalGroupedDataFrame:
         
     def _set_ast_ref(self, expr_builder: proto.SpRelationalGroupedDataframeExpr) -> None:
         """
-        Given a field builder expression of the AST type SpDataframeExpr, points the builder to reference this dataframe.
+        Given a field builder expression of the AST type SpRelationalGroupedDataframeExpr, points the builder to reference this RelationalGroupedDataFrame.
         """
         # TODO: remove the None guard below once we generate the correct AST.
         if self._ast_id is not None:
