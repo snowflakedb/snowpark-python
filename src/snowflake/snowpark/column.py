@@ -989,17 +989,17 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.sp_column_within_group)
         ast.col.CopyFrom(self._ast)
-        ast.variadic = not (len(cols) == 1 and isinstance(cols[0], (list, tuple, set)))
+        ast.cols.variadic = not (len(cols) == 1 and isinstance(cols[0], (list, tuple, set)))
 
         # populate columns to order aggregate expression results by
         order_by_cols = []
         for col in parse_positional_args_to_list(*cols):
             if isinstance(col, Column):
                 assert col._ast is not None
-                ast.cols.append(col._ast)
+                ast.cols.args.append(col._ast)
                 order_by_cols.append(col)
             elif isinstance(col, str):
-                col_ast = ast.cols.add()
+                col_ast = ast.cols.args.add()
                 col_ast.string_val.v = col
                 order_by_cols.append(Column(col))
             else:

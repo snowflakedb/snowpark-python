@@ -1357,8 +1357,8 @@ class DataFrame:
         ast = with_src_position(stmt.expr.sp_dataframe_drop, stmt)
         self.set_ast_ref(ast.df)
         for c in exprs:
-            build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
-        ast.variadic = is_variadic
+            build_expr_from_snowpark_column_or_col_name(ast.cols.args.add(), c)
+        ast.cols.variadic = is_variadic
 
         names = []
         for c in exprs:
@@ -1708,9 +1708,9 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         expr = with_src_position(stmt.expr.sp_dataframe_rollup, stmt)
         self.set_ast_ref(expr.df)
-        col_list, expr.variadic = parse_positional_args_to_list_variadic(*cols)
+        col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
         for c in col_list:
-            build_expr_from_snowpark_column_or_col_name(expr.cols.add(), c)
+            build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
         
         rollup_exprs = self._convert_cols_to_exprs("rollup()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
@@ -1767,9 +1767,9 @@ class DataFrame:
                 stmt = self._session._ast_batch.assign()
                 expr = with_src_position(stmt.expr.sp_dataframe_group_by, stmt)
                 self.set_ast_ref(expr.df)
-                col_list, expr.variadic = parse_positional_args_to_list_variadic(*cols)
+                col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
                 for c in col_list:
-                    build_expr_from_snowpark_column_or_col_name(expr.cols.add(), c)
+                    build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
             else:
                 stmt = _ast_stmt
         
@@ -1847,9 +1847,9 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         expr = with_src_position(stmt.expr.sp_dataframe_cube, stmt)
         self.set_ast_ref(expr.df)
-        col_list, expr.variadic = parse_positional_args_to_list_variadic(*cols)
+        col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
         for c in col_list:
-            build_expr_from_snowpark_column_or_col_name(expr.cols.add(), c)
+            build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
         
         cube_exprs = self._convert_cols_to_exprs("cube()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
