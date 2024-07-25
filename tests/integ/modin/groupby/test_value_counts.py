@@ -265,8 +265,9 @@ def test_value_counts_sort_ascending(
     )
 
 
-# TODO parametrize on bins
-@sql_count_checker(query_count=1)
+# An additional query is needed to validate the length of the by list
+# A JOIN is needed to set the index to the by list
+@sql_count_checker(query_count=2, join_count=1)
 def test_value_counts_series():
     by = ["a", "a", "b", "b", "a", "c"]
     native_ser = native_pd.Series(
@@ -276,3 +277,17 @@ def test_value_counts_series():
     eval_snowpark_pandas_result(
         snow_ser, native_ser, lambda ser: ser.groupby(by=by).value_counts()
     )
+
+
+# 1 query always runs to validate the length of the by list
+@sql_count_checker(query_count=1)
+def test_value_counts_bins_unimplemented():
+    by = ["a", "a", "b", "b", "a", "c"]
+    native_ser = native_pd.Series(
+        [0, 0, None, 1, None, 3],
+    )
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(NotImplementedError):
+        eval_snowpark_pandas_result(
+            snow_ser, native_ser, lambda ser: ser.groupby(by=by).value_counts(bins=3)
+        )
