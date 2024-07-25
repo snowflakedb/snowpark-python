@@ -5056,14 +5056,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         if not is_list_like(by):
             by = [by]
+        if len(set(by) & set(subset or [])):
+            # Check for overlap between by and subset. Since column names may contain customer data,
+            # unlike pandas, we do not include the offending labels in the error message.
+            raise ValueError("Keys in subset cannot be in the groupby column keys")
         if subset is not None:
             if not isinstance(subset, (list, tuple)):
                 subset = [subset]
-            # All "by" columns must be included in the subset list passed to value_counts
-            subset = [by_label for by_label in by if by_label not in subset] + subset
         else:
-            # If subset is unspecified, then all columns are part of it
+            # If subset is unspecified, then all columns should be included.
             subset = self._modin_frame.data_column_pandas_labels
+        # The grouping columns are always included in the subset.
+        # Furthermore, the columns of the output must have the grouping columns first, in the order
+        # that they were specified.
+        subset = by + list(filter(lambda label: label not in by, subset))
 
         if as_index:
             # When as_index=True, the result is a Series with a MultiIndex index.
