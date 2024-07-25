@@ -111,6 +111,7 @@ def test_selectable_query_generation(session, action):
     check_generated_plan_queries(df_res._plan)
 
 
+@pytest.mark.parametrize("enable_sql_simplifier", [False])
 @pytest.mark.parametrize(
     "query",
     [
@@ -118,14 +119,20 @@ def test_selectable_query_generation(session, action):
         "show tables in schema limit 10",
     ],
 )
-def test_sql_select(session, query, sql_simplifier_enabled):
-    df = session.sql(query)
-    # when sql simplifier is disabled, there is no source plan associated
-    # with the df directly created from select.
-    if sql_simplifier_enabled:
-        check_generated_plan_queries(df._plan)
-    df_filtered = session.sql(query).filter(lit(True))
-    check_generated_plan_queries(df_filtered._plan)
+def test_sql_select_with_sql_simplifier_configured(
+    session, query, enable_sql_simplifier, sql_simplifier_enabled
+):
+    try:
+        session.sql_simplifier_enabled = enable_sql_simplifier
+        df = session.sql(query)
+        # when sql simplifier is disabled, there is no source plan associated
+        # with the df directly created from select.
+        if enable_sql_simplifier:
+            check_generated_plan_queries(df._plan)
+        df_filtered = session.sql(query).filter(lit(True))
+        check_generated_plan_queries(df_filtered._plan)
+    finally:
+        session.sql_simplifier_enabled = sql_simplifier_enabled
 
 
 @pytest.mark.parametrize(
