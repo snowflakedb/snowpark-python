@@ -7,6 +7,7 @@
 #### Improvements
 - Added support server side string size limitations.
 - Added support for passing `INFER_SCHEMA` options to `DataFrameReader` via `INFER_SCHEMA_OPTIONS`.
+- Added support for automatically cleaning up temporary tables created by `df.cache_result()`, when the DataFrame is not reference anymore (i.e., gets garbage collected). It is still an experimental feature not enabled by default, and can be enabled by setting `session.auto_clean_up_temp_table_enabled` to `True`.
 
 #### Bug Fixes
 - Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
