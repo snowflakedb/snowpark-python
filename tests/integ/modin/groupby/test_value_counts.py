@@ -409,25 +409,24 @@ def test_value_counts_pandas_issue_59307(
     )
 
 
-@pytest.mark.parametrize("test_data", TEST_DATA)
 @pytest.mark.parametrize(
     "subset, exception_cls",
     [
         (["bad_key"], KeyError),  # key not in frame
-        (["by", "bad_key"], KeyError),  # key not in frame
         (["by"], ValueError),  # subset cannot overlap with grouping columns
+        (["by", "bad_key"], ValueError),  # subset cannot overlap with grouping columns
     ],
 )
-# 1 query always runs to validate the length of the by list
-@sql_count_checker(query_count=1)
-def test_value_counts_bad_subset(test_data, subset, exception_cls):
-    eval_snowpark_pandas_result(
-        *create_test_dfs(test_data),
-        lambda x: x.groupby(by=["by"]).value_counts(subset=subset),
-        expect_exception=True,
-        expect_exception_type=KeyError,
-        assert_exception_equal=False,
-    )
+def test_value_counts_bad_subset(subset, exception_cls):
+    # for KeyError, 1 query always runs to validate the length of the by list
+    with SqlCounter(query_count=1 if exception_cls is KeyError else 0):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(TEST_DATA[0]),
+            lambda x: x.groupby(by=["by"]).value_counts(subset=subset),
+            expect_exception=True,
+            expect_exception_type=exception_cls,
+            assert_exception_equal=False,
+        )
 
 
 # An additional query is needed to validate the length of the by list
