@@ -49,6 +49,7 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     create_groupby_transform_func,
 )
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
+from snowflake.snowpark.modin.plugin._internal.utils import INDEX_LABEL
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -1339,19 +1340,34 @@ class SeriesGroupBy(DataFrameGroupBy):
         dropna: bool = True,
     ):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.SeriesGroupBy functions
-        # Unlike DataFrameGroupBy, SeriesGroupBy has an additional `bins` parameter
+        # Modin upstream defaults to pandas for this method, so we need to either override this or
+        # rewrite this logic to be friendlier to other backends.
+        #
+        # Unlike DataFrameGroupBy, SeriesGroupBy has an additional `bins` parameter.
+        qc = self._query_compiler
+        # The "by" list becomes the new index, which we then perform the group by on. We call
+        # reset_index to let the query compiler treat it as a data column so it can be grouped on.
+        if self._by is not None:
+            qc = (
+                qc.set_index_from_series(pd.Series(self._by)._query_compiler)
+                .set_index_names([INDEX_LABEL])
+                .reset_index()
+            )
+        result_qc = qc.groupby_value_counts(
+            by=[INDEX_LABEL],
+            axis=self._axis,
+            groupby_kwargs=self._kwargs,
+            subset=subset,
+            normalize=normalize,
+            sort=sort,
+            ascending=ascending,
+            bins=bins,
+            dropna=dropna,
+        )
+        # Reset the names in the MultiIndex
+        result_qc = result_qc.set_index_names([None] * result_qc.nlevels())
         return pd.Series(
-            query_compiler=self._query_compiler.groupby_value_counts(
-                by=self._by,
-                axis=self._axis,
-                groupby_kwargs=self._kwargs,
-                subset=subset,
-                normalize=normalize,
-                sort=sort,
-                ascending=ascending,
-                bins=bins,
-                dropna=dropna,
-            ),
+            query_compiler=result_qc,
             name="proportion" if normalize else "count",
         )
 
