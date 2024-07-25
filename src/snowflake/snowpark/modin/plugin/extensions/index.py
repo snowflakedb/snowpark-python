@@ -23,6 +23,7 @@
 
 from __future__ import annotations
 
+from functools import wraps
 from typing import Any, Callable, Hashable, Iterator, Literal
 
 import numpy as np
@@ -50,6 +51,7 @@ def is_lazy_check(func: Callable) -> Callable:
     Decorator method for separating function calls for lazy indexes and non-lazy (column) indexes
     """
 
+    @wraps(func)
     def check_lazy(*args: Any, **kwargs: Any) -> Any:
         func_name = func.__name__
 
@@ -2098,9 +2100,9 @@ class Index:
 
         Examples
         --------
-        # Snowpark pandas converts np.nan, pd.NA, pd.NaT to None
+        Note Snowpark pandas converts np.nan, pd.NA, pd.NaT to None
         >>> idx = pd.Index([np.nan, 'var1', np.nan])
-        >>> idx.get_indexer_for([np.nan])
+        >>> idx.get_indexer_for([None])
         array([0, 2])
         """
         WarningMessage.index_to_pandas_warning("get_indexer_for")
