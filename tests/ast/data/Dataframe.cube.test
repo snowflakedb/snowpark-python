@@ -1,0 +1,39 @@
+## TEST CASE
+
+df1 = session.table("test_table")
+
+df2 = df1.cube()
+
+df3 = df1.cube("num")
+
+df4 = df1.cube(["num"])
+
+df5 = df1.cube(["num", "str"])
+
+df6 = df1.cube(col("num"))
+
+df7 = df1.cube([col("num")])
+
+df8 = df1.cube(col("num"), "str")
+
+df9 = df1.cube([col("num"), "str"])
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = res1.cube()
+
+res3 = res1.cube("num")
+
+res4 = res1.cube(["num"])
+
+res5 = res1.cube(["num", "str"])
+
+res6 = res1.cube(col("num"))
+
+res7 = res1.cube([col("num")])
+
+res8 = res1.cube(col("num"), "str")
+
+res9 = res1.cube([col("num"), "str"])
