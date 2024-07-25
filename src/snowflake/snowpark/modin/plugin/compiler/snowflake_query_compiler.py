@@ -16135,3 +16135,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
 
         return result
+
+    def df_update(self, other: "SnowflakeQueryCompiler") -> None:
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'DataFrame.update'"
+        )
+
+    def series_update(self, other: "SnowflakeQueryCompiler") -> None:
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'Series.update'"
+        )
