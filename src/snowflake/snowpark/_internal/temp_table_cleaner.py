@@ -55,9 +55,9 @@ class TempTableCleaner:
     def drop_table(self, name: str) -> None:
         common_log_text = f"temp table {name} in session {self.session.session_id}"
         try:
-            self.session.sql(
-                f"drop table {name}"
-            )._internal_collect_with_tag_no_telemetry()
+            # TODO SNOW-1556553: Remove this workaround once multi-threading of Snowpark session is supported
+            with self.session._conn._conn.cursor() as cursor:
+                cursor.execute(f"drop table if exists {name}")
             logging.debug(f"Cleanup Thread: Successfully dropped {common_log_text}")
         except Exception:
             logging.debug(f"Cleanup Thread: Failed to drop {common_log_text}")
