@@ -21,7 +21,7 @@ from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
         ([1, 2, 3], ["1", "2", "3"], False),  # integer and string types are not equal
     ],
 )
-@sql_count_checker(query_count=5, join_count=3)
+@sql_count_checker(query_count=4, join_count=4)
 # High query count coming from to_pandas calls in Index.equals(other) and count queries
 # in SnowflakeQueryCompiler.all.
 def test_equals(lhs, rhs, expected):
@@ -42,7 +42,7 @@ def test_equals(lhs, rhs, expected):
     ],
 )
 def test_equals_column_labels(lhs, rhs, expected):
-    with SqlCounter(query_count=5 if expected else 2, join_count=3 if expected else 0):
+    with SqlCounter(query_count=4 if expected else 1, join_count=4 if expected else 1):
         df1 = pandas.DataFrame([[1, 2]], columns=lhs)
         df2 = pandas.DataFrame([[1, 2]], columns=rhs)
         assert df1.equals(df2) == expected
@@ -60,7 +60,7 @@ def test_equals_column_labels(lhs, rhs, expected):
         (np.int16, np.float16, False),
     ],
 )
-@sql_count_checker(query_count=5, join_count=3)
+@sql_count_checker(query_count=4, join_count=4)
 def test_equals_numeric_variants(ltype, rtype, expected):
     df1 = pandas.DataFrame([1, 3], columns=["col1"]).astype(ltype)
     df2 = pandas.DataFrame([1, 3], columns=["col1"]).astype(rtype)

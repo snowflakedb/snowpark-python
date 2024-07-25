@@ -15,6 +15,7 @@ import sys
 import tempfile
 import warnings
 from array import array
+from collections import defaultdict
 from functools import reduce
 from logging import getLogger
 from threading import RLock
@@ -544,6 +545,9 @@ class Session:
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
         self._runtime_version_from_requirement: str = None
+        # this dict maintains key-value pair from Snowpark-generated temp table fully-qualified name
+        # to its reference count for later temp table management
+        self._temp_table_ref_count_map: Dict[str, int] = defaultdict(int)
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -560,6 +564,14 @@ class Session:
             f"role={self.get_current_role()}, database={self.get_current_database()}, "
             f"schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
         )
+
+    def _dec_temp_table_ref_count(self, name: str) -> None:
+        """Decrements the reference count."""
+        # TODO: SNOW-1531493 Remove this function once we can hook
+        # the cleanup function with SnowflakeTable._finalizer
+        self._temp_table_ref_count_map[name] -= 1
+        if self._temp_table_ref_count_map[name] == 0:
+            self._temp_table_ref_count_map.pop(name)
 
     def _generate_new_action_id(self) -> int:
         self._last_action_id += 1

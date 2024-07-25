@@ -91,6 +91,7 @@ from snowflake.snowpark.functions import (
     dayofyear,
     dense_rank,
     first_value,
+    floor,
     greatest,
     hour,
     iff,
@@ -149,12 +150,12 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     column_quantile,
     convert_agg_func_arg_to_col_agg_func_map,
     drop_non_numeric_data_columns,
-    format_kwargs_for_error_message,
     generate_column_agg_info,
     generate_rowwise_aggregation_function,
     get_agg_func_to_col_map,
     get_pandas_aggr_func_name,
     get_snowflake_agg_func,
+    repr_aggregate_function,
     using_named_aggregations_for_func,
 )
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
@@ -359,6 +360,8 @@ _logger = logging.getLogger(__name__)
 # TODO: SNOW-1229442 remove this restriction once bug in quantile is fixed.
 # For now, limit number of quantiles supported df.quantiles to avoid producing recursion limit failure in Snowpark.
 MAX_QUANTILES_SUPPORTED: int = 16
+
+_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE = "does not yet support pd.Grouper, axis == 1, by != None and level != None, or by containing any non-pandas hashable labels."
 
 
 class SnowflakeQueryCompiler(BaseQueryCompiler):
@@ -712,13 +715,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Previously, Snowpark pandas would register a stored procedure that materializes the frame
         # and performs the native pandas operation. Because this fallback has extremely poor
         # performance, we now raise NotImplementedError instead.
-        args_str = ", ".join(map(str, args))
-        if args and kwargs:
-            args_str += ", "
-        if kwargs:
-            args_str += format_kwargs_for_error_message(kwargs)
         ErrorMessage.not_implemented(
-            f"Snowpark pandas doesn't yet support the method {object_type}.{fn_name}({args_str})"
+            f"Snowpark pandas doesn't yet support the method {object_type}.{fn_name} with the given arguments."
         )
 
     @classmethod
@@ -2982,7 +2980,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
         if not is_supported:
             ErrorMessage.not_implemented(
-                "Snowpark pandas GroupBy.ngroups does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels."
+                f"Snowpark pandas GroupBy.ngroups {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
             )
 
         query_compiler = get_frame_with_groupby_columns_as_index(
@@ -2991,7 +2989,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         if query_compiler is None:
             ErrorMessage.not_implemented(
-                "Snowpark pandas GroupBy.ngroups does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels."
+                f"Snowpark pandas GroupBy.ngroups {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
             )
 
         internal_frame = query_compiler._modin_frame
@@ -3062,33 +3060,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
         level = groupby_kwargs.get("level", None)
-        is_supported = check_is_groupby_supported_by_snowflake(
-            by, level, axis
-        ) and check_is_aggregation_supported_in_snowflake(agg_func, agg_kwargs, axis)
 
-        if not is_supported:
-            if agg_func in ["head", "tail"]:
-                # head and tail cannot be run per column - it is run on the
-                # whole table at once.
-                return self._groupby_head_tail(
-                    n=agg_kwargs.get("n", 5),
-                    op_type=agg_func,
-                    by=by,
-                    level=level,
-                    dropna=agg_kwargs.get("dropna", True),
-                )
-            else:
-                # Named aggregates are passed in via agg_kwargs. We should not pass `agg_func` since we have modified
-                # it to be of the form {column_name: (agg_func, new_column_name), ...}, which will cause the error message
-                # to be misformatted. Instead, we re-format into the form f"agg(**named_aggregations)" so that the error message
-                # is recognizable to the user.
-                if using_named_aggregations_for_func(agg_func):
-                    agg_func = format_kwargs_for_error_message(agg_kwargs)
-                    agg_func = f"agg({agg_func})"
+        if agg_func in ["head", "tail"]:
+            # head and tail cannot be run per column - it is run on the
+            # whole table at once.
+            return self._groupby_head_tail(
+                n=agg_kwargs.get("n", 5),
+                op_type=agg_func,
+                by=by,
+                level=level,
+                dropna=agg_kwargs.get("dropna", True),
+            )
 
-                ErrorMessage.not_implemented(
-                    f"Snowpark pandas GroupBy.{agg_func} does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
-                )
+        if not check_is_aggregation_supported_in_snowflake(agg_func, agg_kwargs, axis):
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas GroupBy.aggregate does not yet support the aggregation {repr_aggregate_function(agg_func, agg_kwargs)} with the given arguments."
+            )
 
         sort = groupby_kwargs.get("sort", True)
         as_index = groupby_kwargs.get("as_index", True)
@@ -3101,9 +3088,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             self, by, level, dropna
         )
 
-        if query_compiler is None:
+        if query_compiler is None or not check_is_groupby_supported_by_snowflake(
+            by, level, axis
+        ):
             ErrorMessage.not_implemented(
-                f"Snowpark pandas GroupBy.{agg_func} does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+                f"Snowpark pandas GroupBy.aggregate {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
             )
 
         by_list = query_compiler._modin_frame.index_column_pandas_labels
@@ -3740,7 +3729,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
         if not is_supported:
             ErrorMessage.not_implemented(
-                f"Snowpark pandas GroupBy.{method} does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+                f"Snowpark pandas GroupBy.{method} {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
             )
         # TODO: Support groupby first and last with min_count (SNOW-1482931)
         if agg_kwargs.get("min_count", -1) > 1:
@@ -4239,7 +4228,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
         if not is_supported:  # pragma: no cover
             ErrorMessage.not_implemented(
-                "Snowpark pandas GroupBy.get_group does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+                f"Snowpark pandas GroupBy.get_group {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
             )
         if is_list_like(by):
             ErrorMessage.not_implemented(
@@ -4306,7 +4295,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
         if not is_supported:
             ErrorMessage.not_implemented(
-                "Snowpark pandas GroupBy.size does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+                f"Snowpark pandas GroupBy.size {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
             )
         if not is_list_like(by):
             by = [by]
@@ -5024,20 +5013,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # If we are using Named Aggregations, we need to do our supported check slightly differently.
         uses_named_aggs = using_named_aggregations_for_func(func)
         if not check_is_aggregation_supported_in_snowflake(func, kwargs, axis):
-            if uses_named_aggs:
-                # Format the error message a little differently, so it looks nicer.
-                error_msg = (
-                    "Aggregate with func=None and parameters "
-                    + format_kwargs_for_error_message(kwargs)
-                    + " not supported yet in Snowpark pandas."
-                )
-            else:
-                error_msg = (
-                    f"Aggregate function {func} with parameters "
-                    + format_kwargs_for_error_message(kwargs)
-                    + " not supported yet in Snowpark pandas."
-                )
-            ErrorMessage.not_implemented(error_msg)
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas aggregate does not yet support the aggregation {repr_aggregate_function(func, kwargs)} with the given arguments."
+            )
 
         query_compiler = self
         if numeric_only:
@@ -5438,6 +5416,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # In this branch, the concatenated frame is a 1-row frame, but needs to be converted
             # into a 1-column frame so the frontend can wrap it as a Series
             result = result.transpose_single_row()
+            # Set the single column's name to MODIN_UNNAMED_SERIES_LABEL
+            result = result.set_columns([MODIN_UNNAMED_SERIES_LABEL])
         return result
 
     def insert(
@@ -7342,7 +7322,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # TODO: (SNOW-853334) Support callable agg functions
         if aggfunc and callable(aggfunc):
             raise NotImplementedError(
-                f"Not implemented callable aggregation function {aggfunc}."
+                f"Snowpark pandas DataFrame.pivot_table does not yet support the aggregation {repr_aggregate_function(aggfunc, agg_kwargs={})} with the given arguments."
             )
 
         if columns is not None and isinstance(columns, Hashable):
@@ -7379,7 +7359,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 f"Not implemented non-string of list of string {columns}."
             )
 
-        if aggfunc is None or (isinstance(aggfunc, list) and not all(aggfunc)):
+        if aggfunc is None or (is_list_like(aggfunc) and not all(aggfunc)):
             raise TypeError("Must provide 'func' or tuples of '(column, aggfunc).")
 
         if isinstance(aggfunc, dict) and (
@@ -7458,7 +7438,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 values, self._modin_frame
             )
             multiple_agg_funcs_single_values = (
-                isinstance(aggfunc, list) and len(aggfunc) > 1
+                is_list_like(aggfunc) and len(aggfunc) > 1
             ) and not isinstance(values, list)
             include_aggr_func_in_label = (
                 len(groupby_snowflake_quoted_identifiers) != 0
@@ -7488,13 +7468,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame,
                 pivot_aggr_groupings,
                 not dropna,
-                not isinstance(aggfunc, list),
+                not is_list_like(aggfunc),
                 columns,
                 groupby_snowflake_quoted_identifiers,
                 pivot_snowflake_quoted_identifiers,
-                (isinstance(aggfunc, list) and len(aggfunc) > 1),
-                (isinstance(values, list) and len(values) > 1),
+                (is_list_like(aggfunc) and len(aggfunc) > 1),
+                (is_list_like(aggfunc) and len(values) > 1),
                 index,
+                aggfunc,
             )
         except SnowparkSQLException as e:
             # `pivot_table` is implemented on the server side via the dynamic pivot
@@ -7577,6 +7558,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         pivot_snowflake_quoted_identifiers,
                         values,
                         margins_name,
+                        aggfunc,
                     )
                 )
         elif (
@@ -7818,7 +7800,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Result is basically a series with the column labels as index and the distinct count as values
         # for each data column
         # frame holds rows with nunique values, but result must be a series so transpose single row
-        return self._nunique_columns(dropna).transpose_single_row()
+        result = self._nunique_columns(dropna).transpose_single_row()
+        # Set the single column's name to MODIN_UNNAMED_SERIES_LABEL
+        return result.set_columns([MODIN_UNNAMED_SERIES_LABEL])
 
     def unique(self) -> "SnowflakeQueryCompiler":
         """Compute unique elements for series. Preserves order of how elements are encountered. Keyword arguments are
@@ -10086,6 +10070,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # depend on the Snowflake session's WEEK_START parameter. Subtract
             # 1 to match pandas semantics.
             "dayofweek": (lambda column: builtin("dayofweekiso")(col(column)) - 1),
+            "microsecond": (lambda column: floor(date_part("ns", col(column)) / 1000)),
+            "nanosecond": (lambda column: date_part("ns", col(column)) % 1000),
         }
         property_function = dt_property_to_function_map.get(property_name)
         if not property_function:
@@ -12840,7 +12826,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_index_names=frame.data_column_pandas_index_names,
             index_column_pandas_labels=[None],
             index_column_snowflake_quoted_identifiers=[
-                frame.row_position_snowflake_quoted_identifier
+                row_position_post_dedup.row_position_snowflake_quoted_identifier
             ],
         )
 
@@ -15589,7 +15575,51 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ).frame
             )
 
-    def equals(self, other: "SnowflakeQueryCompiler") -> "SnowflakeQueryCompiler":
+    def index_equals(self, other: "SnowflakeQueryCompiler") -> bool:
+        """
+        Compare self index against other index.
+        The things that are being compared are:
+        * The elements inside the Index object.
+        * The order of the elements inside the Index object.
+
+        Args:
+            other: Snowflake query compiler to compare against.
+
+        Returns:
+            True if self index is equal to other index, False otherwise.
+        """
+        # Join on row position columns to compare order of data.
+        self_frame = self._modin_frame.ensure_row_position_column()
+        other_frame = other._modin_frame.ensure_row_position_column()
+        join_result = join_utils.join(
+            self_frame,
+            other_frame,
+            left_on=[self_frame.row_position_snowflake_quoted_identifier],
+            right_on=[other_frame.row_position_snowflake_quoted_identifier],
+            how="outer",
+            inherit_join_index=InheritJoinIndex.FROM_BOTH,
+        )
+
+        agg_exprs = {
+            builtin("booland_agg")(col(left_id).equal_null(col(right_id))).as_(left_id)
+            for left_id, right_id in zip(
+                join_result.result_column_mapper.map_left_quoted_identifiers(
+                    self_frame.index_column_snowflake_quoted_identifiers
+                ),
+                join_result.result_column_mapper.map_right_quoted_identifiers(
+                    other_frame.index_column_snowflake_quoted_identifiers
+                ),
+            )
+        }
+
+        rows = join_result.result_frame.ordered_dataframe.agg(agg_exprs).collect()
+        # In case of empty table/dataframe booland_agg returns None. Add special case
+        # handling for that.
+        return all(x is None for x in rows[0]) or all(rows[0])
+
+    def equals(
+        self, other: "SnowflakeQueryCompiler", include_index: bool = False
+    ) -> "SnowflakeQueryCompiler":
         """
         Compare self against other, element-wise (binary operator equal_null).
         Notes:
@@ -15965,16 +15995,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         >>> other = df2._query_compiler
         """
 
-        # TODO(SNOW-1478684): Stop calling to_pandas() to work around Index.equals() bug.
-        def pandas_index(index: Union[native_pd.Index, pd.Index]) -> native_pd.Index:
-            if isinstance(index, native_pd.Index):
-                return index
-            return index.to_pandas()
-
-        if not (
-            pandas_index(self.columns).equals(pandas_index(other.columns))
-            and pandas_index(self.index).equals(pandas_index(other.index))
-        ):
+        if not (self.columns.equals(other.columns) and self.index.equals(other.index)):
             raise ValueError("Can only compare identically-labeled objects")
 
         # align the two frames on index values, which should be equal. We don't
