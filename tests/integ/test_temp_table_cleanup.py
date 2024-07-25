@@ -175,3 +175,8 @@ def test_auto_clean_up_temp_table_enabled_parameter(db_parameters, session, capl
     assert session._temp_table_cleaner.is_alive()
     session.auto_clean_up_temp_table_enabled = False
     assert not session._temp_table_cleaner.is_alive()
+    with pytest.raises(
+        ValueError,
+        match="value for auto_clean_up_temp_table_enabled must be True or False!",
+    ):
+        session.auto_clean_up_temp_table_enabled = -1
