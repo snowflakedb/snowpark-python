@@ -220,7 +220,7 @@ class Attribute(Expression, NamedExpression):
         # We already have a datatype. Nothing to do.
         pass
         if self.datatype is None:
-            raise RuntimeError    
+            raise NotImplementedError('type should not be None here for the demo, but in the future, we can fall back to snowflake.')
 
 class Star(Expression):
     def __init__(
@@ -297,7 +297,8 @@ class UnresolvedAttribute(Expression, NamedExpression):
                 self.name
             ) 
         if self.datatype is None:
-            raise RuntimeError
+            raise NotImplementedError('type should not be None here for the demo, but in the future, we can fall back to snowflake.')
+
 
 
 class Literal(Expression):
@@ -502,6 +503,7 @@ class FunctionExpression(Expression):
         api_call_source: Optional[str] = None,
         *,
         is_data_generator: bool = False,
+        type_resolver = None,
     ) -> None:
         super().__init__()
         self.name = name
@@ -509,6 +511,7 @@ class FunctionExpression(Expression):
         self.is_distinct = is_distinct
         self.api_call_source = api_call_source
         self.is_data_generator = is_data_generator
+        self.type_resolver = type_resolver
 
     @property
     def pretty_name(self) -> str:
@@ -529,9 +532,13 @@ class FunctionExpression(Expression):
         return PlanNodeCategory.FUNCTION
     
     def resolve_datatype(self, input_attributes):
-        # function clal should have already assigned a datatype.
+        for c in self.children:
+            c.resolve_datatype(input_attributes)        
+        if self.type_resolver is not None:
+            self.datatype = self.type_resolver(self.children, input_attributes)
         if self.datatype is None:
-            raise RuntimeError
+            raise NotImplementedError('type should not be None here for the demo, but in the future, we can fall back to snowflake.')
+
 
 class WithinGroup(Expression):
     def __init__(self, expr: Expression, order_by_cols: List[Expression]) -> None:

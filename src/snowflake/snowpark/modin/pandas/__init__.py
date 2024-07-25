@@ -357,7 +357,8 @@ import pandas
 
 TimedeltaType = register_user_defined_type(
     "TimedeltaType",
-    to_pandas=lambda v: pandas.Timedelta(v, "ns")
+    to_pandas=lambda v: pandas.Timedelta(v, "ns"),
+    cast_type="BIGINT"
 )
 
 

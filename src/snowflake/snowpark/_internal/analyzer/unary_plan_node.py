@@ -70,8 +70,13 @@ class Aggregate(UnaryNode):
         child: LogicalPlan,
     ) -> None:
         super().__init__(child)
+        from .select_statement import SelectStatement        
+        if not isinstance(child,SelectStatement) or len(grouping_expressions) > 0:
+            raise NotImplementedError
+        for expression in aggregate_expressions:
+            expression.resolve_datatype(child.snowflake_plan.attributes)
         self.grouping_expressions = grouping_expressions
-        self.aggregate_expressions = aggregate_expressions
+        self.aggregate_expressions = aggregate_expressions            
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
