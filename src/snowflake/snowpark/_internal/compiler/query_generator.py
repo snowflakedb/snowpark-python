@@ -81,15 +81,14 @@ class QueryGenerator(Analyzer):
         df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
     ) -> SnowflakePlan:
         if isinstance(logical_plan, SnowflakePlan):
-            # when encounter a SnowflakePlan, try to re-resolve the source plan
-            # to get the correct result
-            res = self.do_resolve_with_resolved_children(
-                logical_plan.source_plan,
-                resolved_children,
-                df_aliased_col_name_to_real_col_name,
-            )
-            resolved_children[logical_plan] = res
-            return res
+            if logical_plan.queries is None:
+                # when encounter a SnowflakePlan with no queries, try to re-resolve
+                # the source plan to construct the result
+                res = self.resolve(logical_plan.source_plan)
+                resolved_children[logical_plan] = res
+                return res
+            else:
+                return logical_plan
 
         if isinstance(logical_plan, SnowflakeCreateTable):
             # overwrite the SnowflakeCreateTable resolving, because the child

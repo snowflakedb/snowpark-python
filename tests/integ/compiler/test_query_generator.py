@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+from typing import List
+
 import pytest
 
 from snowflake.snowpark import Window
@@ -47,10 +49,12 @@ def reset_node(node: LogicalPlan) -> None:
             selectable_node._sql_query = None
 
     if isinstance(node, SnowflakePlan):
-        node.queries = None
-        node.post_actions = None
-        if isinstance(node.source_plan, Selectable):
-            reset_selectable(node.source_plan)
+        # do not reset leaf snowflake plan
+        if node.source_plan is not None:
+            node.queries = None
+            node.post_actions = None
+            if isinstance(node.source_plan, Selectable):
+                reset_selectable(node.source_plan)
     elif isinstance(node, Selectable):
         reset_selectable(node)
 
@@ -114,9 +118,12 @@ def test_selectable_query_generation(session, action):
         "show tables in schema limit 10",
     ],
 )
-def test_sql_select(session, query):
+def test_sql_select(session, query, sql_simplifier_enabled):
     df = session.sql(query)
-    check_generated_plan_queries(df._plan)
+    # when sql simplifier is disabled, there is no source plan associated
+    # with the df directly created from select.
+    if sql_simplifier_enabled:
+        check_generated_plan_queries(df._plan)
     df_filtered = session.sql(query).filter(lit(True))
     check_generated_plan_queries(df_filtered._plan)
 
@@ -199,6 +206,10 @@ def test_window_function(session):
     check_generated_plan_queries(df_result._plan)
 
 
+@pytest.mark.skipif(
+    "config.getoption('disable_sql_simplifier', default=False)",
+    reason="no source plan is available for df reader",
+)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_df_reader(session, mode, resources_path):
     reader = get_reader(session, mode)
@@ -209,6 +220,7 @@ def test_df_reader(session, mode, resources_path):
         session, session_stage, test_files.test_file_csv, compress=False
     )
     df = reader.option("INFER_SCHEMA", True).csv(test_file_on_stage)
+    # no source plan is available when sql simplifier is disabled, skip the check
     check_generated_plan_queries(df._plan)
 
 
@@ -216,14 +228,29 @@ def test_dataframe_creation_with_multiple_queries(session):
     # multiple queries and
     df = session.create_dataframe([1] * 20000)
     queries, post_actions = df.queries["queries"], df.queries["post_actions"]
-    assert len(queries) == 3
-    assert queries[0].startswith("CREATE")
-    assert queries[1].startswith("INSERT")
-    assert queries[2].startswith("SELECT")
-    assert len(post_actions) == 1
-    assert post_actions[0].startswith("DROP")
 
-    check_generated_plan_queries(df._plan)
+    def verify_multiple_create_queries(
+        plan_queries: List[str], post_action_queries: List[str]
+    ) -> None:
+        assert len(plan_queries) == 3
+        assert plan_queries[0].startswith("CREATE")
+        assert plan_queries[1].startswith("INSERT")
+        assert plan_queries[2].startswith("SELECT")
+        assert len(post_action_queries) == 1
+        assert post_action_queries[0].startswith("DROP")
+
+    verify_multiple_create_queries(queries, post_actions)
+
+    query_generator = create_query_generator(df._plan)
+    # reset the whole plan
+    reset_plan_tree(df._plan)
+    # regenerate the queries
+    plan_queries = query_generator.generate_queries([df._plan.source_plan])
+    queries = [query.sql.lstrip() for query in plan_queries[PlanQueryType.QUERIES]]
+    post_actions = [
+        query.sql.lstrip() for query in plan_queries[PlanQueryType.POST_ACTIONS]
+    ]
+    verify_multiple_create_queries(queries, post_actions)
 
 
 def test_multiple_plan_query_generation(session):
