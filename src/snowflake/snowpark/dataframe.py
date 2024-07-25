@@ -1922,9 +1922,8 @@ class DataFrame:
                         ast.cols.append(arg)
                         ast.variadic = True
                     else:
-                        for sub_arg in arg:
-                            ast.cols.append(sub_arg)
-                            ast.variadic = False
+                        ast.cols.extend(arg)
+                        ast.variadic = False
                 self.set_ast_ref(ast.df)
             else:
                 stmt = _ast_stmt
