@@ -32,6 +32,7 @@ class LogicalPlan:
     def __init__(self) -> None:
         self.children = []
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
+        self._is_deep_copied: bool = False
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -61,6 +62,15 @@ class LogicalPlan:
         self._cumulative_node_complexity = value
 
     def replace_child(self, old_node, new_node) -> None:
+        """This method is called during optimization stage to cut plan tree at a certain node.
+
+        It must only be called on a deep copied plan node, otherwise it will raise an exception.
+        """
+        if not self._is_deep_copied:
+            raise ValueError(
+                "replace child can only be called on a deep copied plan node."
+            )
+
         if old_node not in self.children:
             raise ValueError(
                 "old_node to be replaced is not found in the children nodes."
