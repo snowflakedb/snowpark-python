@@ -15721,6 +15721,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Whether the input is a Series, in which case we call `droplevel`
         """
         if not isinstance(level, int):
+            # TODO: SNOW-1558364: Support index name passed to level parameter
             ErrorMessage.not_implemented(
                 "Snowpark pandas DataFrame/Series.unstack does not yet support a non-integer `level` parameter"
             )
@@ -15740,12 +15741,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Check to see if we have a MultiIndex, if we do, make sure we remove
         # the appropriate level(s), and we pivot accordingly.
         if len(index_names) > 1:
-            index_col_names_after_reset_index = [
-                f"level_{i}" if index_names[i] is None else index_names[i]
-                for i in range(len(index_names))
-            ]
-            index_cols = index_col_names_after_reset_index
-
+            # Resetting the index keeps the index columns as the first n data columns
+            qc = self.reset_index()
+            index_cols = qc._modin_frame.data_column_pandas_labels[0 : len(index_names)]
             pivot_cols = [index_cols[lev] for lev in level]  # type: ignore
             index_cols = [
                 index_cols[i]
@@ -15755,7 +15753,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             vals = [
                 c for c in self.columns if c not in index_cols and c not in pivot_cols
             ]
-            qc = self.reset_index(names=index_col_names_after_reset_index).pivot_table(
+            # We need to track where the index and columns originally had no name in order to reset
+            # the those names back to None after the operation
+            unnamed_index_positions = [
+                i for i, x in enumerate(index_names) if x is None
+            ]
+            column_names_to_reset_to_none = []
+            # Track the new column names for the original unnamed index
+            for i in unnamed_index_positions:
+                column_names_to_reset_to_none.append(
+                    qc._modin_frame.data_column_pandas_labels[i]
+                )
+
+            qc = qc.pivot_table(
                 columns=pivot_cols,
                 index=index_cols,
                 values=vals,
@@ -15768,30 +15778,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 sort=sort,
             )
 
-            # Set the correct index names based on if index name is None
+            # Set the original unnamed index values back to None
             output_index_names = qc.get_index_names()
             output_index_names_replace_level_with_none = [
                 None
-                if isinstance(output_index_names[i], str)
-                and output_index_names[i][0:6] == "level_"  # type: ignore
+                if output_index_names[i] in column_names_to_reset_to_none
                 else output_index_names[i]
                 for i in range(len(output_index_names))
             ]
-            if None in output_index_names_replace_level_with_none:
-                qc = qc.set_index_names(output_index_names_replace_level_with_none)
-            # Set the correct columns names based on if column name is None
+            qc = qc.set_index_names(output_index_names_replace_level_with_none)
+            # Set the unnamed column values back to None
             output_column_names = qc.columns.names
             output_column_names_replace_level_with_none = [
                 None
-                if isinstance(output_column_names[i], str)
-                and output_column_names[i][0:6] == "level_"
+                if output_column_names[i] in column_names_to_reset_to_none
                 else output_column_names[i]
                 for i in range(len(output_column_names))
             ]
-            if None in output_column_names_replace_level_with_none:
-                qc = qc.set_columns(
-                    qc.columns.set_names(output_column_names_replace_level_with_none)
-                )
+            qc = qc.set_columns(
+                qc.columns.set_names(output_column_names_replace_level_with_none)
+            )
         else:
             qc = self._stack_helper(
                 index_names=index_names, operation=StackOperation.UNSTACK
