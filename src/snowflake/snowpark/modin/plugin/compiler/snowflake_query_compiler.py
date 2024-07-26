@@ -15728,6 +15728,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas DataFrame/Series.unstack does not yet support the `sort` parameter"
             )
+        if self._modin_frame.is_multiindex(axis=1):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas doesn't support multiindex columns in the unstack API"
+            )
+
         level = level if is_list_like(level) else [level]
 
         index_names = self.get_index_names()
@@ -15812,13 +15817,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         operation : StackOperation.STACK or StackOperation.UNSTACK
             The operation being performed.
         """
-        # Index name defaults to "index" after reset_index() operation if index name is None
-        index_cols = ["index"] if None in index_names else index_names
-        col_label = (
-            "index_second_level" if self.columns.name is None else self.columns.name
-        )
+        # Resetting the index keeps the index columns as the first n data columns
+        qc = self.reset_index()
+        index_cols = qc._modin_frame.data_column_pandas_labels[0 : len(index_names)]
+        # We need to track where the index and columns originally had no name in order to reset
+        # the those names back to None after the operation
+        unnamed_index_positions = [i for i, x in enumerate(index_names) if x is None]
+        column_names_to_reset_to_none = []
+        # Track the new column names for the original unnamed index
+        for i in unnamed_index_positions:
+            column_names_to_reset_to_none.append(
+                qc._modin_frame.data_column_pandas_labels[i]
+            )
+        # Track the new column name for the original unnamed column
+        if self.columns.name is None:
+            col_label = "index_second_level"
+            column_names_to_reset_to_none.append(col_label)
+        else:
+            col_label = self.columns.name
 
-        qc = self.reset_index(names=index_cols).melt(
+        qc = qc.melt(
             id_vars=index_cols,  # type: ignore
             value_vars=self.columns,
             var_name=col_label,
@@ -15844,12 +15862,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             qc = qc.set_index_from_columns([col_label] + index_cols)  # type: ignore
 
-        # Set the correct index names based on index names
+        # Set the original unnamed index and column values back to None
         output_index_names = qc.get_index_names()
         output_index_names = [
             None
-            if isinstance(output_index_names[i], str)
-            and output_index_names[i] in ("index", "index_second_level")
+            if output_index_names[i] in column_names_to_reset_to_none
             else output_index_names[i]
             for i in range(len(output_index_names))
         ]
