@@ -629,7 +629,13 @@ def test_decimal_regular_expression(decimal_word):
     ],
 )
 def test_retrieve_func_defaults_from_source(
-    datatype, annotated_value, extracted_value, add_type_hint, test_from_file, test_from_class, tmpdir
+    datatype,
+    annotated_value,
+    extracted_value,
+    add_type_hint,
+    test_from_file,
+    test_from_class,
+    tmpdir,
 ):
     func_name = "foo"
     class_name = "Foo"
