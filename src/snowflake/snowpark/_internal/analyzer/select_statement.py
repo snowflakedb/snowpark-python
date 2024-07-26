@@ -205,6 +205,7 @@ def _deepcopy_selectable_fields(
     # to avoid run into recursively copy problem, we do not copy the _snowflake_plan
     # field by default and let it rebuild when needed. As far as we have other fields
     # copied correctly, the plan can be recovered properly.
+    to_selectable._is_deep_copied = True
 
 
 class Selectable(LogicalPlan, ABC):
@@ -352,7 +353,15 @@ class Selectable(LogicalPlan, ABC):
         )
 
     def replace_child(self, old_node, new_node) -> None:
-        """Replaces a child node with a new node in the select statement from its children_plan_nodes."""
+        """This method is called during optimization stage to cut plan tree at a certain node.
+
+        It must only be called on a deep copied plan node, otherwise it will raise an exception.
+        """
+        if not self._is_deep_copied:
+            raise ValueError(
+                "replace child can only be called on a deep copied plan node."
+            )
+
         source_plan = self.snowflake_plan.source_plan
         # if source_plan is same as self, then we don't have children nodes
         if source_plan is None or source_plan == self:
@@ -854,6 +863,11 @@ class SelectStatement(Selectable):
         return complexity
 
     def replace_child(self, old_node, new_node) -> None:
+        if not self._is_deep_copied:
+            raise ValueError(
+                "replace child can only be called on a deep copied plan node."
+            )
+
         if self.from_ != old_node:
             raise ValueError(
                 "old_node to be replaced is not found in the children nodes."
@@ -1279,6 +1293,11 @@ class SetStatement(Selectable):
         return {PlanNodeCategory.SET_OPERATION: len(self.set_operands) - 1}
 
     def replace_child(self, old_node, new_node) -> None:
+        if not self._is_deep_copied:
+            raise ValueError(
+                "replace child can only be called on a deep copied plan node."
+            )
+
         if old_node not in self._nodes:
             raise ValueError(
                 "old_node to be replaced is not found in the children nodes."

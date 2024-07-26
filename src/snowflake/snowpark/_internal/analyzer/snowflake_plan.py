@@ -294,6 +294,15 @@ class SnowflakePlan(LogicalPlan):
             return []
 
     def replace_child(self, old_node, new_node) -> None:
+        """This method is called during optimization stage to cut plan tree at a certain node.
+
+        It must only be called on a deep copied plan node, otherwise it will raise an exception.
+        """
+        if not self._is_deep_copied:
+            raise ValueError(
+                "replace child can only be called on a deep copied plan node."
+            )
+
         if self.source_plan:
             # Child node from a snowflake plan is derived from its source plan so call
             # replace_child on the source plan.
@@ -460,6 +469,9 @@ class SnowflakePlan(LogicalPlan):
             )
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
+        copied_source_plan = (
+            copy.deepcopy(self.source_plan) if self.source_plan else None
+        )
         copied_plan = SnowflakePlan(
             queries=copy.deepcopy(self.queries) if self.queries else [],
             schema_query=self.schema_query,
@@ -469,7 +481,7 @@ class SnowflakePlan(LogicalPlan):
             expr_to_alias=copy.deepcopy(self.expr_to_alias)
             if self.expr_to_alias
             else None,
-            source_plan=copy.deepcopy(self.source_plan) if self.source_plan else None,
+            source_plan=copied_source_plan,
             is_ddl_on_temp_object=self.is_ddl_on_temp_object,
             api_calls=copy.deepcopy(self.api_calls) if self.api_calls else None,
             df_aliased_col_name_to_real_col_name=copy.deepcopy(
@@ -482,6 +494,9 @@ class SnowflakePlan(LogicalPlan):
             # session object after deepcopy
             session=self.session,
         )
+        copied_plan._is_deep_copied = True
+        if copied_source_plan:
+            copied_source_plan._is_deep_copied = True
 
         return copied_plan
 
