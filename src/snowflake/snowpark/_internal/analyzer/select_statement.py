@@ -232,6 +232,8 @@ class Selectable(LogicalPlan, ABC):
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
     def __eq__(self, other: "Selectable") -> bool:
+        if not isinstance(other, Selectable):
+            return False
         if self._id is not None and other._id is not None:
             return type(self) is type(other) and self._id == other._id
         else:
@@ -348,6 +350,17 @@ class Selectable(LogicalPlan, ABC):
             if self.snowflake_plan.source_plan
             else []
         )
+
+    def replace_child(self, old_node, new_node) -> None:
+        """Replaces a child node with a new node in the select statement from its children_plan_nodes."""
+        source_plan = self.snowflake_plan.source_plan
+        # if source_plan is same as self, then we don't have children nodes
+        if source_plan is None or source_plan == self:
+            raise ValueError(
+                "old_node to be replaced is not found in the children nodes."
+            )
+
+        source_plan.replace_child(old_node, new_node)
 
     @property
     def column_states(self) -> ColumnStateDict:
@@ -840,6 +853,14 @@ class SelectStatement(Selectable):
         )
         return complexity
 
+    def replace_child(self, old_node, new_node) -> None:
+        if self.from_ != old_node:
+            raise ValueError(
+                "old_node to be replaced is not found in the children nodes."
+            )
+
+        self.from_ = new_node
+
     def to_subqueryable(self) -> "Selectable":
         """When this SelectStatement's subquery is not subqueryable (can't be used in `from` clause of the sql),
         convert it to subqueryable and create a new SelectStatement with from_ being the new subqueryable。
@@ -1256,6 +1277,13 @@ class SetStatement(Selectable):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # we add #set_operands - 1 additional operators in sql query
         return {PlanNodeCategory.SET_OPERATION: len(self.set_operands) - 1}
+
+    def replace_child(self, old_node, new_node) -> None:
+        if old_node not in self._nodes:
+            raise ValueError(
+                "old_node to be replaced is not found in the children nodes."
+            )
+        self._nodes = [node if node != old_node else new_node for node in self._nodes]
 
 
 class DeriveColumnDependencyError(Exception):
