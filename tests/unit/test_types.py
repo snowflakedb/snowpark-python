@@ -587,6 +587,8 @@ def test_decimal_regular_expression(decimal_word):
     assert get_number_precision_scale(f"  {decimal_word}  (  2  ,  1  )  ") == (2, 1)
 
 
+@pytest.mark.parametrize("test_from_class", [True, False])
+@pytest.mark.parametrize("test_from_file", [True, False])
 @pytest.mark.parametrize("add_type_hint", [True, False])
 @pytest.mark.parametrize(
     "datatype,annotated_value,extracted_value",
@@ -627,24 +629,55 @@ def test_decimal_regular_expression(decimal_word):
     ],
 )
 def test_retrieve_func_defaults_from_source(
-    datatype, annotated_value, extracted_value, add_type_hint
+    datatype,
+    annotated_value,
+    extracted_value,
+    add_type_hint,
+    test_from_file,
+    test_from_class,
+    tmpdir,
 ):
     func_name = "foo"
+    class_name = "Foo"
 
-    source = f"""
-def {func_name}() -> None:
+    if test_from_class:
+        source = f"""
+class {class_name}:
+    def {func_name}() -> None:
+        return None
+"""
+    else:
+        source = f"""
+def {func_name}(self) -> None:
     return None
 """
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == []
+    if test_from_file:
+        file = tmpdir.join("test_udf.py")
+        file.write(source)
+        assert retrieve_func_defaults_from_source(file, func_name) == []
+    else:
+        assert retrieve_func_defaults_from_source("", func_name, _source=source) == []
 
     datatype_str = f": {datatype}" if add_type_hint else ""
-    source = f"""
+    if test_from_class:
+        source = f"""
+class {class_name}:
+    def {func_name}(self, x, y {datatype_str} = {annotated_value}) -> None:
+        return None
+"""
+    else:
+        source = f"""
 def {func_name}(x, y {datatype_str} = {annotated_value}) -> None:
     return None
 """
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
-        extracted_value
-    ]
+    if test_from_file:
+        file = tmpdir.join("test_udf.py")
+        file.write(source)
+        assert retrieve_func_defaults_from_source(file, func_name) == [extracted_value]
+    else:
+        assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
+            extracted_value
+        ]
 
 
 @pytest.mark.parametrize(

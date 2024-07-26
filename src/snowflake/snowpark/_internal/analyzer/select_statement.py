@@ -59,7 +59,10 @@ from snowflake.snowpark._internal.analyzer.expression import (
 )
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    LogicalPlan,
+    SnowflakeTable,
+)
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     UnresolvedAlias,
@@ -181,6 +184,29 @@ class ColumnStateDict(UserDict):
                 self.has_new_columns = True
 
 
+def _deepcopy_selectable_fields(
+    from_selectable: "Selectable", to_selectable: "Selectable"
+) -> None:
+    """
+    Make a deep copy of the fields from the from_selectable to the to_selectable
+    """
+    to_selectable.pre_actions = deepcopy(from_selectable.pre_actions)
+    to_selectable.post_actions = deepcopy(from_selectable.post_actions)
+    to_selectable.flatten_disabled = from_selectable.flatten_disabled
+    to_selectable._column_states = deepcopy(from_selectable._column_states)
+    to_selectable.expr_to_alias = deepcopy(from_selectable.expr_to_alias)
+    to_selectable.df_aliased_col_name_to_real_col_name = deepcopy(
+        from_selectable.df_aliased_col_name_to_real_col_name
+    )
+    to_selectable._cumulative_node_complexity = deepcopy(
+        from_selectable._cumulative_node_complexity
+    )
+    # the snowflake plan for selectable typically point to self by default,
+    # to avoid run into recursively copy problem, we do not copy the _snowflake_plan
+    # field by default and let it rebuild when needed. As far as we have other fields
+    # copied correctly, the plan can be recovered properly.
+
+
 class Selectable(LogicalPlan, ABC):
     """The parent abstract class of a DataFrame's logical plan. It can be converted to and from a SnowflakePlan."""
 
@@ -267,12 +293,16 @@ class Selectable(LogicalPlan, ABC):
     @property
     def snowflake_plan(self):
         """Convert to a SnowflakePlan"""
+        return self.get_snowflake_plan(skip_schema_query=False)
+
+    def get_snowflake_plan(self, skip_schema_query) -> SnowflakePlan:
         if self._snowflake_plan is None:
             query = Query(self.sql_query, params=self.query_params)
             queries = [*self.pre_actions, query] if self.pre_actions else [query]
+            schema_query = None if skip_schema_query else self.schema_query
             self._snowflake_plan = SnowflakePlan(
                 queries,
-                self.schema_query,
+                schema_query,
                 post_actions=self.post_actions,
                 session=self.analyzer.session,
                 expr_to_alias=self.expr_to_alias,
@@ -345,13 +375,26 @@ class SelectableEntity(Selectable):
     Mainly used by session.table().
     """
 
-    def __init__(self, entity_name: str, *, analyzer: "Analyzer") -> None:
+    def __init__(
+        self,
+        entity: SnowflakeTable,
+        *,
+        analyzer: "Analyzer",
+    ) -> None:
+        # currently only selecting from a table is supported for this class
+        assert isinstance(entity, SnowflakeTable)
         super().__init__(analyzer)
-        self.entity_name = entity_name
+        self.entity = entity
+
+    def __deepcopy__(self, memodict={}) -> "SelectableEntity":  # noqa: B006
+        copied = SelectableEntity(deepcopy(self.entity), analyzer=self.analyzer)
+        _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
+
+        return copied
 
     @property
     def sql_query(self) -> str:
-        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity_name}"
+        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}"
 
     @property
     def placeholder_query(self) -> Optional[str]:
@@ -359,7 +402,7 @@ class SelectableEntity(Selectable):
 
     @property
     def sql_in_subquery(self) -> str:
-        return self.entity_name
+        return self.entity.name
 
     @property
     def schema_query(self) -> str:
@@ -408,6 +451,26 @@ class SelectSQL(Selectable):
             self._sql_query = sql
             self._schema_query = sql
             self._query_param = params
+
+    def __deepcopy__(self, memodict={}) -> "SelectSQL":  # noqa: B006
+        copied = SelectSQL(
+            sql=self.original_sql,
+            # when convert_to_select is True, a describe call might be triggered
+            # to construct the schema query. Since this is a pure copy method, and all
+            # fields can be done with a pure copy, we set this parameter to False on
+            # object construct, and correct the fields after.
+            convert_to_select=False,
+            analyzer=self.analyzer,
+            params=deepcopy(self.query_params),
+        )
+        _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
+        # copy over the other fields
+        copied.convert_to_select = self.convert_to_select
+        copied._sql_query = self._sql_query
+        copied._schema_query = self._schema_query
+        copied._query_param = deepcopy(self._query_param)
+
+        return copied
 
     @property
     def sql_query(self) -> str:
@@ -475,6 +538,14 @@ class SelectSnowflakePlan(Selectable):
             if query.params:
                 self._query_params.extend(query.params)
 
+    def __deepcopy__(self, memodict={}) -> "SelectSnowflakePlan":  # noqa: B006
+        copied = SelectSnowflakePlan(
+            snowflake_plan=deepcopy(self._snowflake_plan), analyzer=self.analyzer
+        )
+        _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
+        copied._query_params = deepcopy(self._query_params)
+        return copied
+
     @property
     def snowflake_plan(self):
         return self._snowflake_plan
@@ -492,7 +563,7 @@ class SelectSnowflakePlan(Selectable):
         return self._snowflake_plan._id
 
     @property
-    def schema_query(self) -> str:
+    def schema_query(self) -> Optional[str]:
         return self.snowflake_plan.schema_query
 
     @property
@@ -566,6 +637,24 @@ class SelectStatement(Selectable):
         )
 
         return new
+
+    def __deepcopy__(self, memodict={}) -> "SelectStatement":  # noqa: B006
+        copied = SelectStatement(
+            projection=deepcopy(self.projection),
+            from_=deepcopy(self.from_),
+            where=deepcopy(self.where),
+            order_by=deepcopy(self.order_by),
+            limit_=deepcopy(self.limit_),
+            offset=self.offset,
+            analyzer=self.analyzer,
+            # directly copy the current schema fields
+            schema_query=self._schema_query,
+        )
+
+        _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
+        copied._projection_in_str = self._projection_in_str
+        copied._query_params = deepcopy(self._query_params)
+        return copied
 
     @property
     def column_states(self) -> ColumnStateDict:
@@ -1018,20 +1107,39 @@ class SelectTableFunction(Selectable):
         other_plan: Optional[LogicalPlan] = None,
         left_cols: Optional[List[str]] = None,
         right_cols: Optional[List[str]] = None,
+        # snowflake_plan for SelectTableFunction if already known. This is
+        # used during copy to avoid extra resolving step.
+        snowflake_plan: Optional[SnowflakePlan] = None,
         analyzer: "Analyzer",
     ) -> None:
         super().__init__(analyzer)
         self.func_expr = func_expr
         self._snowflake_plan: SnowflakePlan
-        if other_plan:
-            self._snowflake_plan = analyzer.resolve(
-                TableFunctionJoin(other_plan, func_expr, left_cols, right_cols)
-            )
+        if snowflake_plan is not None:
+            self._snowflake_plan = snowflake_plan
         else:
-            self._snowflake_plan = analyzer.resolve(TableFunctionRelation(func_expr))
+            if other_plan:
+                self._snowflake_plan = analyzer.resolve(
+                    TableFunctionJoin(other_plan, func_expr, left_cols, right_cols)
+                )
+            else:
+                self._snowflake_plan = analyzer.resolve(
+                    TableFunctionRelation(func_expr)
+                )
         self.pre_actions = self._snowflake_plan.queries[:-1]
         self.post_actions = self._snowflake_plan.post_actions
         self._api_calls = self._snowflake_plan.api_calls
+
+    def __deepcopy__(self, memodict={}) -> "SelectTableFunction":  # noqa: B006
+        copied = SelectTableFunction(
+            func_expr=deepcopy(self.func_expr),
+            snowflake_plan=deepcopy(self._snowflake_plan),
+            analyzer=self.analyzer,
+        )
+        # copy over the other selectable fields, the snowflake plan has already been set correctly.
+        _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
+
+        return copied
 
     @property
     def snowflake_plan(self):
@@ -1046,7 +1154,7 @@ class SelectTableFunction(Selectable):
         return self._snowflake_plan.placeholder_query
 
     @property
-    def schema_query(self) -> str:
+    def schema_query(self) -> Optional[str]:
         return self._snowflake_plan.schema_query
 
     @property
@@ -1082,6 +1190,14 @@ class SetStatement(Selectable):
                     self.post_actions = []
                 self.post_actions.extend(operand.selectable.post_actions)
             self._nodes.append(operand.selectable)
+
+    def __deepcopy__(self, memodict={}) -> "SetStatement":  # noqa: B006
+        copied = SetStatement(*deepcopy(self.set_operands), analyzer=self.analyzer)
+        _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
+        copied._placeholder_query = self._placeholder_query
+        copied._sql_query = self._sql_query
+
+        return copied
 
     @property
     def sql_query(self) -> str:
