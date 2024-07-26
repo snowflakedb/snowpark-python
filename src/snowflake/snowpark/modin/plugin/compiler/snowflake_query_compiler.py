@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import calendar
 import functools
 import itertools
 import json
@@ -10,7 +11,7 @@ import typing
 import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
-from typing import Any, Callable, List, Literal, Optional, Union, get_args
+from typing import Any, Callable, List, Literal, Optional, Tuple, Union, get_args
 
 import numpy as np
 import numpy.typing as npt
@@ -5416,6 +5417,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # In this branch, the concatenated frame is a 1-row frame, but needs to be converted
             # into a 1-column frame so the frontend can wrap it as a Series
             result = result.transpose_single_row()
+            # Set the single column's name to MODIN_UNNAMED_SERIES_LABEL
+            result = result.set_columns([MODIN_UNNAMED_SERIES_LABEL])
         return result
 
     def insert(
@@ -7203,11 +7206,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns
         -------
         bool
-            Return True if QueryCompiler has a single column or single row, False
-             otherwise.
+            Return True if QueryCompiler has a single column, False otherwise.
         """
-        # TODO SNOW-864083: look into why len(self.index) == 1 is also considered as series-like
-        return self.get_axis_len(axis=1) == 1 or self.get_axis_len(axis=0) == 1
+        return self.get_axis_len(axis=1) == 1
 
     def pivot(
         self,
@@ -7798,7 +7799,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Result is basically a series with the column labels as index and the distinct count as values
         # for each data column
         # frame holds rows with nunique values, but result must be a series so transpose single row
-        return self._nunique_columns(dropna).transpose_single_row()
+        result = self._nunique_columns(dropna).transpose_single_row()
+        # Set the single column's name to MODIN_UNNAMED_SERIES_LABEL
+        return result.set_columns([MODIN_UNNAMED_SERIES_LABEL])
 
     def unique(self) -> "SnowflakeQueryCompiler":
         """Compute unique elements for series. Preserves order of how elements are encountered. Keyword arguments are
@@ -10657,6 +10660,45 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(frame)
 
+    def value_counts_index(
+        self,
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        bins: Optional[int] = None,
+        dropna: bool = True,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Counts the frequency or number of unique values of Index SnowflakeQueryCompiler.
+
+        The resulting object will be in descending order so that the
+        first element is the most frequently occurring element.
+        Excludes NA values by default.
+
+        Args:
+            normalize : bool, default False
+                If True then the object returned will contain the relative
+                frequencies of the unique values.
+            sort : bool, default True
+                Sort by frequencies when True. Preserve the order of the data when False.
+            ascending : bool, default False
+                Sort in ascending order.
+            bins : int, optional
+                Rather than count values, group them into half-open bins,
+                a convenience for ``pd.cut``, only works with numeric data.
+                This argument is not supported yet.
+            dropna : bool, default True
+                Don't include counts of NaN.
+        """
+        if bins is not None:
+            raise ErrorMessage.not_implemented("bins argument is not yet supported")
+
+        assert (
+            not self.is_multiindex()
+        ), "value_counts_index only supports single index objects"
+        by = self._modin_frame.index_column_pandas_labels
+        return self._value_counts_groupby(by, normalize, sort, ascending, dropna)
+
     def value_counts(
         self,
         subset: Optional[Sequence[Hashable]] = None,
@@ -10667,10 +10709,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         dropna: bool = True,
     ) -> "SnowflakeQueryCompiler":
         """
-        Counts the number of unique values (frequency) of SnowflakeQueryCompiler.
+        Counts the frequency or number of unique values of SnowflakeQueryCompiler.
 
         The resulting object will be in descending order so that the
-        first element is the most frequently-occurring element.
+        first element is the most frequently occurring element.
         Excludes NA values by default.
 
         Args:
@@ -10701,6 +10743,37 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             by = self._modin_frame.data_column_pandas_labels
 
+        return self._value_counts_groupby(by, normalize, sort, ascending, dropna)
+
+    def _value_counts_groupby(
+        self,
+        by: Union[List[Hashable], Tuple[Hashable, ...]],
+        normalize: bool,
+        sort: bool,
+        ascending: bool,
+        dropna: bool,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Helper method to obtain the frequency or number of unique values
+        within a group.
+
+        The resulting object will be in descending order so that the
+        first element is the most frequently occurring element.
+        Excludes NA values by default.
+
+        Args:
+            by : list
+                Columns to perform value_counts on.
+            normalize : bool
+                If True then the object returned will contain the relative
+                frequencies of the unique values.
+            sort : bool
+                Sort by frequencies when True. Preserve the order of the data when False.
+            ascending : bool
+                Sort in ascending order.
+            dropna : bool
+                Don't include counts of NaN.
+        """
         # validate whether by is valid (e.g., contains duplicates or non-existing labels)
         self.validate_groupby(by=by, axis=0, level=None)
 
@@ -15307,34 +15380,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas 'Series.dt.month_name' method doesn't yet support 'locale' parameter"
             )
         internal_frame = self._modin_frame
+
+        # The following generates a mapping list of the form:
+        # [1, "January", 2, "February", ..., 12, "December"]
+        mapping_list = [
+            int(i / 2) if i % 2 == 0 else calendar.month_name[int(i / 2)]
+            for i in range(2, 26)
+        ]
         snowpark_column = builtin("decode")(
             builtin("extract")(
                 "month", col(internal_frame.data_column_snowflake_quoted_identifiers[0])
             ),
-            1,
-            "January",
-            2,
-            "February",
-            3,
-            "March",
-            4,
-            "April",
-            5,
-            "May",
-            6,
-            "June",
-            7,
-            "July",
-            8,
-            "August",
-            9,
-            "September",
-            10,
-            "October",
-            11,
-            "November",
-            12,
-            "December",
+            *mapping_list,
         )
         internal_frame = internal_frame.append_column(
             internal_frame.data_column_snowflake_quoted_identifiers[0], snowpark_column
@@ -15366,24 +15423,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas 'Series.dt.day_name' method doesn't yet support 'locale' parameter"
             )
         internal_frame = self._modin_frame
+
+        # The following generates a mapping list of the form:
+        # [1, "Monday", 2, "Tuesday", ..., 7, "Sunday"]
+        mapping_list = [
+            int(i / 2) + 1 if i % 2 == 0 else calendar.day_name[int(i / 2)]
+            for i in range(0, 14)
+        ]
         snowpark_column = builtin("decode")(
             builtin("dayofweekiso")(
                 col(internal_frame.data_column_snowflake_quoted_identifiers[0])
             ),
-            1,
-            "Monday",
-            2,
-            "Tuesday",
-            3,
-            "Wednesday",
-            4,
-            "Thursday",
-            5,
-            "Friday",
-            6,
-            "Saturday",
-            7,
-            "Sunday",
+            *mapping_list,
         )
 
         internal_frame = internal_frame.append_column(
@@ -16076,16 +16127,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         >>> other = df2._query_compiler
         """
 
-        # TODO(SNOW-1478684): Stop calling to_pandas() to work around Index.equals() bug.
-        def pandas_index(index: Union[native_pd.Index, pd.Index]) -> native_pd.Index:
-            if isinstance(index, native_pd.Index):
-                return index
-            return index.to_pandas()
-
-        if not (
-            pandas_index(self.columns).equals(pandas_index(other.columns))
-            and pandas_index(self.index).equals(pandas_index(other.index))
-        ):
+        if not (self.columns.equals(other.columns) and self.index.equals(other.index)):
             raise ValueError("Can only compare identically-labeled objects")
 
         # align the two frames on index values, which should be equal. We don't

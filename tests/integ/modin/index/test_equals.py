@@ -70,3 +70,10 @@ def test_index_lazy_with_non_lazy():
     index2 = pd.Index([1, 2], convert_to_lazy=False)
     assert index1.equals(index2)
     assert index2.equals(index1)
+
+
+@sql_count_checker(query_count=0)
+def test_index_columns_self_compare():
+    # Bug SNOW-1478684
+    df = pd.DataFrame([1])
+    assert df.columns.equals(df.columns)
