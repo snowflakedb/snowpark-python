@@ -1629,7 +1629,7 @@ class Index:
         Examples
         --------
         >>> idx = pd.Index(['Ant', 'Bear', 'Cow'], name='animal')
-        >>> idx.to_frame()
+        >>> idx.to_frame()   # doctest: +NORMALIZE_WHITESPACE
                animal
         animal
         Ant       Ant
@@ -1639,10 +1639,10 @@ class Index:
         By default, the original Index is reused. To enforce a new Index:
 
         >>> idx.to_frame(index=False)
-            animal
-        0   Ant
-        1  Bear
-        2   Cow
+          animal
+        0    Ant
+        1   Bear
+        2    Cow
 
         To override the name of the resulting column, specify `name`:
 
