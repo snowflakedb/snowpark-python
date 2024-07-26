@@ -60,6 +60,15 @@ class LogicalPlan:
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
         self._cumulative_node_complexity = value
 
+    def replace_child(self, old_node, new_node) -> None:
+        if old_node not in self.children:
+            raise ValueError(
+                "old_node to be replaced is not found in the children nodes."
+            )
+        self.children = [
+            child if child != old_node else new_node for child in self.children
+        ]
+
 
 class LeafNode(LogicalPlan):
     pass

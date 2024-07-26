@@ -252,6 +252,8 @@ class SnowflakePlan(LogicalPlan):
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
+        if not isinstance(other, SnowflakePlan):
+            return False
         if self._id is not None and other._id is not None:
             return isinstance(other, SnowflakePlan) and self._id == other._id
         else:
@@ -290,6 +292,12 @@ class SnowflakePlan(LogicalPlan):
                 return self.source_plan.children
         else:
             return []
+
+    def replace_child(self, old_node, new_node) -> None:
+        if self.source_plan:
+            # Child node from a snowflake plan is derived from its source plan so call
+            # replace_child on the source plan.
+            self.source_plan.replace_child(old_node, new_node)
 
     def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
         # parameter protection
