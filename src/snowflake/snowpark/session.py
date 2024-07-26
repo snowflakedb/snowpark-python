@@ -65,7 +65,7 @@ from snowflake.snowpark._internal.packaging_utils import (
 )
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.telemetry import set_api_call_source
-from snowflake.snowpark._internal.temp_table_cleaner import TempTableAutoCleaner
+from snowflake.snowpark._internal.temp_table_auto_cleaner import TempTableAutoCleaner
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sp_to_sf_type,
@@ -551,9 +551,9 @@ class Session:
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
         self._runtime_version_from_requirement: str = None
-        self._temp_table_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
+        self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         if self._auto_clean_up_temp_table_enabled:
-            self._temp_table_cleaner.start()
+            self._temp_table_auto_cleaner.start()
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -594,8 +594,8 @@ class Session:
         finally:
             try:
                 self._conn.close()
-                if self._temp_table_cleaner.is_alive():
-                    self._temp_table_cleaner.stop()
+                if self._temp_table_auto_cleaner.is_alive():
+                    self._temp_table_auto_cleaner.stop()
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
@@ -712,11 +712,11 @@ class Session:
                 self._session_id, value
             )
             self._auto_clean_up_temp_table_enabled = value
-            is_alive = self._temp_table_cleaner.is_alive()
+            is_alive = self._temp_table_auto_cleaner.is_alive()
             if value and not is_alive:
-                self._temp_table_cleaner.start()
+                self._temp_table_auto_cleaner.start()
             elif not value and is_alive:
-                self._temp_table_cleaner.stop()
+                self._temp_table_auto_cleaner.stop()
         else:
             raise ValueError(
                 "value for auto_clean_up_temp_table_enabled must be True or False!"
