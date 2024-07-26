@@ -69,4 +69,4 @@ res6 = res2.analytics.compute_lead(cols=["SALESAMOUNT"], leads=[1, 2], order_by=
 
 res7 = res2.with_column("ORDERDATE", to_timestamp(res2["ORDERDATE"]))
 
-res8 = res7.analytics.time_series_agg(time_col="ORDERDATE", aggs={"SALESAMOUNT": ["SUM", "MAX"]}, windows=[], group_by=["1D", "-1D", "PRODUCTKEY"], sliding_interval="12H", formatted_col_names=["SUM_SALESAMOUNT_1D", "MAX_SALESAMOUNT_1D", "SUM_SALESAMOUNT_-1D", "MAX_SALESAMOUNT_-1D"])
+res8 = res7.analytics.time_series_agg(time_col="ORDERDATE", aggs={"SALESAMOUNT": ["SUM", "MAX"]}, windows=["1D", "-1D"], group_by=["PRODUCTKEY"], sliding_interval="12H", formatted_col_names=["SUM_SALESAMOUNT_1D", "MAX_SALESAMOUNT_1D", "SUM_SALESAMOUNT_-1D", "MAX_SALESAMOUNT_-1D"])

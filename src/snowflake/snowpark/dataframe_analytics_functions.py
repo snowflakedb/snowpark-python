@@ -693,7 +693,7 @@ class DataFrameAnalyticsFunctions:
             agg_func_tuple_ast._1 = col_name
             agg_func_tuple_ast._2.extend(agg_funcs)
             ast.aggs.append(agg_func_tuple_ast)
-        ast.group_by.extend(windows)
+        ast.windows.extend(windows)
         ast.group_by.extend(group_by)
         ast.sliding_interval = sliding_interval
         for window in windows:
