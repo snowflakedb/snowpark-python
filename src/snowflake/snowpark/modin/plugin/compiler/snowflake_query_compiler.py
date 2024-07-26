@@ -10,7 +10,7 @@ import typing
 import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
-from typing import Any, Callable, List, Literal, Optional, Union, get_args
+from typing import Any, Callable, List, Literal, Optional, Tuple, Union, get_args
 
 import numpy as np
 import numpy.typing as npt
@@ -10659,6 +10659,45 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(frame)
 
+    def value_counts_index(
+        self,
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        bins: Optional[int] = None,
+        dropna: bool = True,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Counts the frequency or number of unique values of Index SnowflakeQueryCompiler.
+
+        The resulting object will be in descending order so that the
+        first element is the most frequently occurring element.
+        Excludes NA values by default.
+
+        Args:
+            normalize : bool, default False
+                If True then the object returned will contain the relative
+                frequencies of the unique values.
+            sort : bool, default True
+                Sort by frequencies when True. Preserve the order of the data when False.
+            ascending : bool, default False
+                Sort in ascending order.
+            bins : int, optional
+                Rather than count values, group them into half-open bins,
+                a convenience for ``pd.cut``, only works with numeric data.
+                This argument is not supported yet.
+            dropna : bool, default True
+                Don't include counts of NaN.
+        """
+        if bins is not None:
+            raise ErrorMessage.not_implemented("bins argument is not yet supported")
+
+        assert (
+            not self.is_multiindex()
+        ), "value_counts_index only supports single index objects"
+        by = self._modin_frame.index_column_pandas_labels
+        return self._value_counts_groupby(by, normalize, sort, ascending, dropna)
+
     def value_counts(
         self,
         subset: Optional[Sequence[Hashable]] = None,
@@ -10669,10 +10708,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         dropna: bool = True,
     ) -> "SnowflakeQueryCompiler":
         """
-        Counts the number of unique values (frequency) of SnowflakeQueryCompiler.
+        Counts the frequency or number of unique values of SnowflakeQueryCompiler.
 
         The resulting object will be in descending order so that the
-        first element is the most frequently-occurring element.
+        first element is the most frequently occurring element.
         Excludes NA values by default.
 
         Args:
@@ -10703,6 +10742,37 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             by = self._modin_frame.data_column_pandas_labels
 
+        return self._value_counts_groupby(by, normalize, sort, ascending, dropna)
+
+    def _value_counts_groupby(
+        self,
+        by: Union[List[Hashable], Tuple[Hashable, ...]],
+        normalize: bool,
+        sort: bool,
+        ascending: bool,
+        dropna: bool,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Helper method to obtain the frequency or number of unique values
+        within a group.
+
+        The resulting object will be in descending order so that the
+        first element is the most frequently occurring element.
+        Excludes NA values by default.
+
+        Args:
+            by : list
+                Columns to perform value_counts on.
+            normalize : bool
+                If True then the object returned will contain the relative
+                frequencies of the unique values.
+            sort : bool
+                Sort by frequencies when True. Preserve the order of the data when False.
+            ascending : bool
+                Sort in ascending order.
+            dropna : bool
+                Don't include counts of NaN.
+        """
         # validate whether by is valid (e.g., contains duplicates or non-existing labels)
         self.validate_groupby(by=by, axis=0, level=None)
 
