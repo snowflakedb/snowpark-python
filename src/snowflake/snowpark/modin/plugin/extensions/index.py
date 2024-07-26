@@ -23,8 +23,10 @@
 
 from __future__ import annotations
 
+from functools import wraps
 from typing import Any, Callable, Hashable, Iterator, Literal
 
+import modin
 import numpy as np
 import pandas as native_pd
 from pandas._libs import lib
@@ -50,6 +52,7 @@ def is_lazy_check(func: Callable) -> Callable:
     Decorator method for separating function calls for lazy indexes and non-lazy (column) indexes
     """
 
+    @wraps(func)
     def check_lazy(*args: Any, **kwargs: Any) -> Any:
         func_name = func.__name__
 
@@ -1601,9 +1604,9 @@ class Index:
     @is_lazy_check
     def to_frame(
         self, index: bool = True, name: Hashable | None = lib.no_default
-    ) -> DataFrame:
+    ) -> modin.pandas.DataFrame:
         """
-        Create a DataFrame with a column containing the Index.
+        Create a :class:`DataFrame` with a column containing the Index.
 
         Parameters
         ----------
@@ -1616,8 +1619,8 @@ class Index:
 
         Returns
         -------
-        DataFrame
-            DataFrame containing the original Index data.
+        :class:`DataFrame`
+            :class:`DataFrame` containing the original Index data.
 
         See Also
         --------
@@ -1627,7 +1630,7 @@ class Index:
         Examples
         --------
         >>> idx = pd.Index(['Ant', 'Bear', 'Cow'], name='animal')
-        >>> idx.to_frame()
+        >>> idx.to_frame()   # doctest: +NORMALIZE_WHITESPACE
                animal
         animal
         Ant       Ant
@@ -1637,10 +1640,10 @@ class Index:
         By default, the original Index is reused. To enforce a new Index:
 
         >>> idx.to_frame(index=False)
-            animal
-        0   Ant
-        1  Bear
-        2   Cow
+          animal
+        0    Ant
+        1   Bear
+        2    Cow
 
         To override the name of the resulting column, specify `name`:
 
@@ -2099,9 +2102,9 @@ class Index:
 
         Examples
         --------
-        # Snowpark pandas converts np.nan, pd.NA, pd.NaT to None
+        Note Snowpark pandas converts np.nan, pd.NA, pd.NaT to None
         >>> idx = pd.Index([np.nan, 'var1', np.nan])
-        >>> idx.get_indexer_for([np.nan])
+        >>> idx.get_indexer_for([None])
         array([0, 2])
         """
         WarningMessage.index_to_pandas_warning("get_indexer_for")

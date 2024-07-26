@@ -42,6 +42,7 @@
 - Removed axis labels and callable names from error messages and telemetry about unsupported aggregations.
 - Fixed AssertionError in `Series.drop_duplicates` and `DataFrame.drop_duplicates` when called after `sort_values`.
 - Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.  
+- Fixed a bug where some Index docstrings are ignored. 
 
 
 ## 1.20.0 (2024-07-17)
