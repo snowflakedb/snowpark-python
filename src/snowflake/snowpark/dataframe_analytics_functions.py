@@ -142,7 +142,7 @@ class DataFrameAnalyticsFunctions:
                 col_names.append(formatted_col_name)
                 values.append(window_col)
 
-        return df.with_columns(col_names, values)
+        return df.with_columns(col_names, values, _emit_ast=False)
 
     def _parse_time_string(self, time_str: str) -> Tuple[int, str]:
         index = len(time_str)
@@ -363,7 +363,9 @@ class DataFrameAnalyticsFunctions:
 
                     formatted_col_name = col_formatter(column, agg_func, window_size)
                     ast.formatted_col_names.append(formatted_col_name)
-                    agg_df = agg_df.with_column(formatted_col_name, agg_col)
+                    agg_df = agg_df.with_column(
+                        formatted_col_name, agg_col, _emit_ast=False
+                    )
 
         return agg_df
 
@@ -457,7 +459,9 @@ class DataFrameAnalyticsFunctions:
 
                 formatted_col_name = col_formatter(column, agg_func)
                 ast.formatted_col_names.append(formatted_col_name)
-                agg_df = agg_df.with_column(formatted_col_name, agg_col)
+                agg_df = agg_df.with_column(
+                    formatted_col_name, agg_col, _emit_ast=False
+                )
 
         return agg_df
 
@@ -702,6 +706,9 @@ class DataFrameAnalyticsFunctions:
                     )
                     ast.formatted_col_names.append(agg_column_name)
 
+        if self._df._session._conn._suppress_not_implemented_error:
+            return None
+
         slide_duration, slide_unit = self._validate_and_extract_time_unit(
             sliding_interval, "sliding_interval", allow_negative=False
         )
@@ -711,6 +718,7 @@ class DataFrameAnalyticsFunctions:
         agg_df = agg_df.with_column(
             sliding_point_col,
             self._get_sliding_interval_start(time_col, slide_unit, slide_duration),
+            _emit_ast=False,
         )
 
         # Perform aggregations at sliding interval granularity.
