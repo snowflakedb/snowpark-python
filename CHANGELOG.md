@@ -6,9 +6,11 @@
 
 #### Improvements
 - Added support server side string size limitations.
+- Added support for passing `INFER_SCHEMA` options to `DataFrameReader` via `INFER_SCHEMA_OPTIONS`.
 
 #### Bug Fixes
 - Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
+- Fixed a bug in `DataFrame.to_pandas_batches` where the iterator could throw an error if certain transformation is made to the pandas dataframe due to wrong isolation level.
 
 ### Snowpark Local Testing Updates
 #### New Features
@@ -23,18 +25,25 @@
     - datediff
 
 ### Snowpark pandas API Updates
-
 #### New Features
 - Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
 - Added support for `DataFrame.compare` and `Series.compare` with default parameters.
+- Added support for `Series.dt.microsecond` and `Series.dt.nanosecond`.
+- Added support for `Index.is_unique` and `Index.has_duplicates`.
+- Added support for `Index.equals`.
+- Added support for `Index.value_counts`.
 - Added support for `DataFrame.unstack` and `Series.unstack`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
+- Removed unnecessary count query from `SnowflakeQueryCompiler.is_series_like` method.
 
 #### Bug Fixes
 - Made passing an unsupported aggregation function to `pivot_table` raise `NotImplementedError` instead of `KeyError`.
 - Removed axis labels and callable names from error messages and telemetry about unsupported aggregations.
+- Fixed AssertionError in `Series.drop_duplicates` and `DataFrame.drop_duplicates` when called after `sort_values`.
+- Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.  
+
 
 ## 1.20.0 (2024-07-17)
 

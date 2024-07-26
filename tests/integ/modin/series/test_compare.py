@@ -10,8 +10,8 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import create_test_series, eval_snowpark_pandas_result
 
-# (+1 query, +0 join) materialize first series's index for comparison
-# (+1 query, +0 join) materialize second series's index for comparison
+# (+1 query, +0 join) materialize first series's index for comparison if multi-index
+# (+1 query, +0 join) materialize second series's index for comparison if multi-index
 # (+1 query, +1 join) row count query for joining the two series and checking
 #                     whether all rows match.
 # (+1 query, +1 join) materialize query that joins the two series and checks
@@ -83,7 +83,7 @@ class TestDefaultParameters:
             ),
         )
 
-    @sql_count_checker(query_count=QUERY_COUNT, join_count=JOIN_COUNT)
+    @sql_count_checker(query_count=4, join_count=4)
     def test_default_index_and_name(self, base_series):
         position = 1
         new_value = 2
@@ -117,7 +117,7 @@ class TestDefaultParameters:
             ),
         )
 
-    @sql_count_checker(query_count=QUERY_COUNT, join_count=JOIN_COUNT)
+    @sql_count_checker(query_count=4, join_count=4)
     def test_different_names(self):
         series = native_pd.Series([1], name="a")
         other_series = native_pd.Series([2], name="b")
@@ -131,8 +131,9 @@ class TestDefaultParameters:
         )
 
     @sql_count_checker(
-        # Execute a query to materialize each index for comparison.
-        query_count=2
+        # Execute a query with join to compare lazy indices.
+        query_count=1,
+        join_count=1,
     )
     def test_different_index(self):
         series = native_pd.Series([1], index=["a"])

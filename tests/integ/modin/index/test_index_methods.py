@@ -5,9 +5,14 @@
 import modin.pandas as pd
 import pytest
 from numpy.testing import assert_equal
+from pandas._libs import lib
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.index.conftest import NATIVE_INDEX_TEST_DATA, TEST_DFS
+from tests.integ.modin.index.conftest import (
+    NATIVE_INDEX_TEST_DATA,
+    NATIVE_INDEX_UNIQUE_TEST_DATA,
+    TEST_DFS,
+)
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_index_equal,
@@ -47,19 +52,7 @@ def test_index_drop(native_index):
     assert_index_equal(snow_index.drop(labels), native_index.drop(labels))
 
 
-@sql_count_checker(query_count=6)
-@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
-def test_index_equals(native_index):
-    snow_index = pd.Index(native_index)
-    index_check = pd.Index([1, 2, 3, 4])
-    assert not snow_index.equals(index_check)
-    assert index_check.equals(pd.Index([1, 2, 3, 4]))
-
-    new_index = snow_index.copy()
-    assert snow_index.equals(new_index)
-
-
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3, join_count=1)
 @pytest.mark.parametrize("native_df", TEST_DFS)
 def test_df_index_equals(native_df):
     snow_df = pd.DataFrame(native_df)
@@ -72,13 +65,6 @@ def test_df_index_equals(native_df):
     assert snow_df.index.equals(snow_df.index)
     assert native_df.index.equals(snow_df.index.to_pandas())
     assert snow_df.index.equals(native_df.index)
-
-
-@sql_count_checker(query_count=1)
-@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
-def test_index_value_counts(native_index):
-    snow_index = pd.Index(native_index)
-    assert_series_equal(snow_index.value_counts(), native_index.value_counts())
 
 
 @sql_count_checker(query_count=8)
@@ -247,7 +233,7 @@ def test_df_index_columns_to_list(native_df):
     assert_equal(native_df.columns.to_list(), snow_df.columns.to_list())
 
 
-@pytest.mark.parametrize("name", [None, "name", True, 1])
+@pytest.mark.parametrize("name", [None, "name", True, 1, lib.no_default])
 @pytest.mark.parametrize("generate_extra_index", [True, False])
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_to_series(native_index, generate_extra_index, name):
@@ -264,7 +250,7 @@ def test_index_to_series(native_index, generate_extra_index, name):
         )
 
 
-@pytest.mark.parametrize("name", [None, "name", True, 1])
+@pytest.mark.parametrize("name", [None, "name", True, 1, lib.no_default])
 @pytest.mark.parametrize("generate_extra_index", [True, False])
 @pytest.mark.parametrize("native_df", TEST_DFS)
 def test_df_index_columns_to_series(native_df, generate_extra_index, name):
@@ -299,7 +285,7 @@ def test_df_index_columns_to_series(native_df, generate_extra_index, name):
 
 
 @sql_count_checker(query_count=1)
-@pytest.mark.parametrize("name", [None, "name", True, 1])
+@pytest.mark.parametrize("name", [None, "name", True, 1, lib.no_default])
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_to_frame(native_index, name, index):
@@ -313,7 +299,7 @@ def test_index_to_frame(native_index, name, index):
 
 
 @sql_count_checker(query_count=2)
-@pytest.mark.parametrize("name", [None, "name", True, 1])
+@pytest.mark.parametrize("name", [None, "name", True, 1, lib.no_default])
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("native_df", TEST_DFS)
 def test_df_index_columns_to_frame(native_df, index, name):
@@ -347,3 +333,19 @@ def test_df_index_columns_dtype(native_df):
     # do not check columns type for empty df
     if not native_df.empty:
         assert snow_df.columns.dtype == native_df.columns.dtype
+
+
+@pytest.mark.parametrize("index", NATIVE_INDEX_UNIQUE_TEST_DATA)
+@pytest.mark.parametrize("is_lazy", [True, False])
+def test_is_unique(index, is_lazy):
+    with SqlCounter(query_count=int(is_lazy)):
+        snow_index = pd.Index(index, convert_to_lazy=is_lazy)
+        assert index.is_unique == snow_index.is_unique
+
+
+@pytest.mark.parametrize("index", NATIVE_INDEX_UNIQUE_TEST_DATA)
+@pytest.mark.parametrize("is_lazy", [True, False])
+def test_has_duplicates(index, is_lazy):
+    with SqlCounter(query_count=int(is_lazy)):
+        snow_index = pd.Index(index, convert_to_lazy=is_lazy)
+        assert index.has_duplicates == snow_index.has_duplicates

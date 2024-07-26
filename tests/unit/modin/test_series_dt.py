@@ -34,8 +34,6 @@ def mock_query_compiler_for_dt_series() -> SnowflakeQueryCompiler:
     [
         (lambda s: s.dt.time, "time"),
         (lambda s: s.dt.timetz, "timetz"),
-        (lambda s: s.dt.microsecond, "microsecond"),
-        (lambda s: s.dt.nanosecond, "nanosecond"),
         (lambda s: s.dt.weekday, "weekday"),
         (lambda s: s.dt.is_month_start, "is_month_start"),
         (lambda s: s.dt.is_month_end, "is_month_end"),

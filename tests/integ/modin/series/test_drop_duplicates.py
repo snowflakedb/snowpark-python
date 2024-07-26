@@ -60,3 +60,16 @@ def test_drop_duplicates_nan_none(keep, expected):
         check_dtype=False,
         check_index_type=False,
     )
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_drop_duplicates_post_sort_values():
+    pandas_ser = native_pd.Series(["a", "b", "b", "c", "a"], name="name")
+    snow_ser = pd.Series(pandas_ser)
+
+    assert_series_equal(
+        snow_ser.sort_values(kind="stable").drop_duplicates(),
+        pandas_ser.sort_values(kind="stable").drop_duplicates(),
+        check_dtype=False,
+        check_index_type=False,
+    )
