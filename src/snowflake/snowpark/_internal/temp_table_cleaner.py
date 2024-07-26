@@ -1,18 +1,20 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
 import logging
 import threading
+import weakref
 from collections import defaultdict
 from queue import Queue
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING, Dict, Optional
+
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
 
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session  # pragma: no cover
 
 
-class TempTableCleaner:
+class TempTableAutoCleaner:
     """
     Clean up temporary tables created automatically by Snowpark at the session level.
 
@@ -30,19 +32,29 @@ class TempTableCleaner:
         # to its reference count for later temp table management
         # this dict will still be maintained even if the cleaner is stopped (`stop()` is called)
         self.ref_count_map: Dict[str, int] = defaultdict(int)
-        self.queue = Queue()
-        self.cleanup_thread = None
+        self.queue: Queue = Queue()
+        self.cleanup_thread: Optional[threading.Thread] = None
 
-    def inc_ref_count(self, name: str) -> None:
+    def add(self, table: SnowflakeTable) -> None:
+        self._inc_ref_count(table.name)
+        # the finalizer will be triggered when it gets garbage collected
+        # and this table will be dropped finally
+        _ = weakref.finalize(table, self._dec_ref_count, table.name)
+
+    def _inc_ref_count(self, name: str) -> None:
         self.ref_count_map[name] += 1
 
-    def dec_ref_count(self, name: str) -> None:
+    def _dec_ref_count(self, name: str) -> None:
         self.ref_count_map[name] -= 1
-        if self.ref_count_map[name] <= 0:
+        if self.ref_count_map[name] == 0:
             self.ref_count_map.pop(name)
             # clean up
             if self.is_alive():
                 self.queue.put(name)
+        elif self.ref_count_map[name] < 0:
+            logging.debug(
+                f"Unexpected reference count {self.ref_count_map[name]} for table {name}"
+            )
 
     def process_cleanup(self) -> None:
         while True:
@@ -54,13 +66,14 @@ class TempTableCleaner:
 
     def drop_table(self, name: str) -> None:
         common_log_text = f"temp table {name} in session {self.session.session_id}"
+        logging.debug(f"Cleanup Thread: Ready to drop {common_log_text}")
         try:
             # TODO SNOW-1556553: Remove this workaround once multi-threading of Snowpark session is supported
             with self.session._conn._conn.cursor() as cursor:
                 cursor.execute(f"drop table if exists {name}")
             logging.debug(f"Cleanup Thread: Successfully dropped {common_log_text}")
         except Exception:
-            logging.debug(
+            logging.warning(
                 f"Cleanup Thread: Failed to drop {common_log_text}"
             )  # pragma: no cover
 
@@ -74,5 +87,7 @@ class TempTableCleaner:
 
     def stop(self) -> None:
         if self.is_alive():
+            # None will break the loop in cleanup thread and force it exit
+            # then we can call thread.join() to stop this thread
             self.queue.put(None)
             self.cleanup_thread.join()

@@ -65,7 +65,7 @@ from snowflake.snowpark._internal.packaging_utils import (
 )
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.telemetry import set_api_call_source
-from snowflake.snowpark._internal.temp_table_cleaner import TempTableCleaner
+from snowflake.snowpark._internal.temp_table_cleaner import TempTableAutoCleaner
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sp_to_sf_type,
@@ -551,7 +551,7 @@ class Session:
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
         self._runtime_version_from_requirement: str = None
-        self._temp_table_cleaner: TempTableCleaner = TempTableCleaner(self)
+        self._temp_table_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         if self._auto_clean_up_temp_table_enabled:
             self._temp_table_cleaner.start()
 
