@@ -333,7 +333,7 @@ def lit(literal: LiteralType) -> Column:
     return literal if isinstance(literal, Column) else Column(Literal(literal), ast=ast)
 
 
-def sql_expr(sql: str, suppress_fn_ast: bool = False) -> Column:
+def sql_expr(sql: str, _emit_ast: bool = True) -> Column:
     """Creates a :class:`~snowflake.snowpark.Column` expression from raw SQL text.
     Note that the function does not interpret or check the SQL text.
 
@@ -342,17 +342,15 @@ def sql_expr(sql: str, suppress_fn_ast: bool = False) -> Column:
         >>> df.filter("a > 1").collect()  # use SQL expression
         [Row(A=3, B=4)]
     """
+    ast = None
+    if _emit_ast:
+        sql_expr_ast = proto.Expr()
+        ast = with_src_position(sql_expr_ast.sp_column_sql_expr)
+        ast.sql = sql
 
-    sql_expr_ast = proto.Expr()
-    ast = with_src_position(sql_expr_ast.sp_column_sql_expr)
-    ast.sql = sql
-
-    if suppress_fn_ast:
-        return Column._expr(sql, ast=sql_expr_ast)
-
-    # Capture with ApplyFn in order to restore sql_expr(...) function.
-    ast = proto.Expr()
-    build_fn_apply(ast, "sql_expr", sql_expr_ast)
+        # Capture with ApplyFn in order to restore sql_expr(...) function.
+        ast = proto.Expr()
+        build_fn_apply(ast, "sql_expr", sql_expr_ast)
 
     return Column._expr(sql, ast=ast)
 

@@ -1329,7 +1329,7 @@ class DataFrame:
             stmt = _ast_stmt
 
         return self.select(
-            [sql_expr(expr, suppress_fn_ast=True) for expr in parse_positional_args_to_list(*exprs)],
+            [sql_expr(expr, _emit_ast=False) for expr in parse_positional_args_to_list(*exprs)],
             _ast_stmt=stmt,
         )
 
