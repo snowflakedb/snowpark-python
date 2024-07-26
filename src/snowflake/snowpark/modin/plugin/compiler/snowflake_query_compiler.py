@@ -314,6 +314,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     parse_snowflake_object_construct_identifier_to_map,
     snowpark_to_pandas_helper,
+    unquote_name_if_quoted,
 )
 from snowflake.snowpark.modin.plugin._internal.where_utils import (
     validate_expected_boolean_data_columns,
@@ -15956,7 +15957,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         # Track the new column name for the original unnamed column
         if self.columns.name is None:
-            col_label = "index_second_level"
+            quoted_col_label = (
+                qc._modin_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                    pandas_labels=["index_second_level"]
+                )[0]
+            )
+            col_label = unquote_name_if_quoted(quoted_col_label)
             column_names_to_reset_to_none.append(col_label)
         else:
             col_label = self.columns.name
