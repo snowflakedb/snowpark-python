@@ -1324,14 +1324,7 @@ class DataFrame:
             ast = with_src_position(stmt.expr.sp_dataframe_select__exprs, stmt)
             self.set_ast_ref(ast.df)
             ast.variadic = is_variadic
-
-            for e in exprs:
-                if isinstance(e, str):
-                    ast.exprs.append(e)
-                else:
-                    raise TypeError(
-                        "The input of select_expr() must be a string or a list of strings"
-                    )
+            ast.exprs.extend(exprs)
         else:
             stmt = _ast_stmt
 
