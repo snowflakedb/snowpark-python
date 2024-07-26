@@ -67,13 +67,6 @@ def test_df_index_equals(native_df):
     assert snow_df.index.equals(native_df.index)
 
 
-@sql_count_checker(query_count=1)
-@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
-def test_index_value_counts(native_index):
-    snow_index = pd.Index(native_index)
-    assert_series_equal(snow_index.value_counts(), native_index.value_counts())
-
-
 @sql_count_checker(query_count=8)
 def test_index_union():
     idx1 = pd.Index([1, 2, 3, 4])

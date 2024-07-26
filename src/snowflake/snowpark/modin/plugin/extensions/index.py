@@ -1451,21 +1451,20 @@ class Index:
         normalize: bool = False,
         sort: bool = True,
         ascending: bool = False,
-        bins: Any = None,
+        bins: int | None = None,
         dropna: bool = True,
-    ) -> native_pd.Series:
-        # how to change the above return type to modin pandas series?
+    ) -> Series:
         """
         Return a Series containing counts of unique values.
 
         The resulting object will be in descending order so that the
-        first element is the most frequently-occurring element.
+        first element is the most frequently occurring element.
         Excludes NA values by default.
 
         Parameters
         ----------
         normalize : bool, default False
-            If True then the object returned will contain the relative
+            If True, then the object returned will contain the relative
             frequencies of the unique values.
         sort : bool, default True
             Sort by frequencies when True. Preserve the order of the data when False.
@@ -1474,13 +1473,14 @@ class Index:
         bins : int, optional
             Rather than count values, group them into half-open bins,
             a convenience for ``pd.cut``, only works with numeric data.
+            `bins` is not yet supported.
         dropna : bool, default True
             Don't include counts of NaN.
 
         Returns
         -------
         Series
-            A series containing counts of unique values.
+            A Series containing counts of unique values.
 
         See Also
         --------
@@ -1516,14 +1516,15 @@ class Index:
         apparitions of values, divide the index in the specified
         number of half-open bins.
         """
-        # TODO: SNOW-1458133 implement value_counts
-        WarningMessage.index_to_pandas_warning("value_counts")
-        return self.to_pandas().value_counts(
-            normalize=normalize,
-            sort=sort,
-            ascending=ascending,
-            bins=bins,
-            dropna=dropna,
+        return Series(
+            query_compiler=self._query_compiler.value_counts_index(
+                normalize=normalize,
+                sort=sort,
+                ascending=ascending,
+                bins=bins,
+                dropna=dropna,
+            ).set_index_names([self.name]),
+            name="proportion" if normalize else "count",
         )
 
     @is_lazy_check
