@@ -1,0 +1,60 @@
+## TEST CASE
+
+data = [
+    ["2023-01-01", 101, 200],
+    ["2023-01-02", 101, 100],
+    ["2023-01-03", 101, 300],
+    ["2023-01-04", 102, 250],
+]
+
+df = session.create_dataframe(data).to_df(
+    "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
+)
+
+moving_agg_res = df.analytics.moving_agg(
+    aggs={"SALESAMOUNT": ["SUM", "AVG"]},
+    window_sizes=[2, 3],
+    order_by=["ORDERDATE"],
+    group_by=["PRODUCTKEY"],
+)
+
+cumulative_agg_res = df.analytics.cumulative_agg(
+    aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
+    group_by=["PRODUCTKEY"],
+    order_by=["ORDERDATE"],
+    is_forward=True
+)
+
+compute_lag_res = df.analytics.compute_lag(
+    cols=["SALESAMOUNT"],
+    lags=[1, 2],
+    order_by=["ORDERDATE"],
+    group_by=["PRODUCTKEY"],
+)
+
+compute_lead_res = df.analytics.compute_lead(
+    cols=["SALESAMOUNT"],
+    leads=[1, 2],
+    order_by=["ORDERDATE"],
+    group_by=["PRODUCTKEY"],
+)
+
+df = df.with_column("ORDERDATE", to_timestamp(df["ORDERDATE"]))
+
+def custom_formatter(input_col, agg, window):
+    return f"{agg}_{input_col}_{window}"
+
+time_series_agg_res = df.analytics.time_series_agg(
+    time_col="ORDERDATE",
+    group_by=["PRODUCTKEY"],
+    aggs={"SALESAMOUNT": ["SUM", "MAX"]},
+    windows=["1D", "-1D"],
+    sliding_interval="12H",
+    col_formatter=custom_formatter,
+)
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = res1.alias("new_name")

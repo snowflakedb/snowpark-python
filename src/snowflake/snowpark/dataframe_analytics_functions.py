@@ -5,8 +5,11 @@
 from typing import Callable, Dict, List, Tuple, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.ast_utils import with_src_position
-from snowflake.snowpark._internal.tcm import proto
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
+from snowflake.snowpark._internal.ast_utils import (
+    build_expr_from_snowpark_column_or_col_name,
+    with_src_position,
+)
 from snowflake.snowpark._internal.utils import experimental
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import (
@@ -335,10 +338,11 @@ class DataFrameAnalyticsFunctions:
         stmt = self._df._session._ast_batch.assign()
         ast = with_src_position(stmt.expr.sp_dataframe_analytics_moving_agg, stmt)
         self._df.set_ast_ref(ast.df)
-        for col_name, agg_funcs in aggs:
-            agg_funcs_ast = proto.Expr()
-            agg_funcs_ast.extend(agg_funcs)
-            ast.aggs.append((col_name, agg_funcs_ast))
+        for col_name, agg_funcs in aggs.items():
+            agg_func_tuple_ast = proto.Tuple_String_List_String()
+            agg_func_tuple_ast._1 = col_name
+            agg_func_tuple_ast._2.extend(agg_funcs)
+            ast.aggs.append(agg_func_tuple_ast)
         ast.window_sizes.extend(window_sizes)
         ast.group_by.extend(group_by)
         ast.order_by.extend(order_by)
@@ -429,10 +433,11 @@ class DataFrameAnalyticsFunctions:
         stmt = self._df._session._ast_batch.assign()
         ast = with_src_position(stmt.expr.sp_dataframe_analytics_cumulative_agg, stmt)
         self._df.set_ast_ref(ast.df)
-        for col_name, agg_funcs in aggs:
-            agg_funcs_ast = proto.Expr()
-            agg_funcs_ast.extend(agg_funcs)
-            ast.aggs.append((col_name, agg_funcs_ast))
+        for col_name, agg_funcs in aggs.items():
+            agg_func_tuple_ast = proto.Tuple_String_List_String()
+            agg_func_tuple_ast._1 = col_name
+            agg_func_tuple_ast._2.extend(agg_funcs)
+            ast.aggs.append(agg_func_tuple_ast)
         ast.group_by.extend(group_by)
         ast.order_by.extend(order_by)
         ast.is_forward = is_forward
@@ -510,7 +515,8 @@ class DataFrameAnalyticsFunctions:
         stmt = self._df._session._ast_batch.assign()
         ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lag, stmt)
         self._df.set_ast_ref(ast.df)
-        ast.cols.extend([col._ast if isinstance(col, Column) else col for col in cols])
+        for c in cols:
+            build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
         ast.lags.extend(lags)
         ast.group_by.extend(group_by)
         ast.order_by.extend(order_by)
@@ -579,7 +585,8 @@ class DataFrameAnalyticsFunctions:
         stmt = self._df._session._ast_batch.assign()
         ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lead, stmt)
         self._df.set_ast_ref(ast.df)
-        ast.cols.extend([col._ast if isinstance(col, Column) else col for col in cols])
+        for c in cols:
+            build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
         ast.leads.extend(leads)
         ast.group_by.extend(group_by)
         ast.order_by.extend(order_by)
@@ -677,10 +684,11 @@ class DataFrameAnalyticsFunctions:
         ast = with_src_position(stmt.expr.sp_dataframe_analytics_time_series_agg, stmt)
         self._df.set_ast_ref(ast.df)
         ast.time_col = time_col
-        for col_name, agg_funcs in aggs:
-            agg_funcs_ast = proto.Expr()
-            agg_funcs_ast.extend(agg_funcs)
-            ast.aggs.append((col_name, agg_funcs_ast))
+        for col_name, agg_funcs in aggs.items():
+            agg_func_tuple_ast = proto.Tuple_String_List_String()
+            agg_func_tuple_ast._1 = col_name
+            agg_func_tuple_ast._2.extend(agg_funcs)
+            ast.aggs.append(agg_func_tuple_ast)
         ast.group_by.extend(windows)
         ast.group_by.extend(group_by)
         ast.sliding_interval = sliding_interval

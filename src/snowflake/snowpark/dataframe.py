@@ -213,8 +213,9 @@ def _alias_if_needed(
     prefix: Optional[str],
     suffix: Optional[str],
     common_col_names: List[str],
+    _emit_ast: bool = True,
 ):
-    col = df.col(c)
+    col = df.col(c, _emit_ast=_emit_ast)
     unquoted_col_name = c.strip('"')
     if c in common_col_names:
         if suffix:
@@ -277,6 +278,7 @@ def _disambiguate(
                 lhs_prefix,
                 lsuffix,
                 [] if isinstance(join_type, (LeftSemi, LeftAnti)) else common_col_names,
+                _emit_ast=False,
             )
             for name in lhs_names
         ],
@@ -285,7 +287,9 @@ def _disambiguate(
 
     rhs_remapped = rhs.select(
         [
-            _alias_if_needed(rhs, name, rhs_prefix, rsuffix, common_col_names)
+            _alias_if_needed(
+                rhs, name, rhs_prefix, rsuffix, common_col_names, _emit_ast=False
+            )
             for name in rhs_names
         ],
         _emit_ast=False,
@@ -1108,11 +1112,11 @@ class DataFrame:
         """
         return self.schema.names
 
-    def col(self, col_name: str) -> Column:
+    def col(self, col_name: str, _emit_ast: bool = True) -> Column:
         """Returns a reference to a column in the DataFrame."""
         col_expr_ast = proto.Expr()
-        if self._ast_id is None and FAIL_ON_MISSING_AST:
-            _logger.debug(self._explain_string())
+        if _emit_ast and self._ast_id is None and FAIL_ON_MISSING_AST:
+            # _logger.debug(self._explain_string())
             raise NotImplementedError(
                 f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
             )
@@ -1614,16 +1618,22 @@ class DataFrame:
         self.set_ast_ref(ast.df)
         ast.name = name
 
-        if self._session._conn._suppress_not_implemented_error:
-            return None
-
         _copy = copy.copy(self)
         _copy._alias = name
         for attr in self._plan.attributes:
             if _copy._select_statement:
+                if (
+                    name
+                    not in _copy._select_statement.df_aliased_col_name_to_real_col_name
+                ):
+                    _copy._select_statement.df_aliased_col_name_to_real_col_name[
+                        name
+                    ] = dict()
                 _copy._select_statement.df_aliased_col_name_to_real_col_name[name][
                     attr.name
                 ] = attr.name  # attr is quoted already
+            if name not in _copy._plan.df_aliased_col_name_to_real_col_name:
+                _copy._plan.df_aliased_col_name_to_real_col_name[name] = dict()
             _copy._plan.df_aliased_col_name_to_real_col_name[name][
                 attr.name
             ] = attr.name
