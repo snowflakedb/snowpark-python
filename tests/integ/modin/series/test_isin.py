@@ -64,7 +64,7 @@ def _test_isin_with_snowflake_logic(s, values):
         # (native_pd.Series([2, 3], index=["A", "B"]), 1), # not supported anymore because of index type mismatch
         # (native_pd.Series(index=["A", "B"]), 1), # not supported anymore because of index type mismatch
         (native_pd.Series([None, -10]), 5),
-        (native_pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]}), 5),
+        (native_pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]}), 4),
         (native_pd.Index([4, 5, 6]), 5),
     ],
 )
@@ -114,7 +114,7 @@ def test_isin_with_incompatible_index(values, expected_query_count):
         ([], native_pd.Series([]), 5),
         ([1, 2, 3], native_pd.Series([]), 5),
         ([], native_pd.Series([2, 3, 4]), 5),
-        ([1, 2, 3, 8], native_pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}), 5),
+        ([1, 2, 3, 8], native_pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}), 4),
         (["A", "B", ""], [], 3),
         (["A", "B", ""], ["A"], 3),
         (["A", "B", ""], ["A", "B", "C", "D"], 3),
