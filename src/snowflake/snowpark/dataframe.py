@@ -1361,8 +1361,8 @@ class DataFrame:
         ast = with_src_position(stmt.expr.sp_dataframe_drop, stmt)
         self.set_ast_ref(ast.df)
         for c in exprs:
-            build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
-        ast.variadic = is_variadic
+            build_expr_from_snowpark_column_or_col_name(ast.cols.args.add(), c)
+        ast.cols.variadic = is_variadic
 
         names = []
         for c in exprs:
@@ -1715,17 +1715,27 @@ class DataFrame:
         Args:
             cols: The columns to group by rollup.
         """
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_rollup, stmt)
+        self.set_ast_ref(expr.df)
+        col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
+        for c in col_list:
+            build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+
         rollup_exprs = self._convert_cols_to_exprs("rollup()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             rollup_exprs,
             snowflake.snowpark.relational_grouped_dataframe._RollupType(),
+            ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
     def group_by(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+        _ast_stmt: Optional[proto.Assign] = None,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
         SQL).
@@ -1761,11 +1771,26 @@ class DataFrame:
             >>> df.group_by("a").function("avg")("b").collect()
             [Row(A=1, AVG(B)=Decimal('1.500000')), Row(A=2, AVG(B)=Decimal('1.500000')), Row(A=3, AVG(B)=Decimal('1.500000'))]
         """
+        stmt = None
+        if _emit_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.assign()
+                expr = with_src_position(stmt.expr.sp_dataframe_group_by, stmt)
+                self.set_ast_ref(expr.df)
+                col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(
+                    *cols
+                )
+                for c in col_list:
+                    build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+            else:
+                stmt = _ast_stmt
+
         grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             grouping_exprs,
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
+            ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
@@ -1805,10 +1830,20 @@ class DataFrame:
         Args:
             grouping_sets: The list of :class:`GroupingSets` to group by.
         """
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_group_by_grouping_sets, stmt)
+        self.set_ast_ref(expr.df)
+        grouping_set_list, expr.variadic = parse_positional_args_to_list_variadic(
+            *grouping_sets
+        )
+        for gs in grouping_set_list:
+            expr.grouping_sets.append(gs._ast)
+
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             [gs._to_expression for gs in parse_positional_args_to_list(*grouping_sets)],
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
+            ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
@@ -1823,11 +1858,19 @@ class DataFrame:
         Args:
             cols: The columns to group by cube.
         """
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_cube, stmt)
+        self.set_ast_ref(expr.df)
+        col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
+        for c in col_list:
+            build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+
         cube_exprs = self._convert_cols_to_exprs("cube()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             cube_exprs,
             snowflake.snowpark.relational_grouped_dataframe._CubeType(),
+            ast_stmt=stmt,
         )
 
     @df_api_usage
@@ -1851,8 +1894,8 @@ class DataFrame:
                 ast = None
 
         df = self.group_by(
-            [self.col(quote_name(f.name)) for f in self.schema.fields]
-        ).agg()
+            [self.col(quote_name(f.name)) for f in self.schema.fields], _emit_ast=False
+        ).agg(_emit_ast=False)
 
         if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
@@ -1883,23 +1926,21 @@ class DataFrame:
         """
 
         # AST.
+        stmt = None
         if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.sp_dataframe_drop_duplicates, stmt)
+                for arg in subset:
+                    if isinstance(arg, str):
+                        ast.cols.append(arg)
+                        ast.variadic = True
+                    else:
+                        ast.cols.extend(arg)
+                        ast.variadic = False
+                self.set_ast_ref(ast.df)
             else:
                 stmt = _ast_stmt
-
-            ast = with_src_position(stmt.expr.sp_dataframe_drop_duplicates, stmt)
-            for arg in subset:
-                if isinstance(arg, str):
-                    ast.cols.append(arg)
-                    ast.variadic = True
-                else:
-                    for sub_arg in arg:
-                        ast.cols.append(sub_arg)
-                        ast.variadic = False
-
-            self.set_ast_ref(ast.df)
 
         if not subset:
             df = self.distinct(_emit_ast=False)
