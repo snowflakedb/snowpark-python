@@ -1286,7 +1286,7 @@ class DataFrame:
 
     @df_api_usage
     def select_expr(
-        self, 
+        self,
         *exprs: Union[str, Iterable[str]],
         _ast_stmt: proto.Assign = None,
     ) -> "DataFrame":
@@ -1329,7 +1329,10 @@ class DataFrame:
             stmt = _ast_stmt
 
         return self.select(
-            [sql_expr(expr, _emit_ast=False) for expr in parse_positional_args_to_list(*exprs)],
+            [
+                sql_expr(expr, _emit_ast=False)
+                for expr in parse_positional_args_to_list(*exprs)
+            ],
             _ast_stmt=stmt,
         )
 
