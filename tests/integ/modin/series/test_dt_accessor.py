@@ -124,6 +124,29 @@ def test_day_of_week(property, day_of_week_or_year_data, set_week_start):
     )
 
 
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("method", ["day_name", "month_name"])
+def test_day_month_name(method):
+    date_range = native_pd.date_range("2020-05-01", periods=5, freq="17D")
+    native_ser = native_pd.Series(date_range)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda s: getattr(s.dt, method)(),
+    )
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize("method", ["day_name", "month_name"])
+def test_day_month_name_negative(method):
+    date_range = native_pd.date_range("2020-05-01", periods=5, freq="17D")
+    native_ser = native_pd.Series(date_range)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(NotImplementedError):
+        getattr(snow_ser.dt, method)(locale="pt_BR.utf8")
+
+
 @dt_properties
 @sql_count_checker(query_count=1)
 def test_dt_property_with_tz(property_name):
