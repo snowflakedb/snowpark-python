@@ -32,6 +32,7 @@
 - Added support for `Index.is_unique` and `Index.has_duplicates`.
 - Added support for `Index.equals`.
 - Added support for `Index.value_counts`.
+- Added support for `Series.dt.day_name` and `Series.dt.month_name`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
