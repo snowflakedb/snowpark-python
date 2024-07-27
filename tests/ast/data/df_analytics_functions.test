@@ -1,0 +1,72 @@
+## TEST CASE
+
+data = [
+    ["2023-01-01", 101, 200],
+    ["2023-01-02", 101, 100],
+    ["2023-01-03", 101, 300],
+    ["2023-01-04", 102, 250],
+]
+
+df = session.create_dataframe(data).to_df(
+    "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
+)
+
+moving_agg_res = df.analytics.moving_agg(
+    aggs={"SALESAMOUNT": ["SUM", "AVG"]},
+    window_sizes=[2, 3],
+    order_by=["ORDERDATE"],
+    group_by=["PRODUCTKEY"],
+)
+
+cumulative_agg_res = df.analytics.cumulative_agg(
+    aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
+    group_by=["PRODUCTKEY"],
+    order_by=["ORDERDATE"],
+    is_forward=True
+)
+
+compute_lag_res = df.analytics.compute_lag(
+    cols=["SALESAMOUNT"],
+    lags=[1, 2],
+    order_by=["ORDERDATE"],
+    group_by=["PRODUCTKEY"],
+)
+
+compute_lead_res = df.analytics.compute_lead(
+    cols=["SALESAMOUNT"],
+    leads=[1, 2],
+    order_by=["ORDERDATE"],
+    group_by=["PRODUCTKEY"],
+)
+
+df = df.with_column("ORDERDATE", to_timestamp(df["ORDERDATE"]))
+
+def custom_formatter(input_col, agg, window):
+    return f"{agg}_{input_col}_{window}"
+
+time_series_agg_res = df.analytics.time_series_agg(
+    time_col="ORDERDATE",
+    aggs={"SALESAMOUNT": ["SUM", "MAX"]},
+    windows=["1D", "-1D"],
+    group_by=["PRODUCTKEY"],
+    sliding_interval="12H",
+    col_formatter=custom_formatter,
+)
+
+## EXPECTED OUTPUT
+
+res1 = session.create_dataframe([["2023-01-01", 101, 200], ["2023-01-02", 101, 100], ["2023-01-03", 101, 300], ["2023-01-04", 102, 250]])
+
+res2 = res1.to_df("ORDERDATE", "PRODUCTKEY", "SALESAMOUNT")
+
+res3 = res2.analytics.moving_agg(aggs={"SALESAMOUNT": ["SUM", "AVG"]}, window_sizes=[2, 3], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], formatted_col_names=["SALESAMOUNT_SUM_2", "SALESAMOUNT_AVG_2", "SALESAMOUNT_SUM_3", "SALESAMOUNT_AVG_3"])
+
+res4 = res2.analytics.cumulative_agg(aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]}, order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], is_forward=True, formatted_col_names=["SALESAMOUNT_SUM", "SALESAMOUNT_MIN", "SALESAMOUNT_MAX"])
+
+res5 = res2.analytics.compute_lag(cols=["SALESAMOUNT"], lags=[1, 2], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], formatted_col_names=["SALESAMOUNT_LAG_1", "SALESAMOUNT_LAG_2"])
+
+res6 = res2.analytics.compute_lead(cols=["SALESAMOUNT"], leads=[1, 2], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], formatted_col_names=["SALESAMOUNT_LEAD_1", "SALESAMOUNT_LEAD_2"])
+
+res7 = res2.with_column("ORDERDATE", to_timestamp(res2["ORDERDATE"]))
+
+res8 = res7.analytics.time_series_agg(time_col="ORDERDATE", aggs={"SALESAMOUNT": ["SUM", "MAX"]}, windows=["1D", "-1D"], group_by=["PRODUCTKEY"], sliding_interval="12H", formatted_col_names=["SUM_SALESAMOUNT_1D", "MAX_SALESAMOUNT_1D", "SUM_SALESAMOUNT_-1D", "MAX_SALESAMOUNT_-1D"])
