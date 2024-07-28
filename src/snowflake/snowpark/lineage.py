@@ -431,7 +431,6 @@ class Lineage:
                         version = parts[-1]
                         if had_quotes:
                             base_name = f'"{base_name}"'
-                            version = f'"{version}"'
                         return (f"{db}.{schema}.{base_name}", version)
                 else:
                     raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(

@@ -75,7 +75,7 @@ def test_get_name_and_version():
     }
     name, version = Lineage(fake_session)._get_name_and_version(graph_entity)
     assert name == 'db1.schema1."name1"'
-    assert version == '"v1"'
+    assert version == "v1"
 
     graph_entity = {
         _ObjectField.USER_DOMAIN: _UserDomain.FEATURE_VIEW,
