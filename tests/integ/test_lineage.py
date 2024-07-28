@@ -251,10 +251,6 @@ def test_lineage_trace(session):
     # assert_frame_equal(df, expected_df, check_dtype=False)
 
     # CASE 7 : Column lineage
-    session.sql(
-        f'CREATE OR REPLACE VIEW {db}.{schema}."v7" AS SELECT * FROM {db}.{schema}.V2'
-    ).collect()
-
     df = session.lineage.trace(
         f"{db}.{schema}.V2.C1", "COLUMN", direction=LineageDirection.UPSTREAM
     )
