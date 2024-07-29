@@ -13,8 +13,8 @@
 - Fixed a bug in `DataFrame.to_pandas_batches` where the iterator could throw an error if certain transformation is made to the pandas dataframe due to wrong isolation level.
 
 ### Snowpark Local Testing Updates
-#### New Features
 
+#### New Features
 - Added support for the following APIs:
   - snowflake.snowpark.functions
     - rank
@@ -25,8 +25,8 @@
     - datediff
 
 #### Bug Fixes
-
-Fixed a bug where values were not populated into the result DataFrame during the insertion of table merge operation.
+- Fixed a bug that Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
+- Fixed a bug where values were not populated into the result DataFrame during the insertion of table merge operation.
 
 ### Snowpark pandas API Updates
 #### New Features
