@@ -10525,7 +10525,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         how: Literal["start", "end"] = "end",
         normalize: bool = False,
         fill_value: Optional[Scalar] = None,
-        is_series: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Convert time series to specified frequency.
@@ -10591,7 +10590,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return self.resample(
             resample_kwargs=resample_kwargs,
-            resample_method="first",
+            resample_method="first" if method is None else method,
             resample_method_args=tuple(),  # type: ignore
             resample_method_kwargs=resample_method_kwargs,
             is_series=False,

@@ -482,7 +482,7 @@ def test_resample_ffill_large_gaps(interval):
 @freq
 @interval
 @sql_count_checker(query_count=3, join_count=1)
-def test_asfreq(freq, interval):
+def test_asfreq_no_method(freq, interval):
     rule = f"{interval}{freq}"
     eval_snowpark_pandas_result(
         *create_test_dfs(
@@ -490,5 +490,17 @@ def test_asfreq(freq, interval):
             index=native_pd.date_range("2020-01-01", periods=15, freq=f"1{freq}"),
         ),
         lambda df: df.asfreq(freq=rule),
+        check_freq=False,
+    )
+
+
+@sql_count_checker(query_count=3, join_count=1)
+def test_asfreq_ffill():
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            {"A": np.random.randn(15)},
+            index=native_pd.date_range("2020-01-01", periods=15, freq="1s"),
+        ),
+        lambda df: df.asfreq(freq="5s", method="ffill"),
         check_freq=False,
     )
