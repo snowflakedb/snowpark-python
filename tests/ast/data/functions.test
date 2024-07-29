@@ -949,11 +949,11 @@ res174 = res112.select(arrays_to_object(col("A"), col("B")), arrays_to_object(co
 
 res175 = res112.select(array_generate_range(col("A"), col("B")), array_generate_range(col("A"), col("B")), array_generate_range(col("A"), col("B"), col("C")))
 
-res176 = res112.select(array_generate_range(col("A"), col("B") + iff(sign(col("B") - col("A")) > 0, 1, -1), iff(sign(col("B") - col("A")) > 0, 1, -1)), array_generate_range(col("A"), col("B") + iff(sign(col("B") - col("A")) > 0, 1, -1), iff(sign(col("B") - col("A")) > 0, 1, -1)), array_generate_range(col("A"), col("B") + iff(sign(col("C")) > 0, 1, -1), col("C")))
+res176 = res112.select(array_generate_range(col("A"), (col("B") + iff((sign((col("B") - col("A"))) > 0), 1, -1)), iff((sign((col("B") - col("A"))) > 0), 1, -1)), array_generate_range(col("A"), (col("B") + iff((sign((col("B") - col("A"))) > 0), 1, -1)), iff((sign((col("B") - col("A"))) > 0), 1, -1)), array_generate_range(col("A"), (col("B") + iff((sign(col("C")) > 0), 1, -1)), col("C")))
 
 res177 = res112.select(dateadd("day", col("B"), col("A")), dateadd("day", lit(10), col("A")), dateadd("day", lit(0), col("A")), dateadd("day", col("B"), col("A")))
 
-res178 = res112.select(dateadd("day", -1 * col("B"), col("A")), dateadd("day", -1 * lit(10), col("A")), dateadd("day", -1 * lit(0), col("A")), dateadd("day", -1 * col("B"), col("A")))
+res178 = res112.select(dateadd("day", (-1 * col("B")), col("A")), dateadd("day", (-1 * lit(10)), col("A")), dateadd("day", (-1 * lit(0)), col("A")), dateadd("day", (-1 * col("B")), col("A")))
 
 res179 = res112.select(datediff("year", col("A"), col("B")), datediff("month", col("A"), col("B")))
 
@@ -1151,9 +1151,9 @@ res275 = res112.select(get_path(col("A"), col("B")))
 
 res276 = res112.select(get(1, 2), get(col("A"), 2), get(3, col("B")), get(col("A"), 2), get(col("A"), lit(1)))
 
-res277 = res112.select(when(col("a") % 2 == 0, lit("even")))
+res277 = res112.select(when(((col("a") % 2) == 0), lit("even")))
 
-res278 = res112.select(iff(col("a") % 2 == 0, lit("even"), lit("odd")))
+res278 = res112.select(iff(((col("a") % 2) == 0), lit("even"), lit("odd")))
 
 res279 = res112.select(in_([]), in_([col("A"), "B", "A"]), in_([col("col1"), col("col2")], [[1, "a"], [2, "b"]]))
 

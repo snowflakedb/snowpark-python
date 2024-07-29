@@ -2271,7 +2271,7 @@ class DataFrame:
         self.set_ast_ref(ast.df)
         other.set_ast_ref(ast.other)
 
-        return self._union_by_name_internal(other, is_all=False)
+        return self._union_by_name_internal(other, is_all=False, ast_stmt=stmt)
 
     @df_api_usage
     def union_all_by_name(self, other: "DataFrame") -> "DataFrame":
@@ -2304,10 +2304,10 @@ class DataFrame:
         self.set_ast_ref(ast.df)
         other.set_ast_ref(ast.other)
 
-        return self._union_by_name_internal(other, is_all=True)
+        return self._union_by_name_internal(other, is_all=True, ast_stmt=stmt)
 
     def _union_by_name_internal(
-        self, other: "DataFrame", is_all: bool = False
+        self, other: "DataFrame", is_all: bool = False, ast_stmt: proto.Assign = None
     ) -> "DataFrame":
         left_output_attrs = self._output
         right_output_attrs = other._output
@@ -2346,10 +2346,11 @@ class DataFrame:
                         right_child._plan, analyzer=self._session._analyzer
                     ),
                     operator=SET_UNION_ALL if is_all else SET_UNION,
-                )
+                ),
+                ast_stmt=ast_stmt,
             )
         else:
-            df = self._with_plan(UnionPlan(self._plan, right_child._plan, is_all))
+            df = self._with_plan(UnionPlan(self._plan, right_child._plan, is_all), ast_stmt=ast_stmt)
         return df
 
     @df_api_usage
@@ -3509,7 +3510,7 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_copy_into_table)
+        expr = with_src_position(stmt.expr.sp_dataframe_copy_into_table, stmt)
         self.set_ast_ref(expr.df)
         if isinstance(table_name, str):
             expr.table_name.append(table_name)
@@ -3929,7 +3930,7 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_view)
+        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_view, stmt)
         expr.is_temp = False
         self.set_ast_ref(expr.df)
         if isinstance(name, str):
@@ -3995,7 +3996,7 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_dynamic_table)
+        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_dynamic_table, stmt)
         self.set_ast_ref(expr.df)
         if isinstance(name, str):
             expr.name.append(name)
@@ -4072,7 +4073,7 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_view)
+        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_view, stmt)
         expr.is_temp = True
         self.set_ast_ref(expr.df)
         if isinstance(name, str):
@@ -4613,7 +4614,7 @@ class DataFrame:
 
         # AST.
         stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_cache_result)
+        expr = with_src_position(stmt.expr.sp_dataframe_cache_result, stmt)
         self.set_ast_ref(expr.df)
         if statement_params is not None:
             for k in statement_params:
