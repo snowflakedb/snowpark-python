@@ -596,7 +596,10 @@ class DataFrameReader:
         drop_tmp_file_format_if_exists_query: Optional[str] = None
         use_temp_file_format = "FORMAT_NAME" not in self._cur_options
         file_format_name = self._cur_options.get("FORMAT_NAME", temp_file_format_name)
-        infer_schema_query = infer_schema_statement(path, file_format_name)
+        infer_schema_options = self._cur_options.get("INFER_SCHEMA_OPTIONS", None)
+        infer_schema_query = infer_schema_statement(
+            path, file_format_name, infer_schema_options
+        )
         try:
             if use_temp_file_format:
                 self._session._conn.run_query(

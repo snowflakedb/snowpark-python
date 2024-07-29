@@ -514,7 +514,7 @@ def read_excel(
     storage_options: StorageOptions = None,
     dtype_backend: DtypeBackend | NoDefault = no_default,
     engine_kwargs: dict | None = None,
-) -> DataFrame | dict[IntStrT, DataFrame]:  # pragma: no cover
+) -> pd.DataFrame | dict[IntStrT, pd.DataFrame]:  # pragma: no cover
     _, _, _, kwargs = inspect.getargvalues(inspect.currentframe())
     from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
         FactoryDispatcher,
