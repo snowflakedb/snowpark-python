@@ -989,7 +989,9 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.sp_column_within_group)
         ast.col.CopyFrom(self._ast)
-        ast.cols.variadic = not (len(cols) == 1 and isinstance(cols[0], (list, tuple, set)))
+        ast.cols.variadic = not (
+            len(cols) == 1 and isinstance(cols[0], (list, tuple, set))
+        )
 
         # populate columns to order aggregate expression results by
         order_by_cols = []

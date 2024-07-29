@@ -102,6 +102,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
+    parse_positional_args_to_list_variadic,
     quote_name,
     random_name_for_temp_object,
     strip_double_quotes_in_like_statement_in_table_name,
@@ -1863,7 +1864,7 @@ class Session:
         """
         if _emit_ast:
             stmt = self._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_table)
+            ast = with_src_position(stmt.expr.sp_table, stmt)
             if isinstance(name, str):
                 ast.name.sp_table_name_flat.name = name
             elif isinstance(name, Iterable):
@@ -1933,7 +1934,7 @@ class Session:
         """
         # AST.
         stmt = self._ast_batch.assign()
-        expr = with_src_position(stmt.expr.apply_expr)
+        expr = with_src_position(stmt.expr.apply_expr, stmt)
         if isinstance(func_name, TableFunctionCall):
             expr.fn.udtf.name = func_name.name
             func_arguments = func_name.arguments
@@ -2030,6 +2031,19 @@ class Session:
         Returns:
             A new :class:`DataFrame` with data from calling the generator table function.
         """
+        # AST.
+        stmt = self._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_generator, stmt)
+        col_names, is_variadic = parse_positional_args_to_list_variadic(*columns)
+        for col_name in col_names:
+            ast.columns.append(col_name._ast)
+        ast.row_count = rowcount
+        ast.time_limit_seconds = timelimit
+        ast.variadic = is_variadic
+
+        if self._conn._suppress_not_implemented_error:
+            return None
+
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
                 external_feature_name="DataFrame.generator",
@@ -2100,7 +2114,7 @@ class Session:
         # AST.
         if _ast_stmt is None:
             stmt = self._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_sql)
+            expr = with_src_position(stmt.expr.sp_sql, stmt)
             expr.query = query
             if params is not None:
                 for p in params:
@@ -2832,7 +2846,7 @@ class Session:
 
         # AST.
         if _emit_ast:
-            ast = with_src_position(stmt.expr.sp_create_dataframe)
+            ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
 
             if isinstance(origin_data, tuple):
                 for row in origin_data:
@@ -2885,6 +2899,14 @@ class Session:
             [Row(ID=1), Row(ID=3), Row(ID=5), Row(ID=7), Row(ID=9)]
         """
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
+
+        # AST.
+        stmt = self._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_range, stmt)
+        ast.start = start
+        if end:
+            ast.end.value = end
+        ast.step.value = step
 
         if self.sql_simplifier_enabled:
             df = DataFrame(
@@ -3247,7 +3269,7 @@ class Session:
         """
         # AST.
         stmt = self._ast_batch.assign()
-        expr = with_src_position(stmt.expr.apply_expr)
+        expr = with_src_position(stmt.expr.apply_expr, stmt)
         expr.fn.stored_procedure.name = sproc_name
         for arg in args:
             build_expr_from_python_val(expr.pos_args.add(), arg)

@@ -1285,7 +1285,11 @@ class DataFrame:
         return self._with_plan(Project(names, join_plan or self._plan), ast_stmt=stmt)
 
     @df_api_usage
-    def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
+    def select_expr(
+        self,
+        *exprs: Union[str, Iterable[str]],
+        _ast_stmt: proto.Assign = None,
+    ) -> "DataFrame":
         """
         Projects a set of SQL expressions and returns a new :class:`DataFrame`.
         This method is equivalent to ``select(sql_expr(...))`` with :func:`select`
@@ -1310,8 +1314,26 @@ class DataFrame:
             <BLANKLINE>
 
         """
+        exprs, is_variadic = parse_positional_args_to_list_variadic(*exprs)
+        if not exprs:
+            raise ValueError("The input of select_expr() cannot be empty")
+
+        # AST.
+        if _ast_stmt is None:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_select__exprs, stmt)
+            self.set_ast_ref(ast.df)
+            ast.variadic = is_variadic
+            ast.exprs.extend(exprs)
+        else:
+            stmt = _ast_stmt
+
         return self.select(
-            [sql_expr(expr) for expr in parse_positional_args_to_list(*exprs)]
+            [
+                sql_expr(expr, _emit_ast=False)
+                for expr in parse_positional_args_to_list(*exprs)
+            ],
+            _ast_stmt=stmt,
         )
 
     selectExpr = select_expr
@@ -1711,7 +1733,7 @@ class DataFrame:
         col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
         for c in col_list:
             build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
-        
+
         rollup_exprs = self._convert_cols_to_exprs("rollup()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
@@ -1767,12 +1789,14 @@ class DataFrame:
                 stmt = self._session._ast_batch.assign()
                 expr = with_src_position(stmt.expr.sp_dataframe_group_by, stmt)
                 self.set_ast_ref(expr.df)
-                col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
+                col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(
+                    *cols
+                )
                 for c in col_list:
                     build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
             else:
                 stmt = _ast_stmt
-        
+
         grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
@@ -1821,7 +1845,9 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         expr = with_src_position(stmt.expr.sp_dataframe_group_by_grouping_sets, stmt)
         self.set_ast_ref(expr.df)
-        grouping_set_list, expr.variadic = parse_positional_args_to_list_variadic(*grouping_sets)
+        grouping_set_list, expr.variadic = parse_positional_args_to_list_variadic(
+            *grouping_sets
+        )
         for gs in grouping_set_list:
             expr.grouping_sets.append(gs._ast)
 
@@ -1850,7 +1876,7 @@ class DataFrame:
         col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
         for c in col_list:
             build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
-        
+
         cube_exprs = self._convert_cols_to_exprs("cube()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
@@ -2245,7 +2271,7 @@ class DataFrame:
         self.set_ast_ref(ast.df)
         other.set_ast_ref(ast.other)
 
-        return self._union_by_name_internal(other, is_all=False)
+        return self._union_by_name_internal(other, is_all=False, ast_stmt=stmt)
 
     @df_api_usage
     def union_all_by_name(self, other: "DataFrame") -> "DataFrame":
@@ -2278,10 +2304,10 @@ class DataFrame:
         self.set_ast_ref(ast.df)
         other.set_ast_ref(ast.other)
 
-        return self._union_by_name_internal(other, is_all=True)
+        return self._union_by_name_internal(other, is_all=True, ast_stmt=stmt)
 
     def _union_by_name_internal(
-        self, other: "DataFrame", is_all: bool = False
+        self, other: "DataFrame", is_all: bool = False, ast_stmt: proto.Assign = None
     ) -> "DataFrame":
         left_output_attrs = self._output
         right_output_attrs = other._output
@@ -2320,10 +2346,11 @@ class DataFrame:
                         right_child._plan, analyzer=self._session._analyzer
                     ),
                     operator=SET_UNION_ALL if is_all else SET_UNION,
-                )
+                ),
+                ast_stmt=ast_stmt,
             )
         else:
-            df = self._with_plan(UnionPlan(self._plan, right_child._plan, is_all))
+            df = self._with_plan(UnionPlan(self._plan, right_child._plan, is_all), ast_stmt=ast_stmt)
         return df
 
     @df_api_usage
@@ -3477,7 +3504,7 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_copy_into_table)
+        expr = with_src_position(stmt.expr.sp_dataframe_copy_into_table, stmt)
         self.set_ast_ref(expr.df)
         if isinstance(table_name, str):
             expr.table_name.append(table_name)
@@ -3897,7 +3924,7 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_view)
+        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_view, stmt)
         expr.is_temp = False
         self.set_ast_ref(expr.df)
         if isinstance(name, str):
@@ -3963,7 +3990,7 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_dynamic_table)
+        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_dynamic_table, stmt)
         self.set_ast_ref(expr.df)
         if isinstance(name, str):
             expr.name.append(name)
@@ -4040,7 +4067,7 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_view)
+        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_view, stmt)
         expr.is_temp = True
         self.set_ast_ref(expr.df)
         if isinstance(name, str):
@@ -4581,7 +4608,7 @@ class DataFrame:
 
         # AST.
         stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_cache_result)
+        expr = with_src_position(stmt.expr.sp_dataframe_cache_result, stmt)
         self.set_ast_ref(expr.df)
         if statement_params is not None:
             for k in statement_params:
