@@ -12,6 +12,6 @@ res1 = session.table("test_table")
 
 res2 = session.table("test_table")
 
-res3 = res1.join(res2, on=res1["num"] == res2["num"], how="inner")
+res3 = res1.join(res2, on=(res1["num"] == res2["num"]), how="inner")
 
 res4 = res3.select(res1["num"].alias("num1"), res2["num"].alias("num2"), res2["str"])
