@@ -2350,7 +2350,9 @@ class DataFrame:
                 ast_stmt=ast_stmt,
             )
         else:
-            df = self._with_plan(UnionPlan(self._plan, right_child._plan, is_all), ast_stmt=ast_stmt)
+            df = self._with_plan(
+                UnionPlan(self._plan, right_child._plan, is_all), ast_stmt=ast_stmt
+            )
         return df
 
     @df_api_usage
@@ -3990,7 +3992,9 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_dynamic_table, stmt)
+        expr = with_src_position(
+            stmt.expr.sp_dataframe_create_or_replace_dynamic_table, stmt
+        )
         self.set_ast_ref(expr.df)
         if isinstance(name, str):
             expr.name.append(name)
