@@ -277,7 +277,7 @@ class Table(DataFrame):
     ) -> None:
         if ast_stmt is None and session is not None and _emit_ast:
             ast_stmt = session._ast_batch.assign()
-            ast = with_src_position(ast_stmt.expr.sp_table)
+            ast = with_src_position(ast_stmt.expr.sp_table, ast_stmt)
             ast.name.sp_table_name_flat.name = table_name
             ast.variant.sp_table_init = True
 
