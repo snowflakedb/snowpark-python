@@ -4,7 +4,7 @@
 import logging
 import weakref
 from collections import defaultdict
-from queue import Queue
+from queue import Empty, Queue
 from threading import Event, Thread
 from typing import TYPE_CHECKING, Dict, Optional
 
@@ -55,9 +55,14 @@ class TempTableAutoCleaner:
 
     def process_cleanup(self) -> None:
         while not self.stop_event.is_set():
-            # it's non-blocking after timeout and become interruptable with stop_event
-            table_name = self.queue.get(timeout=1)
-            self.drop_table(table_name)
+            try:
+                # it's non-blocking after timeout and become interruptable with stop_event
+                # it will raise an `Empty` exception if queue is empty after timeout,
+                # then we catch this exception and avoid breaking loop
+                table_name = self.queue.get(timeout=1)
+                self.drop_table(table_name)
+            except Empty:
+                continue
 
     def drop_table(self, name: str) -> None:
         common_log_text = f"temp table {name} in session {self.session.session_id}"
