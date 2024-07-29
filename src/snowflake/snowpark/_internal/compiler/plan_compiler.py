@@ -9,6 +9,9 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     Query,
     SnowflakePlan,
 )
+from snowflake.snowpark._internal.compiler.large_query_breakdown import (
+    LargeQueryBreakdown,
+)
 
 
 class PlanCompiler:
@@ -47,12 +50,21 @@ class PlanCompiler:
             self._plan.source_plan is not None
         ) and current_session.cte_optimization_enabled
 
+    def should_apply_large_query_breakdown(self) -> bool:
+        session = self._plan.session
+        return session.large_query_breakdown_enabled
+
     def compile(self) -> Dict[PlanQueryType, List[Query]]:
         final_plan = self._plan
+        session = final_plan.session
         if self.should_apply_optimizations():
             # apply optimizations
             final_plan = final_plan.replace_repeated_subquery_with_cte()
             # TODO: add other optimization steps and code generation step
+            if self.should_apply_large_query_breakdown():
+                large_query_breakdown = LargeQueryBreakdown(session)
+                # TODO: use the result of the optimization extract queries
+                large_query_breakdown.breakdown_plans([final_plan])
 
         return {
             PlanQueryType.QUERIES: final_plan.queries,
