@@ -14,9 +14,9 @@ df5 = df1.filter("a > 1")
 
 res1 = session.table("test_table")
 
-res2 = res1.filter(col("A") > 1 & col("B") < 100)
+res2 = res1.filter(((col("A") > 1) & (col("B") < 100)))
 
-res3 = res1.filter(col("a") > 1)
+res3 = res1.filter((col("a") > 1))
 
 res4 = res1.filter("a > 1 and b < 100")
 

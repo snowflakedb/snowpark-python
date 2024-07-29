@@ -1864,7 +1864,7 @@ class Session:
         """
         if _emit_ast:
             stmt = self._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_table)
+            ast = with_src_position(stmt.expr.sp_table, stmt)
             if isinstance(name, str):
                 ast.name.sp_table_name_flat.name = name
             elif isinstance(name, Iterable):
@@ -1934,7 +1934,7 @@ class Session:
         """
         # AST.
         stmt = self._ast_batch.assign()
-        expr = with_src_position(stmt.expr.apply_expr)
+        expr = with_src_position(stmt.expr.apply_expr, stmt)
         if isinstance(func_name, TableFunctionCall):
             expr.fn.udtf.name = func_name.name
             func_arguments = func_name.arguments
@@ -2033,7 +2033,7 @@ class Session:
         """
         # AST.
         stmt = self._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_generator)
+        ast = with_src_position(stmt.expr.sp_generator, stmt)
         col_names, is_variadic = parse_positional_args_to_list_variadic(*columns)
         for col_name in col_names:
             ast.columns.append(col_name._ast)
@@ -2114,7 +2114,7 @@ class Session:
         # AST.
         if _ast_stmt is None:
             stmt = self._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_sql)
+            expr = with_src_position(stmt.expr.sp_sql, stmt)
             expr.query = query
             if params is not None:
                 for p in params:
@@ -2818,7 +2818,7 @@ class Session:
 
         # AST.
         if _emit_ast:
-            ast = with_src_position(stmt.expr.sp_create_dataframe)
+            ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
 
             if isinstance(origin_data, tuple):
                 for row in origin_data:
@@ -2874,7 +2874,7 @@ class Session:
 
         # AST.
         stmt = self._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_range)
+        ast = with_src_position(stmt.expr.sp_range, stmt)
         ast.start = start
         if end:
             ast.end.value = end
@@ -3241,7 +3241,7 @@ class Session:
         """
         # AST.
         stmt = self._ast_batch.assign()
-        expr = with_src_position(stmt.expr.apply_expr)
+        expr = with_src_position(stmt.expr.apply_expr, stmt)
         expr.fn.stored_procedure.name = sproc_name
         for arg in args:
             build_expr_from_python_val(expr.pos_args.add(), arg)
