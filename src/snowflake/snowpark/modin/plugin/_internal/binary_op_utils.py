@@ -8,8 +8,9 @@ from dataclasses import dataclass
 from pandas._typing import Callable, Scalar
 
 from snowflake.snowpark.column import Column as SnowparkColumn
-from snowflake.snowpark.functions import col, concat, floor, iff, repeat, when
+from snowflake.snowpark.functions import col, concat, floor, iff, repeat, when, datediff, dateadd
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
+from snowflake.snowpark.modin.plugin._internal.type_utils import TimedeltaType
 from snowflake.snowpark.modin.plugin._internal.join_utils import (
     JoinOrAlignInternalFrameResult,
 )
@@ -22,6 +23,7 @@ from snowflake.snowpark.types import (
     StringType,
     _FractionalType,
     _IntegralType,
+    TimestampType
 )
 
 NAN_COLUMN = pandas_lit("nan").cast("float")
@@ -60,7 +62,9 @@ def compute_modulo_between_snowpark_columns(
     first_datatype: DataType,
     second_operand: SnowparkColumn,
     second_datatype: DataType,
-) -> SnowparkColumn:
+    # NOTE that we probably need a small struct for this tuple[SnowparkColumn, object]
+    # which represents (SnwoflakeColumn, pandas_type)    
+) -> tuple[SnowparkColumn, DataType]:
     """
     Compute modulo between two Snowpark columns ``first_operand`` and ``second_operand``.
     Supports only numeric values for operands, raises NotImplementedError otherwise.
@@ -196,6 +200,8 @@ def compute_binary_op_between_snowpark_columns(
 
     binary_op_result_column = None
 
+    result_type = None
+
     # some operators and the data types have to be handled specially to align with pandas
     # However, it is difficult to fail early if the arithmetic operator is not compatible
     # with the data type, so we just let the server raise exception (e.g. a string minus a string).
@@ -266,12 +272,23 @@ def compute_binary_op_between_snowpark_columns(
                 second_operand > pandas_lit(0),
                 repeat(first_operand, second_operand),
                 pandas_lit(""),
-            )
+            )        
+        if op == "add" and isinstance(first_datatype(), TimestampType) and isinstance(second_datatype(), TimedeltaType):
+            result_type = TimestampType()
+            binary_op_result_column = dateadd("ns", second_operand, first_operand)
+        elif op == "add" and isinstance(second_datatype(), TimestampType) and isinstance(first_datatype(), TimedeltaType):
+            result_type = TimestampType()
+            binary_op_result_column = dateadd("ns", first_operand, second_operand)
+        elif op == "add" and isinstance(second_datatype(), TimedeltaType) and isinstance(first_datatype(), TimedeltaType):
+            result_type = TimedeltaType()
     elif op == "equal_null":
         if not are_equal_types(first_datatype(), second_datatype()):
             binary_op_result_column = pandas_lit(False)
         else:
             binary_op_result_column = first_operand.equal_null(second_operand)
+    elif op == "sub" and isinstance(first_datatype(), TimestampType) and isinstance(second_datatype(), TimestampType):
+        result_type = TimedeltaType()
+        binary_op_result_column = datediff("ns", second_operand, first_operand)
 
     # If there is no special binary_op_result_column result, it means the operator and
     # the data type of the column don't need special handling. Then we get the overloaded
@@ -279,7 +296,7 @@ def compute_binary_op_between_snowpark_columns(
     if binary_op_result_column is None:
         binary_op_result_column = getattr(first_operand, f"__{op}__")(second_operand)
 
-    return binary_op_result_column
+    return binary_op_result_column, result_type
 
 
 def are_equal_types(type1: DataType, type2: DataType) -> bool:
