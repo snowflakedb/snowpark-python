@@ -15801,9 +15801,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas doesn't support multiindex columns in stack API"
             )
 
-        qc = self._stack_helper(
-            index_names=self.get_index_names(), operation=StackOperation.STACK
-        )
+        qc = self._stack_helper(operation=StackOperation.STACK)
 
         if dropna:
             return qc.dropna(axis=0, how="any", thresh=None)
@@ -15854,7 +15852,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas doesn't support multiindex columns in the unstack API"
             )
 
-        level = level if is_list_like(level) else [level]
+        level = [level]
 
         index_names = self.get_index_names()
 
@@ -15919,9 +15917,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 qc.columns.set_names(output_column_names_replace_level_with_none)
             )
         else:
-            qc = self._stack_helper(
-                index_names=index_names, operation=StackOperation.UNSTACK
-            )
+            qc = self._stack_helper(operation=StackOperation.UNSTACK)
 
         if is_series_input and qc.columns.nlevels > 1:
             # If input is Series and output is MultiIndex, drop the top level of the MultiIndex
@@ -15930,7 +15926,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _stack_helper(
         self,
-        index_names: list[Hashable],
         operation: StackOperation,
     ) -> "SnowflakeQueryCompiler":
         """
@@ -15938,11 +15933,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Parameters
         ----------
-        index_names : list[Hashable]
-            The list of index names.
         operation : StackOperation.STACK or StackOperation.UNSTACK
             The operation being performed.
         """
+        index_names = self.get_index_names()
         # Resetting the index keeps the index columns as the first n data columns
         qc = self.reset_index()
         index_cols = qc._modin_frame.data_column_pandas_labels[0 : len(index_names)]
@@ -15977,6 +15971,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         if operation == StackOperation.STACK:
             # Only sort rows by column values in case of 'stack'
+            # For 'unstack' maintain the row position order
             qc = qc.sort_rows_by_column_values(
                 columns=index_cols,  # type: ignore
                 ascending=[True],
