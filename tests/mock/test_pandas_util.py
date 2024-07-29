@@ -3,6 +3,7 @@
 #
 import pandas as pd
 import pytest
+
 from snowflake.snowpark import DataFrame
 
 
