@@ -28,4 +28,4 @@ res5 = res4.sort(col("A"), col("B"), ascending=[0, 1])
 
 res6 = res5.sort(col("A"), col("B"), col("C"), ascending=[0, True, 1])
 
-res7 = res6.sort(col("B"), ascending=None)
+res7 = res6.sort(col("B"))
