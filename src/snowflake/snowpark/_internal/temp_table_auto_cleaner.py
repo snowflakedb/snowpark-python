@@ -2,10 +2,10 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import logging
-import threading
 import weakref
 from collections import defaultdict
 from queue import Queue
+from threading import Event, Thread
 from typing import TYPE_CHECKING, Dict, Optional
 
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
@@ -33,35 +33,30 @@ class TempTableAutoCleaner:
         # this dict will still be maintained even if the cleaner is stopped (`stop()` is called)
         self.ref_count_map: Dict[str, int] = defaultdict(int)
         self.queue: Queue = Queue()
-        self.cleanup_thread: Optional[threading.Thread] = None
+        self.cleanup_thread: Optional[Thread] = None
+        self.stop_event = Event()
 
     def add(self, table: SnowflakeTable) -> None:
-        self._inc_ref_count(table.name)
+        self.ref_count_map[table.name] += 1
         # the finalizer will be triggered when it gets garbage collected
         # and this table will be dropped finally
-        _ = weakref.finalize(table, self._dec_ref_count, table.name)
+        _ = weakref.finalize(table, self._delete_ref_count, table.name)
 
-    def _inc_ref_count(self, name: str) -> None:
-        self.ref_count_map[name] += 1
-
-    def _dec_ref_count(self, name: str) -> None:
+    def _delete_ref_count(self, name: str) -> None:
         self.ref_count_map[name] -= 1
         if self.ref_count_map[name] == 0:
             self.ref_count_map.pop(name)
             # clean up
-            if self.is_alive():
-                self.queue.put(name)
+            self.queue.put(name)
         elif self.ref_count_map[name] < 0:
             logging.debug(
                 f"Unexpected reference count {self.ref_count_map[name]} for table {name}"
             )
 
     def process_cleanup(self) -> None:
-        while True:
-            table_name = self.queue.get()
-            if table_name is None:
-                # exit the thread loop
-                break
+        while not self.stop_event.is_set():
+            # it's non-blocking after timeout and become interruptable with stop_event
+            table_name = self.queue.get(timeout=1)
             self.drop_table(table_name)
 
     def drop_table(self, name: str) -> None:
@@ -82,12 +77,19 @@ class TempTableAutoCleaner:
 
     def start(self) -> None:
         if not self.is_alive():
-            self.cleanup_thread = threading.Thread(target=self.process_cleanup)
+            self.stop_event.clear()
+            self.cleanup_thread = Thread(target=self.process_cleanup)
             self.cleanup_thread.start()
 
-    def stop(self) -> None:
+    def stop(self, graceful: bool = False) -> None:
+        """
+        If graceful is True, the cleaner will finish dropping remaining tables in the queue.
+        If it is False, the cleaner will stop immediately.
+        """
         if self.is_alive():
-            # None will break the loop in cleanup thread and force it exit
-            # then we can call thread.join() to stop this thread
-            self.queue.put(None)
+            self.stop_event.set()
             self.cleanup_thread.join()
+            if graceful:
+                while not self.queue.empty():
+                    table_name = self.queue.get()
+                    self.drop_table(table_name)

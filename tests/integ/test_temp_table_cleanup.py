@@ -1,10 +1,10 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
 import copy
 import gc
 import logging
+import time
 
 import pytest
 
@@ -166,6 +166,25 @@ def test_save_as_table_no_drop(session):
     f(session, temp_table_name)
     gc.collect()
     assert session._table_exists([temp_table_name])
+
+
+def test_start_after_gc(session):
+    session._temp_table_auto_cleaner.stop()
+
+    df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).cache_result()
+    table_name = df1.table_name
+    table_ids = table_name.split(".")
+    assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 1
+    del df1
+    gc.collect()
+    assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 0
+    assert not session._temp_table_auto_cleaner.queue.empty()
+    assert session._table_exists(table_ids)
+
+    session._temp_table_auto_cleaner.start()
+    time.sleep(1)
+    assert session._temp_table_auto_cleaner.queue.empty()
+    assert not session._table_exists(table_ids)
 
 
 def test_auto_clean_up_temp_table_enabled_parameter(db_parameters, session, caplog):

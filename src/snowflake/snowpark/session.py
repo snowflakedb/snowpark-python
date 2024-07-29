@@ -594,8 +594,7 @@ class Session:
         finally:
             try:
                 self._conn.close()
-                if self._temp_table_auto_cleaner.is_alive():
-                    self._temp_table_auto_cleaner.stop()
+                self._temp_table_auto_cleaner.stop(graceful=True)
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
@@ -624,6 +623,16 @@ class Session:
 
     @property
     def auto_clean_up_temp_table_enabled(self) -> bool:
+        """
+        When setting this parameter to ``True``, Snowpark will automatically clean up temporary tables created by
+        :meth:`DataFrame.cache_result` in the current session when the DataFrame is no longer referenced (i.e., gets garbage collected).
+        The default value is ``False``.
+
+        Note:
+            Even if this parameter is ``False``, Snowpark still records temporary tables when
+            their corresponding DataFrame are garbage collected. Therefore, if you turn it on in the middle of your session or after turning it off,
+            the target temporary tables will still be cleaned up accordingly.
+        """
         return self._auto_clean_up_temp_table_enabled
 
     @property
