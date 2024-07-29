@@ -15927,29 +15927,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             qc = self.reset_index()
             index_cols = qc._modin_frame.data_column_pandas_labels[0 : len(index_names)]
             pivot_cols = [index_cols[lev] for lev in level]  # type: ignore
-            index_cols = [
-                index_cols[i]
-                for i in range(len(index_cols))
-                if index_cols[i] not in pivot_cols
-            ]
-            vals = [
-                c for c in self.columns if c not in index_cols and c not in pivot_cols
-            ]
-            # We need to track where the index and columns originally had no name in order to reset
-            # the those names back to None after the operation
-            unnamed_index_positions = [
-                i for i, x in enumerate(index_names) if x is None
-            ]
+            res_index_cols = []
             column_names_to_reset_to_none = []
-            # Track the new column names for the original unnamed index
-            for i in unnamed_index_positions:
-                column_names_to_reset_to_none.append(
-                    qc._modin_frame.data_column_pandas_labels[i]
-                )
+            for i in range(len(index_names)):
+                if index_names[i] is None:
+                    # We need to track the names where the index and columns originally had no name
+                    # in order to reset those names back to None after the operation
+                    column_names_to_reset_to_none.append(
+                        qc._modin_frame.data_column_pandas_labels[i]
+                    )
+                col = index_cols[i]
+                if col not in pivot_cols:
+                    res_index_cols.append(col)
+            vals = [
+                c
+                for c in self.columns
+                if c not in res_index_cols and c not in pivot_cols
+            ]
 
             qc = qc.pivot_table(
                 columns=pivot_cols,
-                index=index_cols,
+                index=res_index_cols,
                 values=vals,
                 aggfunc="min",
                 fill_value=fill_value,
@@ -16004,15 +16002,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Resetting the index keeps the index columns as the first n data columns
         qc = self.reset_index()
         index_cols = qc._modin_frame.data_column_pandas_labels[0 : len(index_names)]
-        # We need to track where the index and columns originally had no name in order to reset
-        # the those names back to None after the operation
-        unnamed_index_positions = [i for i, x in enumerate(index_names) if x is None]
         column_names_to_reset_to_none = []
-        # Track the new column names for the original unnamed index
-        for i in unnamed_index_positions:
-            column_names_to_reset_to_none.append(
-                qc._modin_frame.data_column_pandas_labels[i]
-            )
+        for i in range(len(index_names)):
+            if index_names[i] is None:
+                # We need to track the names where the index and columns originally had no name
+                # in order to reset those names back to None after the operation
+                column_names_to_reset_to_none.append(
+                    qc._modin_frame.data_column_pandas_labels[i]
+                )
+
         # Track the new column name for the original unnamed column
         if self.columns.name is None:
             quoted_col_label = (
