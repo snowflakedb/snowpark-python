@@ -52,6 +52,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import Cast
 from snowflake.snowpark._internal.ast import AstBatch
 from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_python_val,
+    build_proto_from_struct_type,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -101,6 +102,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
+    parse_positional_args_to_list_variadic,
     quote_name,
     random_name_for_temp_object,
     strip_double_quotes_in_like_statement_in_table_name,
@@ -2029,6 +2031,19 @@ class Session:
         Returns:
             A new :class:`DataFrame` with data from calling the generator table function.
         """
+        # AST.
+        stmt = self._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_generator)
+        col_names, is_variadic = parse_positional_args_to_list_variadic(*columns)
+        for col_name in col_names:
+            ast.columns.append(col_name._ast)
+        ast.row_count = rowcount
+        ast.time_limit_seconds = timelimit
+        ast.variadic = is_variadic
+
+        if self._conn._suppress_not_implemented_error:
+            return None
+
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
                 external_feature_name="DataFrame.generator",
@@ -2473,6 +2488,7 @@ class Session:
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
         schema: Optional[Union[StructType, Iterable[str]]] = None,
+        _emit_ast: bool = True,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
@@ -2567,6 +2583,12 @@ class Session:
                     use_logical_type=self._use_logical_type_for_create_df,
                 )
                 set_api_call_source(t, "Session.create_dataframe[pandas]")
+
+                if _emit_ast:
+                    raise NotImplementedError(
+                        "TODO SNOW-1554591: Support pandas.DataFrame ServerConnection."
+                    )
+
                 return t
 
         # infer the schema based on the data
@@ -2759,6 +2781,9 @@ class Session:
             else:
                 project_columns.append(column(name))
 
+        # Create AST statement.
+        stmt = self._ast_batch.assign() if _emit_ast else None
+
         if self.sql_simplifier_enabled:
             df = DataFrame(
                 self,
@@ -2769,11 +2794,14 @@ class Session:
                     ),
                     analyzer=self._analyzer,
                 ),
-            ).select(project_columns)
+                ast_stmt=stmt,
+            ).select(project_columns, _emit_ast=False)
         else:
             df = DataFrame(
-                self, SnowflakeValues(attrs, converted, schema_query=schema_query)
-            ).select(project_columns)
+                self,
+                SnowflakeValues(attrs, converted, schema_query=schema_query),
+                ast_stmt=stmt,
+            ).select(project_columns, _emit_ast=False)
         set_api_call_source(df, "Session.create_dataframe[values]")
 
         if (
@@ -2781,7 +2809,43 @@ class Session:
             and isinstance(origin_data, pandas.DataFrame)
             and isinstance(self._conn, MockServerConnection)
         ):
+            if _emit_ast:
+                raise NotImplementedError(
+                    "TODO SNOW-1554591: Support pandas.DataFrame with MockServerConnection."
+                )
+
             return _convert_dataframe_to_table(df, temp_table_name, self)
+
+        # AST.
+        if _emit_ast:
+            ast = with_src_position(stmt.expr.sp_create_dataframe)
+
+            if isinstance(origin_data, tuple):
+                for row in origin_data:
+                    build_expr_from_python_val(
+                        ast.data.sp_dataframe_data__tuple.vs.add(), row
+                    )
+            elif isinstance(origin_data, list):
+                for row in origin_data:
+                    build_expr_from_python_val(
+                        ast.data.sp_dataframe_data__list.vs.add(), row
+                    )
+            # Note: pandas.DataFrame handled above.
+            else:
+                raise TypeError(
+                    f"Unsupported type {type(origin_data)} in create_dataframe."
+                )
+
+            if schema is not None:
+                if isinstance(schema, list):
+                    for name in schema:
+                        ast.schema.sp_dataframe_schema__list.vs.append(name)
+                elif isinstance(schema, StructType):
+                    build_proto_from_struct_type(
+                        schema, ast.schema.sp_dataframe_schema__struct.v
+                    )
+
+            df._ast_id = stmt.var_id.bitfield1
 
         return df
 
@@ -2807,6 +2871,14 @@ class Session:
             [Row(ID=1), Row(ID=3), Row(ID=5), Row(ID=7), Row(ID=9)]
         """
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
+
+        # AST.
+        stmt = self._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_range)
+        ast.start = start
+        if end:
+            ast.end.value = end
+        ast.step.value = step
 
         if self.sql_simplifier_enabled:
             df = DataFrame(

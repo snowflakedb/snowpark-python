@@ -45,9 +45,26 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
         TypeError: Raised if the Python constant/literal is not supported by the Snowpark client.
     """
     from snowflake.snowpark.column import Column
+    from snowflake.snowpark.row import Row
 
     if obj is None:
         set_src_position(expr_builder.null_val.src)
+
+    # Keep objects most high up in the class hierarchy first, i.e. a Row is a tuple.
+    elif isinstance(obj, Column):
+        expr_builder.CopyFrom(obj._ast)
+
+    elif isinstance(obj, Row):
+        set_src_position(expr_builder.sp_row.src)
+        if hasattr(obj, "_named_values") and obj._named_values is not None:
+            for field in obj._fields:
+                expr_builder.sp_row.names.list.append(field)
+                build_expr_from_python_val(
+                    expr_builder.sp_row.vs.add(), obj._named_values[field]
+                )
+        else:
+            for field in obj:
+                build_expr_from_python_val(expr_builder.sp_row.vs.add(), field)
 
     elif isinstance(obj, bool):
         set_src_position(expr_builder.bool_val.src)
@@ -146,11 +163,23 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
         for v in obj:
             build_expr_from_python_val(expr_builder.tuple_val.vs.add(), v)
 
-    elif isinstance(obj, Column):
-        expr_builder.CopyFrom(obj._ast)
-
     else:
         raise NotImplementedError("not supported type: %s" % type(obj))
+
+
+def build_proto_from_struct_type(
+    schema: "snowflake.snowpark.types.StructType", expr: proto.SpStructType
+) -> None:
+    from snowflake.snowpark.types import StructType
+
+    assert isinstance(schema, StructType)
+
+    expr.structured = schema.structured
+    for field in schema.fields:
+        ast_field = expr.fields.add()
+        field.column_identifier._fill_ast(ast_field.column_identifier)
+        field.datatype._fill_ast(ast_field.data_type)
+        ast_field.nullable = field.nullable
 
 
 def build_fn_apply(
