@@ -39,3 +39,7 @@ def create_query_generator(plan: SnowflakePlan) -> QueryGenerator:
         )
 
     return QueryGenerator(plan.session, snowflake_create_table_plan_info)
+
+
+def is_active_transaction(session):
+    return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
