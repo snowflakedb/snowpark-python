@@ -24,6 +24,10 @@
     - ntile
     - datediff
 
+#### Bug Fixes
+
+Fixed a bug where values were not populated into the result DataFrame during the insertion of table merge operation.
+
 ### Snowpark pandas API Updates
 #### New Features
 - Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
