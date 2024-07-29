@@ -4,6 +4,7 @@
 import re
 
 import modin.pandas as pd
+import numpy as np
 import pandas as native_pd
 import pytest
 
@@ -35,12 +36,37 @@ def test_index_indexing(index, key):
     elif isinstance(key, list) and isinstance(key[0], bool):
         join_count = 1  # because need to join key
     else:
-        join_count = 2  # because need join key and squeeze
+        join_count = 2  # because need to join key and squeeze
     with SqlCounter(query_count=1, join_count=join_count):
         if isinstance(key, (slice, list)) or key is ...:
             assert_index_equal(pd.Index(index)[key], index[key])
         else:
             assert pd.Index(index)[key] == index[key]
+
+
+@pytest.mark.parametrize(
+    "index",
+    [
+        native_pd.Index([1, 2, 3, 4, 5, 6, 7]),
+    ],
+)
+@pytest.mark.parametrize(
+    "key",
+    [
+        np.array([1, 3, 5]),
+        native_pd.Index([0, 1]),
+        native_pd.Series([0, 1]),
+    ],
+)
+@sql_count_checker(query_count=1, join_count=2)
+def test_index_indexing_other_list_like_key(index, key):
+    if isinstance(key, native_pd.Index):
+        key1 = pd.Index(key)
+    elif isinstance(key, native_pd.Series):
+        key1 = pd.Series(key)
+    else:
+        key1 = key
+    assert_index_equal(pd.Index(index)[key1], index[key])
 
 
 @pytest.mark.parametrize(
