@@ -1,0 +1,59 @@
+## TEST CASE
+
+df1 = session.table("test_table")
+
+rgdf2 = df1.group_by("str")
+
+df3 = rgdf2.agg()
+
+df4 = rgdf2.agg(sum("num"))
+
+df5 = rgdf2.agg([max("num")])
+
+df6 = rgdf2.agg(sum("num"), max("num"))
+
+df7 = rgdf2.agg([sum("num"), max("num")])
+
+df8 = rgdf2.agg("num", "max")
+
+df9 = rgdf2.agg(col("num"), "max")
+
+df10 = rgdf2.agg([("num", "max"), [col("num"), "sum"]])
+
+df11 = rgdf2.agg(sum("num"), ("num", "max"), max("num"), [col("num"), "sum"])
+
+df12 = rgdf2.agg({})
+
+df13 = rgdf2.agg({"num": "max"})
+
+df14 = rgdf2.agg({"num": "max", "str": "sum"})
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = res1.group_by("str")
+
+res3 = res2.agg()
+
+res4 = res2.agg(sum(col("num")))
+
+res5 = res2.agg([max(col("num"))])
+
+res6 = res2.agg(sum(col("num")), max(col("num")))
+
+res7 = res2.agg([sum(col("num")), max(col("num"))])
+
+res8 = res2.agg(["num", "max"])
+
+res9 = res2.agg([col("num"), "max"])
+
+res10 = res2.agg([("num", "max"), [col("num"), "sum"]])
+
+res11 = res2.agg(sum(col("num")), ("num", "max"), max(col("num")), [col("num"), "sum"])
+
+res12 = res2.agg({})
+
+res13 = res2.agg({"num": "max"})
+
+res14 = res2.agg({"num": "max", "str": "sum"})

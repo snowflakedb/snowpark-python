@@ -532,6 +532,7 @@ class DataFrame:
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
         ast_stmt: Optional[proto.Assign] = None,
+        _emit_ast: bool = True,
     ) -> None:
         """
         :param int ast_stmt: The AST Assign atom corresponding to this dataframe value. We track its assigned ID in the
@@ -539,7 +540,8 @@ class DataFrame:
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
-        self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
+        if _emit_ast:
+            self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
 
         if plan is not None:
             self._plan = self._session._analyzer.resolve(plan)
@@ -1283,7 +1285,11 @@ class DataFrame:
         return self._with_plan(Project(names, join_plan or self._plan), ast_stmt=stmt)
 
     @df_api_usage
-    def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
+    def select_expr(
+        self,
+        *exprs: Union[str, Iterable[str]],
+        _ast_stmt: proto.Assign = None,
+    ) -> "DataFrame":
         """
         Projects a set of SQL expressions and returns a new :class:`DataFrame`.
         This method is equivalent to ``select(sql_expr(...))`` with :func:`select`
@@ -1308,8 +1314,26 @@ class DataFrame:
             <BLANKLINE>
 
         """
+        exprs, is_variadic = parse_positional_args_to_list_variadic(*exprs)
+        if not exprs:
+            raise ValueError("The input of select_expr() cannot be empty")
+
+        # AST.
+        if _ast_stmt is None:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_select__exprs, stmt)
+            self.set_ast_ref(ast.df)
+            ast.variadic = is_variadic
+            ast.exprs.extend(exprs)
+        else:
+            stmt = _ast_stmt
+
         return self.select(
-            [sql_expr(expr) for expr in parse_positional_args_to_list(*exprs)]
+            [
+                sql_expr(expr, _emit_ast=False)
+                for expr in parse_positional_args_to_list(*exprs)
+            ],
+            _ast_stmt=stmt,
         )
 
     selectExpr = select_expr
@@ -1355,8 +1379,8 @@ class DataFrame:
         ast = with_src_position(stmt.expr.sp_dataframe_drop, stmt)
         self.set_ast_ref(ast.df)
         for c in exprs:
-            build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
-        ast.variadic = is_variadic
+            build_expr_from_snowpark_column_or_col_name(ast.cols.args.add(), c)
+        ast.cols.variadic = is_variadic
 
         names = []
         for c in exprs:
@@ -1401,7 +1425,7 @@ class DataFrame:
         self,
         expr: ColumnOrSqlExpr,
         _ast_stmt: proto.Assign = None,
-        _supress_ast: bool = False,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
@@ -1425,7 +1449,7 @@ class DataFrame:
         """
         # AST.
         stmt = None
-        if not _supress_ast:
+        if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.sp_dataframe_filter, stmt)
@@ -1703,17 +1727,27 @@ class DataFrame:
         Args:
             cols: The columns to group by rollup.
         """
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_rollup, stmt)
+        self.set_ast_ref(expr.df)
+        col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
+        for c in col_list:
+            build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+
         rollup_exprs = self._convert_cols_to_exprs("rollup()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             rollup_exprs,
             snowflake.snowpark.relational_grouped_dataframe._RollupType(),
+            ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
     def group_by(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+        _ast_stmt: Optional[proto.Assign] = None,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
         SQL).
@@ -1749,11 +1783,26 @@ class DataFrame:
             >>> df.group_by("a").function("avg")("b").collect()
             [Row(A=1, AVG(B)=Decimal('1.500000')), Row(A=2, AVG(B)=Decimal('1.500000')), Row(A=3, AVG(B)=Decimal('1.500000'))]
         """
+        stmt = None
+        if _emit_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.assign()
+                expr = with_src_position(stmt.expr.sp_dataframe_group_by, stmt)
+                self.set_ast_ref(expr.df)
+                col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(
+                    *cols
+                )
+                for c in col_list:
+                    build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+            else:
+                stmt = _ast_stmt
+
         grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             grouping_exprs,
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
+            ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
@@ -1793,10 +1842,20 @@ class DataFrame:
         Args:
             grouping_sets: The list of :class:`GroupingSets` to group by.
         """
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_group_by_grouping_sets, stmt)
+        self.set_ast_ref(expr.df)
+        grouping_set_list, expr.variadic = parse_positional_args_to_list_variadic(
+            *grouping_sets
+        )
+        for gs in grouping_set_list:
+            expr.grouping_sets.append(gs._ast)
+
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             [gs._to_expression for gs in parse_positional_args_to_list(*grouping_sets)],
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
+            ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
@@ -1811,16 +1870,24 @@ class DataFrame:
         Args:
             cols: The columns to group by cube.
         """
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_cube, stmt)
+        self.set_ast_ref(expr.df)
+        col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
+        for c in col_list:
+            build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+
         cube_exprs = self._convert_cols_to_exprs("cube()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             cube_exprs,
             snowflake.snowpark.relational_grouped_dataframe._CubeType(),
+            ast_stmt=stmt,
         )
 
     @df_api_usage
     def distinct(
-        self, _ast_stmt: proto.Assign = None, _supress_ast: bool = False
+        self, _ast_stmt: proto.Assign = None, _emit_ast: bool = True
     ) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
@@ -1829,7 +1896,7 @@ class DataFrame:
         """
 
         # AST.
-        if not _supress_ast:
+        if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.sp_dataframe_distinct, stmt)
@@ -1839,10 +1906,10 @@ class DataFrame:
                 ast = None
 
         df = self.group_by(
-            [self.col(quote_name(f.name)) for f in self.schema.fields]
-        ).agg()
+            [self.col(quote_name(f.name)) for f in self.schema.fields], _emit_ast=False
+        ).agg(_emit_ast=False)
 
-        if not _supress_ast:
+        if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
 
         return df
@@ -1851,7 +1918,7 @@ class DataFrame:
         self,
         *subset: Union[str, Iterable[str]],
         _ast_stmt: proto.Assign = None,
-        _supress_ast: bool = False,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
 
@@ -1871,26 +1938,24 @@ class DataFrame:
         """
 
         # AST.
-        if not _supress_ast:
+        stmt = None
+        if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.sp_dataframe_drop_duplicates, stmt)
+                for arg in subset:
+                    if isinstance(arg, str):
+                        ast.cols.append(arg)
+                        ast.variadic = True
+                    else:
+                        ast.cols.extend(arg)
+                        ast.variadic = False
+                self.set_ast_ref(ast.df)
             else:
                 stmt = _ast_stmt
 
-            ast = with_src_position(stmt.expr.sp_dataframe_drop_duplicates, stmt)
-            for arg in subset:
-                if isinstance(arg, str):
-                    ast.cols.append(arg)
-                    ast.variadic = True
-                else:
-                    for sub_arg in arg:
-                        ast.cols.append(sub_arg)
-                        ast.variadic = False
-
-            self.set_ast_ref(ast.df)
-
         if not subset:
-            df = self.distinct(_supress_ast=True)
+            df = self.distinct(_emit_ast=False)
             adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=1)
             return df
         subset = parse_positional_args_to_list(*subset)
@@ -1903,13 +1968,13 @@ class DataFrame:
         rownum_name = generate_random_alphanumeric()
         df = (
             self.select(*output_cols, rownum.as_(rownum_name), _emit_ast=False)
-            .where(col(rownum_name) == 1, _supress_ast=True)
+            .where(col(rownum_name) == 1, _emit_ast=False)
             .select(output_cols, _emit_ast=False)
         )
         # Reformat the extra API calls
         adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=3)
 
-        if not _supress_ast:
+        if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
 
         return df

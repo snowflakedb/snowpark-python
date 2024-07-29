@@ -343,6 +343,7 @@ class ColumnIdentifier:
 
     def __init__(self, normalized_name: str) -> None:
         self.normalized_name = quote_name(normalized_name)
+        self._original_name = normalized_name
 
     @property
     def name(self) -> str:
@@ -400,7 +401,7 @@ class ColumnIdentifier:
         return string[1:-1] if result else string
 
     def _fill_ast(self, ast: proto.SpColumnIdentifier) -> None:
-        ast.name = self.quoted_name
+        ast.name = self._original_name
 
 
 class StructField:
