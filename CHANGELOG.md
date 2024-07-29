@@ -32,6 +32,7 @@
 - Added support for `Index.is_unique` and `Index.has_duplicates`.
 - Added support for `Index.equals`.
 - Added support for `Index.value_counts`.
+- Added support for `Series.dt.day_name` and `Series.dt.month_name`.
 - Added support for `DataFrame.unstack` and `Series.unstack`.
 
 #### Improvements
@@ -43,6 +44,7 @@
 - Removed axis labels and callable names from error messages and telemetry about unsupported aggregations.
 - Fixed AssertionError in `Series.drop_duplicates` and `DataFrame.drop_duplicates` when called after `sort_values`.
 - Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.  
+- Fixed a bug where some Index docstrings are ignored. 
 
 
 ## 1.20.0 (2024-07-17)
