@@ -85,6 +85,8 @@ class _ObjectField:
     ID = "id"
     PARENT_ID = "parentId"
     PARENT_ID_DEPRECATED = "ParentId"
+    TABLE_TYPE = "tableType"
+    TYPE = "type"
 
     # A list of fileds queried on each object in the lineage.
     GRAPH_ENTITY_PROPERTIES = [
@@ -508,6 +510,12 @@ class Lineage:
 
         if version:
             user_entity[_ObjectField.VERSION] = version
+
+        if domain == _SnowflakeDomain.COLUMN:
+            if _ObjectField.PROPERTIES in graph_entity:
+                properties = graph_entity[_ObjectField.PROPERTIES]
+                if _ObjectField.TABLE_TYPE in properties:
+                    user_entity[_ObjectField.TYPE] = properties[_ObjectField.TABLE_TYPE]
 
         return user_entity
 

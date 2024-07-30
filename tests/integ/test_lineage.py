@@ -36,7 +36,7 @@ def create_objects_for_test(session, db, schema) -> None:
         f"CREATE OR REPLACE VIEW {db}.{schema}.V1 AS SELECT * FROM {db}.{schema}.T1"
     ).collect()
     session.sql(
-        f"CREATE OR REPLACE VIEW {db}.{schema}.V2 AS SELECT * FROM {db}.{schema}.V1"
+        f"CREATE OR REPLACE VIEW {db}.{schema}.V2 AS SELECT C1 FROM {db}.{schema}.V1"
     ).collect()
     session.sql(
         f"CREATE OR REPLACE VIEW {db}.{schema}.V3 AS SELECT * FROM {db}.{schema}.V2"
@@ -260,12 +260,32 @@ def test_lineage_trace(session):
 
     expected_data = {
         "SOURCE_OBJECT": [
-            {"domain": "COLUMN", "name": f"{db}.{schema}.V1.C1", "status": "ACTIVE"},
-            {"domain": "COLUMN", "name": f"{db}.{schema}.T1.C1", "status": "ACTIVE"},
+            {
+                "domain": "COLUMN",
+                "name": f"{db}.{schema}.V1.C1",
+                "status": "ACTIVE",
+                "type": "VIEW",
+            },
+            {
+                "domain": "COLUMN",
+                "name": f"{db}.{schema}.T1.C1",
+                "status": "ACTIVE",
+                "type": "TABLE",
+            },
         ],
         "TARGET_OBJECT": [
-            {"domain": "COLUMN", "name": f"{db}.{schema}.V2.C1", "status": "ACTIVE"},
-            {"domain": "COLUMN", "name": f"{db}.{schema}.V1.C1", "status": "ACTIVE"},
+            {
+                "domain": "COLUMN",
+                "name": f"{db}.{schema}.V2.C1",
+                "status": "ACTIVE",
+                "type": "VIEW",
+            },
+            {
+                "domain": "COLUMN",
+                "name": f"{db}.{schema}.V1.C1",
+                "status": "ACTIVE",
+                "type": "VIEW",
+            },
         ],
         "DIRECTION": [
             "Upstream",

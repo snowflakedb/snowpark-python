@@ -178,6 +178,30 @@ def test_get_user_entity():
     assert user_entity[_ObjectField.DOMAIN] == _UserDomain.FEATURE_VIEW
     assert _ObjectField.CREATED_ON in user_entity
 
+    graph_entity = {
+        _ObjectField.USER_DOMAIN: _SnowflakeDomain.COLUMN,
+        _ObjectField.DB: "db1",
+        _ObjectField.SCHEMA: "schema1",
+        _ObjectField.REFINED_DOMAIN: _SnowflakeDomain.COLUMN,
+        _ObjectField.PROPERTIES: {
+            _ObjectField.PARENT_NAME: "name1",
+            _ObjectField.TABLE_TYPE: "TABLE",
+        },
+        _ObjectField.CREATED_ON: "123455",
+        _ObjectField.STATUS: "Active",
+        _ObjectField.NAME: "col1",
+    }
+
+    user_entity = Lineage(fake_session)._get_user_entity(graph_entity)
+    assert len(user_entity) == 5
+    assert _ObjectField.NAME in user_entity
+    assert user_entity[_ObjectField.NAME] == "db1.schema1.name1.col1"
+    assert _ObjectField.DOMAIN in user_entity
+    assert user_entity[_ObjectField.DOMAIN] == _SnowflakeDomain.COLUMN
+    assert _ObjectField.CREATED_ON in user_entity
+    assert _ObjectField.TYPE in user_entity
+    assert user_entity[_ObjectField.TYPE] == "TABLE"
+
 
 def test_split_fully_qualified_name():
     test_cases_valid = [
@@ -213,12 +237,12 @@ def test_is_valid_object_name():
 
     # Assert checks for valid cases
     for case in test_cases_valid:
-        Lineage(fake_session)._check_valid_object_name(case)
+        Lineage(fake_session)._check_valid_object_name(case, _SnowflakeDomain.TABLE)
 
     # Assert checks for invalid cases
     for case in test_cases_invalid:
         with pytest.raises(ValueError) as exc:
-            Lineage(fake_session)._check_valid_object_name(case)
+            Lineage(fake_session)._check_valid_object_name(case, _SnowflakeDomain.TABLE)
         assert "Invalid object name:" in str(exc)
 
 
