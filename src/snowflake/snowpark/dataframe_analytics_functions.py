@@ -664,7 +664,7 @@ class DataFrameAnalyticsFunctions:
             ).filter(col(f"{sliding_point_col}B") <= window_end)
 
             # Peform final aggregations.
-            group_by_cols = group_by + [sliding_point_col]
+            group_by_cols = group_by + [time_col]
             result_df = self._perform_window_aggregations(
                 result_df,
                 self_joined_df,
