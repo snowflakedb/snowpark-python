@@ -36,7 +36,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
 
 
 @pytest.mark.parametrize("node_type", [LogicalPlan, SnowflakePlan, Selectable])
-def test_assign_custom_cumulative_node_complexity(
+def test_reset_cumulative_node_complexity(
     mock_session, mock_analyzer, mock_query, node_type
 ):
     def get_node_for_type(node_type):
@@ -61,24 +61,25 @@ def test_assign_custom_cumulative_node_complexity(
         else:
             node.snowflake_plan.source_plan.children = children
 
-    nodes = [get_node_for_type(node_type) for _ in range(7)]
+    nodes = [get_node_for_type(node_type) for _ in range(8)]
 
     """
                             o                       o
                            / \\                    / \
-                          o   o                   x   o
-                         /|\
-                        o o o       ->
+                          o   o                   *   o
+                         /|\\                      |
+                        o o o       ->            o
                           |
                           o
     """
-    set_children(nodes[0], node_type, [nodes[1], nodes[2]])
-    set_children(nodes[1], node_type, [nodes[3], nodes[4], nodes[5]])
+    set_children(nodes[0], node_type, nodes[1:3])
+    set_children(nodes[1], node_type, nodes[3:6])
     set_children(nodes[2], node_type, [])
     set_children(nodes[3], node_type, [])
     set_children(nodes[4], node_type, [nodes[6]])
     set_children(nodes[5], node_type, [])
     set_children(nodes[6], node_type, [])
+    set_children(nodes[7], node_type, [])
 
     assert nodes[0].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 7}
     assert nodes[1].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 5}
@@ -88,11 +89,13 @@ def test_assign_custom_cumulative_node_complexity(
     assert nodes[5].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 1}
     assert nodes[6].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 1}
 
-    nodes[1].cumulative_node_complexity = {PlanNodeCategory.COLUMN: 1}
+    set_children(nodes[1], node_type, [nodes[7]])
+    nodes[1].reset_cumulative_node_complexity()
+    nodes[0].reset_cumulative_node_complexity()
 
     # assert that only value that is reset is changed
-    assert nodes[0].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 7}
-    assert nodes[1].cumulative_node_complexity == {PlanNodeCategory.COLUMN: 1}
+    assert nodes[0].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 4}
+    assert nodes[1].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 2}
     assert nodes[2].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 1}
 
 

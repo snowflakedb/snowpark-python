@@ -336,10 +336,6 @@ class Selectable(LogicalPlan, ABC):
             )
         return self._cumulative_node_complexity
 
-    @cumulative_node_complexity.setter
-    def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
-        self._cumulative_node_complexity = value
-
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         """
