@@ -293,21 +293,6 @@ class SnowflakePlan(LogicalPlan):
         else:
             return []
 
-    def replace_child(self, old_node, new_node) -> None:
-        """This method is called during optimization stage to cut plan tree at a certain node.
-
-        It must only be called on a deep copied plan node, otherwise it will raise an exception.
-        """
-        if not self._is_deep_copied:
-            raise ValueError(
-                "replace child can only be called on a deep copied plan node."
-            )
-
-        if self.source_plan:
-            # Child node from a snowflake plan is derived from its source plan so call
-            # replace_child on the source plan.
-            self.source_plan.replace_child(old_node, new_node)
-
     def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
         # parameter protection
         if not self.session._cte_optimization_enabled:
@@ -494,9 +479,9 @@ class SnowflakePlan(LogicalPlan):
             # session object after deepcopy
             session=self.session,
         )
-        copied_plan._is_deep_copied = True
+        copied_plan._is_valid_for_replacement = True
         if copied_source_plan:
-            copied_source_plan._is_deep_copied = True
+            copied_source_plan._is_valid_for_replacement = True
 
         return copied_plan
 
