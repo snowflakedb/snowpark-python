@@ -2394,19 +2394,18 @@ class Index:
     @is_lazy_check
     def __getitem__(self, key: Any) -> np.ndarray | None | Index:
         """
-        Override numpy.ndarray's __getitem__ method to work as desired.
-
-        This function adds lists and Series as valid boolean indexers
-        (ndarrays only supports ndarray with dtype=bool).
-
-        If resulting ndim != 1, plain ndarray is returned instead of
-        corresponding `Index` subclass.
+        Reuse series iloc to implement getitem for index.
         """
-        WarningMessage.index_to_pandas_warning("__getitem__")
-        item = self.to_pandas().__getitem__(key=key)
-        if isinstance(item, native_pd.Index):
-            return Index(item, convert_to_lazy=self.is_lazy)
-        return item
+        try:
+            res = self.to_series().iloc[key]
+            if isinstance(res, Series):
+                res = res.index
+            return res
+        except IndexError as ie:
+            raise IndexError(
+                "only integers, slices (`:`), ellipsis (`...`), numpy.newaxis (`None`) and integer or "
+                "boolean arrays are valid indices"
+            ) from ie
 
     @is_lazy_check
     def __setitem__(self, key: Any, value: Any) -> None:
