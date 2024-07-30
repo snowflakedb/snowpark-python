@@ -594,7 +594,7 @@ class Session:
         finally:
             try:
                 self._conn.close()
-                self._temp_table_auto_cleaner.stop(graceful=True)
+                self._temp_table_auto_cleaner.stop()
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)

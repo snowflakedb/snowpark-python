@@ -86,15 +86,10 @@ class TempTableAutoCleaner:
             self.cleanup_thread = Thread(target=self.process_cleanup)
             self.cleanup_thread.start()
 
-    def stop(self, graceful: bool = False) -> None:
+    def stop(self) -> None:
         """
-        If graceful is True, the cleaner will finish dropping remaining tables in the queue.
-        If it is False, the cleaner will stop immediately.
+        The cleaner will stop immediately and leave unfinished temp tables in the queue.
         """
         if self.is_alive():
             self.stop_event.set()
             self.cleanup_thread.join()
-            if graceful:
-                while not self.queue.empty():
-                    table_name = self.queue.get()
-                    self.drop_table(table_name)
