@@ -898,6 +898,18 @@ class TestFuncReturnsScalar:
             )
 
 
+    def test_groupby_apply_constant_output(self):
+        native_df = native_pd.DataFrame([1,2])
+        native_df['fg'] = 0
+        snow_df = pd.DataFrame(native_df)
+
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.groupby(by=['fg'], axis=0).apply(lambda x: [1, 2])
+        )
+
+
 class TestFuncReturnsSeries:
     @pytest.mark.parametrize(
         "by,level",
@@ -1224,3 +1236,5 @@ class TestCallableWithMixedReturnTypes:
                 else native_pd.DataFrame([[2, 4], [5, 6]])
             ),
         )
+
+
