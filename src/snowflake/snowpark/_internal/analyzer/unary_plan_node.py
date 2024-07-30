@@ -23,6 +23,14 @@ class UnaryNode(LogicalPlan):
         self.child = child
         self.children.append(child)
 
+    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
+        try:
+            if child == child:
+                self.child = new_child
+                self.children[0] = new_child
+        except Exception:
+            pass
+
 
 class Sample(UnaryNode):
     def __init__(

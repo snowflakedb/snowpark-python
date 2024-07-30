@@ -16,6 +16,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SnowflakeCreateTable,
+    WithQueryBlock,
+    WithObjectRef,
 )
 from snowflake.snowpark.session import Session
 
@@ -49,6 +51,7 @@ class QueryGenerator(Analyzer):
         self._snowflake_create_table_plan_info: Optional[
             SnowflakeCreateTablePlanInfo
         ] = snowflake_create_table_plan_info
+        self.resolved_with_query_block: Dict[str, str] = {}
 
     def generate_queries(
         self, logical_plans: List[LogicalPlan]
@@ -60,14 +63,17 @@ class QueryGenerator(Analyzer):
         -------
 
         """
+        from snowflake.snowpark._internal.compiler.utils import get_snowflake_plan_queries
+
         # generate queries for each logical plan
         snowflake_plans = [self.resolve(logical_plan) for logical_plan in logical_plans]
         # merge all results into final set of queries
         queries = []
         post_actions = []
         for snowflake_plan in snowflake_plans:
-            queries.extend(snowflake_plan.queries)
-            post_actions.extend(snowflake_plan.post_actions)
+            plan_queries = get_snowflake_plan_queries(snowflake_plan, self.resolved_with_query_block)
+            queries.extend(plan_queries[PlanQueryType.QUERIES])
+            post_actions.extend(plan_queries[PlanQueryType.POST_ACTIONS])
 
         return {
             PlanQueryType.QUERIES: queries,
@@ -85,7 +91,7 @@ class QueryGenerator(Analyzer):
                 assert logical_plan.source_plan is not None
                 # when encounter a SnowflakePlan with no queries, try to re-resolve
                 # the source plan to construct the result
-                res = self.resolve(logical_plan.source_plan)
+                res = self.do_resolve(logical_plan.source_plan)
                 resolved_children[logical_plan] = res
                 return res
             else:
@@ -127,6 +133,22 @@ class QueryGenerator(Analyzer):
             # overwrite the Selectable resolving to make sure we are triggering
             # any schema query build
             return logical_plan.get_snowflake_plan(skip_schema_query=True)
+
+        if isinstance(logical_plan, WithQueryBlock):
+            resolved_child = resolved_children[logical_plan.children[0]]
+            self.resolved_with_query_block.update({logical_plan.name: resolved_child.queries[-1].sql})
+            return self.plan_builder.with_query_block(
+                logical_plan.name,
+                resolved_child,
+                logical_plan,
+            )
+
+        if isinstance(logical_plan, WithObjectRef):
+            return self.plan_builder.with_object_ref(
+                logical_plan.children[0].name,
+                resolved_children[logical_plan.children[0]],
+                logical_plan,
+            )
 
         return super().do_resolve_with_resolved_children(
             logical_plan, resolved_children, df_aliased_col_name_to_real_col_name

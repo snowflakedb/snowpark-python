@@ -4,10 +4,18 @@
 
 from typing import Dict, List
 
+import copy
+
+from snowflake.snowpark.context import _enable_new_compilation_stage
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
     Query,
     SnowflakePlan,
+)
+from snowflake.snowpark._internal.compiler.common_subdataframe_elimination import CommonSubDataframeElimination
+from snowflake.snowpark._internal.compiler.utils import (
+    create_query_generator,
+    get_snowflake_plan_queries,
 )
 
 
@@ -48,13 +56,26 @@ class PlanCompiler:
         ) and current_session.cte_optimization_enabled
 
     def compile(self) -> Dict[PlanQueryType, List[Query]]:
-        final_plan = self._plan
+        # final_plan = self._plan
         if self.should_apply_optimizations():
-            # apply optimizations
-            final_plan = final_plan.replace_repeated_subquery_with_cte()
-            # TODO: add other optimization steps and code generation step
+            # preparation for compilation
+            # 1. make a copy of the original plan
+            logical_plans = [copy.deepcopy(self._plan)]
+            # 2. create a code generator with the original plan
+            query_generator = create_query_generator(self._plan)
 
-        return {
-            PlanQueryType.QUERIES: final_plan.queries,
-            PlanQueryType.POST_ACTIONS: final_plan.post_actions,
-        }
+            if _enable_new_compilation_stage:
+                if self._plan.session.cte_optimization_enabled:
+                    common_sub_dataframe_eliminator = CommonSubDataframeElimination(logical_plans, query_generator)
+                    logical_plans = common_sub_dataframe_eliminator.run()
+
+            # do a final pass of code generation
+            return query_generator.generate_queries(logical_plans)
+
+        else:
+            final_plan = self._plan
+            # apply optimizations
+            if self._plan.session.cte_optimization_enabled:
+                final_plan = final_plan.replace_repeated_subquery_with_cte()
+
+            return get_snowflake_plan_queries(final_plan, {})

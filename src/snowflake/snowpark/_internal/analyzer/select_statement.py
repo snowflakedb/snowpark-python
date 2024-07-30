@@ -63,12 +63,15 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, Snowflak
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SnowflakeTable,
+    WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.utils import is_sql_select_statement
+from snowflake.snowpark.context import _enable_new_compilation_stage
+from functools import cached_property
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -313,6 +316,7 @@ class Selectable(LogicalPlan, ABC):
                 df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
                 source_plan=self,
                 placeholder_query=self.placeholder_query,
+                referred_cte_tables=self.referred_cte_tables(),
             )
             # set api_calls to self._snowflake_plan outside of the above constructor
             # because the constructor copy api_calls.
@@ -373,6 +377,14 @@ class Selectable(LogicalPlan, ABC):
         """
         self._column_states = deepcopy(value)
 
+    def referred_cte_tables(self) -> Set[str]:
+        pass
+
+
+    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
+        pass
+
+
 
 class SelectableEntity(Selectable):
     """Query from a table, view, or any other Snowflake objects.
@@ -385,7 +397,8 @@ class SelectableEntity(Selectable):
         *,
         analyzer: "Analyzer",
     ) -> None:
-        # currently only selecting from a table is supported for this class
+        # currently only selecting from a table or cte is supported
+        # to read as entity
         assert isinstance(entity, SnowflakeTable)
         super().__init__(analyzer)
         self.entity = entity
@@ -420,6 +433,12 @@ class SelectableEntity(Selectable):
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
         return None
+
+    def referred_cte_tables(self) -> Set[str]:
+        return set()
+
+    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
+        raise ValueError("No child can be updated for SelectableEntity")
 
 
 class SelectSQL(Selectable):
@@ -518,6 +537,12 @@ class SelectSQL(Selectable):
         new._api_calls = self._api_calls
         return new
 
+    def referred_cte_tables(self) -> Set[str]:
+        return set()
+
+    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
+        raise ValueError("No child update for SelectSQL")
+
 
 class SelectSnowflakePlan(Selectable):
     """Wrap a SnowflakePlan to a subclass of Selectable."""
@@ -577,6 +602,15 @@ class SelectSnowflakePlan(Selectable):
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
+
+    def referred_cte_tables(self) -> Set[str]:
+        return self._snowflake_plan.referred_cte_tables
+
+    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
+        self._snowflake_plan.update_child(child, new_child)
+        # reset current snowflake plan
+        self._snowflake_plan.queries = None
+        self._snowflake_plan.post_actions = None
 
 
 class SelectStatement(Selectable):
@@ -712,7 +746,7 @@ class SelectStatement(Selectable):
             self._sql_query = self.from_.sql_query
             return self._sql_query
         from_clause = self.from_.sql_in_subquery
-        if self.analyzer.session._cte_optimization_enabled and self.from_._id:
+        if self.analyzer.session._cte_optimization_enabled and (not _enable_new_compilation_stage) and self.from_._id:
             placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
             self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
         else:
@@ -843,6 +877,21 @@ class SelectStatement(Selectable):
             else complexity
         )
         return complexity
+
+    def referred_cte_tables(self) -> Set[str]:
+        return self.from_.referred_cte_tables()
+
+    def update_child(self, child: "LogicalPlan", new_child: Union["Selectable", SnowflakePlan]) -> None:
+        try:
+            if self.from_ == child:
+                if not isinstance(new_child, Selectable):
+                    new_child = SelectSnowflakePlan(new_child, analyzer=new_child.session._analyzer)
+                self.from_ = new_child
+        except Exception:
+            pass
+
+        self._snowflake_plan = None
+        self._sql_query = None
 
     def to_subqueryable(self) -> "Selectable":
         """When this SelectStatement's subquery is not subqueryable (can't be used in `from` clause of the sql),
@@ -1169,6 +1218,12 @@ class SelectTableFunction(Selectable):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
 
+    def referred_cte_tables(self) -> Set[str]:
+        return set()
+
+    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
+        raise ValueError("child update not allowed for SelectTableFunction")
+
 
 class SetOperand:
     def __init__(self, selectable: Selectable, operator: Optional[str] = None) -> None:
@@ -1260,6 +1315,29 @@ class SetStatement(Selectable):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # we add #set_operands - 1 additional operators in sql query
         return {PlanNodeCategory.SET_OPERATION: len(self.set_operands) - 1}
+
+    def update_child(self, child: "Selectable", new_child: "Selectable") -> None:
+        self._nodes.clear()
+        if not isinstance(new_child, Selectable):
+            new_child = SelectSnowflakePlan(new_child, analyzer=self.analyzer)
+        for operand in self.set_operands:
+            try:
+                if operand.selectable == child:
+                    operand.selectable = new_child
+                    self._nodes.append(new_child)
+                else:
+                    self._nodes.append(operand.selectable)
+            except Exception:
+                self._nodes.append(operand.selectable)
+        self._sql_query = None
+        self._snowflake_plan = None
+
+    def referred_cte_tables(self) -> Set[str]:
+        referred_cte_tables: Set[str] = set()
+        for node in self._nodes:
+            referred_cte_tables.update(node.referred_cte_tables())
+
+        return referred_cte_tables
 
 
 class DeriveColumnDependencyError(Exception):

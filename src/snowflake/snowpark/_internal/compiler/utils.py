@@ -2,7 +2,10 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import copy
+from typing import Optional, Dict, List
 
+<<<<<<< HEAD
 from typing import Optional
 
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
@@ -14,11 +17,19 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SetStatement,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+=======
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    SnowflakePlan,
+    PlanQueryType,
+    Query,
+)
+>>>>>>> b22b87e6 (fix error)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     Limit,
     LogicalPlan,
     SnowflakeCreateTable,
+    WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     TableDelete,
@@ -149,3 +160,24 @@ def replace_child(
         return
 
     raise ValueError(f"parent type {type(parent)} not supported")
+
+def get_snowflake_plan_queries(plan: SnowflakePlan, resolved_with_query_blocks: Dict[str, str]) -> Dict[PlanQueryType, List[Query]]:
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import cte_statement
+    # make a copy of the original query to avoid any update to the
+    # original query object
+    plan_queries = copy.deepcopy(plan.queries)
+    post_action_queries = copy.deepcopy(plan.post_actions)
+    if len(plan.referred_cte_tables) > 0:
+        table_names = []
+        definition_queries = []
+        for name, definition_query in resolved_with_query_blocks.items():
+            if name in plan.referred_cte_tables:
+                table_names.append(name)
+                definition_queries.append(definition_query)
+        with_query = cte_statement(definition_queries, table_names)
+        plan_queries[-1].sql = with_query + plan_queries[-1].sql
+
+    return {
+        PlanQueryType.QUERIES: plan_queries,
+        PlanQueryType.POST_ACTIONS: post_action_queries,
+    }
