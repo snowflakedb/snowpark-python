@@ -16,7 +16,10 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
     SnowflakeCreateTable,
 )
-from snowflake.snowpark._internal.compiler.utils import is_active_transaction
+from snowflake.snowpark._internal.compiler.utils import (
+    is_active_transaction,
+    replace_child,
+)
 from snowflake.snowpark.session import Session
 
 if TYPE_CHECKING:
@@ -108,7 +111,7 @@ class LargeQueryBreakdown:
 
         parents = parent_map[child]
         for parent in parents:
-            parent.replace_child(child, temp_table_node)
+            replace_child(parent, child, temp_table_node)
 
         nodes_to_reset = list(parents)
         while nodes_to_reset:
