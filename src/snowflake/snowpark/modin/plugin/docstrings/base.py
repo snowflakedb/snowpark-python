@@ -462,6 +462,50 @@ class BasePandasDataset:
     def asfreq():
         """
         Convert time series to specified frequency.
+
+        Returns the original data conformed to a new index with the specified frequency.
+
+        If the index of this Series/DataFrame is a PeriodIndex, the new index is the result of transforming the original
+        index with PeriodIndex.asfreq (so the original index will map one-to-one to the new index).
+
+        The new index will be equivalent to pd.date_range(start, end, freq=freq) where start and end are,
+        respectively, the first and last entries in the original index (see pandas.date_range()). The values
+        corresponding to any timesteps in the new index which were not present in the original index will be null (NaN),
+        unless a method for filling such unknowns is provided (see the method parameter below).
+
+        The resample() method is more appropriate if an operation on each group of timesteps (such as an aggregate) is
+        necessary to represent the data at the new frequency.
+
+        Parameters
+        ----------
+        freq : DateOffset or str
+            Frequency DateOffset or string.
+
+        method : {'backfill', 'bfill', 'pad', 'ffill'}, default None
+            Method to use for filling holes in reindexed Series (note this does not fill NaNs that already were present):
+            ‘pad’ / ‘ffill’: propagate last valid observation forward to next valid
+            ‘backfill’ / ‘bfill’: use NEXT valid observation to fill.
+
+        how : {'start', 'end'}, default 'end'
+            For PeriodIndex only.
+
+        normalize : bool, default False
+            Whether to reset output index to midnight.
+
+        fill_value : scalar, optional
+            Value to use for missing values, applied during upsampling
+            (note this does not fill NaNs that already were present).
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            Holds an ordered frame with the result of the asfreq operation.
+
+        Notes
+        -----
+        This implementation calls `resample` with the `first` aggregation. `asfreq`
+        is only support on DataFrame/Series with DatetimeIndex, and only
+        the `freq` and `method` parameters are currently supported.
         """
 
     def asof():

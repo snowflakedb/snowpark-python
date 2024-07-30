@@ -10571,7 +10571,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -----
         This implementation calls `resample` with the `first` aggregation. `asfreq`
         is only support on DataFrame/Series with DatetimeIndex, and only
-        the `freq` parameter is currently supported.
+        the `freq` and `method` parameters are currently supported.
         """
         resample_kwargs = {
             "rule": freq,
@@ -10587,7 +10587,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "group_keys": no_default,
         }  # pragma: no cover
 
-        return self.resample(  # pragma: no cover
+        return self.resample(
             resample_kwargs=resample_kwargs,
             resample_method="first" if method is None else method,
             resample_method_args=tuple(),  # type: ignore
