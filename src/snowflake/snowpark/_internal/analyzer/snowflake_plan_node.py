@@ -32,7 +32,7 @@ class LogicalPlan:
     def __init__(self) -> None:
         self.children = []
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
-        self._is_deep_copied: bool = False
+        self._is_valid_for_replacement: bool = False
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -60,24 +60,6 @@ class LogicalPlan:
     @cumulative_node_complexity.setter
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
         self._cumulative_node_complexity = value
-
-    def replace_child(self, old_node, new_node) -> None:
-        """This method is called during optimization stage to cut plan tree at a certain node.
-
-        It must only be called on a deep copied plan node, otherwise it will raise an exception.
-        """
-        if not self._is_deep_copied:
-            raise ValueError(
-                "replace child can only be called on a deep copied plan node."
-            )
-
-        if old_node not in self.children:
-            raise ValueError(
-                "old_node to be replaced is not found in the children nodes."
-            )
-        self.children = [
-            child if child != old_node else new_node for child in self.children
-        ]
 
 
 class LeafNode(LogicalPlan):
@@ -126,6 +108,9 @@ class SnowflakeTable(LeafNode):
             self._finalizer = weakref.finalize(
                 self, session._dec_temp_table_ref_count, name
             )
+
+    # def __deepcopy__(self, memodict={}) -> "SnowflakeTable":  #noqa: B006
+    #     return SnowflakeTable(self.name, session=self.session)
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:

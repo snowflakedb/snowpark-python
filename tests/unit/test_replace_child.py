@@ -6,7 +6,7 @@ import copy
 
 import pytest
 
-from snowflake.snowpark._internal.analyzer.binary_plan_node import Inner, Join
+from snowflake.snowpark._internal.analyzer.binary_plan_node import Inner, Join, Union
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectableEntity,
     SelectSnowflakePlan,
@@ -18,11 +18,15 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    CopyIntoLocationNode,
+    Limit,
     LogicalPlan,
+    SnowflakeCreateTable,
     SnowflakeTable,
 )
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
-from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
+from snowflake.snowpark._internal.analyzer.unary_plan_node import Project, Sort
+from snowflake.snowpark._internal.compiler.utils import replace_child
 
 old_plan = LogicalPlan()
 new_plan = LogicalPlan()
@@ -31,9 +35,11 @@ irrelevant_plan = LogicalPlan()
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
 def test_logical_plan(using_snowflake_plan, mock_query):
-    get_children = (
-        lambda plan: plan.children_plan_nodes if using_snowflake_plan else plan.children
-    )
+    def get_children(plan):
+        if isinstance(plan, SnowflakePlan):
+            return plan.children_plan_nodes
+        return plan.children
+
     project_plan = Project([], old_plan)
     src_join_plan = Join(
         left=old_plan,
@@ -58,28 +64,90 @@ def test_logical_plan(using_snowflake_plan, mock_query):
     else:
         join_plan = src_join_plan
 
-    with pytest.raises(
-        ValueError, match="replace child can only be called on a deep copied plan node."
-    ):
-        join_plan.replace_child(irrelevant_plan, new_plan)
+    with pytest.raises(ValueError, match="is not valid for replacement."):
+        replace_child(join_plan, irrelevant_plan, new_plan)
 
     if using_snowflake_plan:
         join_plan = copy.deepcopy(join_plan)
     else:
-        join_plan = copy.deepcopy(src_join_plan)
-        join_plan._is_deep_copied = True
+        join_plan._is_valid_for_replacement = True
 
-    with pytest.raises(
-        ValueError, match="old_node to be replaced is not found in the children nodes."
-    ):
-        join_plan.replace_child(irrelevant_plan, new_plan)
+    with pytest.raises(ValueError, match="is not a child of parent"):
+        replace_child(join_plan, irrelevant_plan, new_plan)
     assert len(get_children(join_plan)) == 2
     copied_old_plan, copied_project_plan = get_children(join_plan)
     assert isinstance(copied_old_plan, LogicalPlan)
     assert isinstance(copied_project_plan, Project)
 
-    join_plan.replace_child(copied_old_plan, new_plan)
+    replace_child(join_plan, copied_old_plan, new_plan)
     assert get_children(join_plan) == [new_plan, copied_project_plan]
+
+
+@pytest.mark.parametrize(
+    "plan_initializer",
+    [
+        lambda x: Sort([], x),
+        lambda x: Limit(None, None, x),
+        lambda x: CopyIntoLocationNode(x, "stage_location", copy_options={}),
+    ],
+)
+def test_unary_plan(plan_initializer):
+    plan = plan_initializer(old_plan)
+
+    assert plan.child == old_plan
+    assert plan.children == [old_plan]
+
+    with pytest.raises(ValueError, match="is not valid for replacement."):
+        replace_child(plan, irrelevant_plan, new_plan)
+
+    plan._is_valid_for_replacement = True
+
+    with pytest.raises(ValueError, match="is not a child of parent"):
+        replace_child(plan, irrelevant_plan, new_plan)
+
+    replace_child(plan, old_plan, new_plan)
+    assert plan.child == new_plan
+    assert plan.children == [new_plan]
+
+
+def test_binary_plan():
+    right_plan = Project([], LogicalPlan())
+    plan = Union(left=old_plan, right=right_plan, is_all=False)
+
+    assert plan.left == old_plan
+    assert plan.right == right_plan
+
+    with pytest.raises(ValueError, match="is not valid for replacement."):
+        replace_child(plan, irrelevant_plan, new_plan)
+
+    plan._is_valid_for_replacement = True
+
+    with pytest.raises(ValueError, match="is not a child of parent"):
+        replace_child(plan, irrelevant_plan, new_plan)
+
+    replace_child(plan, old_plan, new_plan)
+    assert plan.left == new_plan
+    assert plan.right == right_plan
+    assert plan.children == [new_plan, right_plan]
+
+
+def test_snowflake_create_table():
+    plan = SnowflakeCreateTable(["temp_table"], None, "OVERWRITE", old_plan, "temp")
+
+    assert plan.query == old_plan
+    assert plan.children == [old_plan]
+
+    with pytest.raises(ValueError, match="is not valid for replacement."):
+        replace_child(plan, irrelevant_plan, new_plan)
+
+    plan._is_valid_for_replacement = True
+
+    with pytest.raises(ValueError, match="is not a child of parent"):
+        replace_child(plan, irrelevant_plan, new_plan)
+
+    replace_child(plan, old_plan, new_plan)
+    assert plan.query == new_plan
+    assert plan.children == [new_plan]
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
@@ -100,16 +168,12 @@ def test_selectable_entity(
             placeholder_query=None,
             session=mock_session,
         )
-    with pytest.raises(
-        ValueError, match="replace child can only be called on a deep copied plan node."
-    ):
-        selectable_entity.replace_child(irrelevant_plan, new_plan)
+    with pytest.raises(ValueError, match="is not valid for replacement."):
+        replace_child(selectable_entity, irrelevant_plan, new_plan)
     selectable_entity = copy.deepcopy(selectable_entity)
 
-    with pytest.raises(
-        ValueError, match="old_node to be replaced is not found in the children nodes."
-    ):
-        selectable_entity.replace_child(irrelevant_plan, new_plan)
+    with pytest.raises(ValueError, match="is not a child of parent"):
+        replace_child(selectable_entity, irrelevant_plan, new_plan)
 
     # SelectableEntity has no children
     assert selectable_entity.children_plan_nodes == []
@@ -118,16 +182,12 @@ def test_selectable_entity(
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
 def test_select_sql(using_snowflake_plan, mock_session, mock_analyzer):
     select_sql_plan = SelectSQL("FAKE QUERY", analyzer=mock_analyzer)
-    with pytest.raises(
-        ValueError, match="replace child can only be called on a deep copied plan node."
-    ):
-        select_sql_plan.replace_child(irrelevant_plan, new_plan)
+    with pytest.raises(ValueError, match="is not valid for replacement."):
+        replace_child(select_sql_plan, irrelevant_plan, new_plan)
     select_sql_plan = copy.deepcopy(select_sql_plan)
 
-    with pytest.raises(
-        ValueError, match="old_node to be replaced is not found in the children nodes."
-    ):
-        select_sql_plan.replace_child(irrelevant_plan, new_plan)
+    with pytest.raises(ValueError, match="is not a child of parent"):
+        replace_child(select_sql_plan, irrelevant_plan, new_plan)
 
     if using_snowflake_plan:
         select_sql_plan = SnowflakePlan(
@@ -178,22 +238,18 @@ def test_select_snowflake_plan(
             session=mock_session,
         )
 
-    with pytest.raises(
-        ValueError, match="replace child can only be called on a deep copied plan node."
-    ):
-        select_snowflake_plan.replace_child(irrelevant_plan, new_plan)
+    with pytest.raises(ValueError, match="is not valid for replacement."):
+        replace_child(select_snowflake_plan, irrelevant_plan, new_plan)
     select_snowflake_plan = copy.deepcopy(select_snowflake_plan)
 
-    with pytest.raises(
-        ValueError, match="old_node to be replaced is not found in the children nodes."
-    ):
-        select_snowflake_plan.replace_child(irrelevant_plan, new_plan)
+    with pytest.raises(ValueError, match="is not a child of parent"):
+        replace_child(select_snowflake_plan, irrelevant_plan, new_plan)
     assert len(select_snowflake_plan.children_plan_nodes) == 1
 
     # deep copy created a copy of old_plan
     copied_old_plan = select_snowflake_plan.children_plan_nodes[0]
 
-    select_snowflake_plan.replace_child(copied_old_plan, new_plan)
+    replace_child(select_snowflake_plan, copied_old_plan, new_plan)
     assert select_snowflake_plan.children_plan_nodes == [new_plan]
 
 
@@ -230,19 +286,15 @@ def test_select_statement(
             session=mock_session,
         )
 
-    with pytest.raises(
-        ValueError, match="replace child can only be called on a deep copied plan node."
-    ):
-        select_statement_plan.replace_child(irrelevant_plan, new_plan)
+    with pytest.raises(ValueError, match="is not valid for replacement."):
+        replace_child(select_statement_plan, irrelevant_plan, new_plan)
     select_statement_plan = copy.deepcopy(select_statement_plan)
 
-    with pytest.raises(
-        ValueError, match="old_node to be replaced is not found in the children nodes."
-    ):
-        select_statement_plan.replace_child(irrelevant_plan, new_plan)
+    with pytest.raises(ValueError, match="is not a child of parent"):
+        replace_child(select_statement_plan, irrelevant_plan, new_plan)
     assert select_statement_plan.children_plan_nodes == [from_]
 
-    select_statement_plan.replace_child(from_, new_plan)
+    replace_child(select_statement_plan, from_, new_plan)
     assert select_statement_plan.children_plan_nodes == [new_plan]
 
 
@@ -280,22 +332,18 @@ def test_select_table_function(
             session=mock_session,
         )
 
-    with pytest.raises(
-        ValueError, match="replace child can only be called on a deep copied plan node."
-    ):
-        table_function_plan.replace_child(irrelevant_plan, new_plan)
+    with pytest.raises(ValueError, match="is not valid for replacement."):
+        replace_child(table_function_plan, irrelevant_plan, new_plan)
     table_function_plan = copy.deepcopy(table_function_plan)
 
-    with pytest.raises(
-        ValueError, match="old_node to be replaced is not found in the children nodes."
-    ):
-        table_function_plan.replace_child(irrelevant_plan, new_plan)
+    with pytest.raises(ValueError, match="is not a child of parent"):
+        replace_child(table_function_plan, irrelevant_plan, new_plan)
     assert len(table_function_plan.children_plan_nodes) == 1
 
     # deep copy created a copy of old_plan
     copied_old_plan = table_function_plan.children_plan_nodes[0]
 
-    table_function_plan.replace_child(copied_old_plan, new_plan)
+    replace_child(table_function_plan, copied_old_plan, new_plan)
     assert table_function_plan.children_plan_nodes == [new_plan]
 
 
@@ -323,17 +371,13 @@ def test_set_statement(using_snowflake_plan, mock_session, mock_analyzer, mock_q
             session=mock_session,
         )
 
-    with pytest.raises(
-        ValueError, match="replace child can only be called on a deep copied plan node."
-    ):
-        set_statement_plan.replace_child(irrelevant_plan, new_plan)
+    with pytest.raises(ValueError, match="is not valid for replacement."):
+        replace_child(set_statement_plan, irrelevant_plan, new_plan)
     set_statement_plan = copy.deepcopy(set_statement_plan)
 
-    with pytest.raises(
-        ValueError, match="old_node to be replaced is not found in the children nodes."
-    ):
-        set_statement_plan.replace_child(irrelevant_plan, new_plan)
+    with pytest.raises(ValueError, match="is not a child of parent"):
+        replace_child(set_statement_plan, irrelevant_plan, new_plan)
     assert set_statement_plan.children_plan_nodes == [selectable1, selectable2]
 
-    set_statement_plan.replace_child(selectable1, new_plan)
+    replace_child(set_statement_plan, selectable1, new_plan)
     assert set_statement_plan.children_plan_nodes == [new_plan, selectable2]
