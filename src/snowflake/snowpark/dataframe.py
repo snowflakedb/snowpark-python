@@ -1732,9 +1732,6 @@ class DataFrame:
 
         df = self.group_by(_emit_ast=False).agg(*exprs, _emit_ast=False)
 
-        # if _emit_ast:
-        #     stmt.var_id.bitfield1 = self._ast_id
-
         return df
 
     @df_to_relational_group_df_api_usage
