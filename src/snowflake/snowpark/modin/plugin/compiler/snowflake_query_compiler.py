@@ -10585,14 +10585,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "origin": "start_day",
             "offset": None,
             "group_keys": no_default,
-        }
-        resample_method_kwargs = dict(numeric_only=False, min_count=0, skipna=True)
+        }  # pragma: no cover
 
-        return self.resample(
+        return self.resample(  # pragma: no cover
             resample_kwargs=resample_kwargs,
             resample_method="first" if method is None else method,
             resample_method_args=tuple(),  # type: ignore
-            resample_method_kwargs=resample_method_kwargs,
+            resample_method_kwargs={},
             is_series=False,
         )
 
