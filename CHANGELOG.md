@@ -29,6 +29,9 @@
 - Fixed a bug that Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
 - Fixed a bug where values were not populated into the result DataFrame during the insertion of table merge operation.
 
+#### Improvements
+- Fix pandas FutureWarning about integer indexing.
+
 ### Snowpark pandas API Updates
 #### New Features
 - Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
