@@ -746,7 +746,7 @@ class Index:
         >>> pd.Index([0, 1, 2]).all()
         False
         """
-        # If self is empty, the result for all is always True.
+        # If self is empty, the result for all is always True. This `self.empty` check results in one extra query.
         # Passing an empty object through `query_compiler.all` results in the ValueError:
         # The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().
         if self.empty:
@@ -794,7 +794,7 @@ class Index:
         >>> index.any()
         False
         """
-        # If self is empty, the result for any is always False.
+        # If self is empty, the result for any is always False. This `self.empty` check results in one extra query.
         # Passing an empty object through `query_compiler.any` results in the ValueError:
         # The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().
         if self.empty:

@@ -30,37 +30,21 @@ NATIVE_INDEX_NON_BOOL_INT_TEST_DATA = [
 ]
 
 
+@pytest.mark.parametrize("func", ["all", "any"])
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_BOOL_INT_TEST_DATA)
-def test_index_all(native_index):
+def test_index_all_any(func, native_index):
     snow_index = pd.Index(native_index)
     with SqlCounter(query_count=1 if native_index.empty else 3):
-        assert snow_index.all() == native_index.all()
+        assert getattr(snow_index, func)() == getattr(native_index, func)()
 
 
+@pytest.mark.parametrize("func", ["all", "any"])
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_NON_BOOL_INT_TEST_DATA)
 @sql_count_checker(query_count=1)
-def test_index_all_negative(native_index):
+def test_index_all_any_negative(func, native_index):
     snow_index = pd.Index(native_index)
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas all API doesn't yet support non-integer/boolean columns",
+        match=f"Snowpark pandas {func} API doesn't yet support non-integer/boolean columns",
     ):
-        assert snow_index.all() == native_index.all()
-
-
-@pytest.mark.parametrize("native_index", NATIVE_INDEX_BOOL_INT_TEST_DATA)
-def test_index_any(native_index):
-    snow_index = pd.Index(native_index)
-    with SqlCounter(query_count=1 if native_index.empty else 3):
-        assert snow_index.any() == native_index.any()
-
-
-@pytest.mark.parametrize("native_index", NATIVE_INDEX_NON_BOOL_INT_TEST_DATA)
-@sql_count_checker(query_count=1)
-def test_index_any_negative(native_index):
-    snow_index = pd.Index(native_index)
-    with pytest.raises(
-        NotImplementedError,
-        match="Snowpark pandas any API doesn't yet support non-integer/boolean columns",
-    ):
-        assert snow_index.any() == native_index.any()
+        assert getattr(snow_index, func)() == getattr(native_index, func)()
