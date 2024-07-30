@@ -32,6 +32,8 @@ class LogicalPlan:
     def __init__(self) -> None:
         self.children = []
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
+        # This flag is used to determine if the current node is a valid candidate for
+        # replacement in plan tree during optimization stage using replace_child method.
         self._is_valid_for_replacement: bool = False
 
     @property
@@ -108,9 +110,6 @@ class SnowflakeTable(LeafNode):
             self._finalizer = weakref.finalize(
                 self, session._dec_temp_table_ref_count, name
             )
-
-    # def __deepcopy__(self, memodict={}) -> "SnowflakeTable":  #noqa: B006
-    #     return SnowflakeTable(self.name, session=self.session)
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
