@@ -3984,6 +3984,7 @@ def test_create_empty_dataframe(session):
     assert not session.create_dataframe(data=[], schema=schema).collect()
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
 def test_dataframe_to_local_iterator_with_to_pandas_isolation(
     session, local_testing_mode
 ):

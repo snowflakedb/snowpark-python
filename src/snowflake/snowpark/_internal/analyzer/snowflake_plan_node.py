@@ -150,13 +150,17 @@ class SnowflakeCreateTable(LogicalPlan):
         table_name: Iterable[str],
         column_names: Optional[List[str]],
         mode: SaveMode,
-        query: Optional[LogicalPlan],
+        query: LogicalPlan,
         table_type: str = "",
         clustering_exprs: Optional[Iterable[Expression]] = None,
         comment: Optional[str] = None,
         is_generated: bool = False,
     ) -> None:
         super().__init__()
+
+        assert (
+            query is not None
+        ), "there must be a child plan associated with the SnowflakeCreateTable"
         self.table_name = table_name
         self.column_names = column_names
         self.mode = mode

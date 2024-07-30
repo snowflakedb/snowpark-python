@@ -2286,13 +2286,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             **kwargs,
         )
         result_qc = self._reduce_dimension(result_qc)
-        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        # This pattern is seen throughout this file so we should try to correct it
-        # when we have a more general way of resetting the name to None
-        from snowflake.snowpark.modin.pandas import Series
-
-        if isinstance(result_qc, Series):
-            result_qc.name = None
         return result_qc
 
     def memory_usage(self, index=True, deep=False):  # noqa: PR01, RT01, D200
@@ -2381,14 +2374,10 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         Return number of unique elements in the `BasePandasDataset`.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        from snowflake.snowpark.modin.pandas import Series
-
         axis = self._get_axis_number(axis)
         result = self._reduce_dimension(
             self._query_compiler.nunique(axis=axis, dropna=dropna)
         )
-        if isinstance(result, Series):
-            result.name = None
         return result
 
     def pad(

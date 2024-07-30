@@ -427,10 +427,13 @@ class Lineage:
         if user_domain in self._versioned_object_domains:
             if user_domain == _UserDomain.FEATURE_VIEW:
                 if "$" in name:
-                    parts = name.split("$")
+                    had_quotes = name.startswith('"') and name.endswith('"')
+                    parts = name.strip('"').split("$")
                     if len(parts) >= 2:
                         base_name = "$".join(parts[:-1])
                         version = parts[-1]
+                        if had_quotes:
+                            base_name = f'"{base_name}"'
                         return (f"{db}.{schema}.{base_name}", version)
                 else:
                     raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(

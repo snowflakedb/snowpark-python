@@ -353,6 +353,10 @@ def test_table(session):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
+@pytest.mark.skipif(
+    "config.getoption('disable_sql_simplifier', default=False)",
+    reason="TODO SNOW-1556590: Re-enable test_sql in test_cte.py when sql simplifier is disabled once new CTE implementation is completed",
+)
 @pytest.mark.parametrize(
     "query",
     [
