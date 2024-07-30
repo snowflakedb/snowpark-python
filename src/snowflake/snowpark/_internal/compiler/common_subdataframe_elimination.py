@@ -7,19 +7,16 @@ from typing import Dict, List, Set, Union
 
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
-    SelectSQL,
     SelectSnowflakePlan,
+    SelectSQL,
     SelectStatement,
     SetStatement,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
-from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
-from snowflake.snowpark._internal.analyzer.expression import Star
-from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
-    WithQueryBlock,
     WithObjectRef,
+    WithQueryBlock,
 )
 from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
 from snowflake.snowpark._internal.utils import (
@@ -38,7 +35,9 @@ class CommonSubDataframeElimination:
     _duplicated_nodes: Set[TreeNode]
     _query_generator: QueryGenerator
 
-    def __init__(self, logical_plans: List[LogicalPlan], query_generator: QueryGenerator) -> None:
+    def __init__(
+        self, logical_plans: List[LogicalPlan], query_generator: QueryGenerator
+    ) -> None:
         self._logical_plans = logical_plans
         self._query_generator = query_generator
         self._node_count_map = defaultdict(int)
@@ -81,6 +80,7 @@ class CommonSubDataframeElimination:
 
         This function is used to only include nodes that should be converted to CTEs.
         """
+
         def _traverse(root: "TreeNode") -> None:
             """
             This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
@@ -99,7 +99,8 @@ class CommonSubDataframeElimination:
             is_duplicate_node = self._node_count_map[node] > 1
             if is_duplicate_node:
                 is_any_parent_unique_node = any(
-                    self._node_count_map[parent] == 1 for parent in self._node_parents_map[node]
+                    self._node_count_map[parent] == 1
+                    for parent in self._node_parents_map[node]
                 )
                 if is_any_parent_unique_node:
                     return True
@@ -182,16 +183,21 @@ class CommonSubDataframeElimination:
                 if isinstance(node, SelectSnowflakePlan):
                     # resolve the snowflake plan attached
                     # self._reset_node(node._snowflake_plan)
-                    new_snowflake_plan = self._query_generator.resolve(node._snowflake_plan)
+                    new_snowflake_plan = self._query_generator.resolve(
+                        node._snowflake_plan
+                    )
                     node._snowflake_plan = new_snowflake_plan
 
                 elif isinstance(node, SnowflakePlan):
-                    # update the snowflake plan to make it a valid plan node
-                    new_snowflake_plan = self._query_generator.resolve(node.source_plan)
-                    if node == root:
-                        root = new_snowflake_plan
-                    else:
-                        self._update_parents(node, new_snowflake_plan)
+                    if node.source_plan is not None:
+                        # update the snowflake plan to make it a valid plan node
+                        new_snowflake_plan = self._query_generator.resolve(
+                            node.source_plan
+                        )
+                        if node == root:
+                            root = new_snowflake_plan
+                        else:
+                            self._update_parents(node, new_snowflake_plan)
                 else:
                     self._reset_node(node)
 

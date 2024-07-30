@@ -18,9 +18,9 @@ from typing import (
     List,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Union,
-    Set,
 )
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
@@ -74,11 +74,11 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     schema_value_statement,
     select_from_path_with_format_statement,
     set_operator_statement,
+    single_cte_statement,
     sort_statement,
     table_function_statement,
     unpivot_statement,
     update_statement,
-    single_cte_statement,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     JoinType,
@@ -97,7 +97,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SaveMode,
     SnowflakeCreateTable,
-    WithQueryBlock,
     WithObjectRef,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
@@ -113,9 +112,9 @@ from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     random_name_for_temp_object,
 )
+from snowflake.snowpark.context import _enable_new_compilation_stage
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
-from snowflake.snowpark.context import _enable_new_compilation_stage
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -255,7 +254,9 @@ class SnowflakePlan(LogicalPlan):
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
         self._id = encode_id(queries[-1].sql, queries[-1].params)
-        self.referred_cte_tables: Set[str] = referred_cte_tables.copy() if referred_cte_tables else set()
+        self.referred_cte_tables: Set[str] = (
+            referred_cte_tables.copy() if referred_cte_tables else set()
+        )
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
@@ -523,6 +524,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         schema_query: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
+        propagate_referred_cte_tables: bool = True,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
         queries = select_child.queries[:-1] + [
@@ -559,7 +561,9 @@ class SnowflakePlanBuilder:
             df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
             session=self.session,
             placeholder_query=placeholder_query,
-            referred_cte_tables=child.referred_cte_tables,
+            referred_cte_tables=child.referred_cte_tables
+            if propagate_referred_cte_tables
+            else None,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -873,7 +877,6 @@ class SnowflakePlanBuilder:
                 source_plan,
                 api_calls=child.api_calls,
                 session=self.session,
-                referred_cte_tables=child.referred_cte_tables,
             )
 
         if mode == SaveMode.APPEND:
@@ -886,6 +889,7 @@ class SnowflakePlanBuilder:
                     ),
                     child,
                     source_plan,
+                    propagate_referred_cte_tables=False,
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
@@ -897,6 +901,7 @@ class SnowflakePlanBuilder:
                     ),
                     child,
                     source_plan,
+                    propagate_referred_cte_tables=False,
                 )
             else:
                 return self.build(
@@ -912,6 +917,7 @@ class SnowflakePlanBuilder:
                     child,
                     source_plan,
                     is_ddl_on_temp_object=is_temp_table_type,
+                    propagate_referred_cte_tables=False,
                 )
         elif mode == SaveMode.OVERWRITE:
             return self.build(
@@ -927,6 +933,7 @@ class SnowflakePlanBuilder:
                 child,
                 source_plan,
                 is_ddl_on_temp_object=is_temp_table_type,
+                propagate_referred_cte_tables=False,
             )
         elif mode == SaveMode.IGNORE:
             return self.build(
@@ -942,6 +949,7 @@ class SnowflakePlanBuilder:
                 child,
                 source_plan,
                 is_ddl_on_temp_object=is_temp_table_type,
+                propagate_referred_cte_tables=False,
             )
         elif mode == SaveMode.ERROR_IF_EXISTS:
             if is_generated:
@@ -959,6 +967,7 @@ class SnowflakePlanBuilder:
                 child,
                 source_plan,
                 is_ddl_on_temp_object=is_temp_table_type,
+                propagate_referred_cte_tables=False,
             )
 
     def limit(
@@ -1037,6 +1046,7 @@ class SnowflakePlanBuilder:
             lambda x: create_or_replace_view_statement(name, x, is_temp, comment),
             child,
             source_plan,
+            propagate_referred_cte_tables=False,
         )
 
     def create_or_replace_dynamic_table(
@@ -1319,6 +1329,7 @@ class SnowflakePlanBuilder:
             query,
             source_plan,
             query.schema_query,
+            propagate_referred_cte_tables=False,
         )
 
     def update(
@@ -1340,6 +1351,7 @@ class SnowflakePlanBuilder:
                 ),
                 source_data,
                 source_plan,
+                propagate_referred_cte_tables=False,
             )
         else:
             return self.query(
@@ -1369,6 +1381,7 @@ class SnowflakePlanBuilder:
                 ),
                 source_data,
                 source_plan,
+                propagate_referred_cte_tables=False,
             )
         else:
             return self.query(
@@ -1393,6 +1406,7 @@ class SnowflakePlanBuilder:
             lambda x: merge_statement(table_name, x, join_expr, clauses),
             source_data,
             source_plan,
+            propagate_referred_cte_tables=False,
         )
 
     def lateral(
@@ -1460,10 +1474,12 @@ class SnowflakePlanBuilder:
             )
 
     def with_query_block(
-            self, name: str, child: SnowflakePlan, source_plan: LogicalPlan
+        self, name: str, child: SnowflakePlan, source_plan: LogicalPlan
     ) -> SnowflakePlan:
         if self._skip_schema_query is not True:
-            raise ValueError("schema query for WithQueryBlock is currently not supported")
+            raise ValueError(
+                "schema query for WithQueryBlock is currently not supported"
+            )
 
         return self.build(
             lambda x: single_cte_statement(x, name),
@@ -1471,15 +1487,16 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-
     def with_object_ref(
-            self, name: str, child: SnowflakePlan, source_plan: LogicalPlan
+        self, name: str, child: SnowflakePlan, source_plan: LogicalPlan
     ) -> SnowflakePlan:
         new_query = f"SELECT * FROM {name}"
         assert isinstance(source_plan, WithObjectRef)
 
         if self._skip_schema_query is not True:
-            raise ValueError("schema query for WithObjectRef is currently not supported")
+            raise ValueError(
+                "schema query for WithObjectRef is currently not supported"
+            )
 
         queries = child.queries[:-1] + [Query(sql=new_query)]
         referred_cte_tables = {name}

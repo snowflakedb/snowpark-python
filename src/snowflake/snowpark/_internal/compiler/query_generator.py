@@ -8,16 +8,23 @@ from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    CreateViewCommand,
     PlanQueryType,
     Query,
     SnowflakePlan,
     SnowflakePlanBuilder,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    CopyIntoLocationNode,
     LogicalPlan,
     SnowflakeCreateTable,
-    WithQueryBlock,
     WithObjectRef,
+    WithQueryBlock,
+)
+from snowflake.snowpark._internal.analyzer.table_merge_expression import (
+    TableDelete,
+    TableMerge,
+    TableUpdate,
 )
 from snowflake.snowpark.session import Session
 
@@ -63,7 +70,9 @@ class QueryGenerator(Analyzer):
         -------
 
         """
-        from snowflake.snowpark._internal.compiler.utils import get_snowflake_plan_queries
+        from snowflake.snowpark._internal.compiler.utils import (
+            get_snowflake_plan_queries,
+        )
 
         # generate queries for each logical plan
         snowflake_plans = [self.resolve(logical_plan) for logical_plan in logical_plans]
@@ -71,7 +80,9 @@ class QueryGenerator(Analyzer):
         queries = []
         post_actions = []
         for snowflake_plan in snowflake_plans:
-            plan_queries = get_snowflake_plan_queries(snowflake_plan, self.resolved_with_query_block)
+            plan_queries = get_snowflake_plan_queries(
+                snowflake_plan, self.resolved_with_query_block
+            )
             queries.extend(plan_queries[PlanQueryType.QUERIES])
             post_actions.extend(plan_queries[PlanQueryType.POST_ACTIONS])
 
@@ -98,6 +109,10 @@ class QueryGenerator(Analyzer):
                 return logical_plan
 
         if isinstance(logical_plan, SnowflakeCreateTable):
+            from snowflake.snowpark._internal.compiler.utils import (
+                get_snowflake_plan_queries,
+            )
+
             # overwrite the SnowflakeCreateTable resolving, because the child
             # attribute will be pulled directly from the cache
             resolved_child = resolved_children[logical_plan.children[0]]
@@ -112,6 +127,11 @@ class QueryGenerator(Analyzer):
                 == logical_plan.table_name
             )
 
+            # update the resolved child
+            final_queries = get_snowflake_plan_queries(
+                resolved_child, self.resolved_with_query_block
+            )
+            resolved_child.queries = final_queries[PlanQueryType.QUERIES]
             return self.plan_builder.save_as_table(
                 logical_plan.table_name,
                 logical_plan.column_names,
@@ -129,6 +149,30 @@ class QueryGenerator(Analyzer):
                 self._snowflake_create_table_plan_info.child_attributes,
             )
 
+        if isinstance(
+            logical_plan,
+            (
+                CreateViewCommand,
+                TableUpdate,
+                TableDelete,
+                TableMerge,
+                CopyIntoLocationNode,
+            ),
+        ):
+            from snowflake.snowpark._internal.compiler.utils import (
+                get_snowflake_plan_queries,
+            )
+
+            resolved_child = resolved_children[logical_plan.children[0]]
+            # update the resolved child
+            final_queries = get_snowflake_plan_queries(
+                resolved_child, self.resolved_with_query_block
+            )
+            resolved_child.queries = final_queries[PlanQueryType.QUERIES]
+            return super().do_resolve_with_resolved_children(
+                logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
+            )
+
         if isinstance(logical_plan, Selectable):
             # overwrite the Selectable resolving to make sure we are triggering
             # any schema query build
@@ -136,7 +180,9 @@ class QueryGenerator(Analyzer):
 
         if isinstance(logical_plan, WithQueryBlock):
             resolved_child = resolved_children[logical_plan.children[0]]
-            self.resolved_with_query_block.update({logical_plan.name: resolved_child.queries[-1].sql})
+            self.resolved_with_query_block.update(
+                {logical_plan.name: resolved_child.queries[-1].sql}
+            )
             return self.plan_builder.with_query_block(
                 logical_plan.name,
                 resolved_child,

@@ -3,9 +3,8 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import copy
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
 
-<<<<<<< HEAD
 from typing import Optional
 
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
@@ -16,20 +15,16 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectStatement,
     SetStatement,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
-=======
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    SnowflakePlan,
     PlanQueryType,
     Query,
+    SnowflakePlan,
 )
->>>>>>> b22b87e6 (fix error)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     Limit,
     LogicalPlan,
     SnowflakeCreateTable,
-    WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     TableDelete,
@@ -161,8 +156,11 @@ def replace_child(
 
     raise ValueError(f"parent type {type(parent)} not supported")
 
-def get_snowflake_plan_queries(plan: SnowflakePlan, resolved_with_query_blocks: Dict[str, str]) -> Dict[PlanQueryType, List[Query]]:
+def get_snowflake_plan_queries(
+    plan: SnowflakePlan, resolved_with_query_blocks: Dict[str, str]
+) -> Dict[PlanQueryType, List[Query]]:
     from snowflake.snowpark._internal.analyzer.analyzer_utils import cte_statement
+
     # make a copy of the original query to avoid any update to the
     # original query object
     plan_queries = copy.deepcopy(plan.queries)

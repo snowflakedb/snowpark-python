@@ -41,6 +41,8 @@ if TYPE_CHECKING:
         Analyzer,
     )  # pragma: no cover
 
+from functools import cached_property
+
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     result_scan_statement,
@@ -63,7 +65,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, Snowflak
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SnowflakeTable,
-    WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
@@ -71,7 +72,6 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 )
 from snowflake.snowpark._internal.utils import is_sql_select_statement
 from snowflake.snowpark.context import _enable_new_compilation_stage
-from functools import cached_property
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -380,10 +380,8 @@ class Selectable(LogicalPlan, ABC):
     def referred_cte_tables(self) -> Set[str]:
         pass
 
-
     def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
         pass
-
 
 
 class SelectableEntity(Selectable):
@@ -746,7 +744,11 @@ class SelectStatement(Selectable):
             self._sql_query = self.from_.sql_query
             return self._sql_query
         from_clause = self.from_.sql_in_subquery
-        if self.analyzer.session._cte_optimization_enabled and (not _enable_new_compilation_stage) and self.from_._id:
+        if (
+            self.analyzer.session._cte_optimization_enabled
+            and (not _enable_new_compilation_stage)
+            and self.from_._id
+        ):
             placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
             self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
         else:
@@ -881,11 +883,15 @@ class SelectStatement(Selectable):
     def referred_cte_tables(self) -> Set[str]:
         return self.from_.referred_cte_tables()
 
-    def update_child(self, child: "LogicalPlan", new_child: Union["Selectable", SnowflakePlan]) -> None:
+    def update_child(
+        self, child: "LogicalPlan", new_child: Union["Selectable", SnowflakePlan]
+    ) -> None:
         try:
             if self.from_ == child:
                 if not isinstance(new_child, Selectable):
-                    new_child = SelectSnowflakePlan(new_child, analyzer=new_child.session._analyzer)
+                    new_child = SelectSnowflakePlan(
+                        new_child, analyzer=new_child.session._analyzer
+                    )
                 self.from_ = new_child
         except Exception:
             pass

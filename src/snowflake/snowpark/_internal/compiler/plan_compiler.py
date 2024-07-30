@@ -2,21 +2,22 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import copy
 from typing import Dict, List
 
-import copy
-
-from snowflake.snowpark.context import _enable_new_compilation_stage
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
     Query,
     SnowflakePlan,
 )
-from snowflake.snowpark._internal.compiler.common_subdataframe_elimination import CommonSubDataframeElimination
+from snowflake.snowpark._internal.compiler.common_subdataframe_elimination import (
+    CommonSubDataframeElimination,
+)
 from snowflake.snowpark._internal.compiler.utils import (
     create_query_generator,
     get_snowflake_plan_queries,
 )
+from snowflake.snowpark.context import _enable_new_compilation_stage
 
 
 class PlanCompiler:
@@ -66,7 +67,9 @@ class PlanCompiler:
 
             if _enable_new_compilation_stage:
                 if self._plan.session.cte_optimization_enabled:
-                    common_sub_dataframe_eliminator = CommonSubDataframeElimination(logical_plans, query_generator)
+                    common_sub_dataframe_eliminator = CommonSubDataframeElimination(
+                        logical_plans, query_generator
+                    )
                     logical_plans = common_sub_dataframe_eliminator.run()
 
             # do a final pass of code generation

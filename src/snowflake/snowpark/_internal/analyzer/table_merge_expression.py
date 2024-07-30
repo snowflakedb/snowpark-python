@@ -128,6 +128,14 @@ class TableUpdate(LogicalPlan):
         )
         return complexity
 
+    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
+        try:
+            if self.source_data == child:
+                self.source_data = new_child
+                self.children = [new_child]
+        except Exception:
+            pass
+
 
 class TableDelete(LogicalPlan):
     def __init__(
@@ -146,6 +154,14 @@ class TableDelete(LogicalPlan):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # DELETE FROM table_name [USING source_data] [WHERE condition]
         return self.condition.cumulative_node_complexity if self.condition else {}
+
+    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
+        try:
+            if self.source_data == child:
+                self.source_data = new_child
+                self.children = [new_child]
+        except Exception:
+            pass
 
 
 class TableMerge(LogicalPlan):
@@ -170,3 +186,11 @@ class TableMerge(LogicalPlan):
             self.join_expr.cumulative_node_complexity,
             *(clause.cumulative_node_complexity for clause in self.clauses),
         )
+
+    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
+        try:
+            if self.source == child:
+                self.source = new_child
+                self.children = [new_child]
+        except Exception:
+            pass
