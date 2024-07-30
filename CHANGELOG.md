@@ -6,6 +6,7 @@
 
 #### Improvements
 - Added support server side string size limitations.
+- Added support for column lineage in the DataFrame.lineage.trace API.
 - Added support for passing `INFER_SCHEMA` options to `DataFrameReader` via `INFER_SCHEMA_OPTIONS`.
 
 #### Bug Fixes
