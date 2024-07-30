@@ -486,7 +486,7 @@ class BasePandasDataset:
             ‘pad’ / ‘ffill’: propagate last valid observation forward to next valid
             ‘backfill’ / ‘bfill’: use NEXT valid observation to fill.
 
-        how : {'start', 'end'}, default 'end'
+        how : {'start', 'end'}, default None
             For PeriodIndex only.
 
         normalize : bool, default False
@@ -498,8 +498,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        SnowflakeQueryCompiler
-            Holds an ordered frame with the result of the asfreq operation.
+        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
 
         Notes
         -----

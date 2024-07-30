@@ -10522,7 +10522,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         freq: str,
         method: Literal["backfill", "bfill", "pad", "ffill", None] = None,
-        how: Literal["start", "end"] = "end",
+        how: Literal["start", "end", None] = None,
         normalize: bool = False,
         fill_value: Optional[Scalar] = None,
     ) -> "SnowflakeQueryCompiler":
@@ -10552,7 +10552,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ‘pad’ / ‘ffill’: propagate last valid observation forward to next valid
             ‘backfill’ / ‘bfill’: use NEXT valid observation to fill.
 
-        how : {'start', 'end'}, default 'end'
+        how : {'start', 'end'}, default None
             For PeriodIndex only.
 
         normalize : bool, default False
@@ -10573,6 +10573,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         is only support on DataFrame/Series with DatetimeIndex, and only
         the `freq` and `method` parameters are currently supported.
         """
+        if how is not None or normalize is not False or fill_value is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas `asfreq` does not support parameters `how`, `normalize`, or `fill_value`."
+            )
+
         resample_kwargs = {
             "rule": freq,
             "axis": 0,

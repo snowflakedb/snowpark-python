@@ -4,6 +4,7 @@
 import random
 import string
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
@@ -504,3 +505,17 @@ def test_asfreq_ffill():
         lambda df: df.asfreq(freq="5s", method="ffill"),
         check_freq=False,
     )
+
+
+@sql_count_checker(query_count=0)
+def test_asfreq_negative():
+    snow_df = pd.DataFrame(
+        {"A": np.random.randn(15)},
+        index=native_pd.date_range("2020-01-01", periods=15, freq="1s"),
+    )
+    with pytest.raises(NotImplementedError):
+        snow_df.asfreq(freq="5s", method="ffill", how="end")
+    with pytest.raises(NotImplementedError):
+        snow_df.asfreq(freq="5s", method="ffill", normalize=True)
+    with pytest.raises(NotImplementedError):
+        snow_df.asfreq(freq="5s", method="ffill", fill_value=2)
