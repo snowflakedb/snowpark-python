@@ -26,6 +26,11 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SnowflakeTable,
 )
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
+from snowflake.snowpark._internal.analyzer.table_merge_expression import (
+    TableDelete,
+    TableMerge,
+    TableUpdate,
+)
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Project, Sort
 from snowflake.snowpark._internal.compiler.utils import replace_child
 
@@ -38,6 +43,24 @@ def new_plan(mock_session, mock_analyzer):
     yield SelectableEntity(
         SnowflakeTable(name="table", session=mock_session), analyzer=mock_analyzer
     )
+
+
+def assert_precondition(plan, new_plan, using_deep_copy=False):
+    original_valid_for_replacement = plan._is_valid_for_replacement
+    try:
+        plan._is_valid_for_replacement = False
+        with pytest.raises(ValueError, match="is not valid for replacement."):
+            replace_child(plan, irrelevant_plan, new_plan)
+
+        if using_deep_copy:
+            plan = copy.deepcopy(plan)
+        else:
+            plan._is_valid_for_replacement = True
+
+        with pytest.raises(ValueError, match="is not a child of parent"):
+            replace_child(plan, irrelevant_plan, new_plan)
+    finally:
+        plan._is_valid_for_replacement = original_valid_for_replacement
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
@@ -71,20 +94,14 @@ def test_logical_plan(using_snowflake_plan, mock_query, new_plan):
     else:
         join_plan = src_join_plan
 
-    with pytest.raises(ValueError, match="is not valid for replacement."):
-        replace_child(join_plan, irrelevant_plan, new_plan)
+    assert_precondition(join_plan, new_plan)
+    assert_precondition(project_plan, new_plan)
 
     if using_snowflake_plan:
         join_plan = copy.deepcopy(join_plan)
     else:
         join_plan._is_valid_for_replacement = True
     project_plan._is_valid_for_replacement = True
-
-    with pytest.raises(ValueError, match="is not a child of parent"):
-        replace_child(join_plan, irrelevant_plan, new_plan)
-
-    with pytest.raises(ValueError, match="is not a child of parent"):
-        replace_child(project_plan, irrelevant_plan, new_plan)
 
     assert len(get_children(join_plan)) == 2
     copied_old_plan, copied_project_plan = get_children(join_plan)
@@ -113,13 +130,8 @@ def test_unary_plan(plan_initializer, new_plan):
     assert plan.child == old_plan
     assert plan.children == [old_plan]
 
-    with pytest.raises(ValueError, match="is not valid for replacement."):
-        replace_child(plan, irrelevant_plan, new_plan)
-
+    assert_precondition(plan, new_plan)
     plan._is_valid_for_replacement = True
-
-    with pytest.raises(ValueError, match="is not a child of parent"):
-        replace_child(plan, irrelevant_plan, new_plan)
 
     replace_child(plan, old_plan, new_plan)
     assert plan.child == new_plan
@@ -133,18 +145,38 @@ def test_binary_plan(new_plan):
     assert plan.left == left_plan
     assert plan.right == old_plan
 
-    with pytest.raises(ValueError, match="is not valid for replacement."):
-        replace_child(plan, irrelevant_plan, new_plan)
-
+    assert_precondition(plan, new_plan)
     plan._is_valid_for_replacement = True
-
-    with pytest.raises(ValueError, match="is not a child of parent"):
-        replace_child(plan, irrelevant_plan, new_plan)
 
     replace_child(plan, old_plan, new_plan)
     assert plan.left == left_plan
     assert plan.right == new_plan
     assert plan.children == [left_plan, new_plan]
+
+
+@pytest.mark.parametrize(
+    "plan_initializer",
+    [
+        lambda x: TableDelete("table_name", None, x),
+        lambda x: TableUpdate("table_name", {}, None, x),
+        lambda x: TableMerge("table_name", x, None, []),
+    ],
+)
+def test_table_delete_update_merge(plan_initializer, new_plan):
+    def get_source(plan):
+        if hasattr(plan, "source_data"):
+            return plan.source_data
+        return plan.source
+
+    plan = plan_initializer(old_plan)
+
+    assert get_source(plan) == old_plan
+    assert_precondition(plan, new_plan)
+    plan._is_valid_for_replacement = True
+
+    replace_child(plan, old_plan, new_plan)
+    assert get_source(plan) == new_plan.snowflake_plan
+    assert plan.children == [new_plan.snowflake_plan]
 
 
 def test_snowflake_create_table(new_plan):
@@ -153,13 +185,8 @@ def test_snowflake_create_table(new_plan):
     assert plan.query == old_plan
     assert plan.children == [old_plan]
 
-    with pytest.raises(ValueError, match="is not valid for replacement."):
-        replace_child(plan, irrelevant_plan, new_plan)
-
+    assert_precondition(plan, new_plan)
     plan._is_valid_for_replacement = True
-
-    with pytest.raises(ValueError, match="is not a child of parent"):
-        replace_child(plan, irrelevant_plan, new_plan)
 
     replace_child(plan, old_plan, new_plan)
     assert plan.query == new_plan
@@ -171,55 +198,44 @@ def test_selectable_entity(
     using_snowflake_plan, mock_session, mock_analyzer, mock_query, new_plan
 ):
     table = SnowflakeTable(name="table", session=mock_session)
-    selectable_entity = SelectableEntity(entity=table, analyzer=mock_analyzer)
+    plan = SelectableEntity(entity=table, analyzer=mock_analyzer)
     if using_snowflake_plan:
-        selectable_entity = SnowflakePlan(
+        plan = SnowflakePlan(
             queries=[mock_query],
             schema_query="",
             post_actions=[],
             expr_to_alias={},
-            source_plan=selectable_entity,
+            source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
             placeholder_query=None,
             session=mock_session,
         )
-    with pytest.raises(ValueError, match="is not valid for replacement."):
-        replace_child(selectable_entity, irrelevant_plan, new_plan)
-    selectable_entity = copy.deepcopy(selectable_entity)
 
-    with pytest.raises(ValueError, match="is not a child of parent"):
-        replace_child(selectable_entity, irrelevant_plan, new_plan)
-
+    assert_precondition(plan, new_plan, using_deep_copy=True)
     # SelectableEntity has no children
-    assert selectable_entity.children_plan_nodes == []
+    assert plan.children_plan_nodes == []
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
 def test_select_sql(using_snowflake_plan, mock_session, mock_analyzer, new_plan):
-    select_sql_plan = SelectSQL("FAKE QUERY", analyzer=mock_analyzer)
-    with pytest.raises(ValueError, match="is not valid for replacement."):
-        replace_child(select_sql_plan, irrelevant_plan, new_plan)
-    select_sql_plan = copy.deepcopy(select_sql_plan)
-
-    with pytest.raises(ValueError, match="is not a child of parent"):
-        replace_child(select_sql_plan, irrelevant_plan, new_plan)
-
+    plan = SelectSQL("FAKE QUERY", analyzer=mock_analyzer)
     if using_snowflake_plan:
-        select_sql_plan = SnowflakePlan(
+        plan = SnowflakePlan(
             queries=[Query("FAKE QUERY")],
             schema_query="",
             post_actions=[],
             expr_to_alias={},
-            source_plan=select_sql_plan,
+            source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
             placeholder_query=None,
             session=mock_session,
         )
 
+    assert_precondition(plan, new_plan, using_deep_copy=True)
     # SelectSQL has no children
-    assert select_sql_plan.children_plan_nodes == []
+    assert plan.children_plan_nodes == []
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
@@ -239,34 +255,28 @@ def test_select_snowflake_plan(
         session=mock_session,
     )
 
-    select_snowflake_plan = SelectSnowflakePlan(snowflake_plan, analyzer=mock_analyzer)
+    plan = SelectSnowflakePlan(snowflake_plan, analyzer=mock_analyzer)
 
     if using_snowflake_plan:
-        select_snowflake_plan = SnowflakePlan(
+        plan = SnowflakePlan(
             queries=[mock_query],
             schema_query="",
             post_actions=[],
             expr_to_alias={},
-            source_plan=select_snowflake_plan,
+            source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
             placeholder_query=None,
             session=mock_session,
         )
 
-    with pytest.raises(ValueError, match="is not valid for replacement."):
-        replace_child(select_snowflake_plan, irrelevant_plan, new_plan)
-    select_snowflake_plan = copy.deepcopy(select_snowflake_plan)
-
-    with pytest.raises(ValueError, match="is not a child of parent"):
-        replace_child(select_snowflake_plan, irrelevant_plan, new_plan)
-    assert len(select_snowflake_plan.children_plan_nodes) == 1
-
+    assert_precondition(plan, new_plan, using_deep_copy=True)
+    plan = copy.deepcopy(plan)
     # deep copy created a copy of old_plan
-    copied_old_plan = select_snowflake_plan.children_plan_nodes[0]
+    copied_old_plan = plan.children_plan_nodes[0]
 
-    replace_child(select_snowflake_plan, copied_old_plan, new_plan)
-    assert select_snowflake_plan.children_plan_nodes == [new_plan]
+    replace_child(plan, copied_old_plan, new_plan)
+    assert plan.children_plan_nodes == [new_plan]
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
@@ -287,31 +297,25 @@ def test_select_statement(
         ),
         analyzer=mock_analyzer,
     )
-    select_statement_plan = SelectStatement(from_=from_, analyzer=mock_analyzer)
+    plan = SelectStatement(from_=from_, analyzer=mock_analyzer)
 
     if using_snowflake_plan:
-        select_statement_plan = SnowflakePlan(
+        plan = SnowflakePlan(
             queries=[mock_query],
             schema_query="",
             post_actions=[],
             expr_to_alias={},
-            source_plan=select_statement_plan,
+            source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
             placeholder_query=None,
             session=mock_session,
         )
 
-    with pytest.raises(ValueError, match="is not valid for replacement."):
-        replace_child(select_statement_plan, irrelevant_plan, new_plan)
-    select_statement_plan = copy.deepcopy(select_statement_plan)
-
-    with pytest.raises(ValueError, match="is not a child of parent"):
-        replace_child(select_statement_plan, irrelevant_plan, new_plan)
-    assert select_statement_plan.children_plan_nodes == [from_]
-
-    replace_child(select_statement_plan, from_, new_plan)
-    assert select_statement_plan.children_plan_nodes == [new_plan]
+    assert_precondition(plan, new_plan, using_deep_copy=True)
+    plan = copy.deepcopy(plan)
+    replace_child(plan, from_, new_plan)
+    assert plan.children_plan_nodes == [new_plan]
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
@@ -330,37 +334,32 @@ def test_select_table_function(
         placeholder_query=None,
         session=mock_session,
     )
-    table_function_plan = SelectTableFunction(
+    plan = SelectTableFunction(
         TableFunctionExpression("table_function"),
         analyzer=mock_analyzer,
         snowflake_plan=snowflake_plan,
     )
     if using_snowflake_plan:
-        table_function_plan = SnowflakePlan(
+        plan = SnowflakePlan(
             queries=[mock_query],
             schema_query="",
             post_actions=[],
             expr_to_alias={},
-            source_plan=table_function_plan,
+            source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
             placeholder_query=None,
             session=mock_session,
         )
 
-    with pytest.raises(ValueError, match="is not valid for replacement."):
-        replace_child(table_function_plan, irrelevant_plan, new_plan)
-    table_function_plan = copy.deepcopy(table_function_plan)
-
-    with pytest.raises(ValueError, match="is not a child of parent"):
-        replace_child(table_function_plan, irrelevant_plan, new_plan)
-    assert len(table_function_plan.children_plan_nodes) == 1
+    assert_precondition(plan, new_plan, using_deep_copy=True)
+    plan = copy.deepcopy(plan)
 
     # deep copy created a copy of old_plan
-    copied_old_plan = table_function_plan.children_plan_nodes[0]
+    copied_old_plan = plan.children_plan_nodes[0]
 
-    replace_child(table_function_plan, copied_old_plan, new_plan)
-    assert table_function_plan.children_plan_nodes == [new_plan]
+    replace_child(plan, copied_old_plan, new_plan)
+    assert plan.children_plan_nodes == [new_plan]
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
@@ -373,32 +372,27 @@ def test_set_statement(
     selectable2 = SelectSQL("SELECT * FROM table2", analyzer=mock_analyzer)
     set_operand1 = SetOperand(selectable1, "UNION")
     set_operand2 = SetOperand(selectable2, "UNION")
-    set_statement_plan = SetStatement(
-        set_operand1, set_operand2, analyzer=mock_analyzer
-    )
+    plan = SetStatement(set_operand1, set_operand2, analyzer=mock_analyzer)
     if using_snowflake_plan:
-        set_statement_plan = SnowflakePlan(
+        plan = SnowflakePlan(
             queries=[mock_query],
             schema_query="",
             post_actions=[],
             expr_to_alias={},
-            source_plan=set_statement_plan,
+            source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
             placeholder_query=None,
             session=mock_session,
         )
 
-    with pytest.raises(ValueError, match="is not valid for replacement."):
-        replace_child(set_statement_plan, irrelevant_plan, new_plan)
-    set_statement_plan = copy.deepcopy(set_statement_plan)
+    assert_precondition(plan, new_plan, using_deep_copy=True)
+    plan = copy.deepcopy(plan)
 
-    with pytest.raises(ValueError, match="is not a child of parent"):
-        replace_child(set_statement_plan, irrelevant_plan, new_plan)
-    assert set_statement_plan.children_plan_nodes == [selectable1, selectable2]
-
-    replace_child(set_statement_plan, selectable1, new_plan)
-    assert set_statement_plan.children_plan_nodes == [new_plan, selectable2]
+    replace_child(plan, selectable1, new_plan)
+    assert plan.children_plan_nodes == [new_plan, selectable2]
+    if not using_snowflake_plan:
+        assert plan.set_operands[0].selectable == new_plan
 
 
 def test_replace_child_negative(new_plan):
