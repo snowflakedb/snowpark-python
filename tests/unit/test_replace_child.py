@@ -30,12 +30,18 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import Project, Sort
 from snowflake.snowpark._internal.compiler.utils import replace_child
 
 old_plan = LogicalPlan()
-new_plan = LogicalPlan()
 irrelevant_plan = LogicalPlan()
 
 
+@pytest.fixture(scope="module")
+def new_plan(mock_session, mock_analyzer):
+    yield SelectableEntity(
+        SnowflakeTable(name="table", session=mock_session), analyzer=mock_analyzer
+    )
+
+
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
-def test_logical_plan(using_snowflake_plan, mock_query):
+def test_logical_plan(using_snowflake_plan, mock_query, new_plan):
     def get_children(plan):
         if isinstance(plan, SnowflakePlan):
             return plan.children_plan_nodes
@@ -101,7 +107,7 @@ def test_logical_plan(using_snowflake_plan, mock_query):
         lambda x: CopyIntoLocationNode(x, "stage_location", copy_options={}),
     ],
 )
-def test_unary_plan(plan_initializer):
+def test_unary_plan(plan_initializer, new_plan):
     plan = plan_initializer(old_plan)
 
     assert plan.child == old_plan
@@ -120,7 +126,7 @@ def test_unary_plan(plan_initializer):
     assert plan.children == [new_plan]
 
 
-def test_binary_plan():
+def test_binary_plan(new_plan):
     left_plan = Project([], LogicalPlan())
     plan = Union(left=left_plan, right=old_plan, is_all=False)
 
@@ -141,7 +147,7 @@ def test_binary_plan():
     assert plan.children == [left_plan, new_plan]
 
 
-def test_snowflake_create_table():
+def test_snowflake_create_table(new_plan):
     plan = SnowflakeCreateTable(["temp_table"], None, "OVERWRITE", old_plan, "temp")
 
     assert plan.query == old_plan
@@ -162,7 +168,7 @@ def test_snowflake_create_table():
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
 def test_selectable_entity(
-    using_snowflake_plan, mock_session, mock_analyzer, mock_query
+    using_snowflake_plan, mock_session, mock_analyzer, mock_query, new_plan
 ):
     table = SnowflakeTable(name="table", session=mock_session)
     selectable_entity = SelectableEntity(entity=table, analyzer=mock_analyzer)
@@ -190,7 +196,7 @@ def test_selectable_entity(
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
-def test_select_sql(using_snowflake_plan, mock_session, mock_analyzer):
+def test_select_sql(using_snowflake_plan, mock_session, mock_analyzer, new_plan):
     select_sql_plan = SelectSQL("FAKE QUERY", analyzer=mock_analyzer)
     with pytest.raises(ValueError, match="is not valid for replacement."):
         replace_child(select_sql_plan, irrelevant_plan, new_plan)
@@ -218,7 +224,7 @@ def test_select_sql(using_snowflake_plan, mock_session, mock_analyzer):
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
 def test_select_snowflake_plan(
-    using_snowflake_plan, mock_session, mock_analyzer, mock_query
+    using_snowflake_plan, mock_session, mock_analyzer, mock_query, new_plan
 ):
     project_plan = Project([], old_plan)
     snowflake_plan = SnowflakePlan(
@@ -265,7 +271,7 @@ def test_select_snowflake_plan(
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
 def test_select_statement(
-    using_snowflake_plan, mock_session, mock_analyzer, mock_query
+    using_snowflake_plan, mock_session, mock_analyzer, mock_query, new_plan
 ):
     from_ = SelectSnowflakePlan(
         SnowflakePlan(
@@ -310,7 +316,7 @@ def test_select_statement(
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
 def test_select_table_function(
-    using_snowflake_plan, mock_session, mock_analyzer, mock_query
+    using_snowflake_plan, mock_session, mock_analyzer, mock_query, new_plan
 ):
     project_plan = Project([], old_plan)
     snowflake_plan = SnowflakePlan(
@@ -358,7 +364,9 @@ def test_select_table_function(
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
-def test_set_statement(using_snowflake_plan, mock_session, mock_analyzer, mock_query):
+def test_set_statement(
+    using_snowflake_plan, mock_session, mock_analyzer, mock_query, new_plan
+):
     selectable1 = SelectableEntity(
         SnowflakeTable(name="table1", session=mock_session), analyzer=mock_analyzer
     )
@@ -393,7 +401,7 @@ def test_set_statement(using_snowflake_plan, mock_session, mock_analyzer, mock_q
     assert set_statement_plan.children_plan_nodes == [new_plan, selectable2]
 
 
-def test_replace_child_negative():
+def test_replace_child_negative(new_plan):
     mock_parent = mock.Mock()
     mock_parent._is_valid_for_replacement = True
     mock_child = LogicalPlan()
