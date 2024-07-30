@@ -437,6 +437,16 @@ class Column:
             for ve in value_expressions:
                 validate_value(ve)
 
+        if len(value_expressions) == 0:
+            # If `InExpression()` gets passed an empty list as `value_expressions`, it
+            # produces an invalid (sub-)query with empty brackets, like:
+            #
+            #   `SELECT ... FROM ... WHERE <column> IN ()`
+            #
+            # To avoid this we take the shortcut and return a no-op in case of an empty
+            # list.
+            return Column(Literal(None))
+
         return Column(InExpression(self._expression, value_expressions))
 
     def between(
