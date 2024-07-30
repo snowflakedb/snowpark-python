@@ -4,6 +4,7 @@
 
 import modin.pandas as pd
 import numpy as np
+import pandas as native_pd
 import pytest
 
 from tests.integ.modin.sql_counter import sql_count_checker
@@ -23,6 +24,22 @@ from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 def test_stack(data, index, columns, dropna, sort):
     eval_snowpark_pandas_result(
         *create_test_dfs(data=data, index=index, columns=columns),
+        lambda df: df.stack(dropna=dropna, sort=sort),
+    )
+
+
+@pytest.mark.parametrize("dropna", [True, False])
+@pytest.mark.parametrize("sort", [True, False])
+@sql_count_checker(query_count=1)
+def test_stack_with_index_name(dropna, sort):
+    index = native_pd.Index(data=["cat", "dog"], name="hello")
+    native_df = native_pd.DataFrame(
+        data=[[0, 1], [2, 3]], index=index, columns=["weight", "height"]
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
         lambda df: df.stack(dropna=dropna, sort=sort),
     )
 
