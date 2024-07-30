@@ -84,12 +84,12 @@ def replace_child(
         parent._nodes = [
             node if node != old_child else new_child for node in parent._nodes
         ]
-        parent.set_operands = [
+        parent.set_operands = tuple(
             operand
             if operand.selectable != old_child
-            else SetOperand(operand.operator, new_child)
+            else SetOperand(new_child, operand.operator)
             for operand in parent.set_operands
-        ]
+        )
         return
 
     if isinstance(parent, Selectable):
