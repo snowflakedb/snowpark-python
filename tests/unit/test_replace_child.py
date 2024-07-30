@@ -3,6 +3,7 @@
 #
 
 import copy
+from unittest import mock
 
 import pytest
 
@@ -71,9 +72,14 @@ def test_logical_plan(using_snowflake_plan, mock_query):
         join_plan = copy.deepcopy(join_plan)
     else:
         join_plan._is_valid_for_replacement = True
+    project_plan._is_valid_for_replacement = True
 
     with pytest.raises(ValueError, match="is not a child of parent"):
         replace_child(join_plan, irrelevant_plan, new_plan)
+
+    with pytest.raises(ValueError, match="is not a child of parent"):
+        replace_child(project_plan, irrelevant_plan, new_plan)
+
     assert len(get_children(join_plan)) == 2
     copied_old_plan, copied_project_plan = get_children(join_plan)
     assert isinstance(copied_old_plan, LogicalPlan)
@@ -81,6 +87,10 @@ def test_logical_plan(using_snowflake_plan, mock_query):
 
     replace_child(join_plan, copied_old_plan, new_plan)
     assert get_children(join_plan) == [new_plan, copied_project_plan]
+
+    assert project_plan.children == [old_plan]
+    replace_child(project_plan, old_plan, new_plan)
+    assert project_plan.children == [new_plan]
 
 
 @pytest.mark.parametrize(
@@ -111,11 +121,11 @@ def test_unary_plan(plan_initializer):
 
 
 def test_binary_plan():
-    right_plan = Project([], LogicalPlan())
-    plan = Union(left=old_plan, right=right_plan, is_all=False)
+    left_plan = Project([], LogicalPlan())
+    plan = Union(left=left_plan, right=old_plan, is_all=False)
 
-    assert plan.left == old_plan
-    assert plan.right == right_plan
+    assert plan.left == left_plan
+    assert plan.right == old_plan
 
     with pytest.raises(ValueError, match="is not valid for replacement."):
         replace_child(plan, irrelevant_plan, new_plan)
@@ -126,9 +136,9 @@ def test_binary_plan():
         replace_child(plan, irrelevant_plan, new_plan)
 
     replace_child(plan, old_plan, new_plan)
-    assert plan.left == new_plan
-    assert plan.right == right_plan
-    assert plan.children == [new_plan, right_plan]
+    assert plan.left == left_plan
+    assert plan.right == new_plan
+    assert plan.children == [left_plan, new_plan]
 
 
 def test_snowflake_create_table():
@@ -381,3 +391,12 @@ def test_set_statement(using_snowflake_plan, mock_session, mock_analyzer, mock_q
 
     replace_child(set_statement_plan, selectable1, new_plan)
     assert set_statement_plan.children_plan_nodes == [new_plan, selectable2]
+
+
+def test_replace_child_negative():
+    mock_parent = mock.Mock()
+    mock_parent._is_valid_for_replacement = True
+    mock_child = LogicalPlan()
+    mock_parent.children_plan_nodes = [mock_child]
+    with pytest.raises(ValueError, match="not supported"):
+        replace_child(mock_parent, mock_child, new_plan)
