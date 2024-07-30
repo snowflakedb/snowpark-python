@@ -11,6 +11,7 @@
 #### Bug Fixes
 - Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
 - Fixed a bug in `DataFrame.to_pandas_batches` where the iterator could throw an error if certain transformation is made to the pandas dataframe due to wrong isolation level.
+- Fixed a bug in `DataFrame.lineage.trace` to split the quoted feature view's name and version correctly.
 
 ### Snowpark Local Testing Updates
 
