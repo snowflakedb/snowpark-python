@@ -38,6 +38,7 @@
 - Added support for `Index.equals`.
 - Added support for `Index.value_counts`.
 - Added support for `Series.dt.day_name` and `Series.dt.month_name`.
+- Added support for indexing on Index, e.g., `df.index[:10]`.
 - Added support for `Index.all` and `Index.any`.
 
 #### Improvements
