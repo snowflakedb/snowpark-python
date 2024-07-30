@@ -60,7 +60,7 @@ def replace_child(
     Helper function to replace the child node in the plan.
     """
     if not parent._is_valid_for_replacement:
-        raise ValueError(f"node {parent} is not valid for replacement.")
+        raise ValueError(f"parent node {parent} is not valid for replacement.")
 
     if old_node not in getattr(parent, "children_plan_nodes", parent.children):
         raise ValueError(f"old_node {old_node} is not a child of parent {parent}.")
