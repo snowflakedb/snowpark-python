@@ -159,26 +159,23 @@ def test_binary_plan(new_plan):
     [
         lambda x: TableDelete("table_name", None, x),
         lambda x: TableUpdate("table_name", {}, None, x),
+        lambda x: TableMerge("table_name", x, None, []),
     ],
 )
-def test_table_delete_update(plan_initializer, new_plan):
+def test_table_delete_update_merge(plan_initializer, new_plan):
+    def get_source(plan):
+        if hasattr(plan, "source_data"):
+            return plan.source_data
+        return plan.source
+
     plan = plan_initializer(old_plan)
+
+    assert get_source(plan) == old_plan
     assert_precondition(plan, new_plan)
     plan._is_valid_for_replacement = True
 
     replace_child(plan, old_plan, new_plan)
-    assert plan.source_data == new_plan.snowflake_plan
-    assert plan.children == [new_plan.snowflake_plan]
-
-
-def test_table_merge(new_plan):
-    plan = TableMerge("table_name", old_plan, None, [])
-
-    assert_precondition(plan, new_plan)
-    plan._is_valid_for_replacement = True
-
-    replace_child(plan, old_plan, new_plan)
-    assert plan.source == new_plan.snowflake_plan
+    assert get_source(plan) == new_plan.snowflake_plan
     assert plan.children == [new_plan.snowflake_plan]
 
 
