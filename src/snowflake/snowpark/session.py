@@ -2556,6 +2556,19 @@ class Session:
                 "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
             )
 
+        # If data is a pandas dataframe, the schema will be detected from the dataframe itself and schema ignored.
+        # Warn user to acknowledge this.
+        if (
+            installed_pandas
+            and isinstance(data, pandas.DataFrame)
+            and schema is not None
+        ):
+            warnings.warn(
+                "data is a pandas DataFrame, parameter schema is ignored. To silence this warning pass schema=None.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         # check to see if it is a pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
         origin_data = data
@@ -2809,12 +2822,27 @@ class Session:
             and isinstance(origin_data, pandas.DataFrame)
             and isinstance(self._conn, MockServerConnection)
         ):
+            # MockServerConnection internally creates a table, and returns Table object (which inherits from Dataframe).
+            table = _convert_dataframe_to_table(
+                df, temp_table_name, self, _emit_ast=False
+            )
+
+            # AST.
             if _emit_ast:
-                raise NotImplementedError(
-                    "TODO SNOW-1554591: Support pandas.DataFrame with MockServerConnection."
+                ast = with_src_position(stmt.expr.sp_create_dataframe)
+
+                # Save temp table and schema of it in AST (dataframe).
+                ast.data.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (
+                    temp_table_name
                 )
 
-            return _convert_dataframe_to_table(df, temp_table_name, self)
+                build_proto_from_struct_type(
+                    table.schema, ast.schema.sp_dataframe_schema__struct.v
+                )
+
+                table._ast_id = stmt.var_id.bitfield1
+
+            return table
 
         # AST.
         if _emit_ast:
