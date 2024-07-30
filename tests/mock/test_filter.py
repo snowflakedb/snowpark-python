@@ -148,6 +148,15 @@ def test_null_nan_filter(session):
     assert res[1] == Row(1.0, 1.0)
     assert res[2] == Row(None, None)
 
+    # Check `in` expression with empty sets
+    origin_df: DataFrame = session.create_dataframe([[1], [2]], schema=["a"])
+
+    res = origin_df.filter(origin_df["a"].isin(None)).collect()
+    assert res == []
+
+    res = origin_df.filter(origin_df["a"].isin([])).collect()
+    assert res == []
+
 
 def test_chain_filter(session):
     origin_df: DataFrame = session.create_dataframe(
