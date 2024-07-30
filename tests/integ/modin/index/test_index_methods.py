@@ -23,10 +23,24 @@ from tests.integ.modin.utils import (
 )
 
 
+def to_snow_index(native_index):
+    """
+    Convert native pandas index to snowpark pandas index.
+    Args:
+        native_index: Native pandas index.
+
+    Returns:
+        Snowpark pandas index.
+    """
+    if isinstance(native_index, native_pd.DatetimeIndex):
+        return pd.DatetimeIndex(native_index)
+    return pd.Index(native_index)
+
+
 @sql_count_checker(query_count=2)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_copy(native_index):
-    snow_index = pd.Index(native_index)
+    snow_index = to_snow_index(native_index)
     new_index = snow_index.copy()
     assert snow_index is not new_index
     assert_index_equal(snow_index, new_index)
@@ -49,7 +63,7 @@ def test_df_index_copy(native_df):
 @sql_count_checker(query_count=2)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA[2:])
 def test_index_drop(native_index):
-    snow_index = pd.Index(native_index)
+    snow_index = to_snow_index(native_index)
     labels = [native_index[0]]
     assert_index_equal(snow_index.drop(labels), native_index.drop(labels))
 
@@ -102,7 +116,7 @@ def test_index_intersection():
 @sql_count_checker(query_count=3)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_get_level_values(native_index):
-    snow_index = pd.Index(native_index)
+    snow_index = to_snow_index(native_index)
     assert_index_equal(snow_index.get_level_values(0), snow_index)
 
 
@@ -118,14 +132,14 @@ def test_slice_indexer():
 @sql_count_checker(query_count=1)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_summary(native_index):
-    snow_index = pd.Index(native_index)
+    snow_index = to_snow_index(native_index)
     assert snow_index._summary() == native_index._summary()
 
 
 @sql_count_checker(query_count=1)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_size(native_index):
-    snow_index = pd.Index(native_index)
+    snow_index = to_snow_index(native_index)
     assert snow_index.size == native_index.size
 
 
@@ -140,7 +154,7 @@ def test_df_index_size(native_df):
 @sql_count_checker(query_count=1)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_empty(native_index):
-    snow_index = pd.Index(native_index)
+    snow_index = to_snow_index(native_index)
     assert snow_index.empty == native_index.empty
 
 
@@ -155,7 +169,7 @@ def test_df_index_empty(native_df):
 @sql_count_checker(query_count=1)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_shape(native_index):
-    snow_index = pd.Index(native_index)
+    snow_index = to_snow_index(native_index)
     assert snow_index.shape == native_index.shape
 
 
@@ -170,7 +184,7 @@ def test_df_index_shape(native_df):
 @sql_count_checker(query_count=1)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_values(native_index):
-    snow_index = pd.Index(native_index)
+    snow_index = to_snow_index(native_index)
     assert_equal(snow_index.values, native_index.values)
 
 
@@ -185,7 +199,7 @@ def test_df_index_columns_values(native_df):
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 @sql_count_checker(query_count=1)
 def test_index_item(native_index):
-    snow_index = pd.Index(native_index)
+    snow_index = to_snow_index(native_index)
     if len(native_index) == 1:
         assert snow_index.item() == native_index.item()
     else:
@@ -223,7 +237,7 @@ def test_df_index_columns_item(native_df):
 @sql_count_checker(query_count=1)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_to_list(native_index):
-    snow_index = pd.Index(native_index)
+    snow_index = to_snow_index(native_index)
     assert_equal(native_index.to_list(), snow_index.to_list())
 
 
@@ -243,7 +257,7 @@ def test_index_to_series(native_index, generate_extra_index, name):
         index = range(len(native_index))
     else:
         index = None
-    snow_index = pd.Index(native_index)
+    snow_index = to_snow_index(native_index)
     with SqlCounter(query_count=1, join_count=1 if generate_extra_index else 0):
         assert_series_equal(
             snow_index.to_series(index=index, name=name),
@@ -291,7 +305,7 @@ def test_df_index_columns_to_series(native_df, generate_extra_index, name):
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_to_frame(native_index, name, index):
-    snow_index = pd.Index(native_index)
+    snow_index = to_snow_index(native_index)
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         snow_index.to_frame(index=index, name=name),
         native_index.to_frame(index=index, name=name),
@@ -317,8 +331,12 @@ def test_df_index_to_frame(native_df, index, name):
 @sql_count_checker(query_count=0)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_dtype(native_index):
-    snow_index = pd.Index(native_index)
-    assert snow_index.dtype == native_index.dtype
+    snow_index = to_snow_index(native_index)
+    if isinstance(native_index, native_pd.DatetimeIndex):
+        # Snowpark pandas does not include timezone info in dtype datetime64[ns],
+        assert snow_index.dtype == "datetime64[ns]"
+    else:
+        assert snow_index.dtype == native_index.dtype
 
 
 @sql_count_checker(query_count=0)
