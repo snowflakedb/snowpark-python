@@ -11,10 +11,11 @@
 #### Bug Fixes
 - Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
 - Fixed a bug in `DataFrame.to_pandas_batches` where the iterator could throw an error if certain transformation is made to the pandas dataframe due to wrong isolation level.
+- Fixed a bug in `DataFrame.lineage.trace` to split the quoted feature view's name and version correctly.
 
 ### Snowpark Local Testing Updates
-#### New Features
 
+#### New Features
 - Added support for the following APIs:
   - snowflake.snowpark.functions
     - rank
@@ -23,6 +24,10 @@
     - cume_dist
     - ntile
     - datediff
+
+#### Bug Fixes
+- Fixed a bug that Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
+- Fixed a bug where values were not populated into the result DataFrame during the insertion of table merge operation.
 
 ### Snowpark pandas API Updates
 #### New Features
@@ -33,6 +38,7 @@
 - Added support for `Index.equals`.
 - Added support for `Index.value_counts`.
 - Added support for `Series.dt.day_name` and `Series.dt.month_name`.
+- Added support for indexing on Index, e.g., `df.index[:10]`.
 - Added support for `DataFrame.unstack` and `Series.unstack`.
 
 #### Improvements
