@@ -20,6 +20,11 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SnowflakeCreateTable,
 )
+from snowflake.snowpark._internal.analyzer.table_merge_expression import (
+    TableDelete,
+    TableMerge,
+    TableUpdate,
+)
 from snowflake.snowpark._internal.analyzer.unary_plan_node import UnaryNode
 from snowflake.snowpark._internal.compiler.query_generator import (
     QueryGenerator,
@@ -115,6 +120,18 @@ def replace_child(
     if isinstance(parent, SnowflakeCreateTable):
         parent.children = [new_child]
         parent.query = new_child
+        return
+
+    if isinstance(parent, (TableUpdate, TableDelete)):
+        snowflake_plan = new_child.snowflake_plan
+        parent.children = [snowflake_plan]
+        parent.source_data = snowflake_plan
+        return
+
+    if isinstance(parent, TableMerge):
+        snowflake_plan = new_child.snowflake_plan
+        parent.children = [snowflake_plan]
+        parent.source = snowflake_plan
         return
 
     if isinstance(parent, LogicalPlan):
