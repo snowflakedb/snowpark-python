@@ -2822,7 +2822,7 @@ class Session:
             and isinstance(origin_data, pandas.DataFrame)
             and isinstance(self._conn, MockServerConnection)
         ):
-            # MockServerConnection creates internally a table, and returns Table object (which inherits from Dataframe).
+            # MockServerConnection internally creates a table, and returns Table object (which inherits from Dataframe).
             table = _convert_dataframe_to_table(
                 df, temp_table_name, self, _emit_ast=False
             )
