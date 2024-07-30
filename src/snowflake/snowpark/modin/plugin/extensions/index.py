@@ -707,8 +707,7 @@ class Index:
         """
         return self
 
-    @index_not_implemented()
-    def all(self) -> None:
+    def all(self, *args, **kwargs) -> bool | ExtensionArray:
         """
         Return whether all elements are Truthy.
 
@@ -734,11 +733,32 @@ class Index:
         -----
         Not a Number (NaN), positive infinity and negative infinity
         evaluate to True because these are not equal to zero.
-        """
-        # TODO: SNOW-1458141 implement all
 
-    @index_not_implemented()
-    def any(self) -> None:
+        Examples
+        --------
+        True, because nonzero integers are considered True.
+
+        >>> pd.Index([1, 2, 3]).all()
+        True
+
+        False, because 0 is considered False.
+
+        >>> pd.Index([0, 1, 2]).all()
+        False
+        """
+        # If self is empty, the result for all is always True.
+        # Passing an empty object through `query_compiler.all` results in the ValueError:
+        # The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().
+        if self.empty:
+            return True
+        return (
+            self.to_series()
+            ._query_compiler.all(axis=0, bool_only=None, skipna=None, **kwargs)
+            .to_pandas()
+            .squeeze()
+        )
+
+    def any(self, *args, **kwargs) -> bool | ExtensionArray:
         """
         Return whether any element is Truthy.
 
@@ -763,8 +783,28 @@ class Index:
         -----
         Not a Number (NaN), positive infinity and negative infinity
         evaluate to True because these are not equal to zero.
+
+        Examples
+        --------
+        >>> index = pd.Index([0, 1, 2])
+        >>> index.any()
+        True
+
+        >>> index = pd.Index([0, 0, 0])
+        >>> index.any()
+        False
         """
-        # TODO: SNOW-1458141 implement any
+        # If self is empty, the result for any is always False.
+        # Passing an empty object through `query_compiler.any` results in the ValueError:
+        # The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().
+        if self.empty:
+            return False
+        return (
+            self.to_series()
+            ._query_compiler.any(axis=0, bool_only=None, skipna=None, **kwargs)
+            .to_pandas()
+            .squeeze()
+        )
 
     @index_not_implemented()
     def argmin(self) -> None:

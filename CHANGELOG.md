@@ -38,6 +38,7 @@
 - Added support for `Index.equals`.
 - Added support for `Index.value_counts`.
 - Added support for `Series.dt.day_name` and `Series.dt.month_name`.
+- Added support for `Index.all` and `Index.any`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
