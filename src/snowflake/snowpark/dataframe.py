@@ -1655,6 +1655,7 @@ class DataFrame:
     def agg(
         self,
         *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]],
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Aggregate the data in the DataFrame. Use this method if you don't need to
         group the data (:func:`group_by`).
@@ -1713,7 +1714,28 @@ class DataFrame:
             - :meth:`RelationalGroupedDataFrame.agg`
             - :meth:`DataFrame.group_by`
         """
-        return self.group_by().agg(*exprs)
+
+        # AST.
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_agg, stmt)
+            self.set_ast_ref(expr.df)
+            exprs, is_variadic = parse_positional_args_to_list_variadic(*exprs)
+            for e in exprs:
+                if isinstance(e, Column):
+                    build_expr_from_snowpark_column_or_col_name(
+                        expr.exprs.args.add(), e
+                    )
+                else:
+                    build_expr_from_python_val(expr.exprs.args.add(), e)
+            expr.exprs.variadic = is_variadic
+
+        df = self.group_by(_emit_ast=False).agg(*exprs, _emit_ast=False)
+
+        # if _emit_ast:
+        #     stmt.var_id.bitfield1 = self._ast_id
+
+        return df
 
     @df_to_relational_group_df_api_usage
     def rollup(
@@ -2350,7 +2372,9 @@ class DataFrame:
                 ast_stmt=ast_stmt,
             )
         else:
-            df = self._with_plan(UnionPlan(self._plan, right_child._plan, is_all), ast_stmt=ast_stmt)
+            df = self._with_plan(
+                UnionPlan(self._plan, right_child._plan, is_all), ast_stmt=ast_stmt
+            )
         return df
 
     @df_api_usage
@@ -3990,7 +4014,9 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_dynamic_table, stmt)
+        expr = with_src_position(
+            stmt.expr.sp_dataframe_create_or_replace_dynamic_table, stmt
+        )
         self.set_ast_ref(expr.df)
         if isinstance(name, str):
             expr.name.append(name)
