@@ -109,9 +109,6 @@ class SnowflakeTable(LeafNode):
                 self, session._dec_temp_table_ref_count, name
             )
 
-    def __deepcopy__(self, memodict={}) -> "SnowflakeTable":  # noqa: B006
-        return SnowflakeTable(self.name, session=self.session)
-
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # SELECT * FROM name
