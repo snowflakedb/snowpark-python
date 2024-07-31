@@ -143,9 +143,11 @@ def test_series_loc_get_negative_snowpark_pandas_input(
     eval_snowpark_pandas_result(
         str_index_snowpark_pandas_series,
         str_index_native_series,
-        lambda df: df.loc[negative_loc_snowpark_pandas_input_map[key][0]]
-        if isinstance(df, Series)
-        else df.loc[negative_loc_snowpark_pandas_input_map[key][1]],
+        lambda df: (
+            df.loc[negative_loc_snowpark_pandas_input_map[key][0]]
+            if isinstance(df, Series)
+            else df.loc[negative_loc_snowpark_pandas_input_map[key][1]]
+        ),
         expect_exception=True,
     )
 
@@ -237,9 +239,11 @@ def test_series_loc_get_key_bool_series_with_aligned_indices(key, use_default_in
     eval_snowpark_pandas_result(
         snow_series,
         native_series,
-        lambda s: s.loc[pd.Series(key, index=index, dtype="bool")]
-        if isinstance(s, pd.Series)
-        else s.loc[native_pd.Series(key, index=index, dtype="bool")],
+        lambda s: (
+            s.loc[pd.Series(key, index=index, dtype="bool")]
+            if isinstance(s, pd.Series)
+            else s.loc[native_pd.Series(key, index=index, dtype="bool")]
+        ),
     )
 
 
@@ -273,9 +277,11 @@ def test_series_loc_get_key_bool_series_with_unaligned_and_distinct_indices(
     eval_snowpark_pandas_result(
         snow_series,
         native_series,
-        lambda s: s.loc[pd.Series(key, index=key_index, dtype="bool")]
-        if isinstance(s, pd.Series)
-        else s.loc[native_pd.Series(key, index=native_key_index, dtype="bool")],
+        lambda s: (
+            s.loc[pd.Series(key, index=key_index, dtype="bool")]
+            if isinstance(s, pd.Series)
+            else s.loc[native_pd.Series(key, index=native_key_index, dtype="bool")]
+        ),
     )
 
 
@@ -417,9 +423,11 @@ def test_series_loc_get_key_bool_series_with_mismatch_index_len(key, use_default
     eval_snowpark_pandas_result(
         snow_series,
         native_series,
-        lambda df: df.loc[series_key]
-        if isinstance(df, pd.DataFrame)
-        else df.loc[native_series_key],
+        lambda df: (
+            df.loc[series_key]
+            if isinstance(df, pd.DataFrame)
+            else df.loc[native_series_key]
+        ),
     )
 
 
@@ -1441,7 +1449,7 @@ def test_series_loc_set_boolean_key(key, index):
     assert_series_equal(snow_ser, native_ser, check_dtype=False)
 
 
-@sql_count_checker(query_count=0, join_count=0)
+@sql_count_checker(query_count=2, join_count=0)
 @pytest.mark.parametrize("item", [1.2, None, ["a", "b", "c"]])
 def test_series_loc_set_df_key_negative(item, default_index_native_series):
     # series.loc[df key] = any item
@@ -1459,8 +1467,7 @@ def test_series_loc_set_df_key_negative(item, default_index_native_series):
 
     # Snowpark pandas error verification.
     err_msg = re.escape(
-        "The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), "
-        "a.any() or a.all()."
+        "Data must be 1-dimensional, got ndarray of shape (1, 2) instead"
     )
     with pytest.raises(ValueError, match=err_msg):
         snowpark_ser.loc[pd.DataFrame(df_key)] = item
