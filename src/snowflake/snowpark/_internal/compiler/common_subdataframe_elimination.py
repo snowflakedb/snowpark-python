@@ -150,7 +150,7 @@ class CommonSubDataframeElimination:
                 new_node = SelectSnowflakePlan(
                     snowflake_plan=new_node, analyzer=self._query_generator
                 )
-                parent.update_child(node, new_node)
+            parent.update_child(node, new_node)
 
     def _deduplicate_with_cte(self, root: "TreeNode") -> LogicalPlan:
         """
