@@ -819,9 +819,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ordered_dataframe = ordered_dataframe.select(
                 [row_position_snowflake_quoted_identifier]
                 + [
-                    old_identifier
-                    if old_identifier == new_identifier
-                    else col(old_identifier).as_(new_identifier)
+                    (
+                        old_identifier
+                        if old_identifier == new_identifier
+                        else col(old_identifier).as_(new_identifier)
+                    )
                     for old_identifier, new_identifier in zip(
                         snowflake_quoted_identifiers_to_be_selected,
                         snowflake_quoted_identifiers_to_be_renamed,
@@ -4911,7 +4913,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         dtype: Optional[npt.DTypeLike] = None,
         is_series: bool = False,
     ) -> "SnowflakeQueryCompiler":
-
         """
         Implement one-hot encoding.
         Args:
@@ -4980,7 +4981,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             prefix_sep = "_"
 
         query_compiler = self
-        for (pandas_column_name, column_prefix) in zip(columns, prefix):
+        for pandas_column_name, column_prefix in zip(columns, prefix):
             query_compiler = query_compiler._get_dummies_helper(
                 pandas_column_name,
                 column_prefix,
@@ -5096,20 +5097,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # row. In this case, `agg_funcs` should have exactly one element in it.
             for frame, agg_args in agg_funcs:
                 agg_col_map = {
-                    MODIN_UNNAMED_SERIES_LABEL
-                    if should_squeeze
-                    else get_pandas_aggr_func_name(
-                        agg_arg
-                    ): _columns_coalescing_idxmax_idxmin_helper(
-                        *(col(c) for c in data_col_identifiers),
-                        axis=1,
-                        func=agg_arg,
-                        keepna=not kwargs.get("skipna", True),
-                        pandas_column_labels=frame.data_column_pandas_labels,
-                    )
-                    if agg_arg in ("idxmin", "idxmax")
-                    else generate_rowwise_aggregation_function(agg_arg, kwargs)(
-                        *(col(c) for c in data_col_identifiers)
+                    (
+                        MODIN_UNNAMED_SERIES_LABEL
+                        if should_squeeze
+                        else get_pandas_aggr_func_name(agg_arg)
+                    ): (
+                        _columns_coalescing_idxmax_idxmin_helper(
+                            *(col(c) for c in data_col_identifiers),
+                            axis=1,
+                            func=agg_arg,
+                            keepna=not kwargs.get("skipna", True),
+                            pandas_column_labels=frame.data_column_pandas_labels,
+                        )
+                        if agg_arg in ("idxmin", "idxmax")
+                        else generate_rowwise_aggregation_function(agg_arg, kwargs)(
+                            *(col(c) for c in data_col_identifiers)
+                        )
                     )
                     for agg_arg in agg_args
                 }
@@ -6797,9 +6800,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             row_position_snowflake_quoted_identifier,
             *[
                 # casting if return type is specified
-                col(old_quoted_identifier).cast(return_type).as_(quoted_identifier)
-                if not return_variant
-                else col(old_quoted_identifier).as_(quoted_identifier)
+                (
+                    col(old_quoted_identifier).cast(return_type).as_(quoted_identifier)
+                    if not return_variant
+                    else col(old_quoted_identifier).as_(quoted_identifier)
+                )
                 for old_quoted_identifier, quoted_identifier in zip(
                     data_column_snowflake_quoted_identifiers,
                     renamed_data_column_snowflake_quoted_identifiers,
@@ -7955,9 +7960,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             get_frame_by_col_label(
                 get_frame_by_row_label(
                     internal_frame=self._modin_frame,
-                    key=index._modin_frame
-                    if isinstance(index, SnowflakeQueryCompiler)
-                    else index,
+                    key=(
+                        index._modin_frame
+                        if isinstance(index, SnowflakeQueryCompiler)
+                        else index
+                    ),
                 ),
                 columns,
             )
@@ -8423,13 +8430,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         result_frame = set_frame_2d_labels(
             internal_frame=self._modin_frame,
-            index=index._modin_frame
-            if isinstance(index, SnowflakeQueryCompiler)
-            else index,
+            index=(
+                index._modin_frame
+                if isinstance(index, SnowflakeQueryCompiler)
+                else index
+            ),
             columns=columns,
-            item=item._modin_frame
-            if isinstance(item, SnowflakeQueryCompiler)
-            else item,
+            item=(
+                item._modin_frame if isinstance(item, SnowflakeQueryCompiler) else item
+            ),
             matching_item_columns_by_label=matching_item_columns_by_label,
             matching_item_rows_by_label=matching_item_rows_by_label,
             index_is_bool_indexer=index_is_bool_indexer,
@@ -11119,9 +11128,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             col_identifier,
             index_identifier,
             new_identifiers,
-            col_mapper=dict(zip(new_identifiers, index))
-            if index is not None
-            else dict(zip(new_identifiers, new_labels)),
+            col_mapper=(
+                dict(zip(new_identifiers, index))
+                if index is not None
+                else dict(zip(new_identifiers, new_labels))
+            ),
         )
         col_after_null_replace_identifier = (
             ordered_dataframe.generate_snowflake_quoted_identifiers(
@@ -12170,11 +12181,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     # If aggregation is count use count on row_position_quoted_identifier
                     # to include NULL values for min_periods comparison
                     quoted_identifier: iff(
-                        count(col(row_position_quoted_identifier)).over(window_expr)
-                        >= min_periods
-                        if agg_func == "count"
-                        else count(col(quoted_identifier)).over(window_expr)
-                        >= min_periods,
+                        (
+                            count(col(row_position_quoted_identifier)).over(window_expr)
+                            >= min_periods
+                            if agg_func == "count"
+                            else count(col(quoted_identifier)).over(window_expr)
+                            >= min_periods
+                        ),
                         get_snowflake_agg_func(agg_func, agg_kwargs)(
                             # Expanding is cumulative so replace NULL with 0 for sum aggregation
                             builtin("zeroifnull")(col(quoted_identifier))
@@ -13483,18 +13496,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         new_frame = new_frame.update_snowflake_quoted_identifiers_with_expressions(
             {
-                identifier: compute_binary_op_between_scalar_and_snowpark_column(
-                    op,
-                    series.loc[label],
-                    col(identifier),
-                    datatype_getters[identifier],
-                )
-                if squeeze_self
-                else compute_binary_op_between_snowpark_column_and_scalar(
-                    op,
-                    col(identifier),
-                    datatype_getters[identifier],
-                    series.loc[label],
+                identifier: (
+                    compute_binary_op_between_scalar_and_snowpark_column(
+                        op,
+                        series.loc[label],
+                        col(identifier),
+                        datatype_getters[identifier],
+                    )
+                    if squeeze_self
+                    else compute_binary_op_between_snowpark_column_and_scalar(
+                        op,
+                        col(identifier),
+                        datatype_getters[identifier],
+                        series.loc[label],
+                    )
                 )
                 for label, identifier in overlapping_pairs
             }
@@ -15521,20 +15536,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     {
                         quoted_identifier:
                         # If periods=0, we don't need to do any window computation
-                        iff(
-                            is_null(col(quoted_identifier)),
-                            pandas_lit(None, FloatType()),
-                            pandas_lit(0),
-                        )
-                        if periods == 0
-                        else (
-                            col(quoted_identifier)
-                            / lag(quoted_identifier, offset=periods).over(
-                                Window.orderBy(
-                                    col(frame.row_position_snowflake_quoted_identifier)
-                                )
+                        (
+                            iff(
+                                is_null(col(quoted_identifier)),
+                                pandas_lit(None, FloatType()),
+                                pandas_lit(0),
                             )
-                            - 1
+                            if periods == 0
+                            else (
+                                col(quoted_identifier)
+                                / lag(quoted_identifier, offset=periods).over(
+                                    Window.orderBy(
+                                        col(
+                                            frame.row_position_snowflake_quoted_identifier
+                                        )
+                                    )
+                                )
+                                - 1
+                            )
                         )
                         for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
                     }
@@ -15547,21 +15566,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     {
                         quoted_identifier:
                         # If periods=0, we don't need to do any computation
-                        iff(
-                            is_null(col(quoted_identifier)),
-                            pandas_lit(None, FloatType()),
-                            pandas_lit(0),
-                        )
-                        if periods == 0
-                        else (
-                            # If periods>0, the first few columns will be NULL
-                            # If periods<0, the last few columns will be NULL
-                            pandas_lit(None, FloatType())
-                            if i - periods < 0 or i - periods >= len(quoted_identifiers)
-                            # For the remaining columns, if periods=n, we compare column i to column i+n
-                            else col(quoted_identifier)
-                            / col(quoted_identifiers[i - periods])
-                            - 1
+                        (
+                            iff(
+                                is_null(col(quoted_identifier)),
+                                pandas_lit(None, FloatType()),
+                                pandas_lit(0),
+                            )
+                            if periods == 0
+                            else (
+                                # If periods>0, the first few columns will be NULL
+                                # If periods<0, the last few columns will be NULL
+                                pandas_lit(None, FloatType())
+                                if i - periods < 0
+                                or i - periods >= len(quoted_identifiers)
+                                # For the remaining columns, if periods=n, we compare column i to column i+n
+                                else col(quoted_identifier)
+                                / col(quoted_identifiers[i - periods])
+                                - 1
+                            )
                         )
                         for i, quoted_identifier in enumerate(quoted_identifiers)
                     }
@@ -16136,7 +16158,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return result
 
-    def df_update(self, other: "SnowflakeQueryCompiler") -> None:
+    def df_update(self, other: "SnowflakeQueryCompiler", **kwargs: dict) -> None:
         ErrorMessage.not_implemented(
             "Snowpark pandas doesn't yet support the method 'DataFrame.update'"
         )
