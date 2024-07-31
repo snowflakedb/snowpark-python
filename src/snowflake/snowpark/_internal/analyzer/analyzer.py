@@ -1203,6 +1203,7 @@ class Analyzer:
                 )
                 if logical_plan.condition
                 else None,
+                # source_data is marked as child of the logical_plan
                 resolved_children[logical_plan.source_data]
                 if logical_plan.source_data
                 else None,
@@ -1212,7 +1213,9 @@ class Analyzer:
         if isinstance(logical_plan, TableMerge):
             return self.plan_builder.merge(
                 logical_plan.table_name,
-                resolved_children[logical_plan.source] if logical_plan.source else logical_plan.source,
+                resolved_children[logical_plan.source]
+                if logical_plan.source
+                else logical_plan.source,
                 self.analyze(
                     logical_plan.join_expr, df_aliased_col_name_to_real_col_name
                 ),
