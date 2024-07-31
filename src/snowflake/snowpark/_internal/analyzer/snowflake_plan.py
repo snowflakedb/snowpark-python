@@ -224,6 +224,9 @@ class SnowflakePlan(LogicalPlan):
         # TODO (SNOW-1541096): Remove placeholder_query once CTE is supported with the
         #               new compilation step.
         placeholder_query: Optional[str] = None,
+        # This field records all the CTE tables that are referred by the
+        # current SnowflakePlan tree. This is needed for the final query
+        # generation to generate the correct sql query with CTE definition.
         referred_cte_tables: Optional[Set[str]] = None,
         *,
         session: "snowflake.snowpark.session.Session",
@@ -575,27 +578,13 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         select_left = self.add_result_scan_if_not_select(left)
         select_right = self.add_result_scan_if_not_select(right)
-        queries = select_left.queries[:-1].copy()
-        for query in select_right.queries[:-1]:
-            if query not in queries:
-                queries.append(query)
-        queries.append(
-            Query(
-                sql_generator(
-                    select_left.queries[-1].sql, select_right.queries[-1].sql
-                ),
-                params=[
-                    *select_left.queries[-1].params,
-                    *select_right.queries[-1].params,
-                ],
-            )
-        )
         if self._skip_schema_query:
             schema_query = None
         else:
             left_schema_query = schema_value_statement(select_left.attributes)
             right_schema_query = schema_value_statement(select_right.attributes)
             schema_query = sql_generator(left_schema_query, right_schema_query)
+
         placeholder_query = (
             sql_generator(select_left._id, select_right._id)
             if self.session._cte_optimization_enabled
@@ -616,6 +605,25 @@ class SnowflakePlanBuilder:
             if k not in common_columns
         }
         api_calls = [*select_left.api_calls, *select_right.api_calls]
+
+        # with the CTE optimization, queries, referred cte tables, and post actions propogated from
+        # left and right can have duplicated queries if there is a common CTE referred. Do a query
+        # deduplication here.
+        queries = select_left.queries[:-1].copy()
+        for query in select_right.queries[:-1]:
+            if query not in queries:
+                queries.append(query)
+        queries.append(
+            Query(
+                sql_generator(
+                    select_left.queries[-1].sql, select_right.queries[-1].sql
+                ),
+                params=[
+                    *select_left.queries[-1].params,
+                    *select_right.queries[-1].params,
+                ],
+            )
+        )
 
         referred_cte_tables: Set[str] = set()
         referred_cte_tables.update(select_left.referred_cte_tables)
@@ -1479,11 +1487,14 @@ class SnowflakePlanBuilder:
             raise ValueError(
                 "schema query for WithQueryBlock is currently not supported"
             )
+
         new_query = f"SELECT * FROM {name}"
 
         queries = child.queries[:-1] + [Query(sql=new_query)]
+        # propogate the cte table
         referred_cte_tables = {name}
         referred_cte_tables.update(child.referred_cte_tables)
+
         return SnowflakePlan(
             queries,
             schema_query=None,
@@ -1535,7 +1546,7 @@ class Query:
     def __eq__(self, other: "Query") -> bool:
         return (
             self.sql == other.sql
-            # and self.query_id_place_holder == other.query_id_place_holder
+            and self.query_id_place_holder == other.query_id_place_holder
             and self.is_ddl_on_temp_object == other.is_ddl_on_temp_object
         )
 

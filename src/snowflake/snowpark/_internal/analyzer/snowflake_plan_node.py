@@ -114,6 +114,14 @@ class SnowflakeTable(LeafNode):
 
 
 class WithQueryBlock(LogicalPlan):
+    """
+    Logical plan node for common table expression (CTE) like
+    WITH TEMP_CTE_XXXX AS (SELECT * FROM TEST_TABLE).
+
+    The sql generated for all reference of this block is SELECT * from TEMP_CTE_XXX,
+    similar as select from a SnowflakeTable.
+    Note that SnowflakeTable is a leaf node, but this node is not.
+    """
     def __init__(self, name: str, child: LogicalPlan) -> None:
         super().__init__()
         self.name = name
