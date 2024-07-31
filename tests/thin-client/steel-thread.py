@@ -53,4 +53,7 @@ session = Session.builder.configs(CONNECTION_PARAMETERS).getOrCreate()
 # a VARCHAR column as well.
 
 df = session.table("test_table")
-df.show()
+ans = df.collect()
+
+print(ans)
+# df.show()

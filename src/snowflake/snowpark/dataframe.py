@@ -641,10 +641,35 @@ class DataFrame:
         """
 
         if _emit_ast:
-            ...
+            # Add an Assign node for SpDataframeCollect()
+            repr = self._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_dataframe_collect)
+
+            if self._ast_id is None and FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_id
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = expr.statement_params.list.add()
+                    t._1 = k
+                    t._2 = v
+            expr.block = block
+            expr.case_sensitive = case_sensitive
+            expr.log_on_exception = log_on_exception
+
+            self._session._ast_batch.eval(repr)
 
         if self._session._conn.is_phase1_enabled():
-            raise NotImplementedError("TODO: Implement collect() EvalResult in Phase1.")
+            # TODO: Logic here should be
+            # ast = self._session._ast_batch.flush()
+            # res = self._session._conn.ast_query(ast)
+            raise NotImplementedError(
+                "TODO: Implement collect() with EvalResult in Phase1."
+            )
 
         # Phase0 flushes AST and encodes it as part of the query.
         kwargs = {}
