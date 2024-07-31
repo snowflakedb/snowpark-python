@@ -1671,6 +1671,7 @@ class DataFrame:
     def agg(
         self,
         *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]],
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Aggregate the data in the DataFrame. Use this method if you don't need to
         group the data (:func:`group_by`).
@@ -1729,7 +1730,20 @@ class DataFrame:
             - :meth:`RelationalGroupedDataFrame.agg`
             - :meth:`DataFrame.group_by`
         """
-        return self.group_by().agg(*exprs)
+
+        # AST.
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_agg, stmt)
+            self.set_ast_ref(expr.df)
+            exprs, is_variadic = parse_positional_args_to_list_variadic(*exprs)
+            for e in exprs:
+                build_expr_from_python_val(expr.exprs.args.add(), e)
+            expr.exprs.variadic = is_variadic
+
+        df = self.group_by(_emit_ast=False).agg(*exprs, _emit_ast=False)
+
+        return df
 
     @df_to_relational_group_df_api_usage
     def rollup(
