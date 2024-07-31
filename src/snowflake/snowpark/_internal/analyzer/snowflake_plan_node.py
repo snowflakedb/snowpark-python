@@ -34,6 +34,8 @@ class LogicalPlan:
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         # This flag is used to determine if the current node is a valid candidate for
         # replacement in plan tree during optimization stage using replace_child method.
+        # Currently deepcopied nodes or nodes that are introduced during optimization stage
+        # are not valid candidates for replacement.
         self._is_valid_for_replacement: bool = False
 
     @property
