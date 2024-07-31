@@ -25,5 +25,6 @@ Snowpark APIs
    lineage
    context
    exceptions
+   testing
 
 :ref:`genindex`
