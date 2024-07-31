@@ -1003,9 +1003,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ordered_dataframe = ordered_dataframe.select(
                 [row_position_snowflake_quoted_identifier]
                 + [
-                    old_identifier
-                    if old_identifier == new_identifier
-                    else col(old_identifier).as_(new_identifier)
+                    (
+                        old_identifier
+                        if old_identifier == new_identifier
+                        else col(old_identifier).as_(new_identifier)
+                    )
                     for old_identifier, new_identifier in zip(
                         snowflake_quoted_identifiers_to_be_selected,
                         snowflake_quoted_identifiers_to_be_renamed,
@@ -5907,7 +5909,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         dtype: Optional[npt.DTypeLike] = None,
         is_series: bool = False,
     ) -> "SnowflakeQueryCompiler":
-
         """
         Implement one-hot encoding.
         Args:
@@ -5978,7 +5979,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             prefix_sep = "_"
 
         query_compiler = self
-        for (pandas_column_name, column_prefix) in zip(columns, prefix):
+        for pandas_column_name, column_prefix in zip(columns, prefix):
             query_compiler = query_compiler._get_dummies_helper(
                 pandas_column_name,
                 column_prefix,
@@ -8059,9 +8060,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             row_position_snowflake_quoted_identifier,
             *[
                 # casting if return type is specified
-                col(old_quoted_identifier).cast(return_type).as_(quoted_identifier)
-                if not return_variant
-                else col(old_quoted_identifier).as_(quoted_identifier)
+                (
+                    col(old_quoted_identifier).cast(return_type).as_(quoted_identifier)
+                    if not return_variant
+                    else col(old_quoted_identifier).as_(quoted_identifier)
+                )
                 for old_quoted_identifier, quoted_identifier in zip(
                     data_column_snowflake_quoted_identifiers,
                     renamed_data_column_snowflake_quoted_identifiers,
@@ -9475,9 +9478,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             get_frame_by_col_label(
                 get_frame_by_row_label(
                     internal_frame=self._modin_frame,
-                    key=index._modin_frame
-                    if isinstance(index, SnowflakeQueryCompiler)
-                    else index,
+                    key=(
+                        index._modin_frame
+                        if isinstance(index, SnowflakeQueryCompiler)
+                        else index
+                    ),
                 ),
                 columns,
             )
@@ -9959,13 +9964,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         result_frame = set_frame_2d_labels(
             internal_frame=self._modin_frame,
-            index=index._modin_frame
-            if isinstance(index, SnowflakeQueryCompiler)
-            else index,
+            index=(
+                index._modin_frame
+                if isinstance(index, SnowflakeQueryCompiler)
+                else index
+            ),
             columns=columns,
-            item=item._modin_frame
-            if isinstance(item, SnowflakeQueryCompiler)
-            else item,
+            item=(
+                item._modin_frame if isinstance(item, SnowflakeQueryCompiler) else item
+            ),
             matching_item_columns_by_label=matching_item_columns_by_label,
             matching_item_rows_by_label=matching_item_rows_by_label,
             index_is_bool_indexer=index_is_bool_indexer,
@@ -13054,9 +13061,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             col_identifier,
             index_identifier,
             new_identifiers,
-            col_mapper=dict(zip(new_identifiers, index))
-            if index is not None
-            else dict(zip(new_identifiers, new_labels)),
+            col_mapper=(
+                dict(zip(new_identifiers, index))
+                if index is not None
+                else dict(zip(new_identifiers, new_labels))
+            ),
         )
         col_after_null_replace_identifier = (
             ordered_dataframe.generate_snowflake_quoted_identifiers(
@@ -17997,20 +18006,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     {
                         quoted_identifier:
                         # If periods=0, we don't need to do any window computation
-                        iff(
-                            is_null(col(quoted_identifier)),
-                            pandas_lit(None, FloatType()),
-                            pandas_lit(0),
-                        )
-                        if periods == 0
-                        else (
-                            col(quoted_identifier)
-                            / lag(quoted_identifier, offset=periods).over(
-                                Window.orderBy(
-                                    col(frame.row_position_snowflake_quoted_identifier)
-                                )
+                        (
+                            iff(
+                                is_null(col(quoted_identifier)),
+                                pandas_lit(None, FloatType()),
+                                pandas_lit(0),
                             )
-                            - 1
+                            if periods == 0
+                            else (
+                                col(quoted_identifier)
+                                / lag(quoted_identifier, offset=periods).over(
+                                    Window.orderBy(
+                                        col(
+                                            frame.row_position_snowflake_quoted_identifier
+                                        )
+                                    )
+                                )
+                                - 1
+                            )
                         )
                         for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
                     }
@@ -18023,21 +18036,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     {
                         quoted_identifier:
                         # If periods=0, we don't need to do any computation
-                        iff(
-                            is_null(col(quoted_identifier)),
-                            pandas_lit(None, FloatType()),
-                            pandas_lit(0),
-                        )
-                        if periods == 0
-                        else (
-                            # If periods>0, the first few columns will be NULL
-                            # If periods<0, the last few columns will be NULL
-                            pandas_lit(None, FloatType())
-                            if i - periods < 0 or i - periods >= len(quoted_identifiers)
-                            # For the remaining columns, if periods=n, we compare column i to column i+n
-                            else col(quoted_identifier)
-                            / col(quoted_identifiers[i - periods])
-                            - 1
+                        (
+                            iff(
+                                is_null(col(quoted_identifier)),
+                                pandas_lit(None, FloatType()),
+                                pandas_lit(0),
+                            )
+                            if periods == 0
+                            else (
+                                # If periods>0, the first few columns will be NULL
+                                # If periods<0, the last few columns will be NULL
+                                pandas_lit(None, FloatType())
+                                if i - periods < 0
+                                or i - periods >= len(quoted_identifiers)
+                                # For the remaining columns, if periods=n, we compare column i to column i+n
+                                else col(quoted_identifier)
+                                / col(quoted_identifiers[i - periods])
+                                - 1
+                            )
                         )
                         for i, quoted_identifier in enumerate(quoted_identifiers)
                     }
