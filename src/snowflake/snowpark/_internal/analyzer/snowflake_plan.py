@@ -299,11 +299,6 @@ class SnowflakePlan(LogicalPlan):
         else:
             return []
 
-    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
-        self.source_plan.update_child(child, new_child)
-        self.queries = None
-        self.post_actions = None
-
     def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
         # parameter protection
         if not self.session._cte_optimization_enabled or _enable_new_compilation_stage:

@@ -18,6 +18,10 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     WithQueryBlock,
 )
 from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
+from snowflake.snowpark._internal.compiler.utils import (
+    replace_child_and_reset_node,
+    reset_node,
+)
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
@@ -124,33 +128,16 @@ class CommonSubDataframeElimination:
         _traverse(root)
         return {node for node in self._node_count_map if _is_duplicate_subtree(node)}
 
-    def _reset_node(self, node: LogicalPlan) -> None:
-        def reset_selectable(selectable_node: Selectable) -> None:
-            # clear the cache to allow it re-calculate the _snowflake_plan and _sql_query
-            if not isinstance(node, (SelectSnowflakePlan, SelectSQL)):
-                selectable_node._snowflake_plan = None
-            if isinstance(node, (SelectStatement, SetStatement)):
-                selectable_node._sql_query = None
-
-        if isinstance(node, SnowflakePlan):
-            # do not reset leaf snowflake plan
-            if node.source_plan is not None:
-                node.queries = None
-                node.post_actions = None
-                if isinstance(node.source_plan, Selectable):
-                    reset_selectable(node.source_plan)
-        elif isinstance(node, Selectable):
-            reset_selectable(node)
-
     def _update_parents(self, node: TreeNode, new_node: TreeNode) -> None:
         parents = self._node_parents_map[node]
         for parent in parents:
-            if isinstance(node, Selectable) and (not isinstance(new_node, Selectable)):
-                assert isinstance(new_node, SnowflakePlan)
-                new_node = SelectSnowflakePlan(
-                    snowflake_plan=new_node, analyzer=self._query_generator
-                )
-            parent.update_child(node, new_node)
+            replace_child_and_reset_node(parent, node, new_node, self._query_generator)
+
+    def _resolve_node(self, node: LogicalPlan) -> SnowflakePlan:
+        resolved_node = self._query_generator.resolve(node)
+        resolved_node._is_valid_for_replacement = True
+
+        return resolved_node
 
     def _deduplicate_with_cte(self, root: "TreeNode") -> LogicalPlan:
         """
@@ -186,31 +173,28 @@ class CommonSubDataframeElimination:
                 with_block = WithQueryBlock(
                     name=random_name_for_temp_object(TempObjectType.CTE), child=node
                 )
+                with_block._is_valid_for_replacement = True
 
-                resolved_with_block = self._query_generator.resolve(with_block)
+                resolved_with_block = self._resolve_node(with_block)
                 self._update_parents(node, resolved_with_block)
 
             elif node not in self._duplicated_nodes:
                 if isinstance(node, SelectSnowflakePlan):
                     # resolve the snowflake plan attached to make sure the
                     # select SnowflakePlan is a valid plan
-                    new_snowflake_plan = self._query_generator.resolve(
-                        node._snowflake_plan
-                    )
+                    new_snowflake_plan = self._resolve_node(node._snowflake_plan)
                     node._snowflake_plan = new_snowflake_plan
 
                 elif isinstance(node, SnowflakePlan):
                     if node.source_plan is not None:
                         # update the snowflake plan to make it a valid plan node
-                        new_snowflake_plan = self._query_generator.resolve(
-                            node.source_plan
-                        )
+                        new_snowflake_plan = self._resolve_node(node.source_plan)
                         if node == root:
                             root = new_snowflake_plan
                         else:
                             self._update_parents(node, new_snowflake_plan)
                 else:
-                    self._reset_node(node)
+                    reset_node(node)
 
             visited_nodes.add(node)
 

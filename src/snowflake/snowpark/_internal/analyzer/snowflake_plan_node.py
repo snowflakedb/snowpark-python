@@ -64,14 +64,6 @@ class LogicalPlan:
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
         self._cumulative_node_complexity = value
 
-    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
-        for i in range(len(self.children)):
-            try:
-                if self.children[i] == child:
-                    self.children[i] = new_child
-            except Exception:
-                pass
-
 
 class LeafNode(LogicalPlan):
     pass
@@ -206,14 +198,6 @@ class SnowflakeCreateTable(LogicalPlan):
         )
         return complexity
 
-    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
-        try:
-            if self.query == child:
-                self.query = new_child
-                super().update_child(child, new_child)
-        except Exception:
-            pass
-
 
 class Limit(LogicalPlan):
     def __init__(
@@ -233,14 +217,6 @@ class Limit(LogicalPlan):
             self.limit_expr.cumulative_node_complexity,
             self.offset_expr.cumulative_node_complexity,
         )
-
-    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
-        try:
-            if self.child == child:
-                self.child = new_child
-                super().update_child(child, new_child)
-        except Exception:
-            pass
 
 
 class CopyIntoTableNode(LeafNode):
@@ -300,11 +276,3 @@ class CopyIntoLocationNode(LogicalPlan):
         self.file_format_name = file_format_name
         self.file_format_type = file_format_type
         self.copy_options = copy_options
-
-    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
-        try:
-            if self.child == child:
-                self.child = new_child
-                super().update_child(child, new_child)
-        except Exception:
-            pass

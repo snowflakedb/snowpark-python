@@ -20,7 +20,7 @@ _is_execution_environment_sandboxed_for_client: bool = False
 # If _should_continue_registration is not None, i.e. a caller environment has assigned it an alternate callable, then the callback is responsible for determining the rest of the Snowpark workflow.
 _should_continue_registration: Optional[Callable[..., bool]] = None
 
-_enable_new_compilation_stage = True
+_enable_new_compilation_stage = False
 
 
 def get_active_session() -> "snowflake.snowpark.Session":

@@ -1527,8 +1527,3 @@ def cte_statement(queries: List[str], table_names: List[str]) -> str:
         for query, table_name in zip(queries, table_names)
     )
     return f"{WITH}{result}"
-
-
-def single_cte_statement(source: str, table_name: str) -> str:
-    result = f"{table_name}{AS}{LEFT_PARENTHESIS}{source}{RIGHT_PARENTHESIS}"
-    return f"{WITH}{result}"

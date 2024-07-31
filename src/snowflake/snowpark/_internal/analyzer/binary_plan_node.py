@@ -71,22 +71,6 @@ class BinaryNode(LogicalPlan):
         self.right = right
         self.children = [self.left, self.right]
 
-    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
-        # check left
-        try:
-            if self.left == child:
-                self.left = new_child
-                self.children[0] = new_child
-        except Exception:
-            pass
-        # check right
-        try:
-            if self.right == child:
-                self.right = new_child
-                self.children[1] = new_child
-        except Exception:
-            pass
-
 
 class SetOperation(BinaryNode):
     @property

@@ -57,28 +57,25 @@ class PlanCompiler:
         ) and current_session.cte_optimization_enabled
 
     def compile(self) -> Dict[PlanQueryType, List[Query]]:
-        # final_plan = self._plan
-        if self.should_apply_optimizations():
-            # preparation for compilation
-            # 1. make a copy of the original plan
-            logical_plans = [copy.deepcopy(self._plan)]
-            # 2. create a code generator with the original plan
-            query_generator = create_query_generator(self._plan)
+        if _enable_new_compilation_stage:
+            if self.should_apply_optimizations():
+                # preparation for compilation
+                # 1. make a copy of the original plan
+                logical_plans = [copy.deepcopy(self._plan)]
+                # 2. create a code generator with the original plan
+                query_generator = create_query_generator(self._plan)
 
-            if _enable_new_compilation_stage:
+                # apply each optimizations if needed
                 if self._plan.session.cte_optimization_enabled:
                     common_sub_dataframe_eliminator = CommonSubDataframeElimination(
                         logical_plans, query_generator
                     )
                     logical_plans = common_sub_dataframe_eliminator.apply()
 
-            # do a final pass of code generation
-            return query_generator.generate_queries(logical_plans)
-
+                # do a final pass of code generation
+                return query_generator.generate_queries(logical_plans)
         else:
             final_plan = self._plan
-            # apply optimizations
             if self._plan.session.cte_optimization_enabled:
                 final_plan = final_plan.replace_repeated_subquery_with_cte()
-
             return get_snowflake_plan_queries(final_plan, {})

@@ -5,14 +5,14 @@
 import copy
 from typing import Dict, List, Optional
 
-from typing import Optional
-
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.binary_plan_node import BinaryNode
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectSnowflakePlan,
+    SelectSQL,
     SelectStatement,
+    SelectTableFunction,
     SetStatement,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -64,7 +64,7 @@ def create_query_generator(plan: SnowflakePlan) -> QueryGenerator:
     return QueryGenerator(plan.session, snowflake_create_table_plan_info)
 
 
-def replace_child(
+def replace_child_and_reset_node(
     parent: LogicalPlan,
     old_child: LogicalPlan,
     new_child: LogicalPlan,
@@ -93,14 +93,12 @@ def replace_child(
 
     if isinstance(parent, SnowflakePlan):
         assert parent.source_plan is not None
-        replace_child(parent.source_plan, old_child, new_child, analyzer)
-        return
+        replace_child_and_reset_node(parent.source_plan, old_child, new_child, analyzer)
 
-    if isinstance(parent, SelectStatement):
+    elif isinstance(parent, SelectStatement):
         parent.from_ = to_selectable(new_child, analyzer)
-        return
 
-    if isinstance(parent, SetStatement):
+    elif isinstance(parent, SetStatement):
         new_child_as_selectable = to_selectable(new_child, analyzer)
         parent._nodes = [
             node if node != old_child else new_child_as_selectable
@@ -109,19 +107,18 @@ def replace_child(
         for operand in parent.set_operands:
             if operand.selectable == old_child:
                 operand.selectable = new_child_as_selectable
-        return
 
-    if isinstance(parent, Selectable):
-        assert parent.snowflake_plan.source_plan is not None
-        replace_child(parent.snowflake_plan.source_plan, old_child, new_child, analyzer)
-        return
+    elif isinstance(parent, Selectable):
+        assert parent.snowflake_plan is not None
+        replace_child_and_reset_node(
+            parent.snowflake_plan, old_child, new_child, analyzer
+        )
 
-    if isinstance(parent, (UnaryNode, Limit, CopyIntoLocationNode)):
+    elif isinstance(parent, (UnaryNode, Limit, CopyIntoLocationNode)):
         parent.children = [new_child]
         parent.child = new_child
-        return
 
-    if isinstance(parent, BinaryNode):
+    elif isinstance(parent, BinaryNode):
         parent.children = [
             node if node != old_child else new_child for node in parent.children
         ]
@@ -129,32 +126,50 @@ def replace_child(
             parent.left = new_child
         if parent.right == old_child:
             parent.right = new_child
-        return
 
-    if isinstance(parent, SnowflakeCreateTable):
+    elif isinstance(parent, SnowflakeCreateTable):
         parent.children = [new_child]
         parent.query = new_child
-        return
 
-    if isinstance(parent, (TableUpdate, TableDelete)):
+    elif isinstance(parent, (TableUpdate, TableDelete)):
         snowflake_plan = analyzer.resolve(new_child)
         parent.children = [snowflake_plan]
         parent.source_data = snowflake_plan
-        return
 
-    if isinstance(parent, TableMerge):
+    elif isinstance(parent, TableMerge):
         snowflake_plan = analyzer.resolve(new_child)
         parent.children = [snowflake_plan]
         parent.source = snowflake_plan
-        return
 
-    if isinstance(parent, LogicalPlan):
+    elif isinstance(parent, LogicalPlan):
         parent.children = [
             node if node != old_child else new_child for node in parent.children
         ]
-        return
 
-    raise ValueError(f"parent type {type(parent)} not supported")
+    else:
+        raise ValueError(f"parent type {type(parent)} not supported")
+
+    reset_node(parent)
+
+
+def reset_node(node: LogicalPlan) -> None:
+    def reset_selectable(selectable_node: Selectable) -> None:
+        # clear the cache to allow it re-calculate the _snowflake_plan and _sql_query
+        if not isinstance(node, (SelectSnowflakePlan, SelectSQL, SelectTableFunction)):
+            selectable_node._snowflake_plan = None
+        if isinstance(node, (SelectStatement, SetStatement)):
+            selectable_node._sql_query = None
+
+    if isinstance(node, SnowflakePlan):
+        # do not reset leaf snowflake plan
+        if node.source_plan is not None:
+            node.queries = None
+            node.post_actions = None
+            if isinstance(node.source_plan, Selectable):
+                reset_selectable(node.source_plan)
+    elif isinstance(node, Selectable):
+        reset_selectable(node)
+
 
 def get_snowflake_plan_queries(
     plan: SnowflakePlan, resolved_with_query_blocks: Dict[str, str]
