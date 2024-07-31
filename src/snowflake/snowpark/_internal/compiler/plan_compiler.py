@@ -70,7 +70,7 @@ class PlanCompiler:
                     common_sub_dataframe_eliminator = CommonSubDataframeElimination(
                         logical_plans, query_generator
                     )
-                    logical_plans = common_sub_dataframe_eliminator.run()
+                    logical_plans = common_sub_dataframe_eliminator.apply()
 
             # do a final pass of code generation
             return query_generator.generate_queries(logical_plans)

@@ -44,12 +44,24 @@ class CommonSubDataframeElimination:
         self._node_parents_map = defaultdict(set)
         self._duplicated_nodes = set()
 
-    def run(self) -> List[LogicalPlan]:
+    def apply(self) -> List[LogicalPlan]:
+        """
+        Applies Common SubDataframe elimination on the set of logical plans one after another.
+
+        Returns
+        -------
+        A set of the new LogicalPlans with common sub dataframe deduplicated with CTE node.
+        """
         final_logical_plans = []
         for logical_plan in self._logical_plans:
             # clear the node_count and parents map
             self._node_count_map = defaultdict(int)
             self._node_parents_map = defaultdict(set)
+
+            # NOTE: the current common sub-dataframe elimination
+            if not isinstance(logical_plan, (SnowflakePlan, Selectable)):
+                # do a resolve of the logical plan to get the root
+                logical_plan = self._query_generator.resolve(logical_plan)
 
             self._duplicated_nodes.update(self._find_duplicate_subtrees(logical_plan))
             deduplicated_plan = self._deduplicate_with_cte(logical_plan)
@@ -57,7 +69,7 @@ class CommonSubDataframeElimination:
 
         return final_logical_plans
 
-    def _find_duplicate_subtrees(self, root: "TreeNode") -> Set["TreeNode"]:
+    def _find_duplicate_subtrees(self, root: TreeNode) -> Set[TreeNode]:
         """
         Returns a set containing all duplicate subtrees in query plan tree.
         The root of a duplicate subtree is defined as a duplicate node, if
@@ -81,7 +93,7 @@ class CommonSubDataframeElimination:
         This function is used to only include nodes that should be converted to CTEs.
         """
 
-        def _traverse(root: "TreeNode") -> None:
+        def _traverse(root: TreeNode) -> None:
             """
             This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
             """

@@ -1227,9 +1227,6 @@ class SelectTableFunction(Selectable):
     def referred_cte_tables(self) -> Set[str]:
         return set()
 
-    def update_child(self, child: "LogicalPlan", new_child: "LogicalPlan") -> None:
-        raise ValueError("child update not allowed for SelectTableFunction")
-
 
 class SetOperand:
     def __init__(self, selectable: Selectable, operator: Optional[str] = None) -> None:
