@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
 from copy import copy, deepcopy
 from enum import Enum
+from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     AbstractSet,
@@ -39,8 +40,6 @@ if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import (
         Analyzer,
     )  # pragma: no cover
-
-from functools import cached_property
 
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -377,6 +376,7 @@ class Selectable(LogicalPlan, ABC):
         self._column_states = deepcopy(value)
 
     def referred_cte_tables(self) -> Set[str]:
+        """Return the set of cte tables referred by the current selectable node"""
         pass
 
 
@@ -429,6 +429,8 @@ class SelectableEntity(Selectable):
         return None
 
     def referred_cte_tables(self) -> Set[str]:
+        # the SelectableEntity only allows select from base table. No
+        # CTE table will be referred.
         return set()
 
 
@@ -529,6 +531,8 @@ class SelectSQL(Selectable):
         return new
 
     def referred_cte_tables(self) -> Set[str]:
+        # SelectSQL directly calls sql query, there will be no
+        # auto created CTE tables referred
         return set()
 
 
@@ -1193,7 +1197,7 @@ class SelectTableFunction(Selectable):
         return self.snowflake_plan.individual_node_complexity
 
     def referred_cte_tables(self) -> Set[str]:
-        return set()
+        return self._snowflake_plan.referred_cte_tables
 
 
 class SetOperand:
@@ -1288,6 +1292,7 @@ class SetStatement(Selectable):
         return {PlanNodeCategory.SET_OPERATION: len(self.set_operands) - 1}
 
     def referred_cte_tables(self) -> Set[str]:
+        # get a union of referred cte tables from all child nodes
         referred_cte_tables: Set[str] = set()
         for node in self._nodes:
             referred_cte_tables.update(node.referred_cte_tables())
