@@ -204,6 +204,13 @@ class Analyzer:
                 self.analyze(
                     expr.pattern, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
+                self.analyze(
+                    expr.parameters,
+                    df_aliased_col_name_to_real_col_name,
+                    parse_local_name,
+                )
+                if expr.parameters is not None
+                else None,
             )
 
         if isinstance(expr, Collate):
