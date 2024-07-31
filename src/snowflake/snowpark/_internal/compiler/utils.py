@@ -11,13 +11,11 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectSnowflakePlan,
     SelectStatement,
-    SetOperand,
     SetStatement,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
-    LeafNode,
     Limit,
     LogicalPlan,
     SnowflakeCreateTable,
@@ -61,7 +59,10 @@ def create_query_generator(plan: SnowflakePlan) -> QueryGenerator:
 
 
 def replace_child(
-    parent: LogicalPlan, old_child: LogicalPlan, new_child: LeafNode, analyzer: Analyzer
+    parent: LogicalPlan,
+    old_child: LogicalPlan,
+    new_child: LogicalPlan,
+    analyzer: Analyzer,
 ) -> None:
     """
     Helper function to replace the child node in the plan with a new child.
@@ -84,10 +85,6 @@ def replace_child(
     if old_child not in getattr(parent, "children_plan_nodes", parent.children):
         raise ValueError(f"old_child {old_child} is not a child of parent {parent}.")
 
-    assert isinstance(
-        new_child, LeafNode
-    ), f"expecting new_child to be LeafNode, got {type(new_child)}"
-
     if isinstance(parent, SnowflakePlan):
         assert parent.source_plan is not None
         replace_child(parent.source_plan, old_child, new_child, analyzer)
@@ -103,12 +100,9 @@ def replace_child(
             node if node != old_child else new_child_as_selectable
             for node in parent._nodes
         ]
-        parent.set_operands = tuple(
-            operand
-            if operand.selectable != old_child
-            else SetOperand(new_child_as_selectable, operand.operator)
-            for operand in parent.set_operands
-        )
+        for operand in parent.set_operands:
+            if operand.selectable == old_child:
+                operand.selectable = new_child_as_selectable
         return
 
     if isinstance(parent, Selectable):
