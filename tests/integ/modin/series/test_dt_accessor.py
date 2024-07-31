@@ -14,7 +14,18 @@ from tests.integ.modin.utils import create_test_series, eval_snowpark_pandas_res
 
 dt_properties = pytest.mark.parametrize(
     "property_name",
-    ["date", "hour", "minute", "second", "year", "month", "day", "quarter"],
+    [
+        "date",
+        "hour",
+        "minute",
+        "second",
+        "microsecond",
+        "nanosecond",
+        "year",
+        "month",
+        "day",
+        "quarter",
+    ],
 )
 
 
@@ -113,15 +124,38 @@ def test_day_of_week(property, day_of_week_or_year_data, set_week_start):
     )
 
 
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("method", ["day_name", "month_name"])
+def test_day_month_name(method):
+    date_range = native_pd.date_range("2020-05-01", periods=5, freq="17D")
+    native_ser = native_pd.Series(date_range)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda s: getattr(s.dt, method)(),
+    )
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize("method", ["day_name", "month_name"])
+def test_day_month_name_negative(method):
+    date_range = native_pd.date_range("2020-05-01", periods=5, freq="17D")
+    native_ser = native_pd.Series(date_range)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(NotImplementedError):
+        getattr(snow_ser.dt, method)(locale="pt_BR.utf8")
+
+
 @dt_properties
 @sql_count_checker(query_count=1)
 def test_dt_property_with_tz(property_name):
     datetime_index = native_pd.DatetimeIndex(
         [
-            "2014-04-04 23:56",
-            "2014-07-18 21:24",
-            "2015-11-22 22:14",
-            "2015-11-23",
+            "2014-04-04 23:56:01.000000001",
+            "2014-07-18 21:24:02.000000002",
+            "2015-11-22 22:14:03.000000003",
+            "2015-11-23 20:12:04.1234567890",
             pd.NaT,
         ],
         tz="US/Eastern",
@@ -135,7 +169,9 @@ def test_dt_property_with_tz(property_name):
 
 
 @dt_properties
-@pytest.mark.parametrize("freq", ["d", "h", "min", "s", "y", "m", "D", "3m"])
+@pytest.mark.parametrize(
+    "freq", ["d", "h", "min", "s", "y", "m", "D", "3m", "ms", "us", "ns"]
+)
 @sql_count_checker(query_count=1)
 def test_dt_properties(property_name, freq):
     native_ser = native_pd.Series(

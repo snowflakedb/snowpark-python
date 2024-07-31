@@ -4,6 +4,7 @@
 import json
 import typing
 from collections.abc import Hashable
+from enum import Enum
 from typing import Optional
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -56,6 +57,11 @@ UNPIVOT_SINGLE_INDEX_PREFIX = "UNPIVOT_SINGLE_INDEX"
 # Default column names for pandas melt
 DEFAULT_PANDAS_UNPIVOT_VARIABLE_NAME = "variable"
 DEFAULT_PANDAS_UNPIVOT_VALUE_NAME = "value"
+
+
+class StackOperation(Enum):
+    STACK = "stack"
+    UNSTACK = "unstack"
 
 
 class UnpivotResultInfo(typing.NamedTuple):

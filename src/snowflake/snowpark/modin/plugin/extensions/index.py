@@ -23,10 +23,13 @@
 
 from __future__ import annotations
 
+from functools import wraps
 from typing import Any, Callable, Hashable, Iterator, Literal
 
+import modin
 import numpy as np
 import pandas as native_pd
+from pandas._libs import lib
 from pandas._typing import ArrayLike, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
@@ -49,6 +52,7 @@ def is_lazy_check(func: Callable) -> Callable:
     Decorator method for separating function calls for lazy indexes and non-lazy (column) indexes
     """
 
+    @wraps(func)
     def check_lazy(*args: Any, **kwargs: Any) -> Any:
         func_name = func.__name__
 
@@ -1008,7 +1012,6 @@ class Index:
         WarningMessage.index_to_pandas_warning("duplicated")
         return self.to_pandas().duplicated(keep=keep)
 
-    @is_lazy_check
     def equals(self, other: Any) -> bool:
         """
         Determine if two Index objects are equal.
@@ -1044,7 +1047,7 @@ class Index:
         Index(['1', '2', '3'], dtype='object')
 
         >>> idx1.equals(idx2)
-        False
+        True
 
         The order is compared
 
@@ -1070,9 +1073,29 @@ class Index:
         >>> int64_idx.equals(uint64_idx)
         True
         """
-        # TODO: SNOW-1458148 implement equals
-        WarningMessage.index_to_pandas_warning("equals")
-        return self.to_pandas().equals(try_convert_index_to_native(other))
+        if self is other:
+            return True
+
+        if not isinstance(other, (Index, native_pd.Index)):
+            return False
+
+        if isinstance(other, native_pd.Index):
+            # Same as DataFrame/Series equals. Convert native Index to Snowpark pandas
+            # Index for comparison.
+            other = Index(other, convert_to_lazy=self.is_lazy)
+
+        left = self
+        right = other
+        # If both are cached compare underlying cached value locally.
+        if not left.is_lazy and not right.is_lazy:
+            return left._index.equals(right._index)
+
+        # Ensure both sides are lazy before calling index_equals on query_compiler.
+        if not left.is_lazy:
+            left = Index(left._index, convert_to_lazy=True)
+        if not right.is_lazy:
+            right = Index(right._index, convert_to_lazy=True)
+        return left._query_compiler.index_equals(right._query_compiler)
 
     @index_not_implemented()
     def identical(self) -> None:
@@ -1431,21 +1454,20 @@ class Index:
         normalize: bool = False,
         sort: bool = True,
         ascending: bool = False,
-        bins: Any = None,
+        bins: int | None = None,
         dropna: bool = True,
-    ) -> native_pd.Series:
-        # how to change the above return type to modin pandas series?
+    ) -> Series:
         """
         Return a Series containing counts of unique values.
 
         The resulting object will be in descending order so that the
-        first element is the most frequently-occurring element.
+        first element is the most frequently occurring element.
         Excludes NA values by default.
 
         Parameters
         ----------
         normalize : bool, default False
-            If True then the object returned will contain the relative
+            If True, then the object returned will contain the relative
             frequencies of the unique values.
         sort : bool, default True
             Sort by frequencies when True. Preserve the order of the data when False.
@@ -1454,13 +1476,14 @@ class Index:
         bins : int, optional
             Rather than count values, group them into half-open bins,
             a convenience for ``pd.cut``, only works with numeric data.
+            `bins` is not yet supported.
         dropna : bool, default True
             Don't include counts of NaN.
 
         Returns
         -------
         Series
-            A series containing counts of unique values.
+            A Series containing counts of unique values.
 
         See Also
         --------
@@ -1496,14 +1519,15 @@ class Index:
         apparitions of values, divide the index in the specified
         number of half-open bins.
         """
-        # TODO: SNOW-1458133 implement value_counts
-        WarningMessage.index_to_pandas_warning("value_counts")
-        return self.to_pandas().value_counts(
-            normalize=normalize,
-            sort=sort,
-            ascending=ascending,
-            bins=bins,
-            dropna=dropna,
+        return Series(
+            query_compiler=self._query_compiler.value_counts_index(
+                normalize=normalize,
+                sort=sort,
+                ascending=ascending,
+                bins=bins,
+                dropna=dropna,
+            ).set_index_names([self.name]),
+            name="proportion" if normalize else "count",
         )
 
     @is_lazy_check
@@ -1578,9 +1602,11 @@ class Index:
         return ser
 
     @is_lazy_check
-    def to_frame(self, index: bool = True, name: Hashable | None = None) -> DataFrame:
+    def to_frame(
+        self, index: bool = True, name: Hashable | None = lib.no_default
+    ) -> modin.pandas.DataFrame:
         """
-        Create a DataFrame with a column containing the Index.
+        Create a :class:`DataFrame` with a column containing the Index.
 
         Parameters
         ----------
@@ -1593,13 +1619,39 @@ class Index:
 
         Returns
         -------
-        DataFrame
-            DataFrame containing the original Index data.
+        :class:`DataFrame`
+            :class:`DataFrame` containing the original Index data.
 
         See Also
         --------
         Index.to_series : Convert an Index to a Series.
         Series.to_frame : Convert Series to DataFrame.
+
+        Examples
+        --------
+        >>> idx = pd.Index(['Ant', 'Bear', 'Cow'], name='animal')
+        >>> idx.to_frame()   # doctest: +NORMALIZE_WHITESPACE
+               animal
+        animal
+        Ant       Ant
+        Bear     Bear
+        Cow       Cow
+
+        By default, the original Index is reused. To enforce a new Index:
+
+        >>> idx.to_frame(index=False)
+          animal
+        0    Ant
+        1   Bear
+        2    Cow
+
+        To override the name of the resulting column, specify `name`:
+
+        >>> idx.to_frame(index=False, name='zoo')
+            zoo
+        0   Ant
+        1  Bear
+        2   Cow
         """
         # Do a reset index to convert the index column to a data column,
         # the index column becomes the pandas default index of row position
@@ -1614,17 +1666,22 @@ class Index:
         #       0               100
         #       1               200
         #       2               300
+        new_qc = self._query_compiler.reset_index()
         # if index is true, we want self to be in the index and data columns of the df,
         # so set the index as the data column and set the name of the index
         if index:
-            new_qc = self._query_compiler.reset_index()
-            new_qc = (
-                new_qc.set_index([new_qc.columns[0]], drop=False)
-                .set_columns([name])
-                .set_index_names([self.name])
+            new_qc = new_qc.set_index([new_qc.columns[0]], drop=False).set_index_names(
+                [self.name]
             )
+        # If `name` is specified, use it as new column name; otherwise, set new column name to the original index name.
+        # Note there is one exception case: when the original index name is None, the new column name should be 0.
+        if name != lib.no_default:
+            new_col_name = name
         else:
-            new_qc = self._query_compiler.reset_index(names=[name])
+            new_col_name = self.name
+            if new_col_name is None:
+                new_col_name = 0
+        new_qc = new_qc.set_columns([new_col_name])
 
         return DataFrame(query_compiler=new_qc)
 
@@ -2045,9 +2102,9 @@ class Index:
 
         Examples
         --------
-        # Snowpark pandas converts np.nan, pd.NA, pd.NaT to None
+        Note Snowpark pandas converts np.nan, pd.NA, pd.NaT to None
         >>> idx = pd.Index([np.nan, 'var1', np.nan])
-        >>> idx.get_indexer_for([np.nan])
+        >>> idx.get_indexer_for([None])
         array([0, 2])
         """
         WarningMessage.index_to_pandas_warning("get_indexer_for")
@@ -2297,19 +2354,18 @@ class Index:
     @is_lazy_check
     def __getitem__(self, key: Any) -> np.ndarray | None | Index:
         """
-        Override numpy.ndarray's __getitem__ method to work as desired.
-
-        This function adds lists and Series as valid boolean indexers
-        (ndarrays only supports ndarray with dtype=bool).
-
-        If resulting ndim != 1, plain ndarray is returned instead of
-        corresponding `Index` subclass.
+        Reuse series iloc to implement getitem for index.
         """
-        WarningMessage.index_to_pandas_warning("__getitem__")
-        item = self.to_pandas().__getitem__(key=key)
-        if isinstance(item, native_pd.Index):
-            return Index(item, convert_to_lazy=self.is_lazy)
-        return item
+        try:
+            res = self.to_series().iloc[key]
+            if isinstance(res, Series):
+                res = res.index
+            return res
+        except IndexError as ie:
+            raise IndexError(
+                "only integers, slices (`:`), ellipsis (`...`), numpy.newaxis (`None`) and integer or "
+                "boolean arrays are valid indices"
+            ) from ie
 
     @is_lazy_check
     def __setitem__(self, key: Any, value: Any) -> None:

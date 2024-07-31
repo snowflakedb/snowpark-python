@@ -2,7 +2,7 @@
 DataFrame
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.pandas
+.. currentmodule:: modin.pandas
 .. rubric:: :doc:`All supported DataFrame APIs <supported/dataframe_supported>`
 
 .. rubric:: Constructor
@@ -200,6 +200,7 @@ DataFrame
     DataFrame.stack
     DataFrame.T
     DataFrame.transpose
+    DataFrame.unstack
 
 .. rubric:: Combining / comparing / joining / merging
 
