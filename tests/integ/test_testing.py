@@ -247,7 +247,7 @@ def test_input_not_snowpark_df(session):
         assert_dataframe_equal(pandas_df, df)
 
 
-def test_assertDataFrameEqual():
+def test_alias():
     assert assert_dataframe_equal == assertDataFrameEqual
 
 
