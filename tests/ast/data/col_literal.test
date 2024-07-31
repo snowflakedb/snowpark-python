@@ -71,7 +71,7 @@ res8 = res7.select((col("A") + bytes("test", "utf-8")))
 
 res9 = res8.select((col("A") + bytes("test", "utf-8")))
 
-res10 = res9.select((col("A") + datetime.datetime(2024, 6, 8, 6, 15, 33, 403587, tzinfo=datetime.timezone.utc)))
+res10 = res9.select((col("A") + datetime.datetime(2024, 6, 8, 3, 15, 33, 403587, tzinfo=datetime.timezone.utc)))
 
 res11 = res10.select((col("A") + datetime.datetime(2024, 6, 7, 23, 15, 33, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=11700), name="test"))))
 
@@ -79,7 +79,7 @@ res12 = res11.select((col("A") + datetime.datetime(2024, 6, 7, 23, 15, 33, 40358
 
 res13 = res12.select((col("A") + datetime.date(2024, 6, 7)))
 
-res14 = res13.select((col("A") + datetime.time(12, 42, 23, 403587, tzinfo=datetime.timezone.utc)))
+res14 = res13.select((col("A") + datetime.time(9, 42, 23, 403587, tzinfo=datetime.timezone.utc)))
 
 res15 = res14.select((col("A") + datetime.time(5, 42, 23, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=11700), name="test"))))
 
