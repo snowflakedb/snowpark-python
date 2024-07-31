@@ -27,9 +27,22 @@ def mock_server_connection() -> ServerConnection:
 
 
 @pytest.fixture(scope="module")
-def mock_snowflake_plan() -> Analyzer:
+def mock_query():
+    fake_query = mock.create_autospec(Query)
+    fake_query.sql = "dummy sql"
+    fake_query.params = "dummy params"
+    return fake_query
+
+
+@pytest.fixture(scope="module")
+def mock_snowflake_plan(mock_query) -> Analyzer:
     fake_snowflake_plan = mock.create_autospec(SnowflakePlan)
     fake_snowflake_plan._id = "dummy id"
+    fake_snowflake_plan.expr_to_alias = {}
+    fake_snowflake_plan.df_aliased_col_name_to_real_col_name = {}
+    fake_snowflake_plan.queries = [mock_query]
+    fake_snowflake_plan.post_actions = []
+    fake_snowflake_plan.api_calls = []
     return fake_snowflake_plan
 
 
@@ -50,11 +63,3 @@ def mock_session(mock_analyzer) -> Session:
     fake_session._analyzer = mock_analyzer
     mock_analyzer.session = fake_session
     return fake_session
-
-
-@pytest.fixture(scope="module")
-def mock_query():
-    fake_query = mock.create_autospec(Query)
-    fake_query.sql = "dummy sql"
-    fake_query.params = "dummy params"
-    return fake_query
