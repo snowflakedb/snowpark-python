@@ -4,6 +4,9 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+- Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a util function to check the equality of two Snowpark DataFrames.
+
 #### Improvements
 - Added support server side string size limitations.
 - Added support for passing `INFER_SCHEMA` options to `DataFrameReader` via `INFER_SCHEMA_OPTIONS`.
