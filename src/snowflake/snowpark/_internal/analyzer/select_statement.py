@@ -60,7 +60,6 @@ from snowflake.snowpark._internal.analyzer.expression import (
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
-    LeafNode,
     LogicalPlan,
     SnowflakeTable,
 )
@@ -374,7 +373,7 @@ class Selectable(LogicalPlan, ABC):
         self._column_states = deepcopy(value)
 
 
-class SelectableEntity(Selectable, LeafNode):
+class SelectableEntity(Selectable):
     """Query from a table, view, or any other Snowflake objects.
     Mainly used by session.table().
     """
