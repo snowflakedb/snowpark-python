@@ -1722,12 +1722,7 @@ class DataFrame:
             self.set_ast_ref(expr.df)
             exprs, is_variadic = parse_positional_args_to_list_variadic(*exprs)
             for e in exprs:
-                if isinstance(e, Column):
-                    build_expr_from_snowpark_column_or_col_name(
-                        expr.exprs.args.add(), e
-                    )
-                else:
-                    build_expr_from_python_val(expr.exprs.args.add(), e)
+                build_expr_from_python_val(expr.exprs.args.add(), e)
             expr.exprs.variadic = is_variadic
 
         df = self.group_by(_emit_ast=False).agg(*exprs, _emit_ast=False)
