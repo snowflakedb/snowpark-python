@@ -9,7 +9,7 @@ import pytest
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.cursor import SnowflakeCursor
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
-from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
+from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.session import Session
 
@@ -27,8 +27,20 @@ def mock_server_connection() -> ServerConnection:
 
 
 @pytest.fixture(scope="module")
-def mock_analyzer() -> Analyzer:
+def mock_snowflake_plan() -> Analyzer:
+    fake_snowflake_plan = mock.create_autospec(SnowflakePlan)
+    fake_snowflake_plan._id = "dummy id"
+    return fake_snowflake_plan
+
+
+@pytest.fixture(scope="module")
+def mock_analyzer(mock_snowflake_plan) -> Analyzer:
+    def mock_resolve(x):
+        mock_snowflake_plan.source_plan = x
+        return mock_snowflake_plan
+
     fake_analyzer = mock.create_autospec(Analyzer)
+    fake_analyzer.resolve.side_effect = mock_resolve
     return fake_analyzer
 
 
