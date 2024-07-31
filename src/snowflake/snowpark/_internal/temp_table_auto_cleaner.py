@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 class TempTableAutoCleaner:
     """
     Automatically cleans up unused temporary tables created in the current session
-    when the DataFrame is no longer referenced (i.e., gets garbage collected).
+    when it is no longer referenced (i.e., its `SnowflakeTable` object gets garbage collected).
 
     Temporary tables are typically used for intermediate computations (e.g., df.cache_result) and
     are not needed when they are no longer referenced. Removing these tables helps maintain a
@@ -75,7 +75,9 @@ class TempTableAutoCleaner:
         try:
             # TODO SNOW-1556553: Remove this workaround once multi-threading of Snowpark session is supported
             with self.session._conn._conn.cursor() as cursor:
-                cursor.execute(f"drop table if exists {name}")
+                cursor.execute(
+                    f"drop table if exists {name} /* internal query to drop unused temp table */"
+                )
             logging.debug(f"Cleanup Thread: Successfully dropped {common_log_text}")
         except Exception as ex:
             logging.warning(
