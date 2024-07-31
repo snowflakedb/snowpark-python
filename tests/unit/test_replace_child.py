@@ -39,10 +39,8 @@ irrelevant_plan = LogicalPlan()
 
 
 @pytest.fixture(scope="module")
-def new_plan(mock_session, mock_analyzer):
-    yield SelectableEntity(
-        SnowflakeTable(name="table", session=mock_session), analyzer=mock_analyzer
-    )
+def new_plan(mock_session):
+    yield SnowflakeTable(name="table", session=mock_session)
 
 
 def assert_precondition(plan, new_plan, analyzer, using_deep_copy=False):
@@ -70,7 +68,8 @@ def test_logical_plan(using_snowflake_plan, mock_query, new_plan, mock_analyzer)
             return plan.children_plan_nodes
         return plan.children
 
-    project_plan = Project([], old_plan)
+    project_plan = LogicalPlan()
+    project_plan.children = [old_plan]
     src_join_plan = Join(
         left=old_plan,
         right=project_plan,
@@ -106,7 +105,7 @@ def test_logical_plan(using_snowflake_plan, mock_query, new_plan, mock_analyzer)
     assert len(get_children(join_plan)) == 2
     copied_old_plan, copied_project_plan = get_children(join_plan)
     assert isinstance(copied_old_plan, LogicalPlan)
-    assert isinstance(copied_project_plan, Project)
+    assert isinstance(copied_project_plan, LogicalPlan)
 
     replace_child(join_plan, copied_old_plan, new_plan, mock_analyzer)
     assert get_children(join_plan) == [new_plan, copied_project_plan]
@@ -284,7 +283,12 @@ def test_select_snowflake_plan(
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
 def test_select_statement(
-    using_snowflake_plan, mock_session, mock_analyzer, mock_query, new_plan
+    using_snowflake_plan,
+    mock_session,
+    mock_analyzer,
+    mock_query,
+    new_plan,
+    mock_snowflake_plan,
 ):
     from_ = SelectSnowflakePlan(
         SnowflakePlan(
@@ -318,7 +322,9 @@ def test_select_statement(
     assert_precondition(plan, new_plan, mock_analyzer, using_deep_copy=True)
     plan = copy.deepcopy(plan)
     replace_child(plan, from_, new_plan, mock_analyzer)
-    assert plan.children_plan_nodes == [new_plan]
+    assert len(plan.children_plan_nodes) == 1
+    assert plan.children_plan_nodes[0].snowflake_plan == mock_snowflake_plan
+    assert mock_snowflake_plan.source_plan == new_plan
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
@@ -367,7 +373,12 @@ def test_select_table_function(
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
 def test_set_statement(
-    using_snowflake_plan, mock_session, mock_analyzer, mock_query, new_plan
+    using_snowflake_plan,
+    mock_session,
+    mock_analyzer,
+    mock_query,
+    new_plan,
+    mock_snowflake_plan,
 ):
     selectable1 = SelectableEntity(
         SnowflakeTable(name="table1", session=mock_session), analyzer=mock_analyzer
@@ -393,9 +404,12 @@ def test_set_statement(
     plan = copy.deepcopy(plan)
 
     replace_child(plan, selectable1, new_plan, mock_analyzer)
-    assert plan.children_plan_nodes == [new_plan, selectable2]
+    assert len(plan.children_plan_nodes) == 2
+    assert plan.children_plan_nodes[0].snowflake_plan == mock_snowflake_plan
+    assert plan.children_plan_nodes[1] == selectable2
     if not using_snowflake_plan:
-        assert plan.set_operands[0].selectable == new_plan
+        assert plan.set_operands[0].selectable.snowflake_plan == mock_snowflake_plan
+    assert mock_snowflake_plan.source_plan == new_plan
 
 
 def test_replace_child_negative(new_plan, mock_analyzer):
