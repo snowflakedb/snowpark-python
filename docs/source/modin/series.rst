@@ -199,6 +199,7 @@ Series
 
     Series.sort_values
     Series.sort_index
+    Series.unstack
     Series.nlargest
     Series.nsmallest
     Series.squeeze

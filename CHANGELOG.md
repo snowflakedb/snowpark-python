@@ -6,6 +6,7 @@
 
 #### Improvements
 - Added support server side string size limitations.
+- Added support for column lineage in the DataFrame.lineage.trace API.
 - Added support for passing `INFER_SCHEMA` options to `DataFrameReader` via `INFER_SCHEMA_OPTIONS`.
 
 #### Bug Fixes
@@ -39,6 +40,7 @@
 - Added support for `Index.value_counts`.
 - Added support for `Series.dt.day_name` and `Series.dt.month_name`.
 - Added support for indexing on Index, e.g., `df.index[:10]`.
+- Added support for `DataFrame.unstack` and `Series.unstack`.
 - Added support for `Index.all` and `Index.any`.
 
 #### Improvements

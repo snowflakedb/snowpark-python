@@ -37,6 +37,7 @@ from pandas.core.dtypes.common import pandas_dtype
 
 from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -104,7 +105,7 @@ def is_lazy_check(func: Callable) -> Callable:
     return check_lazy
 
 
-class Index:
+class Index(metaclass=TelemetryMeta):
     def __init__(
         self,
         data: ArrayLike | SnowflakeQueryCompiler | None = None,

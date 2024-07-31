@@ -1562,19 +1562,31 @@ class Series(BasePandasDataset):
             copy=copy,
         )
 
-    @series_not_implemented()
-    def unstack(self, level=-1, fill_value=None):  # noqa: PR01, RT01, D200
+    def unstack(
+        self,
+        level: int | str | list = -1,
+        fill_value: int | str | dict = None,
+        sort: bool = True,
+    ):
         """
         Unstack, also known as pivot, Series with MultiIndex to produce DataFrame.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 
-        result = DataFrame(
-            query_compiler=self._query_compiler.unstack(level, fill_value)
-        )
+        # We can't unstack a Series object, if we don't have a MultiIndex.
+        if self._query_compiler.has_multiindex:
+            result = DataFrame(
+                query_compiler=self._query_compiler.unstack(
+                    level, fill_value, sort, is_series_input=True
+                )
+            )
+        else:
+            raise ValueError(  # pragma: no cover
+                f"index must be a MultiIndex to unstack, {type(self.index)} was passed"
+            )
 
-        return result.droplevel(0, axis=1) if result.columns.nlevels > 1 else result
+        return result
 
     @series_not_implemented()
     @property
