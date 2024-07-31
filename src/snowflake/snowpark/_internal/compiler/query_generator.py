@@ -82,6 +82,7 @@ class QueryGenerator(Analyzer):
     ) -> SnowflakePlan:
         if isinstance(logical_plan, SnowflakePlan):
             if logical_plan.queries is None:
+                assert logical_plan.source_plan is not None
                 # when encounter a SnowflakePlan with no queries, try to re-resolve
                 # the source plan to construct the result
                 res = self.resolve(logical_plan.source_plan)
