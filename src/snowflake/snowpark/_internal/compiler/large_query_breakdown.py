@@ -3,7 +3,7 @@
 #
 
 from collections import defaultdict
-from typing import TYPE_CHECKING, List, Optional, Union as UnionType
+from typing import List, Optional, Union as UnionType
 
 from sortedcontainers import SortedList
 
@@ -39,8 +39,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.session import Session
 
-if TYPE_CHECKING:
-    PlanTreeNode = UnionType[SnowflakePlan, Selectable]
+PlanTreeNode = UnionType[SnowflakePlan, Selectable]
 
 COMPLEXITY_SCORE_LOWER_BOUND = 300
 COMPLEXITY_SCORE_UPPER_BOUND = 1000
