@@ -623,6 +623,7 @@ class DataFrame:
         block: bool = True,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
+        _emit_ast: bool = True,
     ) -> Union[List[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
@@ -638,13 +639,26 @@ class DataFrame:
         See also:
             :meth:`collect_nowait()`
         """
+
+        if _emit_ast:
+            ...
+
+        if self._session._conn.is_phase1_enabled():
+            raise NotImplementedError("TODO: Implement collect() EvalResult in Phase1.")
+
+        # Phase0 flushes AST and encodes it as part of the query.
+        kwargs = {}
+        _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+
         with open_telemetry_context_manager(self.collect, self):
-            return self._internal_collect_with_tag_no_telemetry(
+            result = self._internal_collect_with_tag_no_telemetry(
                 statement_params=statement_params,
                 block=block,
                 log_on_exception=log_on_exception,
                 case_sensitive=case_sensitive,
+                **kwargs,
             )
+        return result
 
     @df_collect_api_telemetry
     def collect_nowait(
@@ -683,6 +697,7 @@ class DataFrame:
         data_type: _AsyncResultType = _AsyncResultType.ROW,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
+        **kwargs: Any,
     ) -> Union[List[Row], AsyncJob]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
@@ -698,6 +713,7 @@ class DataFrame:
             ),
             log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
+            **kwargs,
         )
 
     _internal_collect_with_tag = df_collect_api_telemetry(
@@ -2350,7 +2366,9 @@ class DataFrame:
                 ast_stmt=ast_stmt,
             )
         else:
-            df = self._with_plan(UnionPlan(self._plan, right_child._plan, is_all), ast_stmt=ast_stmt)
+            df = self._with_plan(
+                UnionPlan(self._plan, right_child._plan, is_all), ast_stmt=ast_stmt
+            )
         return df
 
     @df_api_usage
@@ -3990,7 +4008,9 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_dynamic_table, stmt)
+        expr = with_src_position(
+            stmt.expr.sp_dataframe_create_or_replace_dynamic_table, stmt
+        )
         self.set_ast_ref(expr.df)
         if isinstance(name, str):
             expr.name.append(name)
