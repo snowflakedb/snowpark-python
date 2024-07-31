@@ -139,6 +139,11 @@ class AstBatch:
         """Ties off a batch and starts a new one. Returns the tied-off batch."""
         batch = str(base64.b64encode(self._request.SerializeToString()), "utf-8")
         self._init_batch()
+
+        # TODO: The problem here is that repeated calls to df.collect() will reset the batch. However, the current
+        # batch may reference older assigns that were part of a previous batch. Need to resolve this.
+        # This requires historical storage of all batches! -.-
+
         return (str(self._request_id), batch)
 
     def _init_batch(self):
