@@ -90,7 +90,7 @@ def replace_child(
 
     if isinstance(parent, SnowflakePlan):
         assert parent.source_plan is not None
-        replace_child(parent.source_plan, old_child, new_child)
+        replace_child(parent.source_plan, old_child, new_child, analyzer)
         return
 
     if isinstance(parent, SelectStatement):
@@ -113,7 +113,7 @@ def replace_child(
 
     if isinstance(parent, Selectable):
         assert parent.snowflake_plan.source_plan is not None
-        replace_child(parent.snowflake_plan.source_plan, old_child, new_child)
+        replace_child(parent.snowflake_plan.source_plan, old_child, new_child, analyzer)
         return
 
     if isinstance(parent, (UnaryNode, Limit, CopyIntoLocationNode)):
