@@ -8,9 +8,6 @@ from typing import Dict, List, Set, Union
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectSnowflakePlan,
-    SelectSQL,
-    SelectStatement,
-    SetStatement,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -182,8 +179,11 @@ class CommonSubDataframeElimination:
                 if isinstance(node, SelectSnowflakePlan):
                     # resolve the snowflake plan attached to make sure the
                     # select SnowflakePlan is a valid plan
-                    new_snowflake_plan = self._resolve_node(node._snowflake_plan)
-                    node._snowflake_plan = new_snowflake_plan
+                    if node._snowflake_plan.source_plan is not None:
+                        new_snowflake_plan = self._resolve_node(
+                            node._snowflake_plan.source_plan
+                        )
+                        node._snowflake_plan = new_snowflake_plan
 
                 elif isinstance(node, SnowflakePlan):
                     if node.source_plan is not None:

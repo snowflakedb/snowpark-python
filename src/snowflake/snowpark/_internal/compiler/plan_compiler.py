@@ -17,7 +17,7 @@ from snowflake.snowpark._internal.compiler.utils import (
     create_query_generator,
     get_snowflake_plan_queries,
 )
-from snowflake.snowpark.context import _enable_new_compilation_stage
+from snowflake.snowpark.context import is_new_compilation_stage_enabled
 
 
 class PlanCompiler:
@@ -57,23 +57,22 @@ class PlanCompiler:
         ) and current_session.cte_optimization_enabled
 
     def compile(self) -> Dict[PlanQueryType, List[Query]]:
-        if _enable_new_compilation_stage:
-            if self.should_apply_optimizations():
-                # preparation for compilation
-                # 1. make a copy of the original plan
-                logical_plans = [copy.deepcopy(self._plan)]
-                # 2. create a code generator with the original plan
-                query_generator = create_query_generator(self._plan)
+        if is_new_compilation_stage_enabled() and self.should_apply_optimizations():
+            # preparation for compilation
+            # 1. make a copy of the original plan
+            logical_plans = [copy.deepcopy(self._plan)]
+            # 2. create a code generator with the original plan
+            query_generator = create_query_generator(self._plan)
 
-                # apply each optimizations if needed
-                if self._plan.session.cte_optimization_enabled:
-                    common_sub_dataframe_eliminator = CommonSubDataframeElimination(
-                        logical_plans, query_generator
-                    )
-                    logical_plans = common_sub_dataframe_eliminator.apply()
+            # apply each optimizations if needed
+            if self._plan.session.cte_optimization_enabled:
+                common_sub_dataframe_eliminator = CommonSubDataframeElimination(
+                    logical_plans, query_generator
+                )
+                logical_plans = common_sub_dataframe_eliminator.apply()
 
-                # do a final pass of code generation
-                return query_generator.generate_queries(logical_plans)
+            # do a final pass of code generation
+            return query_generator.generate_queries(logical_plans)
         else:
             final_plan = self._plan
             if self._plan.session.cte_optimization_enabled:

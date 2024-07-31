@@ -31,6 +31,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
 )
+from snowflake.snowpark.context import is_new_compilation_stage_enabled
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -110,7 +111,6 @@ from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.context import _enable_new_compilation_stage
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -301,7 +301,13 @@ class SnowflakePlan(LogicalPlan):
 
     def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
         # parameter protection
-        if not self.session._cte_optimization_enabled or _enable_new_compilation_stage:
+        # the common subquery elimination will be applied if cte_optimization is not enabled
+        # and the new compilation stage is not enabled. When new compilation stage is enabled,
+        # the common subquery elimination will be done through the new plan transformation.
+        if (
+            not self.session._cte_optimization_enabled
+            or is_new_compilation_stage_enabled()
+        ):
             return self
 
         # if source_plan or placeholder_query is none, it must be a leaf node,

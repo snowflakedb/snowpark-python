@@ -70,7 +70,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.utils import is_sql_select_statement
-from snowflake.snowpark.context import _enable_new_compilation_stage
+from snowflake.snowpark.context import is_new_compilation_stage_enabled
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -730,7 +730,7 @@ class SelectStatement(Selectable):
         from_clause = self.from_.sql_in_subquery
         if (
             self.analyzer.session._cte_optimization_enabled
-            and (not _enable_new_compilation_stage)
+            and (not is_new_compilation_stage_enabled())
             and self.from_._id
         ):
             placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"

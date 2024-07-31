@@ -38,6 +38,18 @@ pytestmark = [
 
 WITH = "WITH"
 
+paramList = [True]
+
+
+@pytest.fixture(params=paramList, autouse=True)
+def setup_new_compilation_stage(request):
+    from snowflake.snowpark import context
+
+    is_new_compilation_stage_enabled = context.is_new_compilation_stage_enabled()
+    context.set_enable_new_compilation_stage(request.param)
+    yield
+    context.set_enable_new_compilation_stage(is_new_compilation_stage_enabled)
+
 
 @pytest.fixture(autouse=True)
 def setup(session):
