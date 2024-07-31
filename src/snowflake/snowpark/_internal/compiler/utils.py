@@ -11,7 +11,6 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectSnowflakePlan,
     SelectStatement,
-    SetOperand,
     SetStatement,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
@@ -103,12 +102,9 @@ def replace_child(
             node if node != old_child else new_child_as_selectable
             for node in parent._nodes
         ]
-        parent.set_operands = tuple(
-            operand
-            if operand.selectable != old_child
-            else SetOperand(new_child_as_selectable, operand.operator)
-            for operand in parent.set_operands
-        )
+        for operand in parent.set_operands:
+            if operand.selectable == old_child:
+                operand.selectable = new_child_as_selectable
         return
 
     if isinstance(parent, Selectable):
