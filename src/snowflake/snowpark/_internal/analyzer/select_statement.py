@@ -3,6 +3,7 @@
 #
 
 import sys
+from functools import cached_property
 from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
 from copy import copy, deepcopy
@@ -252,7 +253,7 @@ class Selectable(LogicalPlan, ABC):
         """Returns the placeholder query of this Selectable logical plan."""
         pass
 
-    @property
+    @cached_property
     def _id(self) -> Optional[str]:
         """Returns the id of this Selectable logical plan."""
         return encode_id(self.sql_query, self.query_params)
