@@ -2,7 +2,7 @@
 Series
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.pandas
+.. currentmodule:: modin.pandas
 .. rubric:: :doc:`All supported Series APIs <supported/series_supported>`
 
 .. rubric:: Constructor
@@ -199,6 +199,7 @@ Series
 
     Series.sort_values
     Series.sort_index
+    Series.unstack
     Series.nlargest
     Series.nsmallest
     Series.squeeze
@@ -226,15 +227,10 @@ Series
 
 .. autosummary::
     :toctree: pandas_api/
+    :template: autosummary/modin_accessor.rst
 
     Series.str
     Series.dt
-
-
-.. Series.str and Series.dt are imported from upstream modin.pandas, so we need to swap
-.. the current module here.
-
-.. currentmodule:: modin.pandas
 
 
 .. rubric:: Datetime accessor properties
@@ -252,12 +248,16 @@ Series
     Series.dt.hour
     Series.dt.minute
     Series.dt.second
+    Series.dt.microsecond
+    Series.dt.nanosecond
     Series.dt.dayofweek
     Series.dt.day_of_week
     Series.dt.dayofyear
     Series.dt.day_of_year
     Series.dt.quarter
     Series.dt.isocalendar
+    Series.dt.month_name
+    Series.dt.day_name
 
 
 .. rubric:: String accessor methods

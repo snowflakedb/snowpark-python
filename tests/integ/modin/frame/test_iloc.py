@@ -714,9 +714,8 @@ def test_df_iloc_get_key_bool(
 
     # One extra query for index conversion to series to set item
     query_count = (
-        2 if "index" in key_type or (key_type == "series" and axis == "col") else 1
+        2 if ("index" in key_type or key_type == "series") and axis == "col" else 1
     )
-    expected_join_count = 0
     if axis == "row":
         if key == [] and key_type in ["list", "ndarray"]:
             expected_join_count = 2
@@ -952,7 +951,7 @@ def test_df_iloc_get_key_numeric(
 
     # one extra query for index conversion to series to set item
     query_count = (
-        2 if "index" in key_type or (key_type == "series" and axis == "col") else 1
+        2 if ("index" in key_type or key_type == "series") and axis == "col" else 1
     )
     join_count = 2 if axis == "row" else 0
 
@@ -1300,15 +1299,7 @@ def test_df_iloc_get_non_numeric_key_negative(
 
     if isinstance(key, native_pd.Index):
         key = pd.Index(key)
-    # 2 extra queries for repr
-    # 1 extra query to convert index to series if row case
-    with SqlCounter(
-        query_count=3
-        if isinstance(key, pd.Index) and axis == "row"
-        else 2
-        if isinstance(key, pd.Index)
-        else 0
-    ):
+    with SqlCounter(query_count=2 if isinstance(key, pd.Index) else 0):
         # General case fails with TypeError.
         error_msg = re.escape(f".iloc requires numeric indexers, got {key}")
         with pytest.raises(IndexError, match=error_msg):

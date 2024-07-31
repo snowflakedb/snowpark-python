@@ -351,8 +351,8 @@ def test_set_index_pass_multiindex(drop, append, native_df):
 @pytest.mark.parametrize(
     "keys, expected_query_count",
     [
-        (["a"], 4),
-        ([[1, 6, 6]], 6),
+        (["a"], 3),
+        ([[1, 6, 6]], 5),
     ],
 )
 def test_set_index_verify_integrity_negative(native_df, keys, expected_query_count):
