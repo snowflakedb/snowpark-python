@@ -1189,7 +1189,9 @@ class Analyzer:
                 )
                 if logical_plan.condition
                 else None,
-                resolved_children[logical_plan.children[0]],
+                resolved_children[logical_plan.children[0]]
+                if len(logical_plan.children) > 0
+                else None,
                 logical_plan,
             )
 
@@ -1201,14 +1203,18 @@ class Analyzer:
                 )
                 if logical_plan.condition
                 else None,
-                resolved_children[logical_plan.children[0]],
+                resolved_children[logical_plan.children[0]]
+                if len(logical_plan.children) > 0
+                else None,
                 logical_plan,
             )
 
         if isinstance(logical_plan, TableMerge):
             return self.plan_builder.merge(
                 logical_plan.table_name,
-                resolved_children[logical_plan.children[0]],
+                resolved_children[logical_plan.children[0]]
+                if len(logical_plan.children) > 0
+                else None,
                 self.analyze(
                     logical_plan.join_expr, df_aliased_col_name_to_real_col_name
                 ),
