@@ -355,6 +355,9 @@ class ServerConnection:
 
         results_cursor = self._cursor.execute(query, **kwargs)
         notify_kwargs = {"requestId": str(results_cursor._request_id)}
+        if "_dataframe_ast" in kwargs:
+            notify_kwargs["dataframeAst"] = kwargs["_dataframe_ast"]
+
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query), **notify_kwargs
         )

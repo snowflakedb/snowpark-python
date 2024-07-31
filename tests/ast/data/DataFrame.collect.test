@@ -1,0 +1,7 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+ans = df.collect()
+
+## EXPECTED OUTPUT
