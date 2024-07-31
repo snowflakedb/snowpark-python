@@ -3,19 +3,20 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Optional, Union
+from typing import Optional
 
+from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.binary_plan_node import BinaryNode
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
-    SelectableEntity,
+    SelectSnowflakePlan,
     SelectStatement,
-    SetOperand,
     SetStatement,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
+    LeafNode,
     Limit,
     LogicalPlan,
     SnowflakeCreateTable,
@@ -30,8 +31,6 @@ from snowflake.snowpark._internal.compiler.query_generator import (
     QueryGenerator,
     SnowflakeCreateTablePlanInfo,
 )
-
-PlanTreeNode = Union[SnowflakePlan, Selectable, LogicalPlan]
 
 
 def create_query_generator(plan: SnowflakePlan) -> QueryGenerator:
@@ -65,11 +64,23 @@ def is_active_transaction(session):
 
 
 def replace_child(
-    parent: PlanTreeNode, old_child: PlanTreeNode, new_child: SelectableEntity
+    parent: LogicalPlan, old_child: LogicalPlan, new_child: LeafNode, analyzer: Analyzer
 ) -> None:
     """
-    Helper function to replace the child node in the plan with a new selectable entity.
+    Helper function to replace the child node in the plan with a new child.
+
+    Whenever necessary, we convert the new_child into a Selectable or SnowflakePlan
+    based on the parent node type.
     """
+
+    def to_selectable(plan: LogicalPlan, analyzer: Analyzer) -> Selectable:
+        """Given a LogicalPlan, convert it to a Selectable."""
+        if isinstance(plan, Selectable):
+            return plan
+
+        snowflake_plan = analyzer.resolve(plan)
+        return SelectSnowflakePlan(snowflake_plan, analyzer=analyzer)
+
     if not parent._is_valid_for_replacement:
         raise ValueError(f"parent node {parent} is not valid for replacement.")
 
@@ -77,33 +88,32 @@ def replace_child(
         raise ValueError(f"old_child {old_child} is not a child of parent {parent}.")
 
     assert isinstance(
-        new_child, SelectableEntity
-    ), f"expecting new_child to be SelectableEntity, got {type(new_child)}"
+        new_child, LeafNode
+    ), f"expecting new_child to be LeafNode, got {type(new_child)}"
 
     if isinstance(parent, SnowflakePlan):
         assert parent.source_plan is not None
-        replace_child(parent.source_plan, old_child, new_child)
+        replace_child(parent.source_plan, old_child, new_child, analyzer)
         return
 
     if isinstance(parent, SelectStatement):
-        parent.from_ = new_child
+        parent.from_ = to_selectable(new_child, analyzer)
         return
 
     if isinstance(parent, SetStatement):
+        new_child_as_selectable = to_selectable(new_child, analyzer)
         parent._nodes = [
-            node if node != old_child else new_child for node in parent._nodes
+            node if node != old_child else new_child_as_selectable
+            for node in parent._nodes
         ]
-        parent.set_operands = tuple(
-            operand
-            if operand.selectable != old_child
-            else SetOperand(new_child, operand.operator)
-            for operand in parent.set_operands
-        )
+        for operand in parent.set_operands:
+            if operand.selectable == old_child:
+                operand.selectable = new_child_as_selectable
         return
 
     if isinstance(parent, Selectable):
         assert parent.snowflake_plan.source_plan is not None
-        replace_child(parent.snowflake_plan.source_plan, old_child, new_child)
+        replace_child(parent.snowflake_plan.source_plan, old_child, new_child, analyzer)
         return
 
     if isinstance(parent, (UnaryNode, Limit, CopyIntoLocationNode)):
@@ -127,13 +137,13 @@ def replace_child(
         return
 
     if isinstance(parent, (TableUpdate, TableDelete)):
-        snowflake_plan = new_child.snowflake_plan
+        snowflake_plan = analyzer.resolve(new_child)
         parent.children = [snowflake_plan]
         parent.source_data = snowflake_plan
         return
 
     if isinstance(parent, TableMerge):
-        snowflake_plan = new_child.snowflake_plan
+        snowflake_plan = analyzer.resolve(new_child)
         parent.children = [snowflake_plan]
         parent.source = snowflake_plan
         return
