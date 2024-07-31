@@ -746,17 +746,7 @@ class Index:
         >>> pd.Index([0, 1, 2]).all()
         False
         """
-        # If self is empty, the result for all is always True. This `self.empty` check results in one extra query.
-        # Passing an empty object through `query_compiler.all` results in the ValueError:
-        # The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().
-        if self.empty:
-            return True
-        return (
-            self.to_series()
-            ._query_compiler.all(axis=0, bool_only=None, skipna=None, **kwargs)
-            .to_pandas()
-            .squeeze()
-        )
+        return self.to_series().all(**kwargs)
 
     def any(self, *args, **kwargs) -> bool | ExtensionArray:
         """
@@ -794,17 +784,7 @@ class Index:
         >>> index.any()
         False
         """
-        # If self is empty, the result for any is always False. This `self.empty` check results in one extra query.
-        # Passing an empty object through `query_compiler.any` results in the ValueError:
-        # The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().
-        if self.empty:
-            return False
-        return (
-            self.to_series()
-            ._query_compiler.any(axis=0, bool_only=None, skipna=None, **kwargs)
-            .to_pandas()
-            .squeeze()
-        )
+        return self.to_series().any(**kwargs)
 
     @index_not_implemented()
     def argmin(self) -> None:

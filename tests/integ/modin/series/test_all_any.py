@@ -13,9 +13,8 @@ from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_values_equal, eval_snowpark_pandas_result
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="SNOW-1017231")
 @pytest.mark.parametrize("method", ["any", "all"])
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=2)
 def test_empty(method):
     # Because empty dataframes are by default object and Snowpark pandas currently falls back
     # for non-int/bool columns, we need to explicitly specify a type here
@@ -100,7 +99,7 @@ def test_any_named_index():
     ],
 )
 @pytest.mark.parametrize("skipna", [True, False])
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_all_float_not_implemented(data, skipna):
     series = pd.Series(data)
     msg = "Snowpark pandas all API doesn't yet support non-integer/boolean columns"
@@ -118,7 +117,7 @@ def test_all_float_not_implemented(data, skipna):
     ],
 )
 @pytest.mark.parametrize("skipna", [True, False])
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_any_float_not_implemented(data, skipna):
     series = pd.Series(data)
     msg = "Snowpark pandas any API doesn't yet support non-integer/boolean columns"
@@ -130,7 +129,7 @@ def test_any_float_not_implemented(data, skipna):
     "data",
     [["", "b", "c"], ["d", "e", "f"]],
 )
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_all_str_not_implemented(data):
     series = pd.Series(data)
     msg = "Snowpark pandas all API doesn't yet support non-integer/boolean columns"
@@ -142,7 +141,7 @@ def test_all_str_not_implemented(data):
     "data",
     [["", "b", "c"], ["d", "e", "f"]],
 )
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_any_str_not_implemented(data):
     series = pd.Series(data)
     msg = "Snowpark pandas any API doesn't yet support non-integer/boolean columns"

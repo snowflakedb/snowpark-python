@@ -2100,9 +2100,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         assert agg_func in ("all", "any")
 
         frame = self._modin_frame
+
+        # Even though it incurs an extra query, we must get the length of the index to prevent errors.
+        # Empty Series objects return True/False for all/any respectively, regardless of the Series dtype.
+        # Otherwise, Series([], dtype="object").all() would raise a NotImplementedError while
+        # Series([], dtype=bool).all() would work fine; in reality they both produce the same result, True.
+        empty_index = self.get_axis_len(axis=0) == 0
         empty_columns = len(frame.data_columns_index) == 0
-        if not empty_columns and not all(
-            is_bool_dtype(t) or is_integer_dtype(t) for t in self.dtypes
+
+        if not (
+            empty_columns
+            or empty_index
+            or all(is_bool_dtype(t) or is_integer_dtype(t) for t in self.dtypes)
         ):
             # Raise error if columns are non-integer/boolean
             ErrorMessage.not_implemented(
@@ -2131,21 +2140,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 return SnowflakeQueryCompiler.from_pandas(
                     native_pd.DataFrame({MODIN_UNNAMED_SERIES_LABEL: []}, dtype=bool)
                 )
-            # Even though it incurs an extra query, we must get the length of the index to prevent errors.
-            # For example, for `pd.DataFrame({"a": [], "b": []}).all()`: the rows are empty but the columns
-            # exist, but it errors if we call `self.agg()` because empty columns have type float64 in Snowpark.
-            # Moreover, `pd.Series([]).all()` would incorrectly return `None` instead of the vacuous truth because
-            # Snowpark's boolean aggregation functions return `None` when the column is empty.
-            empty_index = self.get_axis_len(axis=0) == 0
-            if empty_index:
-                return SnowflakeQueryCompiler(
-                    self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
-                        {
-                            col_id: pandas_lit(empty_value)
-                            for col_id in frame.data_column_snowflake_quoted_identifiers
-                        }
-                    ).frame
-                )
+
             # The resulting DF is transposed so will have string 'NULL' as a column name,
             # so we need to manually remove it
             return self.agg(

@@ -8,12 +8,9 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.sql_counter import sql_count_checker
 
 NATIVE_INDEX_BOOL_INT_TEST_DATA = [
-    native_pd.Index([], dtype="object"),
-    native_pd.Index([], dtype=bool),
-    native_pd.Index([], dtype=int, name="NM"),
     native_pd.Index([True, True, True, True, False, False], dtype=bool, name="name"),
     native_pd.Index([0, 1, 2, 3, 4], dtype=np.int64),
     native_pd.Index([True, True, True, None, False, False], dtype=bool),
@@ -29,13 +26,19 @@ NATIVE_INDEX_NON_BOOL_INT_TEST_DATA = [
     native_pd.Index([5, None, 7]),
 ]
 
+NATIVE_INDEX_EMPTY_DATA = [
+    native_pd.Index([], dtype="object"),
+    native_pd.Index([], dtype=bool),
+    native_pd.Index([], dtype=int, name="NM"),
+]
 
+
+@sql_count_checker(query_count=2)
 @pytest.mark.parametrize("func", ["all", "any"])
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_BOOL_INT_TEST_DATA)
 def test_index_all_any(func, native_index):
     snow_index = pd.Index(native_index)
-    with SqlCounter(query_count=1 if native_index.empty else 3):
-        assert getattr(snow_index, func)() == getattr(native_index, func)()
+    assert getattr(snow_index, func)() == getattr(native_index, func)()
 
 
 @pytest.mark.parametrize("func", ["all", "any"])
@@ -48,3 +51,11 @@ def test_index_all_any_negative(func, native_index):
         match=f"Snowpark pandas {func} API doesn't yet support non-integer/boolean columns",
     ):
         assert getattr(snow_index, func)() == getattr(native_index, func)()
+
+
+@pytest.mark.parametrize("func", ["all", "any"])
+@pytest.mark.parametrize("native_index", NATIVE_INDEX_EMPTY_DATA)
+@sql_count_checker(query_count=2)
+def test_index_all_any_empty(func, native_index):
+    snow_index = pd.Index(native_index)
+    assert getattr(snow_index, func)() == getattr(native_index, func)()

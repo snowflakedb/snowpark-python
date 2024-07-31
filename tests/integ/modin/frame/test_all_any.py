@@ -7,7 +7,6 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
-from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
@@ -20,12 +19,9 @@ from tests.integ.modin.utils import (
 
 def nonempty_boolagg_sql_counter(axis):
     # All operations incur 1 query to perform the initial aggregation, regardless of axis.
-    # axis=0 incurs an extra call to check the size of the index, and axis=None
+    # All operations incur an extra call to check the size of the index, and axis=None
     # calls the query compiler function with axis=0 twice.
-    # There is no extra call for df.columnarize() because the result is already transposed in the QC.
-    # These numbers differ for empty dataframes depending on whether the columns/rows
-    # are empty or not.
-    expected_query_count = 3 if axis is None else 1 if axis in (1, "columns") else 2
+    expected_query_count = 3 if axis is None else 2
     return SqlCounter(query_count=expected_query_count)
 
 
@@ -53,7 +49,7 @@ def boolagg_comparator(axis):
     ],
 )
 def test_empty(data, axis):
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=2):
         # Treat index like any other column in a DataFrame when it comes to types,
         # therefore Snowpark pandas returns an Index(dtype="object") for an empty index
         # whereas pandas returns RangeIndex()
@@ -65,7 +61,7 @@ def test_empty(data, axis):
             comparator=assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
             check_index_type=False,
         )
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=2):
         eval_snowpark_pandas_result(
             pd.DataFrame(data),
             native_pd.DataFrame(data),
@@ -78,30 +74,10 @@ def test_empty(data, axis):
 @pytest.mark.parametrize(
     "data",
     [
-        param(
-            [],
-            marks=pytest.mark.xfail(
-                strict=True, raises=AssertionError, reason="SNOW-1017231"
-            ),
-        ),
-        param(
-            [[]],
-            marks=pytest.mark.xfail(
-                strict=True, raises=AssertionError, reason="SNOW-1017231"
-            ),
-        ),
-        param(
-            [[], [], []],
-            marks=pytest.mark.xfail(
-                strict=True, raises=AssertionError, reason="SNOW-1017231"
-            ),
-        ),
-        pytest.param(
-            {"a": [], "b": []},
-            marks=pytest.mark.skip(
-                "empty rows are treated as float64; TO_BOOLEAN cast does not accept float arguments"
-            ),
-        ),
+        [],
+        [[]],
+        [[], [], []],
+        {"a": [], "b": []},
     ],
 )
 @pytest.mark.parametrize("method", ["any", "all"])
@@ -109,9 +85,9 @@ def test_empty_axis_none(data, method):
     """This test function is separate from the other empty dataframe test
     function because we expected a scalar result, so we can't pass the
     check_index_type kwarg."""
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=3):
         eval_snowpark_pandas_result(
-            pd.DataFrame(data),
+            pd.DataFrame(data, dtype=bool),
             native_pd.DataFrame(data),
             lambda df: getattr(df, method)(axis=None),
             comparator=assert_values_equal,
@@ -257,7 +233,7 @@ def test_any_bool_only(data, axis):
     ],
 )
 @pytest.mark.parametrize("skipna", [True, False])
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_all_float_not_implemented(data, axis, skipna):
     df = pd.DataFrame(data)
     msg = "Snowpark pandas all API doesn't yet support non-integer/boolean columns"
@@ -274,7 +250,7 @@ def test_all_float_not_implemented(data, axis, skipna):
     ],
 )
 @pytest.mark.parametrize("skipna", [True, False])
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_any_float_not_implemented(data, axis, skipna):
     df = pd.DataFrame(data)
     msg = "Snowpark pandas any API doesn't yet support non-integer/boolean columns"
@@ -289,7 +265,7 @@ def test_any_float_not_implemented(data, axis, skipna):
         {"a": ["", "b", "c"], "b": ["d", "e", "f"]},
     ],
 )
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_all_str_not_implemented(data, axis):
     df = pd.DataFrame(data)
     msg = "Snowpark pandas all API doesn't yet support non-integer/boolean columns"
@@ -304,7 +280,7 @@ def test_all_str_not_implemented(data, axis):
         {"a": ["", "b", "c"], "b": ["", "e", "f"]},
     ],
 )
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_any_str_not_implemented(data, axis):
     df = pd.DataFrame(data)
     msg = "Snowpark pandas any API doesn't yet support non-integer/boolean columns"
