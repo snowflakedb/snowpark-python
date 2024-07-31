@@ -8,6 +8,7 @@
 - Added support server side string size limitations.
 - Added support for column lineage in the DataFrame.lineage.trace API.
 - Added support for passing `INFER_SCHEMA` options to `DataFrameReader` via `INFER_SCHEMA_OPTIONS`.
+- Added support for passing `parameters` parameter to Column.rlike and Column.regexp.
 
 #### Bug Fixes
 - Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.

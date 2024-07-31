@@ -636,6 +636,12 @@ def test_regexp(session):
         Row("banana")
     ]
     assert TestData.string4(session).where(col("A").regexp("%a%")).collect() == []
+    assert (
+        TestData.string4(session).where(col("A").regexp("AP.LE", "c")).collect() == []
+    )
+    assert TestData.string4(session).where(col("A").regexp("AP.LE", "i")).collect() == [
+        Row("apple")
+    ]
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.string4(session).where(col("A").regexp("+*")).collect()
