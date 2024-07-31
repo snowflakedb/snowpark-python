@@ -128,12 +128,6 @@ class WithQueryBlock(LogicalPlan):
         self.children.append(child)
 
 
-class WithObjectRef(LogicalPlan):
-    def __init__(self, child: WithQueryBlock) -> None:
-        super().__init__()
-        self.children.append(child)
-
-
 class SnowflakeValues(LeafNode):
     def __init__(
         self,

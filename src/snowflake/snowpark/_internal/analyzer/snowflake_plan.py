@@ -74,7 +74,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     schema_value_statement,
     select_from_path_with_format_statement,
     set_operator_statement,
-    single_cte_statement,
     sort_statement,
     table_function_statement,
     unpivot_statement,
@@ -97,7 +96,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SaveMode,
     SnowflakeCreateTable,
-    WithObjectRef,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateDynamicTableCommand,
@@ -1480,23 +1478,7 @@ class SnowflakePlanBuilder:
             raise ValueError(
                 "schema query for WithQueryBlock is currently not supported"
             )
-
-        return self.build(
-            lambda x: single_cte_statement(x, name),
-            child,
-            source_plan,
-        )
-
-    def with_object_ref(
-        self, name: str, child: SnowflakePlan, source_plan: LogicalPlan
-    ) -> SnowflakePlan:
         new_query = f"SELECT * FROM {name}"
-        assert isinstance(source_plan, WithObjectRef)
-
-        if self._skip_schema_query is not True:
-            raise ValueError(
-                "schema query for WithObjectRef is currently not supported"
-            )
 
         queries = child.queries[:-1] + [Query(sql=new_query)]
         referred_cte_tables = {name}

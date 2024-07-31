@@ -18,7 +18,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     LogicalPlan,
     SnowflakeCreateTable,
-    WithObjectRef,
     WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -58,6 +57,9 @@ class QueryGenerator(Analyzer):
         self._snowflake_create_table_plan_info: Optional[
             SnowflakeCreateTablePlanInfo
         ] = snowflake_create_table_plan_info
+        # Records the definition of all the with query blocks encountered during the code generation.
+        # This information will be used to generate the final query of a SnowflakePlan with the
+        # correct CTE definition.
         self.resolved_with_query_block: Dict[str, str] = {}
 
     def generate_queries(
@@ -163,8 +165,10 @@ class QueryGenerator(Analyzer):
                 get_snowflake_plan_queries,
             )
 
+            # for CreateViewCommand, TableUpdate, TableDelete, TableMerge and CopyIntoLocationNode,
+            # the with definition must be generated before create, update, delete, merge and copy into
+            # query.
             resolved_child = resolved_children[logical_plan.children[0]]
-            # update the resolved child
             final_queries = get_snowflake_plan_queries(
                 resolved_child, self.resolved_with_query_block
             )
@@ -180,19 +184,14 @@ class QueryGenerator(Analyzer):
 
         if isinstance(logical_plan, WithQueryBlock):
             resolved_child = resolved_children[logical_plan.children[0]]
+            # record the CTE definition of the current block
             self.resolved_with_query_block.update(
                 {logical_plan.name: resolved_child.queries[-1].sql}
             )
+
             return self.plan_builder.with_query_block(
                 logical_plan.name,
                 resolved_child,
-                logical_plan,
-            )
-
-        if isinstance(logical_plan, WithObjectRef):
-            return self.plan_builder.with_object_ref(
-                logical_plan.children[0].name,
-                resolved_children[logical_plan.children[0]],
                 logical_plan,
             )
 

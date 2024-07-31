@@ -15,7 +15,6 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
-    WithObjectRef,
     WithQueryBlock,
 )
 from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
@@ -143,13 +142,15 @@ class CommonSubDataframeElimination:
         elif isinstance(node, Selectable):
             reset_selectable(node)
 
-    def _update_parents(self, node: "TreeNode", new_node: "TreeNode") -> None:
+    def _update_parents(self, node: TreeNode, new_node: TreeNode) -> None:
         parents = self._node_parents_map[node]
         for parent in parents:
-            parent.update_child(node, new_node)
-
-            # reset the parent to resolve it later
-            # self._reset_node(parent)
+            if isinstance(node, Selectable) and (not isinstance(new_node, Selectable)):
+                assert isinstance(new_node, SnowflakePlan)
+                new_node = SelectSnowflakePlan(
+                    snowflake_plan=new_node, analyzer=self._query_generator
+                )
+                parent.update_child(node, new_node)
 
     def _deduplicate_with_cte(self, root: "TreeNode") -> LogicalPlan:
         """
@@ -171,11 +172,13 @@ class CommonSubDataframeElimination:
             for child in reversed(node.children_plan_nodes):
                 stack1.append(child)
 
-        visited_nodes = set()
+        # tack node that is already visited to avoid repeated operation on the same node
+        visited_nodes: Set[TreeNode] = set()
         while stack2:
             node = stack2.pop()
             if node in visited_nodes:
                 continue
+
             # if the node is a duplicated node and deduplication is not done for the node,
             # start the deduplication transformation use CTE
             if node in self._duplicated_nodes:
@@ -183,18 +186,14 @@ class CommonSubDataframeElimination:
                 with_block = WithQueryBlock(
                     name=random_name_for_temp_object(TempObjectType.CTE), child=node
                 )
-                # add a projection on top of it
-                project_plan = WithObjectRef(child=with_block)
-                # resolve the project_plan to get a snowflake plan
-                resolved_project = self._query_generator.resolve(project_plan)
 
-                self._update_parents(node, resolved_project)
+                resolved_with_block = self._query_generator.resolve(with_block)
+                self._update_parents(node, resolved_with_block)
 
             elif node not in self._duplicated_nodes:
-                # self._reset_node(node)
                 if isinstance(node, SelectSnowflakePlan):
-                    # resolve the snowflake plan attached
-                    # self._reset_node(node._snowflake_plan)
+                    # resolve the snowflake plan attached to make sure the
+                    # select SnowflakePlan is a valid plan
                     new_snowflake_plan = self._query_generator.resolve(
                         node._snowflake_plan
                     )
