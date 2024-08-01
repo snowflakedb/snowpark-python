@@ -765,6 +765,7 @@ def retrieve_func_defaults_from_source(
     """
     Retrieve default values assigned to optional arguments of a function from a
     source file, or a source string (test only).
+
     Returns list of str(default value) if the function is found, None otherwise.
     """
 
