@@ -4,7 +4,7 @@
 #   ./src/snowflake/snowpark/_internal/proto/update-from-local.sh ~/src/Snowflake
 
 # Check for args
-SRC_ROOT="$HOME/src/Snowflake"
+SRC_ROOT=${SNOWFLAKE_SRC_HOME:-$HOME/src/Snowflake}
 if [ -z "$1" ]
   then
     echo "No source directory provided, defaulting to \"$SRC_ROOT\""
