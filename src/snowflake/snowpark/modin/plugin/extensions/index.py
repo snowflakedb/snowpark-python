@@ -36,11 +36,9 @@ from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import pandas_dtype
 
 from snowflake.snowpark.modin.pandas import DataFrame, Series
+from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
-from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
-    SnowflakeQueryCompiler,
-)
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     index_not_implemented,
@@ -108,7 +106,7 @@ def is_lazy_check(func: Callable) -> Callable:
 class Index(metaclass=TelemetryMeta):
     def __init__(
         self,
-        data: ArrayLike | SnowflakeQueryCompiler | None = None,
+        data: ArrayLike | DataFrame | Series | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -122,7 +120,7 @@ class Index(metaclass=TelemetryMeta):
 
         Parameters
         ----------
-        data : array-like (1-dimensional)
+        data : array-like (1-dimensional), Series, DataFrame, optional
         dtype : str, numpy.dtype, or ExtensionDtype, optional
             Data type for the output Index. If not specified, this will be
             inferred from `data`.
@@ -171,10 +169,12 @@ class Index(metaclass=TelemetryMeta):
                 name=name,
                 tupleize_cols=tupleize_cols,
             )
+        # Set the parent of the Index object - used with the name APIs
+        self._parent = data if isinstance(data, BasePandasDataset) else None
 
     def set_query_compiler(
         self,
-        data: ArrayLike | SnowflakeQueryCompiler | None = None,
+        data: ArrayLike | DataFrame | Series | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -183,8 +183,8 @@ class Index(metaclass=TelemetryMeta):
         """
         Helper method to find and save query compiler when index should be lazy
         """
-        if isinstance(data, SnowflakeQueryCompiler):
-            qc = data
+        if isinstance(data, BasePandasDataset):
+            qc = data._query_compiler
         else:
             qc = DataFrame(
                 index=native_pd.Index(
@@ -199,7 +199,7 @@ class Index(metaclass=TelemetryMeta):
 
     def set_local_index(
         self,
-        data: ArrayLike | SnowflakeQueryCompiler | None = None,
+        data: ArrayLike | DataFrame | Series | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -208,8 +208,8 @@ class Index(metaclass=TelemetryMeta):
         """
         Helper method to create and save local index when index should not be lazy
         """
-        if isinstance(data, SnowflakeQueryCompiler):
-            index = data._modin_frame.index_columns_pandas_index
+        if isinstance(data, BasePandasDataset):
+            index = data._query_compiler._modin_frame.index_columns_pandas_index
         else:
             index = native_pd.Index(
                 data=data,
