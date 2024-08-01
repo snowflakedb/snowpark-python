@@ -1024,7 +1024,7 @@ def create_ordered_dataframe_from_pandas(
     snowflake_quoted_identifiers: list[str],
     ordering_columns: Optional[list[OrderingColumn]] = None,
     row_position_snowflake_quoted_identifier: Optional[str] = None,
-) -> OrderedDataFrame:
+) -> tuple[OrderedDataFrame, list[StructField]]:
     """
     Create Ordered dataframe from pandas dataframe with proper pre-processing.
     The preprocess includes:
@@ -1081,7 +1081,7 @@ def create_ordered_dataframe_from_pandas(
         projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
         ordering_columns=ordering_columns,
         row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
-    )
+    ), struct_fields
 
 
 def fill_none_in_index_labels(
@@ -1226,6 +1226,8 @@ def snowpark_to_pandas_helper(
     ordered_dataframe: OrderedDataFrame,
     *,
     statement_params: Optional[dict[str, str]] = None,
+    data_column_types=None,
+    index_column_types=None,    
     **kwargs: Any,
 ) -> native_pd.DataFrame:
     """
@@ -1330,6 +1332,15 @@ def snowpark_to_pandas_helper(
                     pandas_df[id_to_label_mapping[quoted_name]] = pandas_df[
                         id_to_label_mapping[quoted_name]
                     ].apply(lambda value: None if value is None else json.loads(value))
+
+        if data_column_types is not None:
+            data_column_start = len(index_column_types)
+            for data_type_pos, data_type in enumerate(data_column_types):
+                from snowflake.snowpark.modin.plugin._internal.type_utils import TimedeltaType                
+                if isinstance(data_type, TimedeltaType):  
+                    pandas_df.iloc[:, data_column_start + data_type_pos] = pandas_df.iloc[:,  data_column_start + data_type_pos].apply(type(data_type).to_pandas)
+
+        # TODO : do the same for index types
 
     # Return the original amount of columns by stripping any typeof(...) columns appended if
     # schema contained VariantType.
