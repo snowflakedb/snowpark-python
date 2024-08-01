@@ -25,6 +25,8 @@ dt_properties = pytest.mark.parametrize(
         "month",
         "day",
         "quarter",
+        "is_month_start",
+        "is_month_end",
     ],
 )
 
@@ -145,6 +147,22 @@ def test_day_month_name_negative(method):
     snow_ser = pd.Series(native_ser)
     with pytest.raises(NotImplementedError):
         getattr(snow_ser.dt, method)(locale="pt_BR.utf8")
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("property", ["is_month_start", "is_month_end"])
+def test_is_month_start_end(property):
+    # Create a series containing the first and last dates of each month
+    #  in a normal year and a leap year.
+    date_range = native_pd.date_range("2023-01-01", periods=731, freq="1D")
+    native_ser = native_pd.Series(date_range)
+    native_ser = native_ser[native_ser.dt.is_month_start | native_ser.dt.is_month_end]
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda s: getattr(s.dt, property),
+    )
 
 
 @dt_properties

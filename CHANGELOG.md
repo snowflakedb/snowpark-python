@@ -41,6 +41,7 @@
 - Added support for `Series.dt.day_name` and `Series.dt.month_name`.
 - Added support for indexing on Index, e.g., `df.index[:10]`.
 - Added support for `DataFrame.unstack` and `Series.unstack`.
+- Added support for `Series.dt.is_month_start` and `Series.dt.is_month_end`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
