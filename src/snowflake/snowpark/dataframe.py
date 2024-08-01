@@ -654,12 +654,13 @@ class DataFrame:
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 for k, v in statement_params.items():
-                    t = expr.statement_params.list.add()
+                    t = expr.statement_params.add()
                     t._1 = k
                     t._2 = v
             expr.block = block
             expr.case_sensitive = case_sensitive
             expr.log_on_exception = log_on_exception
+            expr.no_wait = False
 
             self._session._ast_batch.eval(repr)
 
@@ -708,7 +709,7 @@ class DataFrame:
         if _emit_ast:
             # Add an Assign node for SpDataframeCollect()
             repr = self._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_collect_no_wait)
+            expr = with_src_position(repr.expr.sp_dataframe_collect)
 
             if self._ast_id is None and FAIL_ON_MISSING_AST:
                 _logger.debug(self._explain_string())
@@ -719,11 +720,12 @@ class DataFrame:
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 for k, v in statement_params.items():
-                    t = expr.statement_params.list.add()
+                    t = expr.statement_params.add()
                     t._1 = k
                     t._2 = v
             expr.case_sensitive = case_sensitive
             expr.log_on_exception = log_on_exception
+            expr.no_wait = True
 
             self._session._ast_batch.eval(repr)
 
@@ -3513,7 +3515,7 @@ class DataFrame:
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 for k, v in statement_params.items():
-                    t = expr.statement_params.list.add()
+                    t = expr.statement_params.add()
                     t._1 = k
                     t._2 = v
             expr.block = block
