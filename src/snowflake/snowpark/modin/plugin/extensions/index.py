@@ -734,8 +734,7 @@ class Index(metaclass=TelemetryMeta):
         -----
         Not a Number (NaN), positive infinity and negative infinity
         evaluate to True because these are not equal to zero.
-
-        *args and **kwargs are present for compatibility with numpy
+        `*args` and `**kwargs` are present for compatibility with numpy
         and not used with Snowpark pandas.
 
         Examples
@@ -777,8 +776,7 @@ class Index(metaclass=TelemetryMeta):
         -----
         Not a Number (NaN), positive infinity and negative infinity
         evaluate to True because these are not equal to zero.
-
-        *args and **kwargs are present for compatibility with numpy
+        `*args` and `**kwargs` are present for compatibility with numpy
         and not used with Snowpark pandas.
 
         Examples
