@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
 from copy import copy, deepcopy
 from enum import Enum
+from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     AbstractSet,
@@ -205,6 +206,7 @@ def _deepcopy_selectable_fields(
     # to avoid run into recursively copy problem, we do not copy the _snowflake_plan
     # field by default and let it rebuild when needed. As far as we have other fields
     # copied correctly, the plan can be recovered properly.
+    to_selectable._is_valid_for_replacement = True
 
 
 class Selectable(LogicalPlan, ABC):
@@ -232,6 +234,8 @@ class Selectable(LogicalPlan, ABC):
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
     def __eq__(self, other: "Selectable") -> bool:
+        if not isinstance(other, Selectable):
+            return False
         if self._id is not None and other._id is not None:
             return type(self) is type(other) and self._id == other._id
         else:
@@ -252,7 +256,7 @@ class Selectable(LogicalPlan, ABC):
         """Returns the placeholder query of this Selectable logical plan."""
         pass
 
-    @property
+    @cached_property
     def _id(self) -> Optional[str]:
         """Returns the id of this Selectable logical plan."""
         return encode_id(self.sql_query, self.query_params)
