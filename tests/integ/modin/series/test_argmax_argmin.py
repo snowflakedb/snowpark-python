@@ -19,41 +19,33 @@ from tests.integ.modin.sql_counter import sql_count_checker
         ([1, 10, 4, 3, 4], ["E", "D", "C", "A", "B"]),
     ],
 )
-@pytest.mark.parametrize("func", ["idxmax", "idxmin"])
+@pytest.mark.parametrize("func", ["argmax", "argmin"])
 @pytest.mark.parametrize(
     "skipna",
-    [
-        True,
-        pytest.param(
-            False,
-            marks=pytest.mark.xfail(
-                reason="When the data column is None, Snowpark pandas returns None instead of nan"
-            ),
-        ),
-    ],
+    [True, False],
 )
-def test_idxmax_idxmin_series(data, index, func, skipna):
+def test_argmax_argmin_series(data, index, func, skipna):
     native_series = native_pd.Series(data=data, index=index)
     snow_series = pd.Series(native_series)
 
-    native_output = native_series.__getattribute__(func)(axis=0, skipna=skipna)
-    snow_output = snow_series.__getattribute__(func)(axis=0, skipna=skipna)
-    assert native_output == snow_output
+    native_output = native_series.__getattribute__(func)(skipna=skipna)
+    snow_output = snow_series.__getattribute__(func)(skipna=skipna)
+    assert snow_output == native_output
 
 
-@pytest.mark.parametrize("func", ["idxmax", "idxmin"])
+@pytest.mark.parametrize("func", ["argmax", "argmin"])
 @pytest.mark.parametrize("skipna", [True, False])
 @sql_count_checker(query_count=0)
-def test_series_idxmax_idxmin_with_multiindex(
+def test_series_argmax_argmin_with_multiindex_negative(
     multiindex_native_int_series, func, skipna
 ):
     """
-    Test Series.idxmax and Series.idxmin with a MultiIndex Series.
+    Test Series.argmax and Series.argmin with a MultiIndex Series.
     """
     native_series = multiindex_native_int_series
     snow_series = pd.Series(native_series)
     with pytest.raises(
         NotImplementedError,
-        match=f"{func} is not yet supported when the index is a MultiIndex.",
+        match=f"Series.{func} is not yet supported when the index is a MultiIndex.",
     ):
-        snow_series.__getattribute__(func)(axis=0, skipna=skipna)
+        snow_series.__getattribute__(func)(skipna=skipna)
