@@ -21,7 +21,7 @@ from tests.integ.modin.sql_counter import sql_count_checker
         ([1, 2, 3], [1, 3, 2], False),  # different order
     ],
 )
-@sql_count_checker(query_count=3, join_count=3)
+@sql_count_checker(query_count=2, join_count=2)
 def test_equals_series(lhs, rhs, expected):
     s1 = pandas.Series(lhs)
     s2 = pandas.Series(rhs)
@@ -39,7 +39,7 @@ def test_equals_series(lhs, rhs, expected):
         (np.int16, np.float16, False),
     ],
 )
-@sql_count_checker(query_count=3, join_count=3)
+@sql_count_checker(query_count=2, join_count=2)
 def test_equals_numeric_variants(ltype, rtype, expected):
     s1 = pandas.Series([1, 3]).astype(ltype)
     s2 = pandas.Series([1, 3]).astype(rtype)
@@ -52,7 +52,7 @@ def test_equals_numeric_variants(ltype, rtype, expected):
     assert s1.equals(s2) == expected
 
 
-@sql_count_checker(query_count=3, join_count=3)
+@sql_count_checker(query_count=2, join_count=2)
 def test_equals_with_native_object():
     s1 = pd.Series([1, 3])
     s2 = pandas.Series([1, 3])

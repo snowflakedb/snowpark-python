@@ -2102,12 +2102,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         assert agg_func in ("all", "any")
 
         frame = self._modin_frame
-
         empty_columns = len(frame.data_columns_index) == 0
-
-        if not (
-            empty_columns
-            or all(is_bool_dtype(t) or is_integer_dtype(t) for t in self.dtypes)
+        if not empty_columns and not all(
+            is_bool_dtype(t) or is_integer_dtype(t) for t in self.dtypes
         ):
             # Raise error if columns are non-integer/boolean
             ErrorMessage.not_implemented(
@@ -16354,16 +16351,29 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Get a pandas series that tells whether each column contains only
         # matches. We need to execute at least one intermediate SQL query to
         # get this series.
-        all_rows_match_frame = (
-            SnowflakeQueryCompiler(
-                get_frame_by_col_pos(
-                    filtered_binary_op_result,
-                    list(range(len(self.columns) * 2, len(self.columns) * 3)),
-                )
+        filtered_qc = SnowflakeQueryCompiler(
+            get_frame_by_col_pos(
+                filtered_binary_op_result,
+                list(range(len(self.columns) * 2, len(self.columns) * 3)),
             )
-            .all(axis=0, bool_only=False, skipna=False)
-            .to_pandas()
         )
+        # Even though it incurs an extra query, we must get the length of the index to prevent errors.
+        # When called with an empty DF/Series, `all` can return boolean values. Here, a query compiler is
+        # always expected to be returned. When the index is empty, create the required query compiler instead
+        # of calling `all`.
+        empty_index = filtered_qc.get_axis_len(axis=0) == 0
+        if empty_index:
+            qc_all = SnowflakeQueryCompiler(
+                filtered_qc._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
+                    {
+                        col_id: pandas_lit(True)
+                        for col_id in filtered_qc._modin_frame.data_column_snowflake_quoted_identifiers
+                    }
+                ).frame
+            )
+        else:
+            qc_all = filtered_qc.all(axis=0, bool_only=False, skipna=False)
+        all_rows_match_frame = qc_all.to_pandas()
         """
         In our example, we find that the second columns of each frame match
         completely, but the first columns do not:
