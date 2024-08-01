@@ -163,10 +163,12 @@ session._ast_batch.flush()  # Clear the AST.
 with session.ast_listener() as al:
     {indent_lines(test_source, 1)}
     # Perform extra-flush for any pending statements.
-    session._ast_batch.flush()
+    _, last_batch = session._ast_batch.flush()
 
 # Retrieve the ASTs corresponding to the test.
 result = al.base64_ast_batches
+if last_batch:
+    result.append(last_batch)
 """
     # We don't care about the results, and also want to test some APIs that can't be mocked. This suppresses an error
     # that would otherwise be thrown.
