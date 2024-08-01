@@ -930,10 +930,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                     axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
                 )
             )
-            if isinstance(self, pd.Series) and isinstance(result, BasePandasDataset):
-                result = result.all(
-                    axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
-                )
         else:
             if bool_only:
                 raise ValueError(f"Axis must be 0 or 1 (got {axis})")
@@ -978,10 +974,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                     axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
                 )
             )
-            if isinstance(self, pd.Series) and isinstance(result, BasePandasDataset):
-                result = result.any(
-                    axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
-                )
         else:
             if bool_only:
                 raise ValueError(f"Axis must be 0 or 1 (got {axis})")
