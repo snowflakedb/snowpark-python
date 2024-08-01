@@ -15,7 +15,8 @@ from tests.integ.modin.sql_counter import sql_count_checker
     "data, index",
     [
         ([1, None, 4, 3, 4], ["A", "B", "C", "D", "E"]),
-        ([1, None, 4, 3, 4], [None, "B", "C", "D", "E"]),
+        ([4, None, 1, 3, 4, 1], ["A", "B", "C", "D", "E", "F"]),
+        ([4, None, 1, 3, 4, 1], [None, "B", "C", "D", "E", "F"]),
         ([1, 10, 4, 3, 4], ["E", "D", "C", "A", "B"]),
     ],
 )
