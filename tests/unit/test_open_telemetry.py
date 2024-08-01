@@ -86,30 +86,13 @@ api_calls = [
 ]
 
 
-def test_enable_disable_open_telemetry(monkeypatch):
-    from snowflake.snowpark._internal import open_telemetry
-
-    monkeypatch.setattr(open_telemetry, "open_span_record_enabled", True)
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
-    session._conn._telemetry_client = mock.MagicMock()
-    assert open_telemetry.open_span_record_enabled is True
-    session.disable_span_record()
-    assert open_telemetry.open_span_record_enabled is False
-    session.enable_span_record()
-    assert open_telemetry.open_span_record_enabled is True
-
-
 def test_disable_open_telemetry(monkeypatch, dict_exporter):
-    from snowflake.snowpark._internal import open_telemetry
+    os.environ["SNOWPARK_SPAN_RECORD"] = "disable"
 
-    monkeypatch.setattr(open_telemetry, "open_span_record_enabled", True)
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
     session._conn._telemetry_client = mock.MagicMock()
-    session.disable_span_record()
     session.create_dataframe([1, 2, 3, 4]).to_df("a").collect()
     lineno = inspect.currentframe().f_lineno - 1
     answer = (
