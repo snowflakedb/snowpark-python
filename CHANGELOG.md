@@ -6,7 +6,20 @@
 
 #### Improvements
 - Added support server side string size limitations.
-- Added support for `functions.enable_span_record` and `functions.disable_span_record`that user can decide whether record open telemetry span.
+- Added support for `session.enable_span_record` and `session.disable_span_record`that user can decide whether record open telemetry span. The following APIs create spans:
+  - `DataFrame.collect`
+  - `DataFrame.collect_nowait`
+  - `DataFrame.to_pandas`
+  - `DataFrame.count`
+  - `DataFrame.show`
+  - `DataFrame._execute_and_get_query_id`
+  - `DataFrameWriter.save_as_table`
+  - `UDFRegistration.register`
+  - `UDFRegistration.register_from_file`
+  - `UDAFRegistration.register`
+  - `UDAFRegistration.register_from_file`
+  - `UDTFRegistration.register`
+  - `UDTFRegistration.register_from_file`
 
 #### Bug Fixes
 - Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
