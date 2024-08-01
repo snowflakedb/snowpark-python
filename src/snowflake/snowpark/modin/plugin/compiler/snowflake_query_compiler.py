@@ -10083,6 +10083,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     pandas_lit(False),
                 )
             ),
+            "is_year_start": (
+                lambda column: coalesce(
+                    (dayofmonth(col(column)) == 1) & (month(col(column)) == 1),
+                    pandas_lit(False),
+                )
+            ),
+            "is_year_end": (
+                lambda column: coalesce(
+                    (dayofmonth(col(column)) == 31) & (month(col(column)) == 12),
+                    pandas_lit(False),
+                )
+            ),
         }
         property_function = dt_property_to_function_map.get(property_name)
         if not property_function:
