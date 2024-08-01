@@ -9,7 +9,7 @@ from pandas._typing import Callable, Scalar
 
 from snowflake.snowpark.column import Column as SnowparkColumn
 from snowflake.snowpark.functions import col, concat, floor, iff, repeat, when
-from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
+from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame, SnowparkPandasColumn
 from snowflake.snowpark.modin.plugin._internal.join_utils import (
     JoinOrAlignInternalFrameResult,
 )
@@ -174,11 +174,11 @@ def is_binary_op_supported(op: str) -> bool:
 
 def compute_binary_op_between_snowpark_columns(
     op: str,
-    first_operand: SnowparkColumn,
+    first_operand: SnowparkPandasColumn,
     first_datatype: Callable[[], DataType],
-    second_operand: SnowparkColumn,
+    second_operand: SnowparkPandasColumn,
     second_datatype: Callable[[], DataType],
-) -> SnowparkColumn:
+) -> SnowparkPandasColumn:
     """
     Compute pandas binary operation for two SnowparkColumns
     Args:
@@ -362,12 +362,10 @@ def compute_binary_op_between_scalar_and_snowpark_column(
 
 def compute_binary_op_with_fill_value(
     op: str,
-    lhs: SnowparkColumn,
-    lhs_datatype: Callable[[], DataType],
-    rhs: SnowparkColumn,
-    rhs_datatype: Callable[[], DataType],
+    lhs: SnowparkPandasColumn,
+    rhs: SnowparkPandasColumn,
     fill_value: Scalar,
-) -> SnowparkColumn:
+) -> SnowparkPandasColumn:
     """
     Helper method for performing binary operations.
     1. Fills NaN/None values in the lhs and rhs with the given fill_value.
@@ -396,13 +394,12 @@ def compute_binary_op_with_fill_value(
     """
     lhs_cond, rhs_cond = lhs, rhs
     if fill_value is not None:
+        raise NotImplementedError('have to generate fill_value with SnowparkPandasColumn')
         fill_value_lit = pandas_lit(fill_value)
         lhs_cond = iff(lhs.is_null() & ~rhs.is_null(), fill_value_lit, lhs)
         rhs_cond = iff(rhs.is_null() & ~lhs.is_null(), fill_value_lit, rhs)
 
-    return compute_binary_op_between_snowpark_columns(
-        op, lhs_cond, lhs_datatype, rhs_cond, rhs_datatype
-    )
+    return getattr(lhs_cond, f"__{op}__")(rhs_cond)
 
 
 def merge_label_and_identifier_pairs(

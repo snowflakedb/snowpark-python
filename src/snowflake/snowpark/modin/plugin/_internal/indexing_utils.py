@@ -37,7 +37,7 @@ from snowflake.snowpark.functions import (
     min as min_,
     trunc,
 )
-from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
+from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame, snowpark_pandas_col
 from snowflake.snowpark.modin.plugin._internal.join_utils import (
     InheritJoinIndex,
     JoinKeyCoalesceConfig,
@@ -1145,23 +1145,16 @@ def get_frame_by_col_pos(
                 )[0]
             )
             selected_columns.append(
-                col(snowflake_quoted_identifier).alias(new_identifier)
+                snowpark_pandas_col(snowflake_quoted_identifier).alias(new_identifier)
             )
             selected_columns_quoted_identifiers.append(new_identifier)
         else:
-            selected_columns.append(snowflake_quoted_identifier)
+            selected_columns.append(snowpark_pandas_col(snowflake_quoted_identifier))
             selected_columns_quoted_identifiers.append(snowflake_quoted_identifier)
 
-    ordered_dataframe = internal_frame.ordered_dataframe.select(
-        internal_frame.index_column_snowflake_quoted_identifiers + selected_columns
-    )
-    return InternalFrame.create(
-        ordered_dataframe=ordered_dataframe,
-        data_column_pandas_labels=data_column_pandas_labels,
-        data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
-        data_column_snowflake_quoted_identifiers=selected_columns_quoted_identifiers,
-        index_column_pandas_labels=internal_frame.index_column_pandas_labels,
-        index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+    return internal_frame.project_columns(
+        data_column_pandas_labels,
+        selected_columns,
     )
 
 

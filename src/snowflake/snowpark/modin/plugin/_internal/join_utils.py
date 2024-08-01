@@ -363,12 +363,61 @@ def _create_internal_frame_with_join_or_align_result(
     else:
         data_column_pandas_index_names = left.data_column_pandas_index_names
 
+
+
+    left_quoted_identifier_to_snowflake_type = {a.snowflake_quoted_identifier: a.snowpark_type for a in left.label_to_snowflake_quoted_identifier}
+
+    right_quoted_identifier_to_snowflake_type = {a.snowflake_quoted_identifier: a.snowpark_type for a in right.label_to_snowflake_quoted_identifier}
+
+    final_data_column_types = []
+
+    for data_column_identifier in data_column_snowflake_quoted_identifiers:
+        found_type = False
+        for old_left_identifier, new_left_name in left_quoted_identifiers_map.items():
+            if found_type:
+                continue
+            if data_column_identifier == new_left_name:
+                final_data_column_types.append(left_quoted_identifier_to_snowflake_type[old_left_identifier])
+                found_type = True
+
+        for old_right_identifier, new_right_name in right_quoted_identifiers_map.items():
+            if found_type:
+                continue
+            if data_column_identifier == new_right_name:
+                final_data_column_types.append(right_quoted_identifier_to_snowflake_type[old_right_identifier])
+                found_type = True
+
+        assert found_type    
+
+    final_index_column_types = []
+
+    for index_column_identifier in index_column_snowflake_quoted_identifiers:
+        found_type = False
+        for old_left_identifier, new_left_name in left_quoted_identifiers_map.items():
+            if found_type:
+                continue
+            if index_column_identifier == new_left_name:
+                final_index_column_types.append(left_quoted_identifier_to_snowflake_type[old_left_identifier])
+                found_type = True
+
+        for old_right_identifier, new_right_name in right_quoted_identifiers_map.items():
+            if found_type:
+                continue
+            if data_column_identifier == new_right_name:
+                final_index_column_types.append(right_quoted_identifier_to_snowflake_type[old_right_identifier])
+                found_type = True
+
+        assert found_type
+
+
     result_internal_frame = InternalFrame.create(
         ordered_dataframe=result_ordered_frame,
         data_column_pandas_labels=data_column_pandas_labels,
         data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
+        data_column_types=final_data_column_types,
         index_column_pandas_labels=index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
+        index_column_types=final_index_column_types,
         data_column_pandas_index_names=data_column_pandas_index_names,
     )
     result_column_mapper = JoinOrAlignResultColumnMapper(
