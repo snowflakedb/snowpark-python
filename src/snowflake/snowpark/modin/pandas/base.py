@@ -1053,21 +1053,25 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         )
         return query_compiler
 
-    @base_not_implemented()
     def asfreq(
-        self, freq, method=None, how=None, normalize=False, fill_value=None
+        self,
+        freq: str,
+        method: FillnaOptions | None = None,
+        how: str | None = None,
+        normalize: bool = False,
+        fill_value: Scalar = None,
     ):  # noqa: PR01, RT01, D200
         """
         Convert time series to specified frequency.
         """
-        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        return self._default_to_pandas(
-            "asfreq",
-            freq,
-            method=method,
-            how=how,
-            normalize=normalize,
-            fill_value=fill_value,
+        return self.__constructor__(
+            query_compiler=self._query_compiler.asfreq(
+                freq=freq,
+                method=method,
+                how=how,
+                normalize=normalize,
+                fill_value=fill_value,
+            )
         )
 
     @base_not_implemented()
