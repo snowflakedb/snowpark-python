@@ -1475,11 +1475,11 @@ class CombinedDatetimelikeProperties:
         >>> s.dt.is_month_start
         0    False
         1    False
-        2    True
+        2     True
         dtype: bool
         >>> s.dt.is_month_end
         0    False
-        1    True
+        1     True
         2    False
         dtype: bool
         """
@@ -1514,11 +1514,11 @@ class CombinedDatetimelikeProperties:
         >>> s.dt.is_month_start
         0    False
         1    False
-        2    True
+        2     True
         dtype: bool
         >>> s.dt.is_month_end
         0    False
-        1    True
+        1     True
         2    False
         dtype: bool
         """
