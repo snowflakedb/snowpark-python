@@ -709,33 +709,36 @@ def test_lit_contains_single_quote(session):
 
 def test_in_expression_1_in_with_constant_value_list(session):
     df = session.create_dataframe(
-        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
+        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33], [None, "c", 44, 44]]
     ).to_df(["a", "b", "c", "d"])
 
     df1 = df.filter(col("a").in_(1, 2))
-    Utils.check_answer([Row(1, "a", 1, 1), Row(2, "b", 2, 2)], df1, sort=False)
+    Utils.check_answer(df1, [Row(1, "a", 1, 1), Row(2, "b", 2, 2)], sort=False)
 
     df2 = df.filter(~col("a").in_(lit(1), lit(2)))
-    Utils.check_answer([Row(3, "b", 33, 33)], df2, sort=False)
+    Utils.check_answer(df2, [Row(3, "b", 33, 33)], sort=False)
 
     df3 = df.select(col("a").in_(1, 2).as_("in_result"))
-    Utils.check_answer([Row(True), Row(True), Row(False)], df3, sort=False)
+    Utils.check_answer(df3, [Row(True), Row(True), Row(False), Row(None)], sort=False)
 
     df4 = df.select(~col("a").in_(lit(1), lit(2)).as_("in_result"))
-    Utils.check_answer([Row(False), Row(False), Row(True)], df4, sort=False)
+    Utils.check_answer(df4, [Row(False), Row(False), Row(True), Row(None)], sort=False)
 
     # Redo tests with list inputs
     df1 = df.filter(col("a").in_([1, 2]))
-    Utils.check_answer([Row(1, "a", 1, 1), Row(2, "b", 2, 2)], df1, sort=False)
+    Utils.check_answer(df1, [Row(1, "a", 1, 1), Row(2, "b", 2, 2)], sort=False)
 
     df2 = df.filter(~col("a").in_([lit(1), lit(2)]))
-    Utils.check_answer([Row(3, "b", 33, 33)], df2, sort=False)
+    Utils.check_answer(df2, [Row(3, "b", 33, 33)], sort=False)
 
     df3 = df.select(col("a").in_([1, 2]).as_("in_result"))
-    Utils.check_answer([Row(True), Row(True), Row(False)], df3, sort=False)
+    Utils.check_answer(df3, [Row(True), Row(True), Row(False), Row(None)], sort=False)
 
     df4 = df.select(~col("a").in_([lit(1), lit(2)]).as_("in_result"))
-    Utils.check_answer([Row(False), Row(False), Row(True)], df4, sort=False)
+    Utils.check_answer(df4, [Row(False), Row(False), Row(True), Row(None)], sort=False)
+
+    df5 = df.filter(col("a").in_([]))
+    Utils.check_answer(df5, [], sort=False)
 
 
 def test_in_expression_2_in_with_subquery(session):
@@ -759,6 +762,10 @@ def test_in_expression_2_in_with_subquery(session):
     # select with NOT
     df4 = df.select(~df["a"].in_(df0.filter(col("a") < 2)).as_("in_result"))
     Utils.check_answer(df4, [Row(False), Row(True), Row(True)])
+
+    # select with collect
+    df4 = df.select(df["a"].in_(df0.filter(col("a") > 100).collect()).as_("in_result"))
+    Utils.check_answer(df4, [Row(False), Row(False), Row(False)])
 
 
 def test_in_expression_3_with_all_types(session, local_testing_mode):
