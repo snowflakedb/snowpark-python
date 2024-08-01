@@ -214,6 +214,8 @@ def test_register_udtf_from_file_with_typehints(session, resources_path):
 def test_udtf_register_with_optional_args(
     session: Session, resources_path, register_from_file
 ):
+    if register_from_file and IS_IN_STORED_PROC:
+        pytest.skip("skip register from file in stored proc")
     test_files = TestFiles(resources_path)
     schema = [
         "int_req",
