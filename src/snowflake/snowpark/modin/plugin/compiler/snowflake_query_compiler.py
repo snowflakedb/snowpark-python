@@ -10077,6 +10077,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "is_month_start": (
                 lambda column: coalesce(dayofmonth(col(column)) == 1, pandas_lit(False))
             ),
+            # To check if it's a month end, make sure that the following day is a month start.
             "is_month_end": (
                 lambda column: coalesce(
                     dayofmonth(dateadd("day", pandas_lit(1), col(column))) == 1,
