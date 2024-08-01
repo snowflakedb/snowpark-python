@@ -123,7 +123,7 @@ class Index(metaclass=TelemetryMeta):
 
         Parameters
         ----------
-        data : array-like (1-dimensional), Series, DataFrame, SnowflakeQueryCompiler, optional
+        data : array-like (1-dimensional), pd.Series, pd.DataFrame, SnowflakeQueryCompiler, optional
         dtype : str, numpy.dtype, or ExtensionDtype, optional
             Data type for the output Index. If not specified, this will be
             inferred from `data`.
