@@ -166,7 +166,7 @@ with session.ast_listener() as al:
     _, last_batch = session._ast_batch.flush()
 
 # Retrieve the ASTs corresponding to the test.
-result = al.base64_ast_batches
+result = al.base64_batch
 if last_batch:
     result.append(last_batch)
 """
@@ -176,8 +176,8 @@ if last_batch:
 
     locals = {"session": session}
     exec(source, locals)
-    base64_batches = locals["result"]
-    return render(base64_batches), "\n".join(base64_batches)
+    base64_batch = locals["result"]
+    return render(base64_batch), "\n".join(base64_batch)
 
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)

@@ -641,7 +641,7 @@ class DataFrame:
         """
 
         if _emit_ast:
-            # Add an Assign node for SpDataframeCollect()
+            # Add an Assign node that applies SpDataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_dataframe_collect)
 
@@ -672,7 +672,7 @@ class DataFrame:
                 "TODO: Implement collect() with EvalResult in Phase1."
             )
 
-        # Phase0 flushes AST and encodes it as part of the query.
+        # Phase 0 flushes AST and encodes it as part of the query.
         kwargs = {}
         _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
@@ -707,7 +707,7 @@ class DataFrame:
             :meth:`collect()`
         """
         if _emit_ast:
-            # Add an Assign node for SpDataframeCollect()
+            # Add an Assign node that applies SpDataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_dataframe_collect)
 
@@ -737,7 +737,7 @@ class DataFrame:
                 "TODO: Implement collect() with EvalResult in Phase1."
             )
 
-        # Phase0 flushes AST and encodes it as part of the query.
+        # Phase 0 flushes AST and encodes it as part of the query.
         kwargs = {}
         _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
@@ -3502,7 +3502,7 @@ class DataFrame:
         """
 
         if _emit_ast:
-            # Add an Assign node for SpDataframeCollect()
+            # Add an Assign node that applies SpDataframeCount() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_dataframe_count)
 
@@ -3530,7 +3530,7 @@ class DataFrame:
                 "TODO: Implement collect() with EvalResult in Phase1."
             )
 
-        # Phase0 flushes AST and encodes it as part of the query.
+        # Phase 0 flushes AST and encodes it as part of the query.
         kwargs = {}
         _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
