@@ -30,11 +30,11 @@ from tests.integ.modin.sql_counter import SqlCounter
 )
 def test_first_and_last_valid_index_dataframe(native_dataframe):
     snow_dataframe = pd.DataFrame(native_dataframe)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=2):
         assert (
             native_dataframe.first_valid_index() == snow_dataframe.first_valid_index()
         )
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=2):
         assert native_dataframe.last_valid_index() == snow_dataframe.last_valid_index()
 
 

@@ -24,16 +24,16 @@ NATIVE_INDEX_NON_BOOL_INT_TEST_DATA = [
     native_pd.Index(["a", "b", 1, 2]),
     native_pd.Index(["a", "b", "c", "d"]),
     native_pd.Index([5, None, 7]),
+    native_pd.Index([], dtype="object"),
 ]
 
 NATIVE_INDEX_EMPTY_DATA = [
-    native_pd.Index([], dtype="object"),
     native_pd.Index([], dtype=bool),
     native_pd.Index([], dtype=int, name="NM"),
 ]
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 @pytest.mark.parametrize("func", ["all", "any"])
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_BOOL_INT_TEST_DATA)
 def test_index_all_any(func, native_index):
@@ -43,7 +43,7 @@ def test_index_all_any(func, native_index):
 
 @pytest.mark.parametrize("func", ["all", "any"])
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_NON_BOOL_INT_TEST_DATA)
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_index_all_any_negative(func, native_index):
     snow_index = pd.Index(native_index)
     with pytest.raises(
@@ -55,7 +55,7 @@ def test_index_all_any_negative(func, native_index):
 
 @pytest.mark.parametrize("func", ["all", "any"])
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_EMPTY_DATA)
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_index_all_any_empty(func, native_index):
     snow_index = pd.Index(native_index)
     assert getattr(snow_index, func)() == getattr(native_index, func)()

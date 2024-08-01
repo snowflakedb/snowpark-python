@@ -2101,16 +2101,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         frame = self._modin_frame
 
-        # Even though it incurs an extra query, we must get the length of the index to prevent errors.
-        # Empty Series objects return True/False for all/any respectively, regardless of the Series dtype.
-        # Otherwise, Series([], dtype="object").all() would raise a NotImplementedError while
-        # Series([], dtype=bool).all() would work fine; in reality they both produce the same result, True.
-        empty_index = self.get_axis_len(axis=0) == 0
         empty_columns = len(frame.data_columns_index) == 0
 
         if not (
             empty_columns
-            or empty_index
             or all(is_bool_dtype(t) or is_integer_dtype(t) for t in self.dtypes)
         ):
             # Raise error if columns are non-integer/boolean
