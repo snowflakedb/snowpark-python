@@ -4,10 +4,14 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+- Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a util function to check the equality of two Snowpark DataFrames.
+
 #### Improvements
 - Added support server side string size limitations.
 - Added support for column lineage in the DataFrame.lineage.trace API.
 - Added support for passing `INFER_SCHEMA` options to `DataFrameReader` via `INFER_SCHEMA_OPTIONS`.
+- Added support for automatically cleaning up temporary tables created by `df.cache_result()` in the current session, when the DataFrame is no longer referenced (i.e., gets garbage collected). It is still an experimental feature not enabled by default, and can be enabled by setting `session.auto_clean_up_temp_table_enabled` to `True`.
 
 #### Bug Fixes
 - Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
@@ -41,6 +45,7 @@
 - Added support for `Series.dt.day_name` and `Series.dt.month_name`.
 - Added support for indexing on Index, e.g., `df.index[:10]`.
 - Added support for `DataFrame.unstack` and `Series.unstack`.
+- Added support for `DataFrame.asfreq` and `Series.asfreq`.
 - Added support for `Series.dt.is_month_start` and `Series.dt.is_month_end`.
 
 #### Improvements
