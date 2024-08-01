@@ -6,7 +6,7 @@
 
 #### Improvements
 - Added support server side string size limitations.
-- Added support for `session.enable_span_record` and `session.disable_span_record`that user can decide whether record open telemetry span. The following APIs create spans:
+- Added support for environment variable `SNOWPARK_SPAN_RECORD` that user can decide whether record open telemetry span. Recording is enabled when `SNOWPARK_SPAN_RECORD` is not set or set to `enable`, it is disabled when `SNOWPARK_SPAN_RECORD` set to `disable`. The following APIs create spans:
   - `DataFrame.collect`
   - `DataFrame.collect_nowait`
   - `DataFrame.to_pandas`

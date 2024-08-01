@@ -3325,22 +3325,4 @@ class Session:
             _logger.warning("query `%s` cannot be explained", query)
             return None
 
-    def enable_span_record(self) -> None:
-        """
-        This function enable open telemetry span recording in action functions. If opentelemetry libraries exist in the environment, span will be recorded.
-
-        """
-        from snowflake.snowpark._internal import open_telemetry
-
-        open_telemetry.open_span_record_enabled = True
-
-    def disable_span_record(self) -> None:
-        """
-        This function disable open telemetry span recording in action functions. No span will be recorded even if opentelemetry libraries exist in environment.
-
-        """
-        from snowflake.snowpark._internal import open_telemetry
-
-        open_telemetry.open_span_record_enabled = False
-
     createDataFrame = create_dataframe
