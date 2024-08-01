@@ -54,6 +54,7 @@
 - Added support for `DataFrame.asfreq` and `Series.asfreq`.
 - Added support for `Series.dt.is_month_start` and `Series.dt.is_month_end`.
 - Added support for `Index.all` and `Index.any`.
+- Added support for `Series.dt.is_year_start` and `Series.dt.is_year_end`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
