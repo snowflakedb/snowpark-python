@@ -39,6 +39,9 @@ from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
+from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+    SnowflakeQueryCompiler,
+)
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     index_not_implemented,
@@ -106,7 +109,7 @@ def is_lazy_check(func: Callable) -> Callable:
 class Index(metaclass=TelemetryMeta):
     def __init__(
         self,
-        data: ArrayLike | DataFrame | Series | None = None,
+        data: ArrayLike | DataFrame | Series | SnowflakeQueryCompiler | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -120,7 +123,7 @@ class Index(metaclass=TelemetryMeta):
 
         Parameters
         ----------
-        data : array-like (1-dimensional), Series, DataFrame, optional
+        data : array-like (1-dimensional), Series, DataFrame, SnowflakeQueryCompiler, optional
         dtype : str, numpy.dtype, or ExtensionDtype, optional
             Data type for the output Index. If not specified, this will be
             inferred from `data`.
@@ -174,7 +177,7 @@ class Index(metaclass=TelemetryMeta):
 
     def set_query_compiler(
         self,
-        data: ArrayLike | DataFrame | Series | None = None,
+        data: ArrayLike | DataFrame | Series | SnowflakeQueryCompiler | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -185,6 +188,8 @@ class Index(metaclass=TelemetryMeta):
         """
         if isinstance(data, BasePandasDataset):
             qc = data._query_compiler
+        elif isinstance(data, SnowflakeQueryCompiler):
+            qc = data
         else:
             qc = DataFrame(
                 index=native_pd.Index(
