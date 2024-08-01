@@ -122,6 +122,7 @@ class WithQueryBlock(LogicalPlan):
     similar as select from a SnowflakeTable.
     Note that SnowflakeTable is a leaf node, but this node is not.
     """
+
     def __init__(self, name: str, child: LogicalPlan) -> None:
         super().__init__()
         self.name = name

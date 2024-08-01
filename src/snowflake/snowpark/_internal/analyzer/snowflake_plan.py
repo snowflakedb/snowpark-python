@@ -606,14 +606,45 @@ class SnowflakePlanBuilder:
         }
         api_calls = [*select_left.api_calls, *select_right.api_calls]
 
-        # with the CTE optimization, queries, referred cte tables, and post actions propogated from
-        # left and right can have duplicated queries if there is a common CTE referred. Do a query
-        # deduplication here.
-        queries = select_left.queries[:-1].copy()
-        for query in select_right.queries[:-1]:
-            if query not in queries:
-                queries.append(query)
-        queries.append(
+        # This is a temporary workaround for query comparison. The previous CTE optimization
+        # introduced a new query_id_place_holder that can be a random generated id if not provided.
+        # Which could cause the comparison of two queries fail even if the sql and is_ddl_on_temp_object
+        # value is the same.
+        # TODO (SNOW-1541096): once old cold related to the CTE optimization is cleaned, this workaround
+        #       will not be needed anymore.
+        def _query_exists(current_query: Query, existing_queries: List[Query]) -> bool:
+            for existing_query in existing_queries:
+                if (current_query.sql == existing_query.sql) and (
+                    current_query.is_ddl_on_temp_object
+                    == existing_query.is_ddl_on_temp_object
+                ):
+                    return True
+
+            return False
+
+        referred_cte_tables: Set[str] = set()
+        if self.session.cte_optimization_enabled and is_new_compilation_stage_enabled():
+            # When the cte optimization and the new compilation stage is enabled, the
+            # queries, referred cte tables, and post actions propogated from
+            # left and right can have duplicated queries if there is a common CTE block referred.
+            # Need to do a deduplication to avoid repeated query.
+            merged_queries = select_left.queries[:-1].copy()
+            for query in select_right.queries[:-1]:
+                if not _query_exists(query, merged_queries):
+                    merged_queries.append(query)
+
+            referred_cte_tables.update(select_left.referred_cte_tables)
+            referred_cte_tables.update(select_right.referred_cte_tables)
+
+            post_actions = select_left.post_actions.copy()
+            for post_action in select_right.post_actions:
+                if post_action not in post_actions:
+                    post_actions.append(post_action)
+        else:
+            merged_queries = select_left.queries[:-1] + select_left.queries[:-1]
+            post_actions = (select_left.post_actions + select_right.post_actions,)
+
+        queries = merged_queries + [
             Query(
                 sql_generator(
                     select_left.queries[-1].sql, select_right.queries[-1].sql
@@ -623,16 +654,7 @@ class SnowflakePlanBuilder:
                     *select_right.queries[-1].params,
                 ],
             )
-        )
-
-        referred_cte_tables: Set[str] = set()
-        referred_cte_tables.update(select_left.referred_cte_tables)
-        referred_cte_tables.update(select_right.referred_cte_tables)
-
-        post_actions = select_left.post_actions.copy()
-        for post_action in select_right.post_actions:
-            if post_action not in post_actions:
-                post_actions.append(post_action)
+        ]
 
         return SnowflakePlan(
             queries,

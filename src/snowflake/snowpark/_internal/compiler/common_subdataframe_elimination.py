@@ -52,24 +52,32 @@ class CommonSubDataframeElimination:
         -------
         A set of the new LogicalPlans with common sub dataframe deduplicated with CTE node.
         """
-        final_logical_plans = []
+        final_logical_plans: List[LogicalPlan] = []
         for logical_plan in self._logical_plans:
             # clear the node_count and parents map
             self._node_count_map = defaultdict(int)
             self._node_parents_map = defaultdict(set)
+            self._duplicated_nodes.clear()
 
-            # NOTE: the current common sub-dataframe elimination
-            if not isinstance(logical_plan, (SnowflakePlan, Selectable)):
-                # do a resolve of the logical plan to get the root
-                logical_plan = self._query_generator.resolve(logical_plan)
+            # NOTE: the current common sub-dataframe elimination relies on the
+            # fact that all intermediate steps are resolved properly. Here we
+            # do a pass of resolve of the logical plan to make sure we get a valid
+            # resolved plan to start the process.
+            # If the plan is already a resolved plan, this step will be a no-op.
+            logical_plan = self._query_generator.resolve(logical_plan)
 
-            self._duplicated_nodes.update(self._find_duplicate_subtrees(logical_plan))
-            deduplicated_plan = self._deduplicate_with_cte(logical_plan)
-            final_logical_plans.append(deduplicated_plan)
+            # apply the CTE optimization on the resolved plan
+            self._find_duplicate_subtrees(logical_plan)
+            if len(self._duplicated_nodes) > 0:
+                deduplicated_plan = self._deduplicate_with_cte(logical_plan)
+                final_logical_plans.append(deduplicated_plan)
+            else:
+                final_logical_plans.append(logical_plan)
 
+        # TODO (SNOW-1566363): Add telemetry for CTE
         return final_logical_plans
 
-    def _find_duplicate_subtrees(self, root: TreeNode) -> Set[TreeNode]:
+    def _find_duplicate_subtrees(self, root: TreeNode) -> None:
         """
         Returns a set containing all duplicate subtrees in query plan tree.
         The root of a duplicate subtree is defined as a duplicate node, if
@@ -123,7 +131,11 @@ class CommonSubDataframeElimination:
             return False
 
         _traverse(root)
-        return {node for node in self._node_count_map if _is_duplicate_subtree(node)}
+
+        duplicated_nodes = {
+            node for node in self._node_count_map if _is_duplicate_subtree(node)
+        }
+        self._duplicated_nodes.update(duplicated_nodes)
 
     def _update_parents(self, node: TreeNode, new_node: TreeNode) -> None:
         parents = self._node_parents_map[node]
@@ -138,15 +150,7 @@ class CommonSubDataframeElimination:
 
     def _deduplicate_with_cte(self, root: "TreeNode") -> LogicalPlan:
         """
-        Transform
-
-        Parameters
-        ----------
-        root
-
-        Returns
-        -------
-
+        Deduplicate the duplicated nodes with common sub
         """
         stack1, stack2 = [root], []
 
