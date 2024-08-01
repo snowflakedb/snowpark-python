@@ -84,8 +84,6 @@ from snowflake.snowpark.functions import (
     desc,
     desc_nulls_first,
     desc_nulls_last,
-    disable_span_record,
-    enable_span_record,
     exp,
     floor,
     format_number,
@@ -2241,14 +2239,3 @@ def test_negative_function_call(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sum_(col("a"))).collect()
         assert "is not recognized" in str(ex_info)
-
-
-def test_enable_disable_open_telemetry(monkeypatch):
-    from snowflake.snowpark._internal import open_telemetry
-
-    monkeypatch.setattr(open_telemetry, "open_span_record_enabled", True)
-    assert open_telemetry.open_span_record_enabled is True
-    disable_span_record()
-    assert open_telemetry.open_span_record_enabled is False
-    enable_span_record()
-    assert open_telemetry.open_span_record_enabled is True
