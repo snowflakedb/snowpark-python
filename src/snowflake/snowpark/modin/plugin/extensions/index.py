@@ -160,6 +160,9 @@ class Index(metaclass=TelemetryMeta):
         Index([1, 2, 3], dtype='int64')
         """
         self.is_lazy = convert_to_lazy
+        # Set the parent of the Index object - used with the name APIs
+        self._parent = data if isinstance(data, BasePandasDataset) else None
+        data = data._query_compiler if isinstance(data, BasePandasDataset) else data
         if self.is_lazy:
             self.set_query_compiler(
                 data=data,
@@ -176,12 +179,10 @@ class Index(metaclass=TelemetryMeta):
                 name=name,
                 tupleize_cols=tupleize_cols,
             )
-        # Set the parent of the Index object - used with the name APIs
-        self._parent = data if isinstance(data, BasePandasDataset) else None
 
     def set_query_compiler(
         self,
-        data: ArrayLike | DataFrame | Series | SnowflakeQueryCompiler | None = None,
+        data: ArrayLike | SnowflakeQueryCompiler | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -190,9 +191,7 @@ class Index(metaclass=TelemetryMeta):
         """
         Helper method to find and save query compiler when index should be lazy
         """
-        if isinstance(data, BasePandasDataset):
-            qc = data._query_compiler
-        elif isinstance(data, SnowflakeQueryCompiler):
+        if isinstance(data, SnowflakeQueryCompiler):
             qc = data
         else:
             qc = DataFrame(
@@ -208,7 +207,7 @@ class Index(metaclass=TelemetryMeta):
 
     def set_local_index(
         self,
-        data: ArrayLike | DataFrame | Series | SnowflakeQueryCompiler | None = None,
+        data: ArrayLike | SnowflakeQueryCompiler | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -217,9 +216,7 @@ class Index(metaclass=TelemetryMeta):
         """
         Helper method to create and save local index when index should not be lazy
         """
-        if isinstance(data, BasePandasDataset):
-            index = data._query_compiler._modin_frame.index_columns_pandas_index()
-        elif isinstance(data, SnowflakeQueryCompiler):
+        if isinstance(data, SnowflakeQueryCompiler):
             index = data._modin_frame.index_columns_pandas_index()
         else:
             index = native_pd.Index(

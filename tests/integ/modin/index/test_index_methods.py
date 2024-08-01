@@ -3,6 +3,7 @@
 #
 
 import modin.pandas as pd
+import pandas as native_pd
 import pytest
 from numpy.testing import assert_equal
 from pandas._libs import lib
@@ -15,6 +16,7 @@ from tests.integ.modin.index.conftest import (
 )
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
+    assert_frame_equal,
     assert_index_equal,
     assert_series_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -349,3 +351,24 @@ def test_has_duplicates(index, is_lazy):
     with SqlCounter(query_count=int(is_lazy)):
         snow_index = pd.Index(index, convert_to_lazy=is_lazy)
         assert index.has_duplicates == snow_index.has_duplicates
+
+
+@sql_count_checker(query_count=6)
+def test_index_parent():
+    """
+    Check whether the parent field in Index is updated properly.
+    """
+    native_idx1 = native_pd.Index(["A", "B"], name="xyz")
+    native_idx2 = native_pd.Index(["A", "B", "D", "E", "G", "H"], name="CFI")
+
+    # DataFrame case.
+    df = pd.DataFrame([[1, 2], [3, 4]], index=native_idx1)
+    snow_idx = df.index
+    assert_frame_equal(snow_idx._parent, df)
+    assert_index_equal(snow_idx, native_idx1)
+
+    # Series case.
+    s = pd.Series([1, 2, 4, 5, 6, 7], index=native_idx2, name="zyx")
+    snow_idx = s.index
+    assert_series_equal(snow_idx._parent, s)
+    assert_index_equal(snow_idx, native_idx2)

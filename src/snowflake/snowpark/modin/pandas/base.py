@@ -667,7 +667,9 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             The union of all indexes across the partitions.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        return self._query_compiler.index
+        from snowflake.snowpark.modin.plugin.extensions.index import Index
+
+        return Index(data=self, convert_to_lazy=True)
 
     index = property(_get_index, _set_index)
 
