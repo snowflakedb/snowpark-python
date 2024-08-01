@@ -204,7 +204,7 @@ class Index(metaclass=TelemetryMeta):
 
     def set_local_index(
         self,
-        data: ArrayLike | DataFrame | Series | None = None,
+        data: ArrayLike | DataFrame | Series | SnowflakeQueryCompiler | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -215,6 +215,8 @@ class Index(metaclass=TelemetryMeta):
         """
         if isinstance(data, BasePandasDataset):
             index = data._query_compiler._modin_frame.index_columns_pandas_index
+        elif isinstance(data, SnowflakeQueryCompiler):
+            index = data._modin_frame.index_columns_pandas_index
         else:
             index = native_pd.Index(
                 data=data,
