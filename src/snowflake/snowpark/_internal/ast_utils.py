@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     Literal,
     MultipleExpression,
+    Star,
     UnresolvedAttribute,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
@@ -519,6 +520,9 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
     elif isinstance(expr, CaseWhen):
         # TODO: Not sure if this can come up in a real use case. We see this use case for internal calls, where
         # we don't need an AST.
+        return None
+    elif isinstance(expr, Star):
+        # Comes up in count(), handled there.
         return None
     else:
         raise NotImplementedError(

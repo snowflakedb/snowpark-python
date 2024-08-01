@@ -676,14 +676,13 @@ class DataFrame:
         _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
         with open_telemetry_context_manager(self.collect, self):
-            result = self._internal_collect_with_tag_no_telemetry(
+            return self._internal_collect_with_tag_no_telemetry(
                 statement_params=statement_params,
                 block=block,
                 log_on_exception=log_on_exception,
                 case_sensitive=case_sensitive,
                 **kwargs,
             )
-        return result
 
     @df_collect_api_telemetry
     def collect_nowait(
@@ -692,6 +691,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
+        _emit_ast: bool = True,
     ) -> AsyncJob:
         """Executes the query representing this DataFrame asynchronously and returns: class:`AsyncJob`.
         It is equivalent to ``collect(block=False)``.
@@ -705,6 +705,40 @@ class DataFrame:
         See also:
             :meth:`collect()`
         """
+        if _emit_ast:
+            # Add an Assign node for SpDataframeCollect()
+            repr = self._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_dataframe_collect_no_wait)
+
+            if self._ast_id is None and FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_id
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = expr.statement_params.list.add()
+                    t._1 = k
+                    t._2 = v
+            expr.case_sensitive = case_sensitive
+            expr.log_on_exception = log_on_exception
+
+            self._session._ast_batch.eval(repr)
+
+        if self._session._conn.is_phase1_enabled():
+            # TODO: Logic here should be
+            # ast = self._session._ast_batch.flush()
+            # res = self._session._conn.ast_query(ast)
+            raise NotImplementedError(
+                "TODO: Implement collect() with EvalResult in Phase1."
+            )
+
+        # Phase0 flushes AST and encodes it as part of the query.
+        kwargs = {}
+        _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+
         with open_telemetry_context_manager(self.collect_nowait, self):
             return self._internal_collect_with_tag_no_telemetry(
                 statement_params=statement_params,
@@ -712,6 +746,7 @@ class DataFrame:
                 data_type=_AsyncResultType.ROW,
                 log_on_exception=log_on_exception,
                 case_sensitive=case_sensitive,
+                **kwargs,
             )
 
     def _internal_collect_with_tag_no_telemetry(
@@ -3448,7 +3483,11 @@ class DataFrame:
         ...  # pragma: no cover
 
     def count(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        _emit_ast: bool = True,
     ) -> Union[int, AsyncJob]:
         """Executes the query representing this DataFrame and returns the number of
         rows in the result (similar to the COUNT function in SQL).
@@ -3459,13 +3498,48 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
+
+        if _emit_ast:
+            # Add an Assign node for SpDataframeCollect()
+            repr = self._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_dataframe_count)
+
+            if self._ast_id is None and FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_id
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = expr.statement_params.list.add()
+                    t._1 = k
+                    t._2 = v
+            expr.block = block
+
+            self._session._ast_batch.eval(repr)
+
+        if self._session._conn.is_phase1_enabled():
+            # TODO: Logic here should be
+            # ast = self._session._ast_batch.flush()
+            # res = self._session._conn.ast_query(ast)
+            raise NotImplementedError(
+                "TODO: Implement collect() with EvalResult in Phase1."
+            )
+
+        # Phase0 flushes AST and encodes it as part of the query.
+        kwargs = {}
+        _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+
         with open_telemetry_context_manager(self.count, self):
-            df = self.agg(("*", "count"))
+            df = self.agg(("*", "count"), _emit_ast=False)
             add_api_call(df, "DataFrame.count")
             result = df._internal_collect_with_tag(
                 statement_params=statement_params,
                 block=block,
                 data_type=_AsyncResultType.COUNT,
+                **kwargs,
             )
             return result[0][0] if block else result
 

@@ -6,6 +6,7 @@ import os
 import pathlib
 import subprocess
 from dataclasses import dataclass
+from typing import List, Union
 
 import pytest
 
@@ -62,18 +63,24 @@ def idfn(val):
     return val.filename
 
 
-def render(ast_base64: str) -> str:
+def render(ast_base64: Union[str, List[str]]) -> str:
     """Uses the unparser to render the AST."""
     assert (
         pytest.unparser_jar
     ), "A valid Unparser JAR path must be supplied either via --unparser-jar=<path> or the environment variable SNOWPARK_UNPARSER_JAR"
+
+    if isinstance(ast_base64, str):
+        ast_base64 = [ast_base64]
+
     res = subprocess.run(
         [
             "java",
             "-cp",
             pytest.unparser_jar,
             "com.snowflake.snowpark.experimental.unparser.UnparserCli",
-            ast_base64,
+            ",".join(
+                ast_base64
+            ),  # base64 strings will not contain , so pass multiple batches comma-separated.
         ],
         capture_output=True,
         text=True,
@@ -168,9 +175,7 @@ result = al.base64_ast_batches
     locals = {"session": session}
     exec(source, locals)
     base64_batches = locals["result"]
-    return "\n".join([render(base64) for base64 in base64_batches]), "\n".join(
-        base64_batches
-    )
+    return render(base64_batches), "\n".join(base64_batches)
 
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
