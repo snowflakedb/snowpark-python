@@ -4,6 +4,7 @@
 
 from collections.abc import Hashable
 from typing import Literal, NamedTuple, Optional, Union
+from snowflake.snowpark.types import DataType
 
 import numpy as np
 
@@ -31,6 +32,8 @@ class LabelIdentifierPair(NamedTuple):
     label: LabelTuple
     # Used to access the snowpark dataframe with data in snowflake
     snowflake_quoted_identifier: str
+    # The type of the column.
+    snowpark_type: Optional[DataType] = None
 
 
 JoinTypeLit = Literal["left", "right", "inner", "outer", "cross"]

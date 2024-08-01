@@ -1155,13 +1155,16 @@ def get_frame_by_col_pos(
     ordered_dataframe = internal_frame.ordered_dataframe.select(
         internal_frame.index_column_snowflake_quoted_identifiers + selected_columns
     )
+    input_types = [a.snowpark_type for a in internal_frame.label_to_snowflake_quoted_identifier[internal_frame.num_index_columns:]]
     return InternalFrame.create(
         ordered_dataframe=ordered_dataframe,
         data_column_pandas_labels=data_column_pandas_labels,
         data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
         data_column_snowflake_quoted_identifiers=selected_columns_quoted_identifiers,
+        data_column_types=native_pd.Series(input_types).iloc[valid_indices],
         index_column_pandas_labels=internal_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+        index_column_types=[a.snowpark_type for a in internal_frame.label_to_snowflake_quoted_identifier[:internal_frame.num_index_columns]]
     )
 
 

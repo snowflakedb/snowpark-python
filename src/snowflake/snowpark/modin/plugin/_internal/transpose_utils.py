@@ -282,6 +282,7 @@ def clean_up_transpose_result_index_and_labels(
         data_column_pandas_labels=new_data_column_pandas_labels,
         data_column_pandas_index_names=original_frame.index_column_pandas_labels,
         data_column_snowflake_quoted_identifiers=new_data_column_snowflake_quoted_identifiers,
+        data_column_types=[a.snowpark_type for a in original_frame.label_to_snowflake_quoted_identifier[original_frame.num_index_columns:]],
         index_column_pandas_labels=new_index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=new_index_column_snowflake_quoted_identifiers,
     )
