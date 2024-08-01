@@ -28,11 +28,11 @@ res3 = res1.collect(block=False)
 
 res3
 
-res4 = res1.collect(statement_params={SF_PARTNER: FAKE_PARTNER})
+res4 = res1.collect(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
 res4
 
-res5 = res1.collect(statement_params={SF_PARTNER: FAKE_PARTNER}, block=False, log_on_exception=True, case_sensitive=False)
+res5 = res1.collect(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False, log_on_exception=True, case_sensitive=False)
 
 res5
 
@@ -40,10 +40,10 @@ res6 = res1.collect_nowait()
 
 res6
 
-res7 = res1.collect_nowait(statement_params={SF_PARTNER: FAKE_PARTNER})
+res7 = res1.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
 res7
 
-res8 = res1.collect_nowait(statement_params={SF_PARTNER: FAKE_PARTNER}, log_on_exception=True, case_sensitive=False)
+res8 = res1.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, log_on_exception=True, case_sensitive=False)
 
 res8

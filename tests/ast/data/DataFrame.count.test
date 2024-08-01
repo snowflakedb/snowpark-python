@@ -20,6 +20,6 @@ res3 = res1.count(block=False)
 
 res3
 
-res4 = res1.count(statement_params={SF_PARTNER: FAKE_PARTNER}, block=False)
+res4 = res1.count(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
 
 res4
