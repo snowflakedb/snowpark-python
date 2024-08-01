@@ -191,7 +191,7 @@ from snowflake.snowpark.modin.plugin._internal.cut_utils import (
     compute_bin_indices,
     preprocess_bins_for_cut,
 )
-from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
+from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame, SnowparkPandasColumn, snowpark_pandas_col
 from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
     check_is_groupby_supported_by_snowflake,
     extract_groupby_column_pandas_labels,
@@ -497,7 +497,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         # create snowpark df
-        ordered_dataframe = create_ordered_dataframe_from_pandas(
+        ordered_dataframe, types = create_ordered_dataframe_from_pandas(
             df,
             snowflake_quoted_identifiers=current_df_data_column_snowflake_quoted_identifiers,
             ordering_columns=[
@@ -506,15 +506,37 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
         )
 
+        data_column_types = []
+        for identifier in data_column_snowflake_quoted_identifiers:
+            found_type = False
+            for each_type in types:
+                if each_type.column_identifier == identifier:
+                    data_column_types.append(each_type.datatype)
+                    found_type = True
+            assert found_type
+
+
+        index_column_types = []
+        for identifier in index_snowflake_quoted_identifiers:
+            found_type = False
+            for each_type in types:
+                if each_type.column_identifier == identifier:
+                    index_column_types.append(each_type.datatype)
+                    found_type = True
+            assert found_type
+
+
         # construct the internal frame for the dataframe
         return cls(
             InternalFrame.create(
                 ordered_dataframe=ordered_dataframe,
                 data_column_pandas_labels=original_column_labels,
                 data_column_pandas_index_names=original_column_index_names,
+                data_column_types=data_column_types,
                 data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
                 index_column_pandas_labels=original_index_pandas_labels,
                 index_column_snowflake_quoted_identifiers=index_snowflake_quoted_identifiers,
+                index_column_types=index_column_types,
             )
         )
 
@@ -651,36 +673,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             The QueryCompiler converted to pandas.
 
         """
-        ordered_dataframe = self._modin_frame.ordered_dataframe.select(
-            self._modin_frame.index_column_snowflake_quoted_identifiers
-            + self._modin_frame.data_column_snowflake_quoted_identifiers
-        )
-
-        native_df = snowpark_to_pandas_helper(
-            ordered_dataframe, statement_params=statement_params, **kwargs
-        )
-
-        # to_pandas() does not preserve the index information and will just return a
-        # RangeIndex. Therefore, we need to set the index column manually
-        native_df.set_index(
-            [
-                extract_pandas_label_from_snowflake_quoted_identifier(identifier)
-                for identifier in self._modin_frame.index_column_snowflake_quoted_identifiers
-            ],
-            inplace=True,
-        )
-        # set index name
-        native_df.index = native_df.index.set_names(
-            self._modin_frame.index_column_pandas_labels
-        )
-
-        from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-
-        # set column names and potential casting
-        native_df.columns = try_convert_index_to_native(
-            self._modin_frame.data_columns_index
-        )
-        return native_df
+        return self._modin_frame.to_pandas(statement_params, **kwargs)
 
     def finalize(self) -> None:
         pass
@@ -2025,10 +2018,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # add new column with result as unnamed
             new_column_expr = compute_binary_op_with_fill_value(
                 op=op,
-                lhs=col(lhs_quoted_identifier),
-                lhs_datatype=lambda: identifier_to_type_map[lhs_quoted_identifier],
-                rhs=col(rhs_quoted_identifier),
-                rhs_datatype=lambda: identifier_to_type_map[rhs_quoted_identifier],
+                lhs=snowpark_pandas_col(lhs_quoted_identifier),
+                rhs=snowpark_pandas_col(rhs_quoted_identifier),
                 fill_value=fill_value,
             )
 
@@ -10886,15 +10877,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             else (ROW_COUNT_COLUMN_LABEL,)
             * len(self._modin_frame.data_column_pandas_index_names)
         )
-        frame_with_row_count_and_position = InternalFrame.create(
-            ordered_dataframe=self._modin_frame.ordered_dataframe,
-            data_column_pandas_labels=self._modin_frame.data_column_pandas_labels
-            + [row_count_pandas_label],
-            data_column_snowflake_quoted_identifiers=self._modin_frame.data_column_snowflake_quoted_identifiers
-            + [self._modin_frame.row_count_snowflake_quoted_identifier],
-            data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
-            index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
-            index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
+        frame_with_row_count_and_position = self._modin_frame.append_column(
+             row_count_pandas_label,
+             snowpark_pandas_col(self._modin_frame.row_count_snowflake_quoted_identifier)           
         )
 
         row_count_identifier = (
