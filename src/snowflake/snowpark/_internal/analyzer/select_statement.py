@@ -375,6 +375,7 @@ class Selectable(LogicalPlan, ABC):
         """
         self._column_states = deepcopy(value)
 
+    @abstractmethod
     def referred_cte_tables(self) -> Set[str]:
         """Return the set of cte tables referred by the current selectable node"""
         pass

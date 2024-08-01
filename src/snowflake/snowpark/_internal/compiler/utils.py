@@ -149,10 +149,28 @@ def replace_child_and_reset_node(
     else:
         raise ValueError(f"parent type {type(parent)} not supported")
 
+    # reset the parent node to make sure it can be re-resolved in the later
+    # stage to get the correct query.
+    # For example with the following plan
+    #          SelectSnowflakePlan
+    #                  |
+    #             SnowflakePlan
+    #                  |
+    #                JOIN
+    # when reset the child of join, and parent is SelectSnowflakePlan, we make sure
+    # all nodes along the way up to SelectSnowflakePlan are reset correctly.
     reset_node(parent)
 
 
 def reset_node(node: LogicalPlan) -> None:
+    """
+    Helper methods that is used to clean up cached query filed of the given node
+    so that they can be re-resolved when requested.
+
+    The reset operation is only needed for resolved node like Selectable or SnowflakePlan,
+    since only those two types of nodes have cached queries.
+    """
+
     def reset_selectable(selectable_node: Selectable) -> None:
         # clear the cache to allow it re-calculate the _snowflake_plan and _sql_query
         if not isinstance(node, (SelectSnowflakePlan, SelectSQL, SelectTableFunction)):
@@ -163,6 +181,8 @@ def reset_node(node: LogicalPlan) -> None:
     if isinstance(node, SnowflakePlan):
         # do not reset leaf snowflake plan
         if node.source_plan is not None:
+            # reset the queries and post_action fields for snowflake plan to
+            # make sure a re-resolve on source plan can be triggered
             node.queries = None
             node.post_actions = None
             if isinstance(node.source_plan, Selectable):
@@ -174,13 +194,16 @@ def reset_node(node: LogicalPlan) -> None:
 def get_snowflake_plan_queries(
     plan: SnowflakePlan, resolved_with_query_blocks: Dict[str, str]
 ) -> Dict[PlanQueryType, List[Query]]:
+
     from snowflake.snowpark._internal.analyzer.analyzer_utils import cte_statement
 
-    # make a copy of the original query to avoid any update to the
-    # original query object
-    plan_queries = copy.deepcopy(plan.queries)
-    post_action_queries = copy.deepcopy(plan.post_actions)
+    plan_queries = plan.queries
+    post_action_queries = plan.post_actions
     if len(plan.referred_cte_tables) > 0:
+        # make a copy of the original query to avoid any update to the
+        # original query object
+        plan_queries = copy.deepcopy(plan.queries)
+        post_action_queries = copy.deepcopy(plan.post_actions)
         table_names = []
         definition_queries = []
         for name, definition_query in resolved_with_query_blocks.items():
