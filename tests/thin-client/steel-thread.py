@@ -56,7 +56,5 @@ with session.ast_listener() as al:
     df = session.table("test_table")
     ans = df.collect()
 
-print(al.base64_ast_batches)
-
-print(ans)
-# df.show()
+print("AST:\n" + "\n".join(al.base64_ast_batches))
+print(f"Result:\n{ans}")
