@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import calendar
 import functools
 import itertools
 import json
@@ -278,6 +279,7 @@ from snowflake.snowpark.modin.plugin._internal.type_utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
     UNPIVOT_NULL_REPLACE_VALUE,
+    StackOperation,
     unpivot,
     unpivot_empty_df,
 )
@@ -313,6 +315,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     parse_snowflake_object_construct_identifier_to_map,
     snowpark_to_pandas_helper,
+    unquote_name_if_quoted,
 )
 from snowflake.snowpark.modin.plugin._internal.where_utils import (
     validate_expected_boolean_data_columns,
@@ -15366,7 +15369,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.normalize'"
         )
 
-    def dt_month_name(self, locale: Optional[str] = None) -> None:
+    def dt_month_name(self, locale: Optional[str] = None) -> "SnowflakeQueryCompiler":
         """
         Args:
             locale: Locale determining the language in which to return the month name.
@@ -15374,11 +15377,42 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             New QueryCompiler containing month name.
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.month_name'"
+        if locale is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.month_name' method doesn't yet support 'locale' parameter"
+            )
+        internal_frame = self._modin_frame
+
+        # The following generates a mapping list of the form:
+        # [1, "January", 2, "February", ..., 12, "December"]
+        mapping_list = [
+            int(i / 2) if i % 2 == 0 else calendar.month_name[int(i / 2)]
+            for i in range(2, 26)
+        ]
+        snowpark_column = builtin("decode")(
+            builtin("extract")(
+                "month", col(internal_frame.data_column_snowflake_quoted_identifiers[0])
+            ),
+            *mapping_list,
+        )
+        internal_frame = internal_frame.append_column(
+            internal_frame.data_column_snowflake_quoted_identifiers[0], snowpark_column
         )
 
-    def dt_day_name(self, locale: Optional[str] = None) -> None:
+        return SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=internal_frame.ordered_dataframe,
+                data_column_pandas_labels=[None],
+                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
+                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers[
+                    -1:
+                ],
+                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+            )
+        )
+
+    def dt_day_name(self, locale: Optional[str] = None) -> "SnowflakeQueryCompiler":
         """
         Args:
             locale: Locale determining the language in which to return the month name.
@@ -15386,8 +15420,40 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             New QueryCompiler containing day name.
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.day_name'"
+        if locale is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.day_name' method doesn't yet support 'locale' parameter"
+            )
+        internal_frame = self._modin_frame
+
+        # The following generates a mapping list of the form:
+        # [1, "Monday", 2, "Tuesday", ..., 7, "Sunday"]
+        mapping_list = [
+            int(i / 2) + 1 if i % 2 == 0 else calendar.day_name[int(i / 2)]
+            for i in range(0, 14)
+        ]
+        snowpark_column = builtin("decode")(
+            builtin("dayofweekiso")(
+                col(internal_frame.data_column_snowflake_quoted_identifiers[0])
+            ),
+            *mapping_list,
+        )
+
+        internal_frame = internal_frame.append_column(
+            internal_frame.data_column_pandas_labels[0], snowpark_column
+        )
+
+        return SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=internal_frame.ordered_dataframe,
+                data_column_pandas_labels=[None],
+                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
+                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers[
+                    -1:
+                ],
+                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+            )
         )
 
     def dt_total_seconds(self) -> None:
@@ -15799,34 +15865,201 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas doesn't support multiindex columns in stack API"
             )
 
-        index_names = ["index"]
-        # Stack is equivalent to doing df.melt() with index reset, sorting the values, then setting the index
-        # Note that we always use sort_rows_by_column_values even if sort is False
-        qc = (
-            self.reset_index()
-            .melt(
-                id_vars=index_names,
-                value_vars=self.columns,
-                var_name="index_second_level",
-                value_name=MODIN_UNNAMED_SERIES_LABEL,
-                ignore_index=False,
-            )
-            .sort_rows_by_column_values(
-                columns=index_names,  # type: ignore
-                ascending=[True],
-                kind="stable",
-                na_position="last",
-                ignore_index=False,
-            )
-            .replace(to_replace=UNPIVOT_NULL_REPLACE_VALUE, value=np.nan)
-            .set_index_from_columns(index_names + ["index_second_level"])  # type: ignore
-            .set_index_names([None, None])
-        )
+        qc = self._stack_helper(operation=StackOperation.STACK)
 
         if dropna:
             return qc.dropna(axis=0, how="any", thresh=None)
         else:
             return qc
+
+    def unstack(
+        self,
+        level: Union[int, str, list] = -1,
+        fill_value: Optional[Union[int, str, dict]] = None,
+        sort: bool = True,
+        is_series_input: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Pivot a level of the (necessarily hierarchical) index labels.
+
+        Returns a DataFrame having a new level of column labels whose
+        inner-most level consists of the pivoted index labels.
+
+        If the index is not a MultiIndex, the output will be a Series
+        (the analogue of stack when the columns are not a MultiIndex).
+
+        Parameters
+        ----------
+        level : int, str, list, default -1
+            Level(s) of index to unstack, can pass level name.
+
+        fillna : int, str, dict, optional
+            Replace NaN with this value if the unstack produces missing values.
+
+        sort : bool, default True
+            Sort the level(s) in the resulting MultiIndex columns.
+
+        is_series_input : bool, default False
+            Whether the input is a Series, in which case we call `droplevel`
+        """
+        if not isinstance(level, int):
+            # TODO: SNOW-1558364: Support index name passed to level parameter
+            ErrorMessage.not_implemented(
+                "Snowpark pandas DataFrame/Series.unstack does not yet support a non-integer `level` parameter"
+            )
+        if not sort:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas DataFrame/Series.unstack does not yet support the `sort` parameter"
+            )
+        if self._modin_frame.is_multiindex(axis=1):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas doesn't support multiindex columns in the unstack API"
+            )
+
+        level = [level]
+
+        index_names = self.get_index_names()
+
+        # Check to see if we have a MultiIndex, if we do, make sure we remove
+        # the appropriate level(s), and we pivot accordingly.
+        if len(index_names) > 1:
+            # Resetting the index keeps the index columns as the first n data columns
+            qc = self.reset_index()
+            index_cols = qc._modin_frame.data_column_pandas_labels[0 : len(index_names)]
+            pivot_cols = [index_cols[lev] for lev in level]  # type: ignore
+            res_index_cols = []
+            column_names_to_reset_to_none = []
+            for i in range(len(index_names)):
+                if index_names[i] is None:
+                    # We need to track the names where the index and columns originally had no name
+                    # in order to reset those names back to None after the operation
+                    column_names_to_reset_to_none.append(
+                        qc._modin_frame.data_column_pandas_labels[i]
+                    )
+                col = index_cols[i]
+                if col not in pivot_cols:
+                    res_index_cols.append(col)
+            vals = [
+                c
+                for c in self.columns
+                if c not in res_index_cols and c not in pivot_cols
+            ]
+
+            qc = qc.pivot_table(
+                columns=pivot_cols,
+                index=res_index_cols,
+                values=vals,
+                aggfunc="min",
+                fill_value=fill_value,
+                margins=False,
+                dropna=True,
+                margins_name="All",
+                observed=False,
+                sort=sort,
+            )
+
+            # Set the original unnamed index values back to None
+            output_index_names = qc.get_index_names()
+            output_index_names_replace_level_with_none = [
+                None
+                if output_index_names[i] in column_names_to_reset_to_none
+                else output_index_names[i]
+                for i in range(len(output_index_names))
+            ]
+            qc = qc.set_index_names(output_index_names_replace_level_with_none)
+            # Set the unnamed column values back to None
+            output_column_names = qc.columns.names
+            output_column_names_replace_level_with_none = [
+                None
+                if output_column_names[i] in column_names_to_reset_to_none
+                else output_column_names[i]
+                for i in range(len(output_column_names))
+            ]
+            qc = qc.set_columns(
+                qc.columns.set_names(output_column_names_replace_level_with_none)
+            )
+        else:
+            qc = self._stack_helper(operation=StackOperation.UNSTACK)
+
+        if is_series_input and qc.columns.nlevels > 1:
+            # If input is Series and output is MultiIndex, drop the top level of the MultiIndex
+            qc = qc.set_columns(qc.columns.droplevel())
+        return qc
+
+    def _stack_helper(
+        self,
+        operation: StackOperation,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Helper function that performs stacking or unstacking operation on single index dataframe/series.
+
+        Parameters
+        ----------
+        operation : StackOperation.STACK or StackOperation.UNSTACK
+            The operation being performed.
+        """
+        index_names = self.get_index_names()
+        # Resetting the index keeps the index columns as the first n data columns
+        qc = self.reset_index()
+        index_cols = qc._modin_frame.data_column_pandas_labels[0 : len(index_names)]
+        column_names_to_reset_to_none = []
+        for i in range(len(index_names)):
+            if index_names[i] is None:
+                # We need to track the names where the index and columns originally had no name
+                # in order to reset those names back to None after the operation
+                column_names_to_reset_to_none.append(
+                    qc._modin_frame.data_column_pandas_labels[i]
+                )
+
+        # Track the new column name for the original unnamed column
+        if self.columns.name is None:
+            quoted_col_label = (
+                qc._modin_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                    pandas_labels=["index_second_level"]
+                )[0]
+            )
+            col_label = unquote_name_if_quoted(quoted_col_label)
+            column_names_to_reset_to_none.append(col_label)
+        else:
+            col_label = self.columns.name
+
+        qc = qc.melt(
+            id_vars=index_cols,  # type: ignore
+            value_vars=self.columns,
+            var_name=col_label,
+            value_name=MODIN_UNNAMED_SERIES_LABEL,
+            ignore_index=False,
+        )
+
+        if operation == StackOperation.STACK:
+            # Only sort rows by column values in case of 'stack'
+            # For 'unstack' maintain the row position order
+            qc = qc.sort_rows_by_column_values(
+                columns=index_cols,  # type: ignore
+                ascending=[True],
+                kind="stable",
+                na_position="last",
+                ignore_index=False,
+            )
+
+        # TODO: SNOW-1524695: Remove the following replace once "NULL_REPLACE" values are fixed for 'melt'
+        qc = qc.replace(to_replace=UNPIVOT_NULL_REPLACE_VALUE, value=np.nan)
+
+        if operation == StackOperation.STACK:
+            qc = qc.set_index_from_columns(index_cols + [col_label])  # type: ignore
+        else:
+            qc = qc.set_index_from_columns([col_label] + index_cols)  # type: ignore
+
+        # Set the original unnamed index and column values back to None
+        output_index_names = qc.get_index_names()
+        output_index_names = [
+            None
+            if output_index_names[i] in column_names_to_reset_to_none
+            else output_index_names[i]
+            for i in range(len(output_index_names))
+        ]
+        qc = qc.set_index_names(output_index_names)
+        return qc
 
     def corr(
         self,

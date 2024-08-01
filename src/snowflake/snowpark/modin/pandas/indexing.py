@@ -1132,6 +1132,9 @@ class _iLocIndexer(_LocationIndexerBase):
         # Convert all scalar, list-like, and indexer row_loc to a Series object to get a query compiler object.
         if is_scalar(row_loc):
             row_loc = pd.Series([row_loc])
+        elif isinstance(row_loc, pd.Index):
+            # Convert index row_loc to series
+            row_loc = row_loc.to_series().reset_index(drop=True)
         elif is_list_like(row_loc):
             if hasattr(row_loc, "dtype"):
                 dtype = row_loc.dtype
