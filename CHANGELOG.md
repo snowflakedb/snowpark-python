@@ -50,6 +50,7 @@
 - Added support for `DataFrame.unstack` and `Series.unstack`.
 - Added support for `DataFrame.asfreq` and `Series.asfreq`.
 - Added support for `Series.dt.is_month_start` and `Series.dt.is_month_end`.
+- Added support for `Index.all` and `Index.any`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
