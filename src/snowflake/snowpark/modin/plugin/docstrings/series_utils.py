@@ -1447,11 +1447,81 @@ class CombinedDatetimelikeProperties:
 
     @property
     def is_month_start():
-        pass
+        """
+        Indicates whether the date is the first day of the month.
+
+        Returns
+        -------
+        Series or array
+            For Series, returns a Series with boolean values. For DatetimeIndex, returns a boolean array.
+
+        See also
+        --------
+        is_month_start
+            Return a boolean indicating whether the date is the first day of the month.
+        is_month_end
+            Return a boolean indicating whether the date is the last day of the month.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> s = pd.Series(pd.date_range("2018-02-27", periods=3))
+        >>> s
+        0   2018-02-27
+        1   2018-02-28
+        2   2018-03-01
+        dtype: datetime64[ns]
+        >>> s.dt.is_month_start
+        0    False
+        1    False
+        2     True
+        dtype: bool
+        >>> s.dt.is_month_end
+        0    False
+        1     True
+        2    False
+        dtype: bool
+        """
 
     @property
     def is_month_end():
-        pass
+        """
+        Indicates whether the date is the last day of the month.
+
+        Returns
+        -------
+        Series or array
+            For Series, returns a Series with boolean values. For DatetimeIndex, returns a boolean array.
+
+        See also
+        --------
+        is_month_start
+            Return a boolean indicating whether the date is the first day of the month.
+        is_month_end
+            Return a boolean indicating whether the date is the last day of the month.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> s = pd.Series(pd.date_range("2018-02-27", periods=3))
+        >>> s
+        0   2018-02-27
+        1   2018-02-28
+        2   2018-03-01
+        dtype: datetime64[ns]
+        >>> s.dt.is_month_start
+        0    False
+        1    False
+        2     True
+        dtype: bool
+        >>> s.dt.is_month_end
+        0    False
+        1     True
+        2    False
+        dtype: bool
+        """
 
     @property
     def is_quarter_start():
