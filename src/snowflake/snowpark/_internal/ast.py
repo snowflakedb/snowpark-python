@@ -8,8 +8,7 @@ import itertools
 import json
 import sys
 import uuid
-from dataclasses import dataclass
-from typing import Any, List, Sequence, Set, Tuple
+from typing import Any, Sequence, Tuple
 
 from google.protobuf.json_format import ParseDict
 
@@ -117,20 +116,11 @@ def decode_ast_response_from_snowpark(res: dict, session_parameters: Any) -> Any
         )
 
 
-@dataclass
-class IndexedBatch:
-    ids: Set[int]
-    base64: str
-
-
 class AstBatch:
     def __init__(self, session) -> None:
         self._session = session
         self._id_gen = itertools.count(start=1)
         self._init_batch()
-
-        # Phase0 code, remove with phase1.
-        self._batch_history: List[IndexedBatch] = []
 
     def assign(self, symbol=None):
         stmt = self._request.body.add()
@@ -148,26 +138,7 @@ class AstBatch:
     def flush(self) -> Tuple[str, str]:
         """Ties off a batch and starts a new one. Returns the tied-off batch."""
         batch = str(base64.b64encode(self._request.SerializeToString()), "utf-8")
-
-        # Phase0: We do not have a server-side component yet that keeps track of the full history.
-        # Therefore, we make flushed batches self-contained, i.e. all referenced statements are part of batch.
-        # In Phase1, the server-side component is responsible for keeping a history of previously received AST batches
-        # to perform name/id resolution. Remove this code here for Phase1.
-        # Retrieve all ids in batch, and use them to allow for easy indexing. Because the same _id_gen is
-        # used for both var_id and uid, ok to use single lookup map.
-        ids = set()
-        for stmt in self._request.body:
-            # Do not save evals, because they can't be referenced by other evals.
-            if stmt.assign.uid != 0:
-                ids.add(stmt.assign.uid)
-                ids.add(stmt.assign.var_id.bitfield1)
-
-        # Flush to batch history.
-        self._batch_history.append(IndexedBatch(ids, batch))
         self._init_batch()
-
-        # Resolve here missing ids client-side, this part needs to be moved to the server eventually.
-
         return (str(self._request_id), batch)
 
     def _init_batch(self):
