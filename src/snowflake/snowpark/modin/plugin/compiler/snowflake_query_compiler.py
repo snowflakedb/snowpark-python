@@ -249,7 +249,6 @@ from snowflake.snowpark.modin.plugin._internal.pivot_utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     IMPLEMENTED_AGG_METHODS,
-    ResampleMethodTypeLit,
     fill_missing_resample_bins_for_frame,
     get_expected_resample_bins_frame,
     get_snowflake_quoted_identifier_for_resample_index_col,
@@ -10521,12 +10520,124 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_frame)
 
+    def asfreq(
+        self,
+        freq: str,
+        method: Literal["backfill", "bfill", "pad", "ffill", None] = None,
+        how: Literal["start", "end", None] = None,
+        normalize: bool = False,
+        fill_value: Optional[Scalar] = None,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Convert time series to specified frequency.
+
+        Returns the original data conformed to a new index with the specified frequency.
+
+        If the index of this Series/DataFrame is a PeriodIndex, the new index is the result of transforming the original
+        index with PeriodIndex.asfreq (so the original index will map one-to-one to the new index).
+
+        The new index will be equivalent to pd.date_range(start, end, freq=freq) where start and end are,
+        respectively, the first and last entries in the original index (see pandas.date_range()). The values
+        corresponding to any timesteps in the new index which were not present in the original index will be null (NaN),
+        unless a method for filling such unknowns is provided (see the method parameter below).
+
+        The resample() method is more appropriate if an operation on each group of timesteps (such as an aggregate) is
+        necessary to represent the data at the new frequency.
+
+        Parameters
+        ----------
+        freq : DateOffset or str
+            Frequency DateOffset or string.
+
+        method : {'backfill', 'bfill', 'pad', 'ffill'}, default None
+            Method to use for filling holes in reindexed Series (note this does not fill NaNs that already were present):
+            ‘pad’ / ‘ffill’: propagate last valid observation forward to next valid
+            ‘backfill’ / ‘bfill’: use NEXT valid observation to fill.
+
+        how : {'start', 'end'}, default None
+            For PeriodIndex only.
+
+        normalize : bool, default False
+            Whether to reset output index to midnight.
+
+        fill_value : scalar, optional
+            Value to use for missing values, applied during upsampling
+            (note this does not fill NaNs that already were present).
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            Holds an ordered frame with the result of the asfreq operation.
+
+        Notes
+        -----
+        This implementation calls `resample` with the `first` aggregation. `asfreq`
+        is only supported on DataFrame/Series with DatetimeIndex, and only
+        the `freq` and `method` parameters are currently supported.
+
+        Examples
+        --------
+        >>> index = pd.date_range('1/1/2000', periods=4, freq='min')
+        >>> series = pd.Series([0.0, None, 2.0, 3.0], index=index)
+        >>> df = pd.DataFrame({'s': series})
+        >>> df
+                               s
+        2000-01-01 00:00:00  0.0
+        2000-01-01 00:01:00  NaN
+        2000-01-01 00:02:00  2.0
+        2000-01-01 00:03:00  3.0
+        >>> df.asfreq(freq='30s')
+                               s
+        2000-01-01 00:00:00  0.0
+        2000-01-01 00:00:30  NaN
+        2000-01-01 00:01:00  NaN
+        2000-01-01 00:01:30  NaN
+        2000-01-01 00:02:00  2.0
+        2000-01-01 00:02:30  NaN
+        2000-01-01 00:03:00  3.0
+        >>> df.asfreq(freq='30s', method='ffill')
+                               s
+        2000-01-01 00:00:00  0.0
+        2000-01-01 00:00:30  0.0
+        2000-01-01 00:01:00  NaN
+        2000-01-01 00:01:30  NaN
+        2000-01-01 00:02:00  2.0
+        2000-01-01 00:02:30  2.0
+        2000-01-01 00:03:00  3.0
+        """
+        if how is not None or normalize is not False or fill_value is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas `asfreq` does not support parameters `how`, `normalize`, or `fill_value`."
+            )
+
+        resample_kwargs = {
+            "rule": freq,
+            "axis": 0,
+            "closed": None,
+            "label": None,
+            "convention": "start",
+            "kind": None,
+            "on": None,
+            "level": None,
+            "origin": "start_day",
+            "offset": None,
+            "group_keys": no_default,
+        }  # pragma: no cover
+
+        return self.resample(
+            resample_kwargs=resample_kwargs,
+            resample_method="first" if method is None else method,
+            resample_method_args=tuple(),  # type: ignore
+            resample_method_kwargs={},
+            is_series=False,
+        )
+
     # TODO (SNOW-971642): Add freq to DatetimeIndex.
     # TODO (SNOW-975031): Investigate fully lazy resample implementation
     def resample(
         self,
         resample_kwargs: dict[str, Any],
-        resample_method: ResampleMethodTypeLit,
+        resample_method: AggFuncType,
         resample_method_args: tuple[Any],
         resample_method_kwargs: dict[str, Any],
         is_series: bool,
@@ -10539,7 +10650,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         resample_kwargs : Dict[str, Any]
             Keyword arguments for the resample operation.
 
-        resample_method : ResampleMethodTypeLit
+        resample_method : AggFuncType
             Resample method called on the Snowpark pandas object.
 
         resample_method_args : Tuple[Any]

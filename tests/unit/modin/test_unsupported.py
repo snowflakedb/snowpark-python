@@ -61,7 +61,6 @@ def test_unsupported_general(general_method, kwargs):
     "df_method, kwargs",
     [
         ["align", {"other": ""}],
-        ["asfreq", {"freq": ""}],
         ["asof", {"where": ""}],
         ["at_time", {"time": ""}],
         ["between_time", {"start_time": "", "end_time": ""}],
@@ -158,7 +157,6 @@ def test_unsupported_df_generator(df_method, kwargs):
         ["argmin", {}],
         ["argsort", {}],
         ["array", {}],
-        ["asfreq", {"freq": ""}],
         ["asof", {"where": ""}],
         ["at_time", {"time": ""}],
         ["autocorr", {}],
