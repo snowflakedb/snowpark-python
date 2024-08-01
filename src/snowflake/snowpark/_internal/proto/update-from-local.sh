@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # This script is a clone of update-from-devvm. It performs the same actions, except it uses the local clone of the Snowflake repo.
 # Example usage:
-#   ./src/snowflake/snowpark/_internal/proto/update-from-devvm.sh ~/src/Snowflake
+#   ./src/snowflake/snowpark/_internal/proto/update-from-local.sh ~/src/Snowflake
 
 # Check for args
 SRC_ROOT="$HOME/src/Snowflake"
