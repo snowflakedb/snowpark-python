@@ -88,6 +88,7 @@ from snowflake.snowpark.functions import (
     count_distinct,
     date_part,
     date_trunc,
+    dateadd,
     dayofmonth,
     dayofyear,
     dense_rank,
@@ -1581,7 +1582,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             The index (row labels) of the DataFrame.
         """
         if self.is_multiindex():
-            return self._modin_frame.index_columns_pandas_index
+            return self._modin_frame.index_columns_pandas_index()
         else:
             return pd.Index(self)
 
@@ -10072,6 +10073,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "dayofweek": (lambda column: builtin("dayofweekiso")(col(column)) - 1),
             "microsecond": (lambda column: floor(date_part("ns", col(column)) / 1000)),
             "nanosecond": (lambda column: date_part("ns", col(column)) % 1000),
+            "is_month_start": (
+                lambda column: coalesce(dayofmonth(col(column)) == 1, pandas_lit(False))
+            ),
+            # To check if it's a month end, make sure that the following day is a month start.
+            "is_month_end": (
+                lambda column: coalesce(
+                    dayofmonth(dateadd("day", pandas_lit(1), col(column))) == 1,
+                    pandas_lit(False),
+                )
+            ),
         }
         property_function = dt_property_to_function_map.get(property_name)
         if not property_function:

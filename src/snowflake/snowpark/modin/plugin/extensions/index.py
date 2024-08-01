@@ -258,17 +258,26 @@ class Index(metaclass=TelemetryMeta):
                     )
             raise err
 
-    def to_pandas(self) -> native_pd.Index:
+    def to_pandas(
+        self,
+        *,
+        statement_params: dict[str, str] | None = None,
+        **kwargs: Any,
+    ) -> native_pd.Index:
         """
-        Convert Snowpark pandas Index to pandas Index
+        Convert Snowpark pandas Index to pandas Index.
 
-        Returns
-        -------
-        pandas Index
-            A native pandas Index representation of self
+        Args:
+        statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+        Returns:
+            pandas Index
+                A native pandas Index representation of self
         """
         if self.is_lazy:
-            return self._query_compiler._modin_frame.index_columns_pandas_index
+            return self._query_compiler._modin_frame.index_columns_pandas_index(
+                statement_params=statement_params, **kwargs
+            )
         return self._index
 
     @property
