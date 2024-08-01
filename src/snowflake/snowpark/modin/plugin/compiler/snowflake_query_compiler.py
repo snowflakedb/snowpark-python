@@ -10572,8 +10572,38 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Notes
         -----
         This implementation calls `resample` with the `first` aggregation. `asfreq`
-        is only support on DataFrame/Series with DatetimeIndex, and only
+        is only supported on DataFrame/Series with DatetimeIndex, and only
         the `freq` and `method` parameters are currently supported.
+
+        Examples
+        --------
+        >>> index = pd.date_range('1/1/2000', periods=4, freq='min')
+        >>> series = pd.Series([0.0, None, 2.0, 3.0], index=index)
+        >>> df = pd.DataFrame({'s': series})
+        >>> df
+                               s
+        2000-01-01 00:00:00  0.0
+        2000-01-01 00:01:00  NaN
+        2000-01-01 00:02:00  2.0
+        2000-01-01 00:03:00  3.0
+        >>> df.asfreq(freq='30s')
+                               s
+        2000-01-01 00:00:00  0.0
+        2000-01-01 00:00:30  NaN
+        2000-01-01 00:01:00  NaN
+        2000-01-01 00:01:30  NaN
+        2000-01-01 00:02:00  2.0
+        2000-01-01 00:02:30  NaN
+        2000-01-01 00:03:00  3.0
+        >>> df.asfreq(freq='30s', method='ffill')
+                               s
+        2000-01-01 00:00:00  0.0
+        2000-01-01 00:00:30  0.0
+        2000-01-01 00:01:00  NaN
+        2000-01-01 00:01:30  NaN
+        2000-01-01 00:02:00  2.0
+        2000-01-01 00:02:30  2.0
+        2000-01-01 00:03:00  3.0
         """
         if how is not None or normalize is not False or fill_value is not None:
             ErrorMessage.not_implemented(
