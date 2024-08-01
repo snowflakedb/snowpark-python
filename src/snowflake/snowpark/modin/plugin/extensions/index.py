@@ -109,7 +109,11 @@ def is_lazy_check(func: Callable) -> Callable:
 class Index(metaclass=TelemetryMeta):
     def __init__(
         self,
-        data: ArrayLike | DataFrame | Series | SnowflakeQueryCompiler | None = None,
+        data: ArrayLike
+        | modin.pandas.DataFrame
+        | Series
+        | SnowflakeQueryCompiler
+        | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -123,7 +127,7 @@ class Index(metaclass=TelemetryMeta):
 
         Parameters
         ----------
-        data : array-like (1-dimensional), pd.Series, pd.DataFrame, SnowflakeQueryCompiler, optional
+        data : array-like (1-dimensional), modin.pandas.Series, modin.pandas.DataFrame, SnowflakeQueryCompiler, optional
         dtype : str, numpy.dtype, or ExtensionDtype, optional
             Data type for the output Index. If not specified, this will be
             inferred from `data`.
@@ -214,9 +218,9 @@ class Index(metaclass=TelemetryMeta):
         Helper method to create and save local index when index should not be lazy
         """
         if isinstance(data, BasePandasDataset):
-            index = data._query_compiler._modin_frame.index_columns_pandas_index
+            index = data._query_compiler._modin_frame.index_columns_pandas_index()
         elif isinstance(data, SnowflakeQueryCompiler):
-            index = data._modin_frame.index_columns_pandas_index
+            index = data._modin_frame.index_columns_pandas_index()
         else:
             index = native_pd.Index(
                 data=data,
