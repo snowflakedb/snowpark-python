@@ -38,7 +38,7 @@ pytestmark = [
 
 WITH = "WITH"
 
-paramList = [False]
+paramList = [False, True]
 
 
 @pytest.fixture(params=paramList, autouse=True)

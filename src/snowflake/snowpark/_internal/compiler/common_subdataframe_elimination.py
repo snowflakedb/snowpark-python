@@ -49,6 +49,7 @@ class CommonSubDataframeElimination:
         with temp_cte_xxx as (select "a", "b" from "test_table")
         (select * from temp_cte_xxx) union all (select * from select * from temp_cte_xxx)
     """
+
     # original logical plans to apply the optimization on
     _logical_plans: List[LogicalPlan]
     # record the occurrence of each node in a logical plan tree
