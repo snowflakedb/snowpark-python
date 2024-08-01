@@ -259,17 +259,14 @@ def test_select_sql(using_snowflake_plan, mock_session, mock_analyzer, new_plan)
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
-@pytest.mark.parametrize("use_deep_copied_plan", [False, True])
 def test_select_snowflake_plan(
     using_snowflake_plan,
-    use_deep_copied_plan,
     mock_session,
     mock_analyzer,
     mock_query,
     new_plan,
 ):
     project_plan = Project([], old_plan)
-    project_plan._is_valid_for_replacement = not use_deep_copied_plan
     snowflake_plan = SnowflakePlan(
         queries=[mock_query],
         schema_query="",
@@ -281,10 +278,8 @@ def test_select_snowflake_plan(
         placeholder_query=None,
         session=mock_session,
     )
-    snowflake_plan._is_valid_for_replacement = not use_deep_copied_plan
 
     plan = SelectSnowflakePlan(snowflake_plan, analyzer=mock_analyzer)
-    plan._is_valid_for_replacement = not use_deep_copied_plan
 
     if using_snowflake_plan:
         plan = SnowflakePlan(
@@ -298,19 +293,20 @@ def test_select_snowflake_plan(
             placeholder_query=None,
             session=mock_session,
         )
-        plan._is_valid_for_replacement = not use_deep_copied_plan
 
     assert_precondition(plan, new_plan, mock_analyzer, using_deep_copy=True)
-    if use_deep_copied_plan:
-        plan = copy.deepcopy(plan)
+    plan = copy.deepcopy(plan)
     # deep copy created a copy of old_plan
     copied_old_plan = plan.children_plan_nodes[0]
+    if using_snowflake_plan:
+        copied_project = plan.source_plan._snowflake_plan.source_plan
+    else:
+        copied_project = plan._snowflake_plan.source_plan
 
     replace_child_and_reset_node(plan, copied_old_plan, new_plan, mock_analyzer)
     # verify the source plan is cleared
     assert_plan_node_reset(plan)
-    if not use_deep_copied_plan:
-        assert project_plan.children == [new_plan]
+    assert copied_project.children == [new_plan]
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
@@ -354,6 +350,7 @@ def test_select_statement(
     assert_precondition(plan, new_plan, mock_analyzer, using_deep_copy=True)
     plan = copy.deepcopy(plan)
     replace_child_and_reset_node(plan, from_, new_plan, mock_analyzer)
+    assert_plan_node_reset(plan)
     assert len(plan.children_plan_nodes) == 1
     assert plan.children_plan_nodes[0].snowflake_plan == mock_snowflake_plan
     assert mock_snowflake_plan.source_plan == new_plan
@@ -398,9 +395,14 @@ def test_select_table_function(
 
     # deep copy created a copy of old_plan
     copied_old_plan = plan.children_plan_nodes[0]
+    if using_snowflake_plan:
+        copied_project = plan.source_plan._snowflake_plan.source_plan
+    else:
+        copied_project = plan._snowflake_plan.source_plan
 
     replace_child_and_reset_node(plan, copied_old_plan, new_plan, mock_analyzer)
-    # assert plan.children_plan_nodes == [new_plan]
+    assert_plan_node_reset(plan)
+    assert copied_project.children == [new_plan]
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
@@ -436,6 +438,7 @@ def test_set_statement(
     plan = copy.deepcopy(plan)
 
     replace_child_and_reset_node(plan, selectable1, new_plan, mock_analyzer)
+    assert_plan_node_reset(plan)
     assert len(plan.children_plan_nodes) == 2
     assert plan.children_plan_nodes[0].snowflake_plan == mock_snowflake_plan
     assert plan.children_plan_nodes[1] == selectable2
