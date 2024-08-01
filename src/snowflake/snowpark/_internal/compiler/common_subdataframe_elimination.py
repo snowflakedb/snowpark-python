@@ -8,6 +8,7 @@ from typing import Dict, List, Set, Union
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectSnowflakePlan,
+    SelectTableFunction,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -29,9 +30,32 @@ TreeNode = Union[SnowflakePlan, Selectable]
 
 
 class CommonSubDataframeElimination:
+    """
+    Optimization that used eliminate duplicated queries that is generated for the
+    common sub-dataframes.
+
+    When the same dataframe is used at multiple places of the plan, the same subquery
+    will be generated at each place where it is used, this lead to repeated evaluation
+    of the same subquery, and causes extra performance overhead. This optimization targets
+    for detecting the common sub-dataframes, and uses CTE to eliminate the repeated
+    subquery generated.
+    For example:
+       df = session.table("test_table")
+       df1 = df1.select("a", "b")
+       df2 = df1.union_all(df1)
+    originally the generated query for df2 is
+        (select "a", "b" from "test_table") union all (select "a", "b" from "test_table")
+    after the optimization, the generated query becomes
+        with temp_cte_xxx as (select "a", "b" from "test_table")
+        (select * from temp_cte_xxx) union all (select * from select * from temp_cte_xxx)
+    """
+    # original logical plans to apply the optimization on
     _logical_plans: List[LogicalPlan]
+    # record the occurrence of each node in a logical plan tree
     _node_count_map: Dict[TreeNode, int]
+    # record a map between a node and its parents for a logical plan tree
     _node_parents_map: Dict[TreeNode, Set[TreeNode]]
+    # duplicated node detected for a logical plan
     _duplicated_nodes: Set[TreeNode]
     _query_generator: QueryGenerator
 
@@ -150,8 +174,10 @@ class CommonSubDataframeElimination:
 
     def _deduplicate_with_cte(self, root: "TreeNode") -> LogicalPlan:
         """
-        Deduplicate the duplicated nodes with common sub
+        Replace all duplicated nodes with a WithQueryBlock (CTE node), to enable
+        query generation with CTEs.
         """
+
         stack1, stack2 = [root], []
 
         while stack1:
@@ -180,7 +206,7 @@ class CommonSubDataframeElimination:
                 self._update_parents(node, resolved_with_block)
 
             elif node not in self._duplicated_nodes:
-                if isinstance(node, SelectSnowflakePlan):
+                if isinstance(node, (SelectSnowflakePlan, SelectTableFunction)):
                     # resolve the snowflake plan attached to make sure the
                     # select SnowflakePlan is a valid plan
                     if node._snowflake_plan.source_plan is not None:
