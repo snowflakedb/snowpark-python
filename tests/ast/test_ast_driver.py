@@ -6,6 +6,7 @@ import os
 import pathlib
 import subprocess
 from dataclasses import dataclass
+from typing import List, Union
 
 import pytest
 
@@ -62,18 +63,24 @@ def idfn(val):
     return val.filename
 
 
-def render(ast_base64: str) -> str:
+def render(ast_base64: Union[str, List[str]]) -> str:
     """Uses the unparser to render the AST."""
     assert (
         pytest.unparser_jar
     ), "A valid Unparser JAR path must be supplied either via --unparser-jar=<path> or the environment variable SNOWPARK_UNPARSER_JAR"
+
+    if isinstance(ast_base64, str):
+        ast_base64 = [ast_base64]
+
     res = subprocess.run(
         [
             "java",
             "-cp",
             pytest.unparser_jar,
             "com.snowflake.snowpark.experimental.unparser.UnparserCli",
-            ast_base64,
+            ",".join(
+                ast_base64
+            ),  # base64 strings will not contain , so pass multiple batches comma-separated.
         ],
         capture_output=True,
         text=True,
@@ -81,6 +88,13 @@ def render(ast_base64: str) -> str:
     )
 
     return res.stdout
+
+
+def indent_lines(source: str, n_indents: int = 0):
+    indent = "    "
+    source = source.replace("\t", indent)  # convert tabs to spaces.
+
+    return "\n".join(map(lambda line: indent * n_indents + line, source.split("\n")))
 
 
 def run_test(session, test_source):
@@ -146,10 +160,15 @@ mock.write.save_as_table("test_df4")
 session._ast_batch.flush()  # Clear the AST.
 
 # Run the test.
-{test_source}
+with session.ast_listener() as al:
+    {indent_lines(test_source, 1)}
+    # Perform extra-flush for any pending statements.
+    _, last_batch = session._ast_batch.flush()
 
-# Retrieve the AST corresponding to the test.
-(_, result) = session._ast_batch.flush()
+# Retrieve the ASTs corresponding to the test.
+result = al.base64_batches
+if last_batch:
+    result.append(last_batch)
 """
     # We don't care about the results, and also want to test some APIs that can't be mocked. This suppresses an error
     # that would otherwise be thrown.
@@ -157,8 +176,8 @@ session._ast_batch.flush()  # Clear the AST.
 
     locals = {"session": session}
     exec(source, locals)
-    base64 = locals["result"]
-    return render(base64), base64
+    base64_batches = locals["result"]
+    return render(base64_batches), "\n".join(base64_batches)
 
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)

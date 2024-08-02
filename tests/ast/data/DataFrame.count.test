@@ -1,0 +1,25 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df.count()
+
+df.count(block=False)
+
+df.count(block=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = res1.count()
+
+res2
+
+res3 = res1.count(block=False)
+
+res3
+
+res4 = res1.count(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
+
+res4
