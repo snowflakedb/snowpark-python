@@ -416,7 +416,8 @@ class SnowflakePlan(LogicalPlan):
 
     @cached_property
     def num_duplicate_nodes(self) -> int:
-        return len(find_duplicate_subtrees(self))
+        duplicated_nodes, _ = find_duplicate_subtrees(self)
+        return len(duplicated_nodes)
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
