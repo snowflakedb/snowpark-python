@@ -1322,8 +1322,14 @@ def explode(col: ColumnOrName) -> "snowflake.snowpark.table_function.TableFuncti
         <BLANKLINE>
     """
     col = _to_col_if_str(col, "explode")
+    # AST
+    ast = proto.Expr()
+    build_fn_apply(ast, "explode", col)
+
     func_call = snowflake.snowpark.table_function._ExplodeFunctionCall(col, lit(False))
     func_call._set_api_call_source("functions.explode")
+    func_call._ast = ast
+
     return func_call
 
 
