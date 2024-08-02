@@ -214,8 +214,7 @@ class MockServerConnection:
         self._conn = MockedSnowflakeConnection()
         self._cursor = Mock()
         self._lower_case_parameters = {}
-        self.remove_query_listener = Mock()
-        self.add_query_listener = Mock()
+        self._query_listeners = set()
         self._telemetry_client = Mock()
         self.entity_registry = MockServerConnection.TabularEntityRegistry(self)
         self.stage_registry = StageEntityRegistry(self)
@@ -255,6 +254,22 @@ class MockServerConnection:
         else:
             self._oob_telemetry.log_session_creation(self._connection_uuid)
         self._suppress_not_implemented_error = False
+
+    def add_query_listener(
+        self, listener: "snowflake.snowpark.query_history.QueryListener"
+    ) -> None:
+        self._query_listeners.add(listener)
+
+    def remove_query_listener(
+        self, listener: "snowflake.snowpark.query_history.QueryListener"
+    ) -> None:
+        self._query_listeners.remove(listener)
+
+    def notify_query_listeners(
+        self, query_record: "snowflake.snowpark.query_history.QueryRecord", **kwargs
+    ) -> None:
+        for listener in self._query_listeners:
+            listener._notify(query_record, **kwargs)
 
     def log_not_supported_error(
         self,
@@ -600,6 +615,14 @@ class MockServerConnection:
 
         if to_iter:
             return iter(rows)
+
+        # Notify query listeners.
+        notify_kwargs = {"requestId": str(uuid.uuid4())}
+        if "_dataframe_ast" in kwargs:
+            notify_kwargs["dataframeAst"] = kwargs["_dataframe_ast"]
+        from snowflake.snowpark.query_history import QueryRecord
+
+        self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)
 
         return rows
 
