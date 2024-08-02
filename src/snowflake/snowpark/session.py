@@ -644,7 +644,7 @@ class Session:
         """
         return self._auto_clean_up_temp_table_enabled
 
-
+    @property
     def query_compilation_stage_enabled(self) -> bool:
         return self._query_compilation_stage_enabled
 
@@ -742,11 +742,12 @@ class Session:
         else:
             raise ValueError(
                 "value for auto_clean_up_temp_table_enabled must be True or False!"
+            )
 
     @query_compilation_stage_enabled.setter
-    @ experimental_parameter(version="1.21.0")
+    @experimental_parameter(version="1.21.0")
     def query_compilation_stage_enabled(self, value: bool) -> None:
-        """Set the value for eliminate_numeric_sql_value_cast_enabled"""
+        """Set the value for query_compilation_stage_enabled"""
 
         if value in [True, False]:
             self._conn._telemetry_client.send_query_compilation_stage_telemetry(
