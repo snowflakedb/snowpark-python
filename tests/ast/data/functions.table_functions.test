@@ -1,0 +1,9 @@
+## TEST CASE
+
+df = session.table("test_table")
+df = df.with_column("C4", col("num") + 3)
+df = df.with_column("C5", lit(10))
+df = df.select(array_generate_range(col("num"), col("C4"), col("C5")).alias("C6"))
+df = df.select(explode(df.C6).alias("C7"))
+
+## EXPECTED OUTPUT
