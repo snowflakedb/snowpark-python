@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import copy
 from typing import Dict, List
 
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -9,9 +10,12 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     Query,
     SnowflakePlan,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.compiler.large_query_breakdown import (
     LargeQueryBreakdown,
 )
+from snowflake.snowpark._internal.compiler.utils import create_query_generator
+from snowflake.snowpark.mock._connection import MockServerConnection
 
 
 class PlanCompiler:
@@ -47,8 +51,17 @@ class PlanCompiler:
 
         current_session = self._plan.session
         return (
-            self._plan.source_plan is not None
-        ) and current_session.cte_optimization_enabled
+            (self._plan.source_plan is not None)
+            and (
+                current_session.cte_optimization_enabled
+                or current_session.large_query_breakdown_enabled
+            )
+            and not isinstance(current_session, MockServerConnection)
+        )
+
+    def should_apply_cte_optimization(self) -> bool:
+        session = self._plan.session
+        return session.cte_optimization_enabled
 
     def should_apply_large_query_breakdown(self) -> bool:
         session = self._plan.session
@@ -56,15 +69,20 @@ class PlanCompiler:
 
     def compile(self) -> Dict[PlanQueryType, List[Query]]:
         final_plan = self._plan
-        session = final_plan.session
         if self.should_apply_optimizations():
+            plans: List[LogicalPlan] = [copy.deepcopy(final_plan)]
             # apply optimizations
-            final_plan = final_plan.replace_repeated_subquery_with_cte()
-            # TODO: add other optimization steps and code generation step
+            query_generator = create_query_generator(final_plan)
+
+            if self.should_apply_cte_optimization():
+                plans = [plan.replace_repeated_subquery_with_cte() for plan in plans]
             if self.should_apply_large_query_breakdown():
-                large_query_breakdown = LargeQueryBreakdown(session)
-                # TODO: use the result of the optimization extract queries
-                large_query_breakdown.breakdown_plans([final_plan])
+                large_query_breakdown = LargeQueryBreakdown(
+                    final_plan.session, query_generator, plans
+                )
+                plans = large_query_breakdown.apply()
+
+            return query_generator.generate_queries(plans)
 
         return {
             PlanQueryType.QUERIES: final_plan.queries,

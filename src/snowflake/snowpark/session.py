@@ -200,6 +200,9 @@ _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING = "PYTHON_SNOWPARK_USE_CTE_OPTIMIZA
 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
     "PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED"
 )
+_PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION = (
+    "PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION"
+)
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
@@ -538,7 +541,11 @@ class Session:
                 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED, False
             )
         )
-        self.large_query_breakdown_enabled: bool = False
+        self._large_query_breakdown_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION, False
+            )
+        )
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
@@ -621,6 +628,10 @@ class Session:
         return self._eliminate_numeric_sql_value_cast_enabled
 
     @property
+    def large_query_breakdown_enabled(self) -> bool:
+        return self._large_query_breakdown_enabled
+
+    @property
     def custom_package_usage_config(self) -> Dict:
         """Get or set configuration parameters related to usage of custom Python packages in Snowflake.
 
@@ -695,6 +706,21 @@ class Session:
         else:
             raise ValueError(
                 "value for eliminate_numeric_sql_value_cast_enabled must be True or False!"
+            )
+
+    @large_query_breakdown_enabled.setter
+    @experimental_parameter(version="1.21.0")
+    def large_query_breakdown_enabled(self, value: bool) -> None:
+        """Set the value for large_query_breakdown_enabled"""
+
+        if value in [True, False]:
+            self._conn._telemetry_client.send_large_query_breakdown_telemetry(
+                self._session_id, value
+            )
+            self._large_query_breakdown_enabled = value
+        else:
+            raise ValueError(
+                "value for large_query_breakdown_enabled must be True or False!"
             )
 
     @custom_package_usage_config.setter
