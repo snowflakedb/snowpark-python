@@ -52,3 +52,23 @@ class QueryHistory(QueryListener):
     @property
     def queries(self) -> List[QueryRecord]:
         return self._queries
+
+
+class AstListener(QueryListener):
+    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+        self.session = session
+        self._ast_batches: List[bytes] = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.session._conn.remove_query_listener(self)
+
+    def _notify(self, query_record: QueryRecord, *args, **kwargs) -> None:
+        if "dataframeAst" in kwargs:
+            self._ast_batches.append(kwargs["dataframeAst"])
+
+    @property
+    def base64_batches(self) -> List[QueryRecord]:
+        return self._ast_batches

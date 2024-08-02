@@ -154,7 +154,7 @@ from snowflake.snowpark.mock._pandas_util import (
 from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.mock._stored_procedure import MockStoredProcedureRegistration
 from snowflake.snowpark.mock._udf import MockUDFRegistration
-from snowflake.snowpark.query_history import QueryHistory
+from snowflake.snowpark.query_history import AstListener, QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.table import Table
@@ -3423,6 +3423,16 @@ class Session:
         query_listener = QueryHistory(self)
         self._conn.add_query_listener(query_listener)
         return query_listener
+
+    def ast_listener(self) -> AstListener:
+        """
+        Creates an instance of :class:`AstListener` as a context manager to capture ast batches flushed.
+        Returns: AstListener instance holding base64 encoded batches.
+
+        """
+        al = AstListener(self)
+        self._conn.add_query_listener(al)
+        return al
 
     def _table_exists(self, raw_table_name: Iterable[str]):
         """ """

@@ -52,5 +52,9 @@ session = Session.builder.configs(CONNECTION_PARAMETERS).getOrCreate()
 # TODO: Once column expr PR is in, add filter. This requires to modify above SQL statements to include
 # a VARCHAR column as well.
 
-df = session.table("test_table")
-df.show()
+with session.ast_listener() as al:
+    df = session.table("test_table")
+    ans = df.collect()
+
+print("AST:\n" + "\n".join(al.base64_batches))
+print(f"Result:\n{ans}")
