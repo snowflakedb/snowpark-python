@@ -10,6 +10,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     Query,
     SnowflakePlan,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.compiler.repeated_subquery_elimination import (
     RepeatedSubqueryElimination,
 )
@@ -59,7 +60,7 @@ class PlanCompiler:
         if self.should_start_query_compilation():
             # preparation for compilation
             # 1. make a copy of the original plan
-            logical_plans = [copy.deepcopy(self._plan)]
+            logical_plans: List[LogicalPlan] = [copy.deepcopy(self._plan)]
             # 2. create a code generator with the original plan
             query_generator = create_query_generator(self._plan)
 

@@ -59,7 +59,7 @@ class RepeatedSubqueryElimination:
 
     def __init__(
         self,
-        logical_plans: List[Union[LogicalPlan, SnowflakePlan]],
+        logical_plans: List[LogicalPlan],
         query_generator: QueryGenerator,
     ) -> None:
         self._logical_plans = logical_plans

@@ -357,7 +357,7 @@ class SnowflakePlan(LogicalPlan):
             for query in plan.queries[:-1]:
                 if query not in pre_queries:
                     pre_queries.append(query)
-            # when self.schema_query is None, that means no schema query is propogated during
+            # when self.schema_query is None, that means no schema query is propagated during
             # the process, there is no need to update the schema query.
             if (new_schema_query is not None) and (plan.schema_query is not None):
                 new_schema_query = new_schema_query.replace(
@@ -634,7 +634,7 @@ class SnowflakePlanBuilder:
             and self.session.query_compilation_stage_enabled
         ):
             # When the cte optimization and the new compilation stage is enabled, the
-            # queries, referred cte tables, and post actions propogated from
+            # queries, referred cte tables, and post actions propagated from
             # left and right can have duplicated queries if there is a common CTE block referred.
             # Need to do a deduplication to avoid repeated query.
             merged_queries = select_left.queries[:-1].copy()
@@ -1522,7 +1522,7 @@ class SnowflakePlanBuilder:
         new_query = project_statement([], name)
 
         queries = child.queries[:-1] + [Query(sql=new_query)]
-        # propogate the cte table
+        # propagate the cte table
         referred_ctes = {name}.union(child.referred_ctes)
 
         return SnowflakePlan(
