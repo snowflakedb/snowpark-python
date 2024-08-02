@@ -226,7 +226,7 @@ class SnowflakePlan(LogicalPlan):
         session: "snowflake.snowpark.session.Session",
     ) -> None:
         super().__init__()
-        self.queries = queries
+        self.queries: List[Query] = queries
         self.schema_query = schema_query
         self.post_actions = post_actions if post_actions else []
         self.expr_to_alias = expr_to_alias if expr_to_alias else {}
@@ -332,6 +332,7 @@ class SnowflakePlan(LogicalPlan):
 
         # all other parts of query are unchanged, but just replace the original query
         plan = copy.copy(self)
+        plan._is_valid_for_replacement = True
         plan.queries[-1].sql = final_query
         return plan
 
@@ -788,9 +789,9 @@ class SnowflakePlanBuilder:
         is_generated: bool,  # true if the table is generated internally
         child_attributes: List[Attribute],
     ) -> SnowflakePlan:
-        if is_generated and mode != SaveMode.ERROR_IF_EXISTS:
+        if is_generated and mode not in (SaveMode.ERROR_IF_EXISTS, SaveMode.OVERWRITE):
             raise ValueError(
-                "Internally generated tables must be called with mode ERROR_IF_EXISTS"
+                "Internally generated tables must be called with mode ERROR_IF_EXISTS or OVERWRITE"
             )
 
         full_table_name = ".".join(table_name)

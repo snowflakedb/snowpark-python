@@ -100,13 +100,23 @@ class QueryGenerator(Analyzer):
             # TODO: this check need to be relaxed when large query breakdown with temp table
             #       is implemented, because the child attributes are not necessary to create
             #       the temp table
-            assert self._snowflake_create_table_plan_info is not None
-            assert (
-                self._snowflake_create_table_plan_info.table_name
-                == logical_plan.table_name
-            )
+            # assert self._snowflake_create_table_plan_info is not None
+            # assert (
+            #     self._snowflake_create_table_plan_info.table_name
+            #     == logical_plan.table_name
+            # )
 
-            return self.plan_builder.save_as_table(
+            child_attributes = []
+            if (
+                self._snowflake_create_table_plan_info
+                and self._snowflake_create_table_plan_info.table_name
+                == logical_plan.table_name
+            ):
+                child_attributes = (
+                    self._snowflake_create_table_plan_info.child_attributes
+                )
+
+            plan = self.plan_builder.save_as_table(
                 logical_plan.table_name,
                 logical_plan.column_names,
                 logical_plan.mode,
@@ -120,14 +130,20 @@ class QueryGenerator(Analyzer):
                 logical_plan,
                 self.session._use_scoped_temp_objects,
                 logical_plan.is_generated,
-                self._snowflake_create_table_plan_info.child_attributes,
+                child_attributes,
             )
+            plan._is_valid_for_replacement = True
+            return plan
 
         if isinstance(logical_plan, Selectable):
             # overwrite the Selectable resolving to make sure we are triggering
             # any schema query build
-            return logical_plan.get_snowflake_plan(skip_schema_query=True)
+            plan = logical_plan.get_snowflake_plan(skip_schema_query=True)
+            plan._is_valid_for_replacement = True
+            return plan
 
-        return super().do_resolve_with_resolved_children(
+        plan = super().do_resolve_with_resolved_children(
             logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
         )
+        plan._is_valid_for_replacement = True
+        return plan
