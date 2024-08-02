@@ -47,7 +47,13 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     index_not_implemented,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-from snowflake.snowpark.types import TimestampType
+
+_CONSTRUCTOR_DEFAULTS = {
+    "dtype": None,
+    "copy": False,
+    "name": None,
+    "tupleize_cols": True,
+}
 
 
 class Index(metaclass=TelemetryMeta):
@@ -58,10 +64,10 @@ class Index(metaclass=TelemetryMeta):
     def __new__(
         cls,
         data: ArrayLike | SnowflakeQueryCompiler | None = None,
-        dtype: str | np.dtype | ExtensionDtype | None = None,
-        copy: bool = False,
-        name: object = None,
-        tupleize_cols: bool = True,
+        dtype: str | np.dtype | ExtensionDtype | None = _CONSTRUCTOR_DEFAULTS["dtype"],
+        copy: bool = _CONSTRUCTOR_DEFAULTS["copy"],
+        name: object = _CONSTRUCTOR_DEFAULTS["name"],
+        tupleize_cols: bool = _CONSTRUCTOR_DEFAULTS["tupleize_cols"],
         convert_to_lazy: bool = True,
     ) -> Index:
         """
@@ -90,10 +96,8 @@ class Index(metaclass=TelemetryMeta):
         )
 
         if isinstance(data, SnowflakeQueryCompiler):
-            datatype = data._modin_frame.quoted_identifier_to_snowflake_type()[
-                data._modin_frame.index_column_snowflake_quoted_identifiers[0]
-            ]
-            if isinstance(datatype, TimestampType):
+            dtype = data.index_dtypes[0]
+            if dtype == np.dtype("datetime64[ns]"):
                 return DatetimeIndex(data, convert_to_lazy=convert_to_lazy)
             return object.__new__(cls)
         else:
@@ -104,15 +108,11 @@ class Index(metaclass=TelemetryMeta):
 
     def __init__(
         self,
-        data: ArrayLike
-        | modin.pandas.DataFrame
-        | Series
-        | SnowflakeQueryCompiler
-        | None = None,
-        dtype: str | np.dtype | ExtensionDtype | None = None,
-        copy: bool = False,
-        name: object = None,
-        tupleize_cols: bool = True,
+        data: ArrayLike | modin.pandas.DataFrame | Series | SnowflakeQueryCompiler | None = None,
+        dtype: str | np.dtype | ExtensionDtype | None = _CONSTRUCTOR_DEFAULTS["dtype"],
+        copy: bool = _CONSTRUCTOR_DEFAULTS["copy"],
+        name: object = _CONSTRUCTOR_DEFAULTS["name"],
+        tupleize_cols: bool = _CONSTRUCTOR_DEFAULTS["tupleize_cols"],
     ) -> None:
         """
         Immutable sequence used for indexing and alignment.
@@ -159,6 +159,15 @@ class Index(metaclass=TelemetryMeta):
         self._parent = data if isinstance(data, BasePandasDataset) else None
         data = data._query_compiler if isinstance(data, BasePandasDataset) else data
         
+        if isinstance(data, SnowflakeQueryCompiler):
+            # Raise warning if `data` is query compiler with non-default arguments.
+            for arg_name, arg_value in kwargs.items():
+                if arg_value is not _CONSTRUCTOR_DEFAULTS[arg_name]:
+                    WarningMessage.ignored_argument(
+                        "Index",
+                        arg_name,
+                        "Non-default arguments are not supported for Index with query compiler.",
+                    )
         if isinstance(data, SnowflakeQueryCompiler):
             qc = data
         else:
