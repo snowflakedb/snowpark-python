@@ -185,4 +185,5 @@ def test_ast(session, test_case):
 
 
 if __name__ == "__main__":
+    os.environ["TZ"] = "America/New_York"
     pytest.main()
