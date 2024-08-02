@@ -376,7 +376,7 @@ class Selectable(LogicalPlan, ABC):
 
     @abstractmethod
     def referred_ctes(self) -> Set[str]:
-        """Return the set of ctes referred by the current selectable node"""
+        """Return the set of ctes referred by the whole selectable subtree, includes its-self and children"""
         pass
 
 

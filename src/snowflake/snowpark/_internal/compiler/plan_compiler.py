@@ -40,7 +40,7 @@ class PlanCompiler:
         Optimization can be applied if
         1) there is source logical plan attached to the current snowflake plan
         2) the query compilation stage is enabled
-        2) optimizations are enabled in the current session, such as cte_optimization_enabled
+        3) optimizations are enabled in the current session, such as cte_optimization_enabled
 
 
         Returns
@@ -65,10 +65,10 @@ class PlanCompiler:
 
             # apply each optimizations if needed
             if self._plan.session.cte_optimization_enabled:
-                common_sub_dataframe_eliminator = RepeatedSubqueryElimination(
+                repeated_subquery_eliminator = RepeatedSubqueryElimination(
                     logical_plans, query_generator
                 )
-                logical_plans = common_sub_dataframe_eliminator.apply()
+                logical_plans = repeated_subquery_eliminator.apply()
 
             # do a final pass of code generation
             return query_generator.generate_queries(logical_plans)

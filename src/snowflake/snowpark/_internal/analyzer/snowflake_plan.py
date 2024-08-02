@@ -650,7 +650,7 @@ class SnowflakePlanBuilder:
                 if post_action not in post_actions:
                     post_actions.append(copy.copy(post_action))
         else:
-            merged_queries = select_left.queries[:-1] + select_left.queries[:-1]
+            merged_queries = select_left.queries[:-1] + select_right.queries[:-1]
             post_actions = select_left.post_actions + select_right.post_actions
 
         queries = merged_queries + [
