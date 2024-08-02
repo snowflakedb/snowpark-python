@@ -10,13 +10,10 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     Query,
     SnowflakePlan,
 )
-from snowflake.snowpark._internal.compiler.common_subdataframe_elimination import (
-    CommonSubDataframeElimination,
+from snowflake.snowpark._internal.compiler.repeated_subquery_elimination import (
+    RepeatedSubqueryElimination,
 )
-from snowflake.snowpark._internal.compiler.utils import (
-    create_query_generator,
-    get_snowflake_plan_queries,
-)
+from snowflake.snowpark._internal.compiler.utils import create_query_generator
 from snowflake.snowpark.context import is_new_compilation_stage_enabled
 
 
@@ -66,7 +63,7 @@ class PlanCompiler:
 
             # apply each optimizations if needed
             if self._plan.session.cte_optimization_enabled:
-                common_sub_dataframe_eliminator = CommonSubDataframeElimination(
+                common_sub_dataframe_eliminator = RepeatedSubqueryElimination(
                     logical_plans, query_generator
                 )
                 logical_plans = common_sub_dataframe_eliminator.apply()
@@ -77,4 +74,7 @@ class PlanCompiler:
             final_plan = self._plan
             if self._plan.session.cte_optimization_enabled:
                 final_plan = final_plan.replace_repeated_subquery_with_cte()
-            return get_snowflake_plan_queries(final_plan, {})
+            return {
+                PlanQueryType.QUERIES: final_plan.queries,
+                PlanQueryType.POST_ACTIONS: final_plan.post_actions,
+            }
