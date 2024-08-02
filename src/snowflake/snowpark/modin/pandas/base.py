@@ -669,6 +669,8 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         from snowflake.snowpark.modin.plugin.extensions.index import Index
 
+        if self._query_compiler.is_multiindex():
+            return self._query_compiler.index
         return Index(data=self, convert_to_lazy=True)
 
     index = property(_get_index, _set_index)
