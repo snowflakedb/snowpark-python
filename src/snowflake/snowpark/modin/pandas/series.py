@@ -794,7 +794,7 @@ class Series(BasePandasDataset):
         result = self.reset_index(drop=True).idxmax(
             axis=axis, skipna=skipna, *args, **kwargs
         )
-        if not is_integer(result) and not result:  # if result=0, return 0 not -1
+        if not is_integer(result):  # if result is None, return -1
             result = -1
         return result
 
@@ -811,7 +811,7 @@ class Series(BasePandasDataset):
         result = self.reset_index(drop=True).idxmin(
             axis=axis, skipna=skipna, *args, **kwargs
         )
-        if not is_integer(result) and not result:  # if result=0, return 0 not -1
+        if not is_integer(result):  # if result is None, return -1
             result = -1
         return result
 
