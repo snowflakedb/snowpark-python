@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+import copy
 from typing import DefaultDict, Dict, Iterable, List, NamedTuple, Optional
 
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
@@ -60,6 +60,9 @@ class QueryGenerator(Analyzer):
         # Records the definition of all the with query blocks encountered during the code generation.
         # This information will be used to generate the final query of a SnowflakePlan with the
         # correct CTE definition.
+        # NOTE: the dict used here is an ordered dict, all with query block definition is recorded in the
+        # order of when the with query block is visited. The order is important to make sure the dependency
+        # between the CTE definition is satisfied.
         self.resolved_with_query_block: Dict[str, str] = {}
 
     def generate_queries(
@@ -130,10 +133,11 @@ class QueryGenerator(Analyzer):
             )
 
             # update the resolved child
+            copied_resolved_child = copy.deepcopy(resolved_child)
             final_queries = get_snowflake_plan_queries(
-                resolved_child, self.resolved_with_query_block
+                copied_resolved_child, self.resolved_with_query_block
             )
-            resolved_child.queries = final_queries[PlanQueryType.QUERIES]
+            copied_resolved_child.queries = final_queries[PlanQueryType.QUERIES]
             return self.plan_builder.save_as_table(
                 logical_plan.table_name,
                 logical_plan.column_names,
@@ -144,7 +148,7 @@ class QueryGenerator(Analyzer):
                     for x in logical_plan.clustering_exprs
                 ],
                 logical_plan.comment,
-                resolved_child,
+                copied_resolved_child,
                 logical_plan,
                 self.session._use_scoped_temp_objects,
                 logical_plan.is_generated,
@@ -169,10 +173,12 @@ class QueryGenerator(Analyzer):
             # the with definition must be generated before create, update, delete, merge and copy into
             # query.
             resolved_child = resolved_children[logical_plan.children[0]]
+            copied_resolved_child = copy.deepcopy(resolved_child)
             final_queries = get_snowflake_plan_queries(
-                resolved_child, self.resolved_with_query_block
+                copied_resolved_child, self.resolved_with_query_block
             )
-            resolved_child.queries = final_queries[PlanQueryType.QUERIES]
+            copied_resolved_child.queries = final_queries[PlanQueryType.QUERIES]
+            resolved_children[logical_plan.children[0]] = copied_resolved_child
             return super().do_resolve_with_resolved_children(
                 logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
             )
@@ -185,9 +191,10 @@ class QueryGenerator(Analyzer):
         if isinstance(logical_plan, WithQueryBlock):
             resolved_child = resolved_children[logical_plan.children[0]]
             # record the CTE definition of the current block
-            self.resolved_with_query_block.update(
-                {logical_plan.name: resolved_child.queries[-1].sql}
-            )
+            if logical_plan.name not in self.resolved_with_query_block:
+                self.resolved_with_query_block[
+                    logical_plan.name
+                ] = resolved_child.queries[-1].sql
 
             return self.plan_builder.with_query_block(
                 logical_plan.name,

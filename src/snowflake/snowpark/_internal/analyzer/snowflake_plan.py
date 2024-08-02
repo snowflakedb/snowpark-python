@@ -450,6 +450,7 @@ class SnowflakePlan(LogicalPlan):
                 self.df_aliased_col_name_to_real_col_name,
                 session=self.session,
                 placeholder_query=self.placeholder_query,
+                referred_ctes=self.referred_ctes,
             )
         else:
             return SnowflakePlan(
@@ -463,6 +464,7 @@ class SnowflakePlan(LogicalPlan):
                 self.df_aliased_col_name_to_real_col_name,
                 session=self.session,
                 placeholder_query=self.placeholder_query,
+                referred_ctes=self.referred_ctes,
             )
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
@@ -490,6 +492,7 @@ class SnowflakePlan(LogicalPlan):
             # note that there is no copy of the session object, be careful when using the
             # session object after deepcopy
             session=self.session,
+            referred_ctes=self.referred_ctes,
         )
         copied_plan._is_valid_for_replacement = True
         if copied_source_plan:
