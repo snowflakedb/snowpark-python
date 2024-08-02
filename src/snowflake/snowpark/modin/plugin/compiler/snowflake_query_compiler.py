@@ -67,6 +67,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName
+from snowflake.snowpark.modin.plugin._internal.functions import snowpark_pandas_col
 from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
     parse_table_name,
@@ -2025,10 +2026,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # add new column with result as unnamed
             new_column_expr = compute_binary_op_with_fill_value(
                 op=op,
-                lhs=col(lhs_quoted_identifier),
-                lhs_datatype=lambda: identifier_to_type_map[lhs_quoted_identifier],
-                rhs=col(rhs_quoted_identifier),
-                rhs_datatype=lambda: identifier_to_type_map[rhs_quoted_identifier],
+                lhs=snowpark_pandas_col(lhs_quoted_identifier),
+                rhs=snowpark_pandas_col(rhs_quoted_identifier),
                 fill_value=fill_value,
             )
 
