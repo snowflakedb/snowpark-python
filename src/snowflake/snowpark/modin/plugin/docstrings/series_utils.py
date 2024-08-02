@@ -1548,11 +1548,11 @@ class CombinedDatetimelikeProperties:
         ...                   periods=4)})
         >>> df.assign(quarter=df.dates.dt.quarter,
         ...           is_quarter_start=df.dates.dt.is_quarter_start)
-            dates  quarter  is_quarter_start
-        0 2017-03-30        1             False
-        1 2017-03-31        1             False
-        2 2017-04-01        2              True
-        3 2017-04-02        2             False
+               dates  quarter  is_quarter_end
+        0 2017-03-30        1           False
+        1 2017-03-31        1           False
+        2 2017-04-01        2            True
+        3 2017-04-02        2           False
         """
 
     @property
@@ -1580,11 +1580,11 @@ class CombinedDatetimelikeProperties:
         ...                    periods=4)})
         >>> df.assign(quarter=df.dates.dt.quarter,
         ...           is_quarter_end=df.dates.dt.is_quarter_end)
-            dates  quarter    is_quarter_end
-        0 2017-03-30        1             False
-        1 2017-03-31        1              True
-        2 2017-04-01        2             False
-        3 2017-04-02        2             False
+               dates  quarter  is_quarter_end
+        0 2017-03-30        1           False
+        1 2017-03-31        1            True
+        2 2017-04-01        2           False
+        3 2017-04-02        2           False
         """
 
     @property
