@@ -366,6 +366,8 @@ MAX_QUANTILES_SUPPORTED: int = 16
 
 _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE = "does not yet support pd.Grouper, axis == 1, by != None and level != None, or by containing any non-pandas hashable labels."
 
+QUARTER_START_MONTHS = [1, 4, 7, 10]
+
 
 class SnowflakeQueryCompiler(BaseQueryCompiler):
     """based on: https://modin.readthedocs.io/en/0.11.0/flow/modin/backends/base/query_compiler.html
@@ -10066,6 +10068,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "is_month_end": (
                 lambda column: coalesce(
                     dayofmonth(dateadd("day", pandas_lit(1), col(column))) == 1,
+                    pandas_lit(False),
+                )
+            ),
+            "is_quarter_start": (
+                lambda column: coalesce(
+                    (dayofmonth(col(column)) == 1)
+                    & (month(col(column)).in_(*QUARTER_START_MONTHS)),
+                    pandas_lit(False),
+                )
+            ),
+            "is_quarter_end": (
+                lambda column: coalesce(
+                    (dayofmonth(dateadd("day", pandas_lit(1), col(column))) == 1)
+                    & (
+                        month(dateadd("day", pandas_lit(1), col(column))).in_(
+                            *QUARTER_START_MONTHS
+                        )
+                    ),
                     pandas_lit(False),
                 )
             ),
