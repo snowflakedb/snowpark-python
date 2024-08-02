@@ -10069,6 +10069,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     pandas_lit(False),
                 )
             ),
+            "is_quarter_start": (
+                lambda column: coalesce(
+                    (dayofmonth(col(column)) == 1)
+                    & (month(col(column)).in_(1, 4, 7, 10)),
+                    pandas_lit(False),
+                )
+            ),
+            "is_quarter_end": (
+                lambda column: coalesce(
+                    (dayofmonth(dateadd("day", pandas_lit(1), col(column))) == 1)
+                    & (
+                        month(dateadd("day", pandas_lit(1), col(column))).in_(
+                            1, 4, 7, 10
+                        )
+                    ),
+                    pandas_lit(False),
+                )
+            ),
             "is_year_start": (
                 lambda column: coalesce(
                     (dayofmonth(col(column)) == 1) & (month(col(column)) == 1),
