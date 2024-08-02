@@ -6,6 +6,7 @@
 
 #### New Features
 - Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a util function to check the equality of two Snowpark DataFrames.
+- Added query compilation stage with extra optimization and query generation step. The stage can be enabled by setting `session.query_compilation_stage_enabled = True`.
 
 #### Improvements
 
