@@ -47,10 +47,10 @@ from snowflake.snowpark.functions import (
     least,
     listagg,
     lit,
-    max as max_,
+    # max as max_,
     mean,
     median,
-    min as min_,
+    # min as min_,
     parse_json,
     skew,
     stddev,
@@ -61,6 +61,8 @@ from snowflake.snowpark.functions import (
     when,
 )
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
+from snowflake.snowpark.modin.plugin._internal.column import SnowparkPandasColumn
+from snowflake.snowpark.modin.plugin._internal.functions import snowpark_pandas_col, min as min_, max as max_
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
     OrderingColumn,
@@ -87,7 +89,7 @@ _NUMPY_FUNCTION_TO_NAME = {
 
 def array_agg_keepna(
     column_to_aggregate: ColumnOrName, ordering_columns: Iterable[OrderingColumn]
-) -> Column:
+) -> SnowparkPandasColumn:
     """
     Aggregate a column, including nulls, into an array by the given ordering columns.
     """
@@ -242,33 +244,33 @@ def _columns_coalescing_idxmax_idxmin_helper(
 # Map between the pandas input aggregation function (str or numpy function) and
 # the corresponding snowflake builtin aggregation function for axis=0.
 SNOWFLAKE_BUILTIN_AGG_FUNC_MAP: dict[Union[str, Callable], Callable] = {
-    "count": count,
-    "mean": mean,
+    # "count": count,
+    # "mean": mean,
     "min": min_,
     "max": max_,
-    "idxmax": functools.partial(
-        _columns_coalescing_idxmax_idxmin_helper, func="idxmax"
-    ),
-    "idxmin": functools.partial(
-        _columns_coalescing_idxmax_idxmin_helper, func="idxmin"
-    ),
-    "sum": sum_,
-    "median": median,
-    "skew": skew,
-    "std": stddev,
-    "var": variance,
-    "all": builtin("booland_agg"),
-    "any": builtin("boolor_agg"),
-    np.max: max_,
-    np.min: min_,
-    np.sum: sum_,
-    np.mean: mean,
-    np.median: median,
-    np.std: stddev,
-    np.var: variance,
-    "array_agg": array_agg,
-    "quantile": column_quantile,
-    "nunique": count_distinct,
+    # "idxmax": functools.partial(
+    #     _columns_coalescing_idxmax_idxmin_helper, func="idxmax"
+    # ),
+    # "idxmin": functools.partial(
+    #     _columns_coalescing_idxmax_idxmin_helper, func="idxmin"
+    # ),
+    # "sum": sum_,
+    # "median": median,
+    # "skew": skew,
+    # "std": stddev,
+    # "var": variance,
+    # "all": builtin("booland_agg"),
+    # "any": builtin("boolor_agg"),
+    # np.max: max_,
+    # np.min: min_,
+    # np.sum: sum_,
+    # np.mean: mean,
+    # np.median: median,
+    # np.std: stddev,
+    # np.var: variance,
+    # "array_agg": array_agg,
+    # "quantile": column_quantile,
+    # "nunique": count_distinct,
 }
 
 
@@ -393,29 +395,11 @@ def _columns_coalescing_sum(*cols: SnowparkColumn) -> Callable:
 # function may either  be a builtin aggregation function, or a function taking in *arg columns
 # that then calls the appropriate builtin aggregations.
 SNOWFLAKE_COLUMNS_AGG_FUNC_MAP: dict[Union[str, Callable], Callable] = {
-    "count": _columns_count,
-    "sum": _columns_coalescing_sum,
-    np.sum: _columns_coalescing_sum,
-    "min": _columns_coalescing_min,
-    "max": _columns_coalescing_max,
-    "idxmax": _columns_coalescing_idxmax_idxmin_helper,
-    "idxmin": _columns_coalescing_idxmax_idxmin_helper,
-    np.min: _columns_coalescing_min,
-    np.max: _columns_coalescing_max,
+
 }
 
 # These functions are called instead if skipna=False
 SNOWFLAKE_COLUMNS_KEEPNA_AGG_FUNC_MAP: dict[Union[str, Callable], Callable] = {
-    "min": least,
-    "max": greatest,
-    "idxmax": _columns_coalescing_idxmax_idxmin_helper,
-    "idxmin": _columns_coalescing_idxmax_idxmin_helper,
-    # IMPORTANT: count and sum use python builtin sum to invoke __add__ on each column rather than Snowpark
-    # sum_, since Snowpark sum_ gets the sum of all rows within a single column.
-    "sum": lambda *cols: sum(cols),
-    np.sum: lambda *cols: sum(cols),
-    np.min: least,
-    np.max: greatest,
 }
 
 
@@ -654,7 +638,7 @@ def generate_aggregation_column(
     agg_kwargs: dict[str, Any],
     is_groupby_agg: bool,
     index_column_snowflake_quoted_identifier: Optional[list[str]] = None,
-) -> SnowparkColumn:
+) -> SnowparkPandasColumn:
     """
     Generate the aggregation column for the given column and aggregation function.
 
@@ -699,12 +683,12 @@ def generate_aggregation_column(
             agg_snowpark_column = coalesce(
                 snowflake_agg_func(snowpark_column), pandas_lit(0)
             )
-    elif snowflake_agg_func in (
-        SNOWFLAKE_BUILTIN_AGG_FUNC_MAP["all"],
-        SNOWFLAKE_BUILTIN_AGG_FUNC_MAP["any"],
-    ):
-        # Need to wrap column name in IDENTIFIER, or else bool agg function will treat the name as a string literal
-        agg_snowpark_column = snowflake_agg_func(builtin("identifier")(snowpark_column))
+    # elif snowflake_agg_func in (
+    #     SNOWFLAKE_BUILTIN_AGG_FUNC_MAP["all"],
+    #     SNOWFLAKE_BUILTIN_AGG_FUNC_MAP["any"],
+    # ):
+    #     # Need to wrap column name in IDENTIFIER, or else bool agg function will treat the name as a string literal
+    #     agg_snowpark_column = snowflake_agg_func(builtin("identifier")(snowpark_column))
     elif snowflake_agg_func == array_agg:
         # Array aggregation requires the ordering columns, which we have to
         # pass in here.
@@ -814,7 +798,7 @@ def aggregate_with_ordered_dataframe(
     """
 
     is_groupby_agg = groupby_columns is not None
-    agg_list: list[SnowparkColumn] = [
+    agg_list: list[SnowparkPandasColumn] = [
         generate_aggregation_column(
             agg_column_op_params=agg_col_op,
             agg_kwargs=agg_kwargs,

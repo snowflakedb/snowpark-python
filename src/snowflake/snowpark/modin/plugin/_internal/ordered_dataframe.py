@@ -21,20 +21,22 @@ from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.functions import (
     coalesce,
-    count,
     iff,
     lit,
     max as max_,
     not_,
-    row_number,
+    # row_number,
     sum as sum_,
 )
 from snowflake.snowpark.modin.plugin._typing import AlignTypeLit, JoinTypeLit
+from snowflake.snowpark.modin.plugin._internal.functions import count, snowpark_pandas_col, row_number
+from snowflake.snowpark.modin.plugin._internal.column import SnowparkPandasColumn, SnowparkPandasColumnOrName
+from snowflake.snowpark.modin.plugin._internal.window import SnowparkPandasWindow
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.table_function import TableFunctionCall
-from snowflake.snowpark.types import StructType
-from snowflake.snowpark.window import Window
+from snowflake.snowpark.types import StructType, DataType, StructField, LongType
+# from snowflake.snowpark.window import Window
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -43,7 +45,6 @@ if sys.version_info <= (3, 9):
     from collections.abc import Iterable
 else:
     from collections.abc import Iterable
-
 
 @dataclass(frozen=True)
 class OrderingColumn:
@@ -61,21 +62,26 @@ class OrderingColumn:
     na_last: bool = True
 
     @property
-    def snowpark_column(self) -> Column:
+    def snowpark_pandas_column(self) -> SnowparkPandasColumn:
         """
         The corresponding SnowparkColumn that can be used for snowpark
         dataframe for sorting.
         """
-        col = Column(self.snowflake_quoted_identifier)
+        def get_data_type_and_snowpark_column(getter):
+            input_col = snowpark_pandas_col(self.snowflake_quoted_identifier)
+            input_datatype, col = input_col.datatype(getter), input_col.to_snowpark_column(getter)
 
-        if self.ascending and self.na_last:
-            return col.asc_nulls_last()
-        elif self.ascending and not self.na_last:
-            return col.asc_nulls_first()
-        elif not self.ascending and self.na_last:
-            return col.desc_nulls_last()
-        else:  # i.e., not self.ascending and not self.na_last:
-            return col.desc_nulls_first()
+            if self.ascending and self.na_last:
+                return_col = col.asc_nulls_last()
+            elif self.ascending and not self.na_last:
+                return_col = col.asc_nulls_first()
+            elif not self.ascending and self.na_last:
+                return_col = col.desc_nulls_last()
+            else:  # i.e., not self.ascending and not self.na_last:
+                return_col = col.desc_nulls_first()
+
+            return input_datatype, return_col
+        return SnowparkPandasColumn(get_data_type_and_snowpark_column)
 
     def reverse(self) -> "OrderingColumn":
         """
@@ -228,6 +234,7 @@ class OrderedDataFrame:
     row_position_snowflake_quoted_identifier: Optional[str]
     # row count snowflake quoted identifier
     row_count_snowflake_quoted_identifier: Optional[str]
+    _data_types: list[Optional[DataType]]
 
     def __init__(
         self,
@@ -237,7 +244,12 @@ class OrderedDataFrame:
         ordering_columns: Optional[list[OrderingColumn]] = None,
         row_position_snowflake_quoted_identifier: Optional[str] = None,
         row_count_snowflake_quoted_identifier: Optional[str] = None,
+        data_types: Optional[list[DataType]] = None
     ) -> None:
+        self._data_types = data_types
+        if data_types is None:
+            # when debugging, we want to catch cases where we fail to propagate data_types
+            breakpoint()
         self._dataframe_ref = dataframe_ref
 
         all_existing_snowflake_quoted_identifiers = (
@@ -298,7 +310,7 @@ class OrderedDataFrame:
     def ordering_columns(self) -> list[OrderingColumn]:
         return list(self._ordering_columns_tuple)
 
-    def _ordering_snowpark_columns(self) -> list[Column]:
+    def _ordering_snowpark_columns(self) -> list[SnowparkPandasColumn]:
         """
         Returns a list of SnowparkColumns that can be applied to the snowpark
         dataframe to derive the ordered result.
@@ -306,7 +318,7 @@ class OrderedDataFrame:
         Returns:
             List of SnowparkColumn
         """
-        return [col.snowpark_column for col in self.ordering_columns]
+        return [col.snowpark_pandas_column for col in self.ordering_columns]
 
     @property
     def ordering_column_snowflake_quoted_identifiers(self) -> list[str]:
@@ -318,7 +330,7 @@ class OrderedDataFrame:
         """
         return [col.snowflake_quoted_identifier for col in self.ordering_columns]
 
-    def _row_position_snowpark_column(self) -> Column:
+    def _row_position_snowpark_pandas_column(self) -> SnowparkPandasColumn:
         """
         Returns a row position Snowpark column for the dataframe.
         If row position column already exist in the current dataframe, it will be directly returned.
@@ -329,9 +341,9 @@ class OrderedDataFrame:
         """
 
         if self.row_position_snowflake_quoted_identifier is not None:
-            return Column(self.row_position_snowflake_quoted_identifier)
+            return snowpark_pandas_col(self.row_position_snowflake_quoted_identifier)
 
-        return row_number().over(Window.order_by(self._ordering_snowpark_columns())) - 1
+        return row_number().over(SnowparkPandasWindow.order_by(self._ordering_snowpark_columns())) - 1
 
     @property
     def projected_column_snowflake_quoted_identifiers(self) -> list[str]:
@@ -375,7 +387,7 @@ class OrderedDataFrame:
         )
         ordered_dataframe = self.select(
             *self.projected_column_snowflake_quoted_identifiers,
-            self._row_position_snowpark_column().as_(
+            self._row_position_snowpark_pandas_column().as_(
                 row_position_snowflake_quoted_identifier
             ),
         )
@@ -463,13 +475,16 @@ class OrderedDataFrame:
             field.column_identifier.quoted_name: field
             for field in self._dataframe_ref.schema.fields
         }
-        return StructType(
-            [
-                quoted_identifier_to_field_mapping[identifier]
-                for identifier in self.projected_column_snowflake_quoted_identifiers
-                if identifier in quoted_identifier_to_field_mapping
-            ]
-        )
+        schema = []
+        for identifier, known_type in zip(self.projected_column_snowflake_quoted_identifiers, self._data_types):
+            if known_type is not None:
+                datatype = known_type
+            elif identifier in quoted_identifier_to_field_mapping:
+                datatype = known_type
+            if identifier in quoted_identifier_to_field_mapping:
+                found_field = quoted_identifier_to_field_mapping[identifier]
+                schema.append( StructField(found_field.column_identifier, datatype, found_field.nullable))
+        return StructType(schema)
 
     @property
     def queries(self) -> dict[str, list[str]]:
@@ -536,9 +551,9 @@ class OrderedDataFrame:
 
         return column_quoted_identifiers
 
-    def _extract_quoted_identifiers_from_column_or_name(
-        self, col: ColumnOrName
-    ) -> list[str]:
+    def _extract_quoted_identifiers_and_data_types_from_column_or_name(
+        self, col: SnowparkPandasColumnOrName
+    ) -> list[tuple[Optional[DataType], str]]:
         """
         Extract the snowflake quoted identifiers out of a Column or column name with following rule:
         1) when it is a Snowpark column, only column with alias name can be handled, the alias name is
@@ -553,25 +568,27 @@ class OrderedDataFrame:
             is_valid_snowflake_quoted_identifier,
         )
 
-        if isinstance(col, Column):
-            if col._expression.pretty_name == "ALIAS":
-                column_name = col._named().name
+        if isinstance(col, SnowparkPandasColumn):
+            snowpark_column = col.to_snowpark_column(self.get_input_types_getter())
+            data_type = col.datatype(self.get_input_types_getter())
+            if snowpark_column._expression.pretty_name == "ALIAS":
+                column_name = snowpark_column._named().name
                 assert is_valid_snowflake_quoted_identifier(
                     column_name
                 ), f"Invalid snowflake quoted identifier {column_name} used"
-                return [column_name]
+                return [(data_type, column_name)]
             else:
                 raise AssertionError(
-                    f"Column {col} is invalid, only column with alias name is allowed!"
+                    f"Column {snowpark_column} is invalid, only column with alias name is allowed!"
                 )
         elif isinstance(col, str):
             if col == "*":
                 # star adds all projected columns to the result
-                return self.projected_column_snowflake_quoted_identifiers
+                return list(zip(self._data_types, self.projected_column_snowflake_quoted_identifiers))
             else:
                 active_columns = self._get_active_column_snowflake_quoted_identifiers()
                 if col in active_columns:
-                    return [col]
+                    return self._extract_quoted_identifiers_and_data_types_from_column_or_name(snowpark_pandas_col(col).as_(col))
                 else:
                     raise AssertionError(
                         f"Column {col} is not in active columns {active_columns}"
@@ -612,18 +629,24 @@ class OrderedDataFrame:
         new_snowpark_column_objects: list[Column] = []
         # a list of snowflake quoted identifiers as projected columns for new OrderedDataFrame
         new_projected_columns: list[str] = []
+        new_data_types: list[Optional[DataType]] = []
         for e in exprs:
+            if isinstance(e, Column):
+                # DEBUG: should not get here. that means we selected SnowparkColumn instead of SnowparkPandasColumn.
+                breakpoint()
             if isinstance(e, TableFunctionCall):
+                raise NotImplementedError()
                 # we couldn't handle TableFunctionCall, so just use the original select
                 snowpark_dataframe = self._dataframe_ref.snowpark_dataframe.select(
                     *cols
                 )
                 return OrderedDataFrame(DataFrameReference(snowpark_dataframe))
-            elif isinstance(e, (Column, str)):
-                column_names = self._extract_quoted_identifiers_from_column_or_name(e)
+            elif isinstance(e, (SnowparkPandasColumn, str)):
+                data_types, column_names = zip(*self._extract_quoted_identifiers_and_data_types_from_column_or_name(e))
                 new_projected_columns.extend(column_names)
-                if isinstance(e, Column):
-                    new_snowpark_column_objects.append(e)
+                new_data_types.extend(data_types)
+                if isinstance(e, SnowparkPandasColumn):
+                    new_snowpark_column_objects.append(e.to_snowpark_column(self.get_input_types_getter()))
             else:
                 raise AssertionError(
                     "Only columns with alias name, column names and table functions are accepted"
@@ -657,6 +680,7 @@ class OrderedDataFrame:
             ordering_columns=self.ordering_columns,
             row_position_snowflake_quoted_identifier=self.row_position_snowflake_quoted_identifier,
             row_count_snowflake_quoted_identifier=self.row_count_snowflake_quoted_identifier,
+            data_types=new_data_types,
         )
 
     def dropna(
@@ -687,6 +711,7 @@ class OrderedDataFrame:
             DataFrameReference(snowpark_dataframe, result_column_quoted_identifiers),
             projected_column_snowflake_quoted_identifiers=result_column_quoted_identifiers,
             ordering_columns=self.ordering_columns,
+            data_types=self._data_types
         )
 
     def union_all(self, other: "OrderedDataFrame") -> "OrderedDataFrame":
@@ -717,7 +742,7 @@ class OrderedDataFrame:
 
     def _extract_aggregation_result_column_quoted_identifiers(
         self,
-        *agg_exprs: ColumnOrName,
+        *agg_exprs: SnowparkPandasColumnOrName,
     ) -> list[str]:
         """
         Extract the quoted identifiers for the aggregation columns.
@@ -726,9 +751,9 @@ class OrderedDataFrame:
         # extract the aggregation function name
         result_column_quoted_identifiers: list[str] = []
         for e in exprs:
-            if isinstance(e, (Column, str)):
-                column_names = self._extract_quoted_identifiers_from_column_or_name(e)
-                result_column_quoted_identifiers.extend(column_names)
+            if isinstance(e, (SnowparkPandasColumn, str)):
+                column_names_and_types = self._extract_quoted_identifiers_and_data_types_from_column_or_name(e)
+                result_column_quoted_identifiers.extend([pair[1] for pair in column_names_and_types])
             else:
                 raise AssertionError(
                     "Only column name or column expression with alias name can be used as aggregation expression"
@@ -803,6 +828,7 @@ class OrderedDataFrame:
             row_position_snowflake_quoted_identifier=None,
             # No need to reset row count, since sorting should not add/drop rows.
             row_count_snowflake_quoted_identifier=self.row_count_snowflake_quoted_identifier,
+            data_types=self._data_types
         )
 
     def pivot(
@@ -904,7 +930,7 @@ class OrderedDataFrame:
 
     def agg(
         self,
-        *exprs: ColumnOrName,
+        *exprs: SnowparkPandasColumnOrName,
     ) -> "OrderedDataFrame":
         """
         Aggregates the data in the DataFrame. Use this method if you don't need to
@@ -912,13 +938,21 @@ class OrderedDataFrame:
 
         See detailed docstring in Snowpark DataFrame's agg.
         """
-        snowpark_dataframe = self._dataframe_ref.snowpark_dataframe.agg(*exprs)
+        agg_snowpark_pandas_columns = []
+        for e in exprs:
+            if isinstance(e, str):
+                agg_snowpark_pandas_columns.append(snowpark_pandas_col(e))
+            else:
+                assert isinstance(e, SnowparkPandasColumn)
+                agg_snowpark_pandas_columns.append(e)
+        snowpark_dataframe = self._dataframe_ref.snowpark_dataframe.agg([e.to_snowpark_column(self.get_input_types_getter()) for e in agg_snowpark_pandas_columns])
         result_column_quoted_identifiers = (
             self._extract_aggregation_result_column_quoted_identifiers(*exprs)
         )
         return OrderedDataFrame(
             DataFrameReference(snowpark_dataframe, result_column_quoted_identifiers),
             projected_column_snowflake_quoted_identifiers=result_column_quoted_identifiers,
+            data_types=[e.datatype(self.get_input_types_getter()) for e in agg_snowpark_pandas_columns]
         )
 
     def _deduplicate_active_column_snowflake_quoted_identifiers(
@@ -974,7 +1008,7 @@ class OrderedDataFrame:
         )
 
         deduplicated_quoted_identifiers: list[str] = []
-        deduplicated_columns: list[Column] = []
+        deduplicated_columns: list[SnowparkPandasColumn] = []
         for quoted_identifier in quoted_identifiers_to_deduplicate:
             # if it conflicts with the left identifier, alias the column to a new name
             if quoted_identifier in quoted_identifiers_to_deduplicate_against:
@@ -986,7 +1020,7 @@ class OrderedDataFrame:
                         + deduplicated_quoted_identifiers,
                     )[0]
                 )
-                deduplicated_column = Column(quoted_identifier).as_(
+                deduplicated_column = snowpark_pandas_col(quoted_identifier).as_(
                     deduplicated_quoted_identifier
                 )
             else:
@@ -1045,6 +1079,7 @@ class OrderedDataFrame:
             ordering_columns=new_ordering_columns,
             row_position_snowflake_quoted_identifier=new_row_position_snowflake_quoted_identifier,
             row_count_snowflake_quoted_identifier=new_row_count_snowflake_quoted_identifier,
+            data_types=deduplicated_ordered_frame._data_types
         )
 
     def join(
@@ -1355,6 +1390,7 @@ class OrderedDataFrame:
                 ordering_columns=self.ordering_columns,
                 row_position_snowflake_quoted_identifier=self.row_position_snowflake_quoted_identifier,
                 row_count_snowflake_quoted_identifier=self.row_count_snowflake_quoted_identifier,
+                data_types=self._data_types + aligned_ordered_frame._data_types
             )
 
         from snowflake.snowpark.modin.plugin._internal.join_utils import (
@@ -1633,6 +1669,7 @@ class OrderedDataFrame:
             ),
             projected_column_snowflake_quoted_identifiers=projected_dataframe_ref.snowflake_quoted_identifiers,
             ordering_columns=self.ordering_columns,
+            data_types=self._data_types
         )
 
     def limit(self, n: int, offset: int = 0, sort: bool = True) -> "OrderedDataFrame":
@@ -1659,6 +1696,7 @@ class OrderedDataFrame:
             ),
             projected_column_snowflake_quoted_identifiers=projected_dataframe_ref.snowflake_quoted_identifiers,
             ordering_columns=self.ordering_columns,
+            data_types=self._data_types            
         )
 
     @property
@@ -1737,9 +1775,15 @@ class OrderedDataFrame:
             statement_params = get_default_snowpark_pandas_statement_params()
         else:
             statement_params.update(get_default_snowpark_pandas_statement_params())
-        return snowpark_dataframe.to_pandas(
+        snowpark_to_pandas = snowpark_dataframe.to_pandas(
             statement_params=statement_params, block=block, **kwargs
         )
+        from snowflake.snowpark.modin.plugin._internal.type_utils import TimedeltaType
+        for column_pos, data_type in enumerate(self._data_types):
+            if isinstance(data_type, TimedeltaType):
+                snowpark_to_pandas.iloc[:, column_pos] = snowpark_to_pandas.iloc[:, column_pos].apply(type(data_type).to_pandas)
+        return snowpark_to_pandas
+            
 
     def _to_projected_snowpark_dataframe_reference(
         self,
@@ -1772,7 +1816,7 @@ class OrderedDataFrame:
         snowpark_dataframe = self._dataframe_ref.snowpark_dataframe
         if sort:
             snowpark_dataframe = snowpark_dataframe.sort(
-                self._ordering_snowpark_columns()
+                [c.to_snowpark_column(self.get_input_types_getter()) for c in  self._ordering_snowpark_columns()]
             )
 
         columns_quoted_identifiers = (
@@ -1900,4 +1944,22 @@ class OrderedDataFrame:
                 projected_column_snowflake_quoted_identifiers=self.projected_column_snowflake_quoted_identifiers,
                 ordering_columns=self.ordering_columns,
             )
+            
         )
+
+    def get_input_types_getter(self):
+        def getter():
+            # TODO: a bit of a hack -- maybe self._data_types should always
+            # include everything from self.dataframe_ref.schema            
+            # Using this to get around the fact that ordering columns can include
+            # unprojected columns that are also not marked as row position /
+            # row order columns.
+            types_dict = {**{f.column_identifier.quoted_name: f.datatype for f in self._dataframe_ref.schema},
+                          # then update with self._datatypes
+                          **{k: v for (k, v) in zip(self.projected_column_snowflake_quoted_identifiers, self._data_types)}}
+            if self.row_count_snowflake_quoted_identifier is not None:
+                types_dict[self.row_count_snowflake_quoted_identifier] = LongType()
+            if self.row_position_snowflake_quoted_identifier is not None:
+                types_dict[self.row_position_snowflake_quoted_identifier] = LongType()
+            return types_dict
+        return getter

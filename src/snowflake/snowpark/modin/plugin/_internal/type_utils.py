@@ -426,3 +426,5 @@ def is_compatible_snowpark_types(sp_type_1: DataType, sp_type_2: DataType) -> bo
     if isinstance(sp_type_1, StringType) and isinstance(sp_type_2, StringType):
         return True
     return False
+
+TimedeltaType = type("TimeDelta", (DataType,), {'to_pandas': lambda v: native_pd.Timedelta(v, "ns")})
