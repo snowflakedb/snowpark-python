@@ -38,26 +38,18 @@ pytestmark = [
 
 WITH = "WITH"
 
-# paramList = [False, True]
-paramList = [True]
+paramList = [False, True]
 
 
 @pytest.fixture(params=paramList, autouse=True)
-def setup_new_compilation_stage(request):
-    from snowflake.snowpark import context
-
-    is_new_compilation_stage_enabled = context.is_new_compilation_stage_enabled()
-    context.set_enable_new_compilation_stage(request.param)
-    yield
-    context.set_enable_new_compilation_stage(is_new_compilation_stage_enabled)
-
-
-@pytest.fixture(autouse=True)
-def setup(session):
+def setup(request, session):
     is_cte_optimization_enabled = session._cte_optimization_enabled
+    is_query_compilation_enabled = session.query_compilation_stage_enabled
+    session.query_compilation_stage_enabled = request.param
     session._cte_optimization_enabled = True
     yield
     session._cte_optimization_enabled = is_cte_optimization_enabled
+    session.query_compilation_stage_enabled = is_query_compilation_enabled
 
 
 def check_result(session, df, expect_cte_optimized):
@@ -77,7 +69,7 @@ def check_result(session, df, expect_cte_optimized):
     if installed_pandas:
         from pandas.testing import assert_frame_equal
 
-        assert_frame_equal(result_pandas, cte_result_pandas, check_dtype=False)
+        assert_frame_equal(result_pandas, cte_result_pandas)
 
     last_query = df.queries["queries"][-1]
     if expect_cte_optimized:

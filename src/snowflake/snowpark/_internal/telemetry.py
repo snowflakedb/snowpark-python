@@ -40,7 +40,12 @@ class TelemetryField(Enum):
     TYPE_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
         "snowpark_eliminate_numeric_sql_value_cast_enabled"
     )
+<<<<<<< HEAD
     TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = "snowpark_auto_clean_up_temp_table_enabled"
+=======
+    # telemetry for enabling the query compilation stage for query optimization and generation
+    TYPE_QUERY_COMPILATION_STAGE_ENABLED = "snowpark_query_compilation_stage_enabled"
+>>>>>>> f23e4c01 (address feedback)
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
     KEY_START_TIME = "start_time"
@@ -405,6 +410,21 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED.value: value,
+            },
+        }
+        self.send(message)
+
+
+    def send_query_compilation_stage_telemetry(
+        self, session_id: str, value: bool
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_QUERY_COMPILATION_STAGE_ENABLED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.TYPE_QUERY_COMPILATION_STAGE_ENABLED.value: value,
             },
         }
         self.send(message)

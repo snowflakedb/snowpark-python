@@ -14,7 +14,6 @@ from snowflake.snowpark._internal.compiler.repeated_subquery_elimination import 
     RepeatedSubqueryElimination,
 )
 from snowflake.snowpark._internal.compiler.utils import create_query_generator
-from snowflake.snowpark.context import is_new_compilation_stage_enabled
 
 
 class PlanCompiler:
@@ -35,11 +34,12 @@ class PlanCompiler:
     def __init__(self, plan: SnowflakePlan) -> None:
         self._plan = plan
 
-    def should_apply_optimizations(self) -> bool:
+    def should_start_query_compilation(self) -> bool:
         """
         Whether optimization should be applied to the plan or not.
         Optimization can be applied if
         1) there is source logical plan attached to the current snowflake plan
+        2) the query compilation stage is enabled
         2) optimizations are enabled in the current session, such as cte_optimization_enabled
 
 
@@ -50,11 +50,13 @@ class PlanCompiler:
 
         current_session = self._plan.session
         return (
-            self._plan.source_plan is not None
-        ) and current_session.cte_optimization_enabled
+            (self._plan.source_plan is not None)
+            and current_session.query_compilation_stage_enabled
+            and current_session.cte_optimization_enabled
+        )
 
     def compile(self) -> Dict[PlanQueryType, List[Query]]:
-        if is_new_compilation_stage_enabled() and self.should_apply_optimizations():
+        if self.should_start_query_compilation():
             # preparation for compilation
             # 1. make a copy of the original plan
             logical_plans = [copy.deepcopy(self._plan)]

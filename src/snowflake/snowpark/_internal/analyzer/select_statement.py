@@ -69,7 +69,6 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.utils import is_sql_select_statement
-from snowflake.snowpark.context import is_new_compilation_stage_enabled
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -314,7 +313,7 @@ class Selectable(LogicalPlan, ABC):
                 df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
                 source_plan=self,
                 placeholder_query=self.placeholder_query,
-                referred_cte_tables=self.referred_cte_tables(),
+                referred_ctes=self.referred_ctes(),
             )
             # set api_calls to self._snowflake_plan outside of the above constructor
             # because the constructor copy api_calls.
@@ -376,8 +375,8 @@ class Selectable(LogicalPlan, ABC):
         self._column_states = deepcopy(value)
 
     @abstractmethod
-    def referred_cte_tables(self) -> Set[str]:
-        """Return the set of cte tables referred by the current selectable node"""
+    def referred_ctes(self) -> Set[str]:
+        """Return the set of ctes referred by the current selectable node"""
         pass
 
 
@@ -429,7 +428,7 @@ class SelectableEntity(Selectable):
     def query_params(self) -> Optional[Sequence[Any]]:
         return None
 
-    def referred_cte_tables(self) -> Set[str]:
+    def referred_ctes(self) -> Set[str]:
         # the SelectableEntity only allows select from base table. No
         # CTE table will be referred.
         return set()
@@ -531,7 +530,7 @@ class SelectSQL(Selectable):
         new._api_calls = self._api_calls
         return new
 
-    def referred_cte_tables(self) -> Set[str]:
+    def referred_ctes(self) -> Set[str]:
         # SelectSQL directly calls sql query, there will be no
         # auto created CTE tables referred
         return set()
@@ -596,8 +595,8 @@ class SelectSnowflakePlan(Selectable):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
 
-    def referred_cte_tables(self) -> Set[str]:
-        return self._snowflake_plan.referred_cte_tables
+    def referred_ctes(self) -> Set[str]:
+        return self._snowflake_plan.referred_ctes
 
 
 class SelectStatement(Selectable):
@@ -735,7 +734,7 @@ class SelectStatement(Selectable):
         from_clause = self.from_.sql_in_subquery
         if (
             self.analyzer.session._cte_optimization_enabled
-            and (not is_new_compilation_stage_enabled())
+            and (not self.analyzer.session.query_compilation_stage_enabled)
             and self.from_._id
         ):
             placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
@@ -869,8 +868,8 @@ class SelectStatement(Selectable):
         )
         return complexity
 
-    def referred_cte_tables(self) -> Set[str]:
-        return self.from_.referred_cte_tables()
+    def referred_ctes(self) -> Set[str]:
+        return self.from_.referred_ctes()
 
     def to_subqueryable(self) -> "Selectable":
         """When this SelectStatement's subquery is not subqueryable (can't be used in `from` clause of the sql),
@@ -1197,8 +1196,8 @@ class SelectTableFunction(Selectable):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
 
-    def referred_cte_tables(self) -> Set[str]:
-        return self._snowflake_plan.referred_cte_tables
+    def referred_ctes(self) -> Set[str]:
+        return self._snowflake_plan.referred_ctes
 
 
 class SetOperand:
@@ -1292,13 +1291,9 @@ class SetStatement(Selectable):
         # we add #set_operands - 1 additional operators in sql query
         return {PlanNodeCategory.SET_OPERATION: len(self.set_operands) - 1}
 
-    def referred_cte_tables(self) -> Set[str]:
+    def referred_ctes(self) -> Set[str]:
         # get a union of referred cte tables from all child nodes
-        referred_cte_tables: Set[str] = set()
-        for node in self._nodes:
-            referred_cte_tables.update(node.referred_cte_tables())
-
-        return referred_cte_tables
+        return set().union(*[node.referred_ctes() for node in self._nodes])
 
 
 class DeriveColumnDependencyError(Exception):

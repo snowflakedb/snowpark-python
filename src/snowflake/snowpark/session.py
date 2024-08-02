@@ -194,9 +194,12 @@ _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING = "PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER
 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
     "PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME"
 )
+# parameter used to turn off the whole new query compilation stage in one shot. If turned
+# off the plan won't go through the extra optimization and query generation steps.
+_PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE = (
+    "PYTHON_SNOWPARK_ENABLE_COMPILATION_STAGE"
+)
 _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING = "PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION"
-# TODO (SNOW-1482588): Add parameter for PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED
-#               at server side
 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
     "PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED"
 )
@@ -547,6 +550,12 @@ class Session:
             )
         )
 
+        self._query_compilation_stage_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE, False
+            )
+        )
+
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
@@ -634,6 +643,10 @@ class Session:
             the target temporary tables will still be cleaned up accordingly.
         """
         return self._auto_clean_up_temp_table_enabled
+
+
+    def query_compilation_stage_enabled(self) -> bool:
+        return self._query_compilation_stage_enabled
 
     @property
     def custom_package_usage_config(self) -> Dict:
@@ -729,6 +742,20 @@ class Session:
         else:
             raise ValueError(
                 "value for auto_clean_up_temp_table_enabled must be True or False!"
+
+    @query_compilation_stage_enabled.setter
+    @ experimental_parameter(version="1.21.0")
+    def query_compilation_stage_enabled(self, value: bool) -> None:
+        """Set the value for eliminate_numeric_sql_value_cast_enabled"""
+
+        if value in [True, False]:
+            self._conn._telemetry_client.send_query_compilation_stage_telemetry(
+                self._session_id, value
+            )
+            self._query_compilation_stage_enabled = value
+        else:
+            raise ValueError(
+                "value for query_compilation_stage_enabled must be True or False!"
             )
 
     @custom_package_usage_config.setter
