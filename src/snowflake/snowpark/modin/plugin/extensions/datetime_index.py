@@ -26,6 +26,7 @@ Module houses ``DatetimeIndex`` class, that is distributed version of
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as native_pd
 from pandas._libs import lib
 from pandas._typing import ArrayLike, Dtype, Frequency, Hashable, TimeAmbiguous
@@ -35,7 +36,6 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 )
 from snowflake.snowpark.modin.plugin.extensions.index import Index
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-from snowflake.snowpark.types import TimestampType
 
 _CONSTRUCTOR_DEFAULTS = {
     "freq": lib.no_default,
@@ -145,10 +145,8 @@ class DatetimeIndex(Index):
         }
         if isinstance(data, SnowflakeQueryCompiler):
             # Raise error if underlying type is not a TimestampType.
-            datatype = data._modin_frame.quoted_identifier_to_snowflake_type()[
-                data._modin_frame.index_column_snowflake_quoted_identifiers[0]
-            ]
-            if not isinstance(datatype, TimestampType):
+            dtype = data.index_dtypes[0]
+            if not dtype == np.dtype("datetime64[ns]"):
                 raise ValueError(
                     "DatetimeIndex can only be created from a query compiler with TimestampType."
                 )
