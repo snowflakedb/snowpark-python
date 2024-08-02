@@ -185,5 +185,7 @@ def test_ast(session, test_case):
 
 
 if __name__ == "__main__":
+    # Use any time zone other than America/Los_Angeles and UTC, to minimize the
+    # odds of tests passing by luck.
     os.environ["TZ"] = "America/New_York"
     pytest.main()
