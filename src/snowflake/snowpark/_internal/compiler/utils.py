@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import copy
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import BinaryNode
 from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -34,6 +34,8 @@ from snowflake.snowpark._internal.compiler.query_generator import (
     QueryGenerator,
     SnowflakeCreateTablePlanInfo,
 )
+
+TreeNode = Union[SnowflakePlan, Selectable]
 
 
 def create_query_generator(plan: SnowflakePlan) -> QueryGenerator:
@@ -209,6 +211,139 @@ def replace_child_and_update_parent(
 
     else:
         raise ValueError(f"parent type {type(parent)} not supported")
+
+
+def replace_child(
+    parent: LogicalPlan,
+    old_child: LogicalPlan,
+    new_child: LogicalPlan,
+    query_generator: QueryGenerator,
+) -> None:
+    """
+    Helper function to replace the child node of a plan node with a new child.
+
+    Whenever necessary, we convert the new_child into a Selectable or SnowflakePlan
+    based on the parent node type.
+    """
+
+    def to_selectable(plan: LogicalPlan, query_generator: QueryGenerator) -> Selectable:
+        """Given a LogicalPlan, convert it to a Selectable."""
+        if isinstance(plan, Selectable):
+            return plan
+
+        snowflake_plan = resolve_node(plan, query_generator)
+        return SelectSnowflakePlan(snowflake_plan, analyzer=query_generator)
+
+    if not parent._is_valid_for_replacement:
+        raise ValueError(f"parent node {parent} is not valid for replacement.")
+
+    if old_child not in getattr(parent, "children_plan_nodes", parent.children):
+        raise ValueError(f"old_child {old_child} is not a child of parent {parent}.")
+
+    if isinstance(parent, SnowflakePlan):
+        assert parent.source_plan is not None
+        replace_child_and_update_parent(
+            parent.source_plan, old_child, new_child, query_generator
+        )
+
+    elif isinstance(parent, SelectStatement):
+        parent.from_ = to_selectable(new_child, query_generator)
+
+    elif isinstance(parent, SetStatement):
+        new_child_as_selectable = to_selectable(new_child, query_generator)
+        parent._nodes = [
+            node if node != old_child else new_child_as_selectable
+            for node in parent._nodes
+        ]
+        for operand in parent.set_operands:
+            if operand.selectable == old_child:
+                operand.selectable = new_child_as_selectable
+
+    elif isinstance(parent, Selectable):
+        assert parent.snowflake_plan is not None
+        replace_child_and_update_parent(
+            parent.snowflake_plan, old_child, new_child, query_generator
+        )
+
+    elif isinstance(parent, (UnaryNode, Limit, CopyIntoLocationNode)):
+        parent.children = [new_child]
+        parent.child = new_child
+
+    elif isinstance(parent, BinaryNode):
+        parent.children = [
+            node if node != old_child else new_child for node in parent.children
+        ]
+        if parent.left == old_child:
+            parent.left = new_child
+        if parent.right == old_child:
+            parent.right = new_child
+
+    elif isinstance(parent, SnowflakeCreateTable):
+        parent.children = [new_child]
+        parent.query = new_child
+
+    elif isinstance(parent, (TableUpdate, TableDelete)):
+        snowflake_plan = resolve_node(new_child, query_generator)
+        parent.children = [snowflake_plan]
+        parent.source_data = snowflake_plan
+
+    elif isinstance(parent, TableMerge):
+        snowflake_plan = resolve_node(new_child, query_generator)
+        parent.children = [snowflake_plan]
+        parent.source = snowflake_plan
+
+    elif isinstance(parent, LogicalPlan):
+        parent.children = [
+            node if node != old_child else new_child for node in parent.children
+        ]
+
+    else:
+        raise ValueError(f"parent type {type(parent)} not supported")
+
+
+def update_resolvable_node(
+    node: TreeNode,
+    query_generator: QueryGenerator,
+):
+    """
+    Helper function to re-resolve the resolvable node and do an in-place update for cached fields.
+    The re-resolve is only needed for SnowflakePlan node and Selectable node, because only those nodes
+    are resolved node with sql query state.
+
+    Note the update is done recursively until it reach to the child to the children_plan_nodes,
+    this is to make sure all nodes in between current node and child are updated
+    correctly. For example, with the following plan
+                  SelectSnowflakePlan
+                          |
+                     SnowflakePlan
+                          |
+                        JOIN
+    resolve_node(SelectSnowflakePlan, query_generator) will resolve both SelectSnowflakePlan and SnowflakePlan nodes.
+    """
+
+    if not node._is_valid_for_replacement:
+        raise ValueError(f"parent node {node} is not valid for replacement.")
+
+    if isinstance(node, SnowflakePlan):
+        assert node.source_plan is not None
+        if isinstance(node.source_plan, (SnowflakePlan, Selectable)):
+            update_resolvable_node(node.source_plan, query_generator)
+        resolve_and_update_snowflake_plan(node, query_generator)
+
+    elif isinstance(node, (SelectStatement, SetStatement)):
+        # clean up the cached sql query and snowflake plan to allow
+        # re-calculation of the sql query and snowflake plan
+        node._sql_query = None
+        node._snowflake_plan = None
+        node.analyzer = query_generator
+
+    elif isinstance(node, (SelectSnowflakePlan, SelectTableFunction)):
+        assert node.snowflake_plan is not None
+        update_resolvable_node(node.snowflake_plan, query_generator)
+        node.analyzer = query_generator
+
+    elif isinstance(node, Selectable):
+        node.analyzer = query_generator
 
 
 def get_snowflake_plan_queries(

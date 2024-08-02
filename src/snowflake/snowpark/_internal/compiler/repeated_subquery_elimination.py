@@ -3,27 +3,24 @@
 #
 
 from collections import defaultdict
-from typing import Dict, List, Set, Union
+from typing import Dict, List, Optional, Set
 
 from snowflake.snowpark._internal.analyzer.cte_utils import find_duplicate_subtrees
-from snowflake.snowpark._internal.analyzer.select_statement import Selectable
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     WithQueryBlock,
 )
 from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
 from snowflake.snowpark._internal.compiler.utils import (
-    replace_child_and_update_parent,
+    TreeNode,
+    replace_child,
     resolve_node,
+    update_resolvable_node,
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-
-# common sub-dataframe elimination only operates on top
-TreeNode = Union[SnowflakePlan, Selectable]
 
 
 class RepeatedSubqueryElimination:
@@ -104,12 +101,18 @@ class RepeatedSubqueryElimination:
         # TODO (SNOW-1566363): Add telemetry for CTE
         return final_logical_plans
 
-    def _update_parents(self, node: TreeNode, new_node: TreeNode) -> None:
+    def _update_parents(
+        self,
+        node: TreeNode,
+        should_replace_child: bool,
+        new_child: Optional[TreeNode] = None,
+    ) -> None:
         parents = self._node_parents_map[node]
         for parent in parents:
-            replace_child_and_update_parent(
-                parent, node, new_node, self._query_generator
-            )
+            if should_replace_child:
+                assert new_child is not None, "no new child is provided for replacement"
+                replace_child(parent, node, new_child, self._query_generator)
+            update_resolvable_node(parent, self._query_generator)
             self._updated_nodes.add(parent)
 
     def _replace_duplicate_node_with_cte(self, root: "TreeNode") -> LogicalPlan:
@@ -143,10 +146,12 @@ class RepeatedSubqueryElimination:
                 with_block._is_valid_for_replacement = True
 
                 resolved_with_block = resolve_node(with_block, self._query_generator)
-                self._update_parents(node, resolved_with_block)
+                self._update_parents(
+                    node, should_replace_child=True, new_child=resolved_with_block
+                )
             elif node in self._updated_nodes:
                 # if the node is updated, make sure all nodes up to parent is updated
-                self._update_parents(node, node)
+                self._update_parents(node, should_replace_child=False)
 
             visited_nodes.add(node)
 
