@@ -313,7 +313,7 @@ class Selectable(LogicalPlan, ABC):
                 df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
                 source_plan=self,
                 placeholder_query=self.placeholder_query,
-                referred_ctes=self.referred_ctes(),
+                referenced_ctes=self.referenced_ctes(),
             )
             # set api_calls to self._snowflake_plan outside of the above constructor
             # because the constructor copy api_calls.
@@ -375,8 +375,8 @@ class Selectable(LogicalPlan, ABC):
         self._column_states = deepcopy(value)
 
     @abstractmethod
-    def referred_ctes(self) -> Set[str]:
-        """Return the set of ctes referred by the whole selectable subtree, includes its-self and children"""
+    def referenced_ctes(self) -> Set[str]:
+        """Return the set of ctes referenced by the whole selectable subtree, includes its-self and children"""
         pass
 
 
@@ -428,7 +428,7 @@ class SelectableEntity(Selectable):
     def query_params(self) -> Optional[Sequence[Any]]:
         return None
 
-    def referred_ctes(self) -> Set[str]:
+    def referenced_ctes(self) -> Set[str]:
         # the SelectableEntity only allows select from base table. No
         # CTE table will be referred.
         return set()
@@ -530,9 +530,9 @@ class SelectSQL(Selectable):
         new._api_calls = self._api_calls
         return new
 
-    def referred_ctes(self) -> Set[str]:
+    def referenced_ctes(self) -> Set[str]:
         # SelectSQL directly calls sql query, there will be no
-        # auto created CTE tables referred
+        # auto created CTE tables referenced
         return set()
 
 
@@ -595,8 +595,8 @@ class SelectSnowflakePlan(Selectable):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
 
-    def referred_ctes(self) -> Set[str]:
-        return self._snowflake_plan.referred_ctes
+    def referenced_ctes(self) -> Set[str]:
+        return self._snowflake_plan.referenced_ctes
 
 
 class SelectStatement(Selectable):
@@ -868,8 +868,8 @@ class SelectStatement(Selectable):
         )
         return complexity
 
-    def referred_ctes(self) -> Set[str]:
-        return self.from_.referred_ctes()
+    def referenced_ctes(self) -> Set[str]:
+        return self.from_.referenced_ctes()
 
     def to_subqueryable(self) -> "Selectable":
         """When this SelectStatement's subquery is not subqueryable (can't be used in `from` clause of the sql),
@@ -1196,8 +1196,8 @@ class SelectTableFunction(Selectable):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
 
-    def referred_ctes(self) -> Set[str]:
-        return self._snowflake_plan.referred_ctes
+    def referenced_ctes(self) -> Set[str]:
+        return self._snowflake_plan.referenced_ctes
 
 
 class SetOperand:
@@ -1291,9 +1291,9 @@ class SetStatement(Selectable):
         # we add #set_operands - 1 additional operators in sql query
         return {PlanNodeCategory.SET_OPERATION: len(self.set_operands) - 1}
 
-    def referred_ctes(self) -> Set[str]:
-        # get a union of referred cte tables from all child nodes
-        return set().union(*[node.referred_ctes() for node in self._nodes])
+    def referenced_ctes(self) -> Set[str]:
+        # get a union of referenced cte tables from all child nodes
+        return set().union(*[node.referenced_ctes() for node in self._nodes])
 
 
 class DeriveColumnDependencyError(Exception):

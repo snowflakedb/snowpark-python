@@ -87,15 +87,8 @@ def resolve_and_update_snowflake_plan(
         new_snowflake_plan.df_aliased_col_name_to_real_col_name
     )
     node.placeholder_query = new_snowflake_plan.placeholder_query
-    node.referred_ctes = new_snowflake_plan.referred_ctes
+    node.referenced_ctes = new_snowflake_plan.referenced_ctes
     node._cumulative_node_complexity = new_snowflake_plan._cumulative_node_complexity
-
-
-def resolve_node(node: LogicalPlan, query_generator: QueryGenerator) -> SnowflakePlan:
-    resolved_node = query_generator.resolve(node)
-    resolved_node._is_valid_for_replacement = True
-
-    return resolved_node
 
 
 def replace_child(
@@ -116,7 +109,7 @@ def replace_child(
         if isinstance(plan, Selectable):
             return plan
 
-        snowflake_plan = resolve_node(plan, query_generator)
+        snowflake_plan = query_generator.resolve(plan)
         return SelectSnowflakePlan(snowflake_plan, analyzer=query_generator)
 
     if not parent._is_valid_for_replacement:
@@ -164,12 +157,12 @@ def replace_child(
         parent.query = new_child
 
     elif isinstance(parent, (TableUpdate, TableDelete)):
-        snowflake_plan = resolve_node(new_child, query_generator)
+        snowflake_plan = query_generator.resolve(new_child)
         parent.children = [snowflake_plan]
         parent.source_data = snowflake_plan
 
     elif isinstance(parent, TableMerge):
-        snowflake_plan = resolve_node(new_child, query_generator)
+        snowflake_plan = query_generator.resolve(new_child)
         parent.children = [snowflake_plan]
         parent.source = snowflake_plan
 
@@ -238,7 +231,7 @@ def get_snowflake_plan_queries(
 
     plan_queries = plan.queries
     post_action_queries = plan.post_actions
-    if len(plan.referred_ctes) > 0:
+    if len(plan.referenced_ctes) > 0:
         # make a copy of the original query to avoid any update to the
         # original query object
         plan_queries = copy.deepcopy(plan.queries)
@@ -246,7 +239,7 @@ def get_snowflake_plan_queries(
         table_names = []
         definition_queries = []
         for name, definition_query in resolved_with_query_blocks.items():
-            if name in plan.referred_ctes:
+            if name in plan.referenced_ctes:
                 table_names.append(name)
                 definition_queries.append(definition_query)
         with_query = cte_statement(definition_queries, table_names)

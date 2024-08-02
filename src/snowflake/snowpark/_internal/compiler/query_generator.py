@@ -109,11 +109,11 @@ class QueryGenerator(Analyzer):
                 # the source plan to construct the result
                 res = self.do_resolve(logical_plan.source_plan)
                 resolved_children[logical_plan] = res
-                return res
+                resolved_plan = res
             else:
-                return logical_plan
+                resolved_plan = logical_plan
 
-        if isinstance(logical_plan, SnowflakeCreateTable):
+        elif isinstance(logical_plan, SnowflakeCreateTable):
             from snowflake.snowpark._internal.compiler.utils import (
                 get_snowflake_plan_queries,
             )
@@ -138,7 +138,7 @@ class QueryGenerator(Analyzer):
                 copied_resolved_child, self.resolved_with_query_block
             )
             copied_resolved_child.queries = final_queries[PlanQueryType.QUERIES]
-            return self.plan_builder.save_as_table(
+            resolved_plan = self.plan_builder.save_as_table(
                 logical_plan.table_name,
                 logical_plan.column_names,
                 logical_plan.mode,
@@ -155,7 +155,7 @@ class QueryGenerator(Analyzer):
                 self._snowflake_create_table_plan_info.child_attributes,
             )
 
-        if isinstance(
+        elif isinstance(
             logical_plan,
             (
                 CreateViewCommand,
@@ -179,16 +179,16 @@ class QueryGenerator(Analyzer):
             )
             copied_resolved_child.queries = final_queries[PlanQueryType.QUERIES]
             resolved_children[logical_plan.children[0]] = copied_resolved_child
-            return super().do_resolve_with_resolved_children(
+            resolved_plan = super().do_resolve_with_resolved_children(
                 logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
             )
 
-        if isinstance(logical_plan, Selectable):
+        elif isinstance(logical_plan, Selectable):
             # overwrite the Selectable resolving to make sure we are triggering
             # any schema query build
-            return logical_plan.get_snowflake_plan(skip_schema_query=True)
+            resolved_plan = logical_plan.get_snowflake_plan(skip_schema_query=True)
 
-        if isinstance(logical_plan, WithQueryBlock):
+        elif isinstance(logical_plan, WithQueryBlock):
             resolved_child = resolved_children[logical_plan.children[0]]
             # record the CTE definition of the current block
             if logical_plan.name not in self.resolved_with_query_block:
@@ -196,12 +196,17 @@ class QueryGenerator(Analyzer):
                     logical_plan.name
                 ] = resolved_child.queries[-1].sql
 
-            return self.plan_builder.with_query_block(
+            resolved_plan = self.plan_builder.with_query_block(
                 logical_plan.name,
                 resolved_child,
                 logical_plan,
             )
 
-        return super().do_resolve_with_resolved_children(
-            logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
-        )
+        else:
+            resolved_plan = super().do_resolve_with_resolved_children(
+                logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
+            )
+
+        resolved_plan._is_valid_for_replacement = True
+
+        return resolved_plan

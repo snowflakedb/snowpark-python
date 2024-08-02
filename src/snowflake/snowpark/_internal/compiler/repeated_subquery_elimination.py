@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from collections import defaultdict
 from typing import Dict, List, Optional, Set
 
 from snowflake.snowpark._internal.analyzer.cte_utils import find_duplicate_subtrees
@@ -14,7 +13,6 @@ from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
 from snowflake.snowpark._internal.compiler.utils import (
     TreeNode,
     replace_child,
-    resolve_node,
     update_resolvable_node,
 )
 from snowflake.snowpark._internal.utils import (
@@ -46,12 +44,6 @@ class RepeatedSubqueryElimination:
 
     # original logical plans to apply the optimization on
     _logical_plans: List[LogicalPlan]
-    # record a map between a node and its parents for a logical plan tree
-    _node_parents_map: Dict[TreeNode, Set[TreeNode]]
-    # duplicated node detected for a logical plan
-    _duplicated_nodes: Set[TreeNode]
-    # parent node that has been updated due to plan change
-    _updated_nodes: Set[TreeNode]
     _query_generator: QueryGenerator
 
     def __init__(
@@ -61,10 +53,6 @@ class RepeatedSubqueryElimination:
     ) -> None:
         self._logical_plans = logical_plans
         self._query_generator = query_generator
-        self._node_count_map = defaultdict(int)
-        self._node_parents_map = defaultdict(set)
-        self._duplicated_nodes = set()
-        self._updated_nodes = set()
 
     def apply(self) -> List[LogicalPlan]:
         """
@@ -75,12 +63,6 @@ class RepeatedSubqueryElimination:
         """
         final_logical_plans: List[LogicalPlan] = []
         for logical_plan in self._logical_plans:
-            # clear the node_count and parents map
-            self._node_count_map = defaultdict(int)
-            self._node_parents_map = defaultdict(set)
-            self._duplicated_nodes.clear()
-            self._updated_nodes.clear()
-
             # NOTE: the current common sub-dataframe elimination relies on the
             # fact that all intermediate steps are resolved properly. Here we
             # do a pass of resolve of the logical plan to make sure we get a valid
@@ -89,11 +71,11 @@ class RepeatedSubqueryElimination:
             logical_plan = self._query_generator.resolve(logical_plan)
 
             # apply the CTE optimization on the resolved plan
-            duplicated_nodes, node_parent_map = find_duplicate_subtrees(logical_plan)
-            self._duplicated_nodes.update(duplicated_nodes)
-            self._node_parents_map.update(node_parent_map)
-            if len(self._duplicated_nodes) > 0:
-                deduplicated_plan = self._replace_duplicate_node_with_cte(logical_plan)
+            duplicated_nodes, node_parents_map = find_duplicate_subtrees(logical_plan)
+            if len(duplicated_nodes) > 0:
+                deduplicated_plan = self._replace_duplicate_node_with_cte(
+                    logical_plan, duplicated_nodes, node_parents_map
+                )
                 final_logical_plans.append(deduplicated_plan)
             else:
                 final_logical_plans.append(logical_plan)
@@ -101,24 +83,20 @@ class RepeatedSubqueryElimination:
         # TODO (SNOW-1566363): Add telemetry for CTE
         return final_logical_plans
 
-    def _update_parents(
+    def _replace_duplicate_node_with_cte(
         self,
-        node: TreeNode,
-        should_replace_child: bool,
-        new_child: Optional[TreeNode] = None,
-    ) -> None:
-        parents = self._node_parents_map[node]
-        for parent in parents:
-            if should_replace_child:
-                assert new_child is not None, "no new child is provided for replacement"
-                replace_child(parent, node, new_child, self._query_generator)
-            update_resolvable_node(parent, self._query_generator)
-            self._updated_nodes.add(parent)
-
-    def _replace_duplicate_node_with_cte(self, root: "TreeNode") -> LogicalPlan:
+        root: TreeNode,
+        duplicated_nodes: Set[TreeNode],
+        node_parents_map: Dict[TreeNode, Set[TreeNode]],
+    ) -> LogicalPlan:
         """
         Replace all duplicated nodes with a WithQueryBlock (CTE node), to enable
         query generation with CTEs.
+
+        NOTE, we use stack to perform a post-order traversal instead of recursive call.
+        The reason of using the stack approach is that chained CTEs have to be built
+        from bottom (innermost subquery) to top (outermost query).
+        This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
         """
 
         stack1, stack2 = [root], []
@@ -131,6 +109,23 @@ class RepeatedSubqueryElimination:
 
         # tack node that is already visited to avoid repeated operation on the same node
         visited_nodes: Set[TreeNode] = set()
+        updated_nodes: Set[TreeNode] = set()
+
+        def _update_parents(
+            node: TreeNode,
+            should_replace_child: bool,
+            new_child: Optional[TreeNode] = None,
+        ) -> None:
+            parents = node_parents_map[node]
+            for parent in parents:
+                if should_replace_child:
+                    assert (
+                        new_child is not None
+                    ), "no new child is provided for replacement"
+                    replace_child(parent, node, new_child, self._query_generator)
+                update_resolvable_node(parent, self._query_generator)
+                updated_nodes.add(parent)
+
         while stack2:
             node = stack2.pop()
             if node in visited_nodes:
@@ -138,20 +133,20 @@ class RepeatedSubqueryElimination:
 
             # if the node is a duplicated node and deduplication is not done for the node,
             # start the deduplication transformation use CTE
-            if node in self._duplicated_nodes:
+            if node in duplicated_nodes:
                 # create a WithQueryBlock node
                 with_block = WithQueryBlock(
                     name=random_name_for_temp_object(TempObjectType.CTE), child=node
                 )
                 with_block._is_valid_for_replacement = True
 
-                resolved_with_block = resolve_node(with_block, self._query_generator)
-                self._update_parents(
+                resolved_with_block = self._query_generator.resolve(with_block)
+                _update_parents(
                     node, should_replace_child=True, new_child=resolved_with_block
                 )
-            elif node in self._updated_nodes:
+            elif node in updated_nodes:
                 # if the node is updated, make sure all nodes up to parent is updated
-                self._update_parents(node, should_replace_child=False)
+                _update_parents(node, should_replace_child=False)
 
             visited_nodes.add(node)
 

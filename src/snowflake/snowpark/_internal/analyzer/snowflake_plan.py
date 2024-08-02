@@ -226,7 +226,7 @@ class SnowflakePlan(LogicalPlan):
         # This field records all the CTE tables that are referred by the
         # current SnowflakePlan tree. This is needed for the final query
         # generation to generate the correct sql query with CTE definition.
-        referred_ctes: Optional[Set[str]] = None,
+        referenced_ctes: Optional[Set[str]] = None,
         *,
         session: "snowflake.snowpark.session.Session",
     ) -> None:
@@ -254,7 +254,9 @@ class SnowflakePlan(LogicalPlan):
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
         self._id = encode_id(queries[-1].sql, queries[-1].params)
-        self.referred_ctes: Set[str] = referred_ctes.copy() if referred_ctes else set()
+        self.referenced_ctes: Set[str] = (
+            referenced_ctes.copy() if referenced_ctes else set()
+        )
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
@@ -451,7 +453,7 @@ class SnowflakePlan(LogicalPlan):
                 self.df_aliased_col_name_to_real_col_name,
                 session=self.session,
                 placeholder_query=self.placeholder_query,
-                referred_ctes=self.referred_ctes,
+                referenced_ctes=self.referenced_ctes,
             )
         else:
             return SnowflakePlan(
@@ -465,7 +467,7 @@ class SnowflakePlan(LogicalPlan):
                 self.df_aliased_col_name_to_real_col_name,
                 session=self.session,
                 placeholder_query=self.placeholder_query,
-                referred_ctes=self.referred_ctes,
+                referenced_ctes=self.referenced_ctes,
             )
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
@@ -493,7 +495,7 @@ class SnowflakePlan(LogicalPlan):
             # note that there is no copy of the session object, be careful when using the
             # session object after deepcopy
             session=self.session,
-            referred_ctes=self.referred_ctes,
+            referenced_ctes=self.referenced_ctes,
         )
         copied_plan._is_valid_for_replacement = True
         if copied_source_plan:
@@ -527,11 +529,11 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         schema_query: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
-        # Whether propagate the referred_ctes from child to the new plan built.
-        # In general, the referred_ctes should be propagated from child, but for cases
+        # Whether propagate the referenced ctes from child to the new plan built.
+        # In general, the referenced should be propagated from child, but for cases
         # like SnowflakeCreateTable, the CTEs should not be propagated, because
         # the CTEs are already embedded and consumed in the child.
-        propagate_referred_ctes: bool = True,
+        propagate_referenced_ctes: bool = True,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
         queries = select_child.queries[:-1] + [
@@ -568,7 +570,9 @@ class SnowflakePlanBuilder:
             df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
             session=self.session,
             placeholder_query=placeholder_query,
-            referred_ctes=child.referred_ctes if propagate_referred_ctes else None,
+            referenced_ctes=child.referenced_ctes
+            if propagate_referenced_ctes
+            else None,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -609,9 +613,9 @@ class SnowflakePlanBuilder:
         }
         api_calls = [*select_left.api_calls, *select_right.api_calls]
 
-        # This is a temporary workaround for query comparison. The previous CTE optimization
-        # introduced a new query_id_place_holder that can be a random generated id if not provided.
-        # Which could cause the comparison of two queries fail even if the sql and is_ddl_on_temp_object
+        # This is a temporary workaround for query comparison. The query_id_place_holder
+        # field of Query be a random generated id if not provided, which could cause the
+        # comparison of two queries fail even if the sql and is_ddl_on_temp_object
         # value is the same.
         # TODO (SNOW-1570952): Find a uniform way for the query comparison
         def _query_exists(current_query: Query, existing_queries: List[Query]) -> bool:
@@ -628,22 +632,23 @@ class SnowflakePlanBuilder:
 
             return False
 
-        referred_ctes: Set[str] = set()
+        referenced_ctes: Set[str] = set()
         if (
             self.session.cte_optimization_enabled
             and self.session.query_compilation_stage_enabled
         ):
             # When the cte optimization and the new compilation stage is enabled, the
             # queries, referred cte tables, and post actions propagated from
-            # left and right can have duplicated queries if there is a common CTE block referred.
+            # left and right can have duplicated queries if there is a common CTE block referenced
+            # by both left and right.
             # Need to do a deduplication to avoid repeated query.
             merged_queries = select_left.queries[:-1].copy()
             for query in select_right.queries[:-1]:
                 if not _query_exists(query, merged_queries):
                     merged_queries.append(copy.copy(query))
 
-            referred_ctes.update(select_left.referred_ctes)
-            referred_ctes.update(select_right.referred_ctes)
+            referenced_ctes.update(select_left.referenced_ctes)
+            referenced_ctes.update(select_right.referenced_ctes)
 
             post_actions = select_left.post_actions.copy()
             for post_action in select_right.post_actions:
@@ -674,7 +679,7 @@ class SnowflakePlanBuilder:
             api_calls=api_calls,
             session=self.session,
             placeholder_query=placeholder_query,
-            referred_ctes=referred_ctes,
+            referenced_ctes=referenced_ctes,
         )
 
     def query(
@@ -927,7 +932,7 @@ class SnowflakePlanBuilder:
                     ),
                     child,
                     source_plan,
-                    propagate_referred_ctes=False,
+                    propagate_referenced_ctes=False,
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
@@ -939,7 +944,7 @@ class SnowflakePlanBuilder:
                     ),
                     child,
                     source_plan,
-                    propagate_referred_ctes=False,
+                    propagate_referenced_ctes=False,
                 )
             else:
                 return self.build(
@@ -955,7 +960,7 @@ class SnowflakePlanBuilder:
                     child,
                     source_plan,
                     is_ddl_on_temp_object=is_temp_table_type,
-                    propagate_referred_ctes=False,
+                    propagate_referenced_ctes=False,
                 )
         elif mode == SaveMode.OVERWRITE:
             return self.build(
@@ -971,7 +976,7 @@ class SnowflakePlanBuilder:
                 child,
                 source_plan,
                 is_ddl_on_temp_object=is_temp_table_type,
-                propagate_referred_ctes=False,
+                propagate_referenced_ctes=False,
             )
         elif mode == SaveMode.IGNORE:
             return self.build(
@@ -987,7 +992,7 @@ class SnowflakePlanBuilder:
                 child,
                 source_plan,
                 is_ddl_on_temp_object=is_temp_table_type,
-                propagate_referred_ctes=False,
+                propagate_referenced_ctes=False,
             )
         elif mode == SaveMode.ERROR_IF_EXISTS:
             if is_generated:
@@ -1005,7 +1010,7 @@ class SnowflakePlanBuilder:
                 child,
                 source_plan,
                 is_ddl_on_temp_object=is_temp_table_type,
-                propagate_referred_ctes=False,
+                propagate_referenced_ctes=False,
             )
 
     def limit(
@@ -1084,7 +1089,7 @@ class SnowflakePlanBuilder:
             lambda x: create_or_replace_view_statement(name, x, is_temp, comment),
             child,
             source_plan,
-            propagate_referred_ctes=False,
+            propagate_referenced_ctes=False,
         )
 
     def create_or_replace_dynamic_table(
@@ -1367,7 +1372,7 @@ class SnowflakePlanBuilder:
             query,
             source_plan,
             query.schema_query,
-            propagate_referred_ctes=False,
+            propagate_referenced_ctes=False,
         )
 
     def update(
@@ -1389,7 +1394,7 @@ class SnowflakePlanBuilder:
                 ),
                 source_data,
                 source_plan,
-                propagate_referred_ctes=False,
+                propagate_referenced_ctes=False,
             )
         else:
             return self.query(
@@ -1419,7 +1424,7 @@ class SnowflakePlanBuilder:
                 ),
                 source_data,
                 source_plan,
-                propagate_referred_ctes=False,
+                propagate_referenced_ctes=False,
             )
         else:
             return self.query(
@@ -1444,7 +1449,7 @@ class SnowflakePlanBuilder:
             lambda x: merge_statement(table_name, x, join_expr, clauses),
             source_data,
             source_plan,
-            propagate_referred_ctes=False,
+            propagate_referenced_ctes=False,
         )
 
     def lateral(
@@ -1508,7 +1513,7 @@ class SnowflakePlanBuilder:
                 plan.source_plan,
                 api_calls=plan.api_calls,
                 session=self.session,
-                referred_ctes=plan.referred_ctes,
+                referenced_ctes=plan.referenced_ctes,
             )
 
     def with_query_block(
@@ -1523,7 +1528,7 @@ class SnowflakePlanBuilder:
 
         queries = child.queries[:-1] + [Query(sql=new_query)]
         # propagate the cte table
-        referred_ctes = {name}.union(child.referred_ctes)
+        referenced_ctes = {name}.union(child.referenced_ctes)
 
         return SnowflakePlan(
             queries,
@@ -1533,7 +1538,7 @@ class SnowflakePlanBuilder:
             source_plan=source_plan,
             api_calls=child.api_calls,
             session=self.session,
-            referred_ctes=referred_ctes,
+            referenced_ctes=referenced_ctes,
         )
 
 
