@@ -23,8 +23,7 @@ from snowflake.snowpark._internal.utils import (
 
 class RepeatedSubqueryElimination:
     """
-    Optimization that used eliminate duplicated queries that is generated for the
-    common sub-dataframes.
+    Optimization that used eliminate duplicated queries in the plan.
 
     When the same dataframe is used at multiple places of the plan, the same subquery
     will be generated at each place where it is used, this lead to repeated evaluation
