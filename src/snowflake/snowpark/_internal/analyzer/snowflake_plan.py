@@ -1126,13 +1126,13 @@ class SnowflakePlanBuilder:
         ).collect()
         for setting in file_format:
             if (
-                setting.property_value == setting.property_default
-                or setting.property in new_options
+                setting["property_value"] == setting["property_default"]
+                or setting["property"] in new_options
             ):
                 continue
-            new_options[setting.property] = type_map.get(setting.property_type, str)(
-                setting.property_value
-            )
+            new_options[str(setting["property"])] = type_map.get(
+                str(setting["property_type"]), str
+            )(setting["property_value"])
         return new_options
 
     def read_file(
