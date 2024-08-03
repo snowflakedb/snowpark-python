@@ -3945,3 +3945,12 @@ def test_df_loc_set_with_index_and_column_labels():
         }
     )
     eval_snowpark_pandas_result(snow_df, native_df, loc_set_helper, inplace=True)
+
+
+@sql_count_checker(query_count=0)
+def test_raise_set_cell_with_list_like_value_error():
+    s = pd.Series([[1, 2], [3, 4]])
+    with pytest.raises(NotImplementedError):
+        s.loc[0] = [0, 0]
+    with pytest.raises(NotImplementedError):
+        s.to_frame().loc[0, 0] = [0, 0]

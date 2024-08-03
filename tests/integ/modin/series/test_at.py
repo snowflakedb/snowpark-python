@@ -129,3 +129,12 @@ def test_at_neg(
 ):
     with pytest.raises(KeyError):
         default_index_snowpark_pandas_series.at[key]
+
+
+@sql_count_checker(query_count=0)
+def test_raise_set_cell_with_list_like_value_error():
+    s = pd.Series([[1, 2], [3, 4]])
+    with pytest.raises(NotImplementedError):
+        s.at[0] = [0, 0]
+    with pytest.raises(NotImplementedError):
+        s.to_frame().at[0, 0] = [0, 0]
