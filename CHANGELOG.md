@@ -24,6 +24,7 @@
 - Fixed a bug in `DataFrame.lineage.trace` to split the quoted feature view's name and version correctly.
 - Fixed a bug in `Column.isin` that caused invalid sql generation when passed an empty list.
 - Fixed a bug that fails to raise NotImplementedError while setting cell with list like item.
+- Fixed a bug in `session.read.csv` that caused an error when setting `PARSE_HEADER = True` in an externally defined file format.
 
 ### Snowpark Local Testing Updates
 
