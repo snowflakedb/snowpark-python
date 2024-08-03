@@ -1,13 +1,11 @@
 ## TEST CASE
 
-df = session.create_dataframe([("Paris", "France"), ("Tokyo", "Japan")], ("city", "country"))
+df = session.table("test_table2")
 
-df = df.select(create_map("city", "country").alias("map"))
-
-df = df.select(explode(df.map).alias("exploded_map"))
-
-# df = session.table("test_table").select(array_construct(col("num")).alias("cons1"))
-#
-# df = df.select(explode(df.cons1).alias("exploded1"))
+df = df.select(explode(df.maps).alias("emk", "emv"))
 
 ## EXPECTED OUTPUT
+
+res1 = session.table("test_table2")
+
+res2 = res1.select(explode(res1["maps"]).alias("emk", "emv"))
