@@ -55,6 +55,7 @@
 - Added support for `Series.dt.is_month_start` and `Series.dt.is_month_end`.
 - Added support for `Index.all` and `Index.any`.
 - Added support for `Series.dt.is_year_start` and `Series.dt.is_year_end`.
+- Added support for `Series.dt.is_quarter_start` and `Series.dt.is_quarter_end`.
 - Added support for `Series.argmax` and `Series.argmin`.
 
 #### Improvements
