@@ -1322,7 +1322,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(self._modin_frame.persist_to_temporary_table())
 
     @property
-    def columns(self) -> "pd.Index":
+    def columns(self) -> native_pd.Index:
         """
         Get pandas column labels.
 
