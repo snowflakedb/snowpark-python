@@ -24,6 +24,7 @@
 from __future__ import annotations
 
 from functools import wraps
+from types import NoneType
 from typing import Any, Callable, Hashable, Iterator, Literal
 
 import modin
@@ -800,8 +801,9 @@ class Index(metaclass=TelemetryMeta):
         """
         return self.to_series().any(**kwargs)
 
-    @index_not_implemented()
-    def argmin(self) -> None:
+    def argmin(
+        self, axis: NoneType = None, skipna: bool = True, *args, **kwargs
+    ) -> None:
         """
         Return int position of the smallest value in the Series.
 
@@ -828,11 +830,16 @@ class Index(metaclass=TelemetryMeta):
         numpy.ndarray.argmin : Equivalent method for numpy arrays.
         Series.idxmax : Return index label of the maximum values.
         Series.idxmin : Return index label of the minimum values.
-        """
-        # TODO: SNOW-1458142 implement argmin
 
-    @index_not_implemented()
-    def argmax(self) -> None:
+        Note
+        ----
+        *args and **kwargs are present for compatibility with numpy and not used with Snowpark pandas.
+        """
+        return self.to_series().argmin(skipna=skipna, *args, **kwargs)
+
+    def argmax(
+        self, axis: NoneType = None, skipna: bool = True, *args, **kwargs
+    ) -> None:
         """
         Return int position of the largest value in the Series.
 
@@ -859,8 +866,12 @@ class Index(metaclass=TelemetryMeta):
         numpy.ndarray.argmax : Equivalent method for numpy arrays.
         Series.idxmax : Return index label of the maximum values.
         Series.idxmin : Return index label of the minimum values.
+
+        Note
+        ----
+        *args and **kwargs are present for compatibility with numpy and not used with Snowpark pandas.
         """
-        # TODO: SNOW-1458142 implement argmax
+        return self.to_series().argmax(skipna=skipna, *args, **kwargs)
 
     @is_lazy_check
     def copy(
