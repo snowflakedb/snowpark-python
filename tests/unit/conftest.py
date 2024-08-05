@@ -43,11 +43,6 @@ def mock_snowflake_plan(mock_query) -> Analyzer:
     fake_snowflake_plan.queries = [mock_query]
     fake_snowflake_plan.post_actions = []
     fake_snowflake_plan.api_calls = []
-    fake_snowflake_plan.is_ddl_on_temp_object = False
-    fake_snowflake_plan._output_dict = []
-    fake_snowflake_plan.placeholder_query = None
-    fake_snowflake_plan.referred_ctes = {"TEST_CTE"}
-    fake_snowflake_plan._cumulative_node_complexity = {}
     return fake_snowflake_plan
 
 
