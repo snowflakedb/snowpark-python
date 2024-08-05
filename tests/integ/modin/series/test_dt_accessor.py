@@ -27,6 +27,10 @@ dt_properties = pytest.mark.parametrize(
         "quarter",
         "is_month_start",
         "is_month_end",
+        "is_quarter_start",
+        "is_quarter_end",
+        "is_year_start",
+        "is_year_end",
     ],
 )
 
@@ -150,8 +154,18 @@ def test_day_month_name_negative(method):
 
 
 @sql_count_checker(query_count=1)
-@pytest.mark.parametrize("property", ["is_month_start", "is_month_end"])
-def test_is_month_start_end(property):
+@pytest.mark.parametrize(
+    "property",
+    [
+        "is_month_start",
+        "is_month_end",
+        "is_quarter_start",
+        "is_quarter_end",
+        "is_year_start",
+        "is_year_end",
+    ],
+)
+def test_is_x_start_end(property):
     # Create a series containing the first and last dates of each month
     #  in a normal year and a leap year.
     date_range = native_pd.date_range("2023-01-01", periods=731, freq="1D")

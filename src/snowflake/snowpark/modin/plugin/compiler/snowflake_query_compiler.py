@@ -366,6 +366,8 @@ MAX_QUANTILES_SUPPORTED: int = 16
 
 _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE = "does not yet support pd.Grouper, axis == 1, by != None and level != None, or by containing any non-pandas hashable labels."
 
+QUARTER_START_MONTHS = [1, 4, 7, 10]
+
 
 class SnowflakeQueryCompiler(BaseQueryCompiler):
     """based on: https://modin.readthedocs.io/en/0.11.0/flow/modin/backends/base/query_compiler.html
@@ -1320,7 +1322,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(self._modin_frame.persist_to_temporary_table())
 
     @property
-    def columns(self) -> "pd.Index":
+    def columns(self) -> native_pd.Index:
         """
         Get pandas column labels.
 
@@ -2133,21 +2135,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 return SnowflakeQueryCompiler.from_pandas(
                     native_pd.DataFrame({MODIN_UNNAMED_SERIES_LABEL: []}, dtype=bool)
                 )
-            # Even though it incurs an extra query, we must get the length of the index to prevent errors.
-            # For example, for `pd.DataFrame({"a": [], "b": []}).all()`: the rows are empty but the columns
-            # exist, but it errors if we call `self.agg()` because empty columns have type float64 in Snowpark.
-            # Moreover, `pd.Series([]).all()` would incorrectly return `None` instead of the vacuous truth because
-            # Snowpark's boolean aggregation functions return `None` when the column is empty.
-            empty_index = self.get_axis_len(axis=0) == 0
-            if empty_index:
-                return SnowflakeQueryCompiler(
-                    self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
-                        {
-                            col_id: pandas_lit(empty_value)
-                            for col_id in frame.data_column_snowflake_quoted_identifiers
-                        }
-                    ).frame
-                )
+
             # The resulting DF is transposed so will have string 'NULL' as a column name,
             # so we need to manually remove it
             return self.agg(
@@ -2411,17 +2399,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         limit = kwargs.get("limit", None)
         tolerance = kwargs.get("tolerance", None)
         fill_value = kwargs.get("fill_value", np.nan)  # type: ignore[arg-type]
-        # Currently, our error checking relies on the column axis being eager (i.e. stored
-        # locally as a pandas Index, rather than pushed down to the database). This allows
-        # us to have parity with native pandas for things like monotonicity checks. If
-        # our columns are no longer eagerly stored, we would no longer be able to rely
-        # on pandas for these error checks, and the behaviour of reindex would change.
-        # This change is user-facing, so we should catch this in CI first, which we can
-        # by having this assert here, as a sentinel.
-        assert (
-            not self.columns.is_lazy
-        ), "`reindex` with axis=1 failed on error checking."
-        self.columns.to_pandas().reindex(labels, method, level, limit, tolerance)
+        self.columns.reindex(labels, method, level, limit, tolerance)
         data_column_pandas_labels = []
         data_column_snowflake_quoted_identifiers = []
         modin_frame = self._modin_frame
@@ -10083,6 +10061,36 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     pandas_lit(False),
                 )
             ),
+            "is_quarter_start": (
+                lambda column: coalesce(
+                    (dayofmonth(col(column)) == 1)
+                    & (month(col(column)).in_(*QUARTER_START_MONTHS)),
+                    pandas_lit(False),
+                )
+            ),
+            "is_quarter_end": (
+                lambda column: coalesce(
+                    (dayofmonth(dateadd("day", pandas_lit(1), col(column))) == 1)
+                    & (
+                        month(dateadd("day", pandas_lit(1), col(column))).in_(
+                            *QUARTER_START_MONTHS
+                        )
+                    ),
+                    pandas_lit(False),
+                )
+            ),
+            "is_year_start": (
+                lambda column: coalesce(
+                    (dayofmonth(col(column)) == 1) & (month(col(column)) == 1),
+                    pandas_lit(False),
+                )
+            ),
+            "is_year_end": (
+                lambda column: coalesce(
+                    (dayofmonth(col(column)) == 31) & (month(col(column)) == 12),
+                    pandas_lit(False),
+                )
+            ),
         }
         property_function = dt_property_to_function_map.get(property_name)
         if not property_function:
@@ -16487,16 +16495,29 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Get a pandas series that tells whether each column contains only
         # matches. We need to execute at least one intermediate SQL query to
         # get this series.
-        all_rows_match_frame = (
-            SnowflakeQueryCompiler(
-                get_frame_by_col_pos(
-                    filtered_binary_op_result,
-                    list(range(len(self.columns) * 2, len(self.columns) * 3)),
-                )
+        filtered_qc = SnowflakeQueryCompiler(
+            get_frame_by_col_pos(
+                filtered_binary_op_result,
+                list(range(len(self.columns) * 2, len(self.columns) * 3)),
             )
-            .all(axis=0, bool_only=False, skipna=False)
-            .to_pandas()
         )
+        # Even though it incurs an extra query, we must get the length of the index to prevent errors.
+        # When called with an empty DF/Series, `all` can return boolean values. Here, a query compiler is
+        # always expected to be returned. When the index is empty, create the required query compiler instead
+        # of calling `all`.
+        empty_index = filtered_qc.get_axis_len(axis=0) == 0
+        if empty_index:
+            qc_all = SnowflakeQueryCompiler(
+                filtered_qc._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
+                    {
+                        col_id: pandas_lit(True)
+                        for col_id in filtered_qc._modin_frame.data_column_snowflake_quoted_identifiers
+                    }
+                ).frame
+            )
+        else:
+            qc_all = filtered_qc.all(axis=0, bool_only=False, skipna=False)
+        all_rows_match_frame = qc_all.to_pandas()
         """
         In our example, we find that the second columns of each frame match
         completely, but the first columns do not:

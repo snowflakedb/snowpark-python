@@ -148,38 +148,13 @@ def test_unsupported_str_methods(func, func_name, caplog) -> None:
     eval_and_validate_unsupported_methods(func, func_name, [native_series], caplog)
 
 
-# This set of method triggers DateTimeDefault
-# The full set of DateTimeAccessor test is under tests/integ/modin/series/test_dt_accessor.py
-UNSUPPORTED_DT_METHODS = [
-    (lambda ds: ds.dt.is_year_end, "property fget:is_year_end"),
-]
-
-
-@pytest.mark.parametrize(
-    "func, func_name",
-    UNSUPPORTED_DT_METHODS,
-)
-@sql_count_checker(query_count=0)
-def test_unsupported_dt_methods(func, func_name, caplog) -> None:
-    datetime_series = native_pd.Series(
-        native_pd.date_range("2000-01-01", periods=3, freq="h")
-    )
-    eval_and_validate_unsupported_methods(func, func_name, [datetime_series], caplog)
-
-
 # unsupported methods for Index
 UNSUPPORTED_INDEX_METHODS = [
     lambda idx: idx.is_monotonic_increasing(),
     lambda idx: idx.is_monotonic_decreasing(),
     lambda idx: idx.nbytes(),
     lambda idx: idx.memory_usage(),
-    lambda idx: idx.all(),
-    lambda idx: idx.any(),
-    lambda idx: idx.all(),
-    lambda idx: idx.argmin(),
-    lambda idx: idx.argmax(),
     lambda idx: idx.delete(),
-    lambda idx: idx.all(),
     lambda idx: idx.drop_duplicates(),
     lambda idx: idx.factorize(),
     lambda idx: idx.identical(),

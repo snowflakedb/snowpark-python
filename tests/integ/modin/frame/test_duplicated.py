@@ -91,7 +91,7 @@ def test_duplicated_on_empty_frame():
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
-@sql_count_checker(query_count=5, join_count=4)
+@sql_count_checker(query_count=3, join_count=2)
 def test_frame_datetime64_duplicated():
     dates = pd.date_range("2010-07-01", end="2010-08-05")
 
