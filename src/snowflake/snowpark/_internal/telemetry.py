@@ -41,8 +41,6 @@ class TelemetryField(Enum):
         "snowpark_eliminate_numeric_sql_value_cast_enabled"
     )
     TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = "snowpark_auto_clean_up_temp_table_enabled"
-    # telemetry for enabling the query compilation stage for query optimization and generation
-    TYPE_QUERY_COMPILATION_STAGE_ENABLED = "snowpark_query_compilation_stage_enabled"
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
     KEY_START_TIME = "start_time"
