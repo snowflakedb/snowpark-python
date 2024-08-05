@@ -144,10 +144,6 @@ def test_df_loc_get_tuple_key(
         snow_row = pd.Index(row)
     else:
         snow_row = row
-    if isinstance(col, native_pd.Index):
-        snow_col = pd.Index(col, convert_to_lazy=False)
-    else:
-        snow_col = col
 
     query_count = 1
     if is_scalar(row) or isinstance(row, tuple) or isinstance(row, native_pd.Index):
@@ -159,7 +155,7 @@ def test_df_loc_get_tuple_key(
         eval_snowpark_pandas_result(
             str_index_snowpark_pandas_df,
             str_index_native_df,
-            lambda df: df.loc[snow_row, snow_col]
+            lambda df: df.loc[snow_row, col]
             if isinstance(df, pd.DataFrame)
             else df.loc[row, col],
         )
@@ -236,10 +232,7 @@ def test_df_loc_get_col_boolean_indexer(
             str_index_native_df,
             lambda df: df.loc[
                 :,
-                pd.Series(
-                    key,
-                    index=pd.Index(str_index_native_df.columns, convert_to_lazy=False),
-                )
+                pd.Series(key, index=str_index_native_df.columns)
                 if isinstance(df, pd.DataFrame)
                 else native_pd.Series(key, index=str_index_native_df.columns),
             ],
@@ -2916,9 +2909,6 @@ def test_df_loc_set_with_column_wise_list_like_item(
     native_df = native_pd.DataFrame(data, columns=native_columns, index=native_index)
     snow_df = pd.DataFrame(native_df)
     native_item = item
-
-    if isinstance(col_key, native_pd.Index):
-        col_key = pd.Index(col_key, convert_to_lazy=False)
 
     def loc_set_helper(df):
         if isinstance(df, pd.DataFrame):

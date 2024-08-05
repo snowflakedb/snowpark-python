@@ -100,7 +100,7 @@ def test_set_index_negative(snow_df, native_df):
 @sql_count_checker(query_count=1)
 def test_set_index_dup_column_name():
     snow_df = pd.DataFrame([[1, 2, 3], [4, 5, 6]])
-    snow_df.columns = pd.Index(["A", "A", "B"], convert_to_lazy=False)
+    snow_df.columns = native_pd.Index(["A", "A", "B"])
     eval_snowpark_pandas_result(
         snow_df,
         snow_df.to_pandas(),
