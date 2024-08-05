@@ -69,6 +69,8 @@
 - Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.  
 - Fixed a bug where some Index docstrings are ignored. 
 
+### Behavior change
+- `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
 
 ## 1.20.0 (2024-07-17)
 

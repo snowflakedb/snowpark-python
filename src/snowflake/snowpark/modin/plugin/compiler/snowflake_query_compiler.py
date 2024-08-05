@@ -2399,17 +2399,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         limit = kwargs.get("limit", None)
         tolerance = kwargs.get("tolerance", None)
         fill_value = kwargs.get("fill_value", np.nan)  # type: ignore[arg-type]
-        # Currently, our error checking relies on the column axis being eager (i.e. stored
-        # locally as a pandas Index, rather than pushed down to the database). This allows
-        # us to have parity with native pandas for things like monotonicity checks. If
-        # our columns are no longer eagerly stored, we would no longer be able to rely
-        # on pandas for these error checks, and the behaviour of reindex would change.
-        # This change is user-facing, so we should catch this in CI first, which we can
-        # by having this assert here, as a sentinel.
-        assert (
-            not self.columns.is_lazy
-        ), "`reindex` with axis=1 failed on error checking."
-        self.columns.to_pandas().reindex(labels, method, level, limit, tolerance)
+        self.columns.reindex(labels, method, level, limit, tolerance)
         data_column_pandas_labels = []
         data_column_snowflake_quoted_identifiers = []
         modin_frame = self._modin_frame
