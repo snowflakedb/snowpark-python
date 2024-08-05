@@ -803,7 +803,7 @@ class Index(metaclass=TelemetryMeta):
 
     def argmin(
         self, axis: NoneType = None, skipna: bool = True, *args, **kwargs
-    ) -> None:
+    ) -> int:
         """
         Return int position of the smallest value in the Series.
 
@@ -839,7 +839,7 @@ class Index(metaclass=TelemetryMeta):
 
     def argmax(
         self, axis: NoneType = None, skipna: bool = True, *args, **kwargs
-    ) -> None:
+    ) -> int:
         """
         Return int position of the largest value in the Series.
 
