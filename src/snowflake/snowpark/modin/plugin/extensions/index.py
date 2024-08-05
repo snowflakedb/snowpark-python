@@ -2321,7 +2321,13 @@ class Index(metaclass=TelemetryMeta):
         # When the number of elements in the Index is greater than the number of
         # elements to display, display only the first and last 10 elements.
         max_seq_items = native_pd.get_option("display.max_seq_items") or 100
-        length_of_index = self._query_compiler.index_length()
+        length_of_index, _, temp_df = self.to_series()._query_compiler.build_repr_df(
+            max_seq_items, 1
+        )
+        if isinstance(temp_df, native_pd.DataFrame) and not temp_df.empty:
+            local_index = temp_df.iloc[:, 0].to_list()
+        else:
+            local_index = []
         console_size = get_console_size()[0]
         too_many_elem = max_seq_items < length_of_index
 
@@ -2335,13 +2341,11 @@ class Index(metaclass=TelemetryMeta):
             data_repr = "[]"
 
         elif length_of_index == 1:
-            data_repr = "[" + _format_string_elem(self[0]) + "]"
+            data_repr = "[" + _format_string_elem(local_index[0]) + "]"
 
         elif too_many_elem:
             # Display the first and last 10 elements.
-            first_and_last_ten_elem = Index(
-                self._query_compiler.get_first_and_last_ten_elements()
-            ).to_list()
+            first_and_last_ten_elem = local_index[:10] + local_index[-10:]
 
             # Need to get the length of the longest element since each element
             # displayed must be the same length for uniformity.
@@ -2411,7 +2415,6 @@ class Index(metaclass=TelemetryMeta):
         else:
             # In the case where the number of elements in the index is less than the number of
             # elements to display, display them all separated by commas.
-            local_index = self.to_list()
             data_repr = ""
             for e in local_index[:-1]:
                 data_repr += _format_string_elem(e) + ", "
