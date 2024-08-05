@@ -22,6 +22,7 @@ NATIVE_INDEX_TEST_DATA = [
     native_pd.Index([5, None, 7]),
     native_pd.Index([1]),
     native_pd.Index(["a", "b", 1, 2]),
+    native_pd.Index(["a", "b", "c", "d"]),
 ]
 
 NATIVE_INDEX_UNIQUE_TEST_DATA = [

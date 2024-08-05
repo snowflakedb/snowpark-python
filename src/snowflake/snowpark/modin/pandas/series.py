@@ -781,25 +781,37 @@ class Series(BasePandasDataset):
 
         return self.__constructor__(query_compiler=new_query_compiler)
 
-    @series_not_implemented()
     def argmax(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, D200
         """
         Return int position of the largest value in the Series.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        result = self.idxmax(axis=axis, skipna=skipna, *args, **kwargs)
-        if np.isnan(result) or result is pandas.NA:
+        if self._query_compiler.has_multiindex():
+            # The index is a MultiIndex, current logic does not support this.
+            ErrorMessage.not_implemented(
+                "Series.argmax is not yet supported when the index is a MultiIndex."
+            )
+        result = self.reset_index(drop=True).idxmax(
+            axis=axis, skipna=skipna, *args, **kwargs
+        )
+        if not is_integer(result):  # if result is None, return -1
             result = -1
         return result
 
-    @series_not_implemented()
     def argmin(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, D200
         """
         Return int position of the smallest value in the Series.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        result = self.idxmin(axis=axis, skipna=skipna, *args, **kwargs)
-        if np.isnan(result) or result is pandas.NA:
+        if self._query_compiler.has_multiindex():
+            # The index is a MultiIndex, current logic does not support this.
+            ErrorMessage.not_implemented(
+                "Series.argmin is not yet supported when the index is a MultiIndex."
+            )
+        result = self.reset_index(drop=True).idxmin(
+            axis=axis, skipna=skipna, *args, **kwargs
+        )
+        if not is_integer(result):  # if result is None, return -1
             result = -1
         return result
 

@@ -1,5 +1,6 @@
+import datetime
 import decimal
-from typing import Iterable, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 
 class MyUDTFWithTypeHints:
@@ -47,6 +48,36 @@ class MyUDTFWithoutTypeHints:
                 bytes_,
                 byte_array_,
             )
+        ]
+
+
+class MyUDTFWithOptionalArgs:
+    def process(
+        self,
+        int_req: int,
+        str_req: str,
+        int_opt: int = 1,
+        str_opt: str = "",
+        bool_: bool = False,
+        decimal_: decimal.Decimal = decimal.Decimal("3.14"),  # noqa: B008
+        bytes_: bytes = b"one",
+        time_: datetime.time = datetime.time(16, 10, second=2),  # noqa: B008
+        dict_: Dict[int, str] = {1: "a"},  # noqa: B006
+    ) -> List[
+        Tuple[
+            int,
+            str,
+            int,
+            str,
+            bool,
+            decimal.Decimal,
+            bytes,
+            datetime.time,
+            Dict[int, str],
+        ]
+    ]:
+        return [
+            (int_req, str_req, int_opt, str_opt, bool_, decimal_, bytes_, time_, dict_)
         ]
 
 

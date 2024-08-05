@@ -925,7 +925,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 return data_for_compute.all(
                     axis=axis, bool_only=False, skipna=skipna, **kwargs
                 )
-            return self._reduce_dimension(
+            result = self._reduce_dimension(
                 self._query_compiler.all(
                     axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
                 )
@@ -948,7 +948,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 return result.all(
                     axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
                 )
-            return result
+        return True if result is None else result
 
     def any(self, axis=0, bool_only=None, skipna=True, **kwargs):
         """
@@ -969,7 +969,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 return data_for_compute.any(
                     axis=axis, bool_only=False, skipna=skipna, **kwargs
                 )
-            return self._reduce_dimension(
+            result = self._reduce_dimension(
                 self._query_compiler.any(
                     axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
                 )
@@ -990,7 +990,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 return result.any(
                     axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
                 )
-            return result
+        return False if result is None else result
 
     def apply(
         self,
@@ -1045,21 +1045,25 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         )
         return query_compiler
 
-    @base_not_implemented()
     def asfreq(
-        self, freq, method=None, how=None, normalize=False, fill_value=None
+        self,
+        freq: str,
+        method: FillnaOptions | None = None,
+        how: str | None = None,
+        normalize: bool = False,
+        fill_value: Scalar = None,
     ):  # noqa: PR01, RT01, D200
         """
         Convert time series to specified frequency.
         """
-        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        return self._default_to_pandas(
-            "asfreq",
-            freq,
-            method=method,
-            how=how,
-            normalize=normalize,
-            fill_value=fill_value,
+        return self.__constructor__(
+            query_compiler=self._query_compiler.asfreq(
+                freq=freq,
+                method=method,
+                how=how,
+                normalize=normalize,
+                fill_value=fill_value,
+            )
         )
 
     @base_not_implemented()

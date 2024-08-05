@@ -209,7 +209,7 @@ class Index(metaclass=TelemetryMeta):
         Helper method to create and save local index when index should not be lazy
         """
         if isinstance(data, SnowflakeQueryCompiler):
-            index = data._modin_frame.index_columns_pandas_index
+            index = data._modin_frame.index_columns_pandas_index()
         else:
             index = native_pd.Index(
                 data=data,
@@ -251,17 +251,26 @@ class Index(metaclass=TelemetryMeta):
                     )
             raise err
 
-    def to_pandas(self) -> native_pd.Index:
+    def to_pandas(
+        self,
+        *,
+        statement_params: dict[str, str] | None = None,
+        **kwargs: Any,
+    ) -> native_pd.Index:
         """
-        Convert Snowpark pandas Index to pandas Index
+        Convert Snowpark pandas Index to pandas Index.
 
-        Returns
-        -------
-        pandas Index
-            A native pandas Index representation of self
+        Args:
+        statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+        Returns:
+            pandas Index
+                A native pandas Index representation of self
         """
         if self.is_lazy:
-            return self._query_compiler._modin_frame.index_columns_pandas_index
+            return self._query_compiler._modin_frame.index_columns_pandas_index(
+                statement_params=statement_params, **kwargs
+            )
         return self._index
 
     @property
@@ -708,8 +717,7 @@ class Index(metaclass=TelemetryMeta):
         """
         return self
 
-    @index_not_implemented()
-    def all(self) -> None:
+    def all(self, *args, **kwargs) -> bool | ExtensionArray:
         """
         Return whether all elements are Truthy.
 
@@ -735,11 +743,24 @@ class Index(metaclass=TelemetryMeta):
         -----
         Not a Number (NaN), positive infinity and negative infinity
         evaluate to True because these are not equal to zero.
-        """
-        # TODO: SNOW-1458141 implement all
+        `*args` and `**kwargs` are present for compatibility with numpy
+        and not used with Snowpark pandas.
 
-    @index_not_implemented()
-    def any(self) -> None:
+        Examples
+        --------
+        True, because nonzero integers are considered True.
+
+        >>> pd.Index([1, 2, 3]).all()
+        True
+
+        False, because 0 is considered False.
+
+        >>> pd.Index([0, 1, 2]).all()
+        False
+        """
+        return self.to_series().all(**kwargs)
+
+    def any(self, *args, **kwargs) -> bool | ExtensionArray:
         """
         Return whether any element is Truthy.
 
@@ -764,8 +785,20 @@ class Index(metaclass=TelemetryMeta):
         -----
         Not a Number (NaN), positive infinity and negative infinity
         evaluate to True because these are not equal to zero.
+        `*args` and `**kwargs` are present for compatibility with numpy
+        and not used with Snowpark pandas.
+
+        Examples
+        --------
+        >>> index = pd.Index([0, 1, 2])
+        >>> index.any()
+        True
+
+        >>> index = pd.Index([0, 0, 0])
+        >>> index.any()
+        False
         """
-        # TODO: SNOW-1458141 implement any
+        return self.to_series().any(**kwargs)
 
     @index_not_implemented()
     def argmin(self) -> None:

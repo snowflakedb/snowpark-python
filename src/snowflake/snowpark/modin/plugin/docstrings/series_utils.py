@@ -1447,27 +1447,211 @@ class CombinedDatetimelikeProperties:
 
     @property
     def is_month_start():
-        pass
+        """
+        Indicates whether the date is the first day of the month.
+
+        Returns
+        -------
+        Series or array
+            For Series, returns a Series with boolean values. For DatetimeIndex, returns a boolean array.
+
+        See also
+        --------
+        is_month_start
+            Return a boolean indicating whether the date is the first day of the month.
+        is_month_end
+            Return a boolean indicating whether the date is the last day of the month.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> s = pd.Series(pd.date_range("2018-02-27", periods=3))
+        >>> s
+        0   2018-02-27
+        1   2018-02-28
+        2   2018-03-01
+        dtype: datetime64[ns]
+        >>> s.dt.is_month_start
+        0    False
+        1    False
+        2     True
+        dtype: bool
+        >>> s.dt.is_month_end
+        0    False
+        1     True
+        2    False
+        dtype: bool
+        """
 
     @property
     def is_month_end():
-        pass
+        """
+        Indicates whether the date is the last day of the month.
+
+        Returns
+        -------
+        Series or array
+            For Series, returns a Series with boolean values. For DatetimeIndex, returns a boolean array.
+
+        See also
+        --------
+        is_month_start
+            Return a boolean indicating whether the date is the first day of the month.
+        is_month_end
+            Return a boolean indicating whether the date is the last day of the month.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> s = pd.Series(pd.date_range("2018-02-27", periods=3))
+        >>> s
+        0   2018-02-27
+        1   2018-02-28
+        2   2018-03-01
+        dtype: datetime64[ns]
+        >>> s.dt.is_month_start
+        0    False
+        1    False
+        2     True
+        dtype: bool
+        >>> s.dt.is_month_end
+        0    False
+        1     True
+        2    False
+        dtype: bool
+        """
 
     @property
     def is_quarter_start():
-        pass
+        """
+        Indicator for whether the date is the first day of a quarter.
+
+        Returns
+        -------
+        is_quarter_start : Series or DatetimeIndex
+            The same type as the original data with boolean values. Series will have the same name and index. DatetimeIndex will have the same name.
+
+        See also
+        --------
+        quarter
+            Return the quarter of the date.
+        is_quarter_end
+            Similar property for indicating the quarter end.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> df = pd.DataFrame({'dates': pd.date_range("2017-03-30",
+        ...                   periods=4)})
+        >>> df.assign(quarter=df.dates.dt.quarter,
+        ...           is_quarter_start=df.dates.dt.is_quarter_start)
+               dates  quarter  is_quarter_start
+        0 2017-03-30        1             False
+        1 2017-03-31        1             False
+        2 2017-04-01        2              True
+        3 2017-04-02        2             False
+        """
 
     @property
     def is_quarter_end():
-        pass
+        """
+        Indicator for whether the date is the last day of a quarter.
+
+        Returns
+        -------
+        is_quarter_end : Series or DatetimeIndex
+            The same type as the original data with boolean values. Series will have the same name and index. DatetimeIndex will have the same name.
+
+        See also
+        --------
+        quarter
+            Return the quarter of the date.
+        is_quarter_start
+            Similar property indicating the quarter start.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> df = pd.DataFrame({'dates': pd.date_range("2017-03-30",
+        ...                    periods=4)})
+        >>> df.assign(quarter=df.dates.dt.quarter,
+        ...           is_quarter_end=df.dates.dt.is_quarter_end)
+               dates  quarter  is_quarter_end
+        0 2017-03-30        1           False
+        1 2017-03-31        1            True
+        2 2017-04-01        2           False
+        3 2017-04-02        2           False
+        """
 
     @property
     def is_year_start():
-        pass
+        """
+        Indicate whether the date is the first day of a year.
+
+        Returns
+        -------
+        Series or DatetimeIndex
+            The same type as the original data with boolean values. Series will have the same name and index. DatetimeIndex will have the same name.
+
+        See also
+        --------
+        is_year_end
+            Similar property indicating the last day of the year.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> dates = pd.Series(pd.date_range("2017-12-30", periods=3))
+        >>> dates
+        0   2017-12-30
+        1   2017-12-31
+        2   2018-01-01
+        dtype: datetime64[ns]
+
+        >>> dates.dt.is_year_start
+        0    False
+        1    False
+        2     True
+        dtype: bool
+        """
 
     @property
     def is_year_end():
-        pass
+        """
+        Indicate whether the date is the last day of the year.
+
+        Returns
+        -------
+        Series or DatetimeIndex
+            The same type as the original data with boolean values. Series will have the same name and index. DatetimeIndex will have the same name.
+
+        See also
+        --------
+        is_year_start
+            Similar property indicating the start of the year.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> dates = pd.Series(pd.date_range("2017-12-30", periods=3))
+        >>> dates
+        0   2017-12-30
+        1   2017-12-31
+        2   2018-01-01
+        dtype: datetime64[ns]
+
+        >>> dates.dt.is_year_end
+        0    False
+        1     True
+        2    False
+        dtype: bool
+        """
 
     @property
     def is_leap_year():

@@ -400,11 +400,10 @@ class InternalFrame:
                 convert_to_lazy=False,
             )
 
-    @property
-    def index_columns_pandas_index(self) -> native_pd.Index:
+    def index_columns_pandas_index(self, **kwargs: Any) -> native_pd.Index:
         """
         Get pandas index. The method eagerly pulls the values from Snowflake because index requires the values to be
-        filled
+        filled.
 
         Returns:
             The index (row labels) of the DataFrame.
@@ -412,7 +411,8 @@ class InternalFrame:
         index_values = snowpark_to_pandas_helper(
             self.ordered_dataframe.select(
                 self.index_column_snowflake_quoted_identifiers
-            )
+            ),
+            **kwargs,
         ).values
         if self.is_multiindex(axis=0):
             value_tuples = [tuple(row) for row in index_values]
