@@ -68,11 +68,10 @@ class Index(metaclass=TelemetryMeta):
         copy: bool = _CONSTRUCTOR_DEFAULTS["copy"],
         name: object = _CONSTRUCTOR_DEFAULTS["name"],
         tupleize_cols: bool = _CONSTRUCTOR_DEFAULTS["tupleize_cols"],
-        convert_to_lazy: bool = True,
     ) -> Index:
         """
         Override __new__ method to control new instance creation of Index.
-        Depending of data type, it will create a Index or DatetimeIndex instance.
+        Depending on data type, it will create a Index or DatetimeIndex instance.
 
         Parameters
         ----------
@@ -87,9 +86,11 @@ class Index(metaclass=TelemetryMeta):
             Name to be stored in the index.
         tupleize_cols : bool (default: True)
             When True, attempt to create a MultiIndex if possible.
-        convert_to_lazy : bool (default: True)
-            When True, create a lazy index object from a local data input, otherwise, create an index object that saves a pandas index locally.
-            We only set convert_to_lazy as False to avoid pulling data back and forth from Snowflake, e.g., when calling df.columns, the column data should always be kept locally.
+
+        Returns
+        -------
+            New instance of Index or DatetimeIndex.
+            DatetimeIndex object will be returned if the column/data have datetime type.
         """
         from snowflake.snowpark.modin.plugin.extensions.datetime_index import (
             DatetimeIndex,
@@ -98,12 +99,12 @@ class Index(metaclass=TelemetryMeta):
         if isinstance(data, SnowflakeQueryCompiler):
             dtype = data.index_dtypes[0]
             if dtype == np.dtype("datetime64[ns]"):
-                return DatetimeIndex(data, convert_to_lazy=convert_to_lazy)
+                return DatetimeIndex(data)
             return object.__new__(cls)
         else:
             index = native_pd.Index(data, dtype, copy, name, tupleize_cols)
             if isinstance(index, native_pd.DatetimeIndex):
-                return DatetimeIndex(index, convert_to_lazy=convert_to_lazy)
+                return DatetimeIndex(index)
             return object.__new__(cls)
 
     def __init__(
@@ -156,17 +157,24 @@ class Index(metaclass=TelemetryMeta):
             "name": name,
             "tupleize_cols": tupleize_cols,
         }
+        self._init_index(data, _CONSTRUCTOR_DEFAULTS, **kwargs)
+
+    def _init_index(
+        self,
+        data: ArrayLike | SnowflakeQueryCompiler | None,
+        ctor_defaults: dict,
+        **kwargs: Any,
+    ):
         self._parent = data if isinstance(data, BasePandasDataset) else None
         data = data._query_compiler if isinstance(data, BasePandasDataset) else data
-        
         if isinstance(data, SnowflakeQueryCompiler):
             # Raise warning if `data` is query compiler with non-default arguments.
             for arg_name, arg_value in kwargs.items():
-                if arg_value is not _CONSTRUCTOR_DEFAULTS[arg_name]:
+                if arg_value is not ctor_defaults[arg_name]:
                     WarningMessage.ignored_argument(
                         "Index",
                         arg_name,
-                        "Non-default arguments are not supported for Index with query compiler.",
+                        "Constructing Index with query compiler ignores other arguments",
                     )
         if isinstance(data, SnowflakeQueryCompiler):
             qc = data
@@ -495,9 +503,6 @@ class Index(metaclass=TelemetryMeta):
             )
 
             result_class = DatetimeIndex
-
-        if not self.is_lazy:
-            return result_class(data=self._index.astype(dtype), convert_to_lazy=False)
 
         col_dtypes = {
             column: dtype for column in self._query_compiler.get_index_names()
