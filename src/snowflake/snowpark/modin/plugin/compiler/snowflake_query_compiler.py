@@ -16631,3 +16631,48 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
 
         return result
+
+    def get_first_and_last_ten_elements(self) -> "SnowflakeQueryCompiler":
+        """
+        Method used with Index.__repr__ to pull the first and last ten elements in one query.
+        """
+        # Row position column required for left and right bound comparison.
+        internal_frame = self._modin_frame
+        frame = internal_frame.ensure_row_position_column()
+        row_pos_col = col(frame.row_position_snowflake_quoted_identifier)
+
+        # Create a count column which will be used to get the last ten elements.
+        frame = frame.append_column("count", pandas_lit(1) + max_(row_pos_col).over())
+        count_col = col(frame.data_column_snowflake_quoted_identifiers[-1])
+        ordering_columns = internal_frame.ordering_columns
+
+        first_ten_elem_filter = row_pos_col < pandas_lit(10)
+        last_ten_elem_filter = row_pos_col >= (count_col - pandas_lit(10))
+        filter_cond = first_ten_elem_filter | last_ten_elem_filter
+        filtered_frame = frame.ordered_dataframe.filter(filter_cond).sort(
+            ordering_columns
+        )
+        return SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=filtered_frame,
+                data_column_pandas_labels=internal_frame.data_column_pandas_labels,
+                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
+                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers,
+                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+            )
+        )
+
+    def index_length(self) -> int:
+        """
+        Get the length of an Index object without pulling in the entire index locally.
+        """
+        internal_frame = self._modin_frame
+        frame = internal_frame.ensure_row_position_column()
+        row_pos_col = col(frame.row_position_snowflake_quoted_identifier)
+        frame = frame.append_column("count", pandas_lit(1) + max_(row_pos_col).over())
+        count_col = col(frame.data_column_snowflake_quoted_identifiers[-1]).as_(
+            "count_alias"
+        )
+        res = frame.ordered_dataframe.select(count_col).collect()
+        return 0 if not res else res[0][0]
