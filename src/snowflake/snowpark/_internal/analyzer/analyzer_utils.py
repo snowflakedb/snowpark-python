@@ -879,7 +879,10 @@ def create_file_format_statement(
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
 ) -> str:
-    options_str = TYPE + EQUALS + file_type + SPACE + get_options_statement(options)
+    type_str = TYPE + EQUALS + file_type + SPACE
+    options_str = (
+        type_str if "TYPE" not in options else EMPTY_STRING
+    ) + get_options_statement(options)
     return (
         CREATE
         + (
