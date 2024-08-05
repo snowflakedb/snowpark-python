@@ -24,7 +24,6 @@
 from __future__ import annotations
 
 from functools import wraps
-from types import NoneType
 from typing import Any, Callable, Hashable, Iterator, Literal
 
 import modin
@@ -801,9 +800,7 @@ class Index(metaclass=TelemetryMeta):
         """
         return self.to_series().any(**kwargs)
 
-    def argmin(
-        self, axis: NoneType = None, skipna: bool = True, *args, **kwargs
-    ) -> int:
+    def argmin(self, axis=None, skipna: bool = True, *args, **kwargs) -> int:
         """
         Return int position of the smallest value in the Series.
 
@@ -837,9 +834,7 @@ class Index(metaclass=TelemetryMeta):
         """
         return self.to_series().argmin(skipna=skipna, *args, **kwargs)
 
-    def argmax(
-        self, axis: NoneType = None, skipna: bool = True, *args, **kwargs
-    ) -> int:
+    def argmax(self, axis=None, skipna: bool = True, *args, **kwargs) -> int:
         """
         Return int position of the largest value in the Series.
 
