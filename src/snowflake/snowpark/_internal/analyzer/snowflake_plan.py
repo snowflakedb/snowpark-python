@@ -1119,17 +1119,30 @@ class SnowflakePlanBuilder:
         if "FORMAT_NAME" not in options:
             return file_format_options
 
-        type_map = {"String": str, "List": str, "Integer": int, "Boolean": bool}
+        def process_list(list_property):
+            split_list = list_property.lstrip("[").rstrip("]").split(", ")
+            if len(split_list) == 1:
+                return split_list[0]
+            return tuple(split_list)
+
+        type_map = {
+            "String": str,
+            "List": process_list,
+            "Integer": int,
+            "Boolean": bool,
+        }
         new_options = {**file_format_options}
         file_format = self.session.sql(
             f"DESCRIBE FILE FORMAT {options['FORMAT_NAME']}"
         ).collect()
+
         for setting in file_format:
             if (
                 setting["property_value"] == setting["property_default"]
                 or setting["property"] in new_options
             ):
                 continue
+
             new_options[str(setting["property"])] = type_map.get(
                 str(setting["property_type"]), str
             )(setting["property_value"])
