@@ -182,7 +182,27 @@ def build_proto_from_struct_type(
         ast_field.nullable = field.nullable
 
 
-def build_fn_apply(
+def build_builtin_fn_apply(
+    ast: proto.Expr,
+    builtin_name: str,
+    *args: Tuple[Union[proto.Expr, Any]],
+    **kwargs: Dict[str, Union[proto.Expr, Any]],
+) -> None:
+    """
+    Creates AST encoding for ApplyExpr(BuiltinFn(<builtin_name>, List(<args...>), Map(<kwargs...>))) for builtin
+    functions.
+    Args:
+        ast: Expr node to fill
+        builtin_name: Name of the builtin function to call.
+        *args: Positional arguments to pass to function.
+        **kwargs: Keyword arguments to pass to function.
+
+    """
+    build_fn_apply_new(ast, builtin_name, *args, **kwargs)
+
+
+# DO NOT MERGE. Rename this function back to build_fn_apply after all refactoring is done.
+def build_fn_apply_new(
     ast: proto.Expr,
     builtin_name: str,
     *args: Tuple[Union[proto.Expr, Any]],
@@ -467,7 +487,7 @@ def fill_ast_for_column(
     args = tuple(kwargs.values())
     kwargs = {}
 
-    build_fn_apply(expr, fn_name, *args, **kwargs)
+    build_builtin_fn_apply(expr, fn_name, *args, **kwargs)
 
 
 def create_ast_for_column(
