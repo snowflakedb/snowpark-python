@@ -122,6 +122,7 @@ class TableFunctionCall:
         Raises:
             ValueError: Raises error when the aliases are not unique after being canonicalized.
         """
+        assert self._ast is not None, "_ast must already be set"
         canon_aliases = [quote_name(col) for col in aliases]
         if len(set(canon_aliases)) != len(aliases):
             raise ValueError("All output column names after aliasing must be unique.")
