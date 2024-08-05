@@ -35,7 +35,6 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
 from snowflake.snowpark.modin.plugin.extensions.index import Index
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 _CONSTRUCTOR_DEFAULTS = {
     "freq": lib.no_default,
@@ -131,6 +130,13 @@ class DatetimeIndex(Index):
         >>> idx
         DatetimeIndex(['2020-01-01 02:00:00-08:00', '2020-02-01 03:00:00-08:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
         """
+        if isinstance(data, SnowflakeQueryCompiler):
+            # Raise error if underlying type is not a TimestampType.
+            dtype = data.index_dtypes[0]
+            if not dtype == np.dtype("datetime64[ns]"):
+                raise ValueError(
+                    "DatetimeIndex can only be created from a query compiler with TimestampType."
+                )
         kwargs = {
             "freq": freq,
             "tz": tz,
@@ -143,19 +149,4 @@ class DatetimeIndex(Index):
             "copy": copy,
             "name": name,
         }
-        if isinstance(data, SnowflakeQueryCompiler):
-            # Raise error if underlying type is not a TimestampType.
-            dtype = data.index_dtypes[0]
-            if not dtype == np.dtype("datetime64[ns]"):
-                raise ValueError(
-                    "DatetimeIndex can only be created from a query compiler with TimestampType."
-                )
-            # Raise warning if `data` is query compiler with non-default arguments.
-            for arg_name, arg_value in kwargs.items():
-                if arg_value is not _CONSTRUCTOR_DEFAULTS[arg_name]:
-                    WarningMessage.ignored_argument(
-                        "DatetimeIndex",
-                        arg_name,
-                        "Non-default arguments are not supported for DatetimeIndex with query compiler.",
-                    )
-        self.set_query_compiler(data=data, **kwargs)
+        self._init_index(data, _CONSTRUCTOR_DEFAULTS, **kwargs)
