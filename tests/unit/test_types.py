@@ -40,6 +40,7 @@ from snowflake.snowpark._internal.type_utils import (
     merge_type,
     python_type_to_snow_type,
     python_value_str_to_object,
+    retrieve_func_defaults_from_source,
     retrieve_func_type_hints_from_source,
     snow_type_to_dtype_str,
 )
@@ -584,6 +585,99 @@ def test_decimal_regular_expression(decimal_word):
     assert get_number_precision_scale(f" {decimal_word}(2,1)") == (2, 1)
     assert get_number_precision_scale(f"{decimal_word}(2,1) ") == (2, 1)
     assert get_number_precision_scale(f"  {decimal_word}  (  2  ,  1  )  ") == (2, 1)
+
+
+@pytest.mark.parametrize("test_from_class", [True, False])
+@pytest.mark.parametrize("test_from_file", [True, False])
+@pytest.mark.parametrize("add_type_hint", [True, False])
+@pytest.mark.parametrize(
+    "datatype,annotated_value,extracted_value",
+    [
+        ("int", "None", None),
+        ("int", "1", "1"),
+        ("bool", "True", "True"),
+        ("float", "1.0", "1.0"),
+        ("decimal.Decimal", "decimal.Decimal('3.14')", "decimal.Decimal('3.14')"),
+        ("decimal.Decimal", "decimal.Decimal(1.0)", "decimal.Decimal(1.0)"),
+        ("str", "one", "one"),
+        ("str", "None", None),
+        ("bytes", "b'one'", "b'one'"),
+        ("bytearray", "bytearray('one', 'utf-8')", "bytearray('one', 'utf-8')"),
+        ("datetime.date", "datetime.date(2024, 4, 1)", "datetime.date(2024, 4, 1)"),
+        (
+            "datetime.time",
+            "datetime.time(12, 0, second=20, tzinfo=datetime.timezone.utc)",
+            "datetime.time(12, 0, second=20, tzinfo=datetime.timezone.utc)",
+        ),
+        (
+            "datetime.datetime",
+            "datetime.datetime(2024, 4, 1, 12, 0, 20)",
+            "datetime.datetime(2024, 4, 1, 12, 0, 20)",
+        ),
+        ("List[int]", "[1, 2, 3]", "['1', '2', '3']"),
+        ("List[str]", "['a', 'b', 'c']", "['a', 'b', 'c']"),
+        (
+            "List[List[int]]",
+            "[[1, 2, 3], [4, 5, 6]]",
+            "[\"['1', '2', '3']\", \"['4', '5', '6']\"]",
+        ),
+        ("Map[int, str]", "{1: 'a'}", "{'1': 'a'}"),
+        ("Map[int, List[str]]", "{1: ['a', 'b']}", "{'1': \"['a', 'b']\"}"),
+        ("Variant", "{'key': 'val'}", "{'key': 'val'}"),
+        ("Geography", "'POINT(-122.35 37.55)'", "POINT(-122.35 37.55)"),
+        ("Geometry", "'POINT(-122.35 37.55)'", "POINT(-122.35 37.55)"),
+    ],
+)
+def test_retrieve_func_defaults_from_source(
+    datatype,
+    annotated_value,
+    extracted_value,
+    add_type_hint,
+    test_from_file,
+    test_from_class,
+    tmpdir,
+):
+    func_name = "foo"
+    class_name = "Foo"
+
+    if test_from_class:
+        source = f"""
+class {class_name}:
+    def {func_name}() -> None:
+        return None
+"""
+    else:
+        source = f"""
+def {func_name}(self) -> None:
+    return None
+"""
+    if test_from_file:
+        file = tmpdir.join("test_udf.py")
+        file.write(source)
+        assert retrieve_func_defaults_from_source(file, func_name) == []
+    else:
+        assert retrieve_func_defaults_from_source("", func_name, _source=source) == []
+
+    datatype_str = f": {datatype}" if add_type_hint else ""
+    if test_from_class:
+        source = f"""
+class {class_name}:
+    def {func_name}(self, x, y {datatype_str} = {annotated_value}) -> None:
+        return None
+"""
+    else:
+        source = f"""
+def {func_name}(x, y {datatype_str} = {annotated_value}) -> None:
+    return None
+"""
+    if test_from_file:
+        file = tmpdir.join("test_udf.py")
+        file.write(source)
+        assert retrieve_func_defaults_from_source(file, func_name) == [extracted_value]
+    else:
+        assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
+            extracted_value
+        ]
 
 
 @pytest.mark.parametrize(

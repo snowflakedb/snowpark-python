@@ -258,6 +258,12 @@ Series
     Series.dt.isocalendar
     Series.dt.month_name
     Series.dt.day_name
+    Series.dt.is_month_start
+    Series.dt.is_month_end
+    Series.dt.is_quarter_start
+    Series.dt.is_quarter_end
+    Series.dt.is_year_start
+    Series.dt.is_year_end
 
 
 .. rubric:: String accessor methods

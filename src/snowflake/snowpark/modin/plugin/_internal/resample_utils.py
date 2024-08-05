@@ -55,9 +55,6 @@ IMPLEMENTED_AGG_METHODS = [
     "last",
 ]
 IMPLEMENTED_MISC_METHODS = ["ffill"]
-
-ResampleMethodTypeLit = Literal["ffill", "max", "min", "mean"]
-
 SUPPORTED_RESAMPLE_RULES = ["day", "hour", "second", "minute"]
 
 
