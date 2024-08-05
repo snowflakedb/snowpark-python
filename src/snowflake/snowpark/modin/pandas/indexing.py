@@ -1033,11 +1033,10 @@ class _LocIndexer(_LocationIndexerBase):
         # TODO: SNOW-1063352: Modin upgrade - modin.pandas.indexing._LocIndexer
         frontend_utils.raise_if_native_pandas_objects(item)
 
+        raise_set_cell_with_list_like_value_error(self.df, item, row_loc, col_loc)
         if isinstance(self.df, pd.Series):
             if isinstance(item, pd.DataFrame):
                 raise ValueError(LOC_SET_INCOMPATIBLE_INDEXER_WITH_DF_ERROR_MESSAGE)
-
-            raise_set_cell_with_list_like_value_error(self.df, item, row_loc, col_loc)
         else:
             if is_scalar(row_loc) and (
                 isinstance(item, pd.DataFrame) or is_2d_array(item)
