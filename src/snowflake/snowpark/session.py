@@ -1936,6 +1936,8 @@ class Session:
         stmt = self._ast_batch.assign()
         expr = with_src_position(stmt.expr.apply_expr, stmt)
         if isinstance(func_name, TableFunctionCall):
+            # DO NOT MERGE. Rework the handling of TableFunctionCall.
+            # On this branch, func_name must already have an _ast attribute.
             expr.fn.udtf.name = func_name.name
             func_arguments = func_name.arguments
             func_named_arguments = func_name.named_arguments
