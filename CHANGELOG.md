@@ -21,6 +21,7 @@
 - Fixed a bug in `DataFrame.to_pandas_batches` where the iterator could throw an error if certain transformation is made to the pandas dataframe due to wrong isolation level.
 - Fixed a bug in `DataFrame.lineage.trace` to split the quoted feature view's name and version correctly.
 - Fixed a bug in `Column.isin` that caused invalid sql generation when passed an empty list.
+- Fixed a bug that fails to raise NotImplementedError while setting cell with list like item.
 
 ### Snowpark Local Testing Updates
 
