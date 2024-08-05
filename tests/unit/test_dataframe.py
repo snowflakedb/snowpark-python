@@ -108,12 +108,17 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
     def query_result(*args, **kwargs):
         return [], [], [], None
 
+    def nop(name):
+        return name
+
     fake_session = mock.create_autospec(snowflake.snowpark.session.Session)
     fake_session.sql_simplifier_enabled = sql_simplifier_enabled
     fake_session._cte_optimization_enabled = False
     fake_session._conn = mock.create_autospec(ServerConnection)
     fake_session._plan_builder = SnowflakePlanBuilder(fake_session)
     fake_session._analyzer = Analyzer(fake_session)
+    fake_session._use_scoped_temp_objects = True
+    fake_session.get_fully_qualified_name_if_possible = nop
     with mock.patch(
         "snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format",
         query_result,
@@ -121,7 +126,11 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
         df = getattr(
             DataFrameReader(fake_session).option("format_name", "TEST_FMT"), format_type
         )("@stage/file")
-    assert any("FILE_FORMAT  => 'TEST_FMT'" in q for q in df.queries["queries"])
+    assert any(
+        "CREATE SCOPED TEMPORARY FILE  FORMAT" in q
+        and f"TYPE  = {format_type.upper()}" in q
+        for q in df.queries["queries"]
+    )
 
 
 def test_select_bad_input():
