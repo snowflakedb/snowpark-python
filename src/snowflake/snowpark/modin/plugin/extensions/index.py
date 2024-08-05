@@ -833,7 +833,7 @@ class Index(metaclass=TelemetryMeta):
 
         Note
         ----
-        *args and **kwargs are present for compatibility with numpy and not used with Snowpark pandas.
+        `*args` and `**kwargs` are present for compatibility with numpy and not used with Snowpark pandas.
         """
         return self.to_series().argmin(skipna=skipna, *args, **kwargs)
 
@@ -869,7 +869,7 @@ class Index(metaclass=TelemetryMeta):
 
         Note
         ----
-        *args and **kwargs are present for compatibility with numpy and not used with Snowpark pandas.
+        `*args` and `**kwargs` are present for compatibility with numpy and not used with Snowpark pandas.
         """
         return self.to_series().argmax(skipna=skipna, *args, **kwargs)
 
