@@ -308,7 +308,7 @@ class SnowflakePlan(LogicalPlan):
         # the common subquery elimination will be done through the new plan transformation.
         if (
             not self.session._cte_optimization_enabled
-            or self.session.query_compilation_stage_enabled
+            or self.session._query_compilation_stage_enabled
         ):
             return self
 
@@ -635,7 +635,7 @@ class SnowflakePlanBuilder:
         referenced_ctes: Set[str] = set()
         if (
             self.session.cte_optimization_enabled
-            and self.session.query_compilation_stage_enabled
+            and self.session._query_compilation_stage_enabled
         ):
             # When the cte optimization and the new compilation stage is enabled, the
             # queries, referred cte tables, and post actions propagated from

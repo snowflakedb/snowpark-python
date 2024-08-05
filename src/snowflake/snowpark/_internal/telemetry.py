@@ -410,17 +410,3 @@ class TelemetryClient:
             },
         }
         self.send(message)
-
-    def send_query_compilation_stage_telemetry(
-        self, session_id: str, value: bool
-    ) -> None:
-        message = {
-            **self._create_basic_telemetry_data(
-                TelemetryField.TYPE_QUERY_COMPILATION_STAGE_ENABLED.value
-            ),
-            TelemetryField.KEY_DATA.value: {
-                TelemetryField.SESSION_ID.value: session_id,
-                TelemetryField.TYPE_QUERY_COMPILATION_STAGE_ENABLED.value: value,
-            },
-        }
-        self.send(message)

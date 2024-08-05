@@ -52,7 +52,7 @@ class PlanCompiler:
         current_session = self._plan.session
         return (
             (self._plan.source_plan is not None)
-            and current_session.query_compilation_stage_enabled
+            and current_session._query_compilation_stage_enabled
             and current_session.cte_optimization_enabled
         )
 

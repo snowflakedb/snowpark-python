@@ -738,7 +738,7 @@ class SelectStatement(Selectable):
         from_clause = self.from_.sql_in_subquery
         if (
             self.analyzer.session._cte_optimization_enabled
-            and (not self.analyzer.session.query_compilation_stage_enabled)
+            and (not self.analyzer.session._query_compilation_stage_enabled)
             and self.from_._id
         ):
             placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"

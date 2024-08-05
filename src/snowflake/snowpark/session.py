@@ -645,10 +645,6 @@ class Session:
         return self._auto_clean_up_temp_table_enabled
 
     @property
-    def query_compilation_stage_enabled(self) -> bool:
-        return self._query_compilation_stage_enabled
-
-    @property
     def custom_package_usage_config(self) -> Dict:
         """Get or set configuration parameters related to usage of custom Python packages in Snowflake.
 
@@ -742,21 +738,6 @@ class Session:
         else:
             raise ValueError(
                 "value for auto_clean_up_temp_table_enabled must be True or False!"
-            )
-
-    @query_compilation_stage_enabled.setter
-    @experimental_parameter(version="1.21.0")
-    def query_compilation_stage_enabled(self, value: bool) -> None:
-        """Set the value for query_compilation_stage_enabled"""
-
-        if value in [True, False]:
-            self._conn._telemetry_client.send_query_compilation_stage_telemetry(
-                self._session_id, value
-            )
-            self._query_compilation_stage_enabled = value
-        else:
-            raise ValueError(
-                "value for query_compilation_stage_enabled must be True or False!"
             )
 
     @custom_package_usage_config.setter

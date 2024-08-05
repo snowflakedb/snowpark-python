@@ -44,12 +44,12 @@ paramList = [False, True]
 @pytest.fixture(params=paramList, autouse=True)
 def setup(request, session):
     is_cte_optimization_enabled = session._cte_optimization_enabled
-    is_query_compilation_enabled = session.query_compilation_stage_enabled
-    session.query_compilation_stage_enabled = request.param
+    is_query_compilation_enabled = session._query_compilation_stage_enabled
+    session._query_compilation_stage_enabled = request.param
     session._cte_optimization_enabled = True
     yield
     session._cte_optimization_enabled = is_cte_optimization_enabled
-    session.query_compilation_stage_enabled = is_query_compilation_enabled
+    session._query_compilation_stage_enabled = is_query_compilation_enabled
 
 
 def check_result(session, df, expect_cte_optimized):
