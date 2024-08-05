@@ -298,7 +298,7 @@ def test_index_to_frame(native_index, name, index):
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 @pytest.mark.parametrize("name", [None, "name", True, 1, lib.no_default])
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("native_df", TEST_DFS)
