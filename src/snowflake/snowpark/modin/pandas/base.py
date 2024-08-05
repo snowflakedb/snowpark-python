@@ -671,7 +671,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
 
         if self._query_compiler.is_multiindex():
             return self._query_compiler.index
-        return Index(data=self, convert_to_lazy=True)
+        return Index(data=self)
 
     index = property(_get_index, _set_index)
 
