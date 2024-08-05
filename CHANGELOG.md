@@ -20,6 +20,7 @@
 - Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
 - Fixed a bug in `DataFrame.to_pandas_batches` where the iterator could throw an error if certain transformation is made to the pandas dataframe due to wrong isolation level.
 - Fixed a bug in `DataFrame.lineage.trace` to split the quoted feature view's name and version correctly.
+- Fixed a bug in `Column.isin` that caused invalid sql generation when passed an empty list.
 - Fixed a bug that fails to raise NotImplementedError while setting cell with list like item.
 
 ### Snowpark Local Testing Updates
@@ -57,6 +58,7 @@
 - Added support for `Index.all` and `Index.any`.
 - Added support for `Series.dt.is_year_start` and `Series.dt.is_year_end`.
 - Added support for `Series.dt.is_quarter_start` and `Series.dt.is_quarter_end`.
+- Added support for `Series.argmax` and `Series.argmin`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
