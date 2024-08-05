@@ -2547,10 +2547,11 @@ def test_df_loc_set_scalar_row_key_enlargement_deviates_from_native_pandas(
         # these cases
         ("a", [1], True, False),
         ("a", (1,), True, False),
-        ("w", [1], False, False),
-        ("w", (1,), False, False),
-        ("a", np.array([1]), False, False),
-        ("a", native_pd.Index([1]), False, False),
+        # Snowpark pandas does not support set cell with list like item
+        ("w", [1], False, True),
+        ("w", (1,), False, True),
+        ("a", np.array([1]), False, True),
+        ("a", native_pd.Index([1]), False, True),
     ],
 )
 def test_df_loc_set_scalar_with_item_negative(

@@ -338,8 +338,8 @@ def raise_set_cell_with_list_like_value_error(
     """
     Raise NotImplementedError when setting cell with list like item
     """
-    if not isinstance(item, BasePandasDataset) and is_list_like(item):
-        # item is list like
+    if is_list_like(item) or isinstance(item, pd.Series):
+        # item is list like or a series
         if is_scalar(row_loc) and (
             isinstance(df, pd.Series)
             or (isinstance(df, pd.DataFrame) and is_scalar(col_loc))
@@ -1033,7 +1033,6 @@ class _LocIndexer(_LocationIndexerBase):
         # TODO: SNOW-1063352: Modin upgrade - modin.pandas.indexing._LocIndexer
         frontend_utils.raise_if_native_pandas_objects(item)
 
-        raise_set_cell_with_list_like_value_error(self.df, item, row_loc, col_loc)
         if isinstance(self.df, pd.Series):
             if isinstance(item, pd.DataFrame):
                 raise ValueError(LOC_SET_INCOMPATIBLE_INDEXER_WITH_DF_ERROR_MESSAGE)
@@ -1046,6 +1045,8 @@ class _LocIndexer(_LocationIndexerBase):
                         item.__class__.__name__
                     )
                 )
+
+        raise_set_cell_with_list_like_value_error(self.df, item, row_loc, col_loc)
 
         if (isinstance(row_loc, pd.Series) or is_list_like(row_loc)) and (
             isinstance(item, range)
