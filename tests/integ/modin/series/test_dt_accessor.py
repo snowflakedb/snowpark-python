@@ -25,6 +25,12 @@ dt_properties = pytest.mark.parametrize(
         "month",
         "day",
         "quarter",
+        "is_month_start",
+        "is_month_end",
+        "is_quarter_start",
+        "is_quarter_end",
+        "is_year_start",
+        "is_year_end",
     ],
 )
 
@@ -121,6 +127,55 @@ def test_day_of_week(property, day_of_week_or_year_data, set_week_start):
     eval_snowpark_pandas_result(
         *create_test_series(day_of_week_or_year_data),
         lambda df: getattr(df.dt, property),
+    )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("method", ["day_name", "month_name"])
+def test_day_month_name(method):
+    date_range = native_pd.date_range("2020-05-01", periods=5, freq="17D")
+    native_ser = native_pd.Series(date_range)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda s: getattr(s.dt, method)(),
+    )
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize("method", ["day_name", "month_name"])
+def test_day_month_name_negative(method):
+    date_range = native_pd.date_range("2020-05-01", periods=5, freq="17D")
+    native_ser = native_pd.Series(date_range)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(NotImplementedError):
+        getattr(snow_ser.dt, method)(locale="pt_BR.utf8")
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize(
+    "property",
+    [
+        "is_month_start",
+        "is_month_end",
+        "is_quarter_start",
+        "is_quarter_end",
+        "is_year_start",
+        "is_year_end",
+    ],
+)
+def test_is_x_start_end(property):
+    # Create a series containing the first and last dates of each month
+    #  in a normal year and a leap year.
+    date_range = native_pd.date_range("2023-01-01", periods=731, freq="1D")
+    native_ser = native_pd.Series(date_range)
+    native_ser = native_ser[native_ser.dt.is_month_start | native_ser.dt.is_month_end]
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda s: getattr(s.dt, property),
     )
 
 

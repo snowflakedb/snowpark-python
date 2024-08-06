@@ -1447,27 +1447,211 @@ class CombinedDatetimelikeProperties:
 
     @property
     def is_month_start():
-        pass
+        """
+        Indicates whether the date is the first day of the month.
+
+        Returns
+        -------
+        Series or array
+            For Series, returns a Series with boolean values. For DatetimeIndex, returns a boolean array.
+
+        See also
+        --------
+        is_month_start
+            Return a boolean indicating whether the date is the first day of the month.
+        is_month_end
+            Return a boolean indicating whether the date is the last day of the month.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> s = pd.Series(pd.date_range("2018-02-27", periods=3))
+        >>> s
+        0   2018-02-27
+        1   2018-02-28
+        2   2018-03-01
+        dtype: datetime64[ns]
+        >>> s.dt.is_month_start
+        0    False
+        1    False
+        2     True
+        dtype: bool
+        >>> s.dt.is_month_end
+        0    False
+        1     True
+        2    False
+        dtype: bool
+        """
 
     @property
     def is_month_end():
-        pass
+        """
+        Indicates whether the date is the last day of the month.
+
+        Returns
+        -------
+        Series or array
+            For Series, returns a Series with boolean values. For DatetimeIndex, returns a boolean array.
+
+        See also
+        --------
+        is_month_start
+            Return a boolean indicating whether the date is the first day of the month.
+        is_month_end
+            Return a boolean indicating whether the date is the last day of the month.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> s = pd.Series(pd.date_range("2018-02-27", periods=3))
+        >>> s
+        0   2018-02-27
+        1   2018-02-28
+        2   2018-03-01
+        dtype: datetime64[ns]
+        >>> s.dt.is_month_start
+        0    False
+        1    False
+        2     True
+        dtype: bool
+        >>> s.dt.is_month_end
+        0    False
+        1     True
+        2    False
+        dtype: bool
+        """
 
     @property
     def is_quarter_start():
-        pass
+        """
+        Indicator for whether the date is the first day of a quarter.
+
+        Returns
+        -------
+        is_quarter_start : Series or DatetimeIndex
+            The same type as the original data with boolean values. Series will have the same name and index. DatetimeIndex will have the same name.
+
+        See also
+        --------
+        quarter
+            Return the quarter of the date.
+        is_quarter_end
+            Similar property for indicating the quarter end.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> df = pd.DataFrame({'dates': pd.date_range("2017-03-30",
+        ...                   periods=4)})
+        >>> df.assign(quarter=df.dates.dt.quarter,
+        ...           is_quarter_start=df.dates.dt.is_quarter_start)
+               dates  quarter  is_quarter_start
+        0 2017-03-30        1             False
+        1 2017-03-31        1             False
+        2 2017-04-01        2              True
+        3 2017-04-02        2             False
+        """
 
     @property
     def is_quarter_end():
-        pass
+        """
+        Indicator for whether the date is the last day of a quarter.
+
+        Returns
+        -------
+        is_quarter_end : Series or DatetimeIndex
+            The same type as the original data with boolean values. Series will have the same name and index. DatetimeIndex will have the same name.
+
+        See also
+        --------
+        quarter
+            Return the quarter of the date.
+        is_quarter_start
+            Similar property indicating the quarter start.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> df = pd.DataFrame({'dates': pd.date_range("2017-03-30",
+        ...                    periods=4)})
+        >>> df.assign(quarter=df.dates.dt.quarter,
+        ...           is_quarter_end=df.dates.dt.is_quarter_end)
+               dates  quarter  is_quarter_end
+        0 2017-03-30        1           False
+        1 2017-03-31        1            True
+        2 2017-04-01        2           False
+        3 2017-04-02        2           False
+        """
 
     @property
     def is_year_start():
-        pass
+        """
+        Indicate whether the date is the first day of a year.
+
+        Returns
+        -------
+        Series or DatetimeIndex
+            The same type as the original data with boolean values. Series will have the same name and index. DatetimeIndex will have the same name.
+
+        See also
+        --------
+        is_year_end
+            Similar property indicating the last day of the year.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> dates = pd.Series(pd.date_range("2017-12-30", periods=3))
+        >>> dates
+        0   2017-12-30
+        1   2017-12-31
+        2   2018-01-01
+        dtype: datetime64[ns]
+
+        >>> dates.dt.is_year_start
+        0    False
+        1    False
+        2     True
+        dtype: bool
+        """
 
     @property
     def is_year_end():
-        pass
+        """
+        Indicate whether the date is the last day of the year.
+
+        Returns
+        -------
+        Series or DatetimeIndex
+            The same type as the original data with boolean values. Series will have the same name and index. DatetimeIndex will have the same name.
+
+        See also
+        --------
+        is_year_start
+            Similar property indicating the start of the year.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> dates = pd.Series(pd.date_range("2017-12-30", periods=3))
+        >>> dates
+        0   2017-12-30
+        1   2017-12-31
+        2   2018-01-01
+        dtype: datetime64[ns]
+
+        >>> dates.dt.is_year_end
+        0    False
+        1     True
+        2    False
+        dtype: bool
+        """
 
     @property
     def is_leap_year():
@@ -1517,10 +1701,94 @@ class CombinedDatetimelikeProperties:
         pass
 
     def month_name():
-        pass
+        """
+        Return the month names with specified locale.
+
+        Parameters
+        ----------
+        locale : str, optional
+            Locale determining the language in which to return the month name. Default is English locale ('en_US.utf8'). Use the command locale -a on your terminal on Unix systems to find your locale language code.
+
+        Returns
+        -------
+        Series or Index
+            Series or Index of month names.
+
+        Examples
+        --------
+        >>> s = pd.Series(pd.date_range(start='2018-01', freq='ME', periods=3))
+        >>> s
+        0   2018-01-31
+        1   2018-02-28
+        2   2018-03-31
+        dtype: datetime64[ns]
+        >>> s.dt.month_name()
+        0     January
+        1    February
+        2       March
+        dtype: object
+
+        >>> idx = pd.date_range(start='2018-01', freq='ME', periods=3)
+        >>> idx  # doctest: +SKIP
+        DatetimeIndex(['2018-01-31', '2018-02-28', '2018-03-31'],
+                    dtype='datetime64[ns]', freq='ME')
+        >>> idx.month_name()  # doctest: +SKIP
+        Index(['January', 'February', 'March'], dtype='object')
+
+        Using the locale parameter you can set a different locale language, for example: idx.month_name(locale='pt_BR.utf8') will return month names in Brazilian Portuguese language.
+
+        >>> idx = pd.date_range(start='2018-01', freq='ME', periods=3)
+        >>> idx  # doctest: +SKIP
+        DatetimeIndex(['2018-01-31', '2018-02-28', '2018-03-31'],
+                    dtype='datetime64[ns]', freq='ME')
+        >>> idx.month_name(locale='pt_BR.utf8')  # doctest: +SKIP
+        Index(['Janeiro', 'Fevereiro', 'Março'], dtype='object')
+        """
 
     def day_name():
-        pass
+        """
+        Return the day names with specified locale.
+
+        Parameters
+        ----------
+        locale : str, optional
+            Locale determining the language in which to return the day name. Default is English locale ('en_US.utf8'). Use the command locale -a on your terminal on Unix systems to find your locale language code.
+
+        Returns
+        -------
+        Series or Index
+            Series or Index of day names.
+
+        Examples
+        --------
+        >>> s = pd.Series(pd.date_range(start='2018-01-01', freq='D', periods=3))
+        >>> s
+        0   2018-01-01
+        1   2018-01-02
+        2   2018-01-03
+        dtype: datetime64[ns]
+        >>> s.dt.day_name()
+        0       Monday
+        1      Tuesday
+        2    Wednesday
+        dtype: object
+
+        >>> idx = pd.date_range(start='2018-01-01', freq='D', periods=3)
+        >>> idx  # doctest: +SKIP
+        DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03'],
+                    dtype='datetime64[ns]', freq='D')
+        >>> idx.day_name()  # doctest: +SKIP
+        Index(['Monday', 'Tuesday', 'Wednesday'], dtype='object')
+
+        Using the locale parameter you can set a different locale language, for example: idx.day_name(locale='pt_BR.utf8') will return day names in Brazilian Portuguese language.
+
+        >>> idx = pd.date_range(start='2018-01-01', freq='D', periods=3)
+        >>> idx  # doctest: +SKIP
+        DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03'],
+                    dtype='datetime64[ns]', freq='D')
+        >>> idx.day_name(locale='pt_BR.utf8')  # doctest: +SKIP
+        Index(['Segunda', 'Terça', 'Quarta'], dtype='object')
+        """
 
     def total_seconds():
         pass
