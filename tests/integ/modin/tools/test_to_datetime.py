@@ -15,7 +15,8 @@ import pandas as native_pd
 import pandas._testing as tm
 import pytest
 import pytz
-from modin.pandas import DatetimeIndex, NaT, Series, Timestamp, to_datetime
+from modin.pandas import NaT, Series, Timestamp, to_datetime
+from pandas import DatetimeIndex
 from pandas.core.arrays import DatetimeArray
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
