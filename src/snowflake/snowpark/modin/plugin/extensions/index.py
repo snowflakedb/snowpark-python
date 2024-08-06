@@ -96,20 +96,27 @@ class Index(metaclass=TelemetryMeta):
             DatetimeIndex,
         )
 
+        orig_data = data
+        data = data._query_compiler if isinstance(data, BasePandasDataset) else data
+
         if isinstance(data, SnowflakeQueryCompiler):
             dtype = data.index_dtypes[0]
             if dtype == np.dtype("datetime64[ns]"):
-                return DatetimeIndex(data)
+                return DatetimeIndex(orig_data)
             return object.__new__(cls)
         else:
             index = native_pd.Index(data, dtype, copy, name, tupleize_cols)
             if isinstance(index, native_pd.DatetimeIndex):
-                return DatetimeIndex(index)
+                return DatetimeIndex(orig_data)
             return object.__new__(cls)
 
     def __init__(
         self,
-        data: ArrayLike | modin.pandas.DataFrame | Series | SnowflakeQueryCompiler | None = None,
+        data: ArrayLike
+        | modin.pandas.DataFrame
+        | Series
+        | SnowflakeQueryCompiler
+        | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = _CONSTRUCTOR_DEFAULTS["dtype"],
         copy: bool = _CONSTRUCTOR_DEFAULTS["copy"],
         name: object = _CONSTRUCTOR_DEFAULTS["name"],
@@ -170,12 +177,9 @@ class Index(metaclass=TelemetryMeta):
         if isinstance(data, SnowflakeQueryCompiler):
             # Raise warning if `data` is query compiler with non-default arguments.
             for arg_name, arg_value in kwargs.items():
-                if arg_value is not ctor_defaults[arg_name]:
-                    WarningMessage.ignored_argument(
-                        "Index",
-                        arg_name,
-                        "Constructing Index with query compiler ignores other arguments",
-                    )
+                assert (
+                    arg_value == ctor_defaults[arg_name]
+                ), f"Non-default argument '{arg_name}={arg_value}' when constructing Index with query compiler"
         if isinstance(data, SnowflakeQueryCompiler):
             qc = data
         else:
@@ -495,20 +499,20 @@ class Index(metaclass=TelemetryMeta):
             # Ensure that self.astype(self.dtype) is self
             return self.copy() if copy else self
 
-        result_class = Index
+        col_dtypes = {
+            column: dtype for column in self._query_compiler.get_index_names()
+        }
+        new_query_compiler = self._query_compiler.astype_index(col_dtypes)
+
         if is_datetime64_any_dtype(dtype):
             # local import to avoid circular dependency.
             from snowflake.snowpark.modin.plugin.extensions.datetime_index import (
                 DatetimeIndex,
             )
 
-            result_class = DatetimeIndex
+            return DatetimeIndex(data=new_query_compiler)
 
-        col_dtypes = {
-            column: dtype for column in self._query_compiler.get_index_names()
-        }
-        new_query_compiler = self._query_compiler.astype_index(col_dtypes)
-        return result_class(data=new_query_compiler)
+        return Index(data=new_query_compiler)
 
     @property
     def name(self) -> Hashable:
