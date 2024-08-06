@@ -21,6 +21,7 @@
 - Fixed a bug in `DataFrame.to_pandas_batches` where the iterator could throw an error if certain transformation is made to the pandas dataframe due to wrong isolation level.
 - Fixed a bug in `DataFrame.lineage.trace` to split the quoted feature view's name and version correctly.
 - Fixed a bug in `Column.isin` that caused invalid sql generation when passed an empty list.
+- Fixed a bug that fails to raise NotImplementedError while setting cell with list like item.
 
 ### Snowpark Local Testing Updates
 
@@ -58,6 +59,7 @@
 - Added support for `Series.dt.is_year_start` and `Series.dt.is_year_end`.
 - Added support for `Series.dt.is_quarter_start` and `Series.dt.is_quarter_end`.
 - Added support for `Series.argmax` and `Series.argmin`.
+- Added support for `Series.dt.is_leap_year`.
 - Added support for `Index.__repr__`.
 
 #### Improvements
@@ -71,6 +73,8 @@
 - Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.  
 - Fixed a bug where some Index docstrings are ignored. 
 
+### Behavior change
+- `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
 
 ## 1.20.0 (2024-07-17)
 

@@ -194,9 +194,12 @@ _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING = "PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER
 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
     "PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME"
 )
+# parameter used to turn off the whole new query compilation stage in one shot. If turned
+# off the plan won't go through the extra optimization and query generation steps.
+_PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE = (
+    "PYTHON_SNOWPARK_ENABLE_COMPILATION_STAGE"
+)
 _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING = "PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION"
-# TODO (SNOW-1482588): Add parameter for PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED
-#               at server side
 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
     "PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED"
 )
@@ -544,6 +547,12 @@ class Session:
         self._auto_clean_up_temp_table_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED, False
+            )
+        )
+
+        self._query_compilation_stage_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE, False
             )
         )
 

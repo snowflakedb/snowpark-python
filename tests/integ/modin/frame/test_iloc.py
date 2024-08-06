@@ -3196,3 +3196,12 @@ def test_df_iloc_set_ffill_na_values_negative():
         iloc_helper,
         inplace=True,
     )
+
+
+@sql_count_checker(query_count=0)
+def test_raise_set_cell_with_list_like_value_error():
+    s = pd.Series([[1, 2], [3, 4]])
+    with pytest.raises(NotImplementedError):
+        s.iloc[0] = [0, 0]
+    with pytest.raises(NotImplementedError):
+        s.to_frame().iloc[0, 0] = [0, 0]
