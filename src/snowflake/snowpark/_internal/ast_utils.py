@@ -222,10 +222,10 @@ def build_fn_apply_new(
 
     expr = with_src_position(ast.apply_expr)
 
-    fn = proto.BuiltinFn()
-    fn.name = builtin_name
-    set_src_position(fn.src)
-    expr.fn.builtin_fn.CopyFrom(fn)
+    fn = proto.FnRefExpr()
+    fn.builtin_fn.name.fn_name_flat.name = builtin_name
+    set_src_position(fn.builtin_fn.src)
+    expr.fn.CopyFrom(fn)
 
     for arg in args:
         if isinstance(arg, proto.Expr):
