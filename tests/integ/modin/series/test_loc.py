@@ -1749,7 +1749,7 @@ def test_series_non_partial_string_indexing_cases(ops, error):
             eval_snowpark_pandas_result(snowpark_str, native_str, ops, check_freq=False)
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_series_partial_string_indexing_behavior_diff():
     native_series_minute = native_pd.Series(
         [1, 2, 3],
@@ -1771,7 +1771,7 @@ def test_series_partial_string_indexing_behavior_diff():
         snow_res,
         native_pd.Series(
             [1],
-            pd.DatetimeIndex(["2011-12-31 23:59:00"]),
+            native_pd.DatetimeIndex(["2011-12-31 23:59:00"]),
         ),
         check_dtype=False,
     )

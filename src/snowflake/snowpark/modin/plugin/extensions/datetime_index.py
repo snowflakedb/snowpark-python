@@ -132,8 +132,8 @@ class DatetimeIndex(Index):
         """
         if isinstance(data, SnowflakeQueryCompiler):
             # Raise error if underlying type is not a TimestampType.
-            dtype = data.index_dtypes[0]
-            if not dtype == np.dtype("datetime64[ns]"):
+            current_dtype = data.index_dtypes[0]
+            if not current_dtype == np.dtype("datetime64[ns]"):
                 raise ValueError(
                     "DatetimeIndex can only be created from a query compiler with TimestampType."
                 )
