@@ -1677,7 +1677,7 @@ class CombinedDatetimelikeProperties:
         array([ True, False, False])
 
         >>> dates_series = pd.Series(idx)
-        dates_series
+        >>> dates_series
         0   2012-12-31
         1   2013-12-31
         2   2014-12-31
