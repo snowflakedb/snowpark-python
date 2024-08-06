@@ -313,6 +313,7 @@ class Selectable(LogicalPlan, ABC):
                 df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
                 source_plan=self,
                 placeholder_query=self.placeholder_query,
+                referenced_ctes=self.referenced_ctes,
             )
             # set api_calls to self._snowflake_plan outside of the above constructor
             # because the constructor copy api_calls.
@@ -373,6 +374,12 @@ class Selectable(LogicalPlan, ABC):
         """
         self._column_states = deepcopy(value)
 
+    @property
+    @abstractmethod
+    def referenced_ctes(self) -> Set[str]:
+        """Return the set of ctes referenced by the whole selectable subtree, includes its-self and children"""
+        pass
+
 
 class SelectableEntity(Selectable):
     """Query from a table, view, or any other Snowflake objects.
@@ -385,7 +392,8 @@ class SelectableEntity(Selectable):
         *,
         analyzer: "Analyzer",
     ) -> None:
-        # currently only selecting from a table is supported for this class
+        # currently only selecting from a table or cte is supported
+        # to read as entity
         assert isinstance(entity, SnowflakeTable)
         super().__init__(analyzer)
         self.entity = entity
@@ -420,6 +428,12 @@ class SelectableEntity(Selectable):
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
         return None
+
+    @property
+    def referenced_ctes(self) -> Set[str]:
+        # the SelectableEntity only allows select from base table. No
+        # CTE table will be referred.
+        return set()
 
 
 class SelectSQL(Selectable):
@@ -518,6 +532,12 @@ class SelectSQL(Selectable):
         new._api_calls = self._api_calls
         return new
 
+    @property
+    def referenced_ctes(self) -> Set[str]:
+        # SelectSQL directly calls sql query, there will be no
+        # auto created CTE tables referenced
+        return set()
+
 
 class SelectSnowflakePlan(Selectable):
     """Wrap a SnowflakePlan to a subclass of Selectable."""
@@ -577,6 +597,10 @@ class SelectSnowflakePlan(Selectable):
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
+
+    @property
+    def referenced_ctes(self) -> Set[str]:
+        return self._snowflake_plan.referenced_ctes
 
 
 class SelectStatement(Selectable):
@@ -712,7 +736,11 @@ class SelectStatement(Selectable):
             self._sql_query = self.from_.sql_query
             return self._sql_query
         from_clause = self.from_.sql_in_subquery
-        if self.analyzer.session._cte_optimization_enabled and self.from_._id:
+        if (
+            self.analyzer.session._cte_optimization_enabled
+            and (not self.analyzer.session._query_compilation_stage_enabled)
+            and self.from_._id
+        ):
             placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
             self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
         else:
@@ -843,6 +871,10 @@ class SelectStatement(Selectable):
             else complexity
         )
         return complexity
+
+    @property
+    def referenced_ctes(self) -> Set[str]:
+        return self.from_.referenced_ctes
 
     def to_subqueryable(self) -> "Selectable":
         """When this SelectStatement's subquery is not subqueryable (can't be used in `from` clause of the sql),
@@ -1169,6 +1201,10 @@ class SelectTableFunction(Selectable):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
 
+    @property
+    def referenced_ctes(self) -> Set[str]:
+        return self._snowflake_plan.referenced_ctes
+
 
 class SetOperand:
     def __init__(self, selectable: Selectable, operator: Optional[str] = None) -> None:
@@ -1260,6 +1296,11 @@ class SetStatement(Selectable):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # we add #set_operands - 1 additional operators in sql query
         return {PlanNodeCategory.SET_OPERATION: len(self.set_operands) - 1}
+
+    @property
+    def referenced_ctes(self) -> Set[str]:
+        # get a union of referenced cte tables from all child nodes
+        return set().union(*[node.referenced_ctes for node in self._nodes])
 
 
 class DeriveColumnDependencyError(Exception):
