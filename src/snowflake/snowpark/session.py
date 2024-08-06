@@ -3272,7 +3272,7 @@ class Session:
         # AST.
         stmt = self._ast_batch.assign()
         expr = with_src_position(stmt.expr.apply_expr, stmt)
-        expr.fn.stored_procedure.name = sproc_name
+        expr.fn.stored_procedure.name.fn_name_flat.name = sproc_name
         for arg in args:
             build_expr_from_python_val(expr.pos_args.add(), arg)
         if statement_params is not None:
@@ -3280,7 +3280,7 @@ class Session:
                 entry = expr.named_args.list.add()
                 entry._1 = k
                 build_expr_from_python_val(entry._2, statement_params[k])
-        expr.log_on_exception.value = log_on_exception
+        expr.fn.stored_procedure.log_on_exception.value = log_on_exception
 
         if isinstance(self._sp_registration, MockStoredProcedureRegistration):
             return self._sp_registration.call(
