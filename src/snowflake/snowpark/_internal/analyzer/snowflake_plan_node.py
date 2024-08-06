@@ -158,6 +158,12 @@ class SaveMode(Enum):
     TRUNCATE = "truncate"
 
 
+class TableCreationSource(Enum):
+    EXPLICIT_USER_REQUEST = "explicit_user_request"
+    CACHE_RESULT = "cache_result"
+    LARGE_QUERY_BREAKDOWN = "large_query_breakdown"
+
+
 class SnowflakeCreateTable(LogicalPlan):
     def __init__(
         self,
@@ -168,7 +174,7 @@ class SnowflakeCreateTable(LogicalPlan):
         table_type: str = "",
         clustering_exprs: Optional[Iterable[Expression]] = None,
         comment: Optional[str] = None,
-        is_generated: bool = False,
+        creation_source: TableCreationSource = TableCreationSource.EXPLICIT_USER_REQUEST,
     ) -> None:
         super().__init__()
 
@@ -183,7 +189,7 @@ class SnowflakeCreateTable(LogicalPlan):
         self.children.append(query)
         self.clustering_exprs = clustering_exprs or []
         self.comment = comment
-        self.is_generated = is_generated
+        self.creation_source = creation_source
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:

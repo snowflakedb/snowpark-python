@@ -29,6 +29,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
     SnowflakeCreateTable,
     SnowflakeTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
@@ -163,10 +164,10 @@ class LargeQueryBreakdown:
             SnowflakeCreateTable(
                 [temp_table_name],
                 None,
-                SaveMode.OVERWRITE,
+                SaveMode.ERROR_IF_EXISTS,
                 child,
                 table_type="temp",
-                is_generated=True,
+                creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
             )
         )
 
