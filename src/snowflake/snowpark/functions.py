@@ -8351,6 +8351,7 @@ def _call_function(
 
     # Note: The type hint says ColumnOrLiteral, but in Snowpark sometimes arbitrary
     #       Python objects are passed.
+    # DO NOT MERGE. This is incorrect when called from call_udf
     build_builtin_fn_apply(
         ast,
         name,
