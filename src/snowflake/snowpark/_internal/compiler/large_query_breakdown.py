@@ -43,8 +43,8 @@ from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
 from snowflake.snowpark._internal.compiler.utils import (
     _plot_plan_if_enabled,
     is_active_transaction,
-    re_resolve_plan,
     replace_child,
+    update_resolvable_node,
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
@@ -233,7 +233,7 @@ class LargeQueryBreakdown:
                 continue
             parents = parent_map[node]
             nodes_to_reset.extend(parents)
-            re_resolve_plan(node, self._query_generator)
+            update_resolvable_node(node, self._query_generator)
             updated_nodes.add(node)
 
     def _get_temp_table_name(self) -> str:
