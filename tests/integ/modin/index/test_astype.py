@@ -42,10 +42,9 @@ from tests.integ.modin.utils import assert_index_equal
         (native_pd.Index([1.11, 2.1111, 3.0002, 4.111], dtype=object), np.float64),
     ],
 )
-@pytest.mark.parametrize("is_lazy", [True, False])
-def test_index_astype(index, type, is_lazy):
-    snow_index = pd.Index(index, convert_to_lazy=is_lazy)
-    with SqlCounter(query_count=1 if is_lazy else 0):
+def test_index_astype(index, type):
+    snow_index = pd.Index(index)
+    with SqlCounter(query_count=1):
         assert_index_equal(snow_index.astype(type), index.astype(type))
 
 
@@ -100,11 +99,10 @@ def test_index_df_columns_astype(index, type):
 
 @pytest.mark.parametrize("from_type", [str, np.int64, np.float64, object, bool])
 @pytest.mark.parametrize("to_type", [str, np.int64, np.float64, object, bool])
-@pytest.mark.parametrize("is_lazy", [True, False])
-def test_index_astype_empty_index(from_type, to_type, is_lazy):
+def test_index_astype_empty_index(from_type, to_type):
     native_index = native_pd.Index([], dtype=from_type)
-    snow_index = pd.Index(native_index, convert_to_lazy=is_lazy)
-    with SqlCounter(query_count=1 if is_lazy else 0):
+    snow_index = pd.Index(native_index)
+    with SqlCounter(query_count=1):
         assert_index_equal(snow_index.astype(to_type), native_index.astype(to_type))
 
 

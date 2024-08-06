@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
 from copy import copy, deepcopy
 from enum import Enum
+from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     AbstractSet,
@@ -198,11 +199,14 @@ def _deepcopy_selectable_fields(
     to_selectable.df_aliased_col_name_to_real_col_name = deepcopy(
         from_selectable.df_aliased_col_name_to_real_col_name
     )
-    # the snowflake plan for selectable typically just point to self,
-    # to avoid run into recursively copy self problem, we always let it
-    # rebuild, as far as we have other fields copied correctly, we should
-    # be able to recover the plan.
-    to_selectable._snowflake_plan = None
+    to_selectable._cumulative_node_complexity = deepcopy(
+        from_selectable._cumulative_node_complexity
+    )
+    # the snowflake plan for selectable typically point to self by default,
+    # to avoid run into recursively copy problem, we do not copy the _snowflake_plan
+    # field by default and let it rebuild when needed. As far as we have other fields
+    # copied correctly, the plan can be recovered properly.
+    to_selectable._is_valid_for_replacement = True
 
 
 class Selectable(LogicalPlan, ABC):
@@ -230,6 +234,8 @@ class Selectable(LogicalPlan, ABC):
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
     def __eq__(self, other: "Selectable") -> bool:
+        if not isinstance(other, Selectable):
+            return False
         if self._id is not None and other._id is not None:
             return type(self) is type(other) and self._id == other._id
         else:
@@ -250,7 +256,7 @@ class Selectable(LogicalPlan, ABC):
         """Returns the placeholder query of this Selectable logical plan."""
         pass
 
-    @property
+    @cached_property
     def _id(self) -> Optional[str]:
         """Returns the id of this Selectable logical plan."""
         return encode_id(self.sql_query, self.query_params)
@@ -541,8 +547,7 @@ class SelectSnowflakePlan(Selectable):
             snowflake_plan=deepcopy(self._snowflake_plan), analyzer=self.analyzer
         )
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
-        self._query_params = deepcopy(self._query_params)
-        copied._snowflake_plan = deepcopy(self._snowflake_plan)
+        copied._query_params = deepcopy(self._query_params)
         return copied
 
     @property
@@ -646,7 +651,8 @@ class SelectStatement(Selectable):
             limit_=deepcopy(self.limit_),
             offset=self.offset,
             analyzer=self.analyzer,
-            schema_query=self.schema_query,
+            # directly copy the current schema fields
+            schema_query=self._schema_query,
         )
 
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
@@ -1105,28 +1111,37 @@ class SelectTableFunction(Selectable):
         other_plan: Optional[LogicalPlan] = None,
         left_cols: Optional[List[str]] = None,
         right_cols: Optional[List[str]] = None,
+        # snowflake_plan for SelectTableFunction if already known. This is
+        # used during copy to avoid extra resolving step.
+        snowflake_plan: Optional[SnowflakePlan] = None,
         analyzer: "Analyzer",
     ) -> None:
         super().__init__(analyzer)
         self.func_expr = func_expr
         self._snowflake_plan: SnowflakePlan
-        if other_plan:
-            self._snowflake_plan = analyzer.resolve(
-                TableFunctionJoin(other_plan, func_expr, left_cols, right_cols)
-            )
+        if snowflake_plan is not None:
+            self._snowflake_plan = snowflake_plan
         else:
-            self._snowflake_plan = analyzer.resolve(TableFunctionRelation(func_expr))
+            if other_plan:
+                self._snowflake_plan = analyzer.resolve(
+                    TableFunctionJoin(other_plan, func_expr, left_cols, right_cols)
+                )
+            else:
+                self._snowflake_plan = analyzer.resolve(
+                    TableFunctionRelation(func_expr)
+                )
         self.pre_actions = self._snowflake_plan.queries[:-1]
         self.post_actions = self._snowflake_plan.post_actions
         self._api_calls = self._snowflake_plan.api_calls
 
     def __deepcopy__(self, memodict={}) -> "SelectTableFunction":  # noqa: B006
         copied = SelectTableFunction(
-            func_expr=deepcopy(self.func_expr), analyzer=self.analyzer
+            func_expr=deepcopy(self.func_expr),
+            snowflake_plan=deepcopy(self._snowflake_plan),
+            analyzer=self.analyzer,
         )
+        # copy over the other selectable fields, the snowflake plan has already been set correctly.
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
-        # need to make a copy of the SnowflakePlan for SelectTableFunction
-        copied._snowflake_plan = deepcopy(self._snowflake_plan)
 
         return copied
 
