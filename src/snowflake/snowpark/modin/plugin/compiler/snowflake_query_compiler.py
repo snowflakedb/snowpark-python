@@ -2129,22 +2129,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         else:
             assert axis == 0
-            # The query compiler agg method complains if the resulting aggregation is empty, so we add a special check here
+            # The query compiler agg method complains if the resulting aggregation is empty, so we add a special check here.
             if empty_columns:
                 # The result should be an empty series of dtype bool, which is internally represented as an
                 # empty dataframe with only the MODIN_UNNAMED_SERIES_LABEL column
                 return SnowflakeQueryCompiler.from_pandas(
                     native_pd.DataFrame({MODIN_UNNAMED_SERIES_LABEL: []}, dtype=bool)
                 )
-
-            # The resulting DF is transposed so will have string 'NULL' as a column name,
-            # so we need to manually remove it
+            # If there are now rows (but there are columns), booland_agg/boolor_agg would return NULL.
+            # This behavior is handled within aggregation_utils to avoid an extra query.
             return self.agg(
                 agg_func,
                 axis=0,
                 args=[],
                 kwargs={"skipna": skipna},
-            ).set_columns([MODIN_UNNAMED_SERIES_LABEL])
+            )
 
     def all(
         self,

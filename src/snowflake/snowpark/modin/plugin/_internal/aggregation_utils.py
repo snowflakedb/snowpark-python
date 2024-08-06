@@ -478,6 +478,17 @@ def get_snowflake_agg_func(
                 # through the aggregate frontend in this manner is unsupported.
                 return None
             return lambda col: column_quantile(col, interpolation, q)
+        elif agg_func in ("all", "any"):
+            # If there are no rows in the input frame, the function will also return NULL, which should
+            # instead by TRUE for "all" and FALSE for "any"."
+            # Need to wrap column name in IDENTIFIER, or else the agg function will treat the name
+            # as a string literal.
+            default_value = bool(agg_func == "all")
+            return lambda col: builtin("ifnull")(
+                # mypy refuses to acknowledge snowflake_agg_func is non-NULL here
+                snowflake_agg_func(builtin("identifier")(col)),  # type: ignore[misc]
+                pandas_lit(default_value),
+            )
     else:
         snowflake_agg_func = SNOWFLAKE_COLUMNS_AGG_FUNC_MAP.get(agg_func)
 
@@ -699,12 +710,6 @@ def generate_aggregation_column(
             agg_snowpark_column = coalesce(
                 snowflake_agg_func(snowpark_column), pandas_lit(0)
             )
-    elif snowflake_agg_func in (
-        SNOWFLAKE_BUILTIN_AGG_FUNC_MAP["all"],
-        SNOWFLAKE_BUILTIN_AGG_FUNC_MAP["any"],
-    ):
-        # Need to wrap column name in IDENTIFIER, or else bool agg function will treat the name as a string literal
-        agg_snowpark_column = snowflake_agg_func(builtin("identifier")(snowpark_column))
     elif snowflake_agg_func == array_agg:
         # Array aggregation requires the ordering columns, which we have to
         # pass in here.
