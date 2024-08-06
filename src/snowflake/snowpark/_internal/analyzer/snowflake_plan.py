@@ -96,6 +96,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SaveMode,
     SnowflakeCreateTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateDynamicTableCommand,
@@ -346,7 +347,6 @@ class SnowflakePlan(LogicalPlan):
 
         # all other parts of query are unchanged, but just replace the original query
         plan = copy.copy(self)
-        plan._is_valid_for_replacement = True
         plan.queries[-1].sql = final_query
         return plan
 
@@ -856,12 +856,20 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         use_scoped_temp_objects: bool,
-        is_generated: bool,  # true if the table is generated internally
+        creation_source: TableCreationSource,  # true if the table is generated internally
         child_attributes: List[Attribute],
     ) -> SnowflakePlan:
-        if is_generated and mode not in (SaveMode.ERROR_IF_EXISTS, SaveMode.OVERWRITE):
+        is_generated = creation_source in (
+            TableCreationSource.CACHE_RESULT,
+            TableCreationSource.LARGE_QUERY_BREAKDOWN,
+        )
+        if is_generated and mode != SaveMode.ERROR_IF_EXISTS:
+            # an internally generated save_as_table comes from two sources:
+            #   1. df.cache_result: plan is created with create table + insert statement
+            #   2. large query breakdown: plan is created using a CTAS statement
+            # For these cases, we must use mode ERROR_IF_EXISTS
             raise ValueError(
-                "Internally generated tables must be called with mode ERROR_IF_EXISTS or OVERWRITE"
+                "Internally generated tables must be called with mode ERROR_IF_EXISTS"
             )
 
         full_table_name = ".".join(table_name)
@@ -992,8 +1000,24 @@ class SnowflakePlanBuilder:
                 propagate_referenced_ctes=False,
             )
         elif mode == SaveMode.ERROR_IF_EXISTS:
-            if is_generated:
+            if creation_source == TableCreationSource.CACHE_RESULT:
                 return get_create_and_insert_plan(child, replace=False, error=True)
+            if creation_source == TableCreationSource.LARGE_QUERY_BREAKDOWN:
+                return self.build(
+                    lambda x: create_table_as_select_statement(
+                        full_table_name,
+                        x,
+                        column_definition,
+                        replace=False,
+                        table_type=table_type,
+                        clustering_key=clustering_keys,
+                        comment=comment,
+                    ),
+                    child,
+                    source_plan,
+                    is_ddl_on_temp_object=is_temp_table_type,
+                    propagate_referenced_ctes=False,
+                )
 
             return self.build(
                 lambda x: create_table_as_select_statement(

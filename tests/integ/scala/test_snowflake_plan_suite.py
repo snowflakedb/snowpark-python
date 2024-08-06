@@ -15,7 +15,10 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     Query,
     SnowflakePlan,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    SaveMode,
+    TableCreationSource,
+)
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.functions import col, lit, table_function
 from snowflake.snowpark.session import Session
@@ -259,7 +262,7 @@ def test_create_scoped_temp_table(session):
                 df._plan,
                 None,
                 use_scoped_temp_objects=True,
-                is_generated=True,
+                creation_source=TableCreationSource.CACHE_RESULT,
                 child_attributes=df._plan.attributes,
             )
             .queries[0]
@@ -277,7 +280,7 @@ def test_create_scoped_temp_table(session):
                 df._plan,
                 None,
                 use_scoped_temp_objects=False,
-                is_generated=True,
+                creation_source=TableCreationSource.CACHE_RESULT,
                 child_attributes=df._plan.attributes,
             )
             .queries[0]
@@ -296,8 +299,26 @@ def test_create_scoped_temp_table(session):
                 df._plan,
                 None,
                 use_scoped_temp_objects=True,
-                is_generated=False,
+                creation_source=TableCreationSource.EXPLICIT_USER_REQUEST,
                 child_attributes=df._plan.attributes,
+            )
+            .queries[0]
+            .sql
+        )
+        expected_sql = f" CREATE  TEMPORARY  TABLE  {temp_table_name}   AS  SELECT"
+        assert expected_sql in (
+            session._plan_builder.save_as_table(
+                [temp_table_name],
+                None,
+                SaveMode.ERROR_IF_EXISTS,
+                "temporary",
+                None,
+                None,
+                df._plan,
+                None,
+                use_scoped_temp_objects=True,
+                creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
+                child_attributes=[],
             )
             .queries[0]
             .sql
@@ -316,7 +337,7 @@ def test_create_scoped_temp_table(session):
                 df._plan,
                 None,
                 use_scoped_temp_objects=True,
-                is_generated=True,
+                creation_source=TableCreationSource.CACHE_RESULT,
                 child_attributes=df._plan.attributes,
             )
     finally:

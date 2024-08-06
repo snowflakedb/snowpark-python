@@ -11,6 +11,7 @@
 * add test for valid node to breakdown
 * add test to see post actions have delete temp tables
 * add async test for large query breakdown
+* updating complexity bounds change num partitions
 """
 
 import pytest

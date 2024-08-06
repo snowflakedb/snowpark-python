@@ -123,14 +123,6 @@ class QueryGenerator(Analyzer):
             resolved_child = resolved_children[logical_plan.children[0]]
             # when the plan is for SnowflakeCreateTable, there must be a snowflake_create_table_plan_info
             # associated with the current query generator.
-            # TODO: this check need to be relaxed when large query breakdown with temp table
-            #       is implemented, because the child attributes are not necessary to create
-            #       the temp table
-            # assert self._snowflake_create_table_plan_info is not None
-            # assert (
-            #     self._snowflake_create_table_plan_info.table_name
-            #     == logical_plan.table_name
-            # )
 
             child_attributes = []
             if (
@@ -161,7 +153,7 @@ class QueryGenerator(Analyzer):
                 copied_resolved_child,
                 logical_plan,
                 self.session._use_scoped_temp_objects,
-                logical_plan.is_generated,
+                logical_plan.creation_source,
                 child_attributes,
             )
 
