@@ -34,7 +34,7 @@ jobs:
     - name: Build package
       run: python -m build
     - name: List artifacts
-        run: ls ./dist
+      run: ls ./dist
     - name: Install sigstore
       run: python -m pip install sigstore
     - name: Signing
