@@ -40,6 +40,7 @@ class TelemetryField(Enum):
     TYPE_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
         "snowpark_eliminate_numeric_sql_value_cast_enabled"
     )
+    TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = "snowpark_auto_clean_up_temp_table_enabled"
     TYPE_LARGE_QUERY_BREAKDOWN_ENABLED = "snowpark_large_query_breakdown_enabled"
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
@@ -392,6 +393,20 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.TYPE_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED.value: value,
+            },
+        }
+        self.send(message)
+
+    def send_auto_clean_up_temp_table_telemetry(
+        self, session_id: str, value: bool
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED.value: value,
             },
         }
         self.send(message)

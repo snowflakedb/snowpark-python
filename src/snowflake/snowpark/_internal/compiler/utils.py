@@ -2,10 +2,9 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import copy
+from typing import Dict, List, Optional, Union
 
-from typing import Optional, Union as UnionType
-
-from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.binary_plan_node import BinaryNode
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
@@ -17,7 +16,11 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectTableFunction,
     SetStatement,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    PlanQueryType,
+    Query,
+    SnowflakePlan,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     Limit,
@@ -34,6 +37,8 @@ from snowflake.snowpark._internal.compiler.query_generator import (
     QueryGenerator,
     SnowflakeCreateTablePlanInfo,
 )
+
+TreeNode = Union[SnowflakePlan, Selectable]
 
 
 def create_query_generator(plan: SnowflakePlan) -> QueryGenerator:
@@ -62,78 +67,53 @@ def create_query_generator(plan: SnowflakePlan) -> QueryGenerator:
     return QueryGenerator(plan.session, snowflake_create_table_plan_info)
 
 
-def is_active_transaction(session):
-    """Check is the session has an active transaction."""
-    return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
-
-
-def re_resolve_plan(
-    plan: UnionType[SnowflakePlan, Selectable], analyzer: Analyzer
+def resolve_and_update_snowflake_plan(
+    node: SnowflakePlan, query_generator: QueryGenerator
 ) -> None:
-    """Reset the snowflake plan associated with given plan."""
-    if isinstance(plan, SnowflakePlan):
-        if plan.source_plan is None:
-            return
-        if isinstance(plan.source_plan, Selectable):
-            re_resolve_plan(plan.source_plan, analyzer)
+    """
+    Re-resolve the current snowflake plan if it has a source plan attached, and update the fields with
+    newly resolved value.
+    """
 
-        resolved_plan = analyzer.resolve(plan.source_plan)
-        plan.queries = resolved_plan.queries
-        plan.post_actions = resolved_plan.post_actions
-        plan.expr_to_alias = resolved_plan.expr_to_alias
-        plan.is_ddl_on_temp_object = resolved_plan.is_ddl_on_temp_object
-        plan._output_dict = resolved_plan._output_dict
-        plan.df_aliased_col_name_to_real_col_name = (
-            resolved_plan.df_aliased_col_name_to_real_col_name
-        )
-        plan.placeholder_query = resolved_plan.placeholder_query
-        plan._cumulative_node_complexity = resolved_plan._cumulative_node_complexity
-
-    elif isinstance(plan, (SelectSnowflakePlan, SelectTableFunction)):
-        if plan.snowflake_plan.source_plan:
-            plan._snowflake_plan = analyzer.resolve(plan.snowflake_plan)
+    if node.source_plan is None:
         return
 
-    elif isinstance(plan, SelectStatement):
-        plan._sql_query = None
-        plan._snowflake_plan = None
-        re_resolve_plan(plan.from_, analyzer)
+    new_snowflake_plan = query_generator.resolve(node.source_plan)
 
-    elif isinstance(plan, SetStatement):
-        plan._sql_query = None
-        plan._snowflake_plan = None
-        for operand in plan.set_operands:
-            re_resolve_plan(operand.selectable, analyzer)
-
-    elif isinstance(plan, Selectable):
-        plan._snowflake_plan = None
-    else:
-        raise ValueError(
-            f"plan type {type(plan)} not supported to have its snowflake plan reset."
-        )
+    # copy over the newly resolved fields to make it an in-place update
+    node.queries = new_snowflake_plan.queries
+    node.post_actions = new_snowflake_plan.post_actions
+    node.expr_to_alias = new_snowflake_plan.expr_to_alias
+    node.is_ddl_on_temp_object = new_snowflake_plan.is_ddl_on_temp_object
+    node._output_dict = new_snowflake_plan._output_dict
+    node.df_aliased_col_name_to_real_col_name = (
+        new_snowflake_plan.df_aliased_col_name_to_real_col_name
+    )
+    node.placeholder_query = new_snowflake_plan.placeholder_query
+    node.referenced_ctes = new_snowflake_plan.referenced_ctes
+    node._cumulative_node_complexity = new_snowflake_plan._cumulative_node_complexity
 
 
 def replace_child(
     parent: LogicalPlan,
     old_child: LogicalPlan,
     new_child: LogicalPlan,
-    analyzer: Analyzer,
+    query_generator: QueryGenerator,
 ) -> None:
     """
-    Helper function to replace the child node in the plan with a new child.
+    Helper function to replace the child node of a plan node with a new child.
 
     Whenever necessary, we convert the new_child into a Selectable or SnowflakePlan
     based on the parent node type.
     """
 
-    def to_selectable(plan: LogicalPlan, analyzer: Analyzer) -> Selectable:
+    def to_selectable(plan: LogicalPlan, query_generator: QueryGenerator) -> Selectable:
         """Given a LogicalPlan, convert it to a Selectable."""
         if isinstance(plan, Selectable):
             return plan
 
-        snowflake_plan = analyzer.resolve(plan)
-        snowflake_plan._is_valid_for_replacement = plan._is_valid_for_replacement
-        return SelectSnowflakePlan(snowflake_plan, analyzer=analyzer)
+        snowflake_plan = query_generator.resolve(plan)
+        return SelectSnowflakePlan(snowflake_plan, analyzer=query_generator)
 
     if not parent._is_valid_for_replacement:
         raise ValueError(f"parent node {parent} is not valid for replacement.")
@@ -143,15 +123,13 @@ def replace_child(
 
     if isinstance(parent, SnowflakePlan):
         assert parent.source_plan is not None
-        replace_child(parent.source_plan, old_child, new_child, analyzer)
-        return
+        replace_child(parent.source_plan, old_child, new_child, query_generator)
 
-    if isinstance(parent, SelectStatement):
-        parent.from_ = to_selectable(new_child, analyzer)
-        return
+    elif isinstance(parent, SelectStatement):
+        parent.from_ = to_selectable(new_child, query_generator)
 
-    if isinstance(parent, SetStatement):
-        new_child_as_selectable = to_selectable(new_child, analyzer)
+    elif isinstance(parent, SetStatement):
+        new_child_as_selectable = to_selectable(new_child, query_generator)
         parent._nodes = [
             node if node != old_child else new_child_as_selectable
             for node in parent._nodes
@@ -159,19 +137,16 @@ def replace_child(
         for operand in parent.set_operands:
             if operand.selectable == old_child:
                 operand.selectable = new_child_as_selectable
-        return
 
-    if isinstance(parent, Selectable):
-        assert parent.snowflake_plan.source_plan is not None
-        replace_child(parent.snowflake_plan.source_plan, old_child, new_child, analyzer)
-        return
+    elif isinstance(parent, Selectable):
+        assert parent.snowflake_plan is not None
+        replace_child(parent.snowflake_plan, old_child, new_child, query_generator)
 
-    if isinstance(parent, (UnaryNode, Limit, CopyIntoLocationNode)):
+    elif isinstance(parent, (UnaryNode, Limit, CopyIntoLocationNode)):
         parent.children = [new_child]
         parent.child = new_child
-        return
 
-    if isinstance(parent, BinaryNode):
+    elif isinstance(parent, BinaryNode):
         parent.children = [
             node if node != old_child else new_child for node in parent.children
         ]
@@ -179,32 +154,109 @@ def replace_child(
             parent.left = new_child
         if parent.right == old_child:
             parent.right = new_child
-        return
 
-    if isinstance(parent, SnowflakeCreateTable):
+    elif isinstance(parent, SnowflakeCreateTable):
         parent.children = [new_child]
         parent.query = new_child
-        return
 
-    if isinstance(parent, (TableUpdate, TableDelete)):
-        snowflake_plan = analyzer.resolve(new_child)
+    elif isinstance(parent, (TableUpdate, TableDelete)):
+        snowflake_plan = query_generator.resolve(new_child)
         parent.children = [snowflake_plan]
         parent.source_data = snowflake_plan
-        return
 
-    if isinstance(parent, TableMerge):
-        snowflake_plan = analyzer.resolve(new_child)
+    elif isinstance(parent, TableMerge):
+        snowflake_plan = query_generator.resolve(new_child)
         parent.children = [snowflake_plan]
         parent.source = snowflake_plan
-        return
 
-    if isinstance(parent, LogicalPlan):
+    elif isinstance(parent, LogicalPlan):
         parent.children = [
             node if node != old_child else new_child for node in parent.children
         ]
-        return
 
-    raise ValueError(f"parent type {type(parent)} not supported")
+    else:
+        raise ValueError(f"parent type {type(parent)} not supported")
+
+
+def update_resolvable_node(
+    node: TreeNode,
+    query_generator: QueryGenerator,
+):
+    """
+    Helper function to re-resolve the resolvable node and do an in-place update for cached fields.
+    The re-resolve is only needed for SnowflakePlan node and Selectable node, because only those nodes
+    are resolved node with sql query state.
+
+    Note the update is done recursively until it reach to the child to the children_plan_nodes,
+    this is to make sure all nodes in between current node and child are updated
+    correctly. For example, with the following plan
+                  SelectSnowflakePlan
+                          |
+                     SnowflakePlan
+                          |
+                        JOIN
+    resolve_node(SelectSnowflakePlan, query_generator) will resolve both SelectSnowflakePlan and SnowflakePlan nodes.
+    """
+
+    if not node._is_valid_for_replacement:
+        raise ValueError(f"node {node} is not valid for update.")
+
+    if not isinstance(node, (SnowflakePlan, Selectable)):
+        raise ValueError(f"It is not valid to update node with type {type(node)}.")
+
+    if isinstance(node, SnowflakePlan):
+        assert node.source_plan is not None
+        if isinstance(node.source_plan, (SnowflakePlan, Selectable)):
+            update_resolvable_node(node.source_plan, query_generator)
+        resolve_and_update_snowflake_plan(node, query_generator)
+
+    elif isinstance(node, (SelectStatement, SetStatement)):
+        # clean up the cached sql query and snowflake plan to allow
+        # re-calculation of the sql query and snowflake plan
+        node._sql_query = None
+        node._snowflake_plan = None
+        node.analyzer = query_generator
+
+    elif isinstance(node, (SelectSnowflakePlan, SelectTableFunction)):
+        assert node.snowflake_plan is not None
+        update_resolvable_node(node.snowflake_plan, query_generator)
+        node.analyzer = query_generator
+
+    elif isinstance(node, Selectable):
+        node.analyzer = query_generator
+
+
+def get_snowflake_plan_queries(
+    plan: SnowflakePlan, resolved_with_query_blocks: Dict[str, str]
+) -> Dict[PlanQueryType, List[Query]]:
+
+    from snowflake.snowpark._internal.analyzer.analyzer_utils import cte_statement
+
+    plan_queries = plan.queries
+    post_action_queries = plan.post_actions
+    if len(plan.referenced_ctes) > 0:
+        # make a copy of the original query to avoid any update to the
+        # original query object
+        plan_queries = copy.deepcopy(plan.queries)
+        post_action_queries = copy.deepcopy(plan.post_actions)
+        table_names = []
+        definition_queries = []
+        for name, definition_query in resolved_with_query_blocks.items():
+            if name in plan.referenced_ctes:
+                table_names.append(name)
+                definition_queries.append(definition_query)
+        with_query = cte_statement(definition_queries, table_names)
+        plan_queries[-1].sql = with_query + plan_queries[-1].sql
+
+    return {
+        PlanQueryType.QUERIES: plan_queries,
+        PlanQueryType.POST_ACTIONS: post_action_queries,
+    }
+
+
+def is_active_transaction(session):
+    """Check is the session has an active transaction."""
+    return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
 
 
 def _plot_plan_if_enabled(root, path) -> None:

@@ -23,7 +23,6 @@
 
 from __future__ import annotations
 
-from functools import wraps
 from typing import Any, Callable, Hashable, Iterator, Literal
 
 import modin
@@ -37,6 +36,7 @@ from pandas.core.dtypes.common import pandas_dtype
 
 from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -47,64 +47,7 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 
-def is_lazy_check(func: Callable) -> Callable:
-    """
-    Decorator method for separating function calls for lazy indexes and non-lazy (column) indexes
-    """
-
-    @wraps(func)
-    def check_lazy(*args: Any, **kwargs: Any) -> Any:
-        func_name = func.__name__
-
-        # If the index is lazy, call the method and return
-        if args[0].is_lazy:
-            returned_value = func(*args, **kwargs)
-            return returned_value
-        else:
-            # If the index is not lazy, get the cached native index and call the function
-            native_index = args[0]._index
-            native_func = getattr(native_index, func_name)
-
-            # If the function is a property, we will get a non-callable, so we just return it
-            # Examples of this are values or dtype
-            if not callable(native_func):
-                return native_func
-
-            # Remove the first argument in args, because it is `self` and we don't need it
-            args = args[1:]
-            args = tuple(try_convert_index_to_native(a) for a in args)
-            for k, v in kwargs.items():
-                kwargs[k] = try_convert_index_to_native(v)
-            returned_value = native_func(*args, **kwargs)
-
-            # If we return a native Index, we need to convert this to a modin index but keep it locally.
-            # Examples of this are `astype` and `copy`
-            if isinstance(returned_value, native_pd.Index):
-                returned_value = Index(returned_value, convert_to_lazy=False)
-            # Some methods also return a tuple with a pandas Index, so convert the tuple's first item to a modin Index
-            # Examples of this are `_get_indexer_strict` and `sort_values`
-            elif isinstance(returned_value, tuple) and isinstance(
-                returned_value[0], native_pd.Index
-            ):
-                returned_value = (
-                    Index(returned_value[0], convert_to_lazy=False),
-                    returned_value[1],
-                )
-            # For methods that return a series, convert this series to snowpark pandas
-            # an example is to_series
-            elif isinstance(returned_value, native_pd.Series):
-                returned_value = Series(returned_value)
-
-            # for methods that return a dataframe, convert this dataframe to snowpark pandas
-            elif isinstance(returned_value, native_pd.DataFrame):
-                returned_value = DataFrame(returned_value)
-
-            return returned_value
-
-    return check_lazy
-
-
-class Index:
+class Index(metaclass=TelemetryMeta):
     def __init__(
         self,
         data: ArrayLike | SnowflakeQueryCompiler | None = None,
@@ -112,7 +55,6 @@ class Index:
         copy: bool = False,
         name: object = None,
         tupleize_cols: bool = True,
-        convert_to_lazy: bool = True,
     ) -> None:
         """
         Immutable sequence used for indexing and alignment.
@@ -132,9 +74,6 @@ class Index:
             Name to be stored in the index.
         tupleize_cols : bool (default: True)
             When True, attempt to create a MultiIndex if possible.
-        convert_to_lazy : bool (default: True)
-            When True, create a lazy index object from a local data input, otherwise, create an index object that saves a pandas index locally.
-            We only set convert_to_lazy as False to avoid pulling data back and forth from Snowflake, e.g., when calling df.columns, the column data should always be kept locally.
 
         Notes
         -----
@@ -153,35 +92,6 @@ class Index:
         >>> pd.Index([1, 2, 3], dtype="uint8")
         Index([1, 2, 3], dtype='int64')
         """
-        self.is_lazy = convert_to_lazy
-        if self.is_lazy:
-            self.set_query_compiler(
-                data=data,
-                dtype=dtype,
-                copy=copy,
-                name=name,
-                tupleize_cols=tupleize_cols,
-            )
-        else:
-            self.set_local_index(
-                data=data,
-                dtype=dtype,
-                copy=copy,
-                name=name,
-                tupleize_cols=tupleize_cols,
-            )
-
-    def set_query_compiler(
-        self,
-        data: ArrayLike | SnowflakeQueryCompiler | None = None,
-        dtype: str | np.dtype | ExtensionDtype | None = None,
-        copy: bool = False,
-        name: object = None,
-        tupleize_cols: bool = True,
-    ) -> None:
-        """
-        Helper method to find and save query compiler when index should be lazy
-        """
         if isinstance(data, SnowflakeQueryCompiler):
             qc = data
         else:
@@ -195,29 +105,6 @@ class Index:
                 )
             )._query_compiler
         self._query_compiler = qc.drop(columns=qc.columns)
-
-    def set_local_index(
-        self,
-        data: ArrayLike | SnowflakeQueryCompiler | None = None,
-        dtype: str | np.dtype | ExtensionDtype | None = None,
-        copy: bool = False,
-        name: object = None,
-        tupleize_cols: bool = True,
-    ) -> None:
-        """
-        Helper method to create and save local index when index should not be lazy
-        """
-        if isinstance(data, SnowflakeQueryCompiler):
-            index = data._modin_frame.index_columns_pandas_index
-        else:
-            index = native_pd.Index(
-                data=data,
-                dtype=dtype,
-                copy=copy,
-                name=name,
-                tupleize_cols=tupleize_cols,
-            )
-        self._index = index
 
     def __getattr__(self, key: str) -> Any:
         """
@@ -250,18 +137,25 @@ class Index:
                     )
             raise err
 
-    def to_pandas(self) -> native_pd.Index:
+    def to_pandas(
+        self,
+        *,
+        statement_params: dict[str, str] | None = None,
+        **kwargs: Any,
+    ) -> native_pd.Index:
         """
-        Convert Snowpark pandas Index to pandas Index
+        Convert Snowpark pandas Index to pandas Index.
 
-        Returns
-        -------
-        pandas Index
-            A native pandas Index representation of self
+        Args:
+        statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+        Returns:
+            pandas Index
+                A native pandas Index representation of self
         """
-        if self.is_lazy:
-            return self._query_compiler._modin_frame.index_columns_pandas_index
-        return self._index
+        return self._query_compiler._modin_frame.index_columns_pandas_index(
+            statement_params=statement_params, **kwargs
+        )
 
     @property
     def values(self) -> ArrayLike:
@@ -357,12 +251,9 @@ class Index:
         >>> idx.is_unique
         True
         """
-        if not self.is_lazy:
-            return self._index.is_unique
         return self._query_compiler._modin_frame.has_unique_index()
 
     @property
-    @is_lazy_check
     def has_duplicates(self) -> bool:
         """
         Check if the Index has duplicate values.
@@ -398,7 +289,6 @@ class Index:
         """
         return not self.is_unique
 
-    @is_lazy_check
     def unique(self, level: Hashable | None = None) -> Index:
         """
         Return unique values in the index.
@@ -442,7 +332,6 @@ class Index:
         )
 
     @property
-    @is_lazy_check
     def dtype(self) -> DtypeObj:
         """
         Get the dtype object of the underlying data.
@@ -482,7 +371,6 @@ class Index:
         """
         return (len(self),)
 
-    @is_lazy_check
     def astype(self, dtype: str | type | ExtensionDtype, copy: bool = True) -> Index:
         """
         Create an Index with values cast to dtypes.
@@ -553,19 +441,13 @@ class Index:
         """
         Set Index name.
         """
-        if self.is_lazy:
-            self._query_compiler = self._query_compiler.set_index_names([value])
-        else:
-            self._index.name = value
+        self._query_compiler = self._query_compiler.set_index_names([value])
 
     def _get_names(self) -> list[Hashable]:
         """
         Get names of index
         """
-        if self.is_lazy:
-            return self._query_compiler.get_index_names()
-        else:
-            return self.to_pandas().names
+        return self._query_compiler.get_index_names()
 
     def _set_names(self, values: list) -> None:
         """
@@ -580,10 +462,7 @@ class Index:
         ------
         TypeError if each name is not hashable.
         """
-        if self.is_lazy:
-            self._query_compiler = self._query_compiler.set_index_names(values)
-        else:
-            self._index.names = values
+        self._query_compiler = self._query_compiler.set_index_names(values)
 
     names = property(fset=_set_names, fget=_get_names)
 
@@ -622,8 +501,7 @@ class Index:
         WarningMessage.index_to_pandas_warning("set_names")
         if not inplace:
             return Index(
-                self.to_pandas().set_names(names, level=level, inplace=inplace),
-                convert_to_lazy=self.is_lazy,
+                self.to_pandas().set_names(names, level=level, inplace=inplace)
             )
         return self.to_pandas().set_names(names, level=level, inplace=inplace)
 
@@ -655,7 +533,6 @@ class Index:
         return len(self)
 
     @property
-    @is_lazy_check
     def nlevels(self) -> int:
         """
         Number of levels.
@@ -707,8 +584,7 @@ class Index:
         """
         return self
 
-    @index_not_implemented()
-    def all(self) -> None:
+    def all(self, *args, **kwargs) -> bool | ExtensionArray:
         """
         Return whether all elements are Truthy.
 
@@ -734,11 +610,24 @@ class Index:
         -----
         Not a Number (NaN), positive infinity and negative infinity
         evaluate to True because these are not equal to zero.
-        """
-        # TODO: SNOW-1458141 implement all
+        `*args` and `**kwargs` are present for compatibility with numpy
+        and not used with Snowpark pandas.
 
-    @index_not_implemented()
-    def any(self) -> None:
+        Examples
+        --------
+        True, because nonzero integers are considered True.
+
+        >>> pd.Index([1, 2, 3]).all()
+        True
+
+        False, because 0 is considered False.
+
+        >>> pd.Index([0, 1, 2]).all()
+        False
+        """
+        return self.to_series().all(**kwargs)
+
+    def any(self, *args, **kwargs) -> bool | ExtensionArray:
         """
         Return whether any element is Truthy.
 
@@ -763,8 +652,20 @@ class Index:
         -----
         Not a Number (NaN), positive infinity and negative infinity
         evaluate to True because these are not equal to zero.
+        `*args` and `**kwargs` are present for compatibility with numpy
+        and not used with Snowpark pandas.
+
+        Examples
+        --------
+        >>> index = pd.Index([0, 1, 2])
+        >>> index.any()
+        True
+
+        >>> index = pd.Index([0, 0, 0])
+        >>> index.any()
+        False
         """
-        # TODO: SNOW-1458141 implement any
+        return self.to_series().any(**kwargs)
 
     @index_not_implemented()
     def argmin(self) -> None:
@@ -828,7 +729,6 @@ class Index:
         """
         # TODO: SNOW-1458142 implement argmax
 
-    @is_lazy_check
     def copy(
         self,
         name: Hashable | None = None,
@@ -863,11 +763,7 @@ class Index:
         False
         """
         WarningMessage.ignored_argument(operation="copy", argument="deep", message="")
-        return Index(
-            self._query_compiler.copy(),
-            name=name,
-            convert_to_lazy=self.is_lazy,
-        )
+        return Index(self._query_compiler.copy(), name=name)
 
     @index_not_implemented()
     def delete(self) -> None:
@@ -891,7 +787,6 @@ class Index:
         """
         # TODO: SNOW-1458146 implement delete
 
-    @is_lazy_check
     def drop(
         self,
         labels: Any,
@@ -924,10 +819,7 @@ class Index:
         """
         # TODO: SNOW-1458146 implement drop
         WarningMessage.index_to_pandas_warning("drop")
-        return Index(
-            self.to_pandas().drop(labels=labels, errors=errors),
-            convert_to_lazy=self.is_lazy,
-        )
+        return Index(self.to_pandas().drop(labels=labels, errors=errors))
 
     @index_not_implemented()
     def drop_duplicates(self) -> None:
@@ -953,7 +845,6 @@ class Index:
         """
         # TODO: SNOW-1458147 implement drop_duplicates
 
-    @is_lazy_check
     def duplicated(self, keep: Literal["first", "last", False] = "first") -> np.ndarray:
         """
         Indicate duplicate index values.
@@ -1082,20 +973,9 @@ class Index:
         if isinstance(other, native_pd.Index):
             # Same as DataFrame/Series equals. Convert native Index to Snowpark pandas
             # Index for comparison.
-            other = Index(other, convert_to_lazy=self.is_lazy)
+            other = Index(other)
 
-        left = self
-        right = other
-        # If both are cached compare underlying cached value locally.
-        if not left.is_lazy and not right.is_lazy:
-            return left._index.equals(right._index)
-
-        # Ensure both sides are lazy before calling index_equals on query_compiler.
-        if not left.is_lazy:
-            left = Index(left._index, convert_to_lazy=True)
-        if not right.is_lazy:
-            right = Index(right._index, convert_to_lazy=True)
-        return left._query_compiler.index_equals(right._query_compiler)
+        return self._query_compiler.index_equals(other._query_compiler)
 
     @index_not_implemented()
     def identical(self) -> None:
@@ -1411,7 +1291,6 @@ class Index:
         """
         # TODO: SNOW-1458122 implement rename
 
-    @is_lazy_check
     def nunique(self, dropna: bool = True) -> int:
         """
         Return number of unique elements in the object.
@@ -1448,7 +1327,6 @@ class Index:
         """
         return self._query_compiler.nunique_index(dropna=dropna)
 
-    @is_lazy_check
     def value_counts(
         self,
         normalize: bool = False,
@@ -1530,7 +1408,6 @@ class Index:
             name="proportion" if normalize else "count",
         )
 
-    @is_lazy_check
     def item(self) -> Hashable:
         """
         Return the first element of the underlying data as a Python scalar.
@@ -1557,7 +1434,6 @@ class Index:
         # otherwise raise the same value error as pandas
         raise ValueError("can only convert an array of size 1 to a Python scalar")
 
-    @is_lazy_check
     def to_series(
         self, index: Index | None = None, name: Hashable | None = None
     ) -> Series:
@@ -1601,7 +1477,6 @@ class Index:
         ser.name = name
         return ser
 
-    @is_lazy_check
     def to_frame(
         self, index: bool = True, name: Hashable | None = lib.no_default
     ) -> modin.pandas.DataFrame:
@@ -1828,7 +1703,6 @@ class Index:
 
     to_list = tolist
 
-    @is_lazy_check
     def sort_values(
         self,
         return_indexer: bool = False,
@@ -1905,7 +1779,7 @@ class Index:
             key=key,
             include_indexer=return_indexer,
         )
-        index = Index(res, convert_to_lazy=self.is_lazy)
+        index = Index(res)
         if return_indexer:
             # When `return_indexer` is True, `res` is a query compiler with one index column
             # and one data column.
@@ -1954,7 +1828,6 @@ class Index:
         """
         # TODO: SNOW-1458150 implement join
 
-    @is_lazy_check
     def intersection(self, other: Any, sort: bool = False) -> Index:
         """
         Form the intersection of two Index objects.
@@ -1989,11 +1862,9 @@ class Index:
         return Index(
             self.to_pandas().intersection(
                 other=try_convert_index_to_native(other), sort=sort
-            ),
-            convert_to_lazy=self.is_lazy,
+            )
         )
 
-    @is_lazy_check
     def union(self, other: Any, sort: bool = False) -> Index:
         """
         Form the union of two Index objects.
@@ -2042,11 +1913,9 @@ class Index:
         # TODO: SNOW-1468240 implement union w/ sort
         WarningMessage.index_to_pandas_warning("union")
         return Index(
-            self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort),
-            convert_to_lazy=self.is_lazy,
+            self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort)
         )
 
-    @is_lazy_check
     def difference(self, other: Any, sort: Any = None) -> Index:
         """
         Return a new Index with elements of index not in `other`.
@@ -2083,11 +1952,9 @@ class Index:
         # TODO: SNOW-1458152 implement difference
         WarningMessage.index_to_pandas_warning("difference")
         return Index(
-            self.to_pandas().difference(try_convert_index_to_native(other), sort=sort),
-            convert_to_lazy=self.is_lazy,
+            self.to_pandas().difference(try_convert_index_to_native(other), sort=sort)
         )
 
-    @is_lazy_check
     def get_indexer_for(self, target: Any) -> Any:
         """
         Guaranteed return of an indexer even when non-unique.
@@ -2110,16 +1977,14 @@ class Index:
         WarningMessage.index_to_pandas_warning("get_indexer_for")
         return self.to_pandas().get_indexer_for(target=target)
 
-    @is_lazy_check
     def _get_indexer_strict(self, key: Any, axis_name: str) -> tuple[Index, np.ndarray]:
         """
         Analogue to pandas.Index.get_indexer that raises if any elements are missing.
         """
         WarningMessage.index_to_pandas_warning("_get_indexer_strict")
         tup = self.to_pandas()._get_indexer_strict(key=key, axis_name=axis_name)
-        return Index(tup[0], convert_to_lazy=self.is_lazy), tup[1]
+        return Index(tup[0]), tup[1]
 
-    @is_lazy_check
     def get_level_values(self, level: int | str) -> Index:
         """
         Return an Index of values for requested level.
@@ -2153,9 +2018,7 @@ class Index:
         Index(['a', 'b', 'c'], dtype='object')
         """
         WarningMessage.index_to_pandas_warning("get_level_values")
-        return Index(
-            self.to_pandas().get_level_values(level=level), convert_to_lazy=self.is_lazy
-        )
+        return Index(self.to_pandas().get_level_values(level=level))
 
     @index_not_implemented()
     def isin(self) -> None:
@@ -2198,7 +2061,6 @@ class Index:
         """
         # TODO: SNOW-1458153 implement isin
 
-    @is_lazy_check
     def slice_indexer(
         self,
         start: Hashable | None = None,
@@ -2244,14 +2106,12 @@ class Index:
         return self.to_pandas().slice_indexer(start=start, end=end, step=step)
 
     @property
-    @is_lazy_check
     def array(self) -> ExtensionArray:
         """
         return the array of values
         """
         return self.to_pandas().array
 
-    @is_lazy_check
     def _summary(self, name: Any = None) -> str:
         """
         Return a summarized representation.
@@ -2269,14 +2129,12 @@ class Index:
         WarningMessage.index_to_pandas_warning("_summary")
         return self.to_pandas()._summary(name=name)
 
-    @is_lazy_check
     def __array__(self, dtype: Any = None) -> np.ndarray:
         """
         The array interface, return the values.
         """
         return self.to_pandas().__array__(dtype=dtype)
 
-    @is_lazy_check
     def __repr__(self) -> str:
         """
         Return a string representation for this object.
@@ -2284,7 +2142,6 @@ class Index:
         WarningMessage.index_to_pandas_warning("__repr__")
         return self.to_pandas().__repr__()
 
-    @is_lazy_check
     def __iter__(self) -> Iterator:
         """
         Return an iterator of the values.
@@ -2310,7 +2167,6 @@ class Index:
         WarningMessage.index_to_pandas_warning("__iter__")
         return self.to_pandas().__iter__()
 
-    @is_lazy_check
     def __contains__(self, key: Any) -> bool:
         """
         Return a boolean indicating whether the provided key is in the index.
@@ -2344,14 +2200,12 @@ class Index:
         WarningMessage.index_to_pandas_warning("__contains__")
         return self.to_pandas().__contains__(key=key)
 
-    @is_lazy_check
     def __len__(self) -> int:
         """
         Return the length of the Index as an int.
         """
         return self._query_compiler.get_axis_len(0)
 
-    @is_lazy_check
     def __getitem__(self, key: Any) -> np.ndarray | None | Index:
         """
         Reuse series iloc to implement getitem for index.
@@ -2367,7 +2221,6 @@ class Index:
                 "boolean arrays are valid indices"
             ) from ie
 
-    @is_lazy_check
     def __setitem__(self, key: Any, value: Any) -> None:
         """
         Override numpy.ndarray's __setitem__ method to work as desired.

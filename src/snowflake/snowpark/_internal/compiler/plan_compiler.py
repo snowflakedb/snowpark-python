@@ -14,6 +14,9 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPla
 from snowflake.snowpark._internal.compiler.large_query_breakdown import (
     LargeQueryBreakdown,
 )
+from snowflake.snowpark._internal.compiler.repeated_subquery_elimination import (
+    RepeatedSubqueryElimination,
+)
 from snowflake.snowpark._internal.compiler.utils import create_query_generator
 from snowflake.snowpark.mock._connection import MockServerConnection
 
@@ -36,12 +39,13 @@ class PlanCompiler:
     def __init__(self, plan: SnowflakePlan) -> None:
         self._plan = plan
 
-    def should_apply_optimizations(self) -> bool:
+    def should_start_query_compilation(self) -> bool:
         """
         Whether optimization should be applied to the plan or not.
         Optimization can be applied if
         1) there is source logical plan attached to the current snowflake plan
-        2) optimizations are enabled in the current session, such as cte_optimization_enabled
+        2) the query compilation stage is enabled
+        3) optimizations are enabled in the current session, such as cte_optimization_enabled
 
 
         Returns
@@ -51,40 +55,42 @@ class PlanCompiler:
 
         current_session = self._plan.session
         return (
-            (self._plan.source_plan is not None)
+            not isinstance(current_session.connection, MockServerConnection)
+            and (self._plan.source_plan is not None)
+            and current_session._query_compilation_stage_enabled
             and (
                 current_session.cte_optimization_enabled
                 or current_session.large_query_breakdown_enabled
             )
-            and not isinstance(current_session, MockServerConnection)
         )
 
-    def should_apply_cte_optimization(self) -> bool:
-        session = self._plan.session
-        return session.cte_optimization_enabled
-
-    def should_apply_large_query_breakdown(self) -> bool:
-        session = self._plan.session
-        return session.large_query_breakdown_enabled
-
     def compile(self) -> Dict[PlanQueryType, List[Query]]:
-        final_plan = self._plan
-        if self.should_apply_optimizations():
-            plans: List[LogicalPlan] = [copy.deepcopy(final_plan)]
-            # apply optimizations
-            query_generator = create_query_generator(final_plan)
+        if self.should_start_query_compilation():
+            # preparation for compilation
+            # 1. make a copy of the original plan
+            logical_plans: List[LogicalPlan] = [copy.deepcopy(self._plan)]
+            # 2. create a code generator with the original plan
+            query_generator = create_query_generator(self._plan)
 
-            if self.should_apply_cte_optimization():
-                plans = [plan.replace_repeated_subquery_with_cte() for plan in plans]
+            # apply each optimizations if needed
+            if self._plan.session.cte_optimization_enabled:
+                repeated_subquery_eliminator = RepeatedSubqueryElimination(
+                    logical_plans, query_generator
+                )
+                logical_plans = repeated_subquery_eliminator.apply()
             if self.should_apply_large_query_breakdown():
                 large_query_breakdown = LargeQueryBreakdown(
-                    final_plan.session, query_generator, plans
+                    self._plan.session, query_generator, logical_plans
                 )
-                plans = large_query_breakdown.apply()
+                logical_plans = large_query_breakdown.apply()
 
-            return query_generator.generate_queries(plans)
-
-        return {
-            PlanQueryType.QUERIES: final_plan.queries,
-            PlanQueryType.POST_ACTIONS: final_plan.post_actions,
-        }
+            # do a final pass of code generation
+            return query_generator.generate_queries(logical_plans)
+        else:
+            final_plan = self._plan
+            if self._plan.session.cte_optimization_enabled:
+                final_plan = final_plan.replace_repeated_subquery_with_cte()
+            return {
+                PlanQueryType.QUERIES: final_plan.queries,
+                PlanQueryType.POST_ACTIONS: final_plan.post_actions,
+            }
