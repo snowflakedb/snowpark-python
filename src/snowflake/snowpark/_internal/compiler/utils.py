@@ -91,7 +91,6 @@ def resolve_and_update_snowflake_plan(
     )
     node.placeholder_query = new_snowflake_plan.placeholder_query
     node.referenced_ctes = new_snowflake_plan.referenced_ctes
-    node._cumulative_node_complexity = new_snowflake_plan._cumulative_node_complexity
 
 
 def replace_child(
@@ -224,6 +223,8 @@ def update_resolvable_node(
 
     elif isinstance(node, Selectable):
         node.analyzer = query_generator
+
+    node.reset_cumulative_node_complexity()
 
 
 def get_snowflake_plan_queries(

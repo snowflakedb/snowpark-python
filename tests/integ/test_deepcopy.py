@@ -12,9 +12,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     attribute_to_schema_string,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PlanNodeCategory,
-)
 from snowflake.snowpark._internal.analyzer.select_statement import (
     ColumnStateDict,
     Selectable,
@@ -81,10 +78,12 @@ def verify_logical_plan_node(
     )
     # verify update accumulative complexity of copied node doesn't impact original node
     original_complexity = copied_node.cumulative_node_complexity
-    copied_node.cumulative_node_complexity = {PlanNodeCategory.OTHERS: 10000}
-    assert copied_node.cumulative_node_complexity == {PlanNodeCategory.OTHERS: 10000}
+    copied_node.reset_cumulative_node_complexity()
+    assert copied_node._cumulative_node_complexity is None
+    # calling the property to recalculates the value
+    assert copied_node.cumulative_node_complexity == original_complexity
     assert original_node.cumulative_node_complexity == original_complexity
-    copied_node.cumulative_node_complexity = original_complexity
+    copied_node._cumulative_node_complexity = original_complexity
 
     if isinstance(copied_node, Selectable) and isinstance(original_node, Selectable):
         verify_column_state(copied_node.column_states, original_node.column_states)
