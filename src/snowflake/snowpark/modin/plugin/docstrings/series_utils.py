@@ -1688,6 +1688,7 @@ class CombinedDatetimelikeProperties:
         2    False
         dtype: bool
         """
+        # TODO(SNOW-1486910): Unskip when date_range returns DatetimeIndex.
 
     @property
     def daysinmonth():
@@ -1776,6 +1777,7 @@ class CombinedDatetimelikeProperties:
         >>> idx.month_name(locale='pt_BR.utf8')  # doctest: +SKIP
         Index(['Janeiro', 'Fevereiro', 'Março'], dtype='object')
         """
+        # TODO(SNOW-1486910): Unskip when date_range returns DatetimeIndex.
 
     def day_name():
         """
@@ -1821,6 +1823,7 @@ class CombinedDatetimelikeProperties:
         >>> idx.day_name(locale='pt_BR.utf8')  # doctest: +SKIP
         Index(['Segunda', 'Terça', 'Quarta'], dtype='object')
         """
+        # TODO(SNOW-1486910): Unskip when date_range returns DatetimeIndex.
 
     def total_seconds():
         pass
