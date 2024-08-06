@@ -38,13 +38,18 @@ pytestmark = [
 
 WITH = "WITH"
 
+paramList = [False, True]
 
-@pytest.fixture(autouse=True)
-def setup(session):
+
+@pytest.fixture(params=paramList, autouse=True)
+def setup(request, session):
     is_cte_optimization_enabled = session._cte_optimization_enabled
+    is_query_compilation_enabled = session._query_compilation_stage_enabled
+    session._query_compilation_stage_enabled = request.param
     session._cte_optimization_enabled = True
     yield
     session._cte_optimization_enabled = is_cte_optimization_enabled
+    session._query_compilation_stage_enabled = is_query_compilation_enabled
 
 
 def check_result(session, df, expect_cte_optimized):
@@ -186,7 +191,6 @@ def test_same_duplicate_subtree(session):
     df_result1 = df3.union_all(df3)
     check_result(session, df_result1, expect_cte_optimized=True)
     assert count_number_of_ctes(df_result1.queries["queries"][-1]) == 1
-
     """
                               root
                              /    \

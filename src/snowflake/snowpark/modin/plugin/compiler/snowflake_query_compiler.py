@@ -86,6 +86,7 @@ from snowflake.snowpark.functions import (
     corr,
     count,
     count_distinct,
+    date_from_parts,
     date_part,
     date_trunc,
     dateadd,
@@ -1322,7 +1323,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(self._modin_frame.persist_to_temporary_table())
 
     @property
-    def columns(self) -> "pd.Index":
+    def columns(self) -> native_pd.Index:
         """
         Get pandas column labels.
 
@@ -2399,17 +2400,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         limit = kwargs.get("limit", None)
         tolerance = kwargs.get("tolerance", None)
         fill_value = kwargs.get("fill_value", np.nan)  # type: ignore[arg-type]
-        # Currently, our error checking relies on the column axis being eager (i.e. stored
-        # locally as a pandas Index, rather than pushed down to the database). This allows
-        # us to have parity with native pandas for things like monotonicity checks. If
-        # our columns are no longer eagerly stored, we would no longer be able to rely
-        # on pandas for these error checks, and the behaviour of reindex would change.
-        # This change is user-facing, so we should catch this in CI first, which we can
-        # by having this assert here, as a sentinel.
-        assert (
-            not self.columns.is_lazy
-        ), "`reindex` with axis=1 failed on error checking."
-        self.columns.to_pandas().reindex(labels, method, level, limit, tolerance)
+        self.columns.reindex(labels, method, level, limit, tolerance)
         data_column_pandas_labels = []
         data_column_snowflake_quoted_identifiers = []
         modin_frame = self._modin_frame
@@ -10098,6 +10089,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "is_year_end": (
                 lambda column: coalesce(
                     (dayofmonth(col(column)) == 31) & (month(col(column)) == 12),
+                    pandas_lit(False),
+                )
+            ),
+            "is_leap_year": (
+                lambda column: coalesce(
+                    dayofmonth(
+                        dateadd(
+                            "day",
+                            pandas_lit(1),
+                            date_from_parts(year(col(column)), 2, 28),
+                        )
+                    )
+                    == 29,
                     pandas_lit(False),
                 )
             ),
