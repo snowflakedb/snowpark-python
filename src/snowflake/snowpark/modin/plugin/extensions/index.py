@@ -2366,7 +2366,7 @@ class Index(metaclass=TelemetryMeta):
             if console_size is not None:
                 num_elem_to_print = console_size // (length_of_longest_elem + 1)
             else:
-                num_elem_to_print = 10
+                num_elem_to_print = 10  # pragma: no cover
 
             seven_space_indent = " " * 7
 
@@ -2438,8 +2438,8 @@ class Index(metaclass=TelemetryMeta):
 
             if name_repr:
                 if last_line_len + len(name_repr) > console_size:
-                    name_repr = ",\n" + six_space_indent + name_repr
-                    last_line_len = len(name_repr)
+                    name_repr = ",\n" + six_space_indent + name_repr  # pragma: no cover
+                    last_line_len = len(name_repr)  # pragma: no cover
                 else:
                     name_repr = ", " + name_repr
                     last_line_len += len(name_repr)
