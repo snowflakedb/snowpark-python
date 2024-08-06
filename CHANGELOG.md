@@ -14,6 +14,7 @@
 - Added support for column lineage in the DataFrame.lineage.trace API.
 - Added support for passing `INFER_SCHEMA` options to `DataFrameReader` via `INFER_SCHEMA_OPTIONS`.
 - Added support for automatically cleaning up temporary tables created by `df.cache_result()` in the current session, when the DataFrame is no longer referenced (i.e., gets garbage collected). It is still an experimental feature not enabled by default, and can be enabled by setting `session.auto_clean_up_temp_table_enabled` to `True`.
+- Added support for string literals to the `fmt` parameter of `snowflake.snowpark.functions.to_date`.
 
 #### Bug Fixes
 
