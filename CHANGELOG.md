@@ -43,6 +43,11 @@
 - Fix pandas FutureWarning about integer indexing.
 
 ### Snowpark pandas API Updates
+### Dependency Updates
+
+- Updated `modin` from 0.28.1 to 0.30.1.
+- Added support for `pandas` 2.2.2.
+
 #### New Features
 - Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
 - Added support for `DataFrame.compare` and `Series.compare` with default parameters.

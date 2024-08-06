@@ -11,7 +11,7 @@ THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
 MODIN_DEPENDENCY_VERSION = (
-    "==0.28.1"  # Snowpark pandas requires modin 0.28.1, which depends on pandas 2.2.1
+    "==0.30.1"  # Snowpark pandas requires modin 0.28.1, which depends on pandas 2.2.1
 )
 CONNECTOR_DEPENDENCY_VERSION = ">=3.10.0, <4.0.0"
 INSTALL_REQ_LIST = [
@@ -91,7 +91,6 @@ setup(
         "snowflake.snowpark.mock",
         "snowflake.snowpark.modin",
         "snowflake.snowpark.modin.config",
-        "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas",
         "snowflake.snowpark.modin.core.execution.dispatching",
         "snowflake.snowpark.modin.core.execution.dispatching.factories",
         "snowflake.snowpark.modin.pandas",
