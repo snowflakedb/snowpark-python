@@ -31,6 +31,7 @@ dt_properties = pytest.mark.parametrize(
         "is_quarter_end",
         "is_year_start",
         "is_year_end",
+        "is_leap_year",
     ],
 )
 
@@ -73,7 +74,7 @@ def set_week_start(request):
     "datetime_index_value",
     [
         ["2014-04-04 23:56", "2014-07-18 21:24", "2015-11-22 22:14"],
-        ["04/04/2014", "07/18/2013", "11/22/2015"],
+        ["04/04/2015", "07/18/2014", "11/22/2016"],
         ["2014-04-04 23:56", pd.NaT, "2014-07-18 21:24", "2015-11-22 22:14", pd.NaT],
         [
             pd.Timestamp(2017, 1, 1, 12),
