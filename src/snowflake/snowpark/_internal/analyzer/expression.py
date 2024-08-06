@@ -114,6 +114,9 @@ class Expression:
             )
         return self._cumulative_node_complexity
 
+    def reset_cumulative_node_complexity(self) -> None:
+        self._cumulative_node_complexity = None
+
 
 class NamedExpression:
     name: str
