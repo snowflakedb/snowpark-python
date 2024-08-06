@@ -480,7 +480,7 @@ def get_snowflake_agg_func(
             return lambda col: column_quantile(col, interpolation, q)
         elif agg_func in ("all", "any"):
             # If there are no rows in the input frame, the function will also return NULL, which should
-            # instead by TRUE for "all" and FALSE for "any"."
+            # instead by TRUE for "all" and FALSE for "any".
             # Need to wrap column name in IDENTIFIER, or else the agg function will treat the name
             # as a string literal.
             default_value = bool(agg_func == "all")
