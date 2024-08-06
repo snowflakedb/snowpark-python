@@ -4,6 +4,7 @@
 import random
 import string
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
@@ -477,3 +478,44 @@ def test_resample_ffill_large_gaps(interval):
         lambda df: df.resample(rule=f"{interval}D").ffill(),
         check_freq=False,
     )
+
+
+@freq
+@interval
+@sql_count_checker(query_count=3, join_count=1)
+def test_asfreq_no_method(freq, interval):
+    rule = f"{interval}{freq}"
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            {"A": np.random.randn(15)},
+            index=native_pd.date_range("2020-01-01", periods=15, freq=f"1{freq}"),
+        ),
+        lambda df: df.asfreq(freq=rule),
+        check_freq=False,
+    )
+
+
+@sql_count_checker(query_count=3, join_count=1)
+def test_asfreq_ffill():
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            {"A": np.random.randn(15)},
+            index=native_pd.date_range("2020-01-01", periods=15, freq="1s"),
+        ),
+        lambda df: df.asfreq(freq="5s", method="ffill"),
+        check_freq=False,
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_asfreq_negative():
+    snow_df = pd.DataFrame(
+        {"A": np.random.randn(15)},
+        index=native_pd.date_range("2020-01-01", periods=15, freq="1s"),
+    )
+    with pytest.raises(NotImplementedError):
+        snow_df.asfreq(freq="5s", method="ffill", how="end")
+    with pytest.raises(NotImplementedError):
+        snow_df.asfreq(freq="5s", method="ffill", normalize=True)
+    with pytest.raises(NotImplementedError):
+        snow_df.asfreq(freq="5s", method="ffill", fill_value=2)

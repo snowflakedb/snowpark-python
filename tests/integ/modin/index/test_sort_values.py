@@ -10,7 +10,7 @@ from pandas.core.dtypes.common import is_numeric_dtype
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import assert_index_equal
+from tests.integ.modin.utils import assert_index_equal, eval_snowpark_pandas_result
 
 SINGLE_TYPE_NATIVE_INDEX_TEST_DATA = [
     native_pd.Index(
@@ -95,13 +95,13 @@ SINGLE_TYPE_NATIVE_INDEX_TEST_DATA = [
 def test_index_sort_values(native_index, ascending, na_position):
     # In this test, `return_indexer` is False: only an Index is returned.
     snow_index = pd.Index(native_index)
-    snow_res = snow_index.sort_values(
-        return_indexer=False, ascending=ascending, na_position=na_position
+    eval_snowpark_pandas_result(
+        snow_index,
+        native_index,
+        lambda idx: idx.sort_values(
+            return_indexer=False, ascending=ascending, na_position=na_position
+        ),
     )
-    native_res = native_index.sort_values(
-        return_indexer=False, ascending=ascending, na_position=na_position
-    )
-    assert_index_equal(snow_res, native_res)
 
 
 @pytest.mark.parametrize(

@@ -47,5 +47,5 @@ def test_case2():
 @pytest.mark.parametrize("test_case", [test_case1(), test_case2()])
 def test_find_duplicate_subtrees(test_case):
     plan, expected_duplicate_subtree_ids = test_case
-    duplicate_subtrees = find_duplicate_subtrees(plan)
+    duplicate_subtrees, _ = find_duplicate_subtrees(plan)
     assert {node._id for node in duplicate_subtrees} == expected_duplicate_subtree_ids

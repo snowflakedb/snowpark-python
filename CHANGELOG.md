@@ -4,15 +4,24 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+- Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a util function to check the equality of two Snowpark DataFrames.
+
 #### Improvements
+
 - Added support server side string size limitations.
+- Added support to create and invoke stored procedures, UDFs and UDTFs with optional arguments.
 - Added support for column lineage in the DataFrame.lineage.trace API.
 - Added support for passing `INFER_SCHEMA` options to `DataFrameReader` via `INFER_SCHEMA_OPTIONS`.
+- Added support for automatically cleaning up temporary tables created by `df.cache_result()` in the current session, when the DataFrame is no longer referenced (i.e., gets garbage collected). It is still an experimental feature not enabled by default, and can be enabled by setting `session.auto_clean_up_temp_table_enabled` to `True`.
 
 #### Bug Fixes
+
 - Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
 - Fixed a bug in `DataFrame.to_pandas_batches` where the iterator could throw an error if certain transformation is made to the pandas dataframe due to wrong isolation level.
 - Fixed a bug in `DataFrame.lineage.trace` to split the quoted feature view's name and version correctly.
+- Fixed a bug in `Column.isin` that caused invalid sql generation when passed an empty list.
+- Fixed a bug that fails to raise NotImplementedError while setting cell with list like item.
 
 ### Snowpark Local Testing Updates
 
@@ -30,6 +39,9 @@
 - Fixed a bug that Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
 - Fixed a bug where values were not populated into the result DataFrame during the insertion of table merge operation.
 
+#### Improvements
+- Fix pandas FutureWarning about integer indexing.
+
 ### Snowpark pandas API Updates
 #### New Features
 - Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
@@ -41,6 +53,12 @@
 - Added support for `Series.dt.day_name` and `Series.dt.month_name`.
 - Added support for indexing on Index, e.g., `df.index[:10]`.
 - Added support for `DataFrame.unstack` and `Series.unstack`.
+- Added support for `DataFrame.asfreq` and `Series.asfreq`.
+- Added support for `Series.dt.is_month_start` and `Series.dt.is_month_end`.
+- Added support for `Index.all` and `Index.any`.
+- Added support for `Series.dt.is_year_start` and `Series.dt.is_year_end`.
+- Added support for `Series.dt.is_quarter_start` and `Series.dt.is_quarter_end`.
+- Added support for `Series.argmax` and `Series.argmin`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
@@ -53,6 +71,8 @@
 - Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.  
 - Fixed a bug where some Index docstrings are ignored. 
 
+### Behavior change
+- `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
 
 ## 1.20.0 (2024-07-17)
 
