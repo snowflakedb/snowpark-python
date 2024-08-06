@@ -55,7 +55,7 @@ class PlanCompiler:
 
         current_session = self._plan.session
         return (
-            not isinstance(current_session.connection, MockServerConnection)
+            not isinstance(current_session._conn, MockServerConnection)
             and (self._plan.source_plan is not None)
             and current_session._query_compilation_stage_enabled
             and (
@@ -78,7 +78,7 @@ class PlanCompiler:
                     logical_plans, query_generator
                 )
                 logical_plans = repeated_subquery_eliminator.apply()
-            if self.should_apply_large_query_breakdown():
+            if self._plan.session.large_query_breakdown_enabled:
                 large_query_breakdown = LargeQueryBreakdown(
                     self._plan.session, query_generator, logical_plans
                 )
