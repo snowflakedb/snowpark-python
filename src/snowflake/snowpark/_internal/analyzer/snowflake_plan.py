@@ -613,25 +613,6 @@ class SnowflakePlanBuilder:
         }
         api_calls = [*select_left.api_calls, *select_right.api_calls]
 
-        # This is a temporary workaround for query comparison. The query_id_place_holder
-        # field of Query be a random generated id if not provided, which could cause the
-        # comparison of two queries fail even if the sql and is_ddl_on_temp_object
-        # value is the same.
-        # TODO (SNOW-1570952): Find a uniform way for the query comparison
-        def _query_exists(current_query: Query, existing_queries: List[Query]) -> bool:
-            for existing_query in existing_queries:
-                if (
-                    (current_query.sql == existing_query.sql)
-                    and (
-                        current_query.is_ddl_on_temp_object
-                        == existing_query.is_ddl_on_temp_object
-                    )
-                    and (current_query.params == existing_query.params)
-                ):
-                    return True
-
-            return False
-
         referenced_ctes: Set[str] = set()
         if (
             self.session.cte_optimization_enabled
@@ -644,7 +625,7 @@ class SnowflakePlanBuilder:
             # Need to do a deduplication to avoid repeated query.
             merged_queries = select_left.queries[:-1].copy()
             for query in select_right.queries[:-1]:
-                if not _query_exists(query, merged_queries):
+                if query not in merged_queries:
                     merged_queries.append(copy.copy(query))
 
             referenced_ctes.update(select_left.referenced_ctes)
@@ -1583,6 +1564,7 @@ class Query:
             self.sql == other.sql
             and self.query_id_place_holder == other.query_id_place_holder
             and self.is_ddl_on_temp_object == other.is_ddl_on_temp_object
+            and self.params == other.params
         )
 
 
