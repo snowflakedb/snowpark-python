@@ -195,6 +195,9 @@ def update_resolvable_node(
                           |
                         JOIN
     resolve_node(SelectSnowflakePlan, query_generator) will resolve both SelectSnowflakePlan and SnowflakePlan nodes.
+
+    This operation also resets the previously calculated cumulative_node_complexity for the node so a
+    re-calculation will be triggered when this property is accessed next time.
     """
 
     if not node._is_valid_for_replacement:

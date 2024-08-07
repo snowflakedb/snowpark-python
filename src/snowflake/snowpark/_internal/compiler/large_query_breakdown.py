@@ -97,6 +97,9 @@ class LargeQueryBreakdown:
         return resulting_plans
 
     def _breakdown_plan(self, plan_index: int, root: TreeNode) -> List[LogicalPlan]:
+        """Method to breakdown a single TreeNode into smaller partitions based on
+        cumulative complexity score and node type.
+        """
         if root.source_plan is not None and isinstance(
             root.source_plan, (CreateViewCommand, CreateDynamicTableCommand)
         ):
@@ -149,11 +152,15 @@ class LargeQueryBreakdown:
                     next_level.append(child)
                     score = get_complexity_score(node.cumulative_node_complexity)
                     if self._is_node_valid_to_breakdown(score, child):
+                        # Append score and child to the pipeline breaker sorted list
+                        # so that the valid child with the highest complexity score
+                        # is at the end of the list.
                         pipeline_breaker_list.add((score, child))
 
             current_level = next_level
 
         if not pipeline_breaker_list:
+            # Return None if no valid node is found for partitioning.
             return None
 
         # Get the node with the highest complexity score
@@ -174,12 +181,8 @@ class LargeQueryBreakdown:
 
         # Update the ancestors with the temp table selectable
         self._update_ancestors(parent_map, child, temp_table_name)
-        drop_table_query = Query(
-            drop_table_if_exists_statement(temp_table_name), is_ddl_on_temp_object=True
-        )
-        if root.post_actions is None:
-            root.post_actions = []
-        root.post_actions.append(drop_table_query)
+        self._update_root_post_actions(root, temp_table_name)
+
         return temp_table_plan
 
     def _is_node_valid_to_breakdown(self, score: int, node: LogicalPlan) -> bool:
@@ -189,6 +192,10 @@ class LargeQueryBreakdown:
         ) and self._is_node_pipeline_breaker(node)
 
     def _is_node_pipeline_breaker(self, node: LogicalPlan) -> bool:
+        """Method to check if a node is a pipeline breaker based on the node type.
+
+        If the node contains a SnowflakePlan, we check its source plan recursively.
+        """
         if isinstance(node, (Pivot, Unpivot, Sort, Aggregate)):
             return True
 
@@ -236,11 +243,22 @@ class LargeQueryBreakdown:
         while nodes_to_reset:
             node = nodes_to_reset.pop()
             if node in updated_nodes:
+                # Skip if the node is already updated.
                 continue
             parents = parent_map[node]
             nodes_to_reset.extend(parents)
             update_resolvable_node(node, self._query_generator)
             updated_nodes.add(node)
+
+    def _update_root_post_actions(self, root: TreeNode, temp_table_name: str) -> None:
+        """Method to updates the root node by adding new temp table that was added to
+        materialize a partition of the plan."""
+        drop_table_query = Query(
+            drop_table_if_exists_statement(temp_table_name), is_ddl_on_temp_object=True
+        )
+        if root.post_actions is None:
+            root.post_actions = []
+        root.post_actions.append(drop_table_query)
 
     def _get_temp_table_name(self) -> str:
         return self.session.get_fully_qualified_name_if_possible(
