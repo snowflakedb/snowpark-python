@@ -5,18 +5,15 @@
 import functools
 import inspect
 import os
-from unittest import mock
 
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import span
 
-import snowflake.snowpark.session
 from snowflake.snowpark._internal.open_telemetry import (
     build_method_chain,
     decorator_count,
 )
-from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.functions import udaf, udf, udtf
 from snowflake.snowpark.types import (
     BinaryType,
@@ -86,15 +83,11 @@ api_calls = [
 ]
 
 
-def test_without_open_telemetry(monkeypatch, dict_exporter):
+def test_without_open_telemetry(monkeypatch, dict_exporter, opentelemetry_session):
     from snowflake.snowpark._internal import open_telemetry
 
     monkeypatch.setattr(open_telemetry, "open_telemetry_found", False)
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
-    session._conn._telemetry_client = mock.MagicMock()
-    session.create_dataframe([1, 2, 3, 4]).to_df("a").collect()
+    opentelemetry_session.create_dataframe([1, 2, 3, 4]).to_df("a").collect()
 
     lineno = inspect.currentframe().f_lineno - 1
     answer = (
@@ -106,7 +99,7 @@ def test_without_open_telemetry(monkeypatch, dict_exporter):
     def minus_udf(x: int, y: int) -> int:
         return x - y
 
-    session.udf.register(minus_udf, name="test_minus_unit_no_telemetry")
+    opentelemetry_session.udf.register(minus_udf, name="test_minus_unit_no_telemetry")
     lineno = inspect.currentframe().f_lineno - 1
     answer = (
         "register",
@@ -115,7 +108,7 @@ def test_without_open_telemetry(monkeypatch, dict_exporter):
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer) is False
 
 
-def test_register_udaf_from_file(dict_exporter):
+def test_register_udaf_from_file(dict_exporter, opentelemetry_session):
     test_file = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__),
@@ -124,13 +117,9 @@ def test_register_udaf_from_file(dict_exporter):
             "test_udaf_file.py",
         )
     )
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
-    session._conn._telemetry_client = mock.MagicMock()
 
     lineno = inspect.currentframe().f_lineno + 1
-    session.udaf.register_from_file(
+    opentelemetry_session.udaf.register_from_file(
         test_file,
         "MyUDAFWithoutTypeHints",
         name="udaf_register_from_file_unit",
@@ -150,11 +139,7 @@ def test_register_udaf_from_file(dict_exporter):
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
 
-def test_inline_register_udaf(dict_exporter):
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
-    session._conn._telemetry_client = mock.MagicMock()
+def test_inline_register_udaf(dict_exporter, opentelemetry_session):
     # test register with udaf.register
 
     class PythonSumUDAF:
@@ -175,7 +160,7 @@ def test_inline_register_udaf(dict_exporter):
             return self._sum
 
     lineno = inspect.currentframe().f_lineno + 1
-    session.udaf.register(
+    opentelemetry_session.udaf.register(
         PythonSumUDAF,
         output_schema=StructType([StructField("number", IntegerType())]),
         input_types=[IntegerType()],
@@ -196,7 +181,7 @@ def test_inline_register_udaf(dict_exporter):
     # test register with @udaf
     @udaf(
         name="sum_udaf_decorator_unit",
-        session=session,
+        session=opentelemetry_session,
         input_types=[IntegerType()],
         return_type=IntegerType(),
     )
@@ -232,7 +217,7 @@ def test_inline_register_udaf(dict_exporter):
     "config.getoption('local_testing_mode', default=False)",
     reason="UDTF not supported in Local Testing",
 )
-def test_register_udtf_from_file(dict_exporter):
+def test_register_udtf_from_file(dict_exporter, opentelemetry_session):
     test_file = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__),
@@ -241,10 +226,6 @@ def test_register_udtf_from_file(dict_exporter):
             "test_udtf_file.py",
         )
     )
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
-    session._conn._telemetry_client = mock.MagicMock()
     schema = StructType(
         [
             StructField("int_", IntegerType()),
@@ -258,7 +239,7 @@ def test_register_udtf_from_file(dict_exporter):
     )
 
     lineno = inspect.currentframe().f_lineno + 1
-    session.udtf.register_from_file(
+    opentelemetry_session.udtf.register_from_file(
         test_file,
         "MyUDTFWithTypeHints",
         name="MyUDTFWithTypeHints_from_file_unit",
@@ -290,11 +271,7 @@ def test_register_udtf_from_file(dict_exporter):
     "config.getoption('local_testing_mode', default=False)",
     reason="UDTF not supported in Local Testing",
 )
-def test_inline_register_udtf(dict_exporter):
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
-    session._conn._telemetry_client = mock.MagicMock()
+def test_inline_register_udtf(dict_exporter, opentelemetry_session):
     # test register with udtf.register
 
     class GeneratorUDTF:
@@ -303,7 +280,7 @@ def test_inline_register_udtf(dict_exporter):
                 yield (i,)
 
     lineno = inspect.currentframe().f_lineno + 1
-    session.udtf.register(
+    opentelemetry_session.udtf.register(
         GeneratorUDTF,
         output_schema=StructType([StructField("number", IntegerType())]),
         input_types=[IntegerType()],
@@ -324,7 +301,7 @@ def test_inline_register_udtf(dict_exporter):
     @udtf(
         output_schema=StructType([StructField("number", IntegerType())]),
         name="generate_udtf_with_decorator_unit",
-        session=session,
+        session=opentelemetry_session,
     )
     class GeneratorUDTFwithDecorator:
         def process(self, n):
@@ -342,7 +319,7 @@ def test_inline_register_udtf(dict_exporter):
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
 
-def test_register_udf_from_file(dict_exporter):
+def test_register_udf_from_file(dict_exporter, opentelemetry_session):
     test_file = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__),
@@ -351,13 +328,9 @@ def test_register_udf_from_file(dict_exporter):
             "test_udf_file.py",
         )
     )
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
-    session._conn._telemetry_client = mock.MagicMock()
 
     lineno = inspect.currentframe().f_lineno + 1
-    session.udf.register_from_file(
+    opentelemetry_session.udf.register_from_file(
         test_file,
         "mod5",
         name="mod5_function_unit",
@@ -377,18 +350,14 @@ def test_register_udf_from_file(dict_exporter):
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
 
-def test_inline_register_udf(dict_exporter):
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
-    session._conn._telemetry_client = mock.MagicMock()
+def test_inline_register_udf(dict_exporter, opentelemetry_session):
     # test register with udf.register
 
     def add_udf(x: int, y: int) -> int:
         return x + y
 
     lineno = inspect.currentframe().f_lineno + 1
-    session.udf.register(
+    opentelemetry_session.udf.register(
         add_udf,
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
@@ -408,7 +377,7 @@ def test_inline_register_udf(dict_exporter):
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
     # test register with decorator @udf
-    @udf(name="minus_decorator_unit", session=session)
+    @udf(name="minus_decorator_unit", session=opentelemetry_session)
     def minus_udf(x: int, y: int) -> int:
         return x - y
 
@@ -423,13 +392,10 @@ def test_inline_register_udf(dict_exporter):
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
 
-def test_open_telemetry_span_from_dataframe_writer_and_dataframe(dict_exporter):
-    # set up exporter
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
-    session._conn._telemetry_client = mock.MagicMock()
-    df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
+def test_open_telemetry_span_from_dataframe_writer_and_dataframe(
+    dict_exporter, opentelemetry_session
+):
+    df = opentelemetry_session.create_dataframe([1, 2, 3, 4]).to_df("a")
     df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
 
     answer = (
@@ -442,12 +408,10 @@ def test_open_telemetry_span_from_dataframe_writer_and_dataframe(dict_exporter):
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
 
-def test_open_telemetry_span_from_dataframe_writer(dict_exporter):
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
-    session._conn._telemetry_client = mock.MagicMock()
-    df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
+def test_open_telemetry_span_from_dataframe_writer(
+    dict_exporter, opentelemetry_session
+):
+    df = opentelemetry_session.create_dataframe([1, 2, 3, 4]).to_df("a")
     df.collect()
 
     answer = (

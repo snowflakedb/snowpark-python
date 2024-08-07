@@ -6,6 +6,7 @@ from unittest import mock
 
 import pytest
 
+import snowflake
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.cursor import SnowflakeCursor
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
@@ -67,3 +68,13 @@ def mock_session(mock_analyzer) -> Session:
     mock_analyzer.session = fake_session
     yield fake_session
     del fake_session
+
+
+@pytest.fixture(scope="module")
+def opentelemetry_session() -> Session:
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    session._conn._telemetry_client = mock.MagicMock()
+    yield session
+    session.close()
