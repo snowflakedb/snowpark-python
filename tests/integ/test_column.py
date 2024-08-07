@@ -216,3 +216,15 @@ def test_column_with_builtins_that_shadow_functions(session):
     with pytest.raises(TypeError) as ex_info:
         TestData.double1(session).select(sum(col("a"))).collect()
     assert iter_error_msg_text in str(ex_info)
+
+
+def test_return_empty_set_for_empty_filter_isin(session):
+    """
+    Filtering a dataframe with `isin()` and an empty set should yield an empty
+    dataframe.
+
+    NOTE: In SQL an `IN` expression without at least one value is not valid at all.
+    """
+    df1 = session.create_dataframe([1, 2]).to_df("a")
+    assert df1.filter(df1["a"].isin(None)).collect() == []
+    assert df1.filter(df1["a"].isin([])).collect() == []
