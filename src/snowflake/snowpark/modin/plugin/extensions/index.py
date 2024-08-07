@@ -30,7 +30,7 @@ import modin
 import numpy as np
 import pandas as native_pd
 from pandas._libs import lib
-from pandas._typing import ArrayLike, DtypeObj, NaPosition
+from pandas._typing import ArrayLike, DateTimeErrorChoices, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_datetime64_any_dtype, pandas_dtype
@@ -39,6 +39,7 @@ from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
+from snowflake.snowpark.modin.plugin._internal.timestamp_utils import DateTimeOrigin
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -2368,3 +2369,64 @@ class Index(metaclass=TelemetryMeta):
         """
         WarningMessage.index_to_pandas_warning("str")
         return self.to_pandas().str
+
+    def _to_datetime(
+        self,
+        errors: DateTimeErrorChoices = "raise",
+        dayfirst: bool = False,
+        yearfirst: bool = False,
+        utc: bool = False,
+        format: str = None,
+        exact: bool | lib.NoDefault = lib.no_default,
+        unit: str = None,
+        infer_datetime_format: bool | lib.NoDefault = lib.no_default,
+        origin: DateTimeOrigin = "unix",
+    ) -> Index:
+        """
+        Args:
+            errors: {'ignore', 'raise', 'coerce'}, default 'raise'
+              If 'raise', then invalid parsing will raise an exception.
+              If 'coerce', then invalid parsing will be set as NaT.
+              If 'ignore', then invalid parsing will return the input.
+            dayfirst: bool, default False
+              Specify a date parse order if arg is str or is list-like.
+            yearfirst: bool, default False
+              Specify a date parse order if arg is str or is list-like.
+            utc: bool, default False
+              Control timezone-related parsing, localization and conversion.
+            format: str, default None
+              The strftime to parse time
+            exact: bool, default True
+              Control how format is used:
+              True: require an exact format match.
+              False: allow the format to match anywhere in the target string.
+            unit: str, default 'ns'
+              The unit of the arg (D,s,ms,us,ns) denote the unit, which is an integer
+              or float number.
+            infer_datetime_format: bool, default False
+              If True and no format is given, attempt to infer the format of the \
+              datetime strings based on the first non-NaN element.
+            origin: scalar, default 'unix'
+              Define the reference date. The numeric values would be parsed as number
+              of units (defined by unit) since this reference date.
+
+        Returns:
+            DatetimeIndex
+        """
+        from snowflake.snowpark.modin.plugin.extensions.datetime_index import (
+            DatetimeIndex,
+        )
+
+        new_qc = self._query_compiler.series_to_datetime(
+            errors,
+            dayfirst,
+            yearfirst,
+            utc,
+            format,
+            exact,
+            unit,
+            infer_datetime_format,
+            origin,
+            include_index=True,
+        )
+        return DatetimeIndex(data=new_qc)

@@ -79,6 +79,8 @@
 ### Behavior change
 - `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
 - Refactor and introduce `query_compiler` argument in `Index` constructor to create `Index` from query compiler.
+- `pd.to_datetime` now returns a DatetimeIndex object instead of a Series object.
+- `pd.date_range` now returns a DatetimeIndex object instead of a Series object.
 
 ## 1.20.0 (2024-07-17)
 
