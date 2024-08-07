@@ -220,6 +220,39 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
     return ColumnEmulator(data=[res], sf_type=ColumnType(res_type, False))
 
 
+@patch("stddev")
+def mock_stddev(column: ColumnEmulator) -> ColumnEmulator:
+    if not isinstance(column.sf_type.datatype, (_NumericType, NullType)):
+        raise SnowparkLocalTestingException(
+            f"Cannot compute stddev on a column of type {column.sf_type.datatype}"
+        )
+
+    if isinstance(column.sf_type.datatype, NullType) or column.isna().all():
+        return ColumnEmulator(data=[None], sf_type=ColumnType(NullType(), True))
+    elif isinstance(column.sf_type.datatype, _IntegralType):
+        res_type = DecimalType(38, 6)
+    elif isinstance(column.sf_type.datatype, DecimalType):
+        precision, scale = (
+            column.sf_type.datatype.precision,
+            column.sf_type.datatype.scale,
+        )
+        precision = max(38, column.sf_type.datatype.precision + 12)
+        if scale <= 6:
+            scale = scale + 6
+        elif scale < 12:
+            scale = 12
+        res_type = DecimalType(precision, scale)
+    else:
+        assert isinstance(column.sf_type.datatype, _FractionalType)
+        res_type = FloatType()
+
+    notna = column[~column.isna()]
+    res = notna.std()
+    if isinstance(res_type, Decimal):
+        res = round(res, scale)
+    return ColumnEmulator(data=[res], sf_type=ColumnType(res_type, False))
+
+
 @patch("count")
 def mock_count(column: Union[TableEmulator, ColumnEmulator]) -> ColumnEmulator:
     if isinstance(column, ColumnEmulator):
