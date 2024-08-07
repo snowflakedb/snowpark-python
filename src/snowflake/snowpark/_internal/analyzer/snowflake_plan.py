@@ -1564,6 +1564,7 @@ class Query:
             self.sql == other.sql
             and self.query_id_place_holder == other.query_id_place_holder
             and self.is_ddl_on_temp_object == other.is_ddl_on_temp_object
+            and self.params == other.params
         )
 
 
