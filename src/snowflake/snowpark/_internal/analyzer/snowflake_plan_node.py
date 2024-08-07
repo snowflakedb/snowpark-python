@@ -159,7 +159,7 @@ class SaveMode(Enum):
 
 
 class TableCreationSource(Enum):
-    EXPLICIT_USER_REQUEST = "explicit_user_request"
+    EXPLICIT_USER_COMMAND = "explicit_user_command"
     CACHE_RESULT = "cache_result"
     LARGE_QUERY_BREAKDOWN = "large_query_breakdown"
 
@@ -174,7 +174,7 @@ class SnowflakeCreateTable(LogicalPlan):
         table_type: str = "",
         clustering_exprs: Optional[Iterable[Expression]] = None,
         comment: Optional[str] = None,
-        creation_source: TableCreationSource = TableCreationSource.EXPLICIT_USER_REQUEST,
+        creation_source: TableCreationSource = TableCreationSource.EXPLICIT_USER_COMMAND,
     ) -> None:
         super().__init__()
 

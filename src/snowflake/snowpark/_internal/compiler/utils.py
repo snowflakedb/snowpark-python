@@ -260,7 +260,7 @@ def is_active_transaction(session):
     return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
 
 
-def _plot_plan_if_enabled(root, path) -> None:
+def plot_plan_if_enabled(root, path) -> None:
     """A helper function to plot the query plan tree using graphviz useful for debugging."""
     import os
 

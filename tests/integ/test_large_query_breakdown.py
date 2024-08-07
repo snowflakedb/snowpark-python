@@ -12,6 +12,7 @@
 * add test to see post actions have delete temp tables
 * add async test for large query breakdown
 * updating complexity bounds change num partitions
+* test large query breakdown works with cte optimized plan
 """
 
 import pytest

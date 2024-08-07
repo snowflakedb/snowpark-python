@@ -299,7 +299,7 @@ def test_create_scoped_temp_table(session):
                 df._plan,
                 None,
                 use_scoped_temp_objects=True,
-                creation_source=TableCreationSource.EXPLICIT_USER_REQUEST,
+                creation_source=TableCreationSource.EXPLICIT_USER_COMMAND,
                 child_attributes=df._plan.attributes,
             )
             .queries[0]
