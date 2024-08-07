@@ -31,7 +31,8 @@ def mock_query():
     fake_query = mock.create_autospec(Query)
     fake_query.sql = "dummy sql"
     fake_query.params = "dummy params"
-    return fake_query
+    yield fake_query
+    del fake_query
 
 
 @pytest.fixture(scope="module")
@@ -43,7 +44,8 @@ def mock_snowflake_plan(mock_query) -> Analyzer:
     fake_snowflake_plan.queries = [mock_query]
     fake_snowflake_plan.post_actions = []
     fake_snowflake_plan.api_calls = []
-    return fake_snowflake_plan
+    yield fake_snowflake_plan
+    del fake_snowflake_plan
 
 
 @pytest.fixture(scope="module")
@@ -54,7 +56,8 @@ def mock_analyzer(mock_snowflake_plan) -> Analyzer:
 
     fake_analyzer = mock.create_autospec(Analyzer)
     fake_analyzer.resolve.side_effect = mock_resolve
-    return fake_analyzer
+    yield fake_analyzer
+    del fake_analyzer
 
 
 @pytest.fixture(scope="module")
@@ -62,4 +65,5 @@ def mock_session(mock_analyzer) -> Session:
     fake_session = mock.create_autospec(Session)
     fake_session._analyzer = mock_analyzer
     mock_analyzer.session = fake_session
-    return fake_session
+    yield fake_session
+    del fake_session
