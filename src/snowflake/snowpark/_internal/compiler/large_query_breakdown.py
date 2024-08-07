@@ -4,7 +4,7 @@
 
 import logging
 from collections import defaultdict
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from sortedcontainers import SortedList
 
@@ -42,8 +42,9 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 )
 from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
 from snowflake.snowpark._internal.compiler.utils import (
-    _plot_plan_if_enabled,
+    TreeNode,
     is_active_transaction,
+    plot_plan_if_enabled,
     replace_child,
     update_resolvable_node,
 )
@@ -53,86 +54,84 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.session import Session
 
-COMPLEXITY_SCORE_LOWER_BOUND = 300
-COMPLEXITY_SCORE_UPPER_BOUND = 1000
+COMPLEXITY_SCORE_LOWER_BOUND = 250_000
+COMPLEXITY_SCORE_UPPER_BOUND = 500_000
 
 _logger = logging.getLogger(__name__)
 
 
 class LargeQueryBreakdown:
-    """This class is used to break down large query plans into smaller partitions based on
+    """Optimization to break down large query plans into smaller partitions based on
     estimated complexity score of the plan nodes.
+
+    This optimization works by analyzing computed query complexity score for each input
+    plan and breaking down the plan into smaller partitions if we detect valid node
+    candidates for partitioning. The partitioning is done by creating temp tables for the
+    partitioned nodes and replacing the partitioned subtree with the temp table selectable.
     """
 
     def __init__(
         self,
         session: Session,
         query_generator: QueryGenerator,
-        plans: List[LogicalPlan],
+        logical_plans: List[LogicalPlan],
     ) -> None:
         self.session = session
         self._query_generator = query_generator
-        self.plans = plans
+        self.logical_plans = logical_plans
 
     def apply(self) -> List[LogicalPlan]:
         if is_active_transaction(self.session):
-            return self.plans
+            # Skip optimization if the session is in an active transaction.
+            return self.logical_plans
 
-        resulting_plans, resulting_drops_queries = [], []
-        for i, plan in enumerate(self.plans):
-            partition_plan, drop_queries = self._breakdown_plan(i, plan)
-            resulting_plans.extend(partition_plan)
-            resulting_drops_queries.extend(drop_queries)
+        resulting_plans = []
+        for i, logical_plan in enumerate(self.logical_plans):
+            # Similar to the repeated subquery elimination, we rely on
+            # nodes of the plan to be SnowflakePlan or Selectable. Here,
+            # we resolve the plan to make sure we get a valid plan tree.
+            resolved_plan = self._query_generator.resolve(logical_plan)
+            partition_plans = self._breakdown_plan(i, resolved_plan)
+            resulting_plans.extend(partition_plans)
 
-        # Add the drop queries to the last plan
-        resulting_plans[-1].post_actions.extend(resulting_drops_queries)
         return resulting_plans
 
-    def _breakdown_plan(
-        self, plan_index: int, root: LogicalPlan
-    ) -> Tuple[List[LogicalPlan], List[Query]]:
-        if (
-            isinstance(root, SnowflakePlan)
-            and root.source_plan is not None
-            and isinstance(
-                root.source_plan, (CreateViewCommand, CreateDynamicTableCommand)
-            )
+    def _breakdown_plan(self, plan_index: int, root: TreeNode) -> List[LogicalPlan]:
+        if root.source_plan is not None and isinstance(
+            root.source_plan, (CreateViewCommand, CreateDynamicTableCommand)
         ):
-            return [root], []
-        if isinstance(root, (CreateViewCommand, CreateDynamicTableCommand)):
-            return [root], []
+            # Skip optimization if the root is a view or a dynamic table.
+            return [root]
 
         complexity_score = get_complexity_score(root.cumulative_node_complexity)
-        _logger.debug(f"Complexity score for root is: {complexity_score}")
+        _logger.debug(f"Complexity score for root[{plan_index}] is: {complexity_score}")
         if complexity_score <= COMPLEXITY_SCORE_UPPER_BOUND:
-            return [root], []
+            # Skip optimization if the complexity score is within the upper bound.
+            return [root]
 
         plans = []
 
-        _plot_plan_if_enabled(root, f"/tmp/plots/root_{plan_index}")
+        plot_plan_if_enabled(root, f"/tmp/plots/root_{plan_index}")
         partition_index = 0
-        drop_queries = []
 
         while complexity_score > COMPLEXITY_SCORE_UPPER_BOUND:
-            partition, drop_query = self._get_partitioned_plan(root)
+            partition = self._get_partitioned_plan(root)
             if partition is None:
                 _logger.debug("Could not find a valid node for partitioning.")
                 break
+
             plans.append(partition)
-            drop_queries.append(drop_query)
-            _plot_plan_if_enabled(
+            plot_plan_if_enabled(
                 partition, f"/tmp/plots/partition_{plan_index}_{partition_index}"
             )
             partition_index += 1
             complexity_score = get_complexity_score(root.cumulative_node_complexity)
 
-        _plot_plan_if_enabled(root, f"/tmp/plots/final_root_{plan_index}")
+        plot_plan_if_enabled(root, f"/tmp/plots/final_root_{plan_index}")
         plans.append(root)
-        return plans, drop_queries
+        return plans
 
-    def _get_partitioned_plan(
-        self, root: LogicalPlan
-    ) -> Tuple[Optional[SnowflakePlan], Optional[Query]]:
+    def _get_partitioned_plan(self, root: TreeNode) -> Optional[SnowflakePlan]:
         current_level = [root]
         pipeline_breaker_list = SortedList(key=lambda x: x[0])
         parent_map = defaultdict(set)
@@ -155,10 +154,12 @@ class LargeQueryBreakdown:
             current_level = next_level
 
         if not pipeline_breaker_list:
-            return None, None
+            return None
 
+        # Get the node with the highest complexity score
         _, child = pipeline_breaker_list.pop()
 
+        # Create a temp table for the partitioned node
         temp_table_name = self._get_temp_table_name()
         temp_table_plan = self._query_generator.resolve(
             SnowflakeCreateTable(
@@ -171,11 +172,15 @@ class LargeQueryBreakdown:
             )
         )
 
+        # Update the ancestors with the temp table selectable
         self._update_ancestors(parent_map, child, temp_table_name)
         drop_table_query = Query(
             drop_table_if_exists_statement(temp_table_name), is_ddl_on_temp_object=True
         )
-        return temp_table_plan, drop_table_query
+        if root.post_actions is None:
+            root.post_actions = []
+        root.post_actions.append(drop_table_query)
+        return temp_table_plan
 
     def _is_node_valid_to_breakdown(self, score: int, node: LogicalPlan) -> bool:
         """Method to check if a node is valid to breakdown based on complexity score and node type."""

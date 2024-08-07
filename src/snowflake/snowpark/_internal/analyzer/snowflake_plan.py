@@ -856,7 +856,7 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         use_scoped_temp_objects: bool,
-        creation_source: TableCreationSource,  # true if the table is generated internally
+        creation_source: TableCreationSource,
         child_attributes: List[Attribute],
     ) -> SnowflakePlan:
         is_generated = creation_source in (
