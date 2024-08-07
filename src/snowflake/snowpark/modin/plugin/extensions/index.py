@@ -38,9 +38,6 @@ from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
-from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
-    SnowflakeQueryCompiler,
-)
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     index_not_implemented,
@@ -51,11 +48,7 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 class Index(metaclass=TelemetryMeta):
     def __init__(
         self,
-        data: ArrayLike
-        | modin.pandas.DataFrame
-        | Series
-        | SnowflakeQueryCompiler
-        | None = None,
+        data: ArrayLike | modin.pandas.DataFrame | Series | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -68,7 +61,7 @@ class Index(metaclass=TelemetryMeta):
 
         Parameters
         ----------
-        data : array-like (1-dimensional), modin.pandas.Series, modin.pandas.DataFrame, SnowflakeQueryCompiler, optional
+        data : array-like (1-dimensional), modin.pandas.Series, modin.pandas.DataFrame, optional
         dtype : str, numpy.dtype, or ExtensionDtype, optional
             Data type for the output Index. If not specified, this will be
             inferred from `data`.
@@ -97,12 +90,13 @@ class Index(metaclass=TelemetryMeta):
         >>> pd.Index([1, 2, 3], dtype="uint8")
         Index([1, 2, 3], dtype='int64')
         """
-        self._parent = data if isinstance(data, BasePandasDataset) else None
-        data = data._query_compiler if isinstance(data, BasePandasDataset) else data
-        if isinstance(data, SnowflakeQueryCompiler):
-            qc = data
+        if isinstance(data, BasePandasDataset):
+            self._parent = data
+            self._query_compiler = data._query_compiler.drop(
+                columns=data._query_compiler.columns
+            )
         else:
-            qc = DataFrame(
+            self._query_compiler = DataFrame(
                 index=native_pd.Index(
                     data=data,
                     dtype=dtype,
@@ -111,7 +105,6 @@ class Index(metaclass=TelemetryMeta):
                     tupleize_cols=tupleize_cols,
                 )
             )._query_compiler
-        self._query_compiler = qc.drop(columns=qc.columns)
 
     def __getattr__(self, key: str) -> Any:
         """
