@@ -133,7 +133,7 @@ class QueryGenerator(Analyzer):
             )
 
             # update the resolved child
-            copied_resolved_child = copy.deepcopy(resolved_child)
+            copied_resolved_child = copy.copy(resolved_child)
             final_queries = get_snowflake_plan_queries(
                 copied_resolved_child, self.resolved_with_query_block
             )
@@ -173,7 +173,7 @@ class QueryGenerator(Analyzer):
             # the with definition must be generated before create, update, delete, merge and copy into
             # query.
             resolved_child = resolved_children[logical_plan.children[0]]
-            copied_resolved_child = copy.deepcopy(resolved_child)
+            copied_resolved_child = copy.copy(resolved_child)
             final_queries = get_snowflake_plan_queries(
                 copied_resolved_child, self.resolved_with_query_block
             )
