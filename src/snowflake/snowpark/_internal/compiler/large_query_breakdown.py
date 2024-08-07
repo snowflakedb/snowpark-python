@@ -100,8 +100,12 @@ class LargeQueryBreakdown:
         """Method to breakdown a single TreeNode into smaller partitions based on
         cumulative complexity score and node type.
         """
-        if root.source_plan is not None and isinstance(
-            root.source_plan, (CreateViewCommand, CreateDynamicTableCommand)
+        if (
+            isinstance(root, SnowflakePlan)
+            and root.source_plan is not None
+            and isinstance(
+                root.source_plan, (CreateViewCommand, CreateDynamicTableCommand)
+            )
         ):
             # Skip optimization if the root is a view or a dynamic table.
             return [root]
