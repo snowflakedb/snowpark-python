@@ -109,6 +109,9 @@ def test_without_open_telemetry(monkeypatch, dict_exporter, opentelemetry_sessio
 
 
 def test_register_udaf_from_file(dict_exporter, opentelemetry_session):
+    import logging
+
+    logger = logging.getLogger(__name__)
     test_file = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__),
@@ -136,6 +139,7 @@ def test_register_udaf_from_file(dict_exporter, opentelemetry_session):
             "snow.executable.handler": "MyUDAFWithoutTypeHints",
         },
     )
+    logger.warning(span_extractor(dict_exporter))
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
 
