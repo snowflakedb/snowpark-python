@@ -260,8 +260,8 @@ class SnowflakePlan(LogicalPlan):
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
-        if not isinstance(other, SnowflakePlan):
-            return False
+        # if not isinstance(other, SnowflakePlan):
+        #     return False
         if self._id is not None and other._id is not None:
             return isinstance(other, SnowflakePlan) and self._id == other._id
         else:
