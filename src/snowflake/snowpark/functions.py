@@ -868,7 +868,7 @@ def create_map(
     col = object_construct_keep_null(*cols)
 
     # Alias to create_map
-    col._ast.apply_expr.fn.builtin_fn.name = "create_map"
+    col._ast.apply_expr.fn.builtin_fn.name.fn_name_flat.name = "create_map"
 
     return col
 
@@ -1065,7 +1065,7 @@ def sum_distinct(e: ColumnOrName) -> Column:
     col = _call_function("sum", True, c)
 
     # alias to keep sum_distinct
-    col._ast.apply_expr.fn.builtin_fn.name = "sum_distinct"
+    col._ast.apply_expr.fn.builtin_fn.name.fn_name_flat.name = "sum_distinct"
 
     return col
 
@@ -1325,10 +1325,8 @@ def explode(col: ColumnOrName) -> "snowflake.snowpark.table_function.TableFuncti
     col = _to_col_if_str(col, "explode")
     # AST
     ast = proto.Expr()
-    # DO NOT MERGE. Implement build_table_fn_apply and use it here.
-    # Differentiate between generic call_table_function and built-in table
-    # functions.
-    build_builtin_fn_apply(ast, "explode", col)
+    ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__builtin_fn = True
+    build_table_fn_apply(ast, "explode", col)
 
     func_call = snowflake.snowpark.table_function._ExplodeFunctionCall(col, lit(False))
     func_call._set_api_call_source("functions.explode")
@@ -1380,12 +1378,11 @@ def explode_outer(
         :func:`explode`
     """
     col = _to_col_if_str(col, "explode_outer")
+
     # AST
     ast = proto.Expr()
-    # DO NOT MERGE. Implement build_table_fn_apply and use it here.
-    # Differentiate between generic call_table_function and built-in table
-    # functions.
-    build_builtin_fn_apply(ast, "explode_outer", col)
+    ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__builtin_fn = True
+    build_table_fn_apply(ast, "explode_outer", col)
 
     func_call = snowflake.snowpark.table_function._ExplodeFunctionCall(col, lit(True))
     func_call._set_api_call_source("functions.explode_outer")
@@ -1464,12 +1461,11 @@ def flatten(
         - `Flatten <https://docs.snowflake.com/en/sql-reference/functions/flatten>`_
     """
     col = _to_col_if_str(col, "flatten")
+
     # AST
     ast = proto.Expr()
-    # DO NOT MERGE. Implement build_table_fn_apply and use it here.
-    # Differentiate between generic call_table_function and built-in table
-    # functions.
-    build_builtin_fn_apply(ast, "flatten", col, path, outer, recursive, mode)
+    ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__builtin_fn = True
+    build_table_fn_apply(ast, "flatten", col, path, outer, recursive, mode)
 
     func_call = snowflake.snowpark.table_function.TableFunctionCall(
         "flatten",
