@@ -157,6 +157,7 @@ import snowflake.snowpark.modin.plugin.extensions.pd_overrides  # isort: skip  #
 from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: skip  # noqa: E402,F401
     Index,
 )
+import snowflake.snowpark.modin.plugin.extensions.base_overrides  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.dataframe_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.dataframe_overrides  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_extensions  # isort: skip  # noqa: E402,F401
