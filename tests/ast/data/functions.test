@@ -1185,7 +1185,7 @@ res292 = res112.select(least(), least(col("A")), least(col("B"), col("A")), leas
 
 res293 = res112.select(listagg("A", "", False), listagg(col("B"), "", False), listagg("A", ",", False), listagg("A", "|", True))
 
-res294 = res112.select(name(), test(col("A"), lit(10)))
+res294 = res112.select(call_udf("name"), call_udf("test", col("A"), lit(10)))
 
 res295 = res112.select(date_part("epoch_second", to_timestamp(col("A"))), date_part("epoch_second", to_timestamp(col("A"))), date_part("epoch_second", to_timestamp(col("B"), lit("YYYY"))))
 

@@ -6,9 +6,11 @@ df2 = session.table_function("my_fn", kwd=lit(3), foo=lit("bar"))
 
 df3 = session.table_function(["foo", "bar"])
 
-# TODO: This isn't working; it's not clear why.
-fn = table_function("my_fn")
-# df4 = session.table_function(fn)
+fn1 = table_function("my_fn")
+df4 = session.table_function(fn1)
+
+fn2 = call_table_function("my_fn")
+df5 = session.table_function(fn2)
 
 ## EXPECTED OUTPUT
 
@@ -16,4 +18,8 @@ res1 = session.table_function("my_fn", lit(1), lit("two"))
 
 res2 = session.table_function("my_fn", kwd=lit(3), foo=lit("bar"))
 
-res3 = session.table_function("foo.bar")
+res3 = session.table_function(["foo", "bar"])
+
+res4 = session.table_function(table_function("my_fn"))
+
+res5 = session.table_function(call_table_function("my_fn"))
