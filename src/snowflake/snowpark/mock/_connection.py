@@ -36,7 +36,7 @@ from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.mock._options import pandas
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
-from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
+from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.mock._util import get_fully_qualified_name
@@ -127,7 +127,7 @@ class MockServerConnection:
             table: TableEmulator,
             mode: SaveMode,
             column_names: Optional[List[str]] = None,
-        ) -> Row:
+        ) -> List[Row]:
             for column in table.columns:
                 if not table[column].sf_type.nullable and table[column].isnull().any():
                     raise SnowparkLocalTestingException(
@@ -197,22 +197,25 @@ class MockServerConnection:
             elif mode == SaveMode.TRUNCATE:
                 if name in self.table_registry:
                     target_table = self.table_registry[name]
-                    input_schema = table.columns.to_list()
-                    existing_schema = target_table.columns.to_list()
-                    if len(input_schema) <= len(existing_schema) and (
-                        all(
-                            target_table[col].sf_type.nullable
-                            for col in (existing_schema[len(input_schema) :])
-                        )
+                    input_schema = set(table.columns.to_list())
+                    existing_schema = set(target_table.columns.to_list())
+                    # input is a subset of existing schema and all missing columns are nullable
+                    if input_schema.issubset(existing_schema) and all(
+                        target_table[col].sf_type.nullable
+                        for col in set(existing_schema - input_schema)
                     ):
-                        for col in existing_schema[len(input_schema) :]:
-                            table[col] = None
-                            table.sf_types[col] = target_table[col].sf_type
+                        for col in set(existing_schema - input_schema):
+                            table[col] = ColumnEmulator(
+                                data=[None] * table.shape[0],
+                                sf_type=target_table[col].sf_type,
+                                dtype=object,
+                            )
                     else:
                         raise SnowparkLocalTestingException(
                             f"Cannot truncate because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
                         )
-
+                    table.sf_types_by_col_index = target_table.sf_types_by_col_index
+                    table = table.reindex(columns=target_table.columns)
                 self.table_registry[name] = table
             else:
                 raise SnowparkLocalTestingException(f"Unrecognized mode: {mode}")
