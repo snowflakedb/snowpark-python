@@ -44,7 +44,6 @@ from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
 from snowflake.snowpark._internal.compiler.utils import (
     TreeNode,
     is_active_transaction,
-    plot_plan_if_enabled,
     replace_child,
     update_resolvable_node,
 )
@@ -54,8 +53,8 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.session import Session
 
-COMPLEXITY_SCORE_LOWER_BOUND = 250_000
-COMPLEXITY_SCORE_UPPER_BOUND = 500_000
+COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
+COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 
 _logger = logging.getLogger(__name__)
 
@@ -118,14 +117,12 @@ class LargeQueryBreakdown:
 
         complexity_score = get_complexity_score(root.cumulative_node_complexity)
         _logger.debug(f"Complexity score for root[{plan_index}] is: {complexity_score}")
-        plot_plan_if_enabled(root, f"/tmp/plots/root_{plan_index}")
 
         if complexity_score <= COMPLEXITY_SCORE_UPPER_BOUND:
             # Skip optimization if the complexity score is within the upper bound.
             return [root]
 
         plans = []
-        partition_index = 0
         # TODO: SNOW-1617634 Have a one pass algorithm to find the valid node for partitioning
         while complexity_score > COMPLEXITY_SCORE_UPPER_BOUND:
             partition = self._get_partitioned_plan(root)
@@ -134,13 +131,8 @@ class LargeQueryBreakdown:
                 break
 
             plans.append(partition)
-            plot_plan_if_enabled(
-                partition, f"/tmp/plots/partition_{plan_index}_{partition_index}"
-            )
-            partition_index += 1
             complexity_score = get_complexity_score(root.cumulative_node_complexity)
 
-        plot_plan_if_enabled(root, f"/tmp/plots/final_root_{plan_index}")
         plans.append(root)
         return plans
 
