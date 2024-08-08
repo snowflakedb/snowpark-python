@@ -63,11 +63,12 @@ class Index(metaclass=TelemetryMeta):
 
     def __new__(
         cls,
-        data: ArrayLike | SnowflakeQueryCompiler | None = None,
+        data: ArrayLike | native_pd.Index | Series | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = _CONSTRUCTOR_DEFAULTS["dtype"],
         copy: bool = _CONSTRUCTOR_DEFAULTS["copy"],
         name: object = _CONSTRUCTOR_DEFAULTS["name"],
         tupleize_cols: bool = _CONSTRUCTOR_DEFAULTS["tupleize_cols"],
+        query_compiler: SnowflakeQueryCompiler = None,
     ) -> Index:
         """
         Override __new__ method to control new instance creation of Index.
@@ -75,7 +76,7 @@ class Index(metaclass=TelemetryMeta):
 
         Parameters
         ----------
-        data : array-like (1-dimensional)
+        data : array-like (1-dimensional), pandas.Index, modin.pandas.Series, optional
         dtype : str, numpy.dtype, or ExtensionDtype, optional
             Data type for the output Index. If not specified, this will be
             inferred from `data`.
@@ -86,7 +87,8 @@ class Index(metaclass=TelemetryMeta):
             Name to be stored in the index.
         tupleize_cols : bool (default: True)
             When True, attempt to create a MultiIndex if possible.
-
+        query_compiler : SnowflakeQueryCompiler, optional
+            A query compiler object to create the ``Index`` from.
         Returns
         -------
             New instance of Index or DatetimeIndex.
@@ -96,23 +98,25 @@ class Index(metaclass=TelemetryMeta):
             DatetimeIndex,
         )
 
-        orig_data = data
-        data = data._query_compiler if isinstance(data, BasePandasDataset) else data
-
-        if isinstance(data, SnowflakeQueryCompiler):
-            dtype = data.index_dtypes[0]
+        if query_compiler:
+            dtype = query_compiler.index_dtypes[0]
             if dtype == np.dtype("datetime64[ns]"):
-                return DatetimeIndex(orig_data)
-            return object.__new__(cls)
+                return DatetimeIndex(query_compiler=query_compiler)
+        elif isinstance(data, BasePandasDataset):
+            if data.ndim != 1:
+                raise ValueError("Index data must be 1 - dimensional")
+            dtype = data.dtype
+            if dtype == np.dtype("datetime64[ns]"):
+                return DatetimeIndex(data, dtype, copy, name, tupleize_cols)
         else:
             index = native_pd.Index(data, dtype, copy, name, tupleize_cols)
             if isinstance(index, native_pd.DatetimeIndex):
-                return DatetimeIndex(orig_data)
-            return object.__new__(cls)
+                return DatetimeIndex(data)
+        return object.__new__(cls)
 
     def __init__(
         self,
-        data: ArrayLike | modin.pandas.DataFrame | Series | None = None,
+        data: ArrayLike | native_pd.Index | Series | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = _CONSTRUCTOR_DEFAULTS["dtype"],
         copy: bool = _CONSTRUCTOR_DEFAULTS["copy"],
         name: object = _CONSTRUCTOR_DEFAULTS["name"],
@@ -126,7 +130,7 @@ class Index(metaclass=TelemetryMeta):
 
         Parameters
         ----------
-        data : array-like (1-dimensional), modin.pandas.Series, modin.pandas.DataFrame, optional
+        data : array-like (1-dimensional), pandas.Index, modin.pandas.Series, optional
         dtype : str, numpy.dtype, or ExtensionDtype, optional
             Data type for the output Index. If not specified, this will be
             inferred from `data`.
@@ -166,7 +170,7 @@ class Index(metaclass=TelemetryMeta):
 
     def _init_index(
         self,
-        data: ArrayLike | SnowflakeQueryCompiler | None,
+        data: ArrayLike | native_pd.Index | Series | None,
         ctor_defaults: dict,
         query_compiler: SnowflakeQueryCompiler = None,
         **kwargs: Any,
@@ -179,14 +183,23 @@ class Index(metaclass=TelemetryMeta):
                 ), f"Non-default argument '{arg_name}={arg_value}' when constructing Index with query compiler"
             self._query_compiler = query_compiler
         elif isinstance(data, BasePandasDataset):
-            self._parent = data
-            self._query_compiler = data._query_compiler.drop(
-                columns=data._query_compiler.columns
+            if data.ndim != 1:
+                raise ValueError("Index data must be 1 - dimensional")
+            series_has_no_name = data.name is None
+            idx = (
+                data.to_frame().set_index(0 if series_has_no_name else data.name).index
             )
+            if series_has_no_name:
+                idx.name = None
+            self._query_compiler = idx._query_compiler
         else:
             self._query_compiler = DataFrame(
                 index=self._NATIVE_INDEX_TYPE(data=data, **kwargs)
             )._query_compiler
+        if len(self._query_compiler.columns):
+            self._query_compiler = self._query_compiler.drop(
+                columns=self._query_compiler.columns
+            )
 
     def __getattr__(self, key: str) -> Any:
         """
@@ -410,7 +423,7 @@ class Index(metaclass=TelemetryMeta):
                 f"Too many levels: Index has only 1 level, {level} is not a valid level number."
             )
         return self.__constructor__(
-            data=self._query_compiler.groupby_agg(
+            query_compiler=self._query_compiler.groupby_agg(
                 by=self._query_compiler.get_index_names(axis=0),
                 agg_func={},
                 axis=0,
@@ -510,9 +523,9 @@ class Index(metaclass=TelemetryMeta):
                 DatetimeIndex,
             )
 
-            return DatetimeIndex(data=new_query_compiler)
+            return DatetimeIndex(query_compiler=new_query_compiler)
 
-        return Index(data=new_query_compiler)
+        return Index(query_compiler=new_query_compiler)
 
     @property
     def name(self) -> Hashable:
@@ -861,7 +874,9 @@ class Index(metaclass=TelemetryMeta):
         False
         """
         WarningMessage.ignored_argument(operation="copy", argument="deep", message="")
-        return self.__constructor__(self._query_compiler.copy(), name=name)
+        return self.__constructor__(
+            query_compiler=self._query_compiler.copy(), name=name
+        )
 
     @index_not_implemented()
     def delete(self) -> None:
@@ -1877,7 +1892,7 @@ class Index(metaclass=TelemetryMeta):
             key=key,
             include_indexer=return_indexer,
         )
-        index = self.__constructor__(res)
+        index = self.__constructor__(query_compiler=res)
         if return_indexer:
             # When `return_indexer` is True, `res` is a query compiler with one index column
             # and one data column.

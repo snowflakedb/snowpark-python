@@ -1585,6 +1585,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             The index (row labels) of the DataFrame.
         """
         if self.is_multiindex():
+            # Lazy multiindex is not supported
             return self._modin_frame.index_columns_pandas_index()
         else:
             return pd.Index(query_compiler=self)

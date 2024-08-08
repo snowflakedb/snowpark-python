@@ -670,8 +670,12 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         from snowflake.snowpark.modin.plugin.extensions.index import Index
 
         if self._query_compiler.is_multiindex():
+            # Lazy multiindex is not supported
             return self._query_compiler.index
-        return Index(data=self)
+
+        idx = Index(query_compiler=self._query_compiler)
+        idx._parent = self
+        return idx
 
     index = property(_get_index, _set_index)
 
