@@ -323,6 +323,16 @@ def build_fn_apply_args(
         expr.named_args.append(kwarg)
 
 
+def set_builtin_fn_alias(ast: proto.Expr, alias: str) -> None:
+    """
+    Set the alias for a builtin function call. Requires that the expression has an ApplyExpr with a BuiltinFn.
+    Args:
+        ast: Expr node to fill.
+        alias: Alias to set for the builtin function.
+    """
+    ast.apply_expr.fn.builtin_fn.name.fn_name_flat.name = alias
+
+
 def get_first_non_snowpark_stack_frame() -> inspect.FrameInfo:
     """Searches up through the call stack using inspect library to find the first stack frame
     of a caller within a file which does not lie within the Snowpark library itself.

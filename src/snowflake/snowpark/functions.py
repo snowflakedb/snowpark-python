@@ -191,6 +191,7 @@ from snowflake.snowpark._internal.ast_utils import (
     build_table_fn_apply,
     build_udf_apply,
     create_ast_for_column,
+    set_builtin_fn_alias,
     snowpark_expression_to_ast,
     with_src_position,
 )
@@ -869,7 +870,7 @@ def create_map(
     col = object_construct_keep_null(*cols)
 
     # Alias to create_map
-    col._ast.apply_expr.fn.builtin_fn.name.fn_name_flat.name = "create_map"
+    set_builtin_fn_alias(col._ast, "create_map")
 
     return col
 
@@ -1066,7 +1067,7 @@ def sum_distinct(e: ColumnOrName) -> Column:
     col = _call_function("sum", True, c)
 
     # alias to keep sum_distinct
-    col._ast.apply_expr.fn.builtin_fn.name.fn_name_flat.name = "sum_distinct"
+    set_builtin_fn_alias(col._ast, "sum_distinct")
 
     return col
 
