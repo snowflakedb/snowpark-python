@@ -6,7 +6,6 @@ from unittest import mock
 
 import pytest
 
-import snowflake
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.cursor import SnowflakeCursor
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
@@ -32,8 +31,7 @@ def mock_query():
     fake_query = mock.create_autospec(Query)
     fake_query.sql = "dummy sql"
     fake_query.params = "dummy params"
-    yield fake_query
-    del fake_query
+    return fake_query
 
 
 @pytest.fixture(scope="module")
@@ -45,8 +43,7 @@ def mock_snowflake_plan(mock_query) -> Analyzer:
     fake_snowflake_plan.queries = [mock_query]
     fake_snowflake_plan.post_actions = []
     fake_snowflake_plan.api_calls = []
-    yield fake_snowflake_plan
-    del fake_snowflake_plan
+    return fake_snowflake_plan
 
 
 @pytest.fixture(scope="module")
@@ -57,8 +54,7 @@ def mock_analyzer(mock_snowflake_plan) -> Analyzer:
 
     fake_analyzer = mock.create_autospec(Analyzer)
     fake_analyzer.resolve.side_effect = mock_resolve
-    yield fake_analyzer
-    del fake_analyzer
+    return fake_analyzer
 
 
 @pytest.fixture(scope="module")
@@ -66,15 +62,4 @@ def mock_session(mock_analyzer) -> Session:
     fake_session = mock.create_autospec(Session)
     fake_session._analyzer = mock_analyzer
     mock_analyzer.session = fake_session
-    yield fake_session
-    del fake_session
-
-
-@pytest.fixture(scope="module")
-def opentelemetry_session() -> Session:
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
-    session._conn._telemetry_client = mock.MagicMock()
-    yield session
-    session.close()
+    return fake_session
