@@ -84,10 +84,7 @@ from snowflake.snowpark.modin.pandas.utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._typing import ListLike
-from snowflake.snowpark.modin.plugin.utils.error_message import (
-    ErrorMessage,
-    base_not_implemented,
-)
+from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import (
     _inherit_docstrings,
@@ -882,7 +879,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         else:
             return list(self.dtypes)
 
-    @base_not_implemented()
     def align(
         self,
         other,
@@ -1074,7 +1070,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             )
         )
 
-    @base_not_implemented()
     def asof(self, where, subset=None):  # noqa: PR01, RT01, D200
         """
         Return the last row(s) without any NaNs before `where`.
@@ -1159,7 +1154,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
 
         return _AtIndexer(self)
 
-    @base_not_implemented()
     def at_time(self, time, asof=False, axis=None):  # noqa: PR01, RT01, D200
         """
         Select values at particular time of day (e.g., 9:30AM).
@@ -1190,7 +1184,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             method="bfill", axis=axis, limit=limit, downcast=downcast, inplace=inplace
         )
 
-    @base_not_implemented()
     @_inherit_docstrings(
         pandas.DataFrame.between_time, apilink="pandas.DataFrame.between_time"
     )
@@ -1230,7 +1223,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             method="bfill", axis=axis, limit=limit, downcast=downcast, inplace=inplace
         )
 
-    @base_not_implemented()
     def bool(self):  # noqa: RT01, D200
         """
         Return the bool of a single element `BasePandasDataset`.
@@ -1248,7 +1240,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         else:
             return self._to_pandas().bool()
 
-    @base_not_implemented()
     def clip(
         self, lower=None, upper=None, axis=None, inplace=False, *args, **kwargs
     ):  # noqa: PR01, RT01, D200
@@ -1279,7 +1270,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         )
         return self._create_or_update_from_compiler(new_query_compiler, inplace)
 
-    @base_not_implemented()
     def combine(self, other, func, fill_value=None, **kwargs):  # noqa: PR01, RT01, D200
         """
         Perform combination of `BasePandasDataset`-s according to `func`.
@@ -1289,7 +1279,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             "combine", other, axis=0, func=func, fill_value=fill_value, **kwargs
         )
 
-    @base_not_implemented()
     def combine_first(self, other):  # noqa: PR01, RT01, D200
         """
         Update null elements with value in the same location in `other`.
@@ -1545,7 +1534,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         )
         return self._create_or_update_from_compiler(new_query_compiler, inplace)
 
-    @base_not_implemented()
     def droplevel(self, level, axis=0):  # noqa: PR01, RT01, D200
         """
         Return `BasePandasDataset` with requested index / column level(s) removed.
@@ -1587,15 +1575,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             self._update_inplace(result._query_compiler)
         else:
             return result
-
-    @base_not_implemented()
-    def map(self, func, na_action: str | None = None, **kwargs):
-        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        if not callable(func):
-            raise ValueError(f"'{type(func)}' object is not callable")
-        return self.__constructor__(
-            query_compiler=self._query_compiler.map(func, na_action=na_action, **kwargs)
-        )
 
     def mask(
         self,
@@ -1722,7 +1701,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._binary_op("eq", other, axis=axis, level=level, dtypes=np.bool_)
 
-    @base_not_implemented()
     def explode(self, column, ignore_index: bool = False):  # noqa: PR01, RT01, D200
         """
         Transform each element of a list-like to a row.
@@ -1735,7 +1713,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             exploded = exploded.reset_index(drop=True)
         return exploded
 
-    @base_not_implemented()
     def ewm(
         self,
         com: float | None = None,
@@ -1906,7 +1883,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         )
         return self._create_or_update_from_compiler(new_query_compiler, inplace)
 
-    @base_not_implemented()
     def filter(
         self, items=None, like=None, regex=None, axis=None
     ):  # noqa: PR01, RT01, D200
@@ -2064,7 +2040,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             )
         )
 
-    @base_not_implemented()
     def infer_objects(
         self, copy: bool | None = None
     ) -> BasePandasDataset:  # pragma: no cover # noqa: RT01, D200
@@ -2145,7 +2120,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
 
         return _iLocIndexer(self)
 
-    @base_not_implemented()
     def kurt(self, axis=no_default, skipna=True, numeric_only=False, **kwargs):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         validate_bool_kwarg(skipna, "skipna", none_allowed=False)
@@ -2339,7 +2313,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             "mod", other, axis=axis, level=level, fill_value=fill_value
         )
 
-    @base_not_implemented()
     def mode(self, axis=0, numeric_only=False, dropna=True):  # noqa: PR01, RT01, D200
         """
         Get the mode(s) of each element along the selected axis.
@@ -2466,7 +2439,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             )
         )
 
-    @base_not_implemented()
     def pipe(self, func, *args, **kwargs):  # noqa: PR01, RT01, D200
         """
         Apply chainable functions that expect `BasePandasDataset`.
@@ -2474,7 +2446,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return pipe(self, func, *args, **kwargs)
 
-    @base_not_implemented()
     def pop(self, item):  # noqa: PR01, RT01, D200
         """
         Return item and drop from frame. Raise KeyError if not found.
@@ -2659,7 +2630,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             final_query_compiler, inplace=False if copy is None else not copy
         )
 
-    @base_not_implemented()
     def reindex_like(
         self, other, method=None, copy=True, limit=None, tolerance=None
     ):  # noqa: PR01, RT01, D200
@@ -2745,7 +2715,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             if not inplace:
                 return result
 
-    @base_not_implemented()
     def reorder_levels(self, order, axis=0):  # noqa: PR01, RT01, D200
         """
         Rearrange index levels using input order.
@@ -3035,7 +3004,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         )
         return self.__constructor__(query_compiler=query_compiler)
 
-    @base_not_implemented()
     def sem(
         self,
         axis: Axis | None = None,
@@ -3088,7 +3056,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             **kwargs,
         )
 
-    @base_not_implemented()
     def set_flags(
         self, *, copy: bool = False, allows_duplicate_labels: bool | None = None
     ):  # noqa: PR01, RT01, D200
@@ -3313,7 +3280,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
 
     subtract = sub
 
-    @base_not_implemented()
     def swapaxes(self, axis1, axis2, copy=True):  # noqa: PR01, RT01, D200
         """
         Interchange axes and swap values axes appropriately.
@@ -3327,7 +3293,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             return self.copy()
         return self
 
-    @base_not_implemented()
     def swaplevel(self, i=-2, j=-1, axis=0):  # noqa: PR01, RT01, D200
         """
         Swap levels `i` and `j` in a `MultiIndex`.
@@ -3355,7 +3320,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         slice_obj = indices if axis == 0 else (slice(None), indices)
         return self.iloc[slice_obj]
 
-    @base_not_implemented()
     def to_clipboard(
         self, excel=True, sep=None, **kwargs
     ):  # pragma: no cover  # noqa: PR01, RT01, D200
@@ -3418,7 +3382,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             storage_options=storage_options,
         )
 
-    @base_not_implemented()
     def to_excel(
         self,
         excel_writer,
@@ -3462,7 +3425,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             storage_options=storage_options,
         )
 
-    @base_not_implemented()
     def to_hdf(
         self, path_or_buf, key, format="table", **kwargs
     ):  # pragma: no cover  # noqa: PR01, RT01, D200
@@ -3474,7 +3436,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             "to_hdf", path_or_buf, key, format=format, **kwargs
         )
 
-    @base_not_implemented()
     def to_json(
         self,
         path_or_buf=None,
@@ -3510,7 +3471,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             storage_options=storage_options,
         )
 
-    @base_not_implemented()
     def to_latex(
         self,
         buf=None,
@@ -3566,7 +3526,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             position=position,
         )
 
-    @base_not_implemented()
     def to_markdown(
         self,
         buf=None,
@@ -3588,7 +3547,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             **kwargs,
         )
 
-    @base_not_implemented()
     def to_pickle(
         self,
         path,
@@ -3643,7 +3601,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._default_to_pandas("to_period", freq=freq, axis=axis, copy=copy)
 
-    @base_not_implemented()
     def to_string(
         self,
         buf=None,
@@ -3692,7 +3649,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             encoding=encoding,
         )
 
-    @base_not_implemented()
     def to_sql(
         self,
         name,
@@ -3736,7 +3692,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         )
 
     # TODO(williamma12): When this gets implemented, have the series one call this.
-    @base_not_implemented()
     def to_timestamp(
         self, freq=None, how="start", axis=0, copy=True
     ):  # noqa: PR01, RT01, D200
@@ -3748,7 +3703,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             "to_timestamp", freq=freq, how=how, axis=axis, copy=copy
         )
 
-    @base_not_implemented()
     def to_xarray(self):  # noqa: PR01, RT01, D200
         """
         Return an xarray object from the `BasePandasDataset`.
@@ -3769,7 +3723,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
 
     div = divide = truediv
 
-    @base_not_implemented()
     def truncate(
         self, before=None, after=None, axis=None, copy=True
     ):  # noqa: PR01, RT01, D200
@@ -3787,7 +3740,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         slice_obj = s if axis == 0 else (slice(None), s)
         return self.iloc[slice_obj]
 
-    @base_not_implemented()
     def transform(self, func, axis=0, *args, **kwargs):  # noqa: PR01, RT01, D200
         """
         Call ``func`` on self producing a `BasePandasDataset` with the same axis shape as self.
@@ -3807,7 +3759,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             raise ValueError("transforms cannot produce aggregated results")
         return result
 
-    @base_not_implemented()
     def tz_convert(self, tz, axis=0, level=None, copy=True):  # noqa: PR01, RT01, D200
         """
         Convert tz-aware axis to target time zone.
@@ -3823,7 +3774,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         obj = self.copy() if copy else self
         return obj.set_axis(new_labels, axis, copy=copy)
 
-    @base_not_implemented()
     def tz_localize(
         self, tz, axis=0, level=None, copy=True, ambiguous="raise", nonexistent="raise"
     ):  # noqa: PR01, RT01, D200
@@ -3910,33 +3860,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         arr = self.to_numpy(dtype)
         return arr
 
-    @base_not_implemented()
-    def __array_wrap__(self, result, context=None):
-        """
-        Get called after a ufunc and other functions.
-
-        Parameters
-        ----------
-        result : np.ndarray
-            The result of the ufunc or other function called on the NumPy array
-            returned by __array__.
-        context : tuple of (func, tuple, int), optional
-            This parameter is returned by ufuncs as a 3-element tuple: (name of the
-            ufunc, arguments of the ufunc, domain of the ufunc), but is not set by
-            other NumPy functions.
-
-        Returns
-        -------
-        BasePandasDataset
-            Wrapped Modin object.
-        """
-        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-
-        # TODO: This is very inefficient. __array__ and as_matrix have been
-        # changed to call the more efficient to_numpy, but this has been left
-        # unchanged since we are not sure of its purpose.
-        return self._default_to_pandas("__array_wrap__", result, context=context)
-
     def __copy__(self, deep=True):
         """
         Return the copy of the `BasePandasDataset`.
@@ -3973,7 +3896,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self.eq(other)
 
-    @base_not_implemented()
     def __finalize__(self, other, method=None, **kwargs):
         """
         Propagate metadata from `other` to `self`.
@@ -4137,7 +4059,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
     def __ror__(self, other):
         return self._binary_op("__ror__", other, axis=0)
 
-    @base_not_implemented()
     def __sizeof__(self):
         """
         Generate the total memory usage for an `BasePandasDataset`.
