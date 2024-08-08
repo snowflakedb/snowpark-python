@@ -210,12 +210,11 @@ def test_register_udtf_from_file_with_typehints(session, resources_path):
     Utils.assert_executed_with_query_tag(session, query_tag)
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="SNOW-1618722: XP worker failure in pre-commit env")
 @pytest.mark.parametrize("register_from_file", [True, False])
 def test_udtf_register_with_optional_args(
     session: Session, resources_path, register_from_file
 ):
-    if register_from_file and IS_IN_STORED_PROC:
-        pytest.skip("skip register from file in stored proc")
     test_files = TestFiles(resources_path)
     schema = [
         "int_req",
