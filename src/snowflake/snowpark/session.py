@@ -1949,6 +1949,9 @@ class Session:
         stmt = self._ast_batch.assign()
         expr = stmt.expr
 
+        # Session.table_function is a two-in-one:
+        # - Can call functions directly. Use build_session_table_fn_apply
+        # - Can use Callable or TableFunctionCall objects. Use build_table_fn_apply
         if isinstance(func_name, TableFunctionCall):
             expr.apply_expr.fn.table_fn.call_type.table_fn_call_type__session_table_fn = (
                 True
@@ -1967,7 +1970,7 @@ class Session:
             build_table_fn_apply(
                 expr,
                 None,  # The callee is a Callable object that carries its own name.
-                func_name._ast,
+                func_name._ast,  # Inline the AST expression of the callee.
                 *func_arguments,
                 **func_named_arguments,
             )
