@@ -205,6 +205,17 @@ def build_builtin_fn_apply(
     build_fn_apply_args(ast, *args, **kwargs)
 
 
+def build_udf_apply(
+    ast: proto.Expr,
+    udf_name: str,
+    *args: Tuple[Union[proto.Expr, Any]],
+) -> None:
+    expr = with_src_position(ast.apply_expr)
+    _set_fn_name(udf_name, expr.fn.udf)
+    set_src_position(expr.fn.udf.src)
+    build_fn_apply_args(ast, *args)
+
+
 def build_session_table_fn_apply(
     ast: proto.Expr,
     name: Union[str, Iterable[str]],
