@@ -330,7 +330,7 @@ def set_builtin_fn_alias(ast: proto.Expr, alias: str) -> None:
         ast: Expr node to fill.
         alias: Alias to set for the builtin function.
     """
-    ast.apply_expr.fn.builtin_fn.name.fn_name_flat.name = alias
+    _set_fn_name(alias, ast.apply_expr.fn.builtin_fn)
 
 
 def get_first_non_snowpark_stack_frame() -> inspect.FrameInfo:
