@@ -94,6 +94,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldInt,
     SubfieldString,
     UnresolvedAttribute,
+    WithinGroup,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
@@ -1629,6 +1630,15 @@ def calculate_expression(
             is_distinct=exp.is_distinct,
             delimiter=exp.delimiter,
         )
+    if isinstance(exp, WithinGroup):
+        order_by_cols = [
+            order if isinstance(order, SortOrder) else SortOrder(order, Ascending())
+            for order in exp.order_by_cols
+        ]
+        ordered_data = handle_order_by_clause(
+            order_by_cols, input_data, analyzer, expr_to_alias, False
+        )
+        return calculate_expression(exp.child, ordered_data, analyzer, expr_to_alias)
     if isinstance(exp, IsNull):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
@@ -1911,11 +1921,21 @@ def calculate_expression(
         window_spec = exp.window_spec
 
         # Process order by clause
-        if window_spec.order_spec:
+        if window_spec.order_spec or isinstance(window_function, WithinGroup):
+            order_spec = window_spec.order_spec
+            if isinstance(window_function, WithinGroup):
+                order_spec = [
+                    order
+                    if isinstance(order, SortOrder)
+                    else SortOrder(order, Ascending())
+                    for order in window_function.order_by_cols
+                ]
+                window_function = window_function.child
+
             # If the window function is a function expression then any intermediate
             # columns that are used for ordering may be needed later and should be retained.
             ordered = handle_order_by_clause(
-                window_spec.order_spec,
+                order_spec,
                 input_data,
                 analyzer,
                 expr_to_alias,
