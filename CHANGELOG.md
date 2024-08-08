@@ -68,6 +68,10 @@
 - Added support for `DataFrame.items`.
 - Added support for `Series.dt.floor` and `Series.dt.ceil`.
 - Added support for `Index.reindex`.
+- Added support for `DatetimeIndex` properties: `year`, `month`, `day`, `hour`, `minute`, `second`, `microsecond`,
+    `nanosecond`, `date`, `dayofyear`, `day_of_year`, `dayofweek`, `day_of_week`, `weekday`, `quarter`,
+    `is_month_start`, `is_month_end`, `is_quarter_start`, `is_quarter_end`, `is_year_start`, `is_year_end`
+    and `is_leap_year`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.

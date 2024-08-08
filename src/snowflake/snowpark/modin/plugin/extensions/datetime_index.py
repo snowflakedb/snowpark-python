@@ -26,6 +26,8 @@ Module houses ``DatetimeIndex`` class, that is distributed version of
 
 from __future__ import annotations
 
+from datetime import tzinfo
+
 import modin
 import numpy as np
 import pandas as native_pd
@@ -36,6 +38,9 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
 from snowflake.snowpark.modin.plugin.extensions.index import Index
+from snowflake.snowpark.modin.plugin.utils.error_message import (
+    datetime_index_not_implemented,
+)
 
 _CONSTRUCTOR_DEFAULTS = {
     "freq": lib.no_default,
@@ -154,3 +159,514 @@ class DatetimeIndex(Index):
             "name": name,
         }
         self._init_index(data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs)
+
+    @property
+    def year(self) -> Index:
+        """
+        The year of the datetime.
+
+        Returns
+        -------
+        An Index with the year of the datetime.
+
+        Examples
+        --------
+        >>> idx = pd.date_range("2000-01-01", periods=3, freq="YE")
+        >>> idx
+        DatetimeIndex(['2000-12-31', '2001-12-31', '2002-12-31'], dtype='datetime64[ns]', freq=None)
+        >>> idx.year
+        Index([2000, 2001, 2002], dtype='int32')
+        """
+        return Index(self._query_compiler.dt_property("year", include_index=True))
+
+    @property
+    def month(self) -> Index:
+        """
+        The month as January=1, December=12.
+
+        Returns
+        -------
+        An Index with the month of the datetime.
+
+        Examples
+        --------
+        >>> idx = pd.date_range("2000-01-01", periods=3, freq="ME")
+        >>> idx
+        DatetimeIndex(['2000-01-31', '2000-02-29', '2000-03-31'], dtype='datetime64[ns]', freq=None)
+        >>> idx.month
+        Index([1, 2, 3], dtype='int32')
+        """
+        return Index(self._query_compiler.dt_property("month", include_index=True))
+
+    @property
+    def day(self) -> Index:
+        """
+        The day of the datetime.
+
+        Returns
+        -------
+        An Index with the day of the datetime.
+
+        Examples
+        --------
+        >>> idx = pd.date_range("2000-01-01", periods=3, freq="D")
+        >>> idx
+        DatetimeIndex(['2000-01-01', '2000-01-02', '2000-01-03'], dtype='datetime64[ns]', freq=None)
+        >>> idx.day
+        Index([1, 2, 3], dtype='int32')
+        """
+        return Index(self._query_compiler.dt_property("day", include_index=True))
+
+    @property
+    def hour(self) -> Index:
+        """
+        The hours of the datetime.
+
+        Returns
+        -------
+        An Index with the hours of the datetime.
+
+        Examples
+        --------
+        >>> idx = pd.date_range("2000-01-01", periods=3, freq="h")
+        >>> idx
+        DatetimeIndex(['2000-01-01 00:00:00', '2000-01-01 01:00:00', '2000-01-01 02:00:00'], dtype='datetime64[ns]', freq=None)
+        >>> idx.hour
+        Index([0, 1, 2], dtype='int32')
+        """
+        return Index(self._query_compiler.dt_property("hour", include_index=True))
+
+    @property
+    def minute(self) -> Index:
+        """
+        The minutes of the datetime.
+
+        Returns
+        -------
+        An Index with the minutes of the datetime.
+
+        Examples
+        --------
+        >>> idx = pd.date_range("2000-01-01", periods=3, freq="min")
+        >>> idx
+        DateTimeIndex(['2000-01-01 00:00:00', '2000-01-01 00:01:00', '2000-01-01 00:02:00'], dtype='datetime64[ns]', freq=None)
+        >>> idx.minute
+        Index([0, 1, 2], dtype='int32')
+        """
+        return Index(self._query_compiler.dt_property("minute", include_index=True))
+
+    @property
+    def second(self) -> Index:
+        """
+        The seconds of the datetime.
+
+        Returns
+        -------
+        An Index with the seconds of the datetime.
+
+        Examples
+        --------
+        >>> idx = pd.date_range("2000-01-01", periods=3, freq="s")
+        >>> idx
+        DatetimeIndex(['2000-01-01 00:00:00', '2000-01-01 00:00:01', '2000-01-01 00:00:02'], dtype='datetime64[ns]', freq=None)
+        >>> idx.second
+        Index([0, 1, 2], dtype='int32')
+        """
+        return Index(self._query_compiler.dt_property("second", include_index=True))
+
+    @property
+    def microsecond(self) -> Index:
+        """
+        The microseconds of the datetime.
+
+        Returns
+        -------
+        An Index with the microseconds of the datetime.
+
+        Examples
+        --------
+        >>> idx = pd.date_range("2000-01-01", periods=3, freq="us")
+        >>> idx
+        DatetimeIndex(['2000-01-01 00:00:00', '2000-01-01 00:00:00.000001', '2000-01-01 00:00:00.000002'], dtype='datetime64[ns]', freq=None)
+        >>> idx.microsecond
+        Index([0, 1, 2], dtype='int32')
+        """
+        return Index(
+            self._query_compiler.dt_property("microsecond", include_index=True)
+        )
+
+    @property
+    def nanosecond(self) -> Index:
+        """
+        The nanoseconds of the datetime.
+
+        Returns
+        -------
+        An Index with the nanoseconds of the datetime.
+
+        Examples
+        --------
+        >>> idx = pd.date_range("2000-01-01", periods=3, freq="ns")
+        >>> idx
+        DatetimeIndex(['2000-01-01 00:00:00', '2000-01-01 00:00:00.000001', '2000-01-01 00:00:00.000002'], dtype='datetime64[ns]', freq=None)
+        >>> idx.nanosecond
+        Index([0, 1, 2], dtype='int32')
+        """
+        return Index(self._query_compiler.dt_property("nanosecond", include_index=True))
+
+    @property
+    def date(self) -> Index:
+        """
+        Returns the date part of Timestamps without time and timezone information.
+
+        Returns
+        -------
+        Returns an Index with the date part of Timestamps.
+
+        Examples
+        --------
+        >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
+        ...                         "2/1/2020 11:00:00+00:00"])
+        >>> idx.date
+        Index("2020-01-01", "2020-02-01", dtype='object')
+        """
+        return Index(self._query_compiler.dt_property("date", include_index=True))
+
+    @property
+    def dayofweek(self) -> Index:
+        """
+        The day of the week with Monday=0, Sunday=6.
+
+        Return the day of the week. It is assumed the week starts on
+        Monday, which is denoted by 0 and ends on Sunday which is denoted
+        by 6. This method is available on both Series with datetime
+        values (using the `dt` accessor) or DatetimeIndex.
+
+        Returns
+        -------
+        An Index Containing integers indicating the day number.
+
+        Examples
+        --------
+        >>> idx = pd.date_range('2016-12-31', '2017-01-08', freq='D')
+        >>> idx.dayofweek
+        Index([5, 6, 0, 1, 2, 3, 4, 5, 6], dtype='int32')
+        """
+        return Index(self._query_compiler.dt_property("dayofweek", include_index=True))
+
+    day_of_week = dayofweek
+    weekday = dayofweek
+
+    @property
+    def dayofyear(self) -> Index:
+        """
+        The ordinal day of the year.
+
+        Returns
+        -------
+        An Index Containing integers indicating the ordinal day of the year.
+
+        Examples
+        --------
+        >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
+        ...                         "2/1/2020 11:00:00+00:00"])
+        >>> idx.dayofyear
+        Index([1, 32], dtype='int32')
+        """
+        return Index(self._query_compiler.dt_property("dayofyear", include_index=True))
+
+    day_of_year = dayofyear
+
+    @property
+    def quarter(self) -> Index:
+        """
+        The quarter of the date.
+
+        Returns
+        -------
+        An Index Containing quarter of the date.
+
+        Examples
+        --------
+        >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
+        ...                         "2/1/2020 11:00:00+00:00"])
+        >>> idx.quarter
+        Index([1, 1], dtype='int32')
+        """
+        return Index(self._query_compiler.dt_property("quarter", include_index=True))
+
+    @property
+    def is_month_start(self) -> Index:
+        """
+        Indicates whether the date is the first day of the month.
+
+        Returns
+        -------
+        An Index with boolean values.
+
+        See Also
+        --------
+        is_month_end : Similar property indicating the last day of the month.
+
+        Examples
+        --------
+
+        >>> idx = pd.date_range("2018-02-27", periods=3)
+        >>> idx.is_month_start
+        Index([False, False, True])
+        """
+        return Index(
+            self._query_compiler.dt_property("is_month_start", include_index=True)
+        )
+
+    @property
+    def is_month_end(self) -> Index:
+        """
+        Indicates whether the date is the last day of the month.
+
+        Returns
+        -------
+        An Index with boolean values.
+
+        See Also
+        --------
+        is_month_start : Similar property indicating the first day of the month.
+
+        Examples
+        --------
+
+        >>> idx = pd.date_range("2018-02-27", periods=3)
+        >>> idx.is_month_end
+        Index([False, True, False])
+        """
+        return Index(
+            self._query_compiler.dt_property("is_month_end", include_index=True)
+        )
+
+    @property
+    def is_quarter_start(self) -> Index:
+        """
+        Indicator for whether the date is the first day of a quarter.
+
+        Returns
+        -------
+        An Index with boolean values.
+
+        See Also
+        --------
+        is_quarter_end : Similar property indicating the last day of the quarter.
+
+        Examples
+        --------
+        >>> idx = pd.date_range('2017-03-30', periods=4)
+        >>> idx
+        DatetimeIndex(['2017-03-30', '2017-03-31', '2017-04-01', '2017-04-02'],
+                      dtype='datetime64[ns]', freq='D')
+
+        >>> idx.is_quarter_start
+        Index([False, False,  True, False])
+        """
+        return Index(
+            self._query_compiler.dt_property("is_quarter_start", include_index=True)
+        )
+
+    @property
+    def is_quarter_end(self) -> Index:
+        """
+        Indicator for whether the date is the last day of a quarter.
+
+        Returns
+        -------
+        An Index with boolean values.
+
+        See Also
+        --------
+        is_quarter_start: Similar property indicating the first day of the quarter.
+
+        Examples
+        --------
+        >>> idx = pd.date_range('2017-03-30', periods=4)
+        >>> idx
+        DatetimeIndex(['2017-03-30', '2017-03-31', '2017-04-01', '2017-04-02'],
+                      dtype='datetime64[ns]', freq='D')
+
+        >>> idx.is_quarter_end
+        Index([False,  True, False, False])
+        """
+        return Index(
+            self._query_compiler.dt_property("is_quarter_end", include_index=True)
+        )
+
+    @property
+    def is_year_start(self) -> Index:
+        """
+        Indicate whether the date is the first day of a year.
+
+        Returns
+        -------
+        An Index with boolean values.
+
+        See Also
+        --------
+        is_year_end : Similar property indicating the last day of the year.
+
+        Examples
+        --------
+        >>> idx = pd.date_range("2017-12-30", periods=3)
+        >>> idx
+        DatetimeIndex(['2017-12-30', '2017-12-31', '2018-01-01'], dtype='datetime64[ns]', freq=None)
+
+        >>> idx.is_year_start
+        Index([False, False,  True])
+        """
+        return Index(
+            self._query_compiler.dt_property("is_year_start", include_index=True)
+        )
+
+    @property
+    def is_year_end(self) -> Index:
+        """
+        Indicate whether the date is the last day of the year.
+
+        Returns
+        -------
+        An Index with boolean values.
+
+        See Also
+        --------
+        is_year_start : Similar property indicating the start of the year.
+
+        Examples
+        --------
+        >>> idx = pd.date_range("2017-12-30", periods=3)
+        >>> idx
+        DatetimeIndex(['2017-12-30', '2017-12-31', '2018-01-01'],
+                      dtype='datetime64[ns]', freq='D')
+
+        >>> idx.is_year_end
+        Index([False,  True, False])
+        """
+        return Index(
+            self._query_compiler.dt_property("is_year_end", include_index=True)
+        )
+
+    @property
+    def is_leap_year(self) -> Index:
+        """
+        Boolean indicator if the date belongs to a leap year.
+
+        A leap year is a year, which has 366 days (instead of 365) including
+        29th of February as an intercalary day.
+        Leap years are years which are multiples of four except for  years
+        divisible by 100 but not by 400.
+
+        Returns
+        -------
+        An Index with boolean values indicating if dates belong to a leap year.
+
+        Examples
+        --------
+        >>> idx = pd.date_range("2012-01-01", "2015-01-01", freq="YE")
+        >>> idx
+        DatetimeIndex(['2012-12-31', '2013-12-31', '2014-12-31'], dtype='datetime64[ns]', freq=None)
+        >>> idx.is_leap_year
+        Index([ True, False, False])
+        """
+        return Index(
+            self._query_compiler.dt_property("is_leap_year", include_index=True)
+        )
+
+    @datetime_index_not_implemented()
+    @property
+    def time(self) -> Index:
+        """
+        Returns the time part of the Timestamps.
+
+        Returns
+        -------
+        An Index with the time part of the Timestamps.
+
+        Examples
+        --------
+        >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
+        ...                         "2/1/2020 11:00:00+00:00"])
+        >>> idx.time
+        Index(["10:00:00", "11:00:00"], dtype='object')
+        """
+        pass
+
+    @datetime_index_not_implemented()
+    @property
+    def timetz(self) -> Index:
+        """
+        Returns the time part of the Timestamps with timezone.
+
+        Returns
+        -------
+        An Index with the time part with timezone of the Timestamps.
+
+        Examples
+        --------
+        >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
+        ...                         "2/1/2020 11:00:00+00:00"])
+        >>> idx.timetz
+        Index(["10:00:00+00:00", "11:00:00+00:00"], dtype='object')
+        """
+        pass
+
+    @datetime_index_not_implemented()
+    @property
+    def tz(self) -> tzinfo | None:
+        """
+        Return the timezone.
+
+        Returns
+        -------
+        datetime.tzinfo, pytz.tzinfo.BaseTZInfo, dateutil.tz.tz.tzfile, or None
+            Returns None when the array is tz-naive.
+
+        Examples
+        --------
+        >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
+        ...                         "2/1/2020 11:00:00+00:00"])
+        >>> idx.tz
+        datetime.timezone.utc
+        """
+        pass
+
+    @datetime_index_not_implemented()
+    @property
+    def freqstr(self) -> str | None:
+        """
+        Return the frequency object as a string if it's set, otherwise None.
+
+        Examples
+        --------
+        >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00"], freq="D")
+        >>> idx.freqstr
+        'D'
+
+        The frequency can be inferred if there are more than 2 points:
+
+        >>> idx = pd.DatetimeIndex(["2018-01-01", "2018-01-03", "2018-01-05"],
+        ...                        freq="infer")
+        >>> idx.freqstr
+        '2D'
+        """
+        pass
+
+    @datetime_index_not_implemented()
+    @property
+    def inferred_freq(self) -> str | None:
+        """
+        Tries to return a string representing a frequency generated by infer_freq.
+
+        Returns None if it can't autodetect the frequency.
+
+        Examples
+        --------
+        >>> idx = pd.DatetimeIndex(["2018-01-01", "2018-01-03", "2018-01-05"])
+        >>> idx.inferred_freq
+        '2D'
+        """
+        pass
