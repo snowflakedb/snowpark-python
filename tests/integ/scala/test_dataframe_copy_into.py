@@ -564,8 +564,7 @@ def test_json_read_format_name(session, tmp_stage_name1):
     )
 
     assert any(
-        "CREATE SCOPED TEMPORARY FILE  FORMAT" in q
-        and "TYPE = 'json' NULL_IF = '' COMPRESSION = 'gzip'" in q
+        "CREATE SCOPED TEMPORARY FILE  FORMAT" in q and "CLONE" in q
         for q in sf_df.queries["queries"]
     )
 

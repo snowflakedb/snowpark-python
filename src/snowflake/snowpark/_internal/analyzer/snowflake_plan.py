@@ -44,6 +44,7 @@ import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     TEMPORARY_STRING_SET,
     aggregate_statement,
+    alter_file_format_statement,
     attribute_to_schema_string,
     batch_insert_into_statement,
     copy_into_location,
@@ -1097,45 +1098,6 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    def _merge_file_format_options(
-        self, file_format_options: Dict[str, Any], options: Dict[str, str]
-    ) -> Dict[str, Any]:
-        """
-        Merges remotely defined file_format options with the local options set. This allows the client
-        to override any locally defined options that are incompatible with the file format.
-        """
-        if "FORMAT_NAME" not in options:
-            return file_format_options
-
-        def process_list(list_property):
-            split_list = list_property.lstrip("[").rstrip("]").split(", ")
-            if len(split_list) == 1:
-                return split_list[0]
-            return tuple(split_list)
-
-        type_map = {
-            "String": str,
-            "List": process_list,
-            "Integer": int,
-            "Boolean": bool,
-        }
-        new_options = {**file_format_options}
-        file_format = self.session.sql(
-            f"DESCRIBE FILE FORMAT {options['FORMAT_NAME']}"
-        ).collect()
-
-        for setting in file_format:
-            if (
-                setting["property_value"] == setting["property_default"]
-                or setting["property"] in new_options
-            ):
-                continue
-
-            new_options[str(setting["property"])] = type_map.get(
-                str(setting["property_type"]), str
-            )(setting["property_value"])
-        return new_options
-
     def read_file(
         self,
         path: str,
@@ -1148,10 +1110,8 @@ class SnowflakePlanBuilder:
         metadata_schema: Optional[List[Attribute]] = None,
     ):
         format_type_options, copy_options = get_copy_into_table_options(options)
-        format_type_options = self._merge_file_format_options(
-            format_type_options, options
-        )
         pattern = options.get("PATTERN")
+        external_file_format = "FORMAT_NAME" in options
         # Can only infer the schema for parquet, orc and avro
         # csv and json in preview
         infer_schema = (
@@ -1163,7 +1123,7 @@ class SnowflakePlanBuilder:
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
 
-        if format_type_options.get("PARSE_HEADER", False):
+        if format_type_options.get("PARSE_HEADER", False) or external_file_format:
             # This option is only available for CSV file format
             # The options is used when specified with INFER_SCHEMA( ..., FILE_FORMAT => (.., PARSE_HEADER)) see
             # https://docs.snowflake.com/en/sql-reference/sql/create-file-format#format-type-options-formattypeoptions
@@ -1189,10 +1149,22 @@ class SnowflakePlanBuilder:
                         if_not_exist=True,
                         use_scoped_temp_objects=self.session._use_scoped_temp_objects,
                         is_generated=True,
+                        clones=options.get("FORMAT_NAME", None),
                     ),
                     is_ddl_on_temp_object=True,
                 )
             )
+            if external_file_format:
+                format_type_options["PARSE_HEADER"] = False
+                queries.append(
+                    Query(
+                        alter_file_format_statement(
+                            format_name,
+                            format_type_options,
+                        )
+                    )
+                )
+
             post_queries.append(
                 Query(
                     drop_file_format_if_exists_statement(format_name),

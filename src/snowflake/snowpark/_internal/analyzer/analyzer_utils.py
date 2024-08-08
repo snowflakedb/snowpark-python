@@ -87,6 +87,7 @@ ASOF = " ASOF "
 MATCH_CONDITION = " MATCH_CONDITION "
 EXISTS = " EXISTS "
 CREATE = " CREATE "
+ALTER = " ALTER "
 TABLE = " TABLE "
 REPLACE = " REPLACE "
 VIEW = " VIEW "
@@ -123,6 +124,7 @@ LOCATION = " LOCATION "
 FILE_FORMAT = " FILE_FORMAT "
 FORMAT_NAME = " FORMAT_NAME "
 COPY = " COPY "
+CLONE = " CLONE "
 REG_EXP = " REGEXP "
 COLLATE = " COLLATE "
 RESULT_SCAN = " RESULT_SCAN"
@@ -881,11 +883,13 @@ def create_file_format_statement(
     *,
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
+    clones: Optional[str] = None,
 ) -> str:
     type_str = TYPE + EQUALS + file_type + SPACE
     options_str = (
         type_str if "TYPE" not in options else EMPTY_STRING
     ) + get_options_statement(options)
+    clones_or_options_str = options_str if clones is None else (CLONE + clones)
     return (
         CREATE
         + (
@@ -897,8 +901,16 @@ def create_file_format_statement(
         + FORMAT
         + (IF + NOT + EXISTS if if_not_exist else EMPTY_STRING)
         + format_name
-        + options_str
+        + clones_or_options_str
     )
+
+
+def alter_file_format_statement(
+    format_name: str,
+    options: Dict,
+) -> str:
+    options_str = get_options_statement(options)
+    return ALTER + FILE + FORMAT + format_name + SET + options_str
 
 
 def infer_schema_statement(

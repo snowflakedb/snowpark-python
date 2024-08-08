@@ -128,8 +128,7 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
             DataFrameReader(fake_session).option("format_name", "TEST_FMT"), format_type
         )("@stage/file")
     assert any(
-        "CREATE SCOPED TEMPORARY FILE  FORMAT" in q
-        and f"TYPE  = {format_type.upper()}" in q
+        "CREATE SCOPED TEMPORARY FILE  FORMAT" in q and "CLONE" in q
         for q in df.queries["queries"]
     )
 

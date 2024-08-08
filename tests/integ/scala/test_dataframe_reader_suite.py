@@ -698,18 +698,6 @@ def test_csv_external_file_format(session, resources_path, temp_schema):
             f"@{data_files_stage}/"
         )
 
-        # Validate Merge
-        assert df._session._plan_builder._merge_file_format_options(
-            {}, {"FORMAT_NAME": file_format}
-        ) == {
-            "PARSE_HEADER": True,
-            "ESCAPE": r"\\",
-            "ESCAPE_UNENCLOSED_FIELD": "NONE",
-            "FIELD_OPTIONALLY_ENCLOSED_BY": r"\"",
-            "SKIP_BLANK_LINES": True,
-            "REPLACE_INVALID_CHARACTERS": True,
-        }
-
         res = df.collect()
         res.sort(key=lambda x: x[0])
         assert res == [
