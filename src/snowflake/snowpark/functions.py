@@ -185,11 +185,14 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     Lead,
 )
 from snowflake.snowpark._internal.ast_utils import (
+    build_builtin_fn_apply,
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_python_val,
     build_expr_from_snowpark_column_or_sql_str,
-    build_fn_apply,
+    build_table_fn_apply,
+    build_udf_apply,
     create_ast_for_column,
+    set_builtin_fn_alias,
     snowpark_expression_to_ast,
     with_src_position,
 )
@@ -330,7 +333,7 @@ def lit(literal: LiteralType) -> Column:
     """
 
     ast = proto.Expr()
-    build_fn_apply(ast, "lit", literal)
+    build_builtin_fn_apply(ast, "lit", literal)
     return literal if isinstance(literal, Column) else Column(Literal(literal), ast=ast)
 
 
@@ -351,7 +354,7 @@ def sql_expr(sql: str, _emit_ast: bool = True) -> Column:
 
         # Capture with ApplyFn in order to restore sql_expr(...) function.
         ast = proto.Expr()
-        build_fn_apply(ast, "sql_expr", sql_expr_ast)
+        build_builtin_fn_apply(ast, "sql_expr", sql_expr_ast)
 
     return Column._expr(sql, ast=ast)
 
@@ -621,7 +624,7 @@ def bround(col: ColumnOrName, scale: Union[Column, int]) -> Column:
     scale = _to_col_if_lit(scale, "bround")
 
     ast = proto.Expr()
-    build_fn_apply(ast, "bround", col, scale)
+    build_builtin_fn_apply(ast, "bround", col, scale)
 
     # Note: Original Snowpark python code capitalized here.
     col = call_builtin("ROUND", col, scale, lit("HALF_TO_EVEN"))
@@ -781,7 +784,7 @@ def count_distinct(*cols: ColumnOrName) -> Column:
     """
 
     ast = proto.Expr()
-    build_fn_apply(ast, "count_distinct", *cols)
+    build_builtin_fn_apply(ast, "count_distinct", *cols)
 
     cs = [_to_col_if_str(c, "count_distinct") for c in cols]
     return Column(
@@ -891,7 +894,7 @@ def create_map(
     col = object_construct_keep_null(*cols)
 
     # Alias to create_map
-    col._ast.apply_expr.fn.builtin_fn.name = "create_map"
+    set_builtin_fn_alias(col._ast, "create_map")
 
     return col
 
@@ -1088,7 +1091,7 @@ def sum_distinct(e: ColumnOrName) -> Column:
     col = _call_function("sum", True, c)
 
     # alias to keep sum_distinct
-    col._ast.apply_expr.fn.builtin_fn.name = "sum_distinct"
+    set_builtin_fn_alias(col._ast, "sum_distinct")
 
     return col
 
@@ -1346,8 +1349,15 @@ def explode(col: ColumnOrName) -> "snowflake.snowpark.table_function.TableFuncti
         <BLANKLINE>
     """
     col = _to_col_if_str(col, "explode")
+    # AST.
+    ast = proto.Expr()
+    ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__builtin_fn = True
+    build_table_fn_apply(ast, "explode", col)
+
     func_call = snowflake.snowpark.table_function._ExplodeFunctionCall(col, lit(False))
     func_call._set_api_call_source("functions.explode")
+    func_call._ast = ast
+
     return func_call
 
 
@@ -1394,8 +1404,16 @@ def explode_outer(
         :func:`explode`
     """
     col = _to_col_if_str(col, "explode_outer")
+
+    # AST
+    ast = proto.Expr()
+    ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__builtin_fn = True
+    build_table_fn_apply(ast, "explode_outer", col)
+
     func_call = snowflake.snowpark.table_function._ExplodeFunctionCall(col, lit(True))
     func_call._set_api_call_source("functions.explode_outer")
+    func_call._ast = ast
+
     return func_call
 
 
@@ -1469,6 +1487,12 @@ def flatten(
         - `Flatten <https://docs.snowflake.com/en/sql-reference/functions/flatten>`_
     """
     col = _to_col_if_str(col, "flatten")
+
+    # AST
+    ast = proto.Expr()
+    ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__builtin_fn = True
+    build_table_fn_apply(ast, "flatten", col, path, outer, recursive, mode)
+
     func_call = snowflake.snowpark.table_function.TableFunctionCall(
         "flatten",
         input=col,
@@ -1478,6 +1502,8 @@ def flatten(
         mode=lit(mode),
     )
     func_call._set_api_call_source("functions.flatten")
+    func_call._ast = ast
+
     return func_call
 
 
@@ -1607,7 +1633,7 @@ def random(seed: Optional[int] = None) -> Column:
     # Create AST here to encode whether a seed was supplied by the user or not.
     ast = proto.Expr()
     args = (seed,) if seed is not None else ()
-    build_fn_apply(ast, "random", *args)
+    build_builtin_fn_apply(ast, "random", *args)
 
     s = seed if seed is not None else randint(-(2**63), 2**63 - 1)
     col = builtin("random")(Literal(s))
@@ -2602,7 +2628,7 @@ def round(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column
     )
 
     ast = proto.Expr()
-    build_fn_apply(ast, "round", e, scale)
+    build_builtin_fn_apply(ast, "round", e, scale)
 
     col = builtin("round")(c, scale_col)
     col._ast = ast
@@ -6894,7 +6920,7 @@ def in_(
 
     # Replace ast in col with correct one.
     ast = proto.Expr()
-    build_fn_apply(ast, "in_", list_arg, *values_args)
+    build_builtin_fn_apply(ast, "in_", list_arg, *values_args)
     col._ast = ast
     return col
 
@@ -7071,7 +7097,9 @@ def lag(
     c = _to_col_if_str(e, "lag")
 
     ast = proto.Expr()
-    build_fn_apply(ast, "lag", e, default_value, offset, default_value, ignore_nulls)
+    build_builtin_fn_apply(
+        ast, "lag", e, default_value, offset, default_value, ignore_nulls
+    )
 
     return Column(
         Lag(c._expression, offset, Column._to_expr(default_value), ignore_nulls),
@@ -7108,7 +7136,9 @@ def lead(
     c = _to_col_if_str(e, "lead")
 
     ast = proto.Expr()
-    build_fn_apply(ast, "lead", e, default_value, offset, default_value, ignore_nulls)
+    build_builtin_fn_apply(
+        ast, "lead", e, default_value, offset, default_value, ignore_nulls
+    )
 
     return Column(
         Lead(c._expression, offset, Column._to_expr(default_value), ignore_nulls),
@@ -7134,7 +7164,7 @@ def last_value(
     c = _to_col_if_str(e, "last_value")
 
     ast = proto.Expr()
-    build_fn_apply(ast, "last_value", e, ignore_nulls)
+    build_builtin_fn_apply(ast, "last_value", e, ignore_nulls)
 
     return Column(LastValue(c._expression, None, None, ignore_nulls), ast=ast)
 
@@ -7157,7 +7187,7 @@ def first_value(
     c = _to_col_if_str(e, "last_value")
 
     ast = proto.Expr()
-    build_fn_apply(ast, "first_value", e, ignore_nulls)
+    build_builtin_fn_apply(ast, "first_value", e, ignore_nulls)
 
     return Column(FirstValue(c._expression, None, None, ignore_nulls), ast=ast)
 
@@ -7274,7 +7304,7 @@ def listagg(e: ColumnOrName, delimiter: str = "", is_distinct: bool = False) -> 
     c = _to_col_if_str(e, "listagg")
 
     ast = proto.Expr()
-    build_fn_apply(ast, "listagg", e, delimiter, is_distinct)
+    build_builtin_fn_apply(ast, "listagg", e, delimiter, is_distinct)
 
     return Column(ListAgg(c._expression, delimiter, is_distinct), ast=ast)
 
@@ -8368,13 +8398,20 @@ def call_udf(
         -------------------------------
         <BLANKLINE>
     """
+    # AST
+    ast = proto.Expr()
+    build_udf_apply(ast, udf_name, *args)
 
     validate_object_name(udf_name)
-    return _call_function(udf_name, False, *args, api_call_source="functions.call_udf")
+    return _call_function(
+        udf_name, False, *args, api_call_source="functions.call_udf", _ast=ast
+    )
 
 
 def call_table_function(
-    function_name: str, *args: ColumnOrLiteral, **kwargs: ColumnOrLiteral
+    function_name: str,
+    *args: ColumnOrLiteral,
+    **kwargs: ColumnOrLiteral,
 ) -> "snowflake.snowpark.table_function.TableFunctionCall":
     """Invokes a Snowflake table function, including system-defined table functions and user-defined table functions.
 
@@ -8390,9 +8427,17 @@ def call_table_function(
         >>> session.table_function(call_table_function("split_to_table", lit("split words to table"), lit(" ")).over()).collect()
         [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
     """
-    return snowflake.snowpark.table_function.TableFunctionCall(
+    # AST
+    ast = proto.Expr()
+    ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__call_table_fn = True
+    build_table_fn_apply(ast, function_name, *args, **kwargs)
+
+    func_call = snowflake.snowpark.table_function.TableFunctionCall(
         function_name, *args, **kwargs
     )
+    func_call._ast = ast
+
+    return func_call
 
 
 def table_function(function_name: str) -> Callable:
@@ -8407,7 +8452,16 @@ def table_function(function_name: str) -> Callable:
         >>> session.table_function(split_to_table(lit("split words to table"), lit(" ")).over()).collect()
         [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
     """
-    return lambda *args, **kwargs: call_table_function(function_name, *args, **kwargs)
+    fn = lambda *args, **kwargs: call_table_function(  # noqa: E731
+        function_name, *args, **kwargs
+    )
+    # AST
+    ast = proto.Expr()
+    ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__table_fn = True
+    build_table_fn_apply(ast, function_name)
+    fn._ast = ast
+
+    return fn
 
 
 def call_function(function_name: str, *args: ColumnOrLiteral) -> Column:
@@ -8476,21 +8530,23 @@ def _call_function(
     *args: ColumnOrLiteral,
     api_call_source: Optional[str] = None,
     is_data_generator: bool = False,
+    _ast: proto.Expr = None,
 ) -> Column:
 
     args_list = parse_positional_args_to_list(*args)
-    ast = proto.Expr()
-
-    # Note: The type hint says ColumnOrLiteral, but in Snowpark sometimes arbitrary
-    #       Python objects are passed.
-    build_fn_apply(
-        ast,
-        name,
-        *tuple(
-            snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-            for arg in args_list
-        ),
-    )
+    ast = _ast
+    if ast is None:
+        ast = proto.Expr()
+        # Note: The type hint says ColumnOrLiteral, but in Snowpark sometimes arbitrary
+        #       Python objects are passed.
+        build_builtin_fn_apply(
+            ast,
+            name,
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in args_list
+            ),
+        )
 
     expressions = [Column._to_expr(arg) for arg in args_list]
     return Column(
