@@ -8259,8 +8259,7 @@ def call_table_function(
     func_call = snowflake.snowpark.table_function.TableFunctionCall(
         function_name, *args, **kwargs
     )
-    if ast is not None:
-        func_call._ast = ast
+    func_call._ast = ast
 
     return func_call
 
