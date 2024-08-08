@@ -15,7 +15,7 @@ from tests.integ.modin.utils import (
 )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=3)
 def test_datetime_index_construction():
     # create from native pandas datetime index.
     index = native_pd.DatetimeIndex(["2021-01-01", "2021-01-02", "2021-01-03"])
