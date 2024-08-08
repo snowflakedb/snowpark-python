@@ -2432,6 +2432,11 @@ class Series:
         is the previous index value when the data is sorted.
         """
 
+    def reindex_like():
+        """
+        Return an object with matching indices as `other` object.
+        """
+
     def rename_axis():
         """
         Set the name of the axis for the index or columns.
