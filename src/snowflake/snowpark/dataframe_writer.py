@@ -12,6 +12,12 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
     SnowflakeCreateTable,
 )
+from snowflake.snowpark._internal.ast_utils import (
+    FAIL_ON_MISSING_AST,
+    build_expr_from_snowpark_column_or_col_name,
+    fill_sp_save_mode,
+    with_src_position,
+)
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
     add_api_call,
@@ -38,6 +44,10 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+from logging import getLogger
+
+_logger = getLogger(__name__)
 
 
 class DataFrameWriter:
@@ -83,30 +93,15 @@ class DataFrameWriter:
         Returns:
             The :class:`DataFrameWriter` itself.
         """
-        self._save_mode = str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")
+        self._save_mode: SaveMode = str_to_enum(
+            save_mode.lower(), SaveMode, "`save_mode`"
+        )
 
         # Update AST if it exists.
         if self._ast_stmt is not None:
-            if self._save_mode == SaveMode.APPEND:
-                self._ast_stmt.expr.sp_dataframe_write.save_mode.sp_save_mode_append = (
-                    True
-                )
-            if self._save_mode == SaveMode.ERROR_IF_EXISTS:
-                self._ast_stmt.expr.sp_dataframe_write.save_mode.sp_save_mode_error_if_exists = (
-                    True
-                )
-            if self._save_mode == SaveMode.IGNORE:
-                self._ast_stmt.expr.sp_dataframe_write.save_mode.sp_save_mode_ignore = (
-                    True
-                )
-            if self._save_mode == SaveMode.OVERWRITE:
-                self._ast_stmt.expr.sp_dataframe_write.save_mode.sp_save_mode_overwrite = (
-                    True
-                )
-            if self._save_mode == SaveMode.TRUNCATE:
-                self._ast_stmt.expr.sp_dataframe_write.save_mode.sp_save_mode_truncate = (
-                    True
-                )
+            fill_sp_save_mode(
+                self._ast_stmt.expr.sp_dataframe_write.save_mode, self._save_mode
+            )
 
         return self
 
@@ -207,6 +202,75 @@ class DataFrameWriter:
             >>> session.table("my_transient_table").collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
+
+        if _emit_ast:
+            # Add an Assign node that applies SpWriteTable() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_write_table)
+
+            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+
+            # Function signature:
+            # table_name: Union[str, Iterable[str]],
+            # *,
+            # mode: Optional[str] = None,
+            # column_order: str = "index",
+            # create_temp_table: bool = False,
+            # table_type: Literal["", "temp", "temporary", "transient"] = "",
+            # clustering_keys: Optional[Iterable[ColumnOrName]] = None,
+            # statement_params: Optional[Dict[str, str]] = None,
+            # block: bool = True,
+            # comment: Optional[str] = None,
+
+            if isinstance(table_name, str):
+                expr.table_name.sp_table_name_flat.name = table_name
+            elif isinstance(table_name, Iterable):
+                expr.table_name.sp_table_name_structured.name.extend(table_name)
+
+            if mode is not None:
+                fill_sp_save_mode(expr.mode, mode)
+
+            expr.column_order = column_order
+            expr.create_temp_table = create_temp_table
+            expr.table_type = table_type
+
+            if clustering_keys is not None:
+                for col_or_name in clustering_keys:
+                    build_expr_from_snowpark_column_or_col_name(
+                        expr.clustering_keys.list.add(), col_or_name
+                    )
+
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = expr.statement_params.add()
+                    t._1 = k
+                    t._2 = v
+
+            expr.block = block
+
+            if comment is not None:
+                expr.comment.value = comment
+
+            self._dataframe._session._ast_batch.eval(repr)
+
+        if self._dataframe._session._conn.is_phase1_enabled():
+            # TODO: Logic here should be
+            # ast = self._dataframe._session._ast_batch.flush()
+            # res = self._dataframe._session._conn.ast_query(ast)
+            raise NotImplementedError(
+                "TODO: Implement save_as_table() with EvalResult in Phase1."
+            )
+
+        # Phase 0 flushes AST and encodes it as part of the query.
+        kwargs = {}
+        _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+
         with open_telemetry_context_manager(self.save_as_table, self._dataframe):
             save_mode = (
                 str_to_enum(mode.lower(), SaveMode, "'mode'")
@@ -265,6 +329,7 @@ class DataFrameWriter:
                 _statement_params=statement_params or self._dataframe._statement_params,
                 block=block,
                 data_type=_AsyncResultType.NO_RESULT,
+                **kwargs,
             )
             return result if not block else None
 

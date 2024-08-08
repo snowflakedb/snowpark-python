@@ -22,6 +22,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Star,
     UnresolvedAttribute,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
@@ -29,6 +30,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     ColumnOrSqlExpr,
 )
+from snowflake.snowpark._internal.utils import str_to_enum
 
 # This flag causes an explicit error to be raised if any Snowpark object instance is missing an AST or field, when this
 # AST or field is required to populate the AST field of a different Snowpark object instance.
@@ -528,3 +530,19 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
         raise NotImplementedError(
             f"Snowpark expr {expr} of type {type(expr)} is an expression with missing AST or for which an AST can not be auto-generated."
         )
+
+
+def fill_sp_save_mode(expr: proto.SpSaveMode, save_mode: Union[str, SaveMode]) -> None:
+    if isinstance(save_mode, str):
+        save_mode = str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")
+
+    if save_mode == SaveMode.APPEND:
+        expr.sp_save_mode_append = True
+    if save_mode == SaveMode.ERROR_IF_EXISTS:
+        expr.sp_save_mode_error_if_exists = True
+    if save_mode == SaveMode.IGNORE:
+        expr.sp_save_mode_ignore = True
+    if save_mode == SaveMode.OVERWRITE:
+        expr.sp_save_mode_overwrite = True
+    if save_mode == SaveMode.TRUNCATE:
+        expr.sp_save_mode_truncate = True
