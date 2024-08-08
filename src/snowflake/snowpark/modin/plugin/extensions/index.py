@@ -112,15 +112,12 @@ class Index(metaclass=TelemetryMeta):
 
     def __init__(
         self,
-        data: ArrayLike
-        | modin.pandas.DataFrame
-        | Series
-        | SnowflakeQueryCompiler
-        | None = None,
+        data: ArrayLike | modin.pandas.DataFrame | Series | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = _CONSTRUCTOR_DEFAULTS["dtype"],
         copy: bool = _CONSTRUCTOR_DEFAULTS["copy"],
         name: object = _CONSTRUCTOR_DEFAULTS["name"],
         tupleize_cols: bool = _CONSTRUCTOR_DEFAULTS["tupleize_cols"],
+        query_compiler: SnowflakeQueryCompiler = None,
     ) -> None:
         """
         Immutable sequence used for indexing and alignment.
@@ -129,7 +126,7 @@ class Index(metaclass=TelemetryMeta):
 
         Parameters
         ----------
-        data : array-like (1-dimensional), modin.pandas.Series, modin.pandas.DataFrame, SnowflakeQueryCompiler, optional
+        data : array-like (1-dimensional), modin.pandas.Series, modin.pandas.DataFrame, optional
         dtype : str, numpy.dtype, or ExtensionDtype, optional
             Data type for the output Index. If not specified, this will be
             inferred from `data`.
@@ -140,7 +137,8 @@ class Index(metaclass=TelemetryMeta):
             Name to be stored in the index.
         tupleize_cols : bool (default: True)
             When True, attempt to create a MultiIndex if possible.
-
+        query_compiler : SnowflakeQueryCompiler, optional
+            A query compiler object to create the ``Index`` from.
         Notes
         -----
         An Index instance can **only** contain hashable objects.
@@ -164,29 +162,31 @@ class Index(metaclass=TelemetryMeta):
             "name": name,
             "tupleize_cols": tupleize_cols,
         }
-        self._init_index(data, _CONSTRUCTOR_DEFAULTS, **kwargs)
+        self._init_index(data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs)
 
     def _init_index(
         self,
         data: ArrayLike | SnowflakeQueryCompiler | None,
         ctor_defaults: dict,
+        query_compiler: SnowflakeQueryCompiler = None,
         **kwargs: Any,
     ):
-        self._parent = data if isinstance(data, BasePandasDataset) else None
-        data = data._query_compiler if isinstance(data, BasePandasDataset) else data
-        if isinstance(data, SnowflakeQueryCompiler):
+        if query_compiler:
             # Raise warning if `data` is query compiler with non-default arguments.
             for arg_name, arg_value in kwargs.items():
                 assert (
                     arg_value == ctor_defaults[arg_name]
                 ), f"Non-default argument '{arg_name}={arg_value}' when constructing Index with query compiler"
-        if isinstance(data, SnowflakeQueryCompiler):
-            qc = data
+            self._query_compiler = query_compiler
+        elif isinstance(data, BasePandasDataset):
+            self._parent = data
+            self._query_compiler = data._query_compiler.drop(
+                columns=data._query_compiler.columns
+            )
         else:
-            qc = DataFrame(
+            self._query_compiler = DataFrame(
                 index=self._NATIVE_INDEX_TYPE(data=data, **kwargs)
             )._query_compiler
-        self._query_compiler = qc.drop(columns=qc.columns)
 
     def __getattr__(self, key: str) -> Any:
         """
