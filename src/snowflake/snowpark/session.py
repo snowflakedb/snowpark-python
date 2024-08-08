@@ -19,7 +19,18 @@ from functools import reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
-from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
 
 import cloudpickle
 import pkg_resources
@@ -53,6 +64,8 @@ from snowflake.snowpark._internal.ast import AstBatch
 from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_python_val,
     build_proto_from_struct_type,
+    build_session_table_fn_apply,
+    build_table_fn_apply,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -1883,7 +1896,7 @@ class Session:
 
     def table_function(
         self,
-        func_name: Union[str, List[str], TableFunctionCall],
+        func_name: Union[str, List[str], Callable[..., Any], TableFunctionCall],
         *func_arguments: ColumnOrName,
         **func_named_arguments: ColumnOrName,
     ) -> DataFrame:
@@ -1934,25 +1947,38 @@ class Session:
         """
         # AST.
         stmt = self._ast_batch.assign()
-        expr = with_src_position(stmt.expr.apply_expr, stmt)
-        if isinstance(func_name, TableFunctionCall):
-            # DO NOT MERGE. Rework the handling of TableFunctionCall.
-            # On this branch, func_name must already have an _ast attribute.
-            expr.fn.udtf.name = func_name.name
-            func_arguments = func_name.arguments
-            func_named_arguments = func_name.named_arguments
-            # TODO: func.{_over, _partition_by, _order_by, _aliases, _api_call_source}
-        elif isinstance(func_name, str):
-            expr.fn.udtf.name = func_name
-        elif isinstance(func_name, list):
-            expr.fn.udtf.name = ".".join(func_name)
+        expr = stmt.expr
 
-        for arg in func_arguments:
-            build_expr_from_python_val(expr.pos_args.add(), arg)
-        for k in func_named_arguments:
-            entry = expr.named_args.add()
-            entry._1 = k
-            build_expr_from_python_val(entry._2, func_named_arguments[k])
+        if isinstance(func_name, TableFunctionCall):
+            expr.apply_expr.fn.table_fn.call_type.table_fn_call_type__session_table_fn = (
+                True
+            )
+            build_table_fn_apply(
+                expr,
+                "DO NOT MERGE. This function name should be unused",
+                func_name,
+                *func_arguments,
+                **func_named_arguments,
+            )
+        elif isinstance(func_name, Callable):
+            expr.apply_expr.fn.table_fn.call_type.table_fn_call_type__session_table_fn = (
+                True
+            )
+            build_table_fn_apply(
+                expr,
+                "DO NOT MERGE. This function name should be unused",
+                func_name._ast,
+                *func_arguments,
+                **func_named_arguments,
+            )
+        elif isinstance(func_name, str):
+            build_session_table_fn_apply(
+                expr, func_name, *func_arguments, **func_named_arguments
+            )
+        elif isinstance(func_name, list):
+            build_session_table_fn_apply(
+                expr, func_name, *func_arguments, **func_named_arguments
+            )
 
         if isinstance(self._conn, MockServerConnection):
             if not self._conn._suppress_not_implemented_error:

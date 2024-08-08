@@ -9,7 +9,7 @@ import re
 import sys
 from functools import reduce
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Optional, Tuple, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -199,13 +199,51 @@ def build_builtin_fn_apply(
         **kwargs: Keyword arguments to pass to function.
 
     """
-    build_fn_apply_new(ast, builtin_name, *args, **kwargs)
+    expr = with_src_position(ast.apply_expr)
+    _set_fn_name(builtin_name, expr.fn.builtin_fn)
+    set_src_position(expr.fn.builtin_fn.src)
+    build_fn_apply_args(ast, *args, **kwargs)
 
 
-# DO NOT MERGE. Rename this function back to build_fn_apply after all refactoring is done.
-def build_fn_apply_new(
+def build_session_table_fn_apply(
     ast: proto.Expr,
-    builtin_name: str,
+    name: Union[str, Iterable[str]],
+    *args: Tuple[Union[proto.Expr, Any]],
+    **kwargs: Dict[str, Union[proto.Expr, Any]],
+) -> None:
+    """
+    Creates AST encoding for ApplyExpr(SessionTableFn(<name>)) for session table functions.
+    Args:
+        ast: Expr node to fill
+        name: Name of the session table function to call.
+    """
+    expr = with_src_position(ast.apply_expr)
+    _set_fn_name(name, expr.fn.session_table_fn)
+    set_src_position(expr.fn.session_table_fn.src)
+    build_fn_apply_args(ast, *args, **kwargs)
+
+
+def build_table_fn_apply(
+    ast: proto.Expr,
+    name: Union[str, Iterable[str], None],
+    *args: Tuple[Union[proto.Expr, Any]],
+    **kwargs: Dict[str, Union[proto.Expr, Any]],
+) -> None:
+    expr = with_src_position(ast.apply_expr)
+    assert (
+        ast.apply_expr.fn.table_fn.call_type.WhichOneof("variant") is not None
+    ), f"Explicitly set the call type before calling this function {str(ast.apply_expr.fn.table_fn)}"
+    if not expr.fn.table_fn.call_type.table_fn_call_type__session_table_fn:
+        assert (
+            name is not None
+        ), f"Table function name must be provided {str(ast.apply_expr.fn.table_fn)}"
+        _set_fn_name(name, expr.fn.table_fn)
+    set_src_position(expr.fn.table_fn.src)
+    build_fn_apply_args(ast, *args, **kwargs)
+
+
+def build_fn_apply_args(
+    ast: proto.Expr,
     *args: Tuple[Union[proto.Expr, Any]],
     **kwargs: Dict[str, Union[proto.Expr, Any]],
 ) -> None:
@@ -214,18 +252,11 @@ def build_fn_apply_new(
     functions.
     Args:
         ast: Expr node to fill
-        builtin_name: Name of the builtin function to call.
         *args: Positional arguments to pass to function.
         **kwargs: Keyword arguments to pass to function.
 
     """
-
-    expr = with_src_position(ast.apply_expr)
-
-    fn = proto.FnRefExpr()
-    fn.builtin_fn.name.fn_name_flat.name = builtin_name
-    set_src_position(fn.builtin_fn.src)
-    expr.fn.CopyFrom(fn)
+    expr = ast.apply_expr
 
     for arg in args:
         if isinstance(arg, proto.Expr):
@@ -547,4 +578,15 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
     else:
         raise NotImplementedError(
             f"Snowpark expr {expr} of type {type(expr)} is an expression with missing AST or for which an AST can not be auto-generated."
+        )
+
+
+def _set_fn_name(name: Union[str, Iterable[str]], fn: proto.FnRefExpr) -> None:
+    if isinstance(name, str):
+        fn.name.fn_name_flat.name = name
+    elif isinstance(name, Iterable):
+        fn.name.fn_name_structured.name.extend(name)
+    else:
+        raise ValueError(
+            f"Invalid function name: {name}. The function name must be a string or an iterable of strings."
         )

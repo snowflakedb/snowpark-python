@@ -188,6 +188,7 @@ from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_python_val,
     build_expr_from_snowpark_column_or_sql_str,
+    build_table_fn_apply,
     create_ast_for_column,
     snowpark_expression_to_ast,
     with_src_position,
@@ -8232,7 +8233,9 @@ def call_udf(
 
 
 def call_table_function(
-    function_name: str, *args: ColumnOrLiteral, **kwargs: ColumnOrLiteral
+    function_name: str,
+    *args: ColumnOrLiteral,
+    **kwargs: ColumnOrLiteral,
 ) -> "snowflake.snowpark.table_function.TableFunctionCall":
     """Invokes a Snowflake table function, including system-defined table functions and user-defined table functions.
 
@@ -8250,15 +8253,14 @@ def call_table_function(
     """
     # AST
     ast = proto.Expr()
-    # DO NOT MERGE. Implement build_table_fn_apply and use it here.
-    # Differentiate between generic call_table_function and built-in table
-    # functions.
-    build_builtin_fn_apply(ast, function_name, *args, **kwargs)
+    ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__call_table_fn = True
+    build_table_fn_apply(ast, function_name, *args, **kwargs)
 
     func_call = snowflake.snowpark.table_function.TableFunctionCall(
         function_name, *args, **kwargs
     )
-    func_call._ast = ast
+    if ast is not None:
+        func_call._ast = ast
 
     return func_call
 
@@ -8275,7 +8277,16 @@ def table_function(function_name: str) -> Callable:
         >>> session.table_function(split_to_table(lit("split words to table"), lit(" ")).over()).collect()
         [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
     """
-    return lambda *args, **kwargs: call_table_function(function_name, *args, **kwargs)
+    fn = lambda *args, **kwargs: call_table_function(  # noqa: E731
+        function_name, *args, **kwargs
+    )
+    # AST
+    ast = proto.Expr()
+    ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__table_fn = True
+    build_table_fn_apply(ast, function_name)
+    fn._ast = ast
+
+    return fn
 
 
 def call_function(function_name: str, *args: ColumnOrLiteral) -> Column:
