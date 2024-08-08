@@ -1016,7 +1016,9 @@ class DataFrame:
         )
 
     @df_api_usage
-    def to_df(self, *names: Union[str, Iterable[str]]) -> "DataFrame":
+    def to_df(
+        self, *names: Union[str, Iterable[str]], _emit_ast: bool = True
+    ) -> "DataFrame":
         """
         Creates a new DataFrame containing columns with the specified names.
 
@@ -1046,17 +1048,19 @@ class DataFrame:
             )
 
         # AST.
-        stmt = self._session._ast_batch.assign()
-        ast = stmt.expr.sp_dataframe_to_df
-        self.set_ast_ref(ast.df)
-        ast.col_names.extend(col_names)
-        ast.variadic = is_variadic
-        set_src_position(ast.src)
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = stmt.expr.sp_dataframe_to_df
+            self.set_ast_ref(ast.df)
+            ast.col_names.extend(col_names)
+            ast.variadic = is_variadic
+            set_src_position(ast.src)
 
         new_cols = []
         for attr, name in zip(self._output, col_names):
             new_cols.append(Column(attr).alias(name))
-        return self.select(new_cols, _ast_stmt=stmt)
+        return self.select(new_cols, _ast_stmt=stmt, _emit_ast=_emit_ast)
 
     @df_collect_api_telemetry
     def to_snowpark_pandas(
@@ -2252,7 +2256,7 @@ class DataFrame:
         )
 
     @df_api_usage
-    def union(self, other: "DataFrame") -> "DataFrame":
+    def union(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), excluding any duplicate rows. Both input
         DataFrames must contain the same number of columns.
@@ -2274,10 +2278,11 @@ class DataFrame:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
         # AST.
-        stmt = self._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_union, stmt)
-        self.set_ast_ref(ast.df)
-        other.set_ast_ref(ast.other)
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_union, stmt)
+            self.set_ast_ref(ast.df)
+            other.set_ast_ref(ast.other)
 
         if self._select_statement:
             return self._with_plan(
@@ -4420,7 +4425,9 @@ class DataFrame:
         """
         return self._session
 
-    def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
+    def describe(
+        self, *cols: Union[str, List[str]], _emit_ast: bool = True
+    ) -> "DataFrame":
         """
         Computes basic statistics for numeric columns, which includes
         ``count``, ``mean``, ``stddev``, ``min``, and ``max``. If no columns
@@ -4445,8 +4452,16 @@ class DataFrame:
         Args:
             cols: The names of columns whose basic statistics are computed.
         """
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_describe, stmt)
+            self.set_ast_ref(expr.df)
+            col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
+            for c in col_list:
+                build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+
         cols = parse_positional_args_to_list(*cols)
-        df = self.select(cols) if len(cols) > 0 else self
+        df = self.select(cols, _emit_ast=False) if len(cols) > 0 else self
 
         # ignore non-numeric and non-string columns
         numerical_string_col_type_dict = {
@@ -4466,7 +4481,7 @@ class DataFrame:
         # if no columns should be selected, just return stat names
         if len(numerical_string_col_type_dict) == 0:
             df = self._session.create_dataframe(
-                list(stat_func_dict.keys()), schema=["summary"]
+                list(stat_func_dict.keys()), schema=["summary"], _emit_ast=False
             )
             # We need to set the API calls for this to same API calls for describe
             # Also add the new API calls for creating this DataFrame to the describe subcalls
@@ -4476,6 +4491,10 @@ class DataFrame:
                 precalls=self._plan.api_calls,
                 subcalls=df._plan.api_calls,
             )
+
+            if _emit_ast:
+                df._ast_id = stmt.var_id.bitfield1
+
             return df
 
         # otherwise, calculate stats
@@ -4493,13 +4512,17 @@ class DataFrame:
                 else:
                     agg_cols.append(func(c))
             agg_stat_df = (
-                self.agg(agg_cols)
-                .to_df(list(numerical_string_col_type_dict.keys()))
+                self.agg(agg_cols, _emit_ast=False)
+                .to_df(list(numerical_string_col_type_dict.keys()), _emit_ast=False)
                 .select(
-                    lit(name).as_("summary"), *numerical_string_col_type_dict.keys()
+                    lit(name).as_("summary"),
+                    *numerical_string_col_type_dict.keys(),
+                    _emit_ast=False,
                 )
             )
-            res_df = res_df.union(agg_stat_df) if res_df else agg_stat_df
+            res_df = (
+                res_df.union(agg_stat_df, _emit_ast=False) if res_df else agg_stat_df
+            )
 
         adjust_api_subcalls(
             res_df,
@@ -4507,6 +4530,10 @@ class DataFrame:
             precalls=self._plan.api_calls,
             subcalls=res_df._plan.api_calls.copy(),
         )
+
+        if _emit_ast:
+            res_df._ast_id = stmt.var_id.bitfield1
+
         return res_df
 
     @df_api_usage
