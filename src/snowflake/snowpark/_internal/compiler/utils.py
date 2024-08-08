@@ -91,6 +91,7 @@ def resolve_and_update_snowflake_plan(
     )
     node.placeholder_query = new_snowflake_plan.placeholder_query
     node.referenced_ctes = new_snowflake_plan.referenced_ctes
+    node._cumulative_node_complexity = new_snowflake_plan._cumulative_node_complexity
 
 
 def replace_child(
@@ -235,6 +236,7 @@ def update_resolvable_node(
         node.df_aliased_col_name_to_real_col_name.update(
             node.from_.df_aliased_col_name_to_real_col_name
         )
+        node.reset_cumulative_node_complexity()
 
     elif isinstance(node, SetStatement):
         node._sql_query = None
@@ -248,16 +250,17 @@ def update_resolvable_node(
                 node.pre_actions.extend(operand.selectable.pre_actions)
             if operand.selectable.post_actions:
                 node.post_actions.extend(operand.selectable.post_actions)
+        node.reset_cumulative_node_complexity()
 
     elif isinstance(node, (SelectSnowflakePlan, SelectTableFunction)):
         assert node.snowflake_plan is not None
         update_resolvable_node(node.snowflake_plan, query_generator)
         node.analyzer = query_generator
+        node.reset_cumulative_node_complexity()
 
     elif isinstance(node, Selectable):
+        node.reset_cumulative_node_complexity()
         node.analyzer = query_generator
-
-    node.reset_cumulative_node_complexity()
 
 
 def get_snowflake_plan_queries(
