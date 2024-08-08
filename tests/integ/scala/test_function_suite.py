@@ -1936,6 +1936,7 @@ def test_to_date(session):
             df.select(*[to_date(col(column)) for column in df.columns]), expected
         )
 
+    # with format column
     expected4 = [
         Row(date(2024, 4, 18)),
         Row(date(1999, 9, 1)),
@@ -1943,9 +1944,17 @@ def test_to_date(session):
         Row(date(2015, 5, 15)),
     ]
     df = TestData.date_primitives4(session)
-    Utils.check_answer(
-        df.select(to_date(*[col(column) for column in df.columns])), expected4
-    )
+    Utils.check_answer(df.select(to_date(df.a, df.b)), expected4)
+
+    # with string format column
+    data5 = ["1999-01-01", "2000-02-02", "2024-03-03"]
+    expected5 = [
+        Row(date(1999, 1, 1)),
+        Row(date(2000, 2, 2)),
+        Row(date(2024, 3, 3)),
+    ]
+    df = session.create_dataframe(data5).to_df(["a"])
+    Utils.check_answer(df.select(to_date(df.a, "YYYY-MM-DD")), expected5)
 
 
 @pytest.mark.skipif(

@@ -24,7 +24,6 @@ from snowflake.snowpark.functions import (
     last_value,
     max as max_,
 )
-from snowflake.snowpark.modin import pandas as pd
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
     OrderingColumn,
@@ -378,7 +377,7 @@ class InternalFrame:
         )
 
     @property
-    def data_columns_index(self) -> "pd.Index":
+    def data_columns_index(self) -> native_pd.Index:
         """
         Returns Snowpark pandas Index object for column index (df.columns).
         Note this object will still hold an internal pandas index (i.e., not lazy) to avoid unnecessary pulling data from Snowflake.
@@ -389,15 +388,13 @@ class InternalFrame:
                 names=self.data_column_pandas_index_names,
             )
         else:
-            return pd.Index(
+            return native_pd.Index(
                 self.data_column_pandas_labels,
                 name=self.data_column_pandas_index_names[0],
                 # setting tupleize_cols=False to avoid creating a MultiIndex
                 # otherwise, when labels are tuples (e.g., [("A", "a"), ("B", "b")]),
                 # a MultiIndex will be created incorrectly
                 tupleize_cols=False,
-                # setting is_lazy as false because we want to store the columns locally
-                convert_to_lazy=False,
             )
 
     def index_columns_pandas_index(self, **kwargs: Any) -> native_pd.Index:

@@ -270,8 +270,11 @@ def in_expression(column: str, values: List[str]) -> str:
     return column + IN + block_expression(values)
 
 
-def regexp_expression(expr: str, pattern: str) -> str:
-    return expr + REG_EXP + pattern
+def regexp_expression(expr: str, pattern: str, parameters: Optional[str] = None) -> str:
+    if parameters is not None:
+        return function_expression("RLIKE", [expr, pattern, parameters], False)
+    else:
+        return expr + REG_EXP + pattern
 
 
 def collate_expression(expr: str, collation_spec: str) -> str:

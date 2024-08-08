@@ -39,7 +39,6 @@ with warnings.catch_warnings():
         CategoricalDtype,
         CategoricalIndex,
         DateOffset,
-        DatetimeIndex,
         DatetimeTZDtype,
         ExcelWriter,
         Flags,
@@ -156,6 +155,7 @@ import snowflake.snowpark.modin.plugin.extensions.pd_extensions as pd_extensions
 import snowflake.snowpark.modin.plugin.extensions.pd_overrides  # isort: skip  # noqa: E402,F401
 from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: skip  # noqa: E402,F401
     Index,
+    DatetimeIndex,
 )
 import snowflake.snowpark.modin.plugin.extensions.dataframe_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.dataframe_overrides  # isort: skip  # noqa: E402,F401

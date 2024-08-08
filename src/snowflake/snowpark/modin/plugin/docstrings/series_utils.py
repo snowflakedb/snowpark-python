@@ -1655,7 +1655,40 @@ class CombinedDatetimelikeProperties:
 
     @property
     def is_leap_year():
-        pass
+        """
+        Boolean indicator if the date belongs to a leap year.
+
+        A leap year is a year, which has 366 days (instead of 365) including 29th of February as an intercalary day. Leap years are years which are multiples of four with the exception of years divisible by 100 but not by 400.
+
+        Returns
+        -------
+        Series or ndarray
+            Booleans indicating if dates belong to a leap year.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> idx = pd.date_range("2012-01-01", "2015-01-01", freq="YE")
+        >>> idx  # doctest: +SKIP
+        DatetimeIndex(['2012-12-31', '2013-12-31', '2014-12-31'],
+                    dtype='datetime64[ns]', freq='YE-DEC')
+        >>> idx.is_leap_year  # doctest: +SKIP
+        array([ True, False, False])
+
+        >>> dates_series = pd.Series(idx)
+        >>> dates_series
+        0   2012-12-31
+        1   2013-12-31
+        2   2014-12-31
+        dtype: datetime64[ns]
+        >>> dates_series.dt.is_leap_year
+        0     True
+        1    False
+        2    False
+        dtype: bool
+        """
+        # TODO(SNOW-1486910): Unskip when date_range returns DatetimeIndex.
 
     @property
     def daysinmonth():
@@ -1744,6 +1777,7 @@ class CombinedDatetimelikeProperties:
         >>> idx.month_name(locale='pt_BR.utf8')  # doctest: +SKIP
         Index(['Janeiro', 'Fevereiro', 'Março'], dtype='object')
         """
+        # TODO(SNOW-1486910): Unskip when date_range returns DatetimeIndex.
 
     def day_name():
         """
@@ -1789,6 +1823,7 @@ class CombinedDatetimelikeProperties:
         >>> idx.day_name(locale='pt_BR.utf8')  # doctest: +SKIP
         Index(['Segunda', 'Terça', 'Quarta'], dtype='object')
         """
+        # TODO(SNOW-1486910): Unskip when date_range returns DatetimeIndex.
 
     def total_seconds():
         pass

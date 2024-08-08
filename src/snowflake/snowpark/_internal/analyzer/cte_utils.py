@@ -5,7 +5,7 @@
 import hashlib
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Optional, Sequence, Set, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Set, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     SPACE,
@@ -24,7 +24,9 @@ if TYPE_CHECKING:
     TreeNode = Union[SnowflakePlan, Selectable]
 
 
-def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
+def find_duplicate_subtrees(
+    root: "TreeNode",
+) -> Tuple[Set["TreeNode"], Dict["TreeNode", Set["TreeNode"]]]:
     """
     Returns a set containing all duplicate subtrees in query plan tree.
     The root of a duplicate subtree is defined as a duplicate node, if
@@ -79,7 +81,8 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
         return False
 
     traverse(root)
-    return {node for node in node_count_map if is_duplicate_subtree(node)}
+    duplicated_node = {node for node in node_count_map if is_duplicate_subtree(node)}
+    return duplicated_node, node_parents_map
 
 
 def create_cte_query(root: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> str:

@@ -120,6 +120,13 @@ def test_regexp(session):
         session, df2, ['"""C C"" REGEXP \'V%\'"'], [BooleanType()], [Row(False)]
     )
 
+    df1 = session.create_dataframe(["v"], schema=["c"])
+    df2 = df1.select(df1["c"].regexp(lit("v%"), "c"))
+
+    verify_column_result(
+        session, df2, ['"RLIKE(""C"", \'V%\', \'C\')"'], [BooleanType()], [Row(False)]
+    )
+
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",

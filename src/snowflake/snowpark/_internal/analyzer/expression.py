@@ -386,10 +386,16 @@ class Like(Expression):
 
 
 class RegExp(Expression):
-    def __init__(self, expr: Expression, pattern: Expression) -> None:
+    def __init__(
+        self,
+        expr: Expression,
+        pattern: Expression,
+        parameters: Optional[Expression] = None,
+    ) -> None:
         super().__init__(expr)
         self.expr = expr
         self.pattern = pattern
+        self.parameters = parameters
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, self.pattern)

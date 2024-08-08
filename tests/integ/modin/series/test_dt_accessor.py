@@ -31,6 +31,7 @@ dt_properties = pytest.mark.parametrize(
         "is_quarter_end",
         "is_year_start",
         "is_year_end",
+        "is_leap_year",
     ],
 )
 

@@ -194,7 +194,7 @@ def create_test_dfs(*args, **kwargs) -> tuple[pd.DataFrame, native_pd.DataFrame]
         and isinstance(native_kw_args["columns"], native_pd.Index)
         and not isinstance(native_kw_args["columns"], pd.MultiIndex)
     ):
-        kwargs["columns"] = pd.Index(native_kw_args["columns"], convert_to_lazy=False)
+        kwargs["columns"] = native_pd.Index(native_kw_args["columns"])
     return (pd.DataFrame(*args, **kwargs), native_pd.DataFrame(*args, **native_kw_args))
 
 

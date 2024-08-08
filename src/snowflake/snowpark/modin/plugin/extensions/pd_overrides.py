@@ -40,9 +40,13 @@ from snowflake.snowpark.modin.utils import _inherit_docstrings
 if TYPE_CHECKING:  # pragma: no cover
     import csv
 
+from snowflake.snowpark.modin.plugin.extensions.datetime_index import (  # noqa: F401
+    DatetimeIndex,
+)
 from snowflake.snowpark.modin.plugin.extensions.index import Index  # noqa: F401
 
 register_pd_accessor("Index")(Index)
+register_pd_accessor("DatetimeIndex")(DatetimeIndex)
 
 
 @_inherit_docstrings(native_pd.read_csv, apilink="pandas.read_csv")

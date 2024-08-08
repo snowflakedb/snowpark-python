@@ -317,7 +317,7 @@ class DataFrame(BasePandasDataset):
         else:
             return result
 
-    def _get_columns(self) -> pd.Index:
+    def _get_columns(self) -> pandas.Index:
         """
         Get the columns for this Snowpark pandas ``DataFrame``.
 

@@ -3302,7 +3302,7 @@ def to_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
     return builtin("convert_timezone")(tz_c, "UTC", c)
 
 
-def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+def to_date(e: ColumnOrName, fmt: Optional[ColumnOrLiteral] = None) -> Column:
     """Converts an input expression into a date.
 
     Example::
@@ -3311,13 +3311,21 @@ def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         >>> df.select(to_date(col('a')).as_('ans')).collect()
         [Row(ANS=datetime.date(2013, 5, 17)), Row(ANS=datetime.date(2013, 5, 17))]
 
+        >>> df = session.create_dataframe(['2013-05-17', '2013-05-17'], schema=['a'])
+        >>> df.select(to_date(col('a'), 'YYYY-MM-DD').as_('ans')).collect()
+        [Row(ANS=datetime.date(2013, 5, 17)), Row(ANS=datetime.date(2013, 5, 17))]
+
         >>> df = session.create_dataframe(['31536000000000', '71536004000000'], schema=['a'])
         >>> df.select(to_date(col('a')).as_('ans')).collect()
         [Row(ANS=datetime.date(1971, 1, 1)), Row(ANS=datetime.date(1972, 4, 7))]
 
     """
     c = _to_col_if_str(e, "to_date")
-    return builtin("to_date")(c, fmt) if fmt is not None else builtin("to_date")(c)
+
+    if fmt is None:
+        return builtin("to_date")(c)
+    else:
+        return builtin("to_date")(c, Column._to_expr(fmt))
 
 
 def current_timestamp() -> Column:
