@@ -163,4 +163,9 @@ def plot(
 @register_series_accessor("transform")
 @series_not_implemented()
 def transform(self, func, axis=0, *args, **kwargs):  # noqa: PR01, RT01, D200
+    """
+    Call ``func`` on self producing a `Series` with the same axis shape as self.
+
+    Snowpark pandas does not yet support this method for Series.
+    """
     pass
