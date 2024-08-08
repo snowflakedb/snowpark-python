@@ -125,7 +125,15 @@ def replace_child(
         replace_child(parent.source_plan, old_child, new_child, query_generator)
 
     elif isinstance(parent, SelectStatement):
-        parent.from_ = to_selectable(new_child, query_generator)
+        new_child_as_selectable = to_selectable(new_child, query_generator)
+        parent.from_ = new_child_as_selectable
+        parent.pre_actions = new_child_as_selectable.pre_actions
+        parent.post_actions = new_child_as_selectable.post_actions
+        parent.expr_to_alias = new_child_as_selectable.expr_to_alias
+        parent.df_aliased_col_name_to_real_col_name.clear()
+        parent.df_aliased_col_name_to_real_col_name.update(
+            new_child_as_selectable.df_aliased_col_name_to_real_col_name
+        )
 
     elif isinstance(parent, SetStatement):
         new_child_as_selectable = to_selectable(new_child, query_generator)
@@ -212,12 +220,34 @@ def update_resolvable_node(
             update_resolvable_node(node.source_plan, query_generator)
         resolve_and_update_snowflake_plan(node, query_generator)
 
-    elif isinstance(node, (SelectStatement, SetStatement)):
+    elif isinstance(node, SelectStatement):
         # clean up the cached sql query and snowflake plan to allow
         # re-calculation of the sql query and snowflake plan
         node._sql_query = None
         node._snowflake_plan = None
         node.analyzer = query_generator
+
+        # update the pre_actions and post_actions for the select statement
+        node.pre_actions = node.from_.pre_actions
+        node.post_actions = node.from_.post_actions
+        node.expr_to_alias = node.from_.expr_to_alias
+        node.df_aliased_col_name_to_real_col_name.clear()
+        node.df_aliased_col_name_to_real_col_name.update(
+            node.from_.df_aliased_col_name_to_real_col_name
+        )
+
+    elif isinstance(node, SetStatement):
+        node._sql_query = None
+        node._snowflake_plan = None
+        node.analyzer = query_generator
+
+        # update the pre_actions and post_actions for the set statement
+        node.pre_actions, node.post_actions = [], []
+        for operand in node.set_operands:
+            if operand.selectable.pre_actions:
+                node.pre_actions.extend(operand.selectable.pre_actions)
+            if operand.selectable.post_actions:
+                node.post_actions.extend(operand.selectable.post_actions)
 
     elif isinstance(node, (SelectSnowflakePlan, SelectTableFunction)):
         assert node.snowflake_plan is not None
@@ -283,6 +313,8 @@ def plot_plan_if_enabled(root, path) -> None:
             name = f"{name} :: ({get_name(node.source_plan)})"
         elif isinstance(node, SelectSnowflakePlan):
             name = f"{name} :: ({get_name(node.snowflake_plan.source_plan)})"
+        elif isinstance(node, SetStatement):
+            name = f"{name} :: ({node.set_operands[1].operator})"
 
         score = get_complexity_score(node.cumulative_node_complexity)
         sql_size = (
@@ -300,17 +332,20 @@ def plot_plan_if_enabled(root, path) -> None:
 
     g = graphviz.Graph(format="png")
 
-    g.node(root._id, get_stat(root))
-
     curr_level = [root]
+    edges = set()  # add edges to set for de-duplication
     while curr_level:
         next_level = []
         for node in curr_level:
+            node_id = hex(id(node))
+            g.node(node_id, get_stat(node))
             for child in node.children_plan_nodes:
-                g.node(child._id, get_stat(child))
-                g.edge(node._id, child._id, dir="back")
+                child_id = hex(id(child))
+                edges.add((node_id, child_id))
                 next_level.append(child)
         curr_level = next_level
+    for edge in edges:
+        g.edge(*edge, dir="back")
 
     os.makedirs(os.path.dirname(path), exist_ok=True)
     g.render(path, format="png", cleanup=True)
