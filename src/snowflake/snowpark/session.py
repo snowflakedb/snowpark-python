@@ -1955,7 +1955,7 @@ class Session:
             )
             build_table_fn_apply(
                 expr,
-                "DO NOT MERGE. This function name should be unused",
+                None,  # The callee is a TableFunctionCall object that carries its own name.
                 func_name,
                 *func_arguments,
                 **func_named_arguments,
@@ -1966,7 +1966,7 @@ class Session:
             )
             build_table_fn_apply(
                 expr,
-                "DO NOT MERGE. This function name should be unused",
+                None,  # The callee is a Callable object that carries its own name.
                 func_name._ast,
                 *func_arguments,
                 **func_named_arguments,
