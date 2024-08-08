@@ -155,19 +155,10 @@ def set_columns_func(df, labels):
 )
 @sql_count_checker(query_count=0)
 def test_set_columns(columns):
-    if isinstance(columns, native_pd.Index) and not isinstance(
-        columns, native_pd.MultiIndex
-    ):
-        snow_columns = pd.Index(columns, convert_to_lazy=False)
-    else:
-        snow_columns = columns
-
     eval_snowpark_pandas_result(
         pd.DataFrame(test_dfs[0].copy()),
         test_dfs[0].copy(),
-        lambda df: set_columns_func(
-            df, labels=snow_columns if isinstance(df, pd.DataFrame) else columns
-        ),
+        lambda df: set_columns_func(df, columns),
         comparator=assert_index_equal,
     )
 
@@ -227,16 +218,10 @@ def test_set_columns_valid_names(col_name):
 )
 @sql_count_checker(query_count=0)
 def test_set_columns_negative(columns, error_type, error_msg):
-    if isinstance(columns, native_pd.Index):
-        snow_columns = pd.Index(columns, convert_to_lazy=False)
-    else:
-        snow_columns = columns
     eval_snowpark_pandas_result(
         pd.DataFrame(test_dfs[0]),
         test_dfs[0],
-        lambda df: set_columns_func(
-            df, labels=snow_columns if isinstance(df, pd.DataFrame) else columns
-        ),
+        lambda df: set_columns_func(df, labels=columns),
         comparator=assert_index_equal,
         expect_exception=True,
         expect_exception_type=error_type,

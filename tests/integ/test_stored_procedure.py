@@ -4,6 +4,7 @@
 #
 
 import datetime
+import decimal
 import logging
 import os
 from typing import Dict, List, Optional, Union
@@ -45,13 +46,22 @@ from snowflake.snowpark.types import (
     ArrayType,
     DateType,
     DoubleType,
+    Geography,
+    Geometry,
     IntegerType,
     LongType,
     MapType,
     StringType,
     StructField,
     StructType,
+    Variant,
     VectorType,
+)
+
+# flake8: noqa
+from tests.integ.scala.test_datatype_suite import (
+    structured_type_session,
+    structured_type_support,
 )
 from tests.utils import (
     IS_IN_STORED_PROC,
@@ -59,6 +69,7 @@ from tests.utils import (
     TempObjectType,
     TestFiles,
     Utils,
+    structured_types_enabled_session,
     structured_types_supported,
 )
 
@@ -352,8 +363,10 @@ def test_call_named_stored_procedure(
     "config.getoption('local_testing_mode', default=False)",
     reason="Structured types are not supported in Local Testing",
 )
-def test_stored_procedure_with_structured_returns(session, local_testing_mode):
-    if not structured_types_supported(session, local_testing_mode):
+def test_stored_procedure_with_structured_returns(
+    structured_type_session, structured_type_support
+):
+    if not structured_type_support:
         pytest.skip("Structured types not enabled in this account.")
     expected_dtypes = [
         ("VEC", "vector<int,5>"),
@@ -386,8 +399,8 @@ def test_stored_procedure_with_structured_returns(session, local_testing_mode):
 
     sproc_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
 
-    def test_sproc(session: Session) -> DataFrame:
-        return session.sql(
+    def test_sproc(_session: Session) -> DataFrame:
+        return _session.sql(
             """
         select
           [1,2,3,4,5] :: vector(int, 5) as vec,
@@ -398,12 +411,12 @@ def test_stored_procedure_with_structured_returns(session, local_testing_mode):
         """
         )
 
-    session.sproc.register(
+    structured_type_session.sproc.register(
         test_sproc,
         name=sproc_name,
         replace=True,
     )
-    df = session.call(sproc_name)
+    df = structured_type_session.call(sproc_name)
     assert df.schema == expected_schema
     assert df.dtypes == expected_dtypes
 
@@ -847,6 +860,126 @@ def return_datetime(_: Session) -> datetime.datetime:
 
     dt = datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f")
     assert return_datetime_sp() == dt
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1412530 to fix bug",
+    run=False,
+)
+@pytest.mark.parametrize("register_from_file", [True, False])
+def test_register_sp_with_optional_args(session: Session, tmpdir, register_from_file):
+    import_body = """
+import datetime
+import decimal
+from snowflake.snowpark import Session
+from snowflake.snowpark.types import Variant, Geometry, Geography
+from snowflake.snowpark.functions import (
+    col,
+    iff,
+    lit
+)
+from typing import Dict, List, Optional
+"""
+    func_body = """
+def add(session_: Session, x: int = 0, y: int = 0) -> int:
+    return (
+        session_.create_dataframe([[x, y]], schema=["x", "y"])
+        .select(col("x") + col("y"))
+        .collect()[0][0]
+    )
+
+def snow(session_: Session, x: int = 1) -> Optional[str]:
+    return (
+        session_.create_dataframe([[x]], schema=["x"])
+        .select(iff(col("x") % 2 == 0, lit("snow"), lit(None)))
+        .collect()[0][0]
+    )
+
+def double_str_list(session_: Session, x: str = "a") -> List[str]:
+    val = session_.create_dataframe([[str(x)]]).collect()[0][0]
+    return [val, val]
+
+def return_date(
+    _: Session, dt: datetime.date = datetime.date(2017, 1, 1)
+) -> datetime.date:
+    return dt
+
+def return_arr(
+    _: Session, base_arr: List[int], extra_arr: List[int] = [4]
+) -> List[int]:
+    base_arr.extend(extra_arr)
+    return base_arr
+
+def return_all_datatypes(
+    _: Session,
+    a: int = 1,
+    b: float = 1.0,
+    c: str = "one",
+    d: List[int] = [],
+    e: Dict[str, int] = {"s": 1},
+    f: Variant = {"key": "val"},
+    g: Geometry = "POINT(-122.35 37.55)",
+    h: Geography = "POINT(-122.35 37.55)",
+    i: datetime.datetime = datetime.datetime(2021, 1, 1, 0, 0, 0),
+    j: datetime.date = datetime.date(2021, 1, 1),
+    k: datetime.time = datetime.time(0, 0, 0),
+    l: bytes = b"123",
+    m: bool = True,
+    n: decimal.Decimal = decimal.Decimal(1.0),
+) -> str:
+    final_str = f"{a}, {b}, {c}, {d}, {e}, {f}, {g}, {h}, {i}, {j}, {k}, {l}, {m}, {n}"
+    return final_str
+"""
+    if register_from_file:
+        file_path = os.path.join(tmpdir, "register_from_file_optional_args.py")
+        with open(file_path, "w") as f:
+            source = f"{import_body}\n{func_body}"
+            f.write(source)
+
+        add_sp = session.sproc.register_from_file(file_path, "add")
+        snow_sp = session.sproc.register_from_file(file_path, "snow")
+        double_str_list_sp = session.sproc.register_from_file(
+            file_path, "double_str_list"
+        )
+        return_date_sp = session.sproc.register_from_file(file_path, "return_date")
+        return_arr_sp = session.sproc.register_from_file(file_path, "return_arr")
+        return_all_types_sp = session.sproc.register_from_file(
+            file_path, "return_all_datatypes"
+        )
+    else:
+        d = {}
+        exec(func_body, {**globals(), **locals()}, d)
+
+        add_sp = session.sproc.register(d["add"])
+        snow_sp = session.sproc.register(d["snow"])
+        double_str_list_sp = session.sproc.register(d["double_str_list"])
+        return_date_sp = session.sproc.register(d["return_date"])
+        return_arr_sp = session.sproc.register(d["return_arr"])
+        return_all_types_sp = session.sproc.register(d["return_all_datatypes"])
+
+    assert add_sp(1, 2) == 3
+    assert add_sp(1) == 1
+    assert add_sp() == 0
+    assert snow_sp(0) == "snow"
+    assert snow_sp(1) is None
+    assert snow_sp() is None
+    assert double_str_list_sp("abc") == '[\n  "abc",\n  "abc"\n]'
+    assert double_str_list_sp() == '[\n  "a",\n  "a"\n]'
+    assert return_date_sp(datetime.date(2024, 1, 2)) == datetime.date(2024, 1, 2)
+    assert return_date_sp() == datetime.date(2017, 1, 1)
+    assert return_arr_sp([1, 2, 3], [4, 5]) == "[\n  1,\n  2,\n  3,\n  4,\n  5\n]"
+    assert return_arr_sp([1, 2, 3]) == "[\n  1,\n  2,\n  3,\n  4\n]"
+    assert return_all_types_sp() == (
+        "1, 1.0, one, [], {'s': 1}, {'key': 'val'}, {'coordinates': [-122.35, 37.55], 'type': 'Point'}, "
+        "{'coordinates': [-122.35, 37.55], 'type': 'Point'}, 2021-01-01 00:00:00, 2021-01-01, 00:00:00, "
+        "b'123', True, 1.000000000000000000"
+    )
+    assert return_all_types_sp(2, 2.0, "two", [1, 2, 3]) == (
+        "2, 2.0, two, [1, 2, 3], {'s': 1}, {'key': 'val'}, {'coordinates': [-122.35, 37.55], 'type': 'Point'}, "
+        "{'coordinates': [-122.35, 37.55], 'type': 'Point'}, 2021-01-01 00:00:00, 2021-01-01, 00:00:00, "
+        "b'123', True, 1.000000000000000000"
+    )
 
 
 @pytest.mark.xfail(

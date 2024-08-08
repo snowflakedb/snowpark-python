@@ -895,7 +895,9 @@ def create_file_format_statement(
     )
 
 
-def infer_schema_statement(path: str, file_format_name: str) -> str:
+def infer_schema_statement(
+    path: str, file_format_name: str, options: Optional[Dict[str, str]] = None
+) -> str:
     return (
         SELECT
         + STAR
@@ -913,6 +915,11 @@ def infer_schema_statement(path: str, file_format_name: str) -> str:
         + SINGLE_QUOTE
         + file_format_name
         + SINGLE_QUOTE
+        + (
+            ", " + ", ".join(f"{k} => {v}" for k, v in options.items())
+            if options
+            else ""
+        )
         + RIGHT_PARENTHESIS
         + RIGHT_PARENTHESIS
     )
@@ -1019,7 +1026,7 @@ def rank_related_function_expression(
         func_name
         + LEFT_PARENTHESIS
         + expr
-        + (COMMA + str(offset) if offset else EMPTY_STRING)
+        + (COMMA + str(offset) if offset is not None else EMPTY_STRING)
         + (COMMA + default if default else EMPTY_STRING)
         + RIGHT_PARENTHESIS
         + (IGNORE_NULLS if ignore_nulls else EMPTY_STRING)

@@ -144,10 +144,6 @@ def test_df_loc_get_tuple_key(
         snow_row = pd.Index(row)
     else:
         snow_row = row
-    if isinstance(col, native_pd.Index):
-        snow_col = pd.Index(col, convert_to_lazy=False)
-    else:
-        snow_col = col
 
     query_count = 1
     if is_scalar(row) or isinstance(row, tuple) or isinstance(row, native_pd.Index):
@@ -159,7 +155,7 @@ def test_df_loc_get_tuple_key(
         eval_snowpark_pandas_result(
             str_index_snowpark_pandas_df,
             str_index_native_df,
-            lambda df: df.loc[snow_row, snow_col]
+            lambda df: df.loc[snow_row, col]
             if isinstance(df, pd.DataFrame)
             else df.loc[row, col],
         )
@@ -236,10 +232,7 @@ def test_df_loc_get_col_boolean_indexer(
             str_index_native_df,
             lambda df: df.loc[
                 :,
-                pd.Series(
-                    key,
-                    index=pd.Index(str_index_native_df.columns, convert_to_lazy=False),
-                )
+                pd.Series(key, index=str_index_native_df.columns)
                 if isinstance(df, pd.DataFrame)
                 else native_pd.Series(key, index=str_index_native_df.columns),
             ],
@@ -288,21 +281,20 @@ def test_df_loc_get_int_index_row_snowpark_pandas_input(
     "key",
     snowpark_pandas_col_inputs,
 )
-@sql_count_checker(query_count=2)
 def test_df_loc_get_col_snowpark_pandas_input(
     key,
     str_index_snowpark_pandas_df,
     str_index_native_df,
     loc_snowpark_pandas_input_map,
 ):
-
-    eval_snowpark_pandas_result(
-        str_index_snowpark_pandas_df,
-        str_index_native_df,
-        lambda df: df.loc[:, loc_snowpark_pandas_input_map[key][0]]
-        if isinstance(df, DataFrame)
-        else df.loc[:, loc_snowpark_pandas_input_map[key][1]],
-    )
+    with SqlCounter(query_count=2):
+        eval_snowpark_pandas_result(
+            str_index_snowpark_pandas_df,
+            str_index_native_df,
+            lambda df: df.loc[:, loc_snowpark_pandas_input_map[key][0]]
+            if isinstance(df, DataFrame)
+            else df.loc[:, loc_snowpark_pandas_input_map[key][1]],
+        )
 
 
 @pytest.mark.parametrize(
@@ -1242,6 +1234,7 @@ def test_df_loc_set_general_col_key_type_with_duplicate_columns(col_key, key_typ
         query_count, join_count, expect_exception = 1, 4, False
     if isinstance(col_key, native_pd.Series):
         query_count += 1
+
     # one extra query to convert to native pandas to initialize series and set item
     if key_type == "index":
         query_count += 1
@@ -2547,10 +2540,11 @@ def test_df_loc_set_scalar_row_key_enlargement_deviates_from_native_pandas(
         # these cases
         ("a", [1], True, False),
         ("a", (1,), True, False),
-        ("w", [1], False, False),
-        ("w", (1,), False, False),
-        ("a", np.array([1]), False, False),
-        ("a", native_pd.Index([1]), False, False),
+        # Snowpark pandas does not support set cell with list like item
+        ("w", [1], False, True),
+        ("w", (1,), False, True),
+        ("a", np.array([1]), False, True),
+        ("a", native_pd.Index([1]), False, True),
     ],
 )
 def test_df_loc_set_scalar_with_item_negative(
@@ -2915,9 +2909,6 @@ def test_df_loc_set_with_column_wise_list_like_item(
     native_df = native_pd.DataFrame(data, columns=native_columns, index=native_index)
     snow_df = pd.DataFrame(native_df)
     native_item = item
-
-    if isinstance(col_key, native_pd.Index):
-        col_key = pd.Index(col_key, convert_to_lazy=False)
 
     def loc_set_helper(df):
         if isinstance(df, pd.DataFrame):
@@ -3945,3 +3936,12 @@ def test_df_loc_set_with_index_and_column_labels():
         }
     )
     eval_snowpark_pandas_result(snow_df, native_df, loc_set_helper, inplace=True)
+
+
+@sql_count_checker(query_count=0)
+def test_raise_set_cell_with_list_like_value_error():
+    s = pd.Series([[1, 2], [3, 4]])
+    with pytest.raises(NotImplementedError):
+        s.loc[0] = [0, 0]
+    with pytest.raises(NotImplementedError):
+        s.to_frame().loc[0, 0] = [0, 0]

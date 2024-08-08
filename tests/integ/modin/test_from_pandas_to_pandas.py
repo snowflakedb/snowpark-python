@@ -252,7 +252,7 @@ def test_column_index_names(pandas_label):
 def test_to_pandas_column_index_names(name):
     df = pd.DataFrame(
         data=[[1] * 2, [2] * 2],
-        columns=pd.Index([1, 2], name=name, convert_to_lazy=False),
+        columns=native_pd.Index([1, 2], name=name),
     )
     assert df.columns.names == [name]
     pdf = df.to_pandas()
