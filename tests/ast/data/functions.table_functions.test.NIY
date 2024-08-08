@@ -1,0 +1,11 @@
+## TEST CASE
+
+df = session.table("test_table2")
+
+df = df.select(explode(df.maps).alias("emk", "emv"))
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table2")
+
+res2 = res1.select(explode(res1["maps"]).alias("emk", "emv"))

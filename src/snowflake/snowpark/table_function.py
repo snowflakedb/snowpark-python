@@ -78,6 +78,7 @@ class TableFunctionCall:
         Note that if this function is called but both ``partition_by`` and ``order_by`` are ``None``, the table function call will put all input rows into a single partition.
         If this function isn't called at all, the Snowflake database will use implicit partitioning.
         """
+        # TODO(oplaton): Extend over() to collect the AST.
         new_table_function = TableFunctionCall(
             self.name, *self.arguments, **self.named_arguments
         )
@@ -122,6 +123,7 @@ class TableFunctionCall:
         Raises:
             ValueError: Raises error when the aliases are not unique after being canonicalized.
         """
+        # TODO(oplaton): Extend alias() to collect the AST.
         canon_aliases = [quote_name(col) for col in aliases]
         if len(set(canon_aliases)) != len(aliases):
             raise ValueError("All output column names after aliasing must be unique.")

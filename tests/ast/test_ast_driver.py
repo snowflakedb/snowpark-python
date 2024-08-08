@@ -5,6 +5,7 @@
 import os
 import pathlib
 import subprocess
+import time
 from dataclasses import dataclass
 from typing import List, Union
 
@@ -98,6 +99,7 @@ def indent_lines(source: str, n_indents: int = 0):
 
 
 def run_test(session, test_source):
+    override_time_zone()
     os.chdir(DATA_DIR)
 
     source = f"""
@@ -157,6 +159,13 @@ mock = session.create_dataframe(
 )
 mock.write.save_as_table("test_df4")
 
+mock = session.create_dataframe(
+    [[1, [1, 2, 3], {{"Ashi Garami": "Single Leg X"}}, "Kimura"],
+     [2, [11, 22], {{"Sankaku": "Triangle"}}, "Coffee"],
+     [3, [], {{}}, "Tea"]],
+    schema=["idx", "lists", "maps", "strs"])
+mock.write.save_as_table("test_table2")
+
 session._ast_batch.flush()  # Clear the AST.
 
 # Run the test.
@@ -203,8 +212,12 @@ def test_ast(session, test_case):
             ) from e
 
 
-if __name__ == "__main__":
+def override_time_zone() -> None:
     # Use any time zone other than America/Los_Angeles and UTC, to minimize the
     # odds of tests passing by luck.
     os.environ["TZ"] = "America/New_York"
+    time.tzset()
+
+
+if __name__ == "__main__":
     pytest.main()
