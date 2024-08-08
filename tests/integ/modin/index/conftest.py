@@ -12,6 +12,10 @@ TEST_DFS = [
         index=native_pd.Index([[1, 2], [2, 3], [3, 4]]),
     ),
     native_pd.DataFrame([1]),
+    native_pd.DataFrame(
+        data={"col1": [1, 2, 3], "col2": [3, 4, 5]},
+        index=native_pd.DatetimeIndex(["2024-01-01", "2024-02-01", "2024-03-01"]),
+    ),
 ]
 
 NATIVE_INDEX_TEST_DATA = [
@@ -23,6 +27,15 @@ NATIVE_INDEX_TEST_DATA = [
     native_pd.Index([1]),
     native_pd.Index(["a", "b", 1, 2]),
     native_pd.Index(["a", "b", "c", "d"]),
+    native_pd.DatetimeIndex(
+        ["2020-01-01 10:00:00+00:00", "2020-02-01 11:00:00+00:00"],
+        tz="America/Los_Angeles",
+    ),
+    native_pd.DatetimeIndex(
+        ["2020-01-01 10:00:00+05:00", "2020-02-01 11:00:00+05:00"],
+        tz="America/Los_Angeles",
+    ),
+    native_pd.DatetimeIndex([1262347200000000000, 1262347400000000000]),
 ]
 
 NATIVE_INDEX_UNIQUE_TEST_DATA = [
@@ -34,4 +47,12 @@ NATIVE_INDEX_UNIQUE_TEST_DATA = [
     native_pd.Index([5, None, 7, None]),
     native_pd.Index([1]),
     native_pd.Index(["a", "b", 1, 2, None, "a", 2], name="mixed index"),
+    native_pd.DatetimeIndex(
+        ["2020-01-01 10:00:00+00:00", "2020-02-01 11:00:00+00:00"],
+        tz="America/Los_Angeles",
+    ),
+    native_pd.DatetimeIndex(
+        ["2020-01-01 10:00:00+00:00", "2020-01-01 10:00:00+00:00"],
+        tz="America/Los_Angeles",
+    ),
 ]
