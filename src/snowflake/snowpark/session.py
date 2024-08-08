@@ -539,11 +539,14 @@ class Session:
                 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
             )
         )
+        """
         self._eliminate_numeric_sql_value_cast_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED, False
             )
         )
+        """
+        self._eliminate_numeric_sql_value_cast_enabled: bool = True
         self._auto_clean_up_temp_table_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED, False
