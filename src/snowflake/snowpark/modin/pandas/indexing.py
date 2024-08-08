@@ -43,6 +43,7 @@ from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import pandas
+from modin.pandas.base import BasePandasDataset
 from pandas._libs.tslibs import Resolution, parsing
 from pandas._typing import AnyArrayLike, Scalar
 from pandas.api.types import is_bool, is_list_like
@@ -58,7 +59,6 @@ from pandas.core.indexing import IndexingError
 
 import snowflake.snowpark.modin.pandas as pd
 import snowflake.snowpark.modin.pandas.utils as frontend_utils
-from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.pandas.series import (
     SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE,

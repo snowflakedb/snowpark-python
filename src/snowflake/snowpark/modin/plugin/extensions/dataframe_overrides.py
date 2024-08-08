@@ -7,7 +7,7 @@ File containing DataFrame APIs defined in the Modin API layer, but with differen
 pandas, such as `DataFrame.memory_usage`.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 import pandas as native_pd
 
@@ -15,6 +15,9 @@ from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_accessor
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
+)
+from snowflake.snowpark.modin.plugin.utils.error_message import (
+    dataframe_not_implemented,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import _inherit_docstrings
@@ -105,3 +108,10 @@ def plot(
         "DataFrame.plot materializes data to the local machine for plotting."
     )
     return self._to_pandas().plot
+
+
+@register_dataframe_accessor("map")
+@dataframe_not_implemented()
+@snowpark_pandas_telemetry_method_decorator
+def map(self, func, na_action: Optional[str] = None, **kwargs):
+    pass

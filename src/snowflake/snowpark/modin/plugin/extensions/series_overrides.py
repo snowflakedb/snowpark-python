@@ -18,6 +18,7 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike
+from snowflake.snowpark.modin.plugin.utils.error_message import series_not_implemented
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import _inherit_docstrings
 
@@ -158,3 +159,10 @@ def plot(
         "Series.plot materializes data to the local machine for plotting."
     )
     return self._to_pandas().plot
+
+
+@register_series_accessor("transform")
+@snowpark_pandas_telemetry_method_decorator
+@series_not_implemented()
+def transform(self, func, axis=0, *args, **kwargs):  # noqa: PR01, RT01, D200
+    pass
