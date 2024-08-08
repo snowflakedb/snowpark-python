@@ -482,10 +482,6 @@ def test_window_functions_in_multiple_selects(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_listagg_window_function(session):
     df = session.create_dataframe(
         [

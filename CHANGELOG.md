@@ -35,6 +35,8 @@
     - cume_dist
     - ntile
     - datediff
+    - array_agg
+  - snowflake.snowpark.column.Column.within_group
 
 #### Bug Fixes
 - Fixed a bug that Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
