@@ -195,9 +195,9 @@ _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
     "PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME"
 )
 # parameter used to turn off the whole new query compilation stage in one shot. If turned
-# off the plan won't go through the extra optimization and query generation steps.
+# off, the plan won't go through the extra optimization and query generation steps.
 _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE = (
-    "PYTHON_SNOWPARK_ENABLE_COMPILATION_STAGE"
+    "PYTHON_SNOWPARK_COMPILATION_STAGE_ENABLED"
 )
 _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING = "PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION"
 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
