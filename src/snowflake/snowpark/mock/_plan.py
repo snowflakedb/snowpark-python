@@ -1800,7 +1800,9 @@ def calculate_expression(
                     elif c == "i":
                         case = re.I
                     elif c == "m":
-                        multiline = re.M
+                        # Multi-line mode does not appear to work correctly on the server side
+                        # multiline = re.M
+                        pass
                     elif c == "s":
                         newline = re.S
                 flags = case | multiline | newline

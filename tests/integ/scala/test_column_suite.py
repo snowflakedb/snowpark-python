@@ -636,11 +636,30 @@ def test_regexp(session):
         Row("banana")
     ]
     assert TestData.string4(session).where(col("A").regexp("%a%")).collect() == []
+
+    # Test flags - case sensitive
     assert (
         TestData.string4(session).where(col("A").regexp("AP.LE", "c")).collect() == []
     )
+
+    # Test flags - case insensitive
     assert TestData.string4(session).where(col("A").regexp("AP.LE", "i")).collect() == [
         Row("apple")
+    ]
+
+    # Test flags - case multiline
+    assert TestData.string9(session).where(
+        col("A").regexp("foo.*bar.", "m")
+    ).collect() == [Row(A="foo\tbar2"), Row(A="foo\rbar3")]
+
+    # Test flags - case newline
+    assert TestData.string9(session).where(
+        col("A").regexp("foo.*bar.", "s")
+    ).collect() == [
+        Row(A="foo\nbar1"),
+        Row(A="foo\tbar2"),
+        Row(A="foo\rbar3"),
+        Row(A="foo\r\nbar4"),
     ]
 
     with pytest.raises(SnowparkSQLException) as ex_info:
