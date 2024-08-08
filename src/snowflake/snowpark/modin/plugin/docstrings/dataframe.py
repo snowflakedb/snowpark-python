@@ -3281,6 +3281,11 @@ class DataFrame:
         is the previous index value when the data is sorted.
         """
 
+    def reindex_like():
+        """
+        Return an object with matching indices as `other` object.
+        """
+
     def replace():
         """
         Replace values given in `to_replace` with `value`.
@@ -4482,6 +4487,11 @@ class DataFrame:
         Anne    1
         Beth    1
         Name: count, dtype: int64
+        """
+
+    def map():
+        """
+        Apply a function to the `DataFrame` elementwise.
         """
 
     def mask():
