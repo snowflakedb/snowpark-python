@@ -190,10 +190,10 @@ def build_builtin_fn_apply(
     **kwargs: Dict[str, Union[proto.Expr, Any]],
 ) -> None:
     """
-    Creates AST encoding for ApplyExpr(BuiltinFn(<builtin_name>, List(<args...>), Map(<kwargs...>))) for builtin
+    Creates AST encoding for ApplyExpr(BuiltinFn(<builtin_name>), List(<args...>), Map(<kwargs...>)) for builtin
     functions.
     Args:
-        ast: Expr node to fill
+        ast: Expr node to fill.
         builtin_name: Name of the builtin function to call.
         *args: Positional arguments to pass to function.
         **kwargs: Keyword arguments to pass to function.
@@ -212,10 +212,12 @@ def build_session_table_fn_apply(
     **kwargs: Dict[str, Union[proto.Expr, Any]],
 ) -> None:
     """
-    Creates AST encoding for ApplyExpr(SessionTableFn(<name>)) for session table functions.
+    Creates AST encoding for ApplyExpr(SessionTableFn(<name>), List(<args...>), Map(<kwargs...>)) for session table functions.
     Args:
-        ast: Expr node to fill
+        ast: Expr node to fill.
         name: Name of the session table function to call.
+        *args: Positional arguments to pass to function.
+        **kwargs: Keyword arguments to pass to function.
     """
     expr = with_src_position(ast.apply_expr)
     _set_fn_name(name, expr.fn.session_table_fn)
@@ -229,6 +231,16 @@ def build_table_fn_apply(
     *args: Tuple[Union[proto.Expr, Any]],
     **kwargs: Dict[str, Union[proto.Expr, Any]],
 ) -> None:
+    """
+    Creates AST encoding for ApplyExpr(TableFn(<name>), List(<args...>), Map(<kwargs...>)) for table functions.
+    Args:
+        ast: Expr node to fill.
+        name: Name of the table function to call. The name can be None and is ignored for table function calls of type SessionTableFn.
+        *args: Positional arguments to pass to function.
+        **kwargs: Keyword arguments to pass to function.
+
+    Requires that ast.apply_expr.fn.table_fn.call_type is set to a valid TableFnCallType.
+    """
     expr = with_src_position(ast.apply_expr)
     assert (
         ast.apply_expr.fn.table_fn.call_type.WhichOneof("variant") is not None
@@ -248,13 +260,11 @@ def build_fn_apply_args(
     **kwargs: Dict[str, Union[proto.Expr, Any]],
 ) -> None:
     """
-    Creates AST encoding for ApplyExpr(BuiltinFn(<builtin_name>, List(<args...>), Map(<kwargs...>))) for builtin
-    functions.
+    Creates AST encoding for the argument lists of ApplyExpr.
     Args:
         ast: Expr node to fill
         *args: Positional arguments to pass to function.
         **kwargs: Keyword arguments to pass to function.
-
     """
     expr = ast.apply_expr
 
