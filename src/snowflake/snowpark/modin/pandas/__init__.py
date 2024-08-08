@@ -25,6 +25,8 @@ from typing import Any
 
 import pandas
 
+from snowflake.snowpark._internal.utils import is_in_stored_procedure
+
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from pandas import describe_option  # noqa: F401
@@ -346,3 +348,10 @@ import snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.default  #
 modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register = (
     snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register
 )
+
+# Call getOrCreate() at import time on behalf of user so that in a stored procedure,
+# the user does not need to do it explicitly.
+# TODO: Remove when the pre-creation of session in XP even for session-less sproc
+# handlers is implemented and proves to be sufficient.
+if is_in_stored_procedure():  # pragma: no cover
+    snowflake.snowpark.Session.SessionBuilder().getOrCreate()

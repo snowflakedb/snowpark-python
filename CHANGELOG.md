@@ -151,6 +151,7 @@
 - Added support for Index APIs: `dtype`, `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
 - Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
 - Added support for `inplace` parameter in `DataFrame.sort_index` and `Series.sort_index`.
+- Made importing Snowpark pandas automatically create a Snowpark session in stored procedures.
 
 
 ## 1.19.0 (2024-06-25)
