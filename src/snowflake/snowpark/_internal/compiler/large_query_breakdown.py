@@ -166,7 +166,7 @@ class LargeQueryBreakdown:
                         # is at the end of the list.
                         pipeline_breaker_list.add((score, child))
                     else:
-                        # don't traverse subtrees if we have a valid parent
+                        # don't traverse subtrees if parent is a valid candidate
                         next_level.append(child)
 
             current_level = next_level
