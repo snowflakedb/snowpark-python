@@ -4,7 +4,8 @@
 
 """
 TODO:
-* test query complexity score calculation is correct --unit
+* test query complexity score calculation is correct -- unit
+* test pipeline breaker node -- unit
 * test sort break points are correct
 """
 
@@ -15,6 +16,14 @@ import pytest
 from snowflake.snowpark._internal.compiler import large_query_breakdown
 from snowflake.snowpark.functions import col, lit, sum_distinct
 from tests.utils import Utils
+
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="Large Query Breakdown runs in non-local testing mode",
+        run=False,
+    )
+]
 
 DEFAULT_LOWER_BOUND = large_query_breakdown.COMPLEXITY_SCORE_LOWER_BOUND
 DEFAULT_UPPER_BOUND = large_query_breakdown.COMPLEXITY_SCORE_UPPER_BOUND
