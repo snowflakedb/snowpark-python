@@ -183,6 +183,26 @@ def build_proto_from_struct_type(
         ast_field.nullable = field.nullable
 
 
+def _set_fn_name(name: Union[str, Iterable[str]], fn: proto.FnRefExpr) -> None:
+    """
+    Set the function name in the AST. The function name can be a string or an iterable of strings.
+    Args:
+        name: The function name to set in the AST.
+        fn: The function reference expression to set the name in. The caller must provide the correct type of function.
+
+    Raises:
+        ValueError: Raised if the function name is not a string or an iterable of strings.
+    """
+    if isinstance(name, str):
+        fn.name.fn_name_flat.name = name
+    elif isinstance(name, Iterable):
+        fn.name.fn_name_structured.name.extend(name)
+    else:
+        raise ValueError(
+            f"Invalid function name: {name}. The function name must be a string or an iterable of strings."
+        )
+
+
 def build_builtin_fn_apply(
     ast: proto.Expr,
     builtin_name: str,
@@ -599,24 +619,4 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
     else:
         raise NotImplementedError(
             f"Snowpark expr {expr} of type {type(expr)} is an expression with missing AST or for which an AST can not be auto-generated."
-        )
-
-
-def _set_fn_name(name: Union[str, Iterable[str]], fn: proto.FnRefExpr) -> None:
-    """
-    Set the function name in the AST. The function name can be a string or an iterable of strings.
-    Args:
-        name: The function name to set in the AST.
-        fn: The function reference expression to set the name in. The caller must provide the correct type of function.
-
-    Raises:
-        ValueError: Raised if the function name is not a string or an iterable of strings.
-    """
-    if isinstance(name, str):
-        fn.name.fn_name_flat.name = name
-    elif isinstance(name, Iterable):
-        fn.name.fn_name_structured.name.extend(name)
-    else:
-        raise ValueError(
-            f"Invalid function name: {name}. The function name must be a string or an iterable of strings."
         )
