@@ -33,6 +33,7 @@ from pandas._typing import ArrayLike, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import pandas_dtype
+from pandas.io.formats.console import get_console_size
 
 from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.base import BasePandasDataset
@@ -2146,8 +2147,148 @@ class Index(metaclass=TelemetryMeta):
         """
         Return a string representation for this object.
         """
-        WarningMessage.index_to_pandas_warning("__repr__")
-        return self.to_pandas().__repr__()
+        # Create the representation for each field in the index and then join them.
+        # First, create the data representation.
+        # When the number of elements in the Index is greater than the number of
+        # elements to display, display only the first and last 10 elements.
+        max_seq_items = native_pd.get_option("display.max_seq_items") or 100
+        length_of_index, _, temp_df = self.to_series()._query_compiler.build_repr_df(
+            max_seq_items, 1
+        )
+        if isinstance(temp_df, native_pd.DataFrame) and not temp_df.empty:
+            local_index = temp_df.iloc[:, 0].to_list()
+        else:
+            local_index = []
+        console_size = get_console_size()[0]
+        too_many_elem = max_seq_items < length_of_index
+
+        def _format_string_elem(elem) -> str:
+            """
+            When an element is a string, surround it by single quotes.
+            """
+            return "'" + str(elem) + "'" if isinstance(elem, str) else str(elem)
+
+        if length_of_index == 0:
+            data_repr = "[]"
+
+        elif length_of_index == 1:
+            data_repr = "[" + _format_string_elem(local_index[0]) + "]"
+
+        elif too_many_elem:
+            # Display the first and last 10 elements.
+            first_and_last_ten_elem = local_index[:10] + local_index[-10:]
+
+            # Need to get the length of the longest element since each element
+            # displayed must be the same length for uniformity.
+            # For instance, if the elements are [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, ..., 1000],
+            # the length of the longest element is 4, so the elements will be displayed as:
+            # [   1,    2,    3,    4,    5,    6,    7,    8,    9,   10,
+            # ...
+            #  991,  992,  993,  994,  995,  996,  997,  998,  999, 1000]
+            length_of_longest_elem = 0
+            for elem in first_and_last_ten_elem:
+                # Need to account for the single quotes around strings.
+                elem_len = len(str(elem)) + (2 if isinstance(elem, str) else 0)
+                if elem_len > length_of_longest_elem:
+                    length_of_longest_elem = elem_len
+
+            # Get the number of elements to print in a single line.
+            # In case there is no console size, default to 10 elements in one line.
+            if console_size is not None:
+                num_elem_to_print = console_size // (length_of_longest_elem + 1)
+            else:
+                num_elem_to_print = 10  # pragma: no cover
+
+            seven_space_indent = " " * 7
+
+            # Using the information above, stitch together the elements in the index.
+            def _format_elem(elem_list) -> str:
+                """
+                Function to format the elements in the index with the appropriate amount of whitespace,
+                and then separate them by commas and newlines when necessary.
+                If each element is very long and needs to be displayed on one line each, they are
+                indented with seven spaces.
+                """
+                sep_data = ""
+                for i, element in enumerate(elem_list[:-1]):
+                    sep_data += (
+                        _format_string_elem(element).rjust(length_of_longest_elem)
+                        + ","
+                        + (
+                            "\n" + seven_space_indent
+                            if (i and (i + 1) % num_elem_to_print == 0)
+                            else " "
+                        )
+                    )
+                return sep_data + _format_string_elem(elem_list[-1]).rjust(
+                    length_of_longest_elem
+                )
+
+            first_ten_elem_repr = _format_elem(first_and_last_ten_elem[:10])
+            last_ten_elem_repr = _format_elem(first_and_last_ten_elem[10:])
+            # A seven space indent is needed to correctly align the last 10 elements with the first 10.
+            # Output needs to look like:
+            # 'Index([   0,    1,    2,    3,    4,    5,    6,    7,    8,    9,\n'
+            # '       ...\n'
+            # '       9990, 9991, 9992, 9993, 9994, 9995, 9996, 9997, 9998, 9999],\n'
+            # "      dtype='int64', length=10000)"
+            data_repr = (
+                "["
+                + first_ten_elem_repr
+                + ",\n"
+                + seven_space_indent
+                + "...\n"
+                + seven_space_indent
+                + last_ten_elem_repr
+                + "]"
+            )
+
+        else:
+            # In the case where the number of elements in the index is less than the number of
+            # elements to display, display them all separated by commas.
+            data_repr = ""
+            for e in local_index[:-1]:
+                data_repr += _format_string_elem(e) + ", "
+            data_repr = "[" + data_repr + _format_string_elem(local_index[-1]) + "]"
+
+        # Next, creating the representation for each field with their respective labels.
+        # Assign a None value to optional fields that should not be displayed.
+        dtype_repr = f"dtype='{self.dtype}'"
+        name_repr = f"name='{self.name}'" if self.name else None
+        length_repr = f"length={length_of_index}" if too_many_elem else None
+
+        # The index always displays the data and datatype, and optionally the name and length.
+        if too_many_elem:
+            # Length is displayed only when some elements are displayed, which is when the number
+            # of elements is greater than the number of elements to display.
+            # If the elements are truncated (too many elements to display), there is a possibility
+            # that the fields (dtype, name, and length) need to be printed on new lines.
+            six_space_indent = " " * 6  # required to correctly align fields with data.
+            dtype_repr = ",\n" + six_space_indent + dtype_repr
+            last_line_len = len(dtype_repr)
+
+            if name_repr:
+                if last_line_len + len(name_repr) > console_size:
+                    name_repr = ",\n" + six_space_indent + name_repr  # pragma: no cover
+                    last_line_len = len(name_repr)  # pragma: no cover
+                else:
+                    name_repr = ", " + name_repr
+                    last_line_len += len(name_repr)
+            else:
+                name_repr = ""
+
+            if last_line_len + len(length_repr) > console_size:
+                length_repr = ",\n" + six_space_indent + length_repr
+            else:
+                length_repr = ", " + length_repr
+
+            repr = "Index(" + data_repr + dtype_repr + name_repr + length_repr + ")"
+
+        else:
+            name_repr = (", " + name_repr) if name_repr else ""
+            repr = "Index(" + data_repr + ", " + dtype_repr + name_repr + ")"
+
+        return repr
 
     def __iter__(self) -> Iterator:
         """
