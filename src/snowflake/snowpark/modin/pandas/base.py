@@ -896,9 +896,47 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         Align two objects on their axes with the specified join method.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        return self._default_to_pandas(
-            "align",
-            other,
+        if (
+            method is not lib.no_default
+            or limit is not lib.no_default
+            or fill_axis is not lib.no_default
+        ):
+            warnings.warn(  # noqa: B028
+                "The 'method', 'limit', and 'fill_axis' keywords in "
+                + f"{type(self).__name__}.align are deprecated and will be removed "
+                + "in a future version. Call fillna directly on the returned objects "
+                + "instead.",
+                FutureWarning,
+            )
+        if fill_axis is lib.no_default:
+            fill_axis = 0
+        if method is lib.no_default:
+            method = None
+        if limit is lib.no_default:
+            limit = None
+
+        if broadcast_axis is not lib.no_default:
+            msg = (
+                f"The 'broadcast_axis' keyword in {type(self).__name__}.align is "
+                + "deprecated and will be removed in a future version."
+            )
+            if broadcast_axis is not None:
+                if self.ndim == 1 and other.ndim == 2:
+                    msg += (
+                        " Use left = DataFrame({col: left for col in right.columns}, "
+                        + "index=right.index) before calling `left.align(right)` instead."
+                    )
+                elif self.ndim == 2 and other.ndim == 1:
+                    msg += (
+                        " Use right = DataFrame({col: right for col in left.columns}, "
+                        + "index=left.index) before calling `left.align(right)` instead"
+                    )
+            warnings.warn(msg, FutureWarning)  # noqa: B028
+        else:
+            broadcast_axis = None
+
+        left, right = self._query_compiler.align(
+            other._query_compiler,
             join=join,
             axis=axis,
             level=level,
@@ -908,6 +946,9 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             limit=limit,
             fill_axis=fill_axis,
             broadcast_axis=broadcast_axis,
+        )
+        return self.__constructor__(query_compiler=left), self.__constructor__(
+            query_compiler=right
         )
 
     def all(self, axis=0, bool_only=None, skipna=True, **kwargs):
@@ -1159,10 +1200,12 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         Select values at particular time of day (e.g., 9:30AM).
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        axis = self._get_axis_number(axis)
-        idx = self.index if axis == 0 else self.columns
-        indexer = pandas.Series(index=idx).at_time(time, asof=asof).index
-        return self.loc[indexer] if axis == 0 else self.loc[:, indexer]
+        if asof:
+            # pandas raises NotImplementedError for asof=True, so we do, too.
+            raise NotImplementedError("'asof' argument is not supported")
+        return self.between_time(
+            start_time=time, end_time=time, inclusive="both", axis=axis
+        )
 
     def backfill(
         self,
@@ -1195,18 +1238,14 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         axis=None,
     ):  # noqa: PR01, RT01, D200
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        axis = self._get_axis_number(axis)
-        idx = self.index if axis == 0 else self.columns
-        indexer = (
-            pandas.Series(index=idx)
-            .between_time(
-                start_time,
-                end_time,
+        return self._create_or_update_from_compiler(
+            self._query_compiler.between_time(
+                start_time=pandas.core.tools.times.to_time(start_time),
+                end_time=pandas.core.tools.times.to_time(end_time),
                 inclusive=inclusive,
+                axis=self._get_axis_number(axis),
             )
-            .index
         )
-        return self.loc[indexer] if axis == 0 else self.loc[:, indexer]
 
     def bfill(
         self,
@@ -2630,22 +2669,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             final_query_compiler, inplace=False if copy is None else not copy
         )
 
-    def reindex_like(
-        self, other, method=None, copy=True, limit=None, tolerance=None
-    ):  # noqa: PR01, RT01, D200
-        """
-        Return an object with matching indices as `other` object.
-        """
-        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        return self._default_to_pandas(
-            "reindex_like",
-            other,
-            method=method,
-            copy=copy,
-            limit=limit,
-            tolerance=tolerance,
-        )
-
     def rename_axis(
         self,
         mapper=lib.no_default,
@@ -3759,42 +3782,38 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             raise ValueError("transforms cannot produce aggregated results")
         return result
 
-    def tz_convert(self, tz, axis=0, level=None, copy=True):  # noqa: PR01, RT01, D200
+    def tz_convert(self, tz, axis=0, level=None, copy=None):  # noqa: PR01, RT01, D200
         """
         Convert tz-aware axis to target time zone.
         """
-        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        axis = self._get_axis_number(axis)
-        if level is not None:
-            new_labels = (
-                pandas.Series(index=self.axes[axis]).tz_convert(tz, level=level).index
-            )
-        else:
-            new_labels = self.axes[axis].tz_convert(tz)
-        obj = self.copy() if copy else self
-        return obj.set_axis(new_labels, axis, copy=copy)
+        if copy is None:
+            copy = True
+        return self._create_or_update_from_compiler(
+            self._query_compiler.tz_convert(
+                tz, axis=self._get_axis_number(axis), level=level, copy=copy
+            ),
+            inplace=(not copy),
+        )
 
     def tz_localize(
-        self, tz, axis=0, level=None, copy=True, ambiguous="raise", nonexistent="raise"
+        self, tz, axis=0, level=None, copy=None, ambiguous="raise", nonexistent="raise"
     ):  # noqa: PR01, RT01, D200
         """
         Localize tz-naive index of a `BasePandasDataset` to target time zone.
         """
-        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        axis = self._get_axis_number(axis)
-        new_labels = (
-            pandas.Series(index=self.axes[axis])
-            .tz_localize(
+        if copy is None:
+            copy = True
+        return self._create_or_update_from_compiler(
+            self._query_compiler.tz_localize(
                 tz,
-                axis=axis,
+                axis=self._get_axis_number(axis),
                 level=level,
-                copy=False,
+                copy=copy,
                 ambiguous=ambiguous,
                 nonexistent=nonexistent,
-            )
-            .index
+            ),
+            inplace=(not copy),
         )
-        return self.set_axis(new_labels, axis, copy=copy)
 
     def var(
         self,

@@ -2088,6 +2088,29 @@ class DataFrame(BasePandasDataset):
             tolerance=tolerance,
         )
 
+    @dataframe_not_implemented()
+    def reindex_like(
+        self,
+        other,
+        method=None,
+        copy: bool | None = None,
+        limit=None,
+        tolerance=None,
+    ) -> DataFrame:
+        # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
+        if copy is None:
+            copy = True
+        # docs say "Same as calling .reindex(index=other.index, columns=other.columns,...).":
+        # https://pandas.pydata.org/pandas-docs/version/1.4/reference/api/pandas.DataFrame.reindex_like.html
+        return self.reindex(
+            index=other.index,
+            columns=other.columns,
+            method=method,
+            copy=copy,
+            limit=limit,
+            tolerance=tolerance,
+        )
+
     def replace(
         self,
         to_replace=None,
