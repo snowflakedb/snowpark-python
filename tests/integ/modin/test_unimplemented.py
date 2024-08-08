@@ -69,7 +69,6 @@ UNSUPPORTED_DATAFRAME_SERIES_METHODS = [
     (lambda df: df.kurtosis(), "kurtosis"),
     (lambda df: df.mode(), "mode"),
     (lambda df: df.sem(), "sem"),
-    (lambda df: df.transform(lambda x: x + 1), "transform"),
     unimplemented_dt_index_helper("tz_convert", "US/Central"),
     unimplemented_dt_index_helper("tz_localize", "US/Central"),
 ]
@@ -84,6 +83,7 @@ UNSUPPORTED_DATAFRAME_METHODS = [
 UNSUPPORTED_SERIES_METHODS = [
     (lambda se: se.is_monotonic_increasing, "property fget:is_monotonic_increasing"),
     (lambda se: se.is_monotonic_decreasing, "property fget:is_monotonic_decreasing"),
+    (lambda df: df.transform(lambda x: x + 1), "transform"),
 ]
 
 # unsupported binary operations that can be applied on both dataframe and series

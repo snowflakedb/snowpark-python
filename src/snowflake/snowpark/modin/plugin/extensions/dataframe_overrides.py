@@ -113,6 +113,8 @@ def plot(
     return self._to_pandas().plot
 
 
+@register_dataframe_accessor("transform")
+@snowpark_pandas_telemetry_method_decorator
 def transform(
     self, func: PythonFuncType, axis: Axis = 0, *args: Any, **kwargs: Any
 ) -> DataFrame:  # noqa: PR01, RT01, D200
