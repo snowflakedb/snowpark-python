@@ -11,7 +11,7 @@ import typing
 import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
-from typing import Any, Callable, List, Literal, Optional, Tuple, Union, get_args
+from typing import Any, Callable, List, Literal, Optional, Union, get_args
 
 import numpy as np
 import numpy.typing as npt
@@ -4684,6 +4684,95 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             agg_args=agg_args,
             agg_kwargs=agg_kwargs,
             drop=drop,
+        )
+
+    def groupby_value_counts(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        subset: Optional[list[str]],
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        bins: Optional[int] = None,
+        dropna: bool = True,
+    ) -> "SnowflakeQueryCompiler":
+        level = groupby_kwargs.get("level", None)
+        as_index = groupby_kwargs.get("as_index", True)
+        groupby_sort = groupby_kwargs.get("sort", True)
+        is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
+        if not is_supported:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas GroupBy.value_counts {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
+            )
+        if bins is not None:
+            raise ErrorMessage.not_implemented("bins argument is not yet supported")
+        if not is_list_like(by):
+            by = [by]
+        if len(set(by) & set(subset or [])):
+            # Check for overlap between by and subset. Since column names may contain customer data,
+            # unlike pandas, we do not include the offending labels in the error message.
+            raise ValueError("Keys in subset cannot be in the groupby column keys")
+        if subset is not None:
+            if not isinstance(subset, (list, tuple)):
+                subset_list = [subset]
+            else:
+                subset_list = subset
+        else:
+            # If subset is unspecified, then all columns should be included.
+            subset_list = self._modin_frame.data_column_pandas_labels
+        # The grouping columns are always included in the subset.
+        # Furthermore, the columns of the output must have the grouping columns first, in the order
+        # that they were specified.
+        subset_list = by + list(filter(lambda label: label not in by, subset_list))
+
+        if as_index:
+            # When as_index=True, the result is a Series with a MultiIndex index.
+            result = self._value_counts_groupby(
+                by=subset_list,
+                # Use sort=False to preserve the original order
+                sort=False,
+                normalize=normalize,
+                ascending=False,
+                dropna=dropna,
+                normalize_within_groups=by,
+            )
+        else:
+            # When as_index=False, the result is a DataFrame where count/proportion is appended as a new named column.
+            result = self._value_counts_groupby(
+                by=subset_list,
+                # Use sort=False to preserve the original order
+                sort=False,
+                normalize=normalize,
+                ascending=False,
+                dropna=dropna,
+                normalize_within_groups=by,
+            ).reset_index()
+            result = result.set_columns(
+                result._modin_frame.data_column_pandas_labels[:-1]
+                + ["proportion" if normalize else "count"]
+            )
+        # Within groups, rows are ordered based on their first appearance in the input frame.
+        # Note that in native pandas, preservation of order on non-grouping columns is not guaranteed:
+        # https://github.com/pandas-dev/pandas/issues/59307
+        sort_cols = []
+        if groupby_sort:
+            # When groupby(sort=True), sort the result on the grouping columns
+            sort_cols = by
+        ascending_cols = [True] * len(sort_cols)
+        if sort:
+            # When sort=True, also sort on the count/proportion column (always the last)
+            sort_cols.append(
+                result._modin_frame.data_column_pandas_labels[-1],
+            )
+            ascending_cols.append(ascending)
+        return result.sort_rows_by_column_values(
+            columns=sort_cols,
+            ascending=ascending_cols,
+            kind="stable",
+            na_position="last",
+            ignore_index=not as_index,  # When as_index=False, take the default positional index
         )
 
     def _get_dummies_helper(
@@ -10893,11 +10982,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _value_counts_groupby(
         self,
-        by: Union[List[Hashable], Tuple[Hashable, ...]],
+        by: Sequence[Hashable],
         normalize: bool,
         sort: bool,
         ascending: bool,
         dropna: bool,
+        *,
+        normalize_within_groups: Optional[list[str]] = None,
     ) -> "SnowflakeQueryCompiler":
         """
         Helper method to obtain the frequency or number of unique values
@@ -10919,6 +11010,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 Sort in ascending order.
             dropna : bool
                 Don't include counts of NaN.
+            normalize_within_groups : list[str], optional
+                If set, the normalize parameter will normalize based on the specified groups
+                rather than the entire dataset. This parameter is exclusive to the Snowpark pandas
+                query compiler and is only used internally to implement groupby_value_counts.
         """
         # validate whether by is valid (e.g., contains duplicates or non-existing labels)
         self.validate_groupby(by=by, axis=0, level=None)
@@ -10946,9 +11041,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # they are normalized to percentages as [2/(2+1+1), 1/(2+1+1), 1/(2+1+1)] = [0.5, 0.25, 0.25]
         # by default, ratio_to_report returns a decimal column, whereas pandas returns a float column
         if normalize:
+            if normalize_within_groups:
+                # If normalize_within_groups is set, then the denominator for ratio_to_report should
+                # be the size of each group instead.
+                normalize_snowflake_quoted_identifiers = [
+                    entry[0]
+                    for entry in internal_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                        normalize_within_groups
+                    )
+                ]
+                window = Window.partition_by(normalize_snowflake_quoted_identifiers)
+            else:
+                window = None
             internal_frame = query_compiler._modin_frame.project_columns(
                 [COUNT_LABEL],
-                builtin("ratio_to_report")(col(count_identifier)).over(),
+                builtin("ratio_to_report")(col(count_identifier)).over(window),
             )
             count_identifier = internal_frame.data_column_snowflake_quoted_identifiers[
                 0
