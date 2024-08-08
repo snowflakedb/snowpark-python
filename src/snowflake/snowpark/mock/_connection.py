@@ -541,6 +541,7 @@ class MockServerConnection:
                 raise_error=NotImplementedError,
             )
 
+        rows = []
         res = execute_mock_plan(plan, plan.expr_to_alias)
         if isinstance(res, TableEmulator):
             # stringfy the variant type in the result df

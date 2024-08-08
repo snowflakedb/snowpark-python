@@ -1217,7 +1217,7 @@ class DataFrame:
             Union[ColumnOrName, TableFunctionCall],
             Iterable[Union[ColumnOrName, TableFunctionCall]],
         ],
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: Optional[proto.Assign] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
@@ -3551,7 +3551,7 @@ class DataFrame:
             return result[0][0] if block else result
 
     @property
-    def write(self) -> DataFrameWriter:
+    def write(self, _emit_ast: bool = True) -> DataFrameWriter:
         """Returns a new :class:`DataFrameWriter` object that you can use to write the data in the :class:`DataFrame` to
         a Snowflake database or a stage location
 
@@ -3570,6 +3570,13 @@ class DataFrame:
             >>> df.write.copy_into_location("@test_stage/copied_from_dataframe")  # default CSV
             [Row(rows_unloaded=2, input_bytes=8, output_bytes=28)]
         """
+
+        # AST.
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_write, stmt)
+            self.set_ast_ref(expr.df)
+            self._writer._ast_stmt = stmt
 
         return self._writer
 

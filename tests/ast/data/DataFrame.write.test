@@ -1,0 +1,11 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
+
+stage_created_result = session.sql("create temp stage if not exists test_stage").collect()
+
+df.write.copy_into_location("@test_stage/copied_from_dataframe")
+
+## EXPECTED OUTPUT

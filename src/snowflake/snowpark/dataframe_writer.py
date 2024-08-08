@@ -6,6 +6,7 @@ import sys
 from typing import Any, Dict, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     SaveMode,
@@ -52,9 +53,14 @@ class DataFrameWriter:
        specified destination.
     """
 
-    def __init__(self, dataframe: "snowflake.snowpark.dataframe.DataFrame") -> None:
+    def __init__(
+        self,
+        dataframe: "snowflake.snowpark.dataframe.DataFrame",
+        _ast_stmt: Optional[proto.Assign] = None,
+    ) -> None:
         self._dataframe = dataframe
         self._save_mode = SaveMode.ERROR_IF_EXISTS
+        self._ast_stmt = _ast_stmt
 
     def mode(self, save_mode: str) -> "DataFrameWriter":
         """Set the save mode of this :class:`DataFrameWriter`.
@@ -78,6 +84,30 @@ class DataFrameWriter:
             The :class:`DataFrameWriter` itself.
         """
         self._save_mode = str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")
+
+        # Update AST if it exists.
+        if self._ast_stmt is not None:
+            if self._save_mode == SaveMode.APPEND:
+                self._ast_stmt.expr.sp_dataframe_write.save_mode.sp_save_mode_append = (
+                    True
+                )
+            if self._save_mode == SaveMode.ERROR_IF_EXISTS:
+                self._ast_stmt.expr.sp_dataframe_write.save_mode.sp_save_mode_error_if_exists = (
+                    True
+                )
+            if self._save_mode == SaveMode.IGNORE:
+                self._ast_stmt.expr.sp_dataframe_write.save_mode.sp_save_mode_ignore = (
+                    True
+                )
+            if self._save_mode == SaveMode.OVERWRITE:
+                self._ast_stmt.expr.sp_dataframe_write.save_mode.sp_save_mode_overwrite = (
+                    True
+                )
+            if self._save_mode == SaveMode.TRUNCATE:
+                self._ast_stmt.expr.sp_dataframe_write.save_mode.sp_save_mode_truncate = (
+                    True
+                )
+
         return self
 
     @overload
@@ -123,6 +153,7 @@ class DataFrameWriter:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         comment: Optional[str] = None,
+        _emit_ast: bool = True,
     ) -> Optional[AsyncJob]:
         """Writes the data to the specified table in a Snowflake database.
 
