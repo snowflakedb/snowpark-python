@@ -13,6 +13,7 @@ import pytest
 import pytz
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     _columns_from_timestamp_parts,
@@ -153,6 +154,7 @@ from snowflake.snowpark.functions import (
     radians,
     random,
     rank,
+    reference,
     regexp_count,
     repeat,
     replace,
@@ -247,6 +249,22 @@ def test_col(session):
 def test_lit(session):
     res = TestData.test_data1(session).select(lit(1)).collect()
     assert res == [Row(1), Row(1)]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="system functions not supported by local testing",
+)
+def test_reference(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1,)]).to_df(["a"])
+    df.write.save_as_table(table_name)
+
+    try:
+        data = df.select(reference("TABLE", table_name)).collect()
+        assert data[0][0].startswith("ENT_REF_TABLE")
+    finally:
+        session.table(table_name).drop_table()
 
 
 def test_avg(session):
