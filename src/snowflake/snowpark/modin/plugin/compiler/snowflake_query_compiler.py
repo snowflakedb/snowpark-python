@@ -16635,3 +16635,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
 
         return result
+
+    def tz_convert(self, *args: Any, **kwargs: Any) -> None:
+        ErrorMessage.method_not_implemented_error("tz_convert", "BasePandasDataset")
+
+    def tz_localize(self, *args: Any, **kwargs: Any) -> None:
+        ErrorMessage.method_not_implemented_error("tz_convert", "BasePandasDataset")

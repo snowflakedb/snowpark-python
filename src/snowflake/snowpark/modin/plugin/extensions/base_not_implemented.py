@@ -3,9 +3,13 @@
 #
 
 """
-Methods defined on BasePandasDataset that are overridden in Snowpark pandas. Adding a method to this file
-should be done with discretion, and only when relevant changes cannot be made to the query compiler or
-upstream frontend to accommodate Snowpark pandas.
+The functions in this file are not implemented in Snowpark pandas. In the future, they
+should raise NotImplementedError at the query compiler layer, but doing so requires a longer-term
+effort.
+
+We currently test unsupported APIs under tests/unit/modin/test_unsupported.py, which does not initialize
+a session. As such, many frontend methods have additional query compiler API calls that would have to
+be mocked before the NotImplementedError can appropriately be raised.
 """
 from __future__ import annotations
 
@@ -15,6 +19,7 @@ from typing import Any
 import numpy as np
 import pandas
 from modin.pandas.base import BasePandasDataset
+from pandas._libs import lib
 from pandas._libs.lib import no_default
 from pandas._typing import (
     Axis,
@@ -45,17 +50,41 @@ def register_base_not_implemented():
     return decorator
 
 
-# === UNIMPLEMENTED METHODS ===
-# The following methods are not implemented in Snowpark pandas, and must be overridden on the
-# frontend. These methods fall into a few categories:
-# 1. Would work in Snowpark pandas, but we have not tested it.
-# 2. Would work in Snowpark pandas, but requires more SQL queries than we are comfortable with.
-# 3. Requires materialization (usually via a frontend _default_to_pandas call).
-# 4. Performs operations on a native pandas Index object that are nontrivial for Snowpark pandas to manage.
+@register_base_not_implemented()
+def align(
+    self,
+    other,
+    join="outer",
+    axis=None,
+    level=None,
+    copy=None,
+    fill_value=None,
+    method=lib.no_default,
+    limit=lib.no_default,
+    fill_axis=lib.no_default,
+    broadcast_axis=lib.no_default,
+):  # noqa: PR01, RT01, D200
+    pass
 
 
 @register_base_not_implemented()
 def asof(self, where, subset=None):  # noqa: PR01, RT01, D200
+    pass
+
+
+@register_base_not_implemented()
+def at_time(self, time, asof=False, axis=None):  # noqa: PR01, RT01, D200
+    pass
+
+
+@register_base_not_implemented()
+def between_time(
+    self: BasePandasDataset,
+    start_time,
+    end_time,
+    inclusive: str | None = None,
+    axis=None,
+):  # noqa: PR01, RT01, D200
     pass
 
 
@@ -65,7 +94,29 @@ def bool(self):  # noqa: RT01, D200
 
 
 @register_base_not_implemented()
+def clip(
+    self, lower=None, upper=None, axis=None, inplace=False, *args, **kwargs
+):  # noqa: PR01, RT01, D200
+    pass
+
+
+@register_base_not_implemented()
+def combine(self, other, func, fill_value=None, **kwargs):  # noqa: PR01, RT01, D200
+    pass
+
+
+@register_base_not_implemented()
+def combine_first(self, other):  # noqa: PR01, RT01, D200
+    pass
+
+
+@register_base_not_implemented()
 def droplevel(self, level, axis=0):  # noqa: PR01, RT01, D200
+    pass
+
+
+@register_base_not_implemented()
+def explode(self, column, ignore_index: bool = False):  # noqa: PR01, RT01, D200
     pass
 
 
@@ -94,6 +145,28 @@ def filter(
 
 
 @register_base_not_implemented()
+def infer_objects(
+    self, copy: bool | None = None
+) -> BasePandasDataset:  # pragma: no cover # noqa: RT01, D200
+    pass
+
+
+@register_base_not_implemented()
+def kurt(self, axis=no_default, skipna=True, numeric_only=False, **kwargs):
+    pass
+
+
+@register_base_not_implemented()
+def kurtosis(self, axis=no_default, skipna=True, numeric_only=False, **kwargs):
+    pass
+
+
+@register_base_not_implemented()
+def mode(self, axis=0, numeric_only=False, dropna=True):  # noqa: PR01, RT01, D200
+    pass
+
+
+@register_base_not_implemented()
 def pipe(self, func, *args, **kwargs):  # noqa: PR01, RT01, D200
     pass
 
@@ -104,7 +177,26 @@ def pop(self, item):  # noqa: PR01, RT01, D200
 
 
 @register_base_not_implemented()
+def reindex_like(
+    self, other, method=None, copy=True, limit=None, tolerance=None
+):  # noqa: PR01, RT01, D200
+    pass
+
+
+@register_base_not_implemented()
 def reorder_levels(self, order, axis=0):  # noqa: PR01, RT01, D200
+    pass
+
+
+@register_base_not_implemented()
+def sem(
+    self,
+    axis: Axis | None = None,
+    skipna: bool = True,
+    ddof: int = 1,
+    numeric_only=False,
+    **kwargs,
+):  # noqa: PR01, RT01, D200
     pass
 
 
@@ -289,11 +381,6 @@ def to_xarray(self):  # noqa: PR01, RT01, D200
 
 
 @register_base_not_implemented()
-def transform(self, func, axis=0, *args, **kwargs):  # noqa: PR01, RT01, D200
-    pass
-
-
-@register_base_not_implemented()
 def truncate(
     self, before=None, after=None, axis=None, copy=True
 ):  # noqa: PR01, RT01, D200
@@ -301,5 +388,27 @@ def truncate(
 
 
 @register_base_not_implemented()
+def tz_convert(self, tz, axis=0, level=None, copy=True):  # noqa: PR01, RT01, D200
+    pass
+
+
+@register_base_not_implemented()
+def tz_localize(
+    self, tz, axis=0, level=None, copy=True, ambiguous="raise", nonexistent="raise"
+):  # noqa: PR01, RT01, D200
+    pass
+
+
+@register_base_not_implemented()
+def __array_wrap__(self, result, context=None):
+    pass
+
+
+@register_base_not_implemented()
 def __finalize__(self, other, method=None, **kwargs):
+    pass
+
+
+@register_base_not_implemented()
+def __sizeof__(self):
     pass
