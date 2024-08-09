@@ -73,6 +73,9 @@ def mock_query_generator(mock_session) -> QueryGenerator:
     def mock_resolve(x):
         snowflake_plan = mock_snowflake_plan()
         snowflake_plan.source_plan = x
+        if hasattr(x, "post_actions"):
+            snowflake_plan.post_actions = x.post_actions
+            print(f"post_actions: {x.post_actions}")
         return snowflake_plan
 
     fake_query_generator = mock.create_autospec(QueryGenerator)
@@ -296,6 +299,7 @@ def test_selectable_entity(
         assert isinstance(plan.source_plan, SelectableEntity)
         assert plan.source_plan.analyzer == mock_query_generator
     else:
+        assert plan._cumulative_node_complexity is None
         assert plan.analyzer == mock_query_generator
 
 
@@ -328,6 +332,7 @@ def test_select_sql(
         assert isinstance(plan.source_plan, SelectSQL)
         assert plan.source_plan.analyzer == mock_query_generator
     else:
+        assert plan._cumulative_node_complexity is None
         assert plan.analyzer == mock_query_generator
 
 
@@ -390,6 +395,8 @@ def test_select_snowflake_plan(
     )
     if using_snowflake_plan:
         verify_snowflake_plan(plan, expected_snowflake_plan_content)
+    else:
+        assert plan._cumulative_node_complexity is None
 
     # verify the analyzer of selectable is updated to query generator
     assert copied_select_snowflake_plan.analyzer == mock_query_generator
@@ -437,18 +444,27 @@ def test_select_statement(
     plan = copy.deepcopy(plan)
     replace_child(plan, from_, new_plan, mock_query_generator)
     assert len(plan.children_plan_nodes) == 1
-    assert isinstance(plan.children_plan_nodes[0], SelectSnowflakePlan)
-    assert plan.children_plan_nodes[0]._snowflake_plan.source_plan == new_plan
-    assert plan.children_plan_nodes[0].analyzer == mock_query_generator
 
+    new_replaced_plan = plan.children_plan_nodes[0]
+    assert isinstance(new_replaced_plan, SelectSnowflakePlan)
+    assert new_replaced_plan._snowflake_plan.source_plan == new_plan
+    assert new_replaced_plan.analyzer == mock_query_generator
+
+    post_actions = [Query("drop table if exists table_name")]
+    new_replaced_plan.post_actions = post_actions
     # verify node update
     update_resolvable_node(plan, mock_query_generator)
+    assert plan.post_actions == post_actions
+
     expected_snowflake_plan_content = mock_snowflake_plan()
     verify_snowflake_plan(
-        plan.children_plan_nodes[0]._snowflake_plan, expected_snowflake_plan_content
+        new_replaced_plan._snowflake_plan, expected_snowflake_plan_content
     )
     if using_snowflake_plan:
+        expected_snowflake_plan_content.post_actions = post_actions
         verify_snowflake_plan(plan, expected_snowflake_plan_content)
+    else:
+        assert plan._cumulative_node_complexity is None
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
@@ -514,6 +530,7 @@ def test_select_table_function(
             plan.source_plan.snowflake_plan, expected_snowflake_plan_content
         )
     else:
+        assert plan._cumulative_node_complexity is None
         assert plan.analyzer == mock_query_generator
         verify_snowflake_plan(plan.snowflake_plan, expected_snowflake_plan_content)
 
@@ -552,25 +569,30 @@ def test_set_statement(
 
     replace_child(plan, selectable1, new_plan, mock_query_generator)
     assert len(plan.children_plan_nodes) == 2
-    assert isinstance(plan.children_plan_nodes[0], SelectSnowflakePlan)
+    new_replaced_plan = plan.children_plan_nodes[0]
+    assert isinstance(new_replaced_plan, SelectSnowflakePlan)
     assert plan.children_plan_nodes[1] == selectable2
 
     mocked_snowflake_plan = mock_snowflake_plan()
-    verify_snowflake_plan(
-        plan.children_plan_nodes[0].snowflake_plan, mocked_snowflake_plan
-    )
+    verify_snowflake_plan(new_replaced_plan.snowflake_plan, mocked_snowflake_plan)
 
+    post_actions = [Query("drop table if exists table_name")]
+    new_replaced_plan.post_actions = post_actions
     update_resolvable_node(plan, mock_query_generator)
+    assert plan.post_actions == post_actions
+
     if using_snowflake_plan:
         copied_set_statement = plan.source_plan
     else:
         copied_set_statement = plan
+        assert plan._cumulative_node_complexity is None
 
     assert copied_set_statement.analyzer == mock_query_generator
     assert copied_set_statement._sql_query is None
     assert copied_set_statement._snowflake_plan is None
 
     if using_snowflake_plan:
+        mocked_snowflake_plan.post_actions = post_actions
         # verify the snowflake plan is also updated
         verify_snowflake_plan(plan, mocked_snowflake_plan)
 
