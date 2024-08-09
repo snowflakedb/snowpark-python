@@ -224,7 +224,7 @@ class DataFrameWriter:
                 column_names,
                 save_mode,
                 self._dataframe._plan,
-                TableCreationSource.EXPLICIT_USER_COMMAND,
+                TableCreationSource.OTHERS,
                 table_type,
                 clustering_exprs,
                 comment,
