@@ -287,6 +287,24 @@ def test_create_scoped_temp_table(session):
             .sql
             == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         )
+        assert (
+            session._plan_builder.save_as_table(
+                [temp_table_name],
+                None,
+                SaveMode.ERROR_IF_EXISTS,
+                "temp",
+                None,
+                None,
+                df._plan,
+                None,
+                use_scoped_temp_objects=False,
+                creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
+                child_attributes=None,
+            )
+            .queries[0]
+            .sql
+            == f" CREATE  TEMP  TABLE  {temp_table_name}   AS  SELECT  *  FROM ( SELECT  *  FROM ({table_name}))"
+        )
         expected_sql = f' CREATE  TEMPORARY  TABLE  {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         assert expected_sql in (
             session._plan_builder.save_as_table(
@@ -340,5 +358,6 @@ def test_create_scoped_temp_table(session):
                 creation_source=TableCreationSource.CACHE_RESULT,
                 child_attributes=df._plan.attributes,
             )
+
     finally:
         Utils.drop_table(session, table_name)

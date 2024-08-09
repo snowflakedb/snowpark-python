@@ -1753,7 +1753,7 @@ def test_series_non_partial_string_indexing_cases(ops, error):
 def test_series_partial_string_indexing_behavior_diff():
     native_series_minute = native_pd.Series(
         [1, 2, 3],
-        pd.DatetimeIndex(
+        native_pd.DatetimeIndex(
             ["2011-12-31 23:59:00", "2012-01-01 00:00:00", "2012-01-01 00:02:00"]
         ),
     )
@@ -1771,7 +1771,7 @@ def test_series_partial_string_indexing_behavior_diff():
         snow_res,
         native_pd.Series(
             [1],
-            pd.DatetimeIndex(["2011-12-31 23:59:00"]),
+            native_pd.DatetimeIndex(["2011-12-31 23:59:00"]),
         ),
         check_dtype=False,
     )

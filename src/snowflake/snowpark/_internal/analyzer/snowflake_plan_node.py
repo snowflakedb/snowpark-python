@@ -171,10 +171,10 @@ class SnowflakeCreateTable(LogicalPlan):
         column_names: Optional[List[str]],
         mode: SaveMode,
         query: LogicalPlan,
+        creation_source: TableCreationSource,
         table_type: str = "",
         clustering_exprs: Optional[Iterable[Expression]] = None,
         comment: Optional[str] = None,
-        creation_source: TableCreationSource = TableCreationSource.EXPLICIT_USER_COMMAND,
     ) -> None:
         super().__init__()
 

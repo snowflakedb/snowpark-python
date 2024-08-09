@@ -10,6 +10,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     SaveMode,
     SnowflakeCreateTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -223,6 +224,7 @@ class DataFrameWriter:
                 column_names,
                 save_mode,
                 self._dataframe._plan,
+                TableCreationSource.EXPLICIT_USER_COMMAND,
                 table_type,
                 clustering_exprs,
                 comment,

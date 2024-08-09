@@ -13,7 +13,9 @@
 - Added support to create and invoke stored procedures, UDFs and UDTFs with optional arguments.
 - Added support for column lineage in the DataFrame.lineage.trace API.
 - Added support for passing `INFER_SCHEMA` options to `DataFrameReader` via `INFER_SCHEMA_OPTIONS`.
+- Added support for passing `parameters` parameter to `Column.rlike` and `Column.regexp`.
 - Added support for automatically cleaning up temporary tables created by `df.cache_result()` in the current session, when the DataFrame is no longer referenced (i.e., gets garbage collected). It is still an experimental feature not enabled by default, and can be enabled by setting `session.auto_clean_up_temp_table_enabled` to `True`.
+- Added support for string literals to the `fmt` parameter of `snowflake.snowpark.functions.to_date`.
 
 #### Bug Fixes
 
@@ -34,6 +36,7 @@
     - cume_dist
     - ntile
     - datediff
+- Added support parsing regex flags in REGEX statements for mocked plans. This maintains parity with the `rlike` and `regexp` changes above.
 
 #### Bug Fixes
 - Fixed a bug that Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
@@ -58,7 +61,9 @@
 - Added support for `Index.all` and `Index.any`.
 - Added support for `Series.dt.is_year_start` and `Series.dt.is_year_end`.
 - Added support for `Series.dt.is_quarter_start` and `Series.dt.is_quarter_end`.
+- Added support for lazy `DatetimeIndex`.
 - Added support for `Series.argmax` and `Series.argmin`.
+- Added support for `Series.dt.is_leap_year`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.

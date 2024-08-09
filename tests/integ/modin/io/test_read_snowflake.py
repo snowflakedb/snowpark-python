@@ -317,6 +317,7 @@ def test_read_snowflake_column_not_list_raises(session) -> None:
         pd.read_snowflake(table_name, columns=col_name)
 
 
+@pytest.mark.modin_sp_precommit
 @pytest.mark.parametrize(
     "table_type",
     [
@@ -373,6 +374,7 @@ def test_read_snowflake_with_views(
                 Utils.drop_view(session, view_name)
 
 
+@pytest.mark.modin_sp_precommit
 def test_read_snowflake_row_access_policy_table(
     session,
     test_table_name,
