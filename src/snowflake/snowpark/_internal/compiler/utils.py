@@ -180,7 +180,11 @@ def update_resolvable_node(
     query_generator: QueryGenerator,
 ):
     """
-    Helper function to re-resolve the resolvable node and do an in-place update for cached fields.
+    Helper function to make an in-place update for a node that has had its child updated.
+    It works in two parts:
+      1. Re-resolve the proper fields based on the child.
+      2. Resets re-calculable fields such as _sql_query, _snowflake_plan, _cumulative_node_complexity.
+
     The re-resolve is only needed for SnowflakePlan node and Selectable node, because only those nodes
     are resolved node with sql query state.
 
@@ -204,6 +208,9 @@ def update_resolvable_node(
     if not isinstance(node, (SnowflakePlan, Selectable)):
         raise ValueError(f"It is not valid to update node with type {type(node)}.")
 
+    # reset the cumulative_node_complexity for all nodes
+    node.reset_cumulative_node_complexity()
+
     if isinstance(node, SnowflakePlan):
         assert node.source_plan is not None
         if isinstance(node.source_plan, (SnowflakePlan, Selectable)):
@@ -225,9 +232,10 @@ def update_resolvable_node(
         node.df_aliased_col_name_to_real_col_name.update(
             node.from_.df_aliased_col_name_to_real_col_name
         )
-        node.reset_cumulative_node_complexity()
 
     elif isinstance(node, SetStatement):
+        # clean up the cached sql query and snowflake plan to allow
+        # re-calculation of the sql query and snowflake plan
         node._sql_query = None
         node._snowflake_plan = None
         node.analyzer = query_generator
@@ -239,7 +247,6 @@ def update_resolvable_node(
                 node.pre_actions.extend(operand.selectable.pre_actions)
             if operand.selectable.post_actions:
                 node.post_actions.extend(operand.selectable.post_actions)
-        node.reset_cumulative_node_complexity()
 
     elif isinstance(node, (SelectSnowflakePlan, SelectTableFunction)):
         assert node.snowflake_plan is not None

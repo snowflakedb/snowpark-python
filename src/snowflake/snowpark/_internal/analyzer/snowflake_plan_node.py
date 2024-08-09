@@ -63,6 +63,9 @@ class LogicalPlan:
     def reset_cumulative_node_complexity(self) -> None:
         self._cumulative_node_complexity = None
 
+    def reset_cumulative_node_complexity(self) -> None:
+        self._cumulative_node_complexity = None
+
 
 class LeafNode(LogicalPlan):
     pass
