@@ -14,7 +14,9 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 )
 from snowflake.snowpark._internal.ast_utils import (
     FAIL_ON_MISSING_AST,
+    build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
+    build_expr_from_snowpark_column_or_sql_str,
     fill_sp_save_mode,
     with_src_position,
 )
@@ -376,6 +378,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
         **copy_options: Optional[Dict[str, Any]],
     ) -> Union[List[Row], AsyncJob]:
         """Executes a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more files in a stage or external stage.
@@ -419,6 +422,70 @@ class DataFrameWriter:
             FIRST_NAME: [["John","Rick","Anthony"]]
             LAST_NAME: [["Berry","Berry","Davis"]]
         """
+
+        if _emit_ast:
+            # Add an Assign node that applies SpWriteTable() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_write_copy_into_location)
+
+            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+
+            expr.location = location
+
+            if partition_by is not None:
+                for col_or_sql in partition_by:
+                    build_expr_from_snowpark_column_or_sql_str(
+                        expr.partition_by.add(), col_or_sql
+                    )
+
+            if file_format_name is not None:
+                expr.file_format_name = file_format_name
+
+            if file_format_type is not None:
+                expr.file_format_type = file_format_type
+
+            if format_type_options is not None:
+                for k, v in format_type_options.items():
+                    t = expr.format_type_options.add()
+                    t._1 = k
+                    t._2 = v
+
+            expr.header = header
+
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = expr.statement_params.add()
+                    t._1 = k
+                    t._2 = v
+
+            expr.block = block
+
+            if copy_options:
+                for k, v in copy_options.items():
+                    t = expr.format_type_options.add()
+                    t._1 = k
+                    build_expr_from_python_val(t._2, v)
+
+            self._dataframe._session._ast_batch.eval(repr)
+
+        if self._dataframe._session._conn.is_phase1_enabled():
+            # TODO: Logic here should be
+            # ast = self._dataframe._session._ast_batch.flush()
+            # res = self._dataframe._session._conn.ast_query(ast)
+            raise NotImplementedError(
+                "TODO: Implement copy_inyo_location() with EvalResult in Phase1."
+            )
+
+        # Phase 0 flushes AST and encodes it as part of the query.
+        kwargs = {}
+        _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+
         stage_location = normalize_remote_file_or_dir(location)
         if isinstance(partition_by, str):
             partition_by = sql_expr(partition_by)._expression
@@ -444,6 +511,7 @@ class DataFrameWriter:
         return df._internal_collect_with_tag(
             statement_params=statement_params or self._dataframe._statement_params,
             block=block,
+            **kwargs,
         )
 
     def csv(

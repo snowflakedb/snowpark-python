@@ -205,7 +205,7 @@ def build_fn_apply(
     expr = with_src_position(ast.apply_expr)
 
     fn = proto.BuiltinFn()
-    fn.name = builtin_name
+    fn.name.fn_name_flat.name = builtin_name
     set_src_position(fn.src)
     expr.fn.builtin_fn.CopyFrom(fn)
 
