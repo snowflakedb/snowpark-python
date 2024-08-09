@@ -26,6 +26,7 @@ Module houses ``DatetimeIndex`` class, that is distributed version of
 
 from __future__ import annotations
 
+import modin
 import numpy as np
 import pandas as native_pd
 from pandas._libs import lib
@@ -69,7 +70,7 @@ class DatetimeIndex(Index):
 
     def __init__(
         self,
-        data: ArrayLike | SnowflakeQueryCompiler | None = None,
+        data: ArrayLike | native_pd.Index | modin.pandas.Sereis | None = None,
         freq: Frequency | lib.NoDefault = _CONSTRUCTOR_DEFAULTS["freq"],
         tz=_CONSTRUCTOR_DEFAULTS["tz"],
         normalize: bool | lib.NoDefault = _CONSTRUCTOR_DEFAULTS["normalize"],
@@ -80,13 +81,14 @@ class DatetimeIndex(Index):
         dtype: Dtype | None = _CONSTRUCTOR_DEFAULTS["dtype"],
         copy: bool = _CONSTRUCTOR_DEFAULTS["copy"],
         name: Hashable | None = _CONSTRUCTOR_DEFAULTS["name"],
+        query_compiler: SnowflakeQueryCompiler = None,
     ) -> None:
         """
         Immutable ndarray-like of datetime64 data.
 
         Parameters
         ----------
-        data : array-like (1-dimensional) or snowflake query compiler
+        data : array-like (1-dimensional), pandas.Index, modin.pandas.Series, optional
             Datetime-like data to construct index with.
         freq : str or pandas offset object, optional
             One of pandas date offset strings or corresponding objects. The string
@@ -123,6 +125,8 @@ class DatetimeIndex(Index):
             Make a copy of input ndarray.
         name : label, default None
             Name to be stored in the index.
+        query_compiler : SnowflakeQueryCompiler, optional
+            A query compiler object to create the ``Index`` from.
 
         Examples
         --------
@@ -130,9 +134,9 @@ class DatetimeIndex(Index):
         >>> idx
         DatetimeIndex(['2020-01-01 02:00:00-08:00', '2020-02-01 03:00:00-08:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
         """
-        if isinstance(data, SnowflakeQueryCompiler):
+        if query_compiler:
             # Raise error if underlying type is not a TimestampType.
-            current_dtype = data.index_dtypes[0]
+            current_dtype = query_compiler.index_dtypes[0]
             if not current_dtype == np.dtype("datetime64[ns]"):
                 raise ValueError(
                     "DatetimeIndex can only be created from a query compiler with TimestampType."
@@ -149,4 +153,4 @@ class DatetimeIndex(Index):
             "copy": copy,
             "name": name,
         }
-        self._init_index(data, _CONSTRUCTOR_DEFAULTS, **kwargs)
+        self._init_index(data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs)

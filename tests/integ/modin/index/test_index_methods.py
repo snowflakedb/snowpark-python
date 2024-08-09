@@ -382,4 +382,21 @@ def test_non_default_args(kwargs):
     value = list(kwargs.values())[0]
     msg = f"Non-default argument '{name}={value}' when constructing Index with query compiler"
     with pytest.raises(AssertionError, match=msg):
-        pd.Index(data=idx._query_compiler, **kwargs)
+        pd.Index(query_compiler=idx._query_compiler, **kwargs)
+
+
+@sql_count_checker(query_count=2)
+def test_create_index_from_series():
+    idx = pd.Index(pd.Series([5, 6]))
+    assert_index_equal(idx, native_pd.Index([5, 6]))
+
+    idx = pd.Index(pd.Series([5, 6], name="abc"))
+    assert_index_equal(idx, native_pd.Index([5, 6], name="abc"))
+
+
+@sql_count_checker(query_count=0)
+def test_create_index_from_df_negative():
+    with pytest.raises(ValueError):
+        pd.Index(pd.DataFrame([[1, 2], [3, 4]]))
+    with pytest.raises(ValueError):
+        pd.DatetimeIndex(pd.DataFrame([[1, 2], [3, 4]]))
