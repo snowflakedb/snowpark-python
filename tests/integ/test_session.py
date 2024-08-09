@@ -707,7 +707,10 @@ def test_eliminate_numeric_sql_value_cast_optimization_enabled_on_session(
         _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED: server_parameter_enabled
     }
     with Session.builder.configs(parameters).create() as new_session:
-        assert new_session.eliminate_numeric_sql_value_cast_enabled is server_parameter_enabled
+        assert (
+            new_session.eliminate_numeric_sql_value_cast_enabled
+            is server_parameter_enabled
+        )
         new_session.eliminate_numeric_sql_value_cast_enabled = True
         assert new_session.eliminate_numeric_sql_value_cast_enabled is True
         new_session.eliminate_numeric_sql_value_cast_enabled = False
