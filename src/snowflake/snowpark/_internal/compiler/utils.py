@@ -123,7 +123,15 @@ def replace_child(
         replace_child(parent.source_plan, old_child, new_child, query_generator)
 
     elif isinstance(parent, SelectStatement):
-        parent.from_ = to_selectable(new_child, query_generator)
+        new_child_as_selectable = to_selectable(new_child, query_generator)
+        parent.from_ = new_child_as_selectable
+        parent.pre_actions = new_child_as_selectable.pre_actions
+        parent.post_actions = new_child_as_selectable.post_actions
+        parent.expr_to_alias = new_child_as_selectable.expr_to_alias
+        parent.df_aliased_col_name_to_real_col_name.clear()
+        parent.df_aliased_col_name_to_real_col_name.update(
+            new_child_as_selectable.df_aliased_col_name_to_real_col_name
+        )
 
     elif isinstance(parent, SetStatement):
         new_child_as_selectable = to_selectable(new_child, query_generator)
@@ -193,6 +201,9 @@ def update_resolvable_node(
                           |
                         JOIN
     resolve_node(SelectSnowflakePlan, query_generator) will resolve both SelectSnowflakePlan and SnowflakePlan nodes.
+
+    This operation also resets the previously calculated cumulative_node_complexity for the node so a
+    re-calculation will be triggered when this property is accessed next time.
     """
 
     if not node._is_valid_for_replacement:
@@ -207,19 +218,45 @@ def update_resolvable_node(
             update_resolvable_node(node.source_plan, query_generator)
         resolve_and_update_snowflake_plan(node, query_generator)
 
-    elif isinstance(node, (SelectStatement, SetStatement)):
+    elif isinstance(node, SelectStatement):
         # clean up the cached sql query and snowflake plan to allow
         # re-calculation of the sql query and snowflake plan
         node._sql_query = None
         node._snowflake_plan = None
         node.analyzer = query_generator
 
+        # update the pre_actions and post_actions for the select statement
+        node.pre_actions = node.from_.pre_actions
+        node.post_actions = node.from_.post_actions
+        node.expr_to_alias = node.from_.expr_to_alias
+        node.df_aliased_col_name_to_real_col_name.clear()
+        node.df_aliased_col_name_to_real_col_name.update(
+            node.from_.df_aliased_col_name_to_real_col_name
+        )
+        node.reset_cumulative_node_complexity()
+
+    elif isinstance(node, SetStatement):
+        node._sql_query = None
+        node._snowflake_plan = None
+        node.analyzer = query_generator
+
+        # update the pre_actions and post_actions for the set statement
+        node.pre_actions, node.post_actions = [], []
+        for operand in node.set_operands:
+            if operand.selectable.pre_actions:
+                node.pre_actions.extend(operand.selectable.pre_actions)
+            if operand.selectable.post_actions:
+                node.post_actions.extend(operand.selectable.post_actions)
+        node.reset_cumulative_node_complexity()
+
     elif isinstance(node, (SelectSnowflakePlan, SelectTableFunction)):
         assert node.snowflake_plan is not None
         update_resolvable_node(node.snowflake_plan, query_generator)
         node.analyzer = query_generator
+        node.reset_cumulative_node_complexity()
 
     elif isinstance(node, Selectable):
+        node.reset_cumulative_node_complexity()
         node.analyzer = query_generator
 
 
@@ -249,3 +286,8 @@ def get_snowflake_plan_queries(
         PlanQueryType.QUERIES: plan_queries,
         PlanQueryType.POST_ACTIONS: post_action_queries,
     }
+
+
+def is_active_transaction(session):
+    """Check is the session has an active transaction."""
+    return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None

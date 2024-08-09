@@ -114,9 +114,8 @@ class Expression:
             )
         return self._cumulative_node_complexity
 
-    @cumulative_node_complexity.setter
-    def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
-        self._cumulative_node_complexity = value
+    def reset_cumulative_node_complexity(self) -> None:
+        self._cumulative_node_complexity = None
 
 
 class NamedExpression:

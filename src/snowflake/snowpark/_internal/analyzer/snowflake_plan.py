@@ -96,6 +96,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SaveMode,
     SnowflakeCreateTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateDynamicTableCommand,
@@ -231,7 +232,7 @@ class SnowflakePlan(LogicalPlan):
         session: "snowflake.snowpark.session.Session",
     ) -> None:
         super().__init__()
-        self.queries = queries
+        self.queries: List[Query] = queries
         self.schema_query = schema_query
         self.post_actions = post_actions if post_actions else []
         self.expr_to_alias = expr_to_alias if expr_to_alias else {}
@@ -435,10 +436,6 @@ class SnowflakePlan(LogicalPlan):
                 *(node.cumulative_node_complexity for node in self.children_plan_nodes),
             )
         return self._cumulative_node_complexity
-
-    @cumulative_node_complexity.setter
-    def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
-        self._cumulative_node_complexity = value
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
@@ -840,10 +837,18 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         use_scoped_temp_objects: bool,
-        is_generated: bool,  # true if the table is generated internally
+        creation_source: TableCreationSource,
         child_attributes: List[Attribute],
     ) -> SnowflakePlan:
+        is_generated = creation_source in (
+            TableCreationSource.CACHE_RESULT,
+            TableCreationSource.LARGE_QUERY_BREAKDOWN,
+        )
         if is_generated and mode != SaveMode.ERROR_IF_EXISTS:
+            # an internally generated save_as_table comes from two sources:
+            #   1. df.cache_result: plan is created with create table + insert statement
+            #   2. large query breakdown: plan is created using a CTAS statement
+            # For these cases, we must use mode ERROR_IF_EXISTS
             raise ValueError(
                 "Internally generated tables must be called with mode ERROR_IF_EXISTS"
             )
@@ -976,8 +981,24 @@ class SnowflakePlanBuilder:
                 propagate_referenced_ctes=False,
             )
         elif mode == SaveMode.ERROR_IF_EXISTS:
-            if is_generated:
+            if creation_source == TableCreationSource.CACHE_RESULT:
                 return get_create_and_insert_plan(child, replace=False, error=True)
+            if creation_source == TableCreationSource.LARGE_QUERY_BREAKDOWN:
+                return self.build(
+                    lambda x: create_table_as_select_statement(
+                        full_table_name,
+                        x,
+                        column_definition,
+                        replace=False,
+                        table_type=table_type,
+                        clustering_key=clustering_keys,
+                        comment=comment,
+                    ),
+                    child,
+                    source_plan,
+                    is_ddl_on_temp_object=is_temp_table_type,
+                    propagate_referenced_ctes=False,
+                )
 
             return self.build(
                 lambda x: create_table_as_select_statement(

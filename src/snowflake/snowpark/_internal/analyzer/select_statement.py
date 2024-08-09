@@ -338,10 +338,6 @@ class Selectable(LogicalPlan, ABC):
             )
         return self._cumulative_node_complexity
 
-    @cumulative_node_complexity.setter
-    def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
-        self._cumulative_node_complexity = value
-
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         """
@@ -1217,6 +1213,7 @@ class SetStatement(Selectable):
     def __init__(self, *set_operands: SetOperand, analyzer: "Analyzer") -> None:
         super().__init__(analyzer=analyzer)
         self._sql_query = None
+        self._schema_query = None
         self._placeholder_query = None
         self.set_operands = set_operands
         self._nodes = []
@@ -1261,12 +1258,15 @@ class SetStatement(Selectable):
     def schema_query(self) -> str:
         """The first operand decide the column attributes of a query with set operations.
         Refer to https://docs.snowflake.com/en/sql-reference/operators-query.html#general-usage-notes"""
-        attributes = self.set_operands[0].selectable.snowflake_plan.attributes
-        sql = f"({schema_value_statement(attributes)})"
-        for i in range(1, len(self.set_operands)):
-            attributes = self.set_operands[i].selectable.snowflake_plan.attributes
-            sql = f"{sql}{self.set_operands[i].operator}({schema_value_statement(attributes)})"
-        return sql
+        if self._schema_query is None:
+            attributes = self.set_operands[0].selectable.snowflake_plan.attributes
+            sql = f"({schema_value_statement(attributes)})"
+            for i in range(1, len(self.set_operands)):
+                attributes = self.set_operands[i].selectable.snowflake_plan.attributes
+                sql = f"{sql}{self.set_operands[i].operator}({schema_value_statement(attributes)})"
+            self._schema_query = sql
+
+        return self._schema_query
 
     @property
     def column_states(self) -> ColumnStateDict:
