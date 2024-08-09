@@ -3968,8 +3968,8 @@ class DataFrame:
                     None,
                     SaveMode.ERROR_IF_EXISTS,
                     self._plan,
-                    table_type="temp",
                     creation_source=TableCreationSource.CACHE_RESULT,
+                    table_type="temp",
                 )
             )
             self._session._conn.execute(
