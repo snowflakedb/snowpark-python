@@ -44,6 +44,7 @@ import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     TEMPORARY_STRING_SET,
     aggregate_statement,
+    alter_file_format_statement,
     attribute_to_schema_string,
     batch_insert_into_statement,
     copy_into_location,
@@ -1110,6 +1111,7 @@ class SnowflakePlanBuilder:
     ):
         format_type_options, copy_options = get_copy_into_table_options(options)
         pattern = options.get("PATTERN")
+        external_file_format = "FORMAT_NAME" in options
         # Can only infer the schema for parquet, orc and avro
         # csv and json in preview
         infer_schema = (
@@ -1121,7 +1123,7 @@ class SnowflakePlanBuilder:
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
 
-        if format_type_options.get("PARSE_HEADER", False):
+        if format_type_options.get("PARSE_HEADER", False) or external_file_format:
             # This option is only available for CSV file format
             # The options is used when specified with INFER_SCHEMA( ..., FILE_FORMAT => (.., PARSE_HEADER)) see
             # https://docs.snowflake.com/en/sql-reference/sql/create-file-format#format-type-options-formattypeoptions
@@ -1134,33 +1136,41 @@ class SnowflakePlanBuilder:
         if not copy_options:  # use select
             queries: List[Query] = []
             post_queries: List[Query] = []
-            use_temp_file_format: bool = "FORMAT_NAME" not in options
-            if use_temp_file_format:
-                format_name = self.session.get_fully_qualified_name_if_possible(
-                    random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+            format_name = self.session.get_fully_qualified_name_if_possible(
+                random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+            )
+            queries.append(
+                Query(
+                    create_file_format_statement(
+                        format_name,
+                        format,
+                        format_type_options,
+                        temp=True,
+                        if_not_exist=True,
+                        use_scoped_temp_objects=self.session._use_scoped_temp_objects,
+                        is_generated=True,
+                        clones=options.get("FORMAT_NAME", None),
+                    ),
+                    is_ddl_on_temp_object=True,
                 )
+            )
+            if external_file_format:
+                format_type_options["PARSE_HEADER"] = False
                 queries.append(
                     Query(
-                        create_file_format_statement(
+                        alter_file_format_statement(
                             format_name,
-                            format,
                             format_type_options,
-                            temp=True,
-                            if_not_exist=True,
-                            use_scoped_temp_objects=self.session._use_scoped_temp_objects,
-                            is_generated=True,
-                        ),
-                        is_ddl_on_temp_object=True,
+                        )
                     )
                 )
-                post_queries.append(
-                    Query(
-                        drop_file_format_if_exists_statement(format_name),
-                        is_ddl_on_temp_object=True,
-                    )
+
+            post_queries.append(
+                Query(
+                    drop_file_format_if_exists_statement(format_name),
+                    is_ddl_on_temp_object=True,
                 )
-            else:
-                format_name = options["FORMAT_NAME"]
+            )
 
             if infer_schema:
                 assert schema_to_cast is not None
