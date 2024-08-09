@@ -725,6 +725,18 @@ class TestData:
         )
 
     @classmethod
+    def string9(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                ("foo\nbar1"),
+                ("foo\tbar2"),
+                ("foo\rbar3"),
+                ("foo\r\nbar4"),
+            ],
+            schema=["a"],
+        )
+
+    @classmethod
     def array1(cls, session: "Session") -> DataFrame:
         df = session.create_dataframe(
             [

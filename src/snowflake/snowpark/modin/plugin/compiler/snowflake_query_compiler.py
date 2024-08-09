@@ -86,6 +86,7 @@ from snowflake.snowpark.functions import (
     corr,
     count,
     count_distinct,
+    date_from_parts,
     date_part,
     date_trunc,
     dateadd,
@@ -10088,6 +10089,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "is_year_end": (
                 lambda column: coalesce(
                     (dayofmonth(col(column)) == 31) & (month(col(column)) == 12),
+                    pandas_lit(False),
+                )
+            ),
+            "is_leap_year": (
+                lambda column: coalesce(
+                    dayofmonth(
+                        dateadd(
+                            "day",
+                            pandas_lit(1),
+                            date_from_parts(year(col(column)), 2, 28),
+                        )
+                    )
+                    == 29,
                     pandas_lit(False),
                 )
             ),

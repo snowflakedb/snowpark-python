@@ -610,25 +610,6 @@ class SnowflakePlanBuilder:
         }
         api_calls = [*select_left.api_calls, *select_right.api_calls]
 
-        # This is a temporary workaround for query comparison. The query_id_place_holder
-        # field of Query be a random generated id if not provided, which could cause the
-        # comparison of two queries fail even if the sql and is_ddl_on_temp_object
-        # value is the same.
-        # TODO (SNOW-1570952): Find a uniform way for the query comparison
-        def _query_exists(current_query: Query, existing_queries: List[Query]) -> bool:
-            for existing_query in existing_queries:
-                if (
-                    (current_query.sql == existing_query.sql)
-                    and (
-                        current_query.is_ddl_on_temp_object
-                        == existing_query.is_ddl_on_temp_object
-                    )
-                    and (current_query.params == existing_query.params)
-                ):
-                    return True
-
-            return False
-
         referenced_ctes: Set[str] = set()
         if (
             self.session.cte_optimization_enabled
@@ -641,7 +622,7 @@ class SnowflakePlanBuilder:
             # Need to do a deduplication to avoid repeated query.
             merged_queries = select_left.queries[:-1].copy()
             for query in select_right.queries[:-1]:
-                if not _query_exists(query, merged_queries):
+                if query not in merged_queries:
                     merged_queries.append(copy.copy(query))
 
             referenced_ctes.update(select_left.referenced_ctes)
@@ -857,7 +838,10 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         use_scoped_temp_objects: bool,
         creation_source: TableCreationSource,
-        child_attributes: List[Attribute],
+        # child attributes will be none in the case of large query breakdown
+        # where we use ctas query to create the table which does not need to
+        # know the column metadata
+        child_attributes: Optional[List[Attribute]],
     ) -> SnowflakePlan:
         is_generated = creation_source in (
             TableCreationSource.CACHE_RESULT,
@@ -879,7 +863,7 @@ class SnowflakePlanBuilder:
         # in save as table. So we rename ${number} with COL{number}.
         hidden_column_pattern = r"\"\$(\d+)\""
         column_definition_with_hidden_columns = attribute_to_schema_string(
-            child_attributes
+            child_attributes or []
         )
         column_definition = re.sub(
             hidden_column_pattern,
@@ -889,7 +873,25 @@ class SnowflakePlanBuilder:
 
         child = child.replace_repeated_subquery_with_cte()
 
-        def get_create_and_insert_plan(child: SnowflakePlan, replace=False, error=True):
+        def get_create_table_as_select_plan(child: SnowflakePlan, replace, error):
+            return self.build(
+                lambda x: create_table_as_select_statement(
+                    full_table_name,
+                    x,
+                    column_definition,
+                    replace=replace,
+                    error=error,
+                    table_type=table_type,
+                    clustering_key=clustering_keys,
+                    comment=comment,
+                ),
+                child,
+                source_plan,
+                is_ddl_on_temp_object=is_temp_table_type,
+                propagate_referenced_ctes=False,
+            )
+
+        def get_create_and_insert_plan(child: SnowflakePlan, replace, error):
             create_table = create_table_statement(
                 full_table_name,
                 column_definition,
@@ -941,6 +943,7 @@ class SnowflakePlanBuilder:
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
+
         elif mode == SaveMode.TRUNCATE:
             if self.session._table_exists(table_name):
                 return self.build(
@@ -952,87 +955,27 @@ class SnowflakePlanBuilder:
                     propagate_referenced_ctes=False,
                 )
             else:
-                return self.build(
-                    lambda x: create_table_as_select_statement(
-                        full_table_name,
-                        x,
-                        column_definition,
-                        replace=True,
-                        table_type=table_type,
-                        clustering_key=clustering_keys,
-                        comment=comment,
-                    ),
-                    child,
-                    source_plan,
-                    is_ddl_on_temp_object=is_temp_table_type,
-                    propagate_referenced_ctes=False,
-                )
+                return get_create_table_as_select_plan(child, replace=True, error=True)
+
         elif mode == SaveMode.OVERWRITE:
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name,
-                    x,
-                    column_definition,
-                    replace=True,
-                    table_type=table_type,
-                    clustering_key=clustering_keys,
-                    comment=comment,
-                ),
-                child,
-                source_plan,
-                is_ddl_on_temp_object=is_temp_table_type,
-                propagate_referenced_ctes=False,
-            )
+            return get_create_table_as_select_plan(child, replace=True, error=True)
+
         elif mode == SaveMode.IGNORE:
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name,
-                    x,
-                    column_definition,
-                    error=False,
-                    table_type=table_type,
-                    clustering_key=clustering_keys,
-                    comment=comment,
-                ),
-                child,
-                source_plan,
-                is_ddl_on_temp_object=is_temp_table_type,
-                propagate_referenced_ctes=False,
-            )
+            return get_create_table_as_select_plan(child, replace=True, error=False)
+
         elif mode == SaveMode.ERROR_IF_EXISTS:
             if creation_source == TableCreationSource.CACHE_RESULT:
                 return get_create_and_insert_plan(child, replace=False, error=True)
-            if creation_source == TableCreationSource.LARGE_QUERY_BREAKDOWN:
-                return self.build(
-                    lambda x: create_table_as_select_statement(
-                        full_table_name,
-                        x,
-                        column_definition,
-                        replace=False,
-                        table_type=table_type,
-                        clustering_key=clustering_keys,
-                        comment=comment,
-                    ),
-                    child,
-                    source_plan,
-                    is_ddl_on_temp_object=is_temp_table_type,
-                    propagate_referenced_ctes=False,
-                )
 
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name,
-                    x,
-                    column_definition,
-                    table_type=table_type,
-                    clustering_key=clustering_keys,
-                    comment=comment,
-                ),
-                child,
-                source_plan,
-                is_ddl_on_temp_object=is_temp_table_type,
-                propagate_referenced_ctes=False,
-            )
+            if creation_source == TableCreationSource.LARGE_QUERY_BREAKDOWN:
+                return get_create_table_as_select_plan(child, replace=False, error=True)
+
+            return get_create_table_as_select_plan(child, replace=False, error=True)
+
+            if creation_source == TableCreationSource.LARGE_QUERY_BREAKDOWN:
+                return get_create_table_as_select_plan(child, replace=False, error=True)
+
+            return get_create_table_as_select_plan(child, replace=False, error=True)
 
     def limit(
         self,
@@ -1604,6 +1547,7 @@ class Query:
             self.sql == other.sql
             and self.query_id_place_holder == other.query_id_place_holder
             and self.is_ddl_on_temp_object == other.is_ddl_on_temp_object
+            and self.params == other.params
         )
 
 

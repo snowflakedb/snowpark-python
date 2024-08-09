@@ -1777,11 +1777,36 @@ def calculate_expression(
         raw_pattern = calculate_expression(
             exp.pattern, input_data, analyzer, expr_to_alias
         )
-        arguments = TableEmulator({"LHS": lhs, "PATTERN": raw_pattern})
+        flags = (
+            None
+            if exp.parameters is None
+            else calculate_expression(
+                exp.parameters, input_data, analyzer, expr_to_alias
+            )
+        )
+        arguments = TableEmulator({"LHS": lhs, "PATTERN": raw_pattern, "FLAGS": flags})
 
         def _match_pattern(row) -> bool:
             input_str = row["LHS"]
             raw_pattern = row["PATTERN"]
+            flag_string = row["FLAGS"]
+            flags = 0
+
+            if flag_string:
+                case = multiline = newline = 0
+                for c in flag_string.lower():
+                    if c == "c":
+                        case = 0
+                    elif c == "i":
+                        case = re.I
+                    elif c == "m":
+                        # Multi-line mode does not appear to work correctly on the server side
+                        # multiline = re.M
+                        pass
+                    elif c == "s":
+                        newline = re.S
+                flags = case | multiline | newline
+
             _pattern = (
                 f"^{raw_pattern}" if not raw_pattern.startswith("^") else raw_pattern
             )
@@ -1794,7 +1819,7 @@ def calculate_expression(
                     f"Invalid regular expression {raw_pattern}"
                 )
 
-            return bool(re.match(_pattern, input_str))
+            return bool(re.match(_pattern, input_str, flags=flags))
 
         result = arguments.apply(_match_pattern, axis=1)
         result.sf_type = ColumnType(BooleanType(), True)

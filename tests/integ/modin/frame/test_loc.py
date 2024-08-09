@@ -3860,7 +3860,7 @@ def test_df_partial_string_indexing(ops):
 @sql_count_checker(query_count=1)
 def test_df_partial_string_indexing_with_timezone():
     native_df = native_pd.DataFrame(
-        [0], index=pd.DatetimeIndex(["2019-01-01"], tz="America/Los_Angeles")
+        [0], index=native_pd.DatetimeIndex(["2019-01-01"], tz="America/Los_Angeles")
     )
 
     snowpark_df = pd.DataFrame(native_df)
