@@ -483,6 +483,10 @@ def get_snowflake_agg_func(
             # instead by TRUE for "all" and FALSE for "any".
             # Need to wrap column name in IDENTIFIER, or else the agg function will treat the name
             # as a string literal.
+            # The generated SQL expression for "all" is
+            #   IFNULL(BOOLAND_AGG(IDENTIFIER("column_name")), TRUE)
+            # The expression for "any" is
+            #   IFNULL(BOOLOR_AGG(IDENTIFIER("column_name")), FALSE)
             default_value = bool(agg_func == "all")
             return lambda col: builtin("ifnull")(
                 # mypy refuses to acknowledge snowflake_agg_func is non-NULL here
