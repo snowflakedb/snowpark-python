@@ -39,7 +39,9 @@ from snowflake.snowpark.functions import (
     min as min_,
     sum as sum_,
     typeof,
+    lit
 )
+from snowflake.snowpark.modin.plugin._internal.column import SnowparkPandasColumn
 from snowflake.snowpark.modin.plugin._internal import frame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     DataFrameReference,
@@ -1081,6 +1083,7 @@ def create_ordered_dataframe_from_pandas(
         projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
         ordering_columns=ordering_columns,
         row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
+        data_types=[a.datatype for a in struct_fields]
     )
 
 
@@ -1438,7 +1441,7 @@ def convert_numpy_pandas_scalar_to_snowpark_literal(value: Any) -> LiteralType:
     return value
 
 
-def pandas_lit(value: Any, datatype: Optional[DataType] = None) -> Column:
+def pandas_lit(value: Any, datatype: Optional[DataType] = None) -> SnowparkPandasColumn:
     """
     Returns a Snowpark column for a literal value. Being differnet from Snowpark's lit()
     function, it also handles numpy scalar values and pandas Timestamp and pandas NA values.
@@ -1458,7 +1461,7 @@ def pandas_lit(value: Any, datatype: Optional[DataType] = None) -> Column:
         else value
     )
 
-    if isinstance(value, Column):
+    if isinstance(value, SnowparkPandasColumn):
         return value  # pragma: no cover
     elif isinstance(value, native_pd.DateOffset):
         # Construct an Interval from DateOffset
@@ -1469,7 +1472,9 @@ def pandas_lit(value: Any, datatype: Optional[DataType] = None) -> Column:
         return Column(convert_dateoffset_to_interval(value))
     else:
         # Construct a Literal directly in order to pass in `datatype`. `lit()` function does not support datatype.
-        return Column(Literal(value, datatype))
+        return SnowparkPandasColumn(
+            (lambda getter: (datatype, lit(value)))
+        )
 
 
 def is_repr_truncated(
@@ -1629,8 +1634,11 @@ def append_columns(
     """
     if isinstance(column_identifiers, str):
         column_identifiers = [column_identifiers]
-    if isinstance(column_objects, Column):
+    if isinstance(column_objects, SnowparkPandasColumn):
         column_objects = [column_objects]
+    elif isinstance(column_objects, Column):
+        # DEBUG: shouldn't happen
+        breakpoint()
     assert len(column_identifiers) == len(
         column_objects
     ), f"The number of column identifiers ({len(column_identifiers)}) is not equal to the number of column objects ({len(column_objects)})"
