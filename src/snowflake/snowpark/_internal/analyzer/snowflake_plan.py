@@ -877,7 +877,25 @@ class SnowflakePlanBuilder:
 
         child = child.replace_repeated_subquery_with_cte()
 
-        def get_create_and_insert_plan(child: SnowflakePlan, replace=False, error=True):
+        def get_create_table_as_select_plan(child: SnowflakePlan, replace, error):
+            return self.build(
+                lambda x: create_table_as_select_statement(
+                    full_table_name,
+                    x,
+                    column_definition,
+                    replace=replace,
+                    error=error,
+                    table_type=table_type,
+                    clustering_key=clustering_keys,
+                    comment=comment,
+                ),
+                child,
+                source_plan,
+                is_ddl_on_temp_object=is_temp_table_type,
+                propagate_referenced_ctes=False,
+            )
+
+        def get_create_and_insert_plan(child: SnowflakePlan, replace, error):
             create_table = create_table_statement(
                 full_table_name,
                 column_definition,
@@ -940,88 +958,19 @@ class SnowflakePlanBuilder:
                     propagate_referenced_ctes=False,
                 )
             else:
-                return self.build(
-                    lambda x: create_table_as_select_statement(
-                        full_table_name,
-                        x,
-                        column_definition,
-                        replace=True,
-                        table_type=table_type,
-                        clustering_key=clustering_keys,
-                        comment=comment,
-                    ),
-                    child,
-                    source_plan,
-                    is_ddl_on_temp_object=is_temp_table_type,
-                    propagate_referenced_ctes=False,
-                )
+                return get_create_table_as_select_plan(child, replace=True, error=True)
         elif mode == SaveMode.OVERWRITE:
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name,
-                    x,
-                    column_definition,
-                    replace=True,
-                    table_type=table_type,
-                    clustering_key=clustering_keys,
-                    comment=comment,
-                ),
-                child,
-                source_plan,
-                is_ddl_on_temp_object=is_temp_table_type,
-                propagate_referenced_ctes=False,
-            )
+            return get_create_table_as_select_plan(child, replace=True, error=True)
         elif mode == SaveMode.IGNORE:
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name,
-                    x,
-                    column_definition,
-                    error=False,
-                    table_type=table_type,
-                    clustering_key=clustering_keys,
-                    comment=comment,
-                ),
-                child,
-                source_plan,
-                is_ddl_on_temp_object=is_temp_table_type,
-                propagate_referenced_ctes=False,
-            )
+            return get_create_table_as_select_plan(child, replace=True, error=False)
         elif mode == SaveMode.ERROR_IF_EXISTS:
             if creation_source == TableCreationSource.CACHE_RESULT:
                 return get_create_and_insert_plan(child, replace=False, error=True)
 
             if creation_source == TableCreationSource.LARGE_QUERY_BREAKDOWN:
-                return self.build(
-                    lambda x: create_table_as_select_statement(
-                        full_table_name,
-                        x,
-                        column_definition,
-                        replace=False,
-                        table_type=table_type,
-                        clustering_key=clustering_keys,
-                        comment=comment,
-                    ),
-                    child,
-                    source_plan,
-                    is_ddl_on_temp_object=is_temp_table_type,
-                    propagate_referenced_ctes=False,
-                )
+                return get_create_table_as_select_plan(child, replace=False, error=True)
 
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name,
-                    x,
-                    column_definition,
-                    table_type=table_type,
-                    clustering_key=clustering_keys,
-                    comment=comment,
-                ),
-                child,
-                source_plan,
-                is_ddl_on_temp_object=is_temp_table_type,
-                propagate_referenced_ctes=False,
-            )
+            return get_create_table_as_select_plan(child, replace=False, error=True)
 
     def limit(
         self,
