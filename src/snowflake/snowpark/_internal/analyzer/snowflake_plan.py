@@ -851,7 +851,7 @@ class SnowflakePlanBuilder:
             column_names: names of columns for the table
             mode: APPEND, TRUNCATE, OVERWRITE, IGNORE, ERROR_IF_EXISTS
             table_type: temporary, transient, or permanent
-            clustering_keys:
+            clustering_keys: list of clustering columns
             comment: comment associated with the table
             child: the SnowflakePlan that is being materialized into a table
             source_plan: the source plan of the child
