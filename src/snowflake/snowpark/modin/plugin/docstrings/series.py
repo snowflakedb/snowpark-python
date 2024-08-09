@@ -3375,6 +3375,11 @@ class Series:
         Cast to DatetimeIndex of Timestamps, at beginning of period.
         """
 
+    def transform():
+        """
+        Call ``func`` on self producing a `BasePandasDataset` with the same axis shape as self.
+        """
+
     def transpose():
         """
         Return the transpose, which is by definition `self`.
