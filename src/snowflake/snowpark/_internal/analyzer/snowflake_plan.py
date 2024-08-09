@@ -965,7 +965,7 @@ class SnowflakePlanBuilder:
             return get_create_table_as_select_plan(child, replace=True, error=True)
 
         elif mode == SaveMode.IGNORE:
-            return get_create_table_as_select_plan(child, replace=True, error=False)
+            return get_create_table_as_select_plan(child, replace=False, error=False)
 
         elif mode == SaveMode.ERROR_IF_EXISTS:
             if creation_source == TableCreationSource.CACHE_RESULT:

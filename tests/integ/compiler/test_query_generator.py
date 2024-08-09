@@ -22,6 +22,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SaveMode,
     SnowflakeCreateTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.compiler.utils import create_query_generator
 from snowflake.snowpark._internal.utils import (
@@ -145,6 +146,7 @@ def test_table_create(session, mode):
         column_names=None,
         mode=mode,
         query=df._plan,
+        creation_source=TableCreationSource.EXPLICIT_USER_COMMAND,
         table_type="temp",
         clustering_exprs=None,
         comment=None,
@@ -283,6 +285,7 @@ def test_multiple_plan_query_generation(session):
         column_names=None,
         mode=SaveMode.OVERWRITE,
         query=df._plan,
+        creation_source=TableCreationSource.EXPLICIT_USER_COMMAND,
         table_type="temp",
         clustering_exprs=None,
         comment=None,
