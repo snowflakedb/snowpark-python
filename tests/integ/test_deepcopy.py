@@ -280,7 +280,7 @@ def test_table_creation(session, mode):
         column_names=None,
         mode=mode,
         query=df._plan,
-        creation_source=TableCreationSource.EXPLICIT_USER_COMMAND,
+        creation_source=TableCreationSource.OTHERS,
         table_type="temp",
         clustering_exprs=None,
         comment=None,
