@@ -972,11 +972,6 @@ class SnowflakePlanBuilder:
 
             return get_create_table_as_select_plan(child, replace=False, error=True)
 
-            if creation_source == TableCreationSource.LARGE_QUERY_BREAKDOWN:
-                return get_create_table_as_select_plan(child, replace=False, error=True)
-
-            return get_create_table_as_select_plan(child, replace=False, error=True)
-
     def limit(
         self,
         limit_expr: str,
