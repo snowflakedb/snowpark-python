@@ -2429,4 +2429,4 @@ class Index(metaclass=TelemetryMeta):
             origin,
             include_index=True,
         )
-        return DatetimeIndex(data=new_qc)
+        return DatetimeIndex(query_compiler=new_qc)

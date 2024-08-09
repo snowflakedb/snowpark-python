@@ -133,6 +133,7 @@ class Series(BasePandasDataset):
         # Convert lazy index to Series without pulling the data to client.
         if isinstance(data, pd.Index):
             query_compiler = data.to_series(index=index, name=name)._query_compiler
+            query_compiler = query_compiler.reset_index(drop=True)
         elif isinstance(data, type(self)):
             query_compiler = data._query_compiler.copy()
             if index is not None:

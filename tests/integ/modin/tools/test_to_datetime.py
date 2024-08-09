@@ -570,7 +570,7 @@ class TestToDatetime:
             pytest.param("US/Central"),
         ],
     )
-    @sql_count_checker(query_count=3)
+    @sql_count_checker(query_count=2)
     def test_to_datetime_dtarr(self, tz):
         # DatetimeArray
         dti = native_pd.date_range("1965-04-03", periods=19, freq="2W", tz=tz)

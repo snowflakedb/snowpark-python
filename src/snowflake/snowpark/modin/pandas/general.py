@@ -1352,7 +1352,7 @@ def to_datetime(
     infer_datetime_format: lib.NoDefault | bool = lib.no_default,
     origin: Any = "unix",
     cache: bool = True,
-) -> Series | DatetimeScalar | NaTType | None:
+) -> pd.DatetimeIndex | Series | DatetimeScalar | NaTType | None:
     """
     Convert argument to datetime.
 
@@ -1459,8 +1459,7 @@ def to_datetime(
         parsing):
 
         - scalar: :class:`Timestamp` (or :class:`datetime.datetime`)
-        - array-like: :class:`~snowflake.snowpark.modin.pandas.Series` with :class:`datetime64` dtype containing
-          :class:`datetime.datetime` (or
+        - array-like: :class:`~snowflake.snowpark.modin.pandas.DatetimeIndex` (or
           :class: :class:`~snowflake.snowpark.modin.pandas.Series` of :class:`object` dtype containing
           :class:`datetime.datetime`)
         - Series: :class:`~snowflake.snowpark.modin.pandas.Series` of :class:`datetime64` dtype (or
@@ -2170,7 +2169,7 @@ def date_range(
     qc = qc.set_index_from_columns(qc.columns.tolist(), include_index=False)
     # Set index column name.
     qc = qc.set_index_names([name])
-    return pd.DatetimeIndex(data=qc)
+    return pd.DatetimeIndex(query_compiler=qc)
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
