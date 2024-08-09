@@ -991,7 +991,7 @@ class Analyzer:
                 resolved_child,
                 logical_plan,
                 self.session._use_scoped_temp_objects,
-                logical_plan.is_generated,
+                logical_plan.creation_source,
                 resolved_child.attributes,
             )
 
