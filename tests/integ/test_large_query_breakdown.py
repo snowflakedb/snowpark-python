@@ -4,8 +4,6 @@
 
 """
 TODO:
-* test query complexity score calculation is correct -- unit
-* test pipeline breaker node -- unit
 * test sort break points are correct
 """
 

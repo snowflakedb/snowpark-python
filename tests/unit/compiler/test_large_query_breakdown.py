@@ -77,7 +77,3 @@ def test_pipeline_breaker_node(mock_session, mock_analyzer, node_generator):
     assert large_query_breakdown._is_node_pipeline_breaker(
         select_snowflake_plan
     ), "SelectSnowflakePlan node is not detected as a pipeline breaker node"
-
-
-def test_query_complexity_update():
-    pass

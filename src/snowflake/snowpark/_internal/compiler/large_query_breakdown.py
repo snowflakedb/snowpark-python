@@ -184,7 +184,7 @@ class LargeQueryBreakdown:
         )
 
         # Update the ancestors with the temp table selectable
-        self._update_ancestors(parent_map, child, temp_table_name)
+        self._replace_child_and_update_ancestors(parent_map, child, temp_table_name)
 
         return temp_table_plan
 
@@ -224,7 +224,7 @@ class LargeQueryBreakdown:
 
         return False
 
-    def _update_ancestors(
+    def _replace_child_and_update_ancestors(
         self, parent_map: defaultdict, child: LogicalPlan, temp_table_name: str
     ) -> None:
         """This method replaces the child node with a temp table selectable, resets

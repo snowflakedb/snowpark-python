@@ -67,7 +67,7 @@ def test_reset_cumulative_node_complexity(
                             o                       o
                            / \\                    / \
                           o   o                   *   o
-                         /|\\                      |
+                         /|\\                     |
                         o o o       ->            o
                           |
                           o
