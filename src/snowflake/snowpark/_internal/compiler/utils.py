@@ -123,15 +123,7 @@ def replace_child(
         replace_child(parent.source_plan, old_child, new_child, query_generator)
 
     elif isinstance(parent, SelectStatement):
-        new_child_as_selectable = to_selectable(new_child, query_generator)
-        parent.from_ = new_child_as_selectable
-        parent.pre_actions = new_child_as_selectable.pre_actions
-        parent.post_actions = new_child_as_selectable.post_actions
-        parent.expr_to_alias = new_child_as_selectable.expr_to_alias
-        parent.df_aliased_col_name_to_real_col_name.clear()
-        parent.df_aliased_col_name_to_real_col_name.update(
-            new_child_as_selectable.df_aliased_col_name_to_real_col_name
-        )
+        parent.from_ = to_selectable(new_child, query_generator)
 
     elif isinstance(parent, SetStatement):
         new_child_as_selectable = to_selectable(new_child, query_generator)
