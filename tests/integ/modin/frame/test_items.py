@@ -21,9 +21,10 @@ def assert_items_results_equal(snow_result, pandas_result):
         snow_list, pandas_list
     ):
         assert snow_label == pandas_label
-        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-            snow_column, pandas_column
-        )
+        with SqlCounter(query_count=1):
+            assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+                snow_column, pandas_column
+            )
 
 
 @pytest.mark.parametrize(
@@ -48,9 +49,8 @@ def assert_items_results_equal(snow_result, pandas_result):
     ],
 )
 def test_items(dataframe):
-    with SqlCounter(query_count=dataframe.shape[1]):
-        eval_snowpark_pandas_result(
-            *create_test_dfs(dataframe),
-            lambda df: df.items(),
-            comparator=assert_items_results_equal,
-        )
+    eval_snowpark_pandas_result(
+        *create_test_dfs(dataframe),
+        lambda df: df.items(),
+        comparator=assert_items_results_equal,
+    )
