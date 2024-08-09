@@ -842,11 +842,25 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         use_scoped_temp_objects: bool,
         creation_source: TableCreationSource,
-        # child attributes will be none in the case of large query breakdown
-        # where we use ctas query to create the table which does not need to
-        # know the column metadata
         child_attributes: Optional[List[Attribute]],
     ) -> SnowflakePlan:
+        """Returns a SnowflakePlan to materialize the child plan into a table.
+
+        Args:
+            table_name: fully qualified table name
+            column_names: names of columns for the table
+            mode: APPEND, TRUNCATE, OVERWRITE, IGNORE, ERROR_IF_EXISTS
+            table_type: temporary, transient, or permanent
+            clustering_keys:
+            comment: comment associated with the table
+            child: the SnowflakePlan that is being materialized into a table
+            source_plan: the source plan of the child
+            use_scoped_temp_objects: should we use scoped temp objects
+            creation_source: the source of the api that is creating the table
+            child_attributes: child attributes will be none in the case of large query breakdown
+                where we use ctas query to create the table which does not need to know the column
+                metadata.
+        """
         is_generated = creation_source in (
             TableCreationSource.CACHE_RESULT,
             TableCreationSource.LARGE_QUERY_BREAKDOWN,
@@ -866,14 +880,16 @@ class SnowflakePlanBuilder:
         # the attributes set to ($1, VariantType()) which cannot be used as valid column name
         # in save as table. So we rename ${number} with COL{number}.
         hidden_column_pattern = r"\"\$(\d+)\""
-        column_definition_with_hidden_columns = attribute_to_schema_string(
-            child_attributes or []
-        )
-        column_definition = re.sub(
-            hidden_column_pattern,
-            lambda match: f'"COL{match.group(1)}"',
-            column_definition_with_hidden_columns,
-        )
+        column_definition = None
+        if child_attributes is not None:
+            column_definition_with_hidden_columns = attribute_to_schema_string(
+                child_attributes or []
+            )
+            column_definition = re.sub(
+                hidden_column_pattern,
+                lambda match: f'"COL{match.group(1)}"',
+                column_definition_with_hidden_columns,
+            )
 
         child = child.replace_repeated_subquery_with_cte()
 
@@ -970,9 +986,6 @@ class SnowflakePlanBuilder:
         elif mode == SaveMode.ERROR_IF_EXISTS:
             if creation_source == TableCreationSource.CACHE_RESULT:
                 return get_create_and_insert_plan(child, replace=False, error=True)
-
-            if creation_source == TableCreationSource.LARGE_QUERY_BREAKDOWN:
-                return get_create_table_as_select_plan(child, replace=False, error=True)
 
             return get_create_table_as_select_plan(child, replace=False, error=True)
 

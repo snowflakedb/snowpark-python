@@ -160,9 +160,16 @@ class SaveMode(Enum):
 
 
 class TableCreationSource(Enum):
-    EXPLICIT_USER_COMMAND = "explicit_user_command"
+    """The enum to indicate the source of a create table request.
+
+    CACHE_RESULT: when create table request comes from DataFrame.cache_result
+    LARGE_QUERY_BREAKDOWN: when request comes from large query breakdown optimization
+    OTHERS: when request comes from other sources like DataFrame.write.save_as_table
+    """
+
     CACHE_RESULT = "cache_result"
     LARGE_QUERY_BREAKDOWN = "large_query_breakdown"
+    OTHERS = "others"
 
 
 class SnowflakeCreateTable(LogicalPlan):
