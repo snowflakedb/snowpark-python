@@ -933,7 +933,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 return data_for_compute.all(
                     axis=axis, bool_only=False, skipna=skipna, **kwargs
                 )
-            result = self._reduce_dimension(
+            return self._reduce_dimension(
                 self._query_compiler.all(
                     axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
                 )
@@ -956,7 +956,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 return result.all(
                     axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
                 )
-        return True if result is None else result
+            return result
 
     def any(self, axis=0, bool_only=None, skipna=True, **kwargs):
         """
@@ -977,7 +977,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 return data_for_compute.any(
                     axis=axis, bool_only=False, skipna=skipna, **kwargs
                 )
-            result = self._reduce_dimension(
+            return self._reduce_dimension(
                 self._query_compiler.any(
                     axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
                 )
@@ -998,7 +998,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 return result.any(
                     axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
                 )
-        return False if result is None else result
+            return result
 
     def apply(
         self,
