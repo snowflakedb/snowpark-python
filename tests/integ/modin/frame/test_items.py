@@ -1,0 +1,56 @@
+#
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+#
+
+import pandas as native_pd
+import pytest
+
+from tests.integ.modin.sql_counter import SqlCounter
+from tests.integ.modin.utils import (
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    create_test_dfs,
+    eval_snowpark_pandas_result,
+)
+
+
+def assert_items_results_equal(snow_result, pandas_result):
+    snow_list = list(snow_result)
+    pandas_list = list(pandas_result)
+    assert len(snow_list) == len(pandas_list), "lengths of items are not equal."
+    for ((snow_label, snow_column), (pandas_label, pandas_column)) in zip(
+        snow_list, pandas_list
+    ):
+        assert snow_label == pandas_label
+        with SqlCounter(query_count=1):
+            assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+                snow_column, pandas_column
+            )
+
+
+@pytest.mark.parametrize(
+    "dataframe",
+    [
+        native_pd.DataFrame(
+            {
+                "species": ["bear", "bear", "marsupial"],
+                "population": [1864, 22000, 80000],
+            },
+            index=["panda", "polar", "koala"],
+        ),
+        native_pd.DataFrame(
+            {
+                (0, "species"): ["bear", "bear", "marsupial"],
+                (0, "population"): [1864, 22000, 80000],
+            },
+            index=["panda", "polar", "koala"],
+        ),
+        native_pd.DataFrame(index=["a"]),
+        native_pd.DataFrame(columns=["a"]),
+    ],
+)
+def test_items(dataframe):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(dataframe),
+        lambda df: df.items(),
+        comparator=assert_items_results_equal,
+    )

@@ -64,6 +64,7 @@
 - Added support for lazy `DatetimeIndex`.
 - Added support for `Series.argmax` and `Series.argmin`.
 - Added support for `Series.dt.is_leap_year`.
+- Added support for `DataFrame.items`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
