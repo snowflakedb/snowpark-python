@@ -912,6 +912,9 @@ class SnowflakePlanBuilder:
             )
 
         def get_create_and_insert_plan(child: SnowflakePlan, replace, error):
+            assert (
+                column_definition is not None
+            ), "column definition is required for create table statement"
             create_table = create_table_statement(
                 full_table_name,
                 column_definition,
