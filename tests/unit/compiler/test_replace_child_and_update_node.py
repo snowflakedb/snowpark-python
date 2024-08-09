@@ -75,7 +75,6 @@ def mock_query_generator(mock_session) -> QueryGenerator:
         snowflake_plan.source_plan = x
         if hasattr(x, "post_actions"):
             snowflake_plan.post_actions = x.post_actions
-            print(f"post_actions: {x.post_actions}")
         return snowflake_plan
 
     fake_query_generator = mock.create_autospec(QueryGenerator)
