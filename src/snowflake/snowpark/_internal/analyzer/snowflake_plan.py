@@ -947,6 +947,7 @@ class SnowflakePlanBuilder:
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
+
         elif mode == SaveMode.TRUNCATE:
             if self.session._table_exists(table_name):
                 return self.build(
@@ -959,10 +960,13 @@ class SnowflakePlanBuilder:
                 )
             else:
                 return get_create_table_as_select_plan(child, replace=True, error=True)
+
         elif mode == SaveMode.OVERWRITE:
             return get_create_table_as_select_plan(child, replace=True, error=True)
+
         elif mode == SaveMode.IGNORE:
             return get_create_table_as_select_plan(child, replace=True, error=False)
+
         elif mode == SaveMode.ERROR_IF_EXISTS:
             if creation_source == TableCreationSource.CACHE_RESULT:
                 return get_create_and_insert_plan(child, replace=False, error=True)
