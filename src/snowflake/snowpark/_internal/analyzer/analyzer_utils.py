@@ -822,7 +822,7 @@ def batch_insert_into_statement(
 def create_table_as_select_statement(
     table_name: str,
     child: str,
-    column_definition: str,
+    column_definition: Optional[str],
     replace: bool = False,
     error: bool = True,
     table_type: str = EMPTY_STRING,

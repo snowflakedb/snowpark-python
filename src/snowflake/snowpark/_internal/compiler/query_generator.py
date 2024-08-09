@@ -121,10 +121,7 @@ class QueryGenerator(Analyzer):
             # overwrite the SnowflakeCreateTable resolving, because the child
             # attribute will be pulled directly from the cache
             resolved_child = resolved_children[logical_plan.children[0]]
-            # when the plan is for SnowflakeCreateTable, there must be a snowflake_create_table_plan_info
-            # associated with the current query generator.
-
-            child_attributes = []
+            child_attributes = None
             if (
                 self._snowflake_create_table_plan_info
                 and self._snowflake_create_table_plan_info.table_name
