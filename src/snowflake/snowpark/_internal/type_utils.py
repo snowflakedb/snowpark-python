@@ -303,6 +303,11 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
         return "GEOMETRY"
     if isinstance(datatype, VectorType):
         return f"VECTOR({datatype.element_type},{datatype.dimension})"
+    # TODO: Can give datatypes a method get_snowflake_type(),
+    # or just hack in a fix for this unpivot case where we cast to the original
+    # internal frame's types.
+    if hasattr(datatype, "cast_type"):
+        return datatype.cast_type
     raise TypeError(f"Unsupported data type: {datatype.__class__.__name__}")
 
 
