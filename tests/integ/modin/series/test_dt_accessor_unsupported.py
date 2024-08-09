@@ -31,8 +31,6 @@ class TestSeriesDatetimeValues:
         "method, dates",
         [
             ["round", ["2012-01-02", "2012-01-02", "2012-01-01"]],
-            ["floor", ["2012-01-01", "2012-01-01", "2012-01-01"]],
-            ["ceil", ["2012-01-02", "2012-01-02", "2012-01-02"]],
         ],
     )
     @sql_count_checker(query_count=0)
