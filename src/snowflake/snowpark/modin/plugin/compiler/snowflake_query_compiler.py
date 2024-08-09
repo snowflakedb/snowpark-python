@@ -5530,6 +5530,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         keys: list[Hashable],
         drop: Optional[bool] = True,
         append: Optional[bool] = False,
+        include_index: Optional[bool] = True,
     ) -> "SnowflakeQueryCompiler":
         """
         Create or update index (row labels) from a list of columns.
@@ -5542,6 +5543,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             append: bool, default False
               Whether to add the columns in `keys` as new levels appended to the
               existing index.
+            include_index: bool, default True
+              Whether the keys can also include index column lables as well.
 
         Returns:
             A new QueryCompiler instance with updated index.
@@ -5551,7 +5554,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         for (
             ids
         ) in self._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-            keys, include_index=False
+            keys, include_index=include_index
         ):
             # Error checking for missing labels is already done in frontend layer.
             index_column_snowflake_quoted_identifiers.append(ids[0])

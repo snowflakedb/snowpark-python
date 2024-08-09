@@ -130,7 +130,10 @@ class Series(BasePandasDataset):
         # modified:
         # Engine.subscribe(_update_engine)
 
-        if isinstance(data, type(self)):
+        # Convert lazy index to Series without pulling the data to client.
+        if isinstance(data, pd.Index):
+            query_compiler = data.to_series(index=index, name=name)._query_compiler
+        elif isinstance(data, type(self)):
             query_compiler = data._query_compiler.copy()
             if index is not None:
                 if any(i not in data.index for i in index):

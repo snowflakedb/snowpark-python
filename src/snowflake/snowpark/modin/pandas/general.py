@@ -2167,7 +2167,7 @@ def date_range(
         right_inclusive=right_inclusive,
     )
     # Set date range as index column.
-    qc = qc.set_index_from_columns(qc.columns.tolist())
+    qc = qc.set_index_from_columns(qc.columns.tolist(), include_index=False)
     # Set index column name.
     qc = qc.set_index_names([name])
     return pd.DatetimeIndex(data=qc)

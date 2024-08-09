@@ -325,7 +325,7 @@ def test_telemetry_args():
 )
 @sql_count_checker(query_count=7, fallback_count=1, sproc_count=1)
 def test_property_methods_telemetry():
-    datetime_series = pd.date_range("2000-01-01", periods=3, freq="h")
+    datetime_series = pd.Series(pd.date_range("2000-01-01", periods=3, freq="h"))
     ret_series = datetime_series.dt.timetz
     assert len(ret_series._query_compiler.snowpark_pandas_api_calls) == 1
     api_call = ret_series._query_compiler.snowpark_pandas_api_calls[0]
