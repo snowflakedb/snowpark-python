@@ -46,7 +46,7 @@ def test_datetime_index_construction_negative():
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     msg = "DatetimeIndex can only be created from a query compiler with TimestampType"
     with pytest.raises(ValueError, match=msg):
-        pd.DatetimeIndex(df._query_compiler)
+        pd.DatetimeIndex(query_compiler=df._query_compiler)
 
 
 @sql_count_checker(query_count=0)
@@ -72,7 +72,7 @@ def test_non_default_args(kwargs):
     value = list(kwargs.values())[0]
     msg = f"Non-default argument '{name}={value}' when constructing Index with query compiler"
     with pytest.raises(AssertionError, match=msg):
-        pd.DatetimeIndex(data=idx._query_compiler, **kwargs)
+        pd.DatetimeIndex(query_compiler=idx._query_compiler, **kwargs)
 
 
 @sql_count_checker(query_count=6)
