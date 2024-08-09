@@ -151,7 +151,7 @@ class QueryGenerator(Analyzer):
                 copied_resolved_child,
                 logical_plan,
                 self.session._use_scoped_temp_objects,
-                logical_plan.is_generated,
+                logical_plan.creation_source,
                 self._snowflake_create_table_plan_info.child_attributes,
             )
 
