@@ -1317,10 +1317,6 @@ def test_listagg(session):
     assert len(result) == 4
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: aggregate expression within group not supported",
-)
 def test_listagg_within_group(session):
     df = session.create_dataframe(
         [
@@ -1336,7 +1332,7 @@ def test_listagg_within_group(session):
     )
     Utils.check_answer(
         df.group_by("color")
-        .agg(listagg("length", ",").within_group(df.length.asc()))
+        .agg(listagg("length", ",").within_group(df.length))
         .sort("color"),
         [
             Row("blue", "14"),
