@@ -64,13 +64,13 @@ def test_reset_cumulative_node_complexity(
     nodes = [get_node_for_type(node_type) for _ in range(8)]
 
     """
-                            o                       o
+                            0                       0
                            / \\                    / \
-                          o   o                   *   o
+                          1   2                   1   2
                          /|\\                     |
-                        o o o       ->            o
+                        3 4 5       ->            7
                           |
-                          o
+                          6
     """
     set_children(nodes[0], node_type, nodes[1:3])
     set_children(nodes[1], node_type, nodes[3:6])
@@ -90,12 +90,15 @@ def test_reset_cumulative_node_complexity(
     assert nodes[6].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 1}
 
     set_children(nodes[1], node_type, [nodes[7]])
-    nodes[1].reset_cumulative_node_complexity()
+    nodes[1].cumulative_node_complexity = {PlanNodeCategory.COLUMN: 1}
     nodes[0].reset_cumulative_node_complexity()
 
     # assert that only value that is reset is changed
-    assert nodes[0].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 4}
-    assert nodes[1].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 2}
+    assert nodes[0].cumulative_node_complexity == {
+        PlanNodeCategory.COLUMN: 1,
+        PlanNodeCategory.OTHERS: 2,
+    }
+    assert nodes[1].cumulative_node_complexity == {PlanNodeCategory.COLUMN: 1}
     assert nodes[2].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 1}
 
 
