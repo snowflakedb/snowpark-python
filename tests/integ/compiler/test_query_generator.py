@@ -22,8 +22,10 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SaveMode,
     SnowflakeCreateTable,
+    SnowflakeTable,
     TableCreationSource,
 )
+from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
 from snowflake.snowpark._internal.compiler.utils import create_query_generator
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
@@ -153,6 +155,50 @@ def test_table_create(session, mode):
     )
     snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
     check_generated_plan_queries(snowflake_plan)
+
+
+@pytest.mark.parametrize(
+    "plan_source_generator",
+    [
+        lambda x: SnowflakeCreateTable(
+            ["random_temp_table_name"],
+            column_names=None,
+            mode=SaveMode.ERROR_IF_EXISTS,
+            query=x.sql("select 1 as a, 2 as b, 3 as c")._plan,
+            creation_source=TableCreationSource.OTHERS,
+            table_type="temp",
+            clustering_exprs=None,
+            comment=None,
+        ),
+        lambda x: Project([], SnowflakeTable("random_temp_table_name", session=x)),
+    ],
+)
+def test_table_create_from_large_query_breakdown(session, plan_source_generator):
+    plan_source = plan_source_generator(session)
+    snowflake_plan = session._analyzer.resolve(plan_source)
+    generator = create_query_generator(snowflake_plan)
+
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    child_df = session.sql("select 1 as a, 2 as b")
+    create_table_source = SnowflakeCreateTable(
+        [table_name],
+        column_names=None,
+        mode=SaveMode.ERROR_IF_EXISTS,
+        query=child_df._plan,
+        creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
+        table_type="temp",
+        clustering_exprs=None,
+        comment=None,
+    )
+
+    queries = generator.generate_queries([create_table_source])
+    assert len(queries[PlanQueryType.QUERIES]) == 1
+    assert len(queries[PlanQueryType.POST_ACTIONS]) == 0
+
+    assert (
+        queries[PlanQueryType.QUERIES][0].sql
+        == f" CREATE  TEMP  TABLE  {table_name}   AS  SELECT  *  FROM (select 1 as a, 2 as b)"
+    )
 
 
 def test_pivot_unpivot(session):

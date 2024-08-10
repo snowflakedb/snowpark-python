@@ -856,7 +856,11 @@ class SnowflakePlanBuilder:
             child: the SnowflakePlan that is being materialized into a table
             source_plan: the source plan of the child
             use_scoped_temp_objects: should we use scoped temp objects
-            creation_source: the source of the api that is creating the table
+            creation_source: the creator for the SnowflakeCreateTable node, today it can come from the
+                cache result api, compilation transformations like large query breakdown, or other like
+                save_as_table call. This parameter is used to identifier whether a table is internally
+                generated with cache_result or by the compilation transformation, and some special
+                check and handling needs to be applied to guarantee the correctness of generated query.
             child_attributes: child attributes will be none in the case of large query breakdown
                 where we use ctas query to create the table which does not need to know the column
                 metadata.
@@ -872,6 +876,14 @@ class SnowflakePlanBuilder:
             # For these cases, we must use mode ERROR_IF_EXISTS
             raise ValueError(
                 "Internally generated tables must be called with mode ERROR_IF_EXISTS"
+            )
+
+        if (
+            child_attributes is None
+            and creation_source != TableCreationSource.LARGE_QUERY_BREAKDOWN
+        ):
+            raise ValueError(
+                "child attribute must be provided when table creation source is not large query breakdown"
             )
 
         full_table_name = ".".join(table_name)
@@ -988,6 +1000,8 @@ class SnowflakePlanBuilder:
 
         elif mode == SaveMode.ERROR_IF_EXISTS:
             if creation_source == TableCreationSource.CACHE_RESULT:
+                # if the table is created from cache result, we use create and replace
+                # table in order to avoid breaking any current transaction.
                 return get_create_and_insert_plan(child, replace=False, error=True)
 
             return get_create_table_as_select_plan(child, replace=False, error=True)
