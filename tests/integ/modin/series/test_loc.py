@@ -477,9 +477,6 @@ def test_series_loc_get_key_non_boolean_series(
         return s.loc[type_convert(native_series_key, isinstance(s, pd.Series))]
 
     # default index
-    # Note: here number of queries are 2 due to the data type of the series is variant and to_pandas needs to call
-    # typeof to get the value types
-    # TODO: SNOW-933782 optimize to_pandas for variant columns to only fire one query
     with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_series,

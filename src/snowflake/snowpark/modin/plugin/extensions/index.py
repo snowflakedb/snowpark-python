@@ -2383,6 +2383,7 @@ class Index(metaclass=TelemetryMeta):
         origin: DateTimeOrigin = "unix",
     ) -> Index:
         """
+        Convert index to DatetimeIndex.
         Args:
             errors: {'ignore', 'raise', 'coerce'}, default 'raise'
               If 'raise', then invalid parsing will raise an exception.

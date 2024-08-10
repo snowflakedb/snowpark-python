@@ -474,7 +474,7 @@ def test_telemetry_private_method(name, method, expected_query_count):
     assert data["api_calls"] == [{"name": f"DataFrame.DataFrame.{name}"}]
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_telemetry_property_index():
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     df._query_compiler.snowpark_pandas_api_calls.clear()
