@@ -13,14 +13,19 @@ from tests.integ.modin.utils import (
 )
 
 
-def assert_items_results_equal(snow_result, pandas_result):
+def assert_items_results_equal(snow_result, pandas_result) -> None:
     snow_list = list(snow_result)
     pandas_list = list(pandas_result)
     assert len(snow_list) == len(pandas_list), "lengths of items are not equal."
+    if len(snow_list) == 0:
+        # Expect no queries if there are no columns.
+        with SqlCounter(query_count=0):
+            return
     for ((snow_label, snow_column), (pandas_label, pandas_column)) in zip(
         snow_list, pandas_list
     ):
         assert snow_label == pandas_label
+        # Execute one query to materialize each column.
         with SqlCounter(query_count=1):
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 snow_column, pandas_column
