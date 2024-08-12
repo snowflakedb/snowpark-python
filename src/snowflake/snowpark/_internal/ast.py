@@ -144,7 +144,7 @@ class AstBatch:
     def _init_batch(self):
         self._request_id = uuid.uuid4()  # Generate a new unique ID.
         self._request = proto.Request()
-        self._request.client_version.major = 42
+        self._request.client_version.major = 42  # TODO
         self._request.client_version.minor = 0
         (major, minor, micro, releaselevel, serial) = sys.version_info
         self._request.client_language.python_language.version.major = major
