@@ -24,27 +24,6 @@ def assert_reindex_result_equal(
     np.testing.assert_array_equal(snow_result[1], native_result[1])
 
 
-def create_datetime_index(snow_series: pd.Series) -> pd.Index:
-    from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
-    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
-        SnowflakeQueryCompiler,
-    )
-
-    modin_frame = snow_series._query_compiler._modin_frame
-    return pd.Index(
-        SnowflakeQueryCompiler(
-            InternalFrame.create(
-                ordered_dataframe=modin_frame.ordered_dataframe,
-                data_column_pandas_index_names=modin_frame.data_column_pandas_index_names,
-                data_column_pandas_labels=[],
-                data_column_snowflake_quoted_identifiers=[],
-                index_column_pandas_labels=[None],
-                index_column_snowflake_quoted_identifiers=modin_frame.data_column_snowflake_quoted_identifiers,
-            )
-        )
-    )
-
-
 @sql_count_checker(query_count=0)
 def test_invalid_limit_parameter():
     native_idx = native_pd.Index(list("ABC"))
@@ -149,13 +128,11 @@ def test_ordered_index_unordered_new_index():
 @pytest.mark.parametrize("limit", [None, 1, 2, 100])
 @pytest.mark.parametrize("method", ["bfill", "backfill", "pad", "ffill"])
 def test_datetime_with_fill(limit, method):
-    query_count = 3 if limit else 2
+    query_count = 2
     join_count = 2
     with SqlCounter(query_count=query_count, join_count=join_count):
         native_date_index = native_pd.date_range("1/1/2010", periods=6, freq="D")
-        snow_date_index = create_datetime_index(
-            pd.date_range("1/1/2010", periods=6, freq="D")
-        )
+        snow_date_index = pd.date_range("1/1/2010", periods=6, freq="D")
         assert_reindex_result_equal(
             snow_date_index,
             native_date_index,
@@ -179,9 +156,7 @@ def test_non_overlapping_index():
 @sql_count_checker(query_count=2, join_count=2)
 def test_non_overlapping_datetime_index():
     native_date_index = native_pd.date_range("1/1/2010", periods=6, freq="D")
-    snow_date_index = create_datetime_index(
-        pd.date_range("1/1/2010", periods=6, freq="D")
-    )
+    snow_date_index = pd.date_range("1/1/2010", periods=6, freq="D")
     assert_reindex_result_equal(
         snow_date_index,
         native_date_index,
@@ -193,7 +168,7 @@ def test_non_overlapping_datetime_index():
 
 @sql_count_checker(query_count=0)
 def test_non_overlapping_different_types_index_negative():
-    date_index = create_datetime_index(pd.date_range("1/1/2010", periods=6, freq="D"))
+    date_index = pd.date_range("1/1/2010", periods=6, freq="D")
 
     with pytest.raises(SnowparkSQLException, match=".*Timestamp 'A' is not recognized"):
         date_index.reindex(list("ABC"))

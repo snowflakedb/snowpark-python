@@ -1379,14 +1379,13 @@ class Index(metaclass=TelemetryMeta):
 
         Notes
         -----
-        If the index is lazy, ``method=nearest`` is not supported.
+        ``method=nearest`` is not supported.
 
-        If the index is lazy, and duplicate values are present,
-        they are ignored, and all duplicate values are present
-        in the result.
+        If duplicate values are present, they are ignored,
+        and all duplicate values are present in the result.
 
-        If the index is lazy, and the source and target indices
-        have no overlap, monotonicity checks are skipped.
+        If the source and target indices have no overlap,
+        monotonicity checks are skipped.
 
         MultiIndex is not supported.
 
@@ -1424,7 +1423,7 @@ class Index(metaclass=TelemetryMeta):
             query_compiler, indices = self._query_compiler.reindex(
                 axis=0, labels=target, **kwargs
             )
-            return Index(query_compiler, convert_to_lazy=self.is_lazy), indices
+            return Index(query_compiler=query_compiler), indices
         except Exception as e:
             from snowflake.snowpark.exceptions import SnowparkSQLException
 
