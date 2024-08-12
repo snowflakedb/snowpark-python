@@ -9,7 +9,7 @@ import re
 import sys
 from functools import reduce
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Optional, Tuple, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -185,29 +185,121 @@ def build_proto_from_struct_type(
         ast_field.nullable = field.nullable
 
 
-def build_fn_apply(
+def _set_fn_name(name: Union[str, Iterable[str]], fn: proto.FnRefExpr) -> None:
+    """
+    Set the function name in the AST. The function name can be a string or an iterable of strings.
+    Args:
+        name: The function name to set in the AST.
+        fn: The function reference expression to set the name in. The caller must provide the correct type of function.
+
+    Raises:
+        ValueError: Raised if the function name is not a string or an iterable of strings.
+    """
+    if isinstance(name, str):
+        fn.name.fn_name_flat.name = name
+    elif isinstance(name, Iterable):
+        fn.name.fn_name_structured.name.extend(name)
+    else:
+        raise ValueError(
+            f"Invalid function name: {name}. The function name must be a string or an iterable of strings."
+        )
+
+
+def build_builtin_fn_apply(
     ast: proto.Expr,
     builtin_name: str,
     *args: Tuple[Union[proto.Expr, Any]],
     **kwargs: Dict[str, Union[proto.Expr, Any]],
 ) -> None:
     """
-    Creates AST encoding for ApplyExpr(BuiltinFn(<builtin_name>, List(<args...>), Map(<kwargs...>))) for builtin
+    Creates AST encoding for ApplyExpr(BuiltinFn(<builtin_name>), List(<args...>), Map(<kwargs...>)) for builtin
     functions.
     Args:
-        ast: Expr node to fill
+        ast: Expr node to fill.
         builtin_name: Name of the builtin function to call.
         *args: Positional arguments to pass to function.
         **kwargs: Keyword arguments to pass to function.
 
     """
-
     expr = with_src_position(ast.apply_expr)
+    _set_fn_name(builtin_name, expr.fn.builtin_fn)
+    set_src_position(expr.fn.builtin_fn.src)
+    build_fn_apply_args(ast, *args, **kwargs)
 
-    fn = proto.BuiltinFn()
-    fn.name.fn_name_flat.name = builtin_name
-    set_src_position(fn.src)
-    expr.fn.builtin_fn.CopyFrom(fn)
+
+def build_udf_apply(
+    ast: proto.Expr,
+    udf_name: str,
+    *args: Tuple[Union[proto.Expr, Any]],
+) -> None:
+    expr = with_src_position(ast.apply_expr)
+    _set_fn_name(udf_name, expr.fn.udf)
+    set_src_position(expr.fn.udf.src)
+    build_fn_apply_args(ast, *args)
+
+
+def build_session_table_fn_apply(
+    ast: proto.Expr,
+    name: Union[str, Iterable[str]],
+    *args: Tuple[Union[proto.Expr, Any]],
+    **kwargs: Dict[str, Union[proto.Expr, Any]],
+) -> None:
+    """
+    Creates AST encoding for ApplyExpr(SessionTableFn(<name>), List(<args...>), Map(<kwargs...>)) for session table functions.
+    Args:
+        ast: Expr node to fill.
+        name: Name of the session table function to call.
+        *args: Positional arguments to pass to function.
+        **kwargs: Keyword arguments to pass to function.
+    """
+    expr = with_src_position(ast.apply_expr)
+    _set_fn_name(name, expr.fn.session_table_fn)
+    set_src_position(expr.fn.session_table_fn.src)
+    build_fn_apply_args(ast, *args, **kwargs)
+
+
+def build_table_fn_apply(
+    ast: proto.Expr,
+    name: Union[str, Iterable[str], None],
+    *args: Tuple[Union[proto.Expr, Any]],
+    **kwargs: Dict[str, Union[proto.Expr, Any]],
+) -> None:
+    """
+    Creates AST encoding for ApplyExpr(TableFn(<name>), List(<args...>), Map(<kwargs...>)) for table functions.
+    Args:
+        ast: Expr node to fill.
+        name: Name of the table function to call. The name can be None and is ignored for table function calls of type SessionTableFn.
+        *args: Positional arguments to pass to function.
+        **kwargs: Keyword arguments to pass to function.
+
+    Requires that ast.apply_expr.fn.table_fn.call_type is set to a valid TableFnCallType.
+    """
+    expr = with_src_position(ast.apply_expr)
+    assert (
+        ast.apply_expr.fn.table_fn.call_type.WhichOneof("variant") is not None
+    ), f"Explicitly set the call type before calling this function {str(ast.apply_expr.fn.table_fn)}"
+    if not expr.fn.table_fn.call_type.table_fn_call_type__session_table_fn:
+        assert (
+            name is not None
+        ), f"Table function name must be provided {str(ast.apply_expr.fn.table_fn)}"
+        _set_fn_name(name, expr.fn.table_fn)
+    set_src_position(expr.fn.table_fn.src)
+    build_fn_apply_args(ast, *args, **kwargs)
+
+
+def build_fn_apply_args(
+    ast: proto.Expr,
+    *args: Tuple[Union[proto.Expr, Any]],
+    **kwargs: Dict[str, Union[proto.Expr, Any]],
+) -> None:
+    """
+    Creates AST encoding for the argument lists of ApplyExpr.
+    Args:
+        ast: Expr node to fill
+        *args: Positional arguments to pass to function.
+        **kwargs: Keyword arguments to pass to function.
+    """
+    expr = ast.apply_expr
 
     for arg in args:
         if isinstance(arg, proto.Expr):
@@ -231,6 +323,16 @@ def build_fn_apply(
         else:
             build_expr_from_python_val(kwarg._2, arg)
         expr.named_args.append(kwarg)
+
+
+def set_builtin_fn_alias(ast: proto.Expr, alias: str) -> None:
+    """
+    Set the alias for a builtin function call. Requires that the expression has an ApplyExpr with a BuiltinFn.
+    Args:
+        ast: Expr node to fill.
+        alias: Alias to set for the builtin function.
+    """
+    _set_fn_name(alias, ast.apply_expr.fn.builtin_fn)
 
 
 def get_first_non_snowpark_stack_frame() -> inspect.FrameInfo:
@@ -470,7 +572,7 @@ def fill_ast_for_column(
     args = tuple(kwargs.values())
     kwargs = {}
 
-    build_fn_apply(expr, fn_name, *args, **kwargs)
+    build_builtin_fn_apply(expr, fn_name, *args, **kwargs)
 
 
 def create_ast_for_column(
