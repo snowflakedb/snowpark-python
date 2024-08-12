@@ -44,7 +44,7 @@ res3 = df.create_or_replace_temp_view(["test_db", "test_schema", "test_view"], c
 
 res4 = df.create_or_replace_temp_view("test_view", statement_params={"foo": "bar"})
 
-res5 = df.copy_into_table(["test_db", "test_schema", "test_table2"], files=["file1", "file2"], pattern="[A-Z]+", validation_mode="RETURN_ERRORS", target_columns=["n", "str"], transformations=[(col("n") * 10), col("str")], format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"}, statement_params={"foo": "bar"}, force=True)
+res5 = df.copy_into_table(["test_db", "test_schema", "test_table2"], files=["file1", "file2"], pattern="[A-Z]+", validation_mode="RETURN_ERRORS", target_columns=["n", "str"], transformations=[col("n") * 10, col("str")], format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"}, statement_params={"foo": "bar"}, force=True)
 
 df3 = df.cache_result()
 

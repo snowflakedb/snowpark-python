@@ -12,6 +12,6 @@ df1 = session.table("test_table")
 
 df2 = session.table("test_table")
 
-df3 = df1.join(df2, on=(df1["num"] > df2["num"]), how="right_outer")
+df3 = df1.join(df2, on=df1["num"] > df2["num"], how="right_outer")
 
 df3 = df3.select("*")
