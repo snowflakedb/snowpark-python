@@ -18,6 +18,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     LogicalPlan,
     SnowflakeCreateTable,
+    TableCreationSource,
     WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -129,7 +130,9 @@ class QueryGenerator(Analyzer):
             # table creation source is temp table from large query breakdown.
             child_attributes = None
             if (
-                self._snowflake_create_table_plan_info
+                logical_plan.creation_source
+                != TableCreationSource.LARGE_QUERY_BREAKDOWN
+                and self._snowflake_create_table_plan_info
                 and self._snowflake_create_table_plan_info.table_name
                 == logical_plan.table_name
             ):
