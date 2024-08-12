@@ -317,7 +317,7 @@ class DataFrame(BasePandasDataset):
         else:
             return result
 
-    def _get_columns(self) -> pd.Index:
+    def _get_columns(self) -> pandas.Index:
         """
         Get the columns for this Snowpark pandas ``DataFrame``.
 
@@ -1348,26 +1348,17 @@ class DataFrame(BasePandasDataset):
         partition_iterator = SnowparkPandasRowPartitionIterator(self, iterrow_builder)
         yield from partition_iterator
 
-    @dataframe_not_implemented()
     def items(self):  # noqa: D200
         """
         Iterate over (column name, ``Series``) pairs.
         """
-        # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
+
         def items_builder(s):
             """Return tuple of the given `s` parameter name and the parameter themselves."""
             return s.name, s
 
         partition_iterator = PartitionIterator(self, 1, items_builder)
         yield from partition_iterator
-
-    @dataframe_not_implemented()
-    def iteritems(self):  # noqa: RT01, D200
-        """
-        Iterate over (column name, ``Series``) pairs.
-        """
-        # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        return self.items()
 
     def itertuples(
         self, index: bool = True, name: str | None = "Pandas"

@@ -1,8 +1,12 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-import pandas as pd
 import pytest
+
+try:
+    import pandas as pd  # noqa: F401
+except ImportError:
+    pytest.skip("pandas is not installed", allow_module_level=True)
 
 from snowflake.snowpark import DataFrame
 

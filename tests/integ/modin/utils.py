@@ -194,7 +194,7 @@ def create_test_dfs(*args, **kwargs) -> tuple[pd.DataFrame, native_pd.DataFrame]
         and isinstance(native_kw_args["columns"], native_pd.Index)
         and not isinstance(native_kw_args["columns"], pd.MultiIndex)
     ):
-        kwargs["columns"] = pd.Index(native_kw_args["columns"], convert_to_lazy=False)
+        kwargs["columns"] = native_pd.Index(native_kw_args["columns"])
     return (pd.DataFrame(*args, **kwargs), native_pd.DataFrame(*args, **native_kw_args))
 
 
@@ -271,7 +271,8 @@ def assert_snowpark_pandas_equal_to_pandas(
         tm.assert_series_equal(snow_to_native, expected_pandas, **kwargs)
     else:
         assert isinstance(snow, Index)
-        kwargs.pop("check_dtype")
+        if "check_dtype" in kwargs:
+            kwargs.pop("check_dtype")
         if kwargs.pop("check_index_type"):
             kwargs.update(exact=False)
         tm.assert_index_equal(snow_to_native, expected_pandas, **kwargs)

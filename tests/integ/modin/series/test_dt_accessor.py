@@ -27,8 +27,11 @@ dt_properties = pytest.mark.parametrize(
         "quarter",
         "is_month_start",
         "is_month_end",
+        "is_quarter_start",
+        "is_quarter_end",
         "is_year_start",
         "is_year_end",
+        "is_leap_year",
     ],
 )
 
@@ -85,6 +88,69 @@ def test_date(datetime_index_value):
     native_ser = native_pd.Series(native_pd.DatetimeIndex(datetime_index_value))
     snow_ser = pd.Series(native_ser)
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.dt.date)
+
+
+@pytest.mark.parametrize(
+    "datetime_index_value",
+    [
+        ["2014-04-04 23:56", "2014-07-18 21:24", "2015-11-22 22:14"],
+        ["04/04/2014", "07/18/2013", "11/22/2015"],
+        ["2014-04-04 23:56", pd.NaT, "2014-07-18 21:24", "2015-11-22 22:14", pd.NaT],
+        [
+            pd.Timestamp(2017, 1, 1, 12),
+            pd.Timestamp(2018, 2, 1, 10),
+            pd.Timestamp(2000, 2, 1, 10),
+        ],
+    ],
+)
+@pytest.mark.parametrize("func", ["floor", "ceil"])
+@pytest.mark.parametrize(
+    "freq",
+    [
+        "1d",
+        "2d",
+        "1h",
+        "2h",
+        "1min",
+        "2min",
+        "1s",
+        "2s",
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_floor_ceil(datetime_index_value, func, freq):
+    native_ser = native_pd.Series(native_pd.DatetimeIndex(datetime_index_value))
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser, native_ser, lambda ser: getattr(ser.dt, func)(freq)
+    )
+
+
+@pytest.mark.parametrize("func", ["floor", "ceil"])
+@pytest.mark.parametrize(
+    "freq, ambiguous, nonexistent",
+    [
+        ("1w", "raise", "raise"),
+        ("1h", "infer", "raise"),
+        ("1h", "raise", "shift_forward"),
+        ("1w", "infer", "shift_forward"),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_floor_ceil_negative(func, freq, ambiguous, nonexistent):
+    datetime_index_value = [
+        "2014-04-04 23:56",
+        pd.NaT,
+        "2014-07-18 21:24",
+        "2015-11-22 22:14",
+        pd.NaT,
+    ]
+    native_ser = native_pd.Series(native_pd.DatetimeIndex(datetime_index_value))
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(NotImplementedError):
+        getattr(snow_ser.dt, func)(
+            freq=freq, ambiguous=ambiguous, nonexistent=nonexistent
+        )
 
 
 def test_isocalendar():
@@ -153,7 +219,15 @@ def test_day_month_name_negative(method):
 
 @sql_count_checker(query_count=1)
 @pytest.mark.parametrize(
-    "property", ["is_month_start", "is_month_end", "is_year_start", "is_year_end"]
+    "property",
+    [
+        "is_month_start",
+        "is_month_end",
+        "is_quarter_start",
+        "is_quarter_end",
+        "is_year_start",
+        "is_year_end",
+    ],
 )
 def test_is_x_start_end(property):
     # Create a series containing the first and last dates of each month

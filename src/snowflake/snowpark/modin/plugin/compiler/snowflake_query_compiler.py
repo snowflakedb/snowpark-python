@@ -86,6 +86,7 @@ from snowflake.snowpark.functions import (
     corr,
     count,
     count_distinct,
+    date_from_parts,
     date_part,
     date_trunc,
     dateadd,
@@ -365,6 +366,10 @@ _logger = logging.getLogger(__name__)
 MAX_QUANTILES_SUPPORTED: int = 16
 
 _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE = "does not yet support pd.Grouper, axis == 1, by != None and level != None, or by containing any non-pandas hashable labels."
+
+QUARTER_START_MONTHS = [1, 4, 7, 10]
+
+SUPPORTED_DT_FLOOR_CEIL_FREQS = ["day", "hour", "minute", "second"]
 
 
 class SnowflakeQueryCompiler(BaseQueryCompiler):
@@ -1320,7 +1325,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(self._modin_frame.persist_to_temporary_table())
 
     @property
-    def columns(self) -> "pd.Index":
+    def columns(self) -> native_pd.Index:
         """
         Get pandas column labels.
 
@@ -1575,16 +1580,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     @property
     def index(self) -> Union["pd.Index", native_pd.MultiIndex]:
         """
-        Get index. If MultiIndex, the method eagerly pulls the values from Snowflake because index requires the values to be
-        filled and returns a pandas MultiIndex. If not MultiIndex, create a modin index and pass it self
+        Get index. If MultiIndex, the method eagerly pulls the values from Snowflake because index requires the values
+        to be filled and returns a pandas MultiIndex. If not MultiIndex, create a modin index and pass itself
 
         Returns:
             The index (row labels) of the DataFrame.
         """
         if self.is_multiindex():
+            # Lazy multiindex is not supported
             return self._modin_frame.index_columns_pandas_index()
         else:
-            return pd.Index(self)
+            return pd.Index(query_compiler=self)
 
     def _is_scalar_in_index(self, scalar: Union[Scalar, tuple]) -> bool:
         """
@@ -2126,22 +2132,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         else:
             assert axis == 0
-            # The query compiler agg method complains if the resulting aggregation is empty, so we add a special check here
+            # The query compiler agg method complains if the resulting aggregation is empty, so we add a special check here.
             if empty_columns:
                 # The result should be an empty series of dtype bool, which is internally represented as an
                 # empty dataframe with only the MODIN_UNNAMED_SERIES_LABEL column
                 return SnowflakeQueryCompiler.from_pandas(
                     native_pd.DataFrame({MODIN_UNNAMED_SERIES_LABEL: []}, dtype=bool)
                 )
-
-            # The resulting DF is transposed so will have string 'NULL' as a column name,
-            # so we need to manually remove it
+            # If there are now rows (but there are columns), booland_agg/boolor_agg would return NULL.
+            # This behavior is handled within aggregation_utils to avoid an extra query.
             return self.agg(
                 agg_func,
                 axis=0,
                 args=[],
                 kwargs={"skipna": skipna},
-            ).set_columns([MODIN_UNNAMED_SERIES_LABEL])
+            )
 
     def all(
         self,
@@ -2397,17 +2402,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         limit = kwargs.get("limit", None)
         tolerance = kwargs.get("tolerance", None)
         fill_value = kwargs.get("fill_value", np.nan)  # type: ignore[arg-type]
-        # Currently, our error checking relies on the column axis being eager (i.e. stored
-        # locally as a pandas Index, rather than pushed down to the database). This allows
-        # us to have parity with native pandas for things like monotonicity checks. If
-        # our columns are no longer eagerly stored, we would no longer be able to rely
-        # on pandas for these error checks, and the behaviour of reindex would change.
-        # This change is user-facing, so we should catch this in CI first, which we can
-        # by having this assert here, as a sentinel.
-        assert (
-            not self.columns.is_lazy
-        ), "`reindex` with axis=1 failed on error checking."
-        self.columns.to_pandas().reindex(labels, method, level, limit, tolerance)
+        self.columns.reindex(labels, method, level, limit, tolerance)
         data_column_pandas_labels = []
         data_column_snowflake_quoted_identifiers = []
         modin_frame = self._modin_frame
@@ -5537,6 +5532,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         keys: list[Hashable],
         drop: Optional[bool] = True,
         append: Optional[bool] = False,
+        include_index: Optional[bool] = True,
     ) -> "SnowflakeQueryCompiler":
         """
         Create or update index (row labels) from a list of columns.
@@ -5549,6 +5545,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             append: bool, default False
               Whether to add the columns in `keys` as new levels appended to the
               existing index.
+            include_index: bool, default True
+              Whether the keys can also include index column lables as well.
 
         Returns:
             A new QueryCompiler instance with updated index.
@@ -5558,7 +5556,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         for (
             ids
         ) in self._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-            keys
+            keys, include_index=include_index
         ):
             # Error checking for missing labels is already done in frontend layer.
             index_column_snowflake_quoted_identifiers.append(ids[0])
@@ -5877,6 +5875,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         unit: Optional[str] = None,
         infer_datetime_format: Union[lib.NoDefault, bool] = lib.no_default,
         origin: DateTimeOrigin = "unix",
+        include_index: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Convert series to the datetime dtype.
@@ -5891,6 +5890,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unit: to_datetime unit
             infer_datetime_format: to_datetime infer_datetime_format
             origin: to_datetime origin
+            include_index: If True, also convert index columns to datetime.
         Returns:
             SnowflakeQueryCompiler:
             QueryCompiler with a single data column converted to datetime dtype.
@@ -5903,12 +5903,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             to_snowflake_timestamp_format(format) if format is not None else None
         )
         id_to_sf_type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
-        col_id = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
-        sf_type = id_to_sf_type_map[col_id]
+        col_ids = []
+        if include_index:
+            col_ids = self._modin_frame.index_column_snowflake_quoted_identifiers
+        col_ids.extend(self._modin_frame.data_column_snowflake_quoted_identifiers)
 
-        if isinstance(sf_type, BooleanType):
-            # bool is not allowed in to_datetime (but note that bool is allowed by astype)
-            raise TypeError("dtype bool cannot be converted to datetime64[ns]")
+        for col_id in col_ids:
+            sf_type = id_to_sf_type_map[col_id]
+            if isinstance(sf_type, BooleanType):
+                # bool is not allowed in to_datetime (but note that bool is allowed by astype)
+                raise TypeError("dtype bool cannot be converted to datetime64[ns]")
 
         to_datetime_cols = {
             col_id: generate_timestamp_col(
@@ -5920,6 +5924,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 unit="ns" if unit is None else unit,
                 origin=origin,
             )
+            for col_id in col_ids
         }
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
@@ -10069,6 +10074,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     pandas_lit(False),
                 )
             ),
+            "is_quarter_start": (
+                lambda column: coalesce(
+                    (dayofmonth(col(column)) == 1)
+                    & (month(col(column)).in_(*QUARTER_START_MONTHS)),
+                    pandas_lit(False),
+                )
+            ),
+            "is_quarter_end": (
+                lambda column: coalesce(
+                    (dayofmonth(dateadd("day", pandas_lit(1), col(column))) == 1)
+                    & (
+                        month(dateadd("day", pandas_lit(1), col(column))).in_(
+                            *QUARTER_START_MONTHS
+                        )
+                    ),
+                    pandas_lit(False),
+                )
+            ),
             "is_year_start": (
                 lambda column: coalesce(
                     (dayofmonth(col(column)) == 1) & (month(col(column)) == 1),
@@ -10078,6 +10101,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "is_year_end": (
                 lambda column: coalesce(
                     (dayofmonth(col(column)) == 31) & (month(col(column)) == 12),
+                    pandas_lit(False),
+                )
+            ),
+            "is_leap_year": (
+                lambda column: coalesce(
+                    dayofmonth(
+                        dateadd(
+                            "day",
+                            pandas_lit(1),
+                            date_from_parts(year(col(column)), 2, 28),
+                        )
+                    )
+                    == 29,
                     pandas_lit(False),
                 )
             ),
@@ -15397,7 +15433,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def dt_ceil(
         self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
-    ) -> None:
+    ) -> "SnowflakeQueryCompiler":
         """
         Args:
             freq: The frequency level to ceil the index to.
@@ -15418,8 +15454,50 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             A new QueryCompiler with ceil values.
 
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.ceil'"
+        if ambiguous != "raise":
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.ceil' method doesn't yet support 'ambiguous' parameter"
+            )
+        if nonexistent != "raise":
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.ceil' method doesn't yet support 'nonexistent' parameter"
+            )
+        internal_frame = self._modin_frame
+
+        slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(
+            rule=freq  # type:  ignore[arg-type]
+        )
+
+        if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.ceil' method doesn't support setting 'freq' parameter to '{freq}'"
+            )
+        base_column = col(internal_frame.data_column_snowflake_quoted_identifiers[0])
+        floor_column = builtin("time_slice")(
+            base_column, slice_length, slice_unit, "START"
+        )
+        ceil_column = builtin("time_slice")(
+            base_column, slice_length, slice_unit, "END"
+        )
+        ceil_column = iff(
+            base_column.equal_null(floor_column), base_column, ceil_column
+        )
+
+        internal_frame = internal_frame.append_column(
+            internal_frame.data_column_pandas_labels[0], ceil_column
+        )
+
+        return SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=internal_frame.ordered_dataframe,
+                data_column_pandas_labels=[None],
+                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
+                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers[
+                    -1:
+                ],
+                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+            )
         )
 
     def dt_round(
@@ -15451,7 +15529,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def dt_floor(
         self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
-    ) -> None:
+    ) -> "SnowflakeQueryCompiler":
         """
         Args:
             freq: The frequency level to floor the index to.
@@ -15470,10 +15548,46 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 - 'raise' will raise an NonExistentTimeError if there are nonexistent times.
         Returns:
             A new QueryCompiler with floor values.
-
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.floor'"
+        if ambiguous != "raise":
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.floor' method doesn't yet support 'ambiguous' parameter"
+            )
+        if nonexistent != "raise":
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.floor' method doesn't yet support 'nonexistent' parameter"
+            )
+        internal_frame = self._modin_frame
+
+        slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(
+            rule=freq  # type:  ignore[arg-type]
+        )
+
+        if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.floor' method doesn't support setting 'freq' parameter to '{freq}'"
+            )
+        snowpark_column = builtin("time_slice")(
+            col(internal_frame.data_column_snowflake_quoted_identifiers[0]),
+            slice_length,
+            slice_unit,
+        )
+
+        internal_frame = internal_frame.append_column(
+            internal_frame.data_column_pandas_labels[0], snowpark_column
+        )
+
+        return SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=internal_frame.ordered_dataframe,
+                data_column_pandas_labels=[None],
+                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
+                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers[
+                    -1:
+                ],
+                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+            )
         )
 
     def dt_normalize(self) -> None:

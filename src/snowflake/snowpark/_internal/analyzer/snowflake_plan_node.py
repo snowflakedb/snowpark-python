@@ -64,6 +64,9 @@ class LogicalPlan:
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
         self._cumulative_node_complexity = value
 
+    def reset_cumulative_node_complexity(self) -> None:
+        self._cumulative_node_complexity = None
+
 
 class LeafNode(LogicalPlan):
     pass
@@ -111,6 +114,22 @@ class SnowflakeTable(LeafNode):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # SELECT * FROM name
         return {PlanNodeCategory.COLUMN: 1}
+
+
+class WithQueryBlock(LogicalPlan):
+    """
+    Logical plan node for common table expression (CTE) like
+    WITH TEMP_CTE_XXXX AS (SELECT * FROM TEST_TABLE).
+
+    The sql generated for all reference of this block is SELECT * from TEMP_CTE_XXX,
+    similar as select from a SnowflakeTable.
+    Note that SnowflakeTable is a leaf node, but this node is not.
+    """
+
+    def __init__(self, name: str, child: LogicalPlan) -> None:
+        super().__init__()
+        self.name = name
+        self.children.append(child)
 
 
 class SnowflakeValues(LeafNode):

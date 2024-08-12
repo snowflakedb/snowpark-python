@@ -1353,7 +1353,7 @@ class CombinedDatetimelikeProperties:
 
         Examples
         --------
-        >>> s = pd.date_range('2016-12-31', '2017-01-08', freq='D')
+        >>> s = pd.Series(pd.date_range('2016-12-31', '2017-01-08', freq='D'))
         >>> s
         0   2016-12-31
         1   2017-01-01
@@ -1390,7 +1390,7 @@ class CombinedDatetimelikeProperties:
 
         Examples
         --------
-        >>> s = pd.to_datetime(["1/1/2020", "2/1/2020"])
+        >>> s = pd.Series(pd.to_datetime(["1/1/2020", "2/1/2020"]))
         >>> s
         0   2020-01-01
         1   2020-02-01
@@ -1525,11 +1525,67 @@ class CombinedDatetimelikeProperties:
 
     @property
     def is_quarter_start():
-        pass
+        """
+        Indicator for whether the date is the first day of a quarter.
+
+        Returns
+        -------
+        is_quarter_start : Series or DatetimeIndex
+            The same type as the original data with boolean values. Series will have the same name and index. DatetimeIndex will have the same name.
+
+        See also
+        --------
+        quarter
+            Return the quarter of the date.
+        is_quarter_end
+            Similar property for indicating the quarter end.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> df = pd.DataFrame({'dates': pd.date_range("2017-03-30",
+        ...                   periods=4)})
+        >>> df.assign(quarter=df.dates.dt.quarter,
+        ...           is_quarter_start=df.dates.dt.is_quarter_start)
+               dates  quarter  is_quarter_start
+        0 2017-03-30        1             False
+        1 2017-03-31        1             False
+        2 2017-04-01        2              True
+        3 2017-04-02        2             False
+        """
 
     @property
     def is_quarter_end():
-        pass
+        """
+        Indicator for whether the date is the last day of a quarter.
+
+        Returns
+        -------
+        is_quarter_end : Series or DatetimeIndex
+            The same type as the original data with boolean values. Series will have the same name and index. DatetimeIndex will have the same name.
+
+        See also
+        --------
+        quarter
+            Return the quarter of the date.
+        is_quarter_start
+            Similar property indicating the quarter start.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> df = pd.DataFrame({'dates': pd.date_range("2017-03-30",
+        ...                    periods=4)})
+        >>> df.assign(quarter=df.dates.dt.quarter,
+        ...           is_quarter_end=df.dates.dt.is_quarter_end)
+               dates  quarter  is_quarter_end
+        0 2017-03-30        1           False
+        1 2017-03-31        1            True
+        2 2017-04-01        2           False
+        3 2017-04-02        2           False
+        """
 
     @property
     def is_year_start():
@@ -1599,7 +1655,38 @@ class CombinedDatetimelikeProperties:
 
     @property
     def is_leap_year():
-        pass
+        """
+        Boolean indicator if the date belongs to a leap year.
+
+        A leap year is a year, which has 366 days (instead of 365) including 29th of February as an intercalary day. Leap years are years which are multiples of four with the exception of years divisible by 100 but not by 400.
+
+        Returns
+        -------
+        Series or ndarray
+            Booleans indicating if dates belong to a leap year.
+
+        Examples
+        --------
+        This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
+
+        >>> idx = pd.date_range("2012-01-01", "2015-01-01", freq="YE")
+        >>> idx
+        DatetimeIndex(['2012-12-31', '2013-12-31', '2014-12-31'], dtype='datetime64[ns]', freq=None)
+        >>> idx.is_leap_year  # doctest: +SKIP
+        array([ True, False, False])
+
+        >>> dates_series = pd.Series(idx)
+        >>> dates_series
+        0   2012-12-31
+        1   2013-12-31
+        2   2014-12-31
+        dtype: datetime64[ns]
+        >>> dates_series.dt.is_leap_year
+        0     True
+        1    False
+        2    False
+        dtype: bool
+        """
 
     @property
     def daysinmonth():
@@ -1639,10 +1726,146 @@ class CombinedDatetimelikeProperties:
         pass
 
     def floor():
-        pass
+        """
+        Perform floor operation on the data to the specified freq.
+
+        Parameters
+        ----------
+        freq : str or Offset
+            The frequency level to floor the index to. Must be a fixed frequency like ‘S’ (second) not ‘ME’ (month end). See frequency aliases for a list of possible freq values.
+        ambiguous : ‘infer’, bool-ndarray, ‘NaT’, default ‘raise’
+            Only relevant for DatetimeIndex:
+            - ‘infer’ will attempt to infer fall dst-transition hours based on order
+            - bool-ndarray where True signifies a DST time, False designates a non-DST time (note that this flag is only applicable for ambiguous times)
+            - ‘NaT’ will return NaT where there are ambiguous times
+            - ‘raise’ will raise an AmbiguousTimeError if there are ambiguous times.
+        nonexistent : ‘shift_forward’, ‘shift_backward’, ‘NaT’, timedelta, default ‘raise’
+            A nonexistent time does not exist in a particular timezone where clocks moved forward due to DST.
+            - ‘shift_forward’ will shift the nonexistent time forward to the closest existing time
+            - ‘shift_backward’ will shift the nonexistent time backward to the closest existing time
+            - ‘NaT’ will return NaT where there are nonexistent times
+            - timedelta objects will shift nonexistent times by the timedelta
+            - ‘raise’ will raise an NonExistentTimeError if there are nonexistent times.
+
+        Returns
+        -------
+        DatetimeIndex, TimedeltaIndex, or Series
+            Index of the same type for a DatetimeIndex or TimedeltaIndex, or a Series with the same index for a Series.
+
+        Raises
+        ------
+        ValueError if the freq cannot be converted.
+
+        Notes
+        -----
+        If the timestamps have a timezone, flooring will take place relative to the local (“wall”) time and re-localized to the same timezone. When flooring near daylight savings time, use nonexistent and ambiguous to control the re-localization behavior.
+
+        Examples
+        --------
+        DatetimeIndex
+
+        >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
+        >>> rng  # doctest: +SKIP
+        DatetimeIndex(['2018-01-01 11:59:00', '2018-01-01 12:00:00',
+                    '2018-01-01 12:01:00'],
+                    dtype='datetime64[ns]', freq='min')
+        >>> rng.floor('h')  # doctest: +SKIP
+        DatetimeIndex(['2018-01-01 11:00:00', '2018-01-01 12:00:00',
+                    '2018-01-01 12:00:00'],
+                    dtype='datetime64[ns]', freq=None)
+
+        Series
+
+        >>> pd.Series(rng).dt.floor("h")
+        0   2018-01-01 11:00:00
+        1   2018-01-01 12:00:00
+        2   2018-01-01 12:00:00
+        dtype: datetime64[ns]
+
+        When rounding near a daylight savings time transition, use ambiguous or nonexistent to control how the timestamp should be re-localized.
+
+        >>> rng_tz = pd.DatetimeIndex(["2021-10-31 03:30:00"], tz="Europe/Amsterdam")
+
+        >>> rng_tz.floor("2h", ambiguous=False)  # doctest: +SKIP
+        DatetimeIndex(['2021-10-31 02:00:00+01:00'],
+                    dtype='datetime64[ns, Europe/Amsterdam]', freq=None)
+
+        >>> rng_tz.floor("2h", ambiguous=True)  # doctest: +SKIP
+        DatetimeIndex(['2021-10-31 02:00:00+02:00'],
+                    dtype='datetime64[ns, Europe/Amsterdam]', freq=None)
+        """
+        # TODO(SNOW-1486910): Unskip when date_range returns DatetimeIndex.
 
     def ceil():
-        pass
+        """
+        Perform ceil operation on the data to the specified freq.
+
+        Parameters
+        ----------
+        freq : str or Offset
+            The frequency level to ceil the index to. Must be a fixed frequency like ‘S’ (second) not ‘ME’ (month end). See frequency aliases for a list of possible freq values.
+        ambiguous : ‘infer’, bool-ndarray, ‘NaT’, default ‘raise’
+            Only relevant for DatetimeIndex:
+            - ‘infer’ will attempt to infer fall dst-transition hours based on order
+            - bool-ndarray where True signifies a DST time, False designates a non-DST time (note that this flag is only applicable for ambiguous times)
+            - ‘NaT’ will return NaT where there are ambiguous times
+            - ‘raise’ will raise an AmbiguousTimeError if there are ambiguous times.
+        nonexistent : ‘shift_forward’, ‘shift_backward’, ‘NaT’, timedelta, default ‘raise’
+            A nonexistent time does not exist in a particular timezone where clocks moved forward due to DST.
+            - ‘shift_forward’ will shift the nonexistent time forward to the closest existing time
+            - ‘shift_backward’ will shift the nonexistent time backward to the closest existing time
+            - ‘NaT’ will return NaT where there are nonexistent times
+            - timedelta objects will shift nonexistent times by the timedelta
+            - ‘raise’ will raise an NonExistentTimeError if there are nonexistent times.
+
+        Returns
+        -------
+        DatetimeIndex, TimedeltaIndex, or Series
+            Index of the same type for a DatetimeIndex or TimedeltaIndex, or a Series with the same index for a Series.
+
+        Raises
+        ------
+        ValueError if the freq cannot be converted.
+
+        Notes
+        -----
+        If the timestamps have a timezone, ceiling will take place relative to the local (“wall”) time and re-localized to the same timezone. When ceiling near daylight savings time, use nonexistent and ambiguous to control the re-localization behavior.
+
+        Examples
+        --------
+        DatetimeIndex
+
+        >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
+        >>> rng  # doctest: +SKIP
+        DatetimeIndex(['2018-01-01 11:59:00', '2018-01-01 12:00:00',
+                    '2018-01-01 12:01:00'],
+                    dtype='datetime64[ns]', freq='min')
+        >>> rng.ceil('h')  # doctest: +SKIP
+        DatetimeIndex(['2018-01-01 12:00:00', '2018-01-01 12:00:00',
+                    '2018-01-01 13:00:00'],
+                    dtype='datetime64[ns]', freq=None)
+
+        Series
+
+        >>> pd.Series(rng).dt.ceil("h")
+        0   2018-01-01 12:00:00
+        1   2018-01-01 12:00:00
+        2   2018-01-01 13:00:00
+        dtype: datetime64[ns]
+
+        When rounding near a daylight savings time transition, use ambiguous or nonexistent to control how the timestamp should be re-localized.
+
+        >>> rng_tz = pd.DatetimeIndex(["2021-10-31 01:30:00"], tz="Europe/Amsterdam")
+
+        >>> rng_tz.ceil("h", ambiguous=False)  # doctest: +SKIP
+        DatetimeIndex(['2021-10-31 02:00:00+01:00'],
+                    dtype='datetime64[ns, Europe/Amsterdam]', freq=None)
+
+        >>> rng_tz.ceil("h", ambiguous=True)  # doctest: +SKIP
+        DatetimeIndex(['2021-10-31 02:00:00+02:00'],
+                    dtype='datetime64[ns, Europe/Amsterdam]', freq=None)
+        """
+        # TODO(SNOW-1486910): Unskip when date_range returns DatetimeIndex.
 
     def month_name():
         """
@@ -1673,18 +1896,16 @@ class CombinedDatetimelikeProperties:
         dtype: object
 
         >>> idx = pd.date_range(start='2018-01', freq='ME', periods=3)
-        >>> idx  # doctest: +SKIP
-        DatetimeIndex(['2018-01-31', '2018-02-28', '2018-03-31'],
-                    dtype='datetime64[ns]', freq='ME')
+        >>> idx
+        DatetimeIndex(['2018-01-31', '2018-02-28', '2018-03-31'], dtype='datetime64[ns]', freq=None)
         >>> idx.month_name()  # doctest: +SKIP
         Index(['January', 'February', 'March'], dtype='object')
 
         Using the locale parameter you can set a different locale language, for example: idx.month_name(locale='pt_BR.utf8') will return month names in Brazilian Portuguese language.
 
         >>> idx = pd.date_range(start='2018-01', freq='ME', periods=3)
-        >>> idx  # doctest: +SKIP
-        DatetimeIndex(['2018-01-31', '2018-02-28', '2018-03-31'],
-                    dtype='datetime64[ns]', freq='ME')
+        >>> idx
+        DatetimeIndex(['2018-01-31', '2018-02-28', '2018-03-31'], dtype='datetime64[ns]', freq=None)
         >>> idx.month_name(locale='pt_BR.utf8')  # doctest: +SKIP
         Index(['Janeiro', 'Fevereiro', 'Março'], dtype='object')
         """
@@ -1718,18 +1939,16 @@ class CombinedDatetimelikeProperties:
         dtype: object
 
         >>> idx = pd.date_range(start='2018-01-01', freq='D', periods=3)
-        >>> idx  # doctest: +SKIP
-        DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03'],
-                    dtype='datetime64[ns]', freq='D')
+        >>> idx
+        DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03'], dtype='datetime64[ns]', freq=None)
         >>> idx.day_name()  # doctest: +SKIP
         Index(['Monday', 'Tuesday', 'Wednesday'], dtype='object')
 
         Using the locale parameter you can set a different locale language, for example: idx.day_name(locale='pt_BR.utf8') will return day names in Brazilian Portuguese language.
 
         >>> idx = pd.date_range(start='2018-01-01', freq='D', periods=3)
-        >>> idx  # doctest: +SKIP
-        DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03'],
-                    dtype='datetime64[ns]', freq='D')
+        >>> idx
+        DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03'], dtype='datetime64[ns]', freq=None)
         >>> idx.day_name(locale='pt_BR.utf8')  # doctest: +SKIP
         Index(['Segunda', 'Terça', 'Quarta'], dtype='object')
         """
