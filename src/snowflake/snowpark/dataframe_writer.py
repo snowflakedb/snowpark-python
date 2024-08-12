@@ -14,10 +14,9 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 )
 from snowflake.snowpark._internal.ast_utils import (
     FAIL_ON_MISSING_AST,
-    build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
-    build_expr_from_snowpark_column_or_sql_str,
     fill_sp_save_mode,
+    fill_sp_write_file,
     with_src_position,
 )
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
@@ -436,40 +435,22 @@ class DataFrameWriter:
 
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
-            expr.location = location
-
-            if partition_by is not None:
-                build_expr_from_snowpark_column_or_sql_str(
-                    expr.partition_by, partition_by
-                )
+            fill_sp_write_file(
+                expr,
+                location,
+                partition_by=partition_by,
+                format_type_options=format_type_options,
+                header=header,
+                statement_params=statement_params,
+                block=block,
+                **copy_options,
+            )
 
             if file_format_name is not None:
                 expr.file_format_name.value = file_format_name
 
             if file_format_type is not None:
                 expr.file_format_type.value = file_format_type
-
-            if format_type_options is not None:
-                for k, v in format_type_options.items():
-                    t = expr.format_type_options.add()
-                    t._1 = k
-                    t._2 = v
-
-            expr.header = header
-
-            if statement_params is not None:
-                for k, v in statement_params.items():
-                    t = expr.statement_params.add()
-                    t._1 = k
-                    t._2 = v
-
-            expr.block = block
-
-            if copy_options:
-                for k, v in copy_options.items():
-                    t = expr.copy_options.add()
-                    t._1 = k
-                    build_expr_from_python_val(t._2, v)
 
             self._dataframe._session._ast_batch.eval(repr)
 
@@ -563,34 +544,16 @@ class DataFrameWriter:
 
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
-            expr.location = location
-
-            if partition_by is not None:
-                build_expr_from_snowpark_column_or_sql_str(
-                    expr.partition_by, partition_by
-                )
-
-            if format_type_options is not None:
-                for k, v in format_type_options.items():
-                    t = expr.format_type_options.add()
-                    t._1 = k
-                    t._2 = v
-
-            expr.header = header
-
-            if statement_params is not None:
-                for k, v in statement_params.items():
-                    t = expr.statement_params.add()
-                    t._1 = k
-                    t._2 = v
-
-            expr.block = block
-
-            if copy_options:
-                for k, v in copy_options.items():
-                    t = expr.copy_options.add()
-                    t._1 = k
-                    build_expr_from_python_val(t._2, v)
+            fill_sp_write_file(
+                expr,
+                location,
+                partition_by=partition_by,
+                format_type_options=format_type_options,
+                header=header,
+                statement_params=statement_params,
+                block=block,
+                **copy_options,
+            )
 
             self._dataframe._session._ast_batch.eval(repr)
 
@@ -658,34 +621,16 @@ class DataFrameWriter:
 
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
-            expr.location = location
-
-            if partition_by is not None:
-                build_expr_from_snowpark_column_or_sql_str(
-                    expr.partition_by, partition_by
-                )
-
-            if format_type_options is not None:
-                for k, v in format_type_options.items():
-                    t = expr.format_type_options.add()
-                    t._1 = k
-                    t._2 = v
-
-            expr.header = header
-
-            if statement_params is not None:
-                for k, v in statement_params.items():
-                    t = expr.statement_params.add()
-                    t._1 = k
-                    t._2 = v
-
-            expr.block = block
-
-            if copy_options:
-                for k, v in copy_options.items():
-                    t = expr.copy_options.add()
-                    t._1 = k
-                    build_expr_from_python_val(t._2, v)
+            fill_sp_write_file(
+                expr,
+                location,
+                partition_by=partition_by,
+                format_type_options=format_type_options,
+                header=header,
+                statement_params=statement_params,
+                block=block,
+                **copy_options,
+            )
 
             self._dataframe._session._ast_batch.eval(repr)
 
@@ -753,34 +698,16 @@ class DataFrameWriter:
 
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
-            expr.location = location
-
-            if partition_by is not None:
-                build_expr_from_snowpark_column_or_sql_str(
-                    expr.partition_by, partition_by
-                )
-
-            if format_type_options is not None:
-                for k, v in format_type_options.items():
-                    t = expr.format_type_options.add()
-                    t._1 = k
-                    t._2 = v
-
-            expr.header = header
-
-            if statement_params is not None:
-                for k, v in statement_params.items():
-                    t = expr.statement_params.add()
-                    t._1 = k
-                    t._2 = v
-
-            expr.block = block
-
-            if copy_options:
-                for k, v in copy_options.items():
-                    t = expr.copy_options.add()
-                    t._1 = k
-                    build_expr_from_python_val(t._2, v)
+            fill_sp_write_file(
+                expr,
+                location,
+                partition_by=partition_by,
+                format_type_options=format_type_options,
+                header=header,
+                statement_params=statement_params,
+                block=block,
+                **copy_options,
+            )
 
             self._dataframe._session._ast_batch.eval(repr)
 

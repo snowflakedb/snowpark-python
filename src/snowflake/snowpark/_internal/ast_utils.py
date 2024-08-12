@@ -648,3 +648,42 @@ def fill_sp_save_mode(expr: proto.SpSaveMode, save_mode: Union[str, SaveMode]) -
         expr.sp_save_mode_overwrite = True
     if save_mode == SaveMode.TRUNCATE:
         expr.sp_save_mode_truncate = True
+
+
+def fill_sp_write_file(
+    expr: proto.Expr,
+    location: str,
+    *,
+    partition_by: Optional[ColumnOrSqlExpr] = None,
+    format_type_options: Optional[Dict[str, str]] = None,
+    header: bool = False,
+    statement_params: Optional[Dict[str, str]] = None,
+    block: bool = True,
+    **copy_options: dict,
+) -> None:
+    expr.location = location
+
+    if partition_by is not None:
+        build_expr_from_snowpark_column_or_sql_str(expr.partition_by, partition_by)
+
+    if format_type_options is not None:
+        for k, v in format_type_options.items():
+            t = expr.format_type_options.add()
+            t._1 = k
+            t._2 = v
+
+    expr.header = header
+
+    if statement_params is not None:
+        for k, v in statement_params.items():
+            t = expr.statement_params.add()
+            t._1 = k
+            t._2 = v
+
+    expr.block = block
+
+    if copy_options:
+        for k, v in copy_options.items():
+            t = expr.copy_options.add()
+            t._1 = k
+            build_expr_from_python_val(t._2, v)
