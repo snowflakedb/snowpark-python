@@ -36,16 +36,16 @@ df = session.table("test_table")
 
 df = df.select(when(col("bool_col"), "true"))
 
-df = df.select(when((col("A") == 1), "one").when((col("A") <= 2), "two").otherwise("other"))
+df = df.select(when(col("A") == 1, "one").when(col("A") <= 2, "two").otherwise("other"))
 
 df = df.select(when(col("A").between(37, 42), col("B")).otherwise(col("C")))
 
 df = df.select(when(col("A").equal_nan(), "one").otherwise("other"))
 
-df = df.select(when(col("a").is_null(), lit(1)).when((col("a") == 1), lit(2)).otherwise(lit(3)))
+df = df.select(when(col("a").is_null(), lit(1)).when(col("a") == 1, lit(2)).otherwise(lit(3)))
 
 df = df.select(when(col("a").contains("foo"), "foo").otherwise("null").when(col("a").contains("bar"), "bar"))
 
-df = df.select(when((col("a") & col("b")), "both").otherwise("other"))
+df = df.select(when(col("a") & col("b"), "both").otherwise("other"))
 
-df = df.select(when((col("a") == 1), "one").otherwise("other_one").when((col("a") == 2), "two").otherwise("other_two").when((col("a") == 3), "three").otherwise("other_three").when((col("a") == 4), "four").otherwise("other_four").when((col("a") == 5), "five").otherwise("other_five"))
+df = df.select(when(col("a") == 1, "one").otherwise("other_one").when(col("a") == 2, "two").otherwise("other_two").when(col("a") == 3, "three").otherwise("other_three").when(col("a") == 4, "four").otherwise("other_four").when(col("a") == 5, "five").otherwise("other_five"))

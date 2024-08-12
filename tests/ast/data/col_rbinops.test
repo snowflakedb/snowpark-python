@@ -23,18 +23,18 @@ df = df.select(42 | col("B"))
 
 df = session.table("test_table")
 
-df = df.select((42 + col("B")))
+df = df.select(42 + col("B"))
 
-df = df.select((42 - col("B")))
+df = df.select(42 - col("B"))
 
-df = df.select((42 * col("B")))
+df = df.select(42 * col("B"))
 
-df = df.select((42 / col("B")))
+df = df.select(42 / col("B"))
 
-df = df.select((42 % col("B")))
+df = df.select(42 % col("B"))
 
-df = df.select((42 ** col("B")))
+df = df.select(42 ** col("B"))
 
-df = df.select((42 & col("B")))
+df = df.select(42 & col("B"))
 
-df = df.select((42 | col("B")))
+df = df.select(42 | col("B"))

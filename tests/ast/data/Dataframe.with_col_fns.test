@@ -24,11 +24,11 @@ df10 = df.with_column_renamed(col("STR"), "NEW_STR")
 
 df = session.table("test_table")
 
-df2 = df.with_column("mean", ((col("num") + col("num")) / 2))
+df2 = df.with_column("mean", (col("num") + col("num")) / 2)
 
-df3 = df.with_columns(["sum"], [(col("num") + col("num"))])
+df3 = df.with_columns(["sum"], [col("num") + col("num")])
 
-df4 = df.with_columns(["sum", "diff"], [(col("num") + col("num")), (col("num") - col("num"))])
+df4 = df.with_columns(["sum", "diff"], [col("num") + col("num"), col("num") - col("num")])
 
 df5 = df.rename(col("STR"), "NEW")
 
