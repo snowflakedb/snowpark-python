@@ -93,7 +93,7 @@ def test_duplicated_on_empty_frame():
 
 @sql_count_checker(query_count=3, join_count=2)
 def test_frame_datetime64_duplicated():
-    dates = pd.date_range("2010-07-01", end="2010-08-05")
+    dates = pd.date_range("2010-07-01", end="2010-08-05").to_series()
 
     tst = pd.DataFrame({"symbol": "AAA", "date": dates})
     result = tst.duplicated(["date", "symbol"])

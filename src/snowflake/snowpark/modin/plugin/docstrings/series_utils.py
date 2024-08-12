@@ -1353,7 +1353,7 @@ class CombinedDatetimelikeProperties:
 
         Examples
         --------
-        >>> s = pd.date_range('2016-12-31', '2017-01-08', freq='D')
+        >>> s = pd.Series(pd.date_range('2016-12-31', '2017-01-08', freq='D'))
         >>> s
         0   2016-12-31
         1   2017-01-01
@@ -1390,7 +1390,7 @@ class CombinedDatetimelikeProperties:
 
         Examples
         --------
-        >>> s = pd.to_datetime(["1/1/2020", "2/1/2020"])
+        >>> s = pd.Series(pd.to_datetime(["1/1/2020", "2/1/2020"]))
         >>> s
         0   2020-01-01
         1   2020-02-01
@@ -1670,9 +1670,8 @@ class CombinedDatetimelikeProperties:
         This method is available on Series with datetime values under the .dt accessor, and directly on DatetimeIndex.
 
         >>> idx = pd.date_range("2012-01-01", "2015-01-01", freq="YE")
-        >>> idx  # doctest: +SKIP
-        DatetimeIndex(['2012-12-31', '2013-12-31', '2014-12-31'],
-                    dtype='datetime64[ns]', freq='YE-DEC')
+        >>> idx
+        DatetimeIndex(['2012-12-31', '2013-12-31', '2014-12-31'], dtype='datetime64[ns]', freq=None)
         >>> idx.is_leap_year  # doctest: +SKIP
         array([ True, False, False])
 
@@ -1688,7 +1687,6 @@ class CombinedDatetimelikeProperties:
         2    False
         dtype: bool
         """
-        # TODO(SNOW-1486910): Unskip when date_range returns DatetimeIndex.
 
     @property
     def daysinmonth():
@@ -1762,22 +1760,19 @@ class CombinedDatetimelikeProperties:
         dtype: object
 
         >>> idx = pd.date_range(start='2018-01', freq='ME', periods=3)
-        >>> idx  # doctest: +SKIP
-        DatetimeIndex(['2018-01-31', '2018-02-28', '2018-03-31'],
-                    dtype='datetime64[ns]', freq='ME')
+        >>> idx
+        DatetimeIndex(['2018-01-31', '2018-02-28', '2018-03-31'], dtype='datetime64[ns]', freq=None)
         >>> idx.month_name()  # doctest: +SKIP
         Index(['January', 'February', 'March'], dtype='object')
 
         Using the locale parameter you can set a different locale language, for example: idx.month_name(locale='pt_BR.utf8') will return month names in Brazilian Portuguese language.
 
         >>> idx = pd.date_range(start='2018-01', freq='ME', periods=3)
-        >>> idx  # doctest: +SKIP
-        DatetimeIndex(['2018-01-31', '2018-02-28', '2018-03-31'],
-                    dtype='datetime64[ns]', freq='ME')
+        >>> idx
+        DatetimeIndex(['2018-01-31', '2018-02-28', '2018-03-31'], dtype='datetime64[ns]', freq=None)
         >>> idx.month_name(locale='pt_BR.utf8')  # doctest: +SKIP
         Index(['Janeiro', 'Fevereiro', 'Março'], dtype='object')
         """
-        # TODO(SNOW-1486910): Unskip when date_range returns DatetimeIndex.
 
     def day_name():
         """
@@ -1808,22 +1803,19 @@ class CombinedDatetimelikeProperties:
         dtype: object
 
         >>> idx = pd.date_range(start='2018-01-01', freq='D', periods=3)
-        >>> idx  # doctest: +SKIP
-        DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03'],
-                    dtype='datetime64[ns]', freq='D')
+        >>> idx
+        DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03'], dtype='datetime64[ns]', freq=None)
         >>> idx.day_name()  # doctest: +SKIP
         Index(['Monday', 'Tuesday', 'Wednesday'], dtype='object')
 
         Using the locale parameter you can set a different locale language, for example: idx.day_name(locale='pt_BR.utf8') will return day names in Brazilian Portuguese language.
 
         >>> idx = pd.date_range(start='2018-01-01', freq='D', periods=3)
-        >>> idx  # doctest: +SKIP
-        DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03'],
-                    dtype='datetime64[ns]', freq='D')
+        >>> idx
+        DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03'], dtype='datetime64[ns]', freq=None)
         >>> idx.day_name(locale='pt_BR.utf8')  # doctest: +SKIP
         Index(['Segunda', 'Terça', 'Quarta'], dtype='object')
         """
-        # TODO(SNOW-1486910): Unskip when date_range returns DatetimeIndex.
 
     def total_seconds():
         pass

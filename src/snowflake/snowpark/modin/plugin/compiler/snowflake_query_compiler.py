@@ -5530,6 +5530,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         keys: list[Hashable],
         drop: Optional[bool] = True,
         append: Optional[bool] = False,
+        include_index: Optional[bool] = True,
     ) -> "SnowflakeQueryCompiler":
         """
         Create or update index (row labels) from a list of columns.
@@ -5542,6 +5543,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             append: bool, default False
               Whether to add the columns in `keys` as new levels appended to the
               existing index.
+            include_index: bool, default True
+              Whether the keys can also include index column lables as well.
 
         Returns:
             A new QueryCompiler instance with updated index.
@@ -5551,7 +5554,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         for (
             ids
         ) in self._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-            keys
+            keys, include_index=include_index
         ):
             # Error checking for missing labels is already done in frontend layer.
             index_column_snowflake_quoted_identifiers.append(ids[0])
@@ -5870,6 +5873,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         unit: Optional[str] = None,
         infer_datetime_format: Union[lib.NoDefault, bool] = lib.no_default,
         origin: DateTimeOrigin = "unix",
+        include_index: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Convert series to the datetime dtype.
@@ -5884,6 +5888,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unit: to_datetime unit
             infer_datetime_format: to_datetime infer_datetime_format
             origin: to_datetime origin
+            include_index: If True, also convert index columns to datetime.
         Returns:
             SnowflakeQueryCompiler:
             QueryCompiler with a single data column converted to datetime dtype.
@@ -5896,12 +5901,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             to_snowflake_timestamp_format(format) if format is not None else None
         )
         id_to_sf_type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
-        col_id = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
-        sf_type = id_to_sf_type_map[col_id]
+        col_ids = []
+        if include_index:
+            col_ids = self._modin_frame.index_column_snowflake_quoted_identifiers
+        col_ids.extend(self._modin_frame.data_column_snowflake_quoted_identifiers)
 
-        if isinstance(sf_type, BooleanType):
-            # bool is not allowed in to_datetime (but note that bool is allowed by astype)
-            raise TypeError("dtype bool cannot be converted to datetime64[ns]")
+        for col_id in col_ids:
+            sf_type = id_to_sf_type_map[col_id]
+            if isinstance(sf_type, BooleanType):
+                # bool is not allowed in to_datetime (but note that bool is allowed by astype)
+                raise TypeError("dtype bool cannot be converted to datetime64[ns]")
 
         to_datetime_cols = {
             col_id: generate_timestamp_col(
@@ -5913,6 +5922,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 unit="ns" if unit is None else unit,
                 origin=origin,
             )
+            for col_id in col_ids
         }
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
