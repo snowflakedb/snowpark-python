@@ -9,8 +9,8 @@ non_variadic = df.to_df(["one", "two"])
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df = session.table("test_table")
 
-res2 = res1.to_df("one", "two")
+res1 = df.to_df("one", "two")
 
-res3 = res1.to_df(["one", "two"])
+res2 = df.to_df(["one", "two"])

@@ -16,16 +16,16 @@ df = df.sort(col("B"))
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df = session.table("test_table")
 
-res2 = res1.sort(col("A"), ascending=True)
+df = df.sort(col("A"), ascending=True)
 
-res3 = res2.sort(col("A"), ascending=0)
+df = df.sort(col("A"), ascending=0)
 
-res4 = res3.sort(col("A"), col("B"), ascending=[True, False])
+df = df.sort(col("A"), col("B"), ascending=[True, False])
 
-res5 = res4.sort(col("A"), col("B"), ascending=[0, 1])
+df = df.sort(col("A"), col("B"), ascending=[0, 1])
 
-res6 = res5.sort(col("A"), col("B"), col("C"), ascending=[0, True, 1])
+df = df.sort(col("A"), col("B"), col("C"), ascending=[0, True, 1])
 
-res7 = res6.sort(col("B"))
+df = df.sort(col("B"))

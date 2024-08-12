@@ -10,16 +10,16 @@ df.count(block=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df = session.table("test_table")
 
-res2 = res1.count()
+res1 = df.count()
+
+res1
+
+res2 = df.count(block=False)
 
 res2
 
-res3 = res1.count(block=False)
+res3 = df.count(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
 
 res3
-
-res4 = res1.count(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
-
-res4

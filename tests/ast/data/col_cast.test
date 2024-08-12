@@ -1,7 +1,5 @@
 ## TEST CASE
 
-from snowflake.snowpark.types import *
-
 df = session.table("test_table")
 
 df = df.select(col("A").cast("null"))
@@ -61,58 +59,58 @@ df = df.select(col("A").cast("object"))
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df = session.table("test_table")
 
-res2 = res1.select(col("A").cast(NullType()))
+df = df.select(col("A").cast(NullType()))
 
-res3 = res2.select(col("A").cast(BinaryType()))
+df = df.select(col("A").cast(BinaryType()))
 
-res4 = res3.select(col("A").cast(BooleanType()))
+df = df.select(col("A").cast(BooleanType()))
 
-res5 = res4.select(col("A").cast(DateType()))
+df = df.select(col("A").cast(DateType()))
 
-res6 = res5.select(col("A").cast(StringType()))
+df = df.select(col("A").cast(StringType()))
 
-res7 = res6.select(col("A").cast(ByteType()))
+df = df.select(col("A").cast(ByteType()))
 
-res8 = res7.select(col("A").cast(ShortType()))
+df = df.select(col("A").cast(ShortType()))
 
-res9 = res8.select(col("A").cast(IntegerType()))
+df = df.select(col("A").cast(IntegerType()))
 
-res10 = res9.select(col("A").cast(LongType()))
+df = df.select(col("A").cast(LongType()))
 
-res11 = res10.select(col("A").cast(FloatType()))
+df = df.select(col("A").cast(FloatType()))
 
-res12 = res11.select(col("A").cast(DoubleType()))
+df = df.select(col("A").cast(DoubleType()))
 
-res13 = res12.select(col("A").cast(TimestampType()))
+df = df.select(col("A").cast(TimestampType()))
 
-res14 = res13.select(col("A").cast(TimeType()))
+df = df.select(col("A").cast(TimeType()))
 
-res15 = res14.select(col("A").cast(ArrayType(StringType(), structured=False)))
+df = df.select(col("A").cast(ArrayType(StringType(), structured=False)))
 
-res16 = res15.select(col("A").cast(MapType(StringType(), StringType(), structured=False)))
+df = df.select(col("A").cast(MapType(StringType(), StringType(), structured=False)))
 
-res17 = res16.select(col("A").cast(VectorType(FloatType(), 42)))
+df = df.select(col("A").cast(VectorType(FloatType(), 42)))
 
-res18 = res17.select(col("A").cast(StructType([], structured=False)))
+df = df.select(col("A").cast(StructType([], structured=False)))
 
-res19 = res18.select(col("A").cast(VariantType()))
+df = df.select(col("A").cast(VariantType()))
 
-res20 = res19.select(col("A").cast(GeographyType()))
+df = df.select(col("A").cast(GeographyType()))
 
-res21 = res20.select(col("A").cast(GeometryType()))
+df = df.select(col("A").cast(GeometryType()))
 
-res22 = res21.select(col("A").cast(IntegerType()))
+df = df.select(col("A").cast(IntegerType()))
 
-res23 = res22.select(col("A").cast(ShortType()))
+df = df.select(col("A").cast(ShortType()))
 
-res24 = res23.select(col("A").cast(ByteType()))
+df = df.select(col("A").cast(ByteType()))
 
-res25 = res24.select(col("A").cast(LongType()))
+df = df.select(col("A").cast(LongType()))
 
-res26 = res25.select(col("A").cast(DecimalType(38, 0)))
+df = df.select(col("A").cast(DecimalType(38, 0)))
 
-res27 = res26.select(col("A").cast(DecimalType(38, 0)))
+df = df.select(col("A").cast(DecimalType(38, 0)))
 
-res28 = res27.select(col("A").cast(MapType(StringType(), StringType(), structured=False)))
+df = df.select(col("A").cast(MapType(StringType(), StringType(), structured=False)))

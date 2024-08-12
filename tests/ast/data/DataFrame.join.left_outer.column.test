@@ -8,10 +8,10 @@ df3 = df1.join(df2, ["num", "str"], "left").select('*')
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df1 = session.table("test_table")
 
-res2 = session.table("test_table")
+df2 = session.table("test_table")
 
-res3 = res1.join(res2, on=["num", "str"], how="left_outer")
+df3 = df1.join(df2, on=["num", "str"], how="left_outer")
 
-res4 = res3.select("*")
+df3 = df3.select("*")

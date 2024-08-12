@@ -8,10 +8,10 @@ df1.cross_join(df2, lsuffix="_t1", rsuffix="_t2").select('*')
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df1 = session.table("test_table")
 
-res2 = session.table("test_table")
+df2 = session.table("test_table")
 
-res3 = res1.cross_join(res2, lsuffix="_t1", rsuffix="_t2")
+res1 = df1.cross_join(df2, lsuffix="_t1", rsuffix="_t2")
 
-res4 = res3.select("*")
+res2 = res1.select("*")

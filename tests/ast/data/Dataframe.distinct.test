@@ -6,6 +6,6 @@ df1 = df.distinct()
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df = session.table("test_table")
 
-res2 = res1.distinct()
+df1 = df.distinct()
