@@ -9,8 +9,8 @@ df = df.select(~col("A"))
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df = session.table("test_table")
 
-res2 = res1.select(-col("A"))
+df = df.select(-col("A"))
 
-res3 = res2.select(~col("A"))
+df = df.select(~col("A"))

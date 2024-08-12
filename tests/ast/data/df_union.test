@@ -18,18 +18,18 @@ df6 = df1.union_all_by_name(df2)
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_df1")
+df1 = session.table("test_df1")
 
-res2 = session.table("test_df2")
+df2 = session.table("test_df2")
 
-res3 = res1.union(res2)
+df3 = df1.union(df2)
 
-res4 = res1.union_all(res2)
+df4 = df1.union_all(df2)
 
-res5 = session.table("test_df3")
+df1 = session.table("test_df3")
 
-res6 = session.table("test_df4")
+df2 = session.table("test_df4")
 
-res7 = res5.union_by_name(res6)
+df5 = df1.union_by_name(df2)
 
-res8 = res5.union_all_by_name(res6)
+df6 = df1.union_all_by_name(df2)
