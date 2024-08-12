@@ -12,12 +12,12 @@ r = session.range(1, None, 2)
 
 ## EXPECTED OUTPUT
 
-res1 = session.range(10, None, 1)
+r = session.range(10, None, 1)
 
-res2 = session.range(1, 10, 1)
+r = session.range(1, 10, 1)
 
-res3 = session.range(1, 10, 2)
+r = session.range(1, 10, 2)
 
-res4 = session.range(1, None, 1)
+r = session.range(1, None, 1)
 
-res5 = session.range(1, None, 2)
+r = session.range(1, None, 2)

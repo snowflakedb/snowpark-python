@@ -10,10 +10,10 @@ col = df.select(df.col("STR"))
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df = session.table("test_table")
 
-res2 = res1.select(res1["STR"])
+getitem = df.select(df["STR"])
 
-res3 = res1.select(res1["STR"])
+getattr = df.select(df["STR"])
 
-res4 = res1.select(res1["STR"])
+col = df.select(df["STR"])

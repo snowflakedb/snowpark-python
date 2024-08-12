@@ -10,10 +10,10 @@ df3 = df.describe("STR", "num")
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df = session.table("test_table")
 
-res2 = res1.describe()
+df1 = df.describe()
 
-res3 = res1.describe("num")
+df2 = df.describe("num")
 
-res4 = res1.describe("STR", "num")
+df3 = df.describe("STR", "num")

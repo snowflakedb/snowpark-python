@@ -26,20 +26,20 @@ df9 = session.create_dataframe([{"a": 1}, {"b": 2}])
 
 ## EXPECTED OUTPUT
 
-res1 = session.create_dataframe([Row(a=1, b=2, c=3), Row(c=4, a=2)])
+df = session.create_dataframe([Row(a=1, b=2, c=3), Row(c=4, a=2)])
 
-res2 = session.create_dataframe([Row(1, 3, 2), Row(1, 2, 3), Row(3, 2, 1)])
+df2 = session.create_dataframe([Row(1, 3, 2), Row(1, 2, 3), Row(3, 2, 1)])
 
-res3 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+df3 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
-res4 = session.create_dataframe([[1, "snow"], [3, "flake"]], schema=StructType([StructField("a", IntegerType(), nullable=True), StructField("b", StringType(16777216), nullable=True)], structured=False))
+df4 = session.create_dataframe([[1, "snow"], [3, "flake"]], schema=StructType([StructField("a", IntegerType(), nullable=True), StructField("b", StringType(16777216), nullable=True)], structured=False))
 
-res5 = session.create_dataframe([1, 2, 3, 4], schema=["a"])
+df5 = session.create_dataframe([1, 2, 3, 4], schema=["a"])
 
-res6 = session.create_dataframe([[1, 2, 3, 4]], schema=["a", "b", "c", "d"])
+df6 = session.create_dataframe([[1, 2, 3, 4]], schema=["a", "b", "c", "d"])
 
-res7 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+df7 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
-res8 = session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
+df8 = session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
 
-res9 = session.create_dataframe([{"a": 1}, {"b": 2}])
+df9 = session.create_dataframe([{"a": 1}, {"b": 2}])

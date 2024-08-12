@@ -5,6 +5,6 @@ df = df.select("num")
 
 ## EXPECTED OUTPUT
 
-res1 = session.table(["mock_database", "mock_schema", "test_table"])
+df = session.table(["mock_database", "mock_schema", "test_table"])
 
-res2 = res1.select(col("num"))
+df = df.select(col("num"))

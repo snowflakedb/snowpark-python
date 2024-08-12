@@ -10,8 +10,8 @@ df3 = df.random_split(weights, seed=24)
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df = session.table("test_table")
 
-res2 = res1.random_split([0.1, 0.2, 0.3], None)
+res1 = df.random_split([0.1, 0.2, 0.3], None)
 
-res3 = res1.random_split([0.1, 0.2, 0.3], 24)
+res2 = df.random_split([0.1, 0.2, 0.3], 24)

@@ -20,20 +20,20 @@ df9 = df1.group_by([col("num"), "str"])
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df1 = session.table("test_table")
 
-res2 = res1.group_by()
+df2 = df1.group_by()
 
-res3 = res1.group_by("num")
+df3 = df1.group_by("num")
 
-res4 = res1.group_by(["num"])
+df4 = df1.group_by(["num"])
 
-res5 = res1.group_by(["num", "str"])
+df5 = df1.group_by(["num", "str"])
 
-res6 = res1.group_by(col("num"))
+df6 = df1.group_by(col("num"))
 
-res7 = res1.group_by([col("num")])
+df7 = df1.group_by([col("num")])
 
-res8 = res1.group_by(col("num"), "str")
+df8 = df1.group_by(col("num"), "str")
 
-res9 = res1.group_by([col("num"), "str"])
+df9 = df1.group_by([col("num"), "str"])

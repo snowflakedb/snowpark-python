@@ -30,30 +30,30 @@ df14 = rgdf2.agg({"num": "max", "str": "sum"})
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df1 = session.table("test_table")
 
-res2 = res1.group_by("str")
+rgdf2 = df1.group_by("str")
 
-res3 = res2.agg()
+df3 = rgdf2.agg()
 
-res4 = res2.agg(sum(col("num")))
+df4 = rgdf2.agg(sum(col("num")))
 
-res5 = res2.agg([max(col("num"))])
+df5 = rgdf2.agg([max(col("num"))])
 
-res6 = res2.agg(sum(col("num")), max(col("num")))
+df6 = rgdf2.agg(sum(col("num")), max(col("num")))
 
-res7 = res2.agg([sum(col("num")), max(col("num"))])
+df7 = rgdf2.agg([sum(col("num")), max(col("num"))])
 
-res8 = res2.agg(["num", "max"])
+df8 = rgdf2.agg(["num", "max"])
 
-res9 = res2.agg([col("num"), "max"])
+df9 = rgdf2.agg([col("num"), "max"])
 
-res10 = res2.agg([("num", "max"), [col("num"), "sum"]])
+df10 = rgdf2.agg([("num", "max"), [col("num"), "sum"]])
 
-res11 = res2.agg(sum(col("num")), ("num", "max"), max(col("num")), [col("num"), "sum"])
+df11 = rgdf2.agg(sum(col("num")), ("num", "max"), max(col("num")), [col("num"), "sum"])
 
-res12 = res2.agg({})
+df12 = rgdf2.agg({})
 
-res13 = res2.agg({"num": "max"})
+df13 = rgdf2.agg({"num": "max"})
 
-res14 = res2.agg({"num": "max", "str": "sum"})
+df14 = rgdf2.agg({"num": "max", "str": "sum"})

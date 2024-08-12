@@ -14,14 +14,14 @@ df5 = df.drop_duplicates([])
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df = session.table("test_table")
 
-res2 = res1.drop_duplicates([])
+df1 = df.drop_duplicates([])
 
-res3 = res1.drop_duplicates("NUM")
+df2 = df.drop_duplicates("NUM")
 
-res4 = res1.drop_duplicates("NUM", "STR")
+df3 = df.drop_duplicates("NUM", "STR")
 
-res5 = res1.drop_duplicates(["NUM", "STR"])
+df4 = df.drop_duplicates(["NUM", "STR"])
 
-res6 = res1.drop_duplicates([])
+df5 = df.drop_duplicates([])
