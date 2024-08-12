@@ -439,16 +439,15 @@ class DataFrameWriter:
             expr.location = location
 
             if partition_by is not None:
-                for col_or_sql in partition_by:
-                    build_expr_from_snowpark_column_or_sql_str(
-                        expr.partition_by.add(), col_or_sql
-                    )
+                build_expr_from_snowpark_column_or_sql_str(
+                    expr.partition_by, partition_by
+                )
 
             if file_format_name is not None:
-                expr.file_format_name = file_format_name
+                expr.file_format_name.value = file_format_name
 
             if file_format_type is not None:
-                expr.file_format_type = file_format_type
+                expr.file_format_type.value = file_format_type
 
             if format_type_options is not None:
                 for k, v in format_type_options.items():
@@ -468,7 +467,7 @@ class DataFrameWriter:
 
             if copy_options:
                 for k, v in copy_options.items():
-                    t = expr.format_type_options.add()
+                    t = expr.copy_options.add()
                     t._1 = k
                     build_expr_from_python_val(t._2, v)
 

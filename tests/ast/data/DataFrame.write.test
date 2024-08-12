@@ -14,4 +14,54 @@ stage_created_result = session.sql("create temp stage if not exists test_stage")
 
 df.write.copy_into_location("@test_stage/copied_from_dataframe")
 
+remote_file_path = "@test_stage/copied_from_dataframe"
+
+df.write.copy_into_location(remote_file_path, file_format_type="parquet", header=True, overwrite=True, single=True)
+
+df.write.copy_into_location(remote_file_path, file_format_name="csv", format_type_options={"compression":"bzip2"}, block=False, INCLUDE_QUERY_ID=True, DETAILED_OUTPUT=False)
+
 ## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = res1.write
+
+res3 = res2.save_as_table("saved_table")
+
+res3
+
+res4 = res1.write.mode("overwrite")
+
+res5 = res4.save_as_table("saved_table", table_type="temporary")
+
+res5
+
+res6 = res1.write.mode("truncate")
+
+res7 = res6.save_as_table("test_destination", statement_params={"k": "v"}, column_order="name", table_type="transient", clustering_keys=["STR", col("num1")], comment="test")
+
+res7
+
+res8 = session.sql("create temp stage if not exists test_stage")
+
+res9 = res8.collect()
+
+res9
+
+res10 = res1.write
+
+res11 = res10.copy_into_location("@test_stage/copied_from_dataframe")
+
+res11
+
+res12 = res1.write
+
+res13 = res12.copy_into_location("@test_stage/copied_from_dataframe", file_format_type="parquet", header=True, overwrite=True, single=True)
+
+res13
+
+res14 = res1.write
+
+res15 = res14.copy_into_location("@test_stage/copied_from_dataframe", file_format_name="csv", format_type_options={"compression": "bzip2"}, block=False, INCLUDE_QUERY_ID=True, DETAILED_OUTPUT=False)
+
+res15
