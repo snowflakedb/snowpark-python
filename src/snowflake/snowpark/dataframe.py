@@ -4789,8 +4789,12 @@ class DataFrame:
             f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
         )
 
+        # TODO: Clarify whether cache_result() is an Eval or not. Currently, treat as Assign.
+
         if isinstance(self._session._conn, MockServerConnection):
-            self.write.save_as_table(temp_table_name, create_temp_table=True)
+            self._writer.save_as_table(
+                temp_table_name, create_temp_table=True, _emit_ast=False
+            )
         else:
             create_temp_table = self._session._analyzer.plan_builder.create_temp_table(
                 temp_table_name,
