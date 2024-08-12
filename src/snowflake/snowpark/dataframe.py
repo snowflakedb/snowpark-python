@@ -101,7 +101,6 @@ from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_snowpark_column_or_sql_str,
     build_expr_from_snowpark_column_or_table_fn,
     fill_ast_for_column,
-    set_src_position,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -581,8 +580,13 @@ class DataFrame:
         """
         Given a field builder expression of the AST type SpDataframeExpr, points the builder to reference this dataframe.
         """
+        if self._ast_id is None and FAIL_ON_MISSING_AST:
+            _logger.debug(self._explain_string())
+            raise NotImplementedError(
+                f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+            )
         # TODO: remove the None guard below once we generate the correct AST.
-        if self._ast_id is not None:
+        elif self._ast_id is not None:
             sp_dataframe_expr_builder.sp_dataframe_ref.id.bitfield1 = self._ast_id
 
     @property
@@ -1051,11 +1055,10 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = stmt.expr.sp_dataframe_to_df
+            ast = with_src_position(stmt.expr.sp_dataframe_to_df, stmt)
             self.set_ast_ref(ast.df)
             ast.col_names.extend(col_names)
             ast.variadic = is_variadic
-            set_src_position(ast.src)
 
         new_cols = []
         for attr, name in zip(self._output, col_names):
@@ -1192,23 +1195,14 @@ class DataFrame:
 
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
-        col_expr_ast = proto.Expr()
-        if self._ast_id is None and FAIL_ON_MISSING_AST:
-            _logger.debug(self._explain_string())
-            raise NotImplementedError(
-                f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-            )
-        elif self._ast_id is not None:
-            col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = (
-                self._ast_id
-            )
-        set_src_position(col_expr_ast.sp_dataframe_col.src)
+        expr = proto.Expr()
+        col_expr_ast = with_src_position(expr.sp_dataframe_col)
+        self.set_ast_ref(col_expr_ast.df)
+        col_expr_ast.col_name = col_name
         if col_name == "*":
-            col_expr_ast.sp_dataframe_col.col_name = "*"
-            return Column(Star(self._output), ast=col_expr_ast)
+            return Column(Star(self._output), ast=expr)
         else:
-            col_expr_ast.sp_dataframe_col.col_name = col_name
-            return Column(self._resolve(col_name), ast=col_expr_ast)
+            return Column(self._resolve(col_name), ast=expr)
 
     @df_api_usage
     def select(
@@ -4324,11 +4318,10 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        ast = stmt.expr.sp_dataframe_first
+        ast = with_src_position(stmt.expr.sp_dataframe_first, stmt)
         if statement_params is not None:
             ast.statement_params.append((k, v) for k, v in statement_params)
         self.set_ast_ref(ast.df)
-        set_src_position(ast.src)
         ast.block = block
         if n is None:
             ast.num = 1
@@ -4374,13 +4367,12 @@ class DataFrame:
 
         # AST.
         stmt = self._session._ast_batch.assign()
-        ast = stmt.expr.sp_dataframe_sample
+        ast = with_src_position(stmt.expr.sp_dataframe_sample, stmt)
         if frac:
             ast.probability_fraction.value = frac
         if n:
             ast.num.value = n
         self.set_ast_ref(ast.df)
-        set_src_position(ast.src)
 
         sample_plan = Sample(self._plan, probability_fraction=frac, row_count=n)
         if self._select_statement:
@@ -4842,9 +4834,8 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        ast = stmt.expr.sp_dataframe_random_split
+        ast = with_src_position(stmt.expr.sp_dataframe_random_split, stmt)
         self.set_ast_ref(ast.df)
-        set_src_position(ast.src)
         if not weights:
             raise ValueError(
                 "weights can't be None or empty and must be positive numbers"
