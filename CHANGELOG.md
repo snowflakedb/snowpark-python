@@ -65,6 +65,7 @@
 - Added support for `Series.argmax` and `Series.argmin`.
 - Added support for `Series.dt.is_leap_year`.
 - Added support for `DataFrame.items`.
+- Added support for `Series.dt.floor` and `Series.dt.ceil`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
