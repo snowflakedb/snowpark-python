@@ -1388,7 +1388,7 @@ class Index(metaclass=TelemetryMeta):
         If the source and target indices have no overlap,
         monotonicity checks are skipped.
 
-        MultiIndex is not supported.
+        Tuple-like index values are not supported.
 
         Examples
         --------
