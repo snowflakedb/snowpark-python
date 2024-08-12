@@ -946,11 +946,11 @@ df182 = df111.select(arrays_to_object(col("A"), col("B")), arrays_to_object(col(
 
 df183 = df111.select(array_generate_range(col("A"), col("B")), array_generate_range(col("A"), col("B")), array_generate_range(col("A"), col("B"), col("C")))
 
-df184 = df111.select(array_generate_range(col("A"), (col("B") + iff((sign((col("B") - col("A"))) > 0), 1, -1)), iff((sign((col("B") - col("A"))) > 0), 1, -1)), array_generate_range(col("A"), (col("B") + iff((sign((col("B") - col("A"))) > 0), 1, -1)), iff((sign((col("B") - col("A"))) > 0), 1, -1)), array_generate_range(col("A"), (col("B") + iff((sign(col("C")) > 0), 1, -1)), col("C")))
+df184 = df111.select(array_generate_range(col("A"), col("B") + iff(sign(col("B") - col("A")) > 0, 1, -1), iff(sign(col("B") - col("A")) > 0, 1, -1)), array_generate_range(col("A"), col("B") + iff(sign(col("B") - col("A")) > 0, 1, -1), iff(sign(col("B") - col("A")) > 0, 1, -1)), array_generate_range(col("A"), col("B") + iff(sign(col("C")) > 0, 1, -1), col("C")))
 
 df185 = df111.select(dateadd("day", col("B"), col("A")), dateadd("day", lit(10), col("A")), dateadd("day", lit(0), col("A")), dateadd("day", col("B"), col("A")))
 
-df186 = df111.select(dateadd("day", (-1 * col("B")), col("A")), dateadd("day", (-1 * lit(10)), col("A")), dateadd("day", (-1 * lit(0)), col("A")), dateadd("day", (-1 * col("B")), col("A")))
+df186 = df111.select(dateadd("day", -1 * col("B"), col("A")), dateadd("day", -1 * lit(10), col("A")), dateadd("day", -1 * lit(0), col("A")), dateadd("day", -1 * col("B"), col("A")))
 
 df187 = df111.select(datediff("year", col("A"), col("B")), datediff("month", col("A"), col("B")))
 
@@ -1148,9 +1148,9 @@ df283 = df111.select(get_path(col("A"), col("B")))
 
 df284 = df111.select(get(1, 2), get(col("A"), 2), get(3, col("B")), get(col("A"), 2), get(col("A"), lit(1)))
 
-df285 = df111.select(when(((col("a") % 2) == 0), lit("even")))
+df285 = df111.select(when(col("a") % 2 == 0, lit("even")))
 
-df286 = df111.select(iff(((col("a") % 2) == 0), lit("even"), lit("odd")))
+df286 = df111.select(iff(col("a") % 2 == 0, lit("even"), lit("odd")))
 
 df287 = df111.select(in_([]), in_([col("A"), "B", "A"]), in_([col("col1"), col("col2")], [[1, "a"], [2, "b"]]))
 
