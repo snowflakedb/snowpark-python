@@ -369,6 +369,8 @@ _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE = "does not yet support pd.Grouper, axis =
 
 QUARTER_START_MONTHS = [1, 4, 7, 10]
 
+SUPPORTED_DT_FLOOR_CEIL_FREQS = ["day", "hour", "minute", "second"]
+
 
 class SnowflakeQueryCompiler(BaseQueryCompiler):
     """based on: https://modin.readthedocs.io/en/0.11.0/flow/modin/backends/base/query_compiler.html
@@ -15421,7 +15423,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def dt_ceil(
         self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
-    ) -> None:
+    ) -> "SnowflakeQueryCompiler":
         """
         Args:
             freq: The frequency level to ceil the index to.
@@ -15442,8 +15444,50 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             A new QueryCompiler with ceil values.
 
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.ceil'"
+        if ambiguous != "raise":
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.ceil' method doesn't yet support 'ambiguous' parameter"
+            )
+        if nonexistent != "raise":
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.ceil' method doesn't yet support 'nonexistent' parameter"
+            )
+        internal_frame = self._modin_frame
+
+        slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(
+            rule=freq  # type:  ignore[arg-type]
+        )
+
+        if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.ceil' method doesn't support setting 'freq' parameter to '{freq}'"
+            )
+        base_column = col(internal_frame.data_column_snowflake_quoted_identifiers[0])
+        floor_column = builtin("time_slice")(
+            base_column, slice_length, slice_unit, "START"
+        )
+        ceil_column = builtin("time_slice")(
+            base_column, slice_length, slice_unit, "END"
+        )
+        ceil_column = iff(
+            base_column.equal_null(floor_column), base_column, ceil_column
+        )
+
+        internal_frame = internal_frame.append_column(
+            internal_frame.data_column_pandas_labels[0], ceil_column
+        )
+
+        return SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=internal_frame.ordered_dataframe,
+                data_column_pandas_labels=[None],
+                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
+                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers[
+                    -1:
+                ],
+                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+            )
         )
 
     def dt_round(
@@ -15475,7 +15519,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def dt_floor(
         self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
-    ) -> None:
+    ) -> "SnowflakeQueryCompiler":
         """
         Args:
             freq: The frequency level to floor the index to.
@@ -15494,10 +15538,46 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 - 'raise' will raise an NonExistentTimeError if there are nonexistent times.
         Returns:
             A new QueryCompiler with floor values.
-
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.floor'"
+        if ambiguous != "raise":
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.floor' method doesn't yet support 'ambiguous' parameter"
+            )
+        if nonexistent != "raise":
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.floor' method doesn't yet support 'nonexistent' parameter"
+            )
+        internal_frame = self._modin_frame
+
+        slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(
+            rule=freq  # type:  ignore[arg-type]
+        )
+
+        if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.floor' method doesn't support setting 'freq' parameter to '{freq}'"
+            )
+        snowpark_column = builtin("time_slice")(
+            col(internal_frame.data_column_snowflake_quoted_identifiers[0]),
+            slice_length,
+            slice_unit,
+        )
+
+        internal_frame = internal_frame.append_column(
+            internal_frame.data_column_pandas_labels[0], snowpark_column
+        )
+
+        return SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=internal_frame.ordered_dataframe,
+                data_column_pandas_labels=[None],
+                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
+                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers[
+                    -1:
+                ],
+                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+            )
         )
 
     def dt_normalize(self) -> None:
