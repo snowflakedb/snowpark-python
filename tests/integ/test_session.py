@@ -698,24 +698,25 @@ def test_cte_optimization_enabled_on_session(db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="reading server side parameter is not supported in local testing",
 )
+@pytest.mark.parametrize("server_parameter_enabled", [True, False])
 def test_eliminate_numeric_sql_value_cast_optimization_enabled_on_session(
-    db_parameters,
+    db_parameters, server_parameter_enabled
 ):
-    with Session.builder.configs(db_parameters).create() as new_session:
-        assert new_session.eliminate_numeric_sql_value_cast_enabled is False
+    parameters = db_parameters.copy()
+    parameters["session_parameters"] = {
+        _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED: server_parameter_enabled
+    }
+    with Session.builder.configs(parameters).create() as new_session:
+        assert (
+            new_session.eliminate_numeric_sql_value_cast_enabled
+            is server_parameter_enabled
+        )
         new_session.eliminate_numeric_sql_value_cast_enabled = True
         assert new_session.eliminate_numeric_sql_value_cast_enabled is True
         new_session.eliminate_numeric_sql_value_cast_enabled = False
         assert new_session.eliminate_numeric_sql_value_cast_enabled is False
         with pytest.raises(ValueError):
             new_session.eliminate_numeric_sql_value_cast_enabled = None
-
-    parameters = db_parameters.copy()
-    parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED: True
-    }
-    with Session.builder.configs(parameters).create() as new_session2:
-        assert new_session2.eliminate_numeric_sql_value_cast_enabled is True
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")

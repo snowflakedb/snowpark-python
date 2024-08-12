@@ -188,6 +188,9 @@ class MockAnalyzer:
             return regexp_expression(
                 self.analyze(expr.expr, expr_to_alias, parse_local_name),
                 self.analyze(expr.pattern, expr_to_alias, parse_local_name),
+                self.analyze(expr.parameters, expr_to_alias, parse_local_name)
+                if expr.parameters is not None
+                else None,
             )
 
         if isinstance(expr, Collate):
@@ -764,6 +767,7 @@ class MockAnalyzer:
             return self.plan_builder.copy_into_location(
                 query=resolved_children[logical_plan.child],
                 stage_location=logical_plan.stage_location,
+                source_plan=logical_plan,
                 partition_by=self.analyze(logical_plan.partition_by, expr_to_alias)
                 if logical_plan.partition_by
                 else None,

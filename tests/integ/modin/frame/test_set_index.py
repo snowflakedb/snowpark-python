@@ -80,8 +80,7 @@ def test_set_index_multiindex_columns(snow_df):
     )
 
 
-# One extra query to convert to native pandas to create series to set index
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_set_index_negative(snow_df, native_df):
     index = pd.Index([1, 2])
     native_index = native_pd.Index([1, 2])
@@ -100,7 +99,7 @@ def test_set_index_negative(snow_df, native_df):
 @sql_count_checker(query_count=1)
 def test_set_index_dup_column_name():
     snow_df = pd.DataFrame([[1, 2, 3], [4, 5, 6]])
-    snow_df.columns = pd.Index(["A", "A", "B"], convert_to_lazy=False)
+    snow_df.columns = native_pd.Index(["A", "A", "B"])
     eval_snowpark_pandas_result(
         snow_df,
         snow_df.to_pandas(),
@@ -122,7 +121,7 @@ def test_set_index_names(snow_df):
     # Verify name from input index is set.
     index = pd.Index([1, 2, 0])
     index.names = ["iname"]
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=2):
         assert snow_df.set_index(index).index.names == ["iname"]
 
     # Verify names from input multiindex are set.
@@ -229,11 +228,8 @@ def test_set_index_pass_single_array(obj_type, drop, append, native_df):
             )
     else:
         expected_query_count = 3
-        if obj_type == pd.Series:
+        if obj_type == pd.Series or obj_type == pd.Index:
             expected_query_count = 4
-        # two extra queries, one to convert to native pandas (like series case) and one to create the series to set index
-        if obj_type == pd.Index:
-            expected_query_count = 5
         with SqlCounter(query_count=expected_query_count, join_count=1):
             eval_snowpark_pandas_result(
                 snow_df,
@@ -268,11 +264,7 @@ def test_set_index_pass_arrays(obj_type, drop, append, native_df):
         "a",
         key.to_pandas() if isinstance(key, (pd.Series, pd.Index)) else key,
     ]
-    query_count = 3
-    # one extra query to convert to series to set index
-    if obj_type == pd.Index:
-        query_count = 4
-    with SqlCounter(query_count=query_count, join_count=1):
+    with SqlCounter(query_count=3, join_count=1):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -320,11 +312,7 @@ def test_set_index_pass_arrays_duplicate(obj_type1, obj_type2, drop, append, nat
         obj_type2 = native_pd.Index
     native_keys = [obj_type1(array), obj_type2(array)]
 
-    query_count = 4
-    # one extra query per modin index to create the series and set index
-    query_count += 1 if obj_type1 == native_pd.Index else 0
-    query_count += 1 if obj_type2 == native_pd.Index else 0
-    with SqlCounter(query_count=query_count, join_count=2):
+    with SqlCounter(query_count=4, join_count=2):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -351,8 +339,8 @@ def test_set_index_pass_multiindex(drop, append, native_df):
 @pytest.mark.parametrize(
     "keys, expected_query_count",
     [
-        (["a"], 4),
-        ([[1, 6, 6]], 6),
+        (["a"], 3),
+        ([[1, 6, 6]], 5),
     ],
 )
 def test_set_index_verify_integrity_negative(native_df, keys, expected_query_count):
@@ -437,7 +425,7 @@ def test_set_index_raise_on_len(length, obj_type, drop, append, native_df):
     msg = "Length mismatch: Expected 3 rows, received array of length.*"
     # wrong length directly
     # one extra query to create the series to set index
-    with SqlCounter(query_count=3 if obj_type == native_pd.Index else 2):
+    with SqlCounter(query_count=2):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -455,9 +443,6 @@ def test_set_index_raise_on_len(length, obj_type, drop, append, native_df):
     expected_query_count = 1
     if obj_type == native_pd.Series:
         expected_query_count = 0
-    # one extra query to convert to native pandas to create the series to set index
-    if obj_type == native_pd.Index:
-        expected_query_count = 2
     keys = ["a", key]
     native_keys = ["a", native_key]
     with SqlCounter(query_count=expected_query_count):

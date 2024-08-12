@@ -61,7 +61,6 @@ def test_unsupported_general(general_method, kwargs):
     "df_method, kwargs",
     [
         ["align", {"other": ""}],
-        ["asfreq", {"freq": ""}],
         ["asof", {"where": ""}],
         ["at_time", {"time": ""}],
         ["between_time", {"start_time": "", "end_time": ""}],
@@ -123,7 +122,6 @@ def test_unsupported_general(general_method, kwargs):
         ["truncate", {}],
         ["tz_convert", {"tz": ""}],
         ["tz_localize", {"tz": ""}],
-        ["unstack", {}],
         ["xs", {"key": ""}],
         ["__dataframe__", {}],
     ],
@@ -138,20 +136,6 @@ def test_unsupported_df(df_method, kwargs):
 
 
 @pytest.mark.parametrize(
-    "df_method, kwargs",
-    [["items", {}], ["iteritems", {}]],
-)
-def test_unsupported_df_generator(df_method, kwargs):
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    mock_df = DataFrame(query_compiler=mock_query_compiler)
-
-    with pytest.raises(NotImplementedError):
-        for x in getattr(mock_df, df_method)(**kwargs):
-            x + 1
-
-
-@pytest.mark.parametrize(
     "series_method, kwargs",
     [
         ["align", {"other": ""}],
@@ -159,7 +143,6 @@ def test_unsupported_df_generator(df_method, kwargs):
         ["argmin", {}],
         ["argsort", {}],
         ["array", {}],
-        ["asfreq", {"freq": ""}],
         ["asof", {"where": ""}],
         ["at_time", {"time": ""}],
         ["autocorr", {}],
@@ -215,7 +198,6 @@ def test_unsupported_df_generator(df_method, kwargs):
         ["truncate", {}],
         ["tz_convert", {"tz": ""}],
         ["tz_localize", {"tz": ""}],
-        ["unstack", {}],
         ["view", {}],
         ["xs", {"key": ""}],
     ],

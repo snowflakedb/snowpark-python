@@ -130,7 +130,11 @@ class Series(BasePandasDataset):
         # modified:
         # Engine.subscribe(_update_engine)
 
-        if isinstance(data, type(self)):
+        # Convert lazy index to Series without pulling the data to client.
+        if isinstance(data, pd.Index):
+            query_compiler = data.to_series(index=index, name=name)._query_compiler
+            query_compiler = query_compiler.reset_index(drop=True)
+        elif isinstance(data, type(self)):
             query_compiler = data._query_compiler.copy()
             if index is not None:
                 if any(i not in data.index for i in index):
@@ -781,25 +785,37 @@ class Series(BasePandasDataset):
 
         return self.__constructor__(query_compiler=new_query_compiler)
 
-    @series_not_implemented()
     def argmax(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, D200
         """
         Return int position of the largest value in the Series.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        result = self.idxmax(axis=axis, skipna=skipna, *args, **kwargs)
-        if np.isnan(result) or result is pandas.NA:
+        if self._query_compiler.has_multiindex():
+            # The index is a MultiIndex, current logic does not support this.
+            ErrorMessage.not_implemented(
+                "Series.argmax is not yet supported when the index is a MultiIndex."
+            )
+        result = self.reset_index(drop=True).idxmax(
+            axis=axis, skipna=skipna, *args, **kwargs
+        )
+        if not is_integer(result):  # if result is None, return -1
             result = -1
         return result
 
-    @series_not_implemented()
     def argmin(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, D200
         """
         Return int position of the smallest value in the Series.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        result = self.idxmin(axis=axis, skipna=skipna, *args, **kwargs)
-        if np.isnan(result) or result is pandas.NA:
+        if self._query_compiler.has_multiindex():
+            # The index is a MultiIndex, current logic does not support this.
+            ErrorMessage.not_implemented(
+                "Series.argmin is not yet supported when the index is a MultiIndex."
+            )
+        result = self.reset_index(drop=True).idxmin(
+            axis=axis, skipna=skipna, *args, **kwargs
+        )
+        if not is_integer(result):  # if result is None, return -1
             result = -1
         return result
 
@@ -1562,19 +1578,31 @@ class Series(BasePandasDataset):
             copy=copy,
         )
 
-    @series_not_implemented()
-    def unstack(self, level=-1, fill_value=None):  # noqa: PR01, RT01, D200
+    def unstack(
+        self,
+        level: int | str | list = -1,
+        fill_value: int | str | dict = None,
+        sort: bool = True,
+    ):
         """
         Unstack, also known as pivot, Series with MultiIndex to produce DataFrame.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 
-        result = DataFrame(
-            query_compiler=self._query_compiler.unstack(level, fill_value)
-        )
+        # We can't unstack a Series object, if we don't have a MultiIndex.
+        if self._query_compiler.has_multiindex:
+            result = DataFrame(
+                query_compiler=self._query_compiler.unstack(
+                    level, fill_value, sort, is_series_input=True
+                )
+            )
+        else:
+            raise ValueError(  # pragma: no cover
+                f"index must be a MultiIndex to unstack, {type(self.index)} was passed"
+            )
 
-        return result.droplevel(0, axis=1) if result.columns.nlevels > 1 else result
+        return result
 
     @series_not_implemented()
     @property

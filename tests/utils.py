@@ -10,6 +10,7 @@ import platform
 import random
 import string
 import uuid
+from contextlib import contextmanager
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
@@ -91,6 +92,12 @@ if RUNNING_ON_JENKINS:
 # Once rolled out this should be updated to include all accounts.
 STRUCTURED_TYPE_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2", "SNOWPARK_PYTHON_TEST"}
 ICEBERG_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2"}
+STRUCTURED_TYPE_PARAMETERS = {
+    "ENABLE_STRUCTURED_TYPES_IN_CLIENT_RESPONSE",
+    "ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
+    "FORCE_ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
+    "IGNORE_CLIENT_VESRION_IN_STRUCTURED_TYPES_RESPONSE",
+}
 
 
 def current_account(session):
@@ -107,6 +114,15 @@ def iceberg_supported(session, local_testing_mode):
     if local_testing_mode:
         return False
     return current_account(session) in ICEBERG_ENVIRONMENTS
+
+
+@contextmanager
+def structured_types_enabled_session(session):
+    for param in STRUCTURED_TYPE_PARAMETERS:
+        session.sql(f"alter session set {param}=true").collect()
+    yield session
+    for param in STRUCTURED_TYPE_PARAMETERS:
+        session.sql(f"alter session unset {param}").collect()
 
 
 def running_on_public_ci() -> bool:
@@ -351,6 +367,9 @@ class Utils:
                 raise TypeError(
                     "input_data must be a DataFrame, a list of Row objects or a Row object"
                 )
+
+            # Strip column names to make errors more concise
+            rows = [Row(*list(x)) for x in rows]
             return rows
 
         actual_rows = get_rows(actual)
@@ -382,6 +401,7 @@ class Utils:
                     meta.precision,
                     meta.scale,
                     meta.internal_size,
+                    session._conn.max_string_size,
                 )
                 == field.datatype
             )
@@ -702,6 +722,18 @@ class TestData:
                 )
             ],
             schema=["delim1", "delim2", "lower", "upper", "title", "sentence"],
+        )
+
+    @classmethod
+    def string9(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                ("foo\nbar1"),
+                ("foo\tbar2"),
+                ("foo\rbar3"),
+                ("foo\r\nbar4"),
+            ],
+            schema=["a"],
         )
 
     @classmethod
@@ -1159,6 +1191,21 @@ class TestData:
                 cls.Number2(2, 1, 10),
                 cls.Number2(2, 2, 1),
                 cls.Number2(2, 2, 3),
+            ]
+        )
+
+    @classmethod
+    def xyz2(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                cls.Number2(1, 2, 1),
+                cls.Number2(1, 2, 3),
+                cls.Number2(2, 1, 10),
+                cls.Number2(2, 2, 1),
+                cls.Number2(2, 2, 3),
+                cls.Number2(2, 3, 5),
+                cls.Number2(2, 3, 8),
+                cls.Number2(2, 4, 7),
             ]
         )
 

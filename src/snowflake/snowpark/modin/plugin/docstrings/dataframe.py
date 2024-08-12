@@ -1921,11 +1921,50 @@ class DataFrame:
     def items():
         """
         Iterate over (column name, ``Series``) pairs.
-        """
 
-    def iteritems():
-        """
-        Iterate over (column name, ``Series``) pairs.
+        Iterates over the DataFrame columns, returning a tuple with
+        the column name and the content as a Series.
+
+        Yields
+        ------
+        label : object
+            The column names for the DataFrame being iterated over.
+        content : Series
+            The column entries belonging to each label, as a Series.
+
+        See Also
+        --------
+        DataFrame.iterrows : Iterate over DataFrame rows as
+            (index, Series) pairs.
+        DataFrame.itertuples : Iterate over DataFrame rows as namedtuples
+            of the values.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'species': ['bear', 'bear', 'marsupial'],
+        ...                   'population': [1864, 22000, 80000]},
+        ...                   index=['panda', 'polar', 'koala'])
+        >>> df
+                 species  population
+        panda       bear        1864
+        polar       bear       22000
+        koala  marsupial       80000
+        >>> for label, content in df.items():
+        ...    print(f'label: {label}')
+        ...    print(f'content:\\n{content}')
+        ...
+        label: species
+        content:
+        panda         bear
+        polar         bear
+        koala    marsupial
+        Name: species, dtype: object
+        label: population
+        content:
+        panda     1864
+        polar    22000
+        koala    80000
+        Name: population, dtype: int64
         """
 
     def itertuples():
@@ -2542,6 +2581,66 @@ class DataFrame:
     def unstack():
         """
         Pivot a level of the (necessarily hierarchical) index labels.
+
+        Returns a DataFrame having a new level of column labels whose
+        inner-most level consists of the pivoted index labels.
+
+        If the index is not a MultiIndex, the output will be a Series
+        (the analogue of stack when the columns are not a MultiIndex).
+
+        Parameters
+        ----------
+        level : int, str, list, default -1
+            Level(s) of index to unstack, can pass level name.
+
+        fillna : int, str, dict, optional
+            Replace NaN with this value if the unstack produces missing values.
+
+        sort : bool, default True
+            Sort the level(s) in the resulting MultiIndex columns.
+
+        Returns
+        -------
+        Series or DataFrame
+
+        Notes
+        -----
+        Supports only integer ``level`` and ``sort = True``. Internally, calls ``pivot_table``
+        or ``melt`` to perform `unstack` operation.
+
+        See Also
+        --------
+        DataFrame.pivot : Pivot without aggregation that can handle
+            non-numeric data.
+        DataFrame.stack : Pivot a level of the column labels (inverse
+            operation from unstack).
+
+        Examples
+        --------
+        >>> index = pd.MultiIndex.from_tuples([('one', 'a'), ('one', 'b'),
+        ...                                    ('two', 'a'), ('two', 'b')])
+        >>> s = pd.Series(np.arange(1.0, 5.0), index=index)
+        >>> s
+        one  a    1.0
+             b    2.0
+        two  a    3.0
+             b    4.0
+        dtype: float64
+        >>> s.unstack(level=-1)
+               a    b
+        one  1.0  2.0
+        two  3.0  4.0
+        >>> s.unstack(level=0)
+           one  two
+        a  1.0  3.0
+        b  2.0  4.0
+        >>> df = s.unstack(level=0)
+        >>> df.unstack()
+        one  a    1.0
+             b    2.0
+        two  a    3.0
+             b    4.0
+        dtype: float64
         """
 
     def pad():

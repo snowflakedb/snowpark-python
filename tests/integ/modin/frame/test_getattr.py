@@ -5,6 +5,7 @@
 import inspect
 
 import modin.pandas as pd
+import pandas
 import pandas as native_pd
 import pytest
 
@@ -33,7 +34,7 @@ def test_getattr(name, expected_query_count):
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 snow_res, native_res
             )
-        elif isinstance(snow_res, pd.Index):
+        elif isinstance(snow_res, (pd.Index, pandas.Index)):
             assert_index_equal(snow_res, native_res, exact=False)
         else:
             # e.g., mean will return bound method similar to pandas

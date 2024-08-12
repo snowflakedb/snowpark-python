@@ -38,13 +38,18 @@ pytestmark = [
 
 WITH = "WITH"
 
+paramList = [False, True]
 
-@pytest.fixture(autouse=True)
-def setup(session):
+
+@pytest.fixture(params=paramList, autouse=True)
+def setup(request, session):
     is_cte_optimization_enabled = session._cte_optimization_enabled
+    is_query_compilation_enabled = session._query_compilation_stage_enabled
+    session._query_compilation_stage_enabled = request.param
     session._cte_optimization_enabled = True
     yield
     session._cte_optimization_enabled = is_cte_optimization_enabled
+    session._query_compilation_stage_enabled = is_query_compilation_enabled
 
 
 def check_result(session, df, expect_cte_optimized):
@@ -111,7 +116,7 @@ def test_unary(session, action):
         lambda x, y: x.join(y.select("a"), how="left", rsuffix="_y"),
     ],
 )
-def test_binary(session, action):
+def test_binary(session, action, sql_simplifier_enabled):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     check_result(session, action(df, df), expect_cte_optimized=True)
 
@@ -125,7 +130,23 @@ def test_binary(session, action):
         df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_threshold
-    check_result(session, action(df2, df2), expect_cte_optimized=True)
+    df3 = action(df2, df2)
+    check_result(session, df3, expect_cte_optimized=True)
+    plan_queries = df3.queries
+    # check the number of queries
+    binary_build_used = (not sql_simplifier_enabled) or (
+        "JOIN" in plan_queries["queries"][-1]
+    )
+    # TODO (SNOW-1569005): Deduplicate queries during plan build for binary operators. This currently
+    #   is only fixed when _query_compilation_stage_enabled for build_binary.
+    if session._query_compilation_stage_enabled and binary_build_used:
+        num_queries = 3
+        num_post_actions = 1
+    else:
+        num_queries = 5
+        num_post_actions = 2
+    assert len(plan_queries["queries"]) == num_queries
+    assert len(plan_queries["post_actions"]) == num_post_actions
 
 
 @pytest.mark.parametrize(
@@ -186,7 +207,6 @@ def test_same_duplicate_subtree(session):
     df_result1 = df3.union_all(df3)
     check_result(session, df_result1, expect_cte_optimized=True)
     assert count_number_of_ctes(df_result1.queries["queries"][-1]) == 1
-
     """
                               root
                              /    \
@@ -353,6 +373,10 @@ def test_table(session):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
+@pytest.mark.skipif(
+    "config.getoption('disable_sql_simplifier', default=False)",
+    reason="TODO SNOW-1556590: Re-enable test_sql in test_cte.py when sql simplifier is disabled once new CTE implementation is completed",
+)
 @pytest.mark.parametrize(
     "query",
     [

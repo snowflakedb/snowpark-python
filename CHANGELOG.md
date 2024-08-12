@@ -4,18 +4,86 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+- Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a util function to check the equality of two Snowpark DataFrames.
+
+#### Improvements
+
+- Added support server side string size limitations.
+- Added support to create and invoke stored procedures, UDFs and UDTFs with optional arguments.
+- Added support for column lineage in the DataFrame.lineage.trace API.
+- Added support for passing `INFER_SCHEMA` options to `DataFrameReader` via `INFER_SCHEMA_OPTIONS`.
+- Added support for passing `parameters` parameter to `Column.rlike` and `Column.regexp`.
+- Added support for automatically cleaning up temporary tables created by `df.cache_result()` in the current session, when the DataFrame is no longer referenced (i.e., gets garbage collected). It is still an experimental feature not enabled by default, and can be enabled by setting `session.auto_clean_up_temp_table_enabled` to `True`.
+- Added support for string literals to the `fmt` parameter of `snowflake.snowpark.functions.to_date`.
+
+#### Bug Fixes
+
+- Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
+- Fixed a bug in `DataFrame.to_pandas_batches` where the iterator could throw an error if certain transformation is made to the pandas dataframe due to wrong isolation level.
+- Fixed a bug in `DataFrame.lineage.trace` to split the quoted feature view's name and version correctly.
+- Fixed a bug in `Column.isin` that caused invalid sql generation when passed an empty list.
+- Fixed a bug that fails to raise NotImplementedError while setting cell with list like item.
+
 ### Snowpark Local Testing Updates
 
-### Snowpark pandas API Updates
+#### New Features
+- Added support for the following APIs:
+  - snowflake.snowpark.functions
+    - rank
+    - dense_rank
+    - percent_rank
+    - cume_dist
+    - ntile
+    - datediff
+- Added support parsing regex flags in REGEX statements for mocked plans. This maintains parity with the `rlike` and `regexp` changes above.
 
+#### Bug Fixes
+- Fixed a bug that Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
+- Fixed a bug where values were not populated into the result DataFrame during the insertion of table merge operation.
+
+#### Improvements
+- Fix pandas FutureWarning about integer indexing.
+
+### Snowpark pandas API Updates
 #### New Features
 - Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
 - Added support for `DataFrame.compare` and `Series.compare` with default parameters.
+- Added support for `Series.dt.microsecond` and `Series.dt.nanosecond`.
+- Added support for `Index.is_unique` and `Index.has_duplicates`.
+- Added support for `Index.equals`.
+- Added support for `Index.value_counts`.
+- Added support for `Series.dt.day_name` and `Series.dt.month_name`.
+- Added support for indexing on Index, e.g., `df.index[:10]`.
+- Added support for `DataFrame.unstack` and `Series.unstack`.
+- Added support for `DataFrame.asfreq` and `Series.asfreq`.
+- Added support for `Series.dt.is_month_start` and `Series.dt.is_month_end`.
+- Added support for `Index.all` and `Index.any`.
+- Added support for `Series.dt.is_year_start` and `Series.dt.is_year_end`.
+- Added support for `Series.dt.is_quarter_start` and `Series.dt.is_quarter_end`.
+- Added support for lazy `DatetimeIndex`.
+- Added support for `Series.argmax` and `Series.argmin`.
+- Added support for `Series.dt.is_leap_year`.
+- Added support for `DataFrame.items`.
+- Added support for `Series.dt.floor` and `Series.dt.ceil`.
 - Added support for `Index.reindex`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
+- Removed unnecessary count query from `SnowflakeQueryCompiler.is_series_like` method.
 
+#### Bug Fixes
+- Made passing an unsupported aggregation function to `pivot_table` raise `NotImplementedError` instead of `KeyError`.
+- Removed axis labels and callable names from error messages and telemetry about unsupported aggregations.
+- Fixed AssertionError in `Series.drop_duplicates` and `DataFrame.drop_duplicates` when called after `sort_values`.
+- Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.  
+- Fixed a bug where some Index docstrings are ignored. 
+
+### Behavior change
+- `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
+- Refactor and introduce `query_compiler` argument in `Index` constructor to create `Index` from query compiler.
+- `pd.to_datetime` now returns a DatetimeIndex object instead of a Series object.
+- `pd.date_range` now returns a DatetimeIndex object instead of a Series object.
 
 ## 1.20.0 (2024-07-17)
 
@@ -78,6 +146,9 @@
 - Added support for `DataFrame.corr`.
 - Added support for `DataFrame.equals` and `Series.equals`.
 - Added support for `DataFrame.reindex` and `Series.reindex`.
+- Added support for `Index.astype`.
+- Added support for `Index.unique` and `Index.nunique`.
+- Added support for `Index.sort_values`.
 
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
@@ -152,7 +223,7 @@
 - Added support for `DataFrame.stack`.
 - Added support for `DataFrame.pivot` and `pd.pivot`.
 - Added support for `DataFrame.to_csv` and `Series.to_csv`.
-- Added support for `Index.sort_values`.
+- Added support for `Index.T`.
 
 #### Bug Fixes
 

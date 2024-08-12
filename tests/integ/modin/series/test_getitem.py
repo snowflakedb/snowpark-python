@@ -46,7 +46,7 @@ def test_series_getitem_with_boolean_list_like(
             _key, _ser = snow_key, ser
         return _ser[_key]
 
-    with SqlCounter(query_count=2 if isinstance(key, native_pd.Index) else 1):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_series,
             default_index_native_series,

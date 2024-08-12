@@ -98,9 +98,10 @@ class StoredProcedure:
         else:
             session = session or snowflake.snowpark.session._get_active_session()
 
-        if len(self._input_types) != len(args):
+        if len(self._input_types) < len(args):
             raise ValueError(
-                f"Incorrect number of arguments passed to the stored procedure. Expected: {len(self._input_types)}, Found: {len(args)}"
+                f"Incorrect number of arguments passed to the stored procedure. "
+                f"Expected: <={len(self._input_types)}, Found: {len(args)}"
             )
 
         return args, session
@@ -770,6 +771,7 @@ class StoredProcedureRegistration:
             is_dataframe_input,
             return_type,
             input_types,
+            opt_arg_defaults,
         ) = process_registration_inputs(
             self._session,
             TempObjectType.PROCEDURE,
@@ -849,6 +851,7 @@ class StoredProcedureRegistration:
                     func=func,
                     return_type=return_type,
                     input_args=input_args,
+                    opt_arg_defaults=opt_arg_defaults,
                     handler=handler,
                     object_type=TempObjectType.PROCEDURE,
                     object_name=udf_name,
