@@ -12,10 +12,10 @@ df4 = df.agg({"a": "count", "b": "sum"})
 
 ## EXPECTED OUTPUT
 
-res1 = session.create_dataframe([[1, 2], [3, 4], [1, 4]], schema=["A", "B"])
+df = session.create_dataframe([[1, 2], [3, 4], [1, 4]], schema=["A", "B"])
 
-res2 = res1.agg(stddev(col("a")), stddev_pop(col("a")))
+df2 = df.agg(stddev(col("a")), stddev_pop(col("a")))
 
-res3 = res1.agg(("a", "min"), ("b", "max"))
+df3 = df.agg(("a", "min"), ("b", "max"))
 
-res4 = res1.agg({"a": "count", "b": "sum"})
+df4 = df.agg({"a": "count", "b": "sum"})

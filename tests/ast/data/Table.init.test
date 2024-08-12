@@ -6,6 +6,6 @@ df = df.select("STR", col("A"))
 
 ## EXPECTED OUTPUT
 
-res1 = Table("test_table", session)
+df = Table("test_table", session)
 
-res2 = res1.select(col("STR"), col("A"))
+df = df.select(col("STR"), col("A"))
