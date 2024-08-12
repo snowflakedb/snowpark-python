@@ -3,47 +3,27 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import pytest
-
-try:
-    import modin.pandas as pd  # noqa: F401
-
-    is_pandas_available = True
-except ImportError:
-    is_pandas_available = False
+import modin.pandas as pd  # noqa: F401
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import sproc
+from snowflake.snowpark.modin.plugin import (
+    supported_modin_version,
+    supported_pandas_version,
+)
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.utils import TestFiles, Utils
 
-pytestmark = [
-    pytest.mark.udf,
+PACKAGE_LIST = [
+    f"pandas=={supported_pandas_version}",
+    f"modin=={supported_modin_version}",
+    "snowflake-snowpark-python",
+    "numpy",
 ]
 
-tmp_stage_name = Utils.random_stage_name()
 
-
-@pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path, local_testing_mode):
-    test_files = TestFiles(resources_path)
-    if not local_testing_mode:
-        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-        session.add_packages("snowflake-snowpark-python")
-    Utils.upload_to_stage(
-        session, tmp_stage_name, test_files.test_sp_py_file, compress=False
-    )
-
-
-@sql_count_checker(no_check=True)
+@sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_head(session):
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-        ]
-    )
+    @sproc(packages=PACKAGE_LIST)
     def run(session_: Session) -> str:
         df = pd.DataFrame(
             [["a", 2.1, 1], ["b", 4.2, 2], ["c", 6.3, None]],
@@ -58,15 +38,9 @@ def test_sproc_head(session):
     )
 
 
-@sql_count_checker(no_check=True)
+@sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_dropna(session):
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-        ]
-    )
+    @sproc(packages=PACKAGE_LIST)
     def run(session_: Session) -> int:
         default_index_snowpark_pandas_df = pd.DataFrame(
             [["a", 2.1, 1], ["b", None, 2], ["c", 6.3, None]],
@@ -79,59 +53,42 @@ def test_sproc_dropna(session):
     assert run() == 2
 
 
-@sql_count_checker(no_check=True)
-def test_sproc_index(session):
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-        ]
-    )
-    def idx(session_: Session) -> str:
+@sql_count_checker(query_count=4, sproc_count=1)
+def test_sproc_idx(session):
+    @sproc(packages=PACKAGE_LIST)
+    def run(session_: Session) -> str:
         df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
         df_result = df["a"]
         return str(df_result)
 
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-        ]
-    )
-    def loc(session_: Session) -> str:
+    assert run() == "0    1\n1    2\n2    3\nName: a, dtype: int64"
+
+
+@sql_count_checker(query_count=4, sproc_count=1)
+def test_sproc_loc(session):
+    @sproc(packages=PACKAGE_LIST)
+    def run(session_: Session) -> str:
         df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
         df_result = df.loc[df["a"] > 2]
         return str(df_result)
 
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-        ]
-    )
-    def iloc(session_: Session) -> str:
+    assert run() == "   a  b\n2  3  z"
+
+
+@sql_count_checker(query_count=4, sproc_count=1)
+def test_sproc_iloc(session):
+    @sproc(packages=PACKAGE_LIST)
+    def run(session_: Session) -> str:
         df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
         df_result = df.iloc[0, 1]
         return df_result
 
-    assert idx() == "0    1\n1    2\n2    3\nName: a, dtype: int64"
-    assert loc() == "   a  b\n2  3  z"
-    assert iloc() == "x"
+    assert run() == "x"
 
 
-@sql_count_checker(no_check=True)
+@sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_missing_val(session):
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-            "numpy",
-        ]
-    )
+    @sproc(packages=PACKAGE_LIST)
     def run(session_: Session) -> int:
         import numpy as np
 
@@ -150,15 +107,9 @@ def test_sproc_missing_val(session):
     assert run() == 3
 
 
-@sql_count_checker(no_check=True)
+@sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_type_conv(session):
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-        ]
-    )
+    @sproc(packages=PACKAGE_LIST)
     def run(session_: Session) -> str:
         df = pd.DataFrame({"int": [1, 2, 3], "str": ["4", "5", "6"]})
         df_result = df.astype(float)["int"].iloc[0]
@@ -167,28 +118,16 @@ def test_sproc_type_conv(session):
     assert run() == "1.0"
 
 
-@sql_count_checker(no_check=True)
+@sql_count_checker(query_count=8, sproc_count=2)
 def test_sproc_binary_ops(session):
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-        ]
-    )
+    @sproc(packages=PACKAGE_LIST)
     def add(session_: Session) -> str:
         df_1 = pd.DataFrame([[1, 2, 3], [4, 5, 6]])
         df_2 = pd.DataFrame([[6, 7, 8]])
         df_result = df_1.add(df_2)
         return str(df_result)
 
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-        ]
-    )
+    @sproc(packages=PACKAGE_LIST)
     def plus(session_: Session) -> str:
         s1 = pd.Series([1, 2, 3])
         s2 = pd.Series([2, 2, 2])
@@ -199,16 +138,9 @@ def test_sproc_binary_ops(session):
     assert plus() == "0    3\n1    4\n2    5\ndtype: int64"
 
 
-@sql_count_checker(no_check=True)
+@sql_count_checker(query_count=8, sproc_count=2)
 def test_sproc_agg(session):
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-            "numpy",
-        ]
-    )
+    @sproc(packages=PACKAGE_LIST)
     def run_agg(session_: Session) -> str:
         import numpy as np
 
@@ -219,14 +151,7 @@ def test_sproc_agg(session):
         df_result = df.agg(["sum", "min"])
         return str(df_result)
 
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-            "numpy",
-        ]
-    )
+    @sproc(packages=PACKAGE_LIST)
     def run_median(session_: Session) -> str:
         import numpy as np
 
@@ -237,19 +162,16 @@ def test_sproc_agg(session):
         df_result = df.median()
         return str(df_result)
 
+    assert (
+        run_agg()
+        == "        A     B     C\nsum  12.0  15.0  18.0\nmin   1.0   2.0   3.0"
+    )
     assert run_median() == "A    4.0\nB    5.0\nC    6.0\ndtype: float64"
 
 
-@sql_count_checker(no_check=True)
+@sql_count_checker(query_count=8, sproc_count=2)
 def test_sproc_merge(session):
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-            "numpy",
-        ]
-    )
+    @sproc(packages=PACKAGE_LIST)
     def run_merge(session_: Session) -> str:
         df1 = pd.DataFrame(
             {"lkey": ["foo", "bar", "baz", "foo"], "value": [1, 2, 3, 5]}
@@ -260,14 +182,7 @@ def test_sproc_merge(session):
         df_result = df1.merge(df2, left_on="lkey", right_on="rkey")
         return str(df_result["value_x"])
 
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-            "numpy",
-        ]
-    )
+    @sproc(packages=PACKAGE_LIST)
     def run_join(session_: Session) -> str:
         df = pd.DataFrame(
             {
@@ -289,15 +204,9 @@ def test_sproc_merge(session):
     )
 
 
-@sql_count_checker(no_check=True)
+@sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_groupby(session):
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-        ]
-    )
+    @sproc(packages=PACKAGE_LIST)
     def run(session_: Session) -> str:
         df = pd.DataFrame(
             {
@@ -314,15 +223,9 @@ def test_sproc_groupby(session):
     )
 
 
-@sql_count_checker(no_check=True)
+@sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_pivot(session):
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-        ]
-    )
+    @sproc(packages=PACKAGE_LIST)
     def run(session_: Session) -> str:
         df = pd.DataFrame(
             {
@@ -354,15 +257,9 @@ def test_sproc_pivot(session):
     )
 
 
-@sql_count_checker(no_check=True)
+@sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_devguide_example(session):
-    @sproc(
-        packages=[
-            "pandas==2.2.1",
-            "modin==0.28.1",
-            "snowflake-snowpark-python",
-        ]
-    )
+    @sproc(packages=PACKAGE_LIST)
     def run(session_: Session) -> int:
         # Create a Snowpark Pandas DataFrame with sample data.
         df = pd.DataFrame(
