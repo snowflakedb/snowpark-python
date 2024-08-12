@@ -34,10 +34,9 @@ def setup(session, resources_path, local_testing_mode):
     )
 
 
-def test_sproc_head(session, local_testing_mode):
+def test_sproc_head(session):
     @sproc(
         packages=[
-            "packaging",
             "pandas==2.2.1",
             "modin==0.28.1",
             "snowflake-snowpark-python",
@@ -57,10 +56,9 @@ def test_sproc_head(session, local_testing_mode):
     )
 
 
-def test_sproc_dropna(session, local_testing_mode):
+def test_sproc_dropna(session):
     @sproc(
         packages=[
-            "packaging",
             "pandas==2.2.1",
             "modin==0.28.1",
             "snowflake-snowpark-python",
@@ -78,10 +76,9 @@ def test_sproc_dropna(session, local_testing_mode):
     assert run() == 2
 
 
-def test_sproc_index(session, local_testing_mode):
+def test_sproc_index(session):
     @sproc(
         packages=[
-            "packaging",
             "pandas==2.2.1",
             "modin==0.28.1",
             "snowflake-snowpark-python",
@@ -94,7 +91,6 @@ def test_sproc_index(session, local_testing_mode):
 
     @sproc(
         packages=[
-            "packaging",
             "pandas==2.2.1",
             "modin==0.28.1",
             "snowflake-snowpark-python",
@@ -107,7 +103,6 @@ def test_sproc_index(session, local_testing_mode):
 
     @sproc(
         packages=[
-            "packaging",
             "pandas==2.2.1",
             "modin==0.28.1",
             "snowflake-snowpark-python",
@@ -123,10 +118,9 @@ def test_sproc_index(session, local_testing_mode):
     assert iloc() == "x"
 
 
-def test_sproc_missing_val(session, local_testing_mode):
+def test_sproc_missing_val(session):
     @sproc(
         packages=[
-            "packaging",
             "pandas==2.2.1",
             "modin==0.28.1",
             "snowflake-snowpark-python",
@@ -151,10 +145,9 @@ def test_sproc_missing_val(session, local_testing_mode):
     assert run() == 3
 
 
-def test_sproc_type_conv(session, local_testing_mode):
+def test_sproc_type_conv(session):
     @sproc(
         packages=[
-            "packaging",
             "pandas==2.2.1",
             "modin==0.28.1",
             "snowflake-snowpark-python",
@@ -168,7 +161,7 @@ def test_sproc_type_conv(session, local_testing_mode):
     assert run() == "1.0"
 
 
-def test_sproc_binary_ops(session, local_testing_mode):
+def test_sproc_binary_ops(session):
     @sproc(
         packages=[
             "pandas==2.2.1",
@@ -199,7 +192,7 @@ def test_sproc_binary_ops(session, local_testing_mode):
     assert plus() == "0    3\n1    4\n2    5\ndtype: int64"
 
 
-def test_sproc_agg(session, local_testing_mode):
+def test_sproc_agg(session):
     @sproc(
         packages=[
             "pandas==2.2.1",
@@ -239,7 +232,7 @@ def test_sproc_agg(session, local_testing_mode):
     assert run_median() == "A    4.0\nB    5.0\nC    6.0\ndtype: float64"
 
 
-def test_sproc_merge(session, local_testing_mode):
+def test_sproc_merge(session):
     @sproc(
         packages=[
             "pandas==2.2.1",
@@ -287,7 +280,7 @@ def test_sproc_merge(session, local_testing_mode):
     )
 
 
-def test_sproc_groupby(session, local_testing_mode):
+def test_sproc_groupby(session):
     @sproc(
         packages=[
             "pandas==2.2.1",
@@ -311,7 +304,7 @@ def test_sproc_groupby(session, local_testing_mode):
     )
 
 
-def test_sproc_pivot(session, local_testing_mode):
+def test_sproc_pivot(session):
     @sproc(
         packages=[
             "pandas==2.2.1",
@@ -350,7 +343,7 @@ def test_sproc_pivot(session, local_testing_mode):
     )
 
 
-def test_sproc_devguide_example(session, local_testing_mode):
+def test_sproc_devguide_example(session):
     @sproc(
         packages=[
             "pandas==2.2.1",
