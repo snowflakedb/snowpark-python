@@ -167,7 +167,7 @@ def test_non_overlapping_datetime_index():
 
 
 @sql_count_checker(query_count=0)
-def test_non_overlapping_different_types_index_negative():
+def test_non_overlapping_different_types_index_negative_SNOW_1622502():
     date_index = pd.date_range("1/1/2010", periods=6, freq="D")
 
     with pytest.raises(SnowparkSQLException, match=".*Timestamp 'A' is not recognized"):
