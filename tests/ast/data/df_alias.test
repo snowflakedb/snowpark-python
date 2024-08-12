@@ -6,6 +6,6 @@ df = df.alias("new_name")
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df = session.table("test_table")
 
-res2 = res1.alias("new_name")
+df = df.alias("new_name")

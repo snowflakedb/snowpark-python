@@ -2,11 +2,14 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+from dataclasses import dataclass
+import importlib.util
 import os
 import pathlib
 import subprocess
+import sys
+import tempfile
 import time
-from dataclasses import dataclass
 from typing import List, Union
 
 import pytest
@@ -98,100 +101,114 @@ def indent_lines(source: str, n_indents: int = 0):
     return "\n".join(map(lambda line: indent * n_indents + line, source.split("\n")))
 
 
-def run_test(session, test_source):
+def run_test(session, test_name, test_source):
     override_time_zone()
     os.chdir(DATA_DIR)
 
     source = f"""
 import snowflake.snowpark.functions as functions
 from snowflake.snowpark.functions import *
+from snowflake.snowpark.types import *
 from snowflake.snowpark import Table
 
-# Set up mock data.
-mock = session.create_dataframe(
-    [
-        [1, "one"],
-        [2, "two"],
-        [3, "three"],
-    ],
-    schema=['num', 'str']
-)
-mock.write.save_as_table("test_table")
-mock = session.create_dataframe(
-    [
-        [1, "one"],
-        [2, "two"],
-        [3, "three"],
-    ],
-    schema=['num', 'Owner\\'s""opinion.s']
-)
-mock.write.save_as_table("\\"the#qui.ck#bro.wn#\\"\\"Fox\\"\\"won\\'t#jump!\\"")
+def run_test(session):
+    # Set up mock data.
+    mock = session.create_dataframe(
+        [
+            [1, "one"],
+            [2, "two"],
+            [3, "three"],
+        ],
+        schema=['num', 'str']
+    )
+    mock.write.save_as_table("test_table")
+    mock = session.create_dataframe(
+        [
+            [1, "one"],
+            [2, "two"],
+            [3, "three"],
+        ],
+        schema=['num', 'Owner\\'s""opinion.s']
+    )
+    mock.write.save_as_table("\\"the#qui.ck#bro.wn#\\"\\"Fox\\"\\"won\\'t#jump!\\"")
 
-# Set up data used for set operation tests.
-mock = session.create_dataframe(
-    [
-        [1, 2],
-        [3, 4],
-    ],
-    schema=["a", "b"]
-)
-mock.write.save_as_table("test_df1")
-mock = session.create_dataframe(
-    [
-        [0, 1],
-        [3, 4],
-    ],
-    schema=["c", "d"]
-)
-mock.write.save_as_table("test_df2")
-mock = session.create_dataframe(
-    [
-        [1, 2],
-    ],
-    schema=["a", "b"]
-)
-mock.write.save_as_table("test_df3")
-mock = session.create_dataframe(
-    [
-        [2, 1],
-    ],
-    schema=["b", "a"]
-)
-mock.write.save_as_table("test_df4")
+    # Set up data used for set operation tests.
+    mock = session.create_dataframe(
+        [
+            [1, 2],
+            [3, 4],
+        ],
+        schema=["a", "b"]
+    )
+    mock.write.save_as_table("test_df1")
+    mock = session.create_dataframe(
+        [
+            [0, 1],
+            [3, 4],
+        ],
+        schema=["c", "d"]
+    )
+    mock.write.save_as_table("test_df2")
+    mock = session.create_dataframe(
+        [
+            [1, 2],
+        ],
+        schema=["a", "b"]
+    )
+    mock.write.save_as_table("test_df3")
+    mock = session.create_dataframe(
+        [
+            [2, 1],
+        ],
+        schema=["b", "a"]
+    )
+    mock.write.save_as_table("test_df4")
 
-mock = session.create_dataframe(
-    [[1, [1, 2, 3], {{"Ashi Garami": "Single Leg X"}}, "Kimura"],
-     [2, [11, 22], {{"Sankaku": "Triangle"}}, "Coffee"],
-     [3, [], {{}}, "Tea"]],
-    schema=["idx", "lists", "maps", "strs"])
-mock.write.save_as_table("test_table2")
+    mock = session.create_dataframe(
+        [[1, [1, 2, 3], {{"Ashi Garami": "Single Leg X"}}, "Kimura"],
+        [2, [11, 22], {{"Sankaku": "Triangle"}}, "Coffee"],
+        [3, [], {{}}, "Tea"]],
+        schema=["idx", "lists", "maps", "strs"])
+    mock.write.save_as_table("test_table2")
 
-session._ast_batch.flush()  # Clear the AST.
+    session._ast_batch.flush()  # Clear the AST.
 
-# Run the test.
-with session.ast_listener() as al:
-    {indent_lines(test_source, 1)}
-    # Perform extra-flush for any pending statements.
-    _, last_batch = session._ast_batch.flush()
+    # Run the test.
+    with session.ast_listener() as al:
+        {indent_lines(test_source, 2)}
+        # Perform extra-flush for any pending statements.
+        _, last_batch = session._ast_batch.flush()
 
-# Retrieve the ASTs corresponding to the test.
-result = al.base64_batches
-if last_batch:
-    result.append(last_batch)
+    # Retrieve the ASTs corresponding to the test.
+    result = al.base64_batches
+    if last_batch:
+        result.append(last_batch)
+    return result
 """
     # We don't care about the results, and also want to test some APIs that can't be mocked. This suppresses an error
     # that would otherwise be thrown.
     session._conn._suppress_not_implemented_error = True
 
-    locals = {"session": session}
-    exec(source, locals)
-    base64_batches = locals["result"]
-    return render(base64_batches), "\n".join(base64_batches)
+    # We use temp files to enable symbol capture in the AST. Having an underlying file instead of simply calling
+    # `exec(source, globals)` allows the Python interpreter to correctly capture symbols, which we use in the AST.
+    test_file = tempfile.NamedTemporaryFile(mode="w", prefix="test_ast", suffix=".py", delete=False)
+    try:
+        test_file.write(source)
+        test_file.close()
+
+        spec = importlib.util.spec_from_file_location(test_name, test_file.name)
+        test_module = importlib.util.module_from_spec(spec)
+        sys.modules[test_name] = test_module
+        spec.loader.exec_module(test_module)
+        base64_batches = test_module.run_test(session)
+        return render(base64_batches), "\n".join(base64_batches)
+    finally:
+        os.unlink(test_file.name)
 
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
 def test_ast(session, test_case):
-    actual, base64 = run_test(session, test_case.source)
+    actual, base64 = run_test(session, test_case.filename.replace(".", "_"), test_case.source)
     if pytest.update_expectations:
         with open(DATA_DIR / test_case.filename, "w", encoding="utf-8") as f:
             f.writelines(
