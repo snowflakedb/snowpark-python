@@ -395,7 +395,7 @@ def mock_array_agg(column: ColumnEmulator, is_distinct: bool) -> ColumnEmulator:
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column
     return ColumnEmulator(
         data=[list(columns_data.dropna())],
-        sf_type=ColumnType(ArrayType(StringType()), False),
+        sf_type=ColumnType(ArrayType(), False),
     )
 
 

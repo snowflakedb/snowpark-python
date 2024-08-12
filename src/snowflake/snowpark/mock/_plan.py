@@ -260,7 +260,7 @@ class MockFileOperation(MockExecutionPlan):
         self.options = options
 
 
-def coerce_order_by_arguments(order_by: List[Union[Expression]]):
+def coerce_order_by_arguments(order_by: List[Expression]):
     return [
         order if isinstance(order, SortOrder) else SortOrder(order, Ascending())
         for order in order_by
