@@ -271,7 +271,8 @@ def assert_snowpark_pandas_equal_to_pandas(
         tm.assert_series_equal(snow_to_native, expected_pandas, **kwargs)
     else:
         assert isinstance(snow, Index)
-        kwargs.pop("check_dtype")
+        if "check_dtype" in kwargs:
+            kwargs.pop("check_dtype")
         if kwargs.pop("check_index_type"):
             kwargs.update(exact=False)
         tm.assert_index_equal(snow_to_native, expected_pandas, **kwargs)

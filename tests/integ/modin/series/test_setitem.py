@@ -1560,7 +1560,7 @@ def test_series_setitem_with_empty_key_and_empty_item_negative(
     else:
         snowpark_key = key
 
-    with SqlCounter(query_count=1 if isinstance(key, native_pd.Index) else 0):
+    with SqlCounter(query_count=0):
 
         err_msg = "The length of the value/item to set is empty"
         with pytest.raises(ValueError, match=err_msg):
@@ -1601,7 +1601,7 @@ def test_series_setitem_with_empty_key_and_empty_series_item(
     else:
         snowpark_key = key
 
-    with SqlCounter(query_count=2 if isinstance(key, native_pd.Index) else 1):
+    with SqlCounter(query_count=1):
         native_ser[key] = item
         snowpark_ser[
             pd.Series(snowpark_key)
@@ -1649,9 +1649,7 @@ def test_series_setitem_with_empty_key_and_scalar_item(
     else:
         snowpark_key = key
 
-    with SqlCounter(
-        query_count=2 if isinstance(key, native_pd.Index) else 1, join_count=2
-    ):
+    with SqlCounter(query_count=1, join_count=2):
         native_ser[key] = item
         snowpark_ser[
             pd.Series(snowpark_key)
