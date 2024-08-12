@@ -640,13 +640,13 @@ def fill_sp_save_mode(expr: proto.SpSaveMode, save_mode: Union[str, SaveMode]) -
 
     if save_mode == SaveMode.APPEND:
         expr.sp_save_mode_append = True
-    if save_mode == SaveMode.ERROR_IF_EXISTS:
+    elif save_mode == SaveMode.ERROR_IF_EXISTS:
         expr.sp_save_mode_error_if_exists = True
-    if save_mode == SaveMode.IGNORE:
+    elif save_mode == SaveMode.IGNORE:
         expr.sp_save_mode_ignore = True
-    if save_mode == SaveMode.OVERWRITE:
+    elif save_mode == SaveMode.OVERWRITE:
         expr.sp_save_mode_overwrite = True
-    if save_mode == SaveMode.TRUNCATE:
+    elif save_mode == SaveMode.TRUNCATE:
         expr.sp_save_mode_truncate = True
 
 
