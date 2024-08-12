@@ -149,3 +149,4 @@ class AstBatch:
         (major, minor, micro, releaselevel, serial) = sys.version_info
         self._request.client_language.python_language.version.major = major
         self._request.client_language.python_language.version.minor = minor
+        self._request.client_ast_version = proto.__Version__.MAX_VERSION
