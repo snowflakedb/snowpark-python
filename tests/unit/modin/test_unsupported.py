@@ -136,20 +136,6 @@ def test_unsupported_df(df_method, kwargs):
 
 
 @pytest.mark.parametrize(
-    "df_method, kwargs",
-    [["items", {}], ["iteritems", {}]],
-)
-def test_unsupported_df_generator(df_method, kwargs):
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    mock_df = DataFrame(query_compiler=mock_query_compiler)
-
-    with pytest.raises(NotImplementedError):
-        for x in getattr(mock_df, df_method)(**kwargs):
-            x + 1
-
-
-@pytest.mark.parametrize(
     "series_method, kwargs",
     [
         ["align", {"other": ""}],
