@@ -9,8 +9,8 @@ df3 = df1.except_(df2)
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_df1")
+df1 = session.table("test_df1")
 
-res2 = session.table("test_df2")
+df2 = session.table("test_df2")
 
-res3 = res1.except_(res2)
+df3 = df1.except_(df2)

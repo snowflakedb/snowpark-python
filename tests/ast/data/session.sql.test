@@ -8,8 +8,8 @@ df3 = session.sql("select 42", [])
 
 ## EXPECTED OUTPUT
 
-res1 = session.sql("select 42")
+df = session.sql("select 42")
 
-res2 = session.sql("select * from values (?, ?), (?, ?)", [1, "a", 2, "b"])
+df2 = session.sql("select * from values (?, ?), (?, ?)", [1, "a", 2, "b"])
 
-res3 = session.sql("select 42")
+df3 = session.sql("select 42")
