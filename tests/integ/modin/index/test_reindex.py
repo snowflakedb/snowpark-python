@@ -198,13 +198,13 @@ def test_duplicate_values(new_index, result_index, indices):
 
 
 @sql_count_checker(query_count=0)
-def test_multiindex_negative():
+def test_tuple_values_negative():
     native_idx = native_pd.MultiIndex.from_tuples(list(zip(range(4), range(4))))
     snow_idx = pd.Index(native_idx)
 
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas doesn't support `reindex` with MultiIndex",
+        match="Snowpark pandas does not support `reindex` with tuple-like Index values.",
     ):
         snow_idx.reindex([1, 2, 3])
 

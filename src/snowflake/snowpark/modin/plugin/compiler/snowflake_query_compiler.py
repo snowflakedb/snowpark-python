@@ -2486,12 +2486,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     monotonic_increasing_snowflake_quoted_id,
                 ]
             ).to_pandas()
-            monotonic_decreasing = materialized_frame[
-                monotonic_decreasing_snowflake_quoted_id.strip('"')
-            ]
-            monotonic_increasing = materialized_frame[
-                monotonic_increasing_snowflake_quoted_id.strip('"')
-            ]
+            monotonic_decreasing = materialized_frame.iloc[:, 1]
+            monotonic_increasing = materialized_frame.iloc[:, -1]
             any_overlap = not monotonic_decreasing.isna().all()
             # If there is no overlap between the target and source indexes, the result_frame will have NA values for every row in the monotonic columns.
             # If this is the case, we shouldn't falsely error out.
@@ -2516,7 +2512,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     raise ValueError(
                         f"limit argument for '{method_str}' method only well-defined if index and target are monotonic"
                     )
-            return new_qc, materialized_frame[row_position_column.strip('"')].values  # type: ignore[return-value]
+            return new_qc, materialized_frame.iloc[:, 0].values  # type: ignore[return-value]
         return new_qc
 
     def _reindex_axis_1(

@@ -48,6 +48,7 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     index_not_implemented,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.types import ArrayType
 
 _CONSTRUCTOR_DEFAULTS = {
     "dtype": None,
@@ -1419,27 +1420,25 @@ class Index(metaclass=TelemetryMeta):
             "tolerance": tolerance,
             "_is_index": True,
         }
-        try:
+
+        internal_data_types = (
+            self._query_compiler._modin_frame.quoted_identifier_to_snowflake_type()
+        )
+        internal_index_column = (
+            self._query_compiler._modin_frame.index_column_snowflake_quoted_identifiers[
+                0
+            ]
+        )
+        internal_index_type = internal_data_types[internal_index_column]
+        if isinstance(internal_index_type, ArrayType):
+            raise NotImplementedError(
+                "Snowpark pandas does not support `reindex` with tuple-like Index values."
+            )
+        else:
             query_compiler, indices = self._query_compiler.reindex(
                 axis=0, labels=target, **kwargs
             )
             return Index(query_compiler=query_compiler), indices
-        except Exception as e:
-            from snowflake.snowpark.exceptions import SnowparkSQLException
-
-            # If a pd.Index is created from a MultiIndex, it gets stored as a single column of array values.
-            # Rather than throwing an incomprehensible error message, we can determine if we are backed by
-            # a MultiIndex, and throw a nice NotImplementedError.
-            if isinstance(e, SnowparkSQLException):
-                is_mi_message = (
-                    "Can not convert parameter 'SNOWPARK_RIGHT" in e.message
-                    and "of type [ARRAY] into expected type" in e.message
-                )
-                if is_mi_message:
-                    raise NotImplementedError(
-                        "Snowpark pandas doesn't support `reindex` with MultiIndex"
-                    )
-            raise e
 
     @index_not_implemented()
     def rename(self) -> None:
