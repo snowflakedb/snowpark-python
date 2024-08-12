@@ -336,12 +336,19 @@ def set_builtin_fn_alias(ast: proto.Expr, alias: str) -> None:
 assignment_re = re.compile(r"^\s*([a-zA-Z_]\w*)\s*=.*$", re.DOTALL)
 
 def with_src_position(
-    expr_ast: proto.Expr, assign: Optional[proto.Assign] = None
+    expr_ast: proto.Expr, 
+    assign: Optional[proto.Assign] = None,
+    max_stack_lookback: int = 3,
 ) -> proto.Expr:
     """
     Sets the src_position on the supplied Expr AST node and returns it.
     N.B. This function assumes it's always invoked from a public API, meaning that the caller's caller
     is always the code of interest.
+    Args:
+        expr_ast: The AST node to set the src_position on.
+        assign: The Assign AST node to set the symbol value on.
+        max_stack_lookback: The maximum number of stack frames to look back from the caller's caller if 
+                            the caller's caller is still in the snowpark package.
     """
     src = expr_ast.src
     frame = inspect.currentframe()
@@ -363,11 +370,14 @@ def with_src_position(
         frame = frame.f_back.f_back
         filename = frame.f_code.co_filename if frame is not None else "<unknown>"
 
+        stack_depth = 0
         # If the caller's caller is in the snowpark package, keep stepping back until we're out of it.
         snowpark_path = Path(__file__).parents[1]
-        while frame is not None and snowpark_path in Path(filename).parents:
+        while stack_depth < max_stack_lookback and \
+        frame is not None and snowpark_path in Path(filename).parents:
             frame = frame.f_back
             filename = frame.f_code.co_filename
+            stack_depth += 1
 
         # Again, once we've stepped out of the snowpark package, we should be in the code of interest.
         # However, the code of interest may execute in an environment that is not accessible via the filesystem.
