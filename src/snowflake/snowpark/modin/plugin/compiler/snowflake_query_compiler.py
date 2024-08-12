@@ -10217,6 +10217,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     ) -> "SnowflakeQueryCompiler":
         """
         Extracts the specified date or time part from the timestamp.
+
+        Args:
+            property_name: The name of the property to extract.
+            include_index: Whether to include the index columns in the operation.
+
+        Returns:
+            A new SnowflakeQueryCompiler with the specified datetime property extracted.
         """
         if not include_index:
             assert len(self.columns) == 1, "dt only works for series"
