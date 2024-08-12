@@ -12,8 +12,8 @@ fn = table_function("my_fn")
 
 ## EXPECTED OUTPUT
 
-res1 = session.table_function("my_fn", lit(1), lit("two"))
+res1 = table_function("my_fn", lit(1), lit("two"))
 
-res2 = session.table_function("my_fn", kwd=lit(3), foo=lit("bar"))
+res2 = table_function("my_fn", kwd=lit(3), foo=lit("bar"))
 
-res3 = session.table_function("foo.bar")
+res3 = table_function(["foo", "bar"])

@@ -1935,15 +1935,18 @@ class Session:
         # AST.
         stmt = self._ast_batch.assign()
         expr = with_src_position(stmt.expr.apply_expr, stmt)
+        expr.fn.table_fn.call_type.table_fn_call_type__table_fn = True
+
         if isinstance(func_name, TableFunctionCall):
-            expr.fn.udtf.name = func_name.name
+            expr.fn.table_fn.name.fn_name_flat = func_name.name
             func_arguments = func_name.arguments
             func_named_arguments = func_name.named_arguments
             # TODO: func.{_over, _partition_by, _order_by, _aliases, _api_call_source}
         elif isinstance(func_name, str):
-            expr.fn.udtf.name = func_name
+            expr.fn.table_fn.name.fn_name_flat.name = func_name
         elif isinstance(func_name, list):
-            expr.fn.udtf.name = ".".join(func_name)
+            for part in func_name:
+                expr.fn.table_fn.name.fn_name_structured.name.append(part)
 
         for arg in func_arguments:
             build_expr_from_python_val(expr.pos_args.add(), arg)
