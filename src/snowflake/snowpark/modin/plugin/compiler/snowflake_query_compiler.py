@@ -2243,16 +2243,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if is_index:
             modin_frame = modin_frame.ensure_row_position_column()
             row_position_column = modin_frame.row_position_snowflake_quoted_identifier
-            modin_frame = InternalFrame.create(
-                ordered_dataframe=modin_frame.ordered_dataframe,
-                data_column_pandas_index_names=modin_frame.data_column_pandas_index_names,
-                data_column_pandas_labels=modin_frame.data_column_pandas_labels
-                + ["indices"],
-                data_column_snowflake_quoted_identifiers=modin_frame.data_column_snowflake_quoted_identifiers
-                + [row_position_column],
-                index_column_pandas_labels=modin_frame.index_column_pandas_labels,
-                index_column_snowflake_quoted_identifiers=modin_frame.index_column_snowflake_quoted_identifiers,
-            )
+            modin_frame = modin_frame.append_column("indices", col(row_position_column))
             # We will also add columns to check for monotonicity so that we can throw a similar error as native pandas
             # does for monotonicity. We do this for index objects but not DataFrame's or Series as Index.reindex returns
             # a NumPy array of indices - which requires eager materialization, so we can just materialize the monotonicity
