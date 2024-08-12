@@ -163,4 +163,4 @@ def plot(
 @register_series_accessor("transform")
 @series_not_implemented()
 def transform(self, func, axis=0, *args, **kwargs):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover

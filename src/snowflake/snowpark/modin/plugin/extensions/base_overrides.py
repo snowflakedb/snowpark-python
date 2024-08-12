@@ -56,17 +56,17 @@ def register_base_not_implemented():
 
 @register_base_not_implemented()
 def asof(self, where, subset=None):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def bool(self):  # noqa: RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def droplevel(self, level, axis=0):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
@@ -83,53 +83,53 @@ def ewm(
     times: str | np.ndarray | BasePandasDataset | None = None,
     method: str = "single",
 ) -> pandas.core.window.ewm.ExponentialMovingWindow:  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def filter(
     self, items=None, like=None, regex=None, axis=None
 ):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def pipe(self, func, *args, **kwargs):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def pop(self, item):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def reorder_levels(self, order, axis=0):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def set_flags(
     self, *, copy: bool = False, allows_duplicate_labels: bool | None = None
 ):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def swapaxes(self, axis1, axis2, copy=True):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def swaplevel(self, i=-2, j=-1, axis=0):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def to_clipboard(
     self, excel=True, sep=None, **kwargs
 ):  # pragma: no cover  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
@@ -153,14 +153,14 @@ def to_excel(
     freeze_panes=None,
     storage_options: StorageOptions = None,
 ):  # pragma: no cover  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def to_hdf(
     self, path_or_buf, key, format="table", **kwargs
 ):  # pragma: no cover  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
@@ -179,7 +179,7 @@ def to_json(
     indent=None,
     storage_options: StorageOptions = None,
 ):  # pragma: no cover  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
@@ -208,7 +208,7 @@ def to_latex(
     label=None,
     position=None,
 ):  # pragma: no cover  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
@@ -220,7 +220,7 @@ def to_markdown(
     storage_options: StorageOptions = None,
     **kwargs,
 ):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
@@ -231,7 +231,7 @@ def to_pickle(
     protocol: int = pkl.HIGHEST_PROTOCOL,
     storage_options: StorageOptions = None,
 ):  # pragma: no cover  # noqa: PR01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
@@ -257,7 +257,7 @@ def to_string(
     max_colwidth=None,
     encoding=None,
 ):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
@@ -273,33 +273,33 @@ def to_sql(
     dtype=None,
     method=None,
 ):  # noqa: PR01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def to_timestamp(
     self, freq=None, how="start", axis=0, copy=True
 ):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def to_xarray(self):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def transform(self, func, axis=0, *args, **kwargs):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def truncate(
     self, before=None, after=None, axis=None, copy=True
 ):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
 def __finalize__(self, other, method=None, **kwargs):
-    pass
+    pass  # pragma: no cover
