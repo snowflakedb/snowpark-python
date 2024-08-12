@@ -14,6 +14,7 @@ except ImportError:
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import sproc
+from tests.integ.modin.sql_counter import sql_count_checker
 from tests.utils import TestFiles, Utils
 
 pytestmark = [
@@ -34,6 +35,7 @@ def setup(session, resources_path, local_testing_mode):
     )
 
 
+@sql_count_checker(no_check=True)
 def test_sproc_head(session):
     @sproc(
         packages=[
@@ -56,6 +58,7 @@ def test_sproc_head(session):
     )
 
 
+@sql_count_checker(no_check=True)
 def test_sproc_dropna(session):
     @sproc(
         packages=[
@@ -76,6 +79,7 @@ def test_sproc_dropna(session):
     assert run() == 2
 
 
+@sql_count_checker(no_check=True)
 def test_sproc_index(session):
     @sproc(
         packages=[
@@ -118,6 +122,7 @@ def test_sproc_index(session):
     assert iloc() == "x"
 
 
+@sql_count_checker(no_check=True)
 def test_sproc_missing_val(session):
     @sproc(
         packages=[
@@ -145,6 +150,7 @@ def test_sproc_missing_val(session):
     assert run() == 3
 
 
+@sql_count_checker(no_check=True)
 def test_sproc_type_conv(session):
     @sproc(
         packages=[
@@ -161,6 +167,7 @@ def test_sproc_type_conv(session):
     assert run() == "1.0"
 
 
+@sql_count_checker(no_check=True)
 def test_sproc_binary_ops(session):
     @sproc(
         packages=[
@@ -192,6 +199,7 @@ def test_sproc_binary_ops(session):
     assert plus() == "0    3\n1    4\n2    5\ndtype: int64"
 
 
+@sql_count_checker(no_check=True)
 def test_sproc_agg(session):
     @sproc(
         packages=[
@@ -232,6 +240,7 @@ def test_sproc_agg(session):
     assert run_median() == "A    4.0\nB    5.0\nC    6.0\ndtype: float64"
 
 
+@sql_count_checker(no_check=True)
 def test_sproc_merge(session):
     @sproc(
         packages=[
@@ -280,6 +289,7 @@ def test_sproc_merge(session):
     )
 
 
+@sql_count_checker(no_check=True)
 def test_sproc_groupby(session):
     @sproc(
         packages=[
@@ -304,6 +314,7 @@ def test_sproc_groupby(session):
     )
 
 
+@sql_count_checker(no_check=True)
 def test_sproc_pivot(session):
     @sproc(
         packages=[
@@ -343,6 +354,7 @@ def test_sproc_pivot(session):
     )
 
 
+@sql_count_checker(no_check=True)
 def test_sproc_devguide_example(session):
     @sproc(
         packages=[
