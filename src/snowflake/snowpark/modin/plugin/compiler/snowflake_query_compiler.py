@@ -13863,7 +13863,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         new_frame = InternalFrame.create(
             ordered_dataframe=expanded_ordered_frame,
             data_column_pandas_labels=expanded_data_column_pandas_labels,
-            data_column_pandas_index_names=[None],  # operation removes names
+            data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
             data_column_snowflake_quoted_identifiers=expanded_data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,

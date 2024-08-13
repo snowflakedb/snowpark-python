@@ -1927,8 +1927,9 @@ def crosstab(
         if margins is False:
 
             f = normalizers[normalize]
-
+            names = table.columns.names
             table = f(table)
+            table.columns.names = names
             table = table.fillna(0)
         else:
             # keep index and column of pivoted table
