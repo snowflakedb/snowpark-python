@@ -6,6 +6,7 @@
 
 #### New Features
 - Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a util function to check the equality of two Snowpark DataFrames.
+- Added support for `Resampler.fillna` and `Resampler.bfill`.
 
 #### Improvements
 
@@ -16,7 +17,6 @@
 - Added support for passing `parameters` parameter to `Column.rlike` and `Column.regexp`.
 - Added support for automatically cleaning up temporary tables created by `df.cache_result()` in the current session, when the DataFrame is no longer referenced (i.e., gets garbage collected). It is still an experimental feature not enabled by default, and can be enabled by setting `session.auto_clean_up_temp_table_enabled` to `True`.
 - Added support for string literals to the `fmt` parameter of `snowflake.snowpark.functions.to_date`.
-- Refactor `Resampler.ffill` implementation to use ASOF JOIN.
 
 #### Bug Fixes
 

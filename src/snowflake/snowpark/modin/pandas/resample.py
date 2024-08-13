@@ -240,11 +240,26 @@ class Resampler(metaclass=TelemetryMeta):
             )
         )
 
-    def backfill(self, limit: Optional[int] = None):  # pragma: no cover
-        self._method_not_implemented("backfill")
+    def backfill(self, limit: Optional[int] = None):
+        return self.bfill(limit=limit)
 
-    def bfill(self, limit: Optional[int] = None):  # pragma: no cover
-        self._method_not_implemented("bfill")
+    def bfill(self, limit: Optional[int] = None):
+        is_series = not self._dataframe._is_dataframe
+
+        if limit is not None:
+            ErrorMessage.not_implemented(
+                "Parameter limit of resample.bfill has not been implemented."
+            )
+
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.resample(
+                self.resample_kwargs,
+                "bfill",
+                (),
+                {},
+                is_series,
+            )
+        )
 
     def pad(self, limit: Optional[int] = None):
         return self.ffill(limit=limit)

@@ -289,14 +289,52 @@ class Resampler:
         2023-01-09  4.0  20.0
         """
 
-    def backfill():
-        pass
-
     def bfill():
-        pass
+        """
+        Backward fill the new missing values in the resampled data.
 
-    def pad():
-        pass
+        Parameters
+        ----------
+        limit : int, optional
+            This parameter is not supported and will raise NotImplementedError.
+
+        Returns
+        -------
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            An upsampled Series or DataFrame with backward filled NaN values.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 3],
+        ... index=pd.date_range('20180101', periods=3, freq='h'))
+        >>> s
+        2018-01-01 00:00:00    1
+        2018-01-01 01:00:00    2
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
+        >>> s.resample('30min').bfill()
+        2018-01-01 00:00:00    1
+        2018-01-01 00:30:00    2
+        2018-01-01 01:00:00    2
+        2018-01-01 01:30:00    3
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
+        >>> df = pd.DataFrame({'a': [2, np.nan, 6], 'b': [1, 3, 5]},
+        ...      index=pd.date_range('20180101', periods=3,
+        ...      freq='h'))
+        >>> df
+                               a  b
+        2018-01-01 00:00:00  2.0  1
+        2018-01-01 01:00:00  NaN  3
+        2018-01-01 02:00:00  6.0  5
+        >>> df.resample('30min').bfill()
+                               a  b
+        2018-01-01 00:00:00  2.0  1
+        2018-01-01 00:30:00  NaN  3
+        2018-01-01 01:00:00  NaN  3
+        2018-01-01 01:30:00  6.0  5
+        2018-01-01 02:00:00  6.0  5
+        """
 
     def nearest():
         pass
@@ -337,6 +375,13 @@ class Resampler:
         2018-01-01 01:30:00    2
         2018-01-01 02:00:00    3
         Freq: None, dtype: int64
+        >>> s.resample('30min').fillna("backfill")
+        2018-01-01 00:00:00    1
+        2018-01-01 00:30:00    2
+        2018-01-01 01:00:00    2
+        2018-01-01 01:30:00    3
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
         >>> sm = pd.Series([1, None, 3],
         ... index=pd.date_range('20180101', periods=3, freq='h'))
         >>> sm
@@ -349,6 +394,13 @@ class Resampler:
         2018-01-01 00:30:00    1.0
         2018-01-01 01:00:00    NaN
         2018-01-01 01:30:00    NaN
+        2018-01-01 02:00:00    3.0
+        Freq: None, dtype: float64
+        >>> sm.resample('30min').fillna('backfill')
+        2018-01-01 00:00:00    1.0
+        2018-01-01 00:30:00    NaN
+        2018-01-01 01:00:00    NaN
+        2018-01-01 01:30:00    3.0
         2018-01-01 02:00:00    3.0
         Freq: None, dtype: float64
         """
