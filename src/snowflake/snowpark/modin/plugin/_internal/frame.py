@@ -4,8 +4,8 @@
 import functools
 from collections.abc import Hashable
 from dataclasses import dataclass
-from functools import cached_property
 from logging import getLogger
+from types import MappingProxyType
 from typing import Any, Callable, NamedTuple, Optional, Union
 
 import pandas as native_pd
@@ -69,7 +69,7 @@ def _create_snowflake_quoted_identifier_to_data_type(
     index_column_snowflake_quoted_identifiers: list[str],
     data_column_types: Optional[list[Optional[SnowparkPandasType]]],
     index_column_types: Optional[list[Optional[SnowparkPandasType]]],
-) -> dict[str, Optional[SnowparkPandasType]]:
+) -> MappingProxyType[str, Optional[SnowparkPandasType]]:
     """
     Helper method to a create map from snowflake quoted identifier to data type.
 
@@ -87,27 +87,29 @@ def _create_snowflake_quoted_identifier_to_data_type(
     if index_column_types is not None:
         assert len(index_column_types) == len(index_column_snowflake_quoted_identifiers)
 
-    return {
-        k: v
-        for k, v in zip(
-            (
-                *data_column_snowflake_quoted_identifiers,
-                *index_column_snowflake_quoted_identifiers,
-            ),
-            (
-                *(
-                    data_column_types
-                    if data_column_types is not None
-                    else [None] * len(data_column_snowflake_quoted_identifiers)
+    return MappingProxyType(
+        {
+            k: v
+            for k, v in zip(
+                (
+                    *data_column_snowflake_quoted_identifiers,
+                    *index_column_snowflake_quoted_identifiers,
                 ),
-                *(
-                    index_column_types
-                    if index_column_types is not None
-                    else [None] * len(index_column_snowflake_quoted_identifiers)
+                (
+                    *(
+                        data_column_types
+                        if data_column_types is not None
+                        else [None] * len(data_column_snowflake_quoted_identifiers)
+                    ),
+                    *(
+                        index_column_types
+                        if index_column_types is not None
+                        else [None] * len(index_column_snowflake_quoted_identifiers)
+                    ),
                 ),
-            ),
-        )
-    }
+            )
+        }
+    )
 
 
 class UpdatedInternalFrameResult(NamedTuple):
@@ -147,7 +149,10 @@ class InternalFrame:
     # The type is None if we don't know the Snowpark data type.
     # n.b. that we map to SnowparkPandasType rather than to DataType, because
     # we don't want to try tracking regular Snowpark Python types at all.
-    snowflake_quoted_identifier_to_type: dict[str, Optional[SnowparkPandasType]]
+    # This map is a MappingProxyType so that it's immutable.
+    snowflake_quoted_identifier_to_type: MappingProxyType[
+        str, Optional[SnowparkPandasType]
+    ]
 
     @classmethod
     def create(
@@ -745,7 +750,7 @@ class InternalFrame:
                 message += f" {user_frame_identifier}"
             raise ValueError(message)
 
-    @cached_property
+    @property
     def cached_data_column_snowpark_pandas_types(
         self,
     ) -> list[Optional[SnowparkPandasType]]:
@@ -766,7 +771,7 @@ class InternalFrame:
             for v in self.label_to_snowflake_quoted_identifier[self.num_index_columns :]
         ]
 
-    @cached_property
+    @property
     def cached_index_column_snowpark_pandas_types(
         self,
     ) -> list[Optional[SnowparkPandasType]]:
