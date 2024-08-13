@@ -67,6 +67,7 @@
 - Added support for `Series.dt.is_leap_year`.
 - Added support for `DataFrame.items`.
 - Added support for `Series.dt.floor` and `Series.dt.ceil`.
+- Added support for `Index.reindex`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.

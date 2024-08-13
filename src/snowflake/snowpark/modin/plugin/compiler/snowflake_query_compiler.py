@@ -2192,6 +2192,75 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             return self._reindex_axis_1(labels=labels, **kwargs)
 
+    def _add_columns_for_monotonicity_checks(
+        self, col_to_check: str
+    ) -> tuple["SnowflakeQueryCompiler", str, str]:
+        """
+        Adds columns that check for monotonicity (increasing or decreasing) in the
+        specified column.
+
+        Parameters
+        ----------
+        col_to_check : str
+            The Snowflake quoted identifier for the column whose monotonicity to check.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler, str, str
+            A SnowflakeQueryCompiler backed by the InternalFrame with the monotonicity columns,
+            and the Snowflake quoted identifiers for the monotonically increasing and monotonically
+            decreasing columns (in that order).
+        """
+        modin_frame = self._modin_frame
+        modin_frame = modin_frame.ensure_row_position_column()
+        row_position_column = modin_frame.row_position_snowflake_quoted_identifier
+        modin_frame = modin_frame.append_column(
+            "_index_lag_col",
+            lag(col_to_check).over(Window.order_by(row_position_column)),
+        )
+        lag_col_snowflake_quoted_id = (
+            modin_frame.data_column_snowflake_quoted_identifiers[-1]
+        )
+        modin_frame = modin_frame.append_column(
+            "_is_monotonic_decreasing",
+            coalesce(
+                min_(col(col_to_check) < col(lag_col_snowflake_quoted_id)).over(),
+                pandas_lit(False),
+            ),
+        )
+        monotonic_decreasing_snowflake_quoted_id = (
+            modin_frame.data_column_snowflake_quoted_identifiers[-1]
+        )
+        modin_frame = modin_frame.append_column(
+            "_is_monotonic_increasing",
+            coalesce(
+                min_(col(col_to_check) > col(lag_col_snowflake_quoted_id)).over(),
+                pandas_lit(False),
+            ),
+        )
+        monotonic_increasing_snowflake_quoted_id = (
+            modin_frame.data_column_snowflake_quoted_identifiers[-1]
+        )
+        data_column_pandas_labels = modin_frame.data_column_pandas_labels
+        data_column_snowflake_quoted_identifiers = (
+            modin_frame.data_column_snowflake_quoted_identifiers
+        )
+        data_column_pandas_labels.remove("_index_lag_col")
+        data_column_snowflake_quoted_identifiers.remove(lag_col_snowflake_quoted_id)
+        modin_frame = InternalFrame.create(
+            ordered_dataframe=modin_frame.ordered_dataframe,
+            data_column_pandas_index_names=modin_frame.data_column_pandas_index_names,
+            data_column_pandas_labels=data_column_pandas_labels,
+            data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
+            index_column_pandas_labels=modin_frame.index_column_pandas_labels,
+            index_column_snowflake_quoted_identifiers=modin_frame.index_column_snowflake_quoted_identifiers,
+        )
+        return (
+            SnowflakeQueryCompiler(modin_frame),
+            monotonic_increasing_snowflake_quoted_id,
+            monotonic_decreasing_snowflake_quoted_id,
+        )
+
     def _reindex_axis_0(
         self,
         labels: Union[pandas.Index, list[Any]],
@@ -2223,7 +2292,29 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         modin_frame = self._modin_frame
         method = kwargs.get("method", None)
         fill_value = kwargs.get("fill_value", np.nan)  # type: ignore[arg-type]
+        limit = kwargs.get("limit", None)
         _filter_column_snowflake_quoted_id = None
+        is_index = kwargs.get("_is_index", False)
+        if is_index:
+            modin_frame = modin_frame.ensure_row_position_column()
+            row_position_column = modin_frame.row_position_snowflake_quoted_identifier
+            modin_frame = modin_frame.append_column("indices", col(row_position_column))
+            # We will also add columns to check for monotonicity so that we can throw a similar error as native pandas
+            # does for monotonicity. We do this for index objects but not DataFrame's or Series as Index.reindex returns
+            # a NumPy array of indices - which requires eager materialization, so we can just materialize the monotonicity
+            # check at the same time, and throw the appropriate error.
+            new_qc = SnowflakeQueryCompiler(modin_frame)
+            index_col_snowflake_quoted_id = (
+                modin_frame.index_column_snowflake_quoted_identifiers[0]
+            )
+            (
+                new_qc,
+                monotonic_increasing_snowflake_quoted_id,
+                monotonic_decreasing_snowflake_quoted_id,
+            ) = new_qc._add_columns_for_monotonicity_checks(
+                index_col_snowflake_quoted_id
+            )
+            modin_frame = new_qc._modin_frame
         if fill_value is not np.nan or method:
             # If we are filling values, reindex ignores NaN values that
             # were previously present in the DataFrame before reindexing.
@@ -2257,6 +2348,29 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 modin_frame.data_column_snowflake_quoted_identifiers
             )
         )
+        if is_index:
+            # We want to remove the monotonic_increasing and monotonic_decreasing columns so that they will not be filled here.
+            # We kept them for the join, since the join projects out the active columns, so if they were not present in the
+            # InternalFrame's data_column_pandas_labels and data_column_snowflake_quoted_identifiers, they would be filtered out.
+            (
+                row_position_column,
+                monotonic_decreasing_snowflake_quoted_id,
+                monotonic_increasing_snowflake_quoted_id,
+            ) = result_frame_column_mapper.map_right_quoted_identifiers(
+                [
+                    row_position_column,
+                    monotonic_decreasing_snowflake_quoted_id,
+                    monotonic_increasing_snowflake_quoted_id,
+                ]
+            )
+            data_column_pandas_labels.remove("_is_monotonic_decreasing")
+            data_column_pandas_labels.remove("_is_monotonic_increasing")
+            data_column_snowflake_quoted_identifiers.remove(
+                monotonic_decreasing_snowflake_quoted_id
+            )
+            data_column_snowflake_quoted_identifiers.remove(
+                monotonic_increasing_snowflake_quoted_id
+            )
         new_modin_frame = InternalFrame.create(
             ordered_dataframe=result_frame.ordered_dataframe,
             data_column_pandas_labels=data_column_pandas_labels,
@@ -2269,7 +2383,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         new_qc = SnowflakeQueryCompiler(new_modin_frame)
         if method or fill_value is not np.nan:
-            limit = kwargs.get("limit", None)
             new_filter_column_snowflake_quoted_id = (
                 result_frame_column_mapper.map_right_quoted_identifiers(
                     [_filter_column_snowflake_quoted_id]
@@ -2354,7 +2467,68 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                             index_column_snowflake_quoted_identifiers=new_qc._modin_frame.index_column_snowflake_quoted_identifiers,
                         )
                     )
-
+        if is_index:
+            modin_frame = new_qc._modin_frame
+            # We need to get the new quoted identifier after filling happens.
+            row_position_column = modin_frame.data_column_snowflake_quoted_identifiers[
+                modin_frame.data_column_pandas_labels.index("indices")
+            ]
+            (
+                modin_frame,
+                mapper,
+            ) = modin_frame.update_snowflake_quoted_identifiers_with_expressions(
+                {row_position_column: coalesce(row_position_column, pandas_lit(-1))}
+            )
+            row_position_column = mapper.get(row_position_column, row_position_column)
+            # Remove row_position_column
+            new_qc = SnowflakeQueryCompiler(
+                InternalFrame.create(
+                    ordered_dataframe=modin_frame.ordered_dataframe,
+                    data_column_pandas_labels=modin_frame.data_column_pandas_labels[
+                        :-1
+                    ],
+                    data_column_snowflake_quoted_identifiers=modin_frame.data_column_snowflake_quoted_identifiers[
+                        :-1
+                    ],
+                    data_column_pandas_index_names=modin_frame.data_column_pandas_index_names,
+                    index_column_pandas_labels=modin_frame.index_column_pandas_labels,
+                    index_column_snowflake_quoted_identifiers=modin_frame.index_column_snowflake_quoted_identifiers,
+                )
+            )
+            materialized_frame = new_qc._modin_frame.ordered_dataframe.select(
+                [
+                    row_position_column,
+                    monotonic_decreasing_snowflake_quoted_id,
+                    monotonic_increasing_snowflake_quoted_id,
+                ]
+            ).to_pandas()
+            monotonic_decreasing = materialized_frame.iloc[:, 1]
+            monotonic_increasing = materialized_frame.iloc[:, -1]
+            any_overlap = not monotonic_decreasing.isna().all()
+            # If there is no overlap between the target and source indexes, the result_frame will have NA values for every row in the monotonic columns.
+            # If this is the case, we shouldn't falsely error out.
+            if (
+                method is not None
+                and not (monotonic_decreasing.all() or monotonic_increasing.all())
+                and any_overlap
+            ):
+                raise ValueError("index must be monotonic increasing or decreasing")
+            if limit is not None and method is not None:
+                labels_idx = native_pd.Index(labels)
+                if (
+                    not (
+                        monotonic_increasing.all()
+                        and labels_idx.is_monotonic_increasing
+                    )
+                    and any_overlap
+                ):
+                    method_str = {"bfill": "backfill", "ffill": "pad"}.get(
+                        method, method  # type: ignore[call-overload]
+                    )
+                    raise ValueError(
+                        f"limit argument for '{method_str}' method only well-defined if index and target are monotonic"
+                    )
+            return new_qc, materialized_frame.iloc[:, 0].values  # type: ignore[return-value]
         return new_qc
 
     def _reindex_axis_1(
