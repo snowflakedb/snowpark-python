@@ -2514,7 +2514,7 @@ class Session:
                 raise pe
 
         if success:
-            table = self.table(location)
+            table = self.table(location, _emit_ast=False)
             set_api_call_source(table, "Session.write_pandas")
 
             # AST.
