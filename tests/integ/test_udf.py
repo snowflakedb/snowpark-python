@@ -67,6 +67,7 @@ from snowflake.snowpark.types import (
     Geometry,
     GeometryType,
     IntegerType,
+    LongType,
     MapType,
     StringType,
     StructField,
@@ -592,8 +593,8 @@ def test_add_import_local_file(session, resources_path):
     )
     plus4_then_mod5_udf = udf(
         plus4_then_mod5_with_1_level_import,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
+        return_type=LongType(),
+        input_types=[LongType()],
     )
     Utils.check_answer(
         df.select(plus4_then_mod5_udf("a")).collect(),
@@ -606,8 +607,8 @@ def test_add_import_local_file(session, resources_path):
 
     plus4_then_mod5_direct_import_udf = udf(
         plus4_then_mod5_with_2_level_import,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
+        return_type=LongType(),
+        input_types=[LongType()],
     )
     Utils.check_answer(
         df.select(plus4_then_mod5_direct_import_udf("a")).collect(),
@@ -638,8 +639,8 @@ def test_add_import_local_directory(session, resources_path):
     )
     plus4_then_mod5_udf = udf(
         plus4_then_mod5_with_3_level_import,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
+        return_type=LongType(),
+        input_types=[LongType()],
     )
     Utils.check_answer(
         df.select(plus4_then_mod5_udf("a")).collect(),
@@ -649,8 +650,8 @@ def test_add_import_local_directory(session, resources_path):
     session.add_import(test_files.test_udf_directory)
     plus4_then_mod5_udf = udf(
         plus4_then_mod5_with_2_level_import,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
+        return_type=LongType(),
+        input_types=[LongType()],
     )
     Utils.check_answer(
         df.select(plus4_then_mod5_udf("a")).collect(),
@@ -673,8 +674,8 @@ def test_add_import_stage_file(session, resources_path):
     session.add_import(stage_file)
     plus4_then_mod5_udf = udf(
         plus4_then_mod5_with_import,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
+        return_type=LongType(),
+        input_types=[LongType()],
     )
 
     df = session.range(-5, 5).to_df("a")
@@ -748,8 +749,8 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
     # with udf-level imports
     plus4_then_mod5_udf = udf(
         plus4_then_mod5_with_import,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
+        return_type=LongType(),
+        input_types=[LongType()],
         imports=[(test_files.test_udf_py_file, "test_udf_dir.test_udf_file")],
     )
     Utils.check_answer(
@@ -760,8 +761,8 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
     # without udf-level imports
     plus4_then_mod5_udf = udf(
         plus4_then_mod5_with_import,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
+        return_type=LongType(),
+        input_types=[LongType()],
     )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
@@ -775,8 +776,8 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
     # it will still fail even if we have session-level imports
     plus4_then_mod5_udf = udf(
         plus4_then_mod5_with_import,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
+        return_type=LongType(),
+        input_types=[LongType()],
         imports=[],
     )
     with pytest.raises(SnowparkSQLException) as ex_info:
@@ -809,8 +810,8 @@ def test_add_import_namespace_collision(session, resources_path):
 
     plus4_then_mod5_udf = udf(
         plus4_then_mod5,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
+        return_type=LongType(),
+        input_types=[LongType()],
         packages=["pandas"],
     )
 
@@ -1364,6 +1365,42 @@ def test_add_import_negative(session, resources_path):
         "udf-level import can only be a file path (str) "
         "or a tuple of the file path (str) and the import path (str)" in str(ex_info)
     )
+
+
+def test_udf_coercion(session):
+    def get_data_type(value):
+        return str(type(value))
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    str_udf = udf(
+        get_data_type,
+        return_type=StringType(),
+        input_types=[StringType()],
+        name=f"{udf_name}str",
+        session=session,
+    )
+    float_udf = udf(
+        get_data_type,
+        return_type=StringType(),
+        input_types=[FloatType()],
+        name=f"{udf_name}float",
+        session=session,
+    )
+    int_udf = udf(
+        get_data_type,
+        return_type=StringType(),
+        input_types=[LongType()],
+        name=f"{udf_name}int",
+        session=session,
+    )
+
+    df = session.create_dataframe([[1]], schema=["a"])
+
+    # Check that int input type can be coerced to expected inputs
+    Utils.check_answer(df.select(str_udf("a")), [Row("<class 'str'>")])
+    Utils.check_answer(df.select(float_udf("a")), [Row("<class 'float'>")])
+    Utils.check_answer(df.select(int_udf("a")), [Row("<class 'int'>")])
 
 
 def test_udf_variant_type(session, local_testing_mode):

@@ -933,13 +933,13 @@ def mock_to_timestamp(
     fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
-    result = mock_timestamp_ntz(column, fmt, try_cast)
+    result = mock_to_timestamp_ntz(column, fmt, try_cast)
     result.sf_type = ColumnType(TimestampType(), column.sf_type.nullable)
     return result
 
 
 @patch("to_timestamp_ntz")
-def mock_timestamp_ntz(
+def mock_to_timestamp_ntz(
     column: ColumnEmulator,
     fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
@@ -1976,12 +1976,25 @@ def cast_column_to(
 ) -> Optional[ColumnEmulator]:
     # col.sf_type.nullable = target_column_type.nullable
     target_data_type = target_column_type.datatype
+    if col.sf_type == target_column_type:
+        return col
     if isinstance(target_data_type, DateType):
         return mock_to_date(col, try_cast=try_cast)
     if isinstance(target_data_type, TimeType):
         return mock_to_time(col, try_cast=try_cast)
     if isinstance(target_data_type, TimestampType):
-        return mock_to_timestamp(col, try_cast=try_cast)
+        if target_data_type.tz is TimestampTimeZone.DEFAULT:
+            return mock_to_timestamp(col, try_cast=try_cast)
+        elif target_data_type.tz is TimestampTimeZone.LTZ:
+            return mock_to_timestamp_ltz(col, try_cast=try_cast)
+        elif target_data_type.tz is TimestampTimeZone.NTZ:
+            return mock_to_timestamp_ntz(col, try_cast=try_cast)
+        elif target_data_type.tz is TimestampTimeZone.TZ:
+            return mock_to_timestamp_tz(col, try_cast=try_cast)
+        else:
+            raise SnowparkLocalTestingException(
+                f"Unkown timezone type {target_data_type.tz} during cast."
+            )
     if isinstance(target_data_type, DecimalType):
         return mock_to_decimal(
             col,
