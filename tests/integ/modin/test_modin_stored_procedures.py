@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import modin.pandas as pd  # noqa: F401
+import modin.pandas as pd
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import sproc
@@ -255,6 +255,30 @@ def test_sproc_pivot(session):
         "C        large  small\nA   B                \nbar one    4.0      "
         "5\n    two    7.0      6\nfoo one    4.0      1\n    two    NaN      6"
     )
+
+
+@sql_count_checker(query_count=4, sproc_count=1)
+def test_sproc_apply(session):
+    @sproc(packages=PACKAGE_LIST)
+    def run(session_: Session) -> str:
+        import numpy as np
+
+        df = pd.DataFrame([[2, 0], [3, 7], [4, 9]], columns=["A", "B"])
+        df_result = df.apply(np.sum, axis=1)
+        return str(df_result)
+
+    assert run() == "0     2\n1    10\n2    13\ndtype: int64"
+
+
+@sql_count_checker(query_count=4, sproc_count=1)
+def test_sproc_applymap(session):
+    @sproc(packages=PACKAGE_LIST)
+    def run(session_: Session) -> str:
+        df = pd.DataFrame([[1, 2.12], [3.356, 4.567]])
+        df_result = df.applymap(lambda x: len(str(x)))
+        return str(df_result)
+
+    assert run() == "   0  1\n0  3  4\n1  5  5"
 
 
 @sql_count_checker(query_count=4, sproc_count=1)
