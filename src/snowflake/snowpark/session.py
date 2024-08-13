@@ -2525,8 +2525,8 @@ class Session:
                 ast = with_src_position(stmt.expr.sp_write_pandas)  # noqa: F841
 
                 ast.auto_create_table = auto_create_table
-                if chunk_size is not None:
-                    ast.chunk_size = chunk_size
+                if chunk_size is not None and chunk_size != WRITE_PANDAS_CHUNK_SIZE:
+                    ast.chunk_size.value = chunk_size
                 ast.compression = compression
                 ast.create_temp_table = create_temp_table
                 if isinstance(df, pandas.DataFrame):
@@ -2545,7 +2545,7 @@ class Session:
                 ast.on_error = on_error
                 ast.overwrite = overwrite
                 ast.parallel = parallel
-                ast.quote_identifiers = False
+                ast.quote_identifiers = quote_identifiers
 
                 # Convert to [...] location.
                 table_location = table_name
