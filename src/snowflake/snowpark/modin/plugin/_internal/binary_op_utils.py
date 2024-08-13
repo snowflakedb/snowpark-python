@@ -501,7 +501,7 @@ def prepare_binop_pairs_between_dataframe_and_dataframe(
         List of BinaryOperationPair.
     """
     # construct list of pairs which label belongs to which quoted identifier
-    type_map = aligned_rhs_and_lhs.result_frame.quoted_identifier_to_snowflake_type()
+    type_map = aligned_rhs_and_lhs.result_frame.quoted_identifier_to_type()
     left_right_pairs = []
     for label in combined_data_labels:
         left_identifier, right_identifier = None, None

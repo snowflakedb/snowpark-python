@@ -31,7 +31,7 @@ from tests.integ.modin.utils import (
 
 def validate_series_snowpark_dtype(series: pd.Series, snowpark_type: DataType) -> None:
     internal_frame = series._query_compiler._modin_frame
-    snowpark_type_map = internal_frame.quoted_identifier_to_snowflake_type()
+    snowpark_type_map = internal_frame.quoted_identifier_to_type()
     snowpark_dtypes = [
         snowpark_type_map[quoted_identifier]
         for quoted_identifier in internal_frame.data_column_snowflake_quoted_identifiers

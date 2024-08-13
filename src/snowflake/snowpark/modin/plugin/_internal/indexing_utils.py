@@ -379,7 +379,7 @@ def get_frame_by_row_pos_frame(
         The selected frame
     """
     # check data type
-    key_datatype = key.quoted_identifier_to_snowflake_type()[
+    key_datatype = key.quoted_identifier_to_type()[
         key.data_column_snowflake_quoted_identifiers[0]
     ]
     # implicitly allow float types to be compatible with pandas
@@ -1211,7 +1211,7 @@ def get_frame_by_row_label(
     ), f"frontend should convert key to the supported types but got {type(key)}"
 
     # check data type
-    key_datatype = key.quoted_identifier_to_snowflake_type()[
+    key_datatype = key.quoted_identifier_to_type()[
         key.data_column_snowflake_quoted_identifiers[0]
     ]
 
@@ -1616,7 +1616,7 @@ def _get_frame_by_row_label_non_boolean_frame(
         # Otherwise, when key value is not array type, loc does prefix match, i.e., match the top level only
         # e.g., if the internal frame has multiindex ["foo", "bar"]
         if isinstance(
-            key.quoted_identifier_to_snowflake_type()[
+            key.quoted_identifier_to_type()[
                 key.data_column_snowflake_quoted_identifiers[0]
             ],
             ArrayType,
@@ -1701,8 +1701,8 @@ def _get_frame_by_row_series_bool(
     # e.g. `df = pd.DataFrame({'val': range(3)}, index=['2023-01-01', '2023-01-02', '2023-01-03', ])
     # bool_series = pd.Series([False, False, True, ],index=pd.date_range('2023-01-01', periods=3, freq='D'))
     # `df.loc[bool_series]` should return a dataframe with the third row from df
-    key_index_type = key.quoted_identifier_to_snowflake_type()[key_index_identifier]
-    df_index_type = internal_frame.quoted_identifier_to_snowflake_type()[
+    key_index_type = key.quoted_identifier_to_type()[key_index_identifier]
+    df_index_type = internal_frame.quoted_identifier_to_type()[
         internal_frame.index_column_snowflake_quoted_identifiers[0]
     ]
     if (
@@ -2613,7 +2613,7 @@ def set_frame_2d_positional(
     -------
     The result is a frame that has the indexed row and columns replaced with item values.
     """
-    index_data_type = index.quoted_identifier_to_snowflake_type()[
+    index_data_type = index.quoted_identifier_to_type()[
         index.data_column_snowflake_quoted_identifiers[0]
     ]
 

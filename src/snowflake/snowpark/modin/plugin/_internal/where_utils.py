@@ -16,9 +16,7 @@ def validate_expected_boolean_data_columns(frame: InternalFrame) -> None:
     Returns:
         None
     """
-    frame_snowflake_identifier_to_data_type_map = (
-        frame.quoted_identifier_to_snowflake_type()
-    )
+    frame_snowflake_identifier_to_data_type_map = frame.quoted_identifier_to_type()
 
     if not all(
         isinstance(

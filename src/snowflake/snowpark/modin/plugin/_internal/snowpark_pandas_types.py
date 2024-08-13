@@ -85,6 +85,15 @@ class SnowparkPandasType(DataType, metaclass=SnowparkPandasTypeMetaclass):
         Convert an object representing this type in Snowpark Python to the pandas representation.
         """
 
+    @staticmethod
+    def get_snowpark_pandas_type_for_pandas_type(
+        pandas_type: type,
+    ) -> Optional["SnowparkPandasType"]:
+        """
+        Get the corresponding Snowpark pandas type, if it exists, for a given pandas type.
+        """
+        return _pandas_type_to_snowpark_pandas_type.get(pandas_type, None)
+
 
 class TimedeltaType(SnowparkPandasType):
     """
@@ -99,6 +108,8 @@ class TimedeltaType(SnowparkPandasType):
     types_to_convert_with_from_pandas = [native_pd.Timedelta, datetime.timedelta]
 
     def __init__(self) -> None:
+        # TODO(SNOW-1620452): Remove this warning message before releasing
+        # Timedelta support.
         WarningMessage.single_warning(TIMEDELTA_WARNING_MESSAGE)
         super().__init__()
 
@@ -120,7 +131,7 @@ class TimedeltaType(SnowparkPandasType):
         return native_pd.Timedelta(value).value
 
 
-def rewrite_python_object_if_snowpark_pandas_type(value: Any) -> Any:
+def ensure_snowpark_python_type(value: Any) -> Any:
     """
     If a python object is an instance of a Snowpark pandas type, rewrite it into its Snowpark Python representation.
     """
@@ -128,12 +139,3 @@ def rewrite_python_object_if_snowpark_pandas_type(value: Any) -> Any:
         if isinstance(value, cls):
             return from_pandas(value)
     return value
-
-
-def get_snowpark_pandas_type_for_pandas_type(
-    pandas_type: type,
-) -> Optional[SnowparkPandasType]:
-    """
-    Get the corresponding Snowpark pandas type, if it exists, for a given pandas type.
-    """
-    return _pandas_type_to_snowpark_pandas_type.get(pandas_type, None)

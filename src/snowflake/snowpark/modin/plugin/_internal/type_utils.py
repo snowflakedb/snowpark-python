@@ -43,7 +43,6 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
     SnowparkPandasType,
-    get_snowpark_pandas_type_for_pandas_type,
 )
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     generate_timestamp_col,
@@ -245,7 +244,9 @@ class TypeMapper:
         if is_float_dtype(p):
             return DoubleType()
 
-        snowpark_pandas_type = get_snowpark_pandas_type_for_pandas_type(p)
+        snowpark_pandas_type = (
+            SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(p)
+        )
         if snowpark_pandas_type is not None:
             return snowpark_pandas_type()
 
