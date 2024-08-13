@@ -62,6 +62,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SaveMode,
     SnowflakeCreateTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -3967,8 +3968,8 @@ class DataFrame:
                     None,
                     SaveMode.ERROR_IF_EXISTS,
                     self._plan,
+                    creation_source=TableCreationSource.CACHE_RESULT,
                     table_type="temp",
-                    is_generated=True,
                 )
             )
             self._session._conn.execute(
