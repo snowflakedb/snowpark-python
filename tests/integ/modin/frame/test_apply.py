@@ -97,6 +97,7 @@ BASIC_DATA_FUNC_RETURN_TYPE_MAP = (
 )
 
 
+@pytest.mark.modin_sp_precommit
 @pytest.mark.parametrize("data, func, return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
 def test_axis_1_basic_types_without_type_hints(data, func, return_type):
     # this test processes functions without type hints and invokes the UDTF solution.
@@ -109,6 +110,7 @@ def test_axis_1_basic_types_without_type_hints(data, func, return_type):
 @pytest.mark.parametrize(
     "data, func, return_type", BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP
 )
+@pytest.mark.modin_sp_precommit
 def test_axis_1_basic_types_with_type_hints(data, func, return_type):
     # create explicitly for supported python types UDF with type hints and process via vUDF.
     native_df = native_pd.DataFrame(data, columns=["A", "b"])
@@ -846,6 +848,7 @@ def test_apply_axis_1_frame_with_column_of_all_nulls_snow_1233832(null_value):
 import scipy.stats  # noqa: E402
 
 
+@pytest.mark.modin_sp_precommit
 @pytest.mark.parametrize(
     "packages,expected_query_count",
     [
