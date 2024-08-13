@@ -41,6 +41,7 @@ from snowflake.snowpark.modin.plugin.extensions.index import Index
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     datetime_index_not_implemented,
 )
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 _CONSTRUCTOR_DEFAULTS = {
     "freq": lib.no_default,
@@ -160,6 +161,39 @@ class DatetimeIndex(Index):
         }
         self._init_index(data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs)
 
+    def _dt_property(self, property_name: str) -> Index:
+        """
+        Get the datetime property.
+
+        Parameters
+        ----------
+        property_name : str
+            The name of the datetime property.
+
+        Returns
+        -------
+        Index
+            The datetime property.
+        """
+        if property_name in (
+            "date",
+            "is_month_start",
+            "is_month_end",
+            "is_quarter_start",
+            "is_quarter_end",
+            "is_year_start",
+            "is_year_end",
+            "is_leap_year",
+        ):
+            WarningMessage.single_warning(
+                f"For DatetimeIndex.{property_name} native pandas returns a python array but Snowpark pandas returns a lazy Index."
+            )
+        return Index(
+            query_compiler=self._query_compiler.dt_property(
+                property_name, include_index=True
+            )
+        )
+
     @property
     def year(self) -> Index:
         """
@@ -177,7 +211,7 @@ class DatetimeIndex(Index):
         >>> idx.year
         Index([2000, 2001, 2002], dtype='int32')
         """
-        return Index(self._query_compiler.dt_property("year", include_index=True))
+        return self._dt_property("year")
 
     @property
     def month(self) -> Index:
@@ -196,7 +230,7 @@ class DatetimeIndex(Index):
         >>> idx.month
         Index([1, 2, 3], dtype='int32')
         """
-        return Index(self._query_compiler.dt_property("month", include_index=True))
+        return self._dt_property("month")
 
     @property
     def day(self) -> Index:
@@ -215,7 +249,7 @@ class DatetimeIndex(Index):
         >>> idx.day
         Index([1, 2, 3], dtype='int32')
         """
-        return Index(self._query_compiler.dt_property("day", include_index=True))
+        return self._dt_property("day")
 
     @property
     def hour(self) -> Index:
@@ -234,7 +268,7 @@ class DatetimeIndex(Index):
         >>> idx.hour
         Index([0, 1, 2], dtype='int32')
         """
-        return Index(self._query_compiler.dt_property("hour", include_index=True))
+        return self._dt_property("hour")
 
     @property
     def minute(self) -> Index:
@@ -253,7 +287,7 @@ class DatetimeIndex(Index):
         >>> idx.minute
         Index([0, 1, 2], dtype='int32')
         """
-        return Index(self._query_compiler.dt_property("minute", include_index=True))
+        return self._dt_property("minute")
 
     @property
     def second(self) -> Index:
@@ -272,7 +306,7 @@ class DatetimeIndex(Index):
         >>> idx.second
         Index([0, 1, 2], dtype='int32')
         """
-        return Index(self._query_compiler.dt_property("second", include_index=True))
+        return self._dt_property("second")
 
     @property
     def microsecond(self) -> Index:
@@ -291,9 +325,7 @@ class DatetimeIndex(Index):
         >>> idx.microsecond
         Index([0, 1, 2], dtype='int32')
         """
-        return Index(
-            self._query_compiler.dt_property("microsecond", include_index=True)
-        )
+        return self._dt_property("microsecond")
 
     @property
     def nanosecond(self) -> Index:
@@ -312,7 +344,7 @@ class DatetimeIndex(Index):
         >>> idx.nanosecond
         Index([0, 1, 2], dtype='int32')
         """
-        return Index(self._query_compiler.dt_property("nanosecond", include_index=True))
+        return self._dt_property("nanosecond")
 
     @property
     def date(self) -> Index:
@@ -321,7 +353,8 @@ class DatetimeIndex(Index):
 
         Returns
         -------
-        Returns an Index with the date part of Timestamps.
+        Returns an Index with the date part of Timestamps. Note this is different
+        from native pandas which returns a python array.
 
         Examples
         --------
@@ -330,7 +363,7 @@ class DatetimeIndex(Index):
         >>> idx.date
         Index("2020-01-01", "2020-02-01", dtype='object')
         """
-        return Index(self._query_compiler.dt_property("date", include_index=True))
+        return self._dt_property("date")
 
     @property
     def dayofweek(self) -> Index:
@@ -352,7 +385,7 @@ class DatetimeIndex(Index):
         >>> idx.dayofweek
         Index([5, 6, 0, 1, 2, 3, 4, 5, 6], dtype='int32')
         """
-        return Index(self._query_compiler.dt_property("dayofweek", include_index=True))
+        return self._dt_property("dayofweek")
 
     day_of_week = dayofweek
     weekday = dayofweek
@@ -373,7 +406,7 @@ class DatetimeIndex(Index):
         >>> idx.dayofyear
         Index([1, 32], dtype='int32')
         """
-        return Index(self._query_compiler.dt_property("dayofyear", include_index=True))
+        return self._dt_property("dayofyear")
 
     day_of_year = dayofyear
 
@@ -393,7 +426,7 @@ class DatetimeIndex(Index):
         >>> idx.quarter
         Index([1, 1], dtype='int32')
         """
-        return Index(self._query_compiler.dt_property("quarter", include_index=True))
+        return self._dt_property("quarter")
 
     @property
     def is_month_start(self) -> Index:
@@ -402,7 +435,8 @@ class DatetimeIndex(Index):
 
         Returns
         -------
-        An Index with boolean values.
+        An Index with boolean values. Note this is different from native pandas which
+        returns a python array.
 
         See Also
         --------
@@ -410,14 +444,11 @@ class DatetimeIndex(Index):
 
         Examples
         --------
-
         >>> idx = pd.date_range("2018-02-27", periods=3)
         >>> idx.is_month_start
         Index([False, False, True])
         """
-        return Index(
-            self._query_compiler.dt_property("is_month_start", include_index=True)
-        )
+        return self._dt_property("is_month_start")
 
     @property
     def is_month_end(self) -> Index:
@@ -426,7 +457,8 @@ class DatetimeIndex(Index):
 
         Returns
         -------
-        An Index with boolean values.
+        An Index with boolean values. Note this is different from native pandas which
+        returns a python array.
 
         See Also
         --------
@@ -439,9 +471,7 @@ class DatetimeIndex(Index):
         >>> idx.is_month_end
         Index([False, True, False])
         """
-        return Index(
-            self._query_compiler.dt_property("is_month_end", include_index=True)
-        )
+        return self._dt_property("is_month_end")
 
     @property
     def is_quarter_start(self) -> Index:
@@ -450,7 +480,8 @@ class DatetimeIndex(Index):
 
         Returns
         -------
-        An Index with boolean values.
+        An Index with boolean values. Note this is different from native pandas which
+        returns a python array.
 
         See Also
         --------
@@ -466,9 +497,7 @@ class DatetimeIndex(Index):
         >>> idx.is_quarter_start
         Index([False, False,  True, False])
         """
-        return Index(
-            self._query_compiler.dt_property("is_quarter_start", include_index=True)
-        )
+        return self._dt_property("is_quarter_start")
 
     @property
     def is_quarter_end(self) -> Index:
@@ -477,7 +506,8 @@ class DatetimeIndex(Index):
 
         Returns
         -------
-        An Index with boolean values.
+        An Index with boolean values. Note this is different from native pandas which
+        returns a python array.
 
         See Also
         --------
@@ -493,9 +523,7 @@ class DatetimeIndex(Index):
         >>> idx.is_quarter_end
         Index([False,  True, False, False])
         """
-        return Index(
-            self._query_compiler.dt_property("is_quarter_end", include_index=True)
-        )
+        return self._dt_property("is_quarter_end")
 
     @property
     def is_year_start(self) -> Index:
@@ -504,7 +532,8 @@ class DatetimeIndex(Index):
 
         Returns
         -------
-        An Index with boolean values.
+        An Index with boolean values. Note this is different from native pandas which
+        returns a python array.
 
         See Also
         --------
@@ -519,9 +548,7 @@ class DatetimeIndex(Index):
         >>> idx.is_year_start
         Index([False, False,  True])
         """
-        return Index(
-            self._query_compiler.dt_property("is_year_start", include_index=True)
-        )
+        return self._dt_property("is_year_start")
 
     @property
     def is_year_end(self) -> Index:
@@ -530,7 +557,8 @@ class DatetimeIndex(Index):
 
         Returns
         -------
-        An Index with boolean values.
+        An Index with boolean values. Note this is different from native pandas which
+        returns a python array.
 
         See Also
         --------
@@ -546,9 +574,7 @@ class DatetimeIndex(Index):
         >>> idx.is_year_end
         Index([False,  True, False])
         """
-        return Index(
-            self._query_compiler.dt_property("is_year_end", include_index=True)
-        )
+        return self._dt_property("is_year_end")
 
     @property
     def is_leap_year(self) -> Index:
@@ -562,7 +588,8 @@ class DatetimeIndex(Index):
 
         Returns
         -------
-        An Index with boolean values indicating if dates belong to a leap year.
+        An Index with boolean values. Note this is different from native pandas which
+        returns a python array.
 
         Examples
         --------
@@ -572,9 +599,7 @@ class DatetimeIndex(Index):
         >>> idx.is_leap_year
         Index([ True, False, False])
         """
-        return Index(
-            self._query_compiler.dt_property("is_leap_year", include_index=True)
-        )
+        return self._dt_property("is_leap_year")
 
     @datetime_index_not_implemented()
     @property
@@ -593,7 +618,6 @@ class DatetimeIndex(Index):
         >>> idx.time
         Index(["10:00:00", "11:00:00"], dtype='object')
         """
-        pass
 
     @datetime_index_not_implemented()
     @property
@@ -612,7 +636,6 @@ class DatetimeIndex(Index):
         >>> idx.timetz
         Index(["10:00:00+00:00", "11:00:00+00:00"], dtype='object')
         """
-        pass
 
     @datetime_index_not_implemented()
     @property
@@ -632,7 +655,6 @@ class DatetimeIndex(Index):
         >>> idx.tz
         datetime.timezone.utc
         """
-        pass
 
     @datetime_index_not_implemented()
     @property
@@ -653,7 +675,6 @@ class DatetimeIndex(Index):
         >>> idx.freqstr
         '2D'
         """
-        pass
 
     @datetime_index_not_implemented()
     @property
@@ -669,4 +690,3 @@ class DatetimeIndex(Index):
         >>> idx.inferred_freq
         '2D'
         """
-        pass
