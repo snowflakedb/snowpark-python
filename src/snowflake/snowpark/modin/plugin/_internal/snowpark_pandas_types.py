@@ -14,7 +14,7 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.types import DataType, LongType
 
 TIMEDELTA_WARNING_MESSAGE = (
-    "Snowpark pandas support for Timedelta is still under development."
+    "Snowpark pandas support for Timedelta is not currently available."
 )
 
 
@@ -114,7 +114,7 @@ class TimedeltaType(SnowparkPandasType):
         """
         Convert a pandas representation of a Timedelta to its nanoseconds.
         """
-        # `Timeedelta.value` converts Timedelta to nanoseconds.
+        # `Timedelta.value` converts Timedelta to nanoseconds.
         if isinstance(value, native_pd.Timedelta):
             return value.value
         return native_pd.Timedelta(value).value

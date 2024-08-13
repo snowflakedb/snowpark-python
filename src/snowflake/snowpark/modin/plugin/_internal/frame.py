@@ -100,7 +100,7 @@ class InternalFrame:
     # The type is None if we don't know the Snowpark data type.
     # n.b. that we map to SnowparkPandasType rather than to DataType, because
     # we don't want to try tracking regular Snowpark Python types at all.
-    snowflake_quoted_identifier_to_data_type: dict[str, Optional[SnowparkPandasType]]
+    snowflake_quoted_identifier_to_type: dict[str, Optional[SnowparkPandasType]]
 
     @classmethod
     def create(
