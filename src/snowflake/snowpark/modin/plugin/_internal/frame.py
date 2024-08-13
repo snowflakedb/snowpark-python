@@ -96,7 +96,7 @@ class InternalFrame:
     # The length of data_column_index_names equals to number of multiindex levels.
     # For a 3-level MultiIndex, the value can be like ['A', 'B', 'C']
     data_column_index_names: tuple[LabelTuple, ...]
-    # Map from snowflaked identifier to cached Snowpark pandas data type.
+    # Map from snowflake identifier to cached Snowpark pandas data type.
     # The type is None if we don't know the Snowpark data type.
     # n.b. that we map to SnowparkPandasType rather than to DataType, because
     # we don't want to try tracking regular Snowpark Python types at all.

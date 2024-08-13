@@ -29,7 +29,7 @@ class SnowparkPandasTypeMetaclass(
     """
     This class is a Metaclass for Snowpark pandas types.
 
-    Defining a class through this metaclas updates some global type conversion
+    Defining a class through this metaclass updates some global type conversion
     information. We can refer to that information anywhere we need to do Snowpark
     pandas type conversion, e.g. in from_pandas and to_pandas.
     """
