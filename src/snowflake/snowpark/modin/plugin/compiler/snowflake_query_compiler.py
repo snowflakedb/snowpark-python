@@ -1360,10 +1360,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_labels=new_pandas_labels.tolist(),
             data_column_pandas_index_names=new_pandas_labels.names,
             data_column_snowflake_quoted_identifiers=new_data_column_snowflake_quoted_identifiers,
-            data_column_types=renamed_frame.cached_data_column_snowpark_types(),
+            data_column_types=renamed_frame.cached_data_column_snowpark_pandas_types(),
             index_column_pandas_labels=renamed_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=renamed_frame.index_column_snowflake_quoted_identifiers,
-            index_column_types=renamed_frame.cached_index_column_snowpark_types(),
+            index_column_types=renamed_frame.cached_index_column_snowpark_pandas_types(),
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -13222,6 +13222,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             label_to_snowflake_quoted_identifier=label_to_snowflake_quoted_identifier,
             num_index_columns=new_frame.num_index_columns,
             data_column_index_names=new_frame.data_column_index_names,
+            snowflake_quoted_identifier_to_data_type={
+                pair.snowflake_quoted_identifier: None
+                for pair in label_to_snowflake_quoted_identifier
+            },
         )
 
         return SnowflakeQueryCompiler(new_frame)

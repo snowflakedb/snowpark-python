@@ -1028,7 +1028,7 @@ def create_ordered_dataframe_from_pandas(
     snowflake_quoted_identifiers: list[str],
     ordering_columns: Optional[list[OrderingColumn]] = None,
     row_position_snowflake_quoted_identifier: Optional[str] = None,
-) -> tuple[OrderedDataFrame, list[DataType]]:
+) -> tuple[OrderedDataFrame, list[Optional[SnowparkPandasType]]]:
     """
     Create Ordered dataframe from pandas dataframe with proper pre-processing.
     The preprocess includes:
@@ -1046,8 +1046,11 @@ def create_ordered_dataframe_from_pandas(
     Returns:
         Tuple containing the following in order:
             1) Ordered dataframe that is created out of the data of the given native pandas dataframe
-            2) List of DataType for each column in the OrderedDataFrame. These may include
-               instances of SnowparkPythonType that Snowpark Python is not aware of.
+            2) List of Optional[SnowparkPandasType] for each column in the
+               OrderedDataFrame. If the column has to be represented by a
+               SnowparkPandasType that does not exist in Snowpark Python,
+               we use a SnowparkPandasType for the corresponding type in
+               this list. Otherwise, we use None so that we defer to Snowflake.
     """
     assert len(snowflake_quoted_identifiers) == len(
         df.columns
@@ -1064,18 +1067,28 @@ def create_ordered_dataframe_from_pandas(
     for i, (label, _) in enumerate(df.dtypes.items()):
         quoted_identifier = snowflake_quoted_identifiers[i]
         snowflake_type = infer_series_type(df[label])
-        struct_fields.append(
-            StructField(
-                quoted_identifier,
-                (
-                    # Snowpark Python will not recognize SnowparkPandasType.
-                    snowflake_type.snowpark_type
-                    if isinstance(snowflake_type, SnowparkPandasType)
-                    else snowflake_type
-                ),
+        if isinstance(snowflake_type, SnowparkPandasType):
+            # To create the Snowpark dataframe, we need to specify valid
+            # Snowpark Python types, so we can't specify
+            # SnowparkPandasType types.
+            struct_fields.append(
+                StructField(
+                    quoted_identifier,
+                    (snowflake_type.snowpark_type),
+                )
             )
-        )
-        snowpark_pandas_types.append(snowflake_type)
+            snowpark_pandas_types.append(snowflake_type)
+        else:
+            struct_fields.append(
+                StructField(
+                    quoted_identifier,
+                    (snowflake_type),
+                )
+            )
+            # For types that are not SnowparkPandasType, we need to ask
+            # Snowflake for the type, so we mark the type as unknown by
+            # returning None.
+            snowpark_pandas_types.append(None)
 
     # in pandas, missing value can be represented ad np.nan, pd.NA, pd.NaT and None,
     # and should be mapped to None in Snowpark input, and eventually be mapped to NULL

@@ -28,6 +28,9 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
     OrderingColumn,
 )
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    SnowparkPandasType,
+)
 from snowflake.snowpark.modin.plugin._internal.type_utils import TypeMapper
 from snowflake.snowpark.modin.plugin._internal.utils import (
     DEFAULT_DATA_COLUMN_LABEL,
@@ -93,9 +96,11 @@ class InternalFrame:
     # The length of data_column_index_names equals to number of multiindex levels.
     # For a 3-level MultiIndex, the value can be like ['A', 'B', 'C']
     data_column_index_names: tuple[LabelTuple, ...]
-    # Map from snowflaked identifier to cached Snowpark data type.
+    # Map from snowflaked identifier to cached Snowpark pandas data type.
     # The type is None if we don't know the Snowpark data type.
-    snowflake_quoted_identifier_to_data_type: dict[str, Optional[DataType]]
+    # n.b. that we map to SnowparkPandasType rather than to DataType, because
+    # we don't want to try tracking regular Snowpark Python types at all.
+    snowflake_quoted_identifier_to_data_type: dict[str, Optional[SnowparkPandasType]]
 
     @classmethod
     def create(
@@ -105,10 +110,10 @@ class InternalFrame:
         data_column_pandas_labels: list[Hashable],
         data_column_pandas_index_names: list[Hashable],
         data_column_snowflake_quoted_identifiers: list[str],
-        data_column_types: Optional[list[Optional[DataType]]] = None,
+        data_column_types: Optional[list[Optional[SnowparkPandasType]]] = None,
         index_column_pandas_labels: list[Hashable],
         index_column_snowflake_quoted_identifiers: list[str],
-        index_column_types: Optional[list[Optional[DataType]]] = None,
+        index_column_types: Optional[list[Optional[SnowparkPandasType]]] = None,
     ) -> "InternalFrame":
         """
         Args:
@@ -118,10 +123,10 @@ class InternalFrame:
             data_column_snowflake_quoted_identifiers: A list of snowflake quoted identifiers for pandas data columns,
                 represented by str. These identifiers are used to refer columns in underlying snowpark dataframe to
                 access data in snowflake.
-            data_column_types: An optional list of optional Snowpark types for the data columns.
+            data_column_types: An optional list of optional Snowpark pandas types for the data columns.
             index_column_pandas_labels: A list of pandas index column labels.
             index_column_snowflake_quoted_identifiers: A list of snowflake quoted identifiers for pandas index columns.
-            index_column_types: An optional list of optional Snowpark types for the index columns.
+            index_column_types: An optional list of optional Snowpark pandas types for the index columns.
         """
         assert len(data_column_snowflake_quoted_identifiers) == len(
             data_column_pandas_labels
@@ -446,7 +451,7 @@ class InternalFrame:
             self.ordered_dataframe.select(
                 self.index_column_snowflake_quoted_identifiers
             ),
-            type_overrides=self.cached_index_column_snowpark_types(),
+            type_overrides=self.cached_index_column_snowpark_pandas_types(),
             **kwargs,
         ).values
         if self.is_multiindex(axis=0):
@@ -710,9 +715,11 @@ class InternalFrame:
                 message += f" {user_frame_identifier}"
             raise ValueError(message)
 
-    def cached_data_column_snowpark_types(self) -> list[Optional[DataType]]:
+    def cached_data_column_snowpark_pandas_types(
+        self,
+    ) -> list[Optional[SnowparkPandasType]]:
         """
-        Return the cached Snowpark types for this frame's data columns.
+        Return the cached Snowpark pandas types for this frame's data columns.
 
         The cached Snowpark types may be different from the Snowpark types in
         the OrderedDataframe for types that don't exist in Snowpark Python, like
@@ -728,9 +735,11 @@ class InternalFrame:
             for v in self.label_to_snowflake_quoted_identifier[self.num_index_columns :]
         ]
 
-    def cached_index_column_snowpark_types(self) -> list[Optional[DataType]]:
+    def cached_index_column_snowpark_pandas_types(
+        self,
+    ) -> list[Optional[SnowparkPandasType]]:
         """
-        Return the cached Snowpark types for this frame's index columns.
+        Return the cached Snowpark pandas types for this frame's index columns.
 
         The cached Snowpark types may be different from the Snowpark types in
         the OrderedDataframe for types that don't exist in Snowpark Python, like
@@ -767,8 +776,8 @@ class InternalFrame:
         native_df = snowpark_to_pandas_helper(
             ordered_dataframe,
             statement_params=statement_params,
-            type_overrides=self.cached_index_column_snowpark_types()
-            + self.cached_data_column_snowpark_types(),
+            type_overrides=self.cached_index_column_snowpark_pandas_types()
+            + self.cached_data_column_snowpark_pandas_types(),
             **kwargs,
         )
 
@@ -1012,12 +1021,12 @@ class InternalFrame:
                 self.data_column_snowflake_quoted_identifiers
             ),
             data_column_pandas_index_names=self.data_column_pandas_index_names,
-            data_column_types=self.cached_data_column_snowpark_types(),
+            data_column_types=self.cached_data_column_snowpark_pandas_types(),
             index_column_pandas_labels=self.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=get_updated_identifiers(
                 self.index_column_snowflake_quoted_identifiers
             ),
-            index_column_types=self.cached_index_column_snowpark_types(),
+            index_column_types=self.cached_index_column_snowpark_pandas_types(),
         )
 
     def update_snowflake_quoted_identifiers_with_expressions(
