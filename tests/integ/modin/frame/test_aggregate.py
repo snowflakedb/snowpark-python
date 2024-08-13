@@ -23,6 +23,10 @@ from tests.integ.modin.utils import (
 )
 
 
+def sensitive_function_name(col: native_pd.Series) -> int:
+    return col.sum()
+
+
 @pytest.fixture(scope="function")
 def numeric_native_df() -> native_pd.DataFrame:
     native_df = native_pd.DataFrame(
@@ -86,6 +90,7 @@ def native_df_multiindex() -> native_pd.DataFrame:
         (lambda df: df.std(), 0),
         (lambda df: df.var(), 0),
         (lambda df: df.quantile(), 0),
+        (lambda df: df.corr(), 2),
         (lambda df: df.aggregate(["idxmin"]), 0),
         (
             lambda df: df.aggregate(
@@ -100,6 +105,32 @@ def test_agg_basic(numeric_native_df, func, expected_union_count):
     snow_df = pd.DataFrame(numeric_native_df)
     with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(snow_df, numeric_native_df, func)
+
+
+@pytest.mark.parametrize("min_periods", [None, -1, 0, 1, 2, 3, 4])
+@sql_count_checker(query_count=1, union_count=2)
+def test_corr_min_periods(min_periods):
+    snow_df, pandas_df = create_test_dfs(
+        {"a": [None, 1, 2], "b": [3, 4, 5], "c": [6, 7, 8]}
+    )
+    eval_snowpark_pandas_result(
+        snow_df, pandas_df, lambda df: df.corr(min_periods=min_periods)
+    )
+
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        "kendall",
+        "spearman",
+        lambda x, y: np.minimum(x, y).sum().round(decimals=1),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_corr_negative(numeric_native_df, method):
+    snow_df = pd.DataFrame(numeric_native_df)
+    with pytest.raises(NotImplementedError):
+        snow_df.corr(method=method)
 
 
 @pytest.mark.parametrize(
@@ -307,6 +338,7 @@ class TestNamedAggDupColPandasFails:
         (lambda df: df.median(numeric_only=True), 0),
         (lambda df: df.std(numeric_only=True), 0),
         (lambda df: df.var(numeric_only=True), 0),
+        (lambda df: df.corr(numeric_only=True), 1),
         (lambda df: df.aggregate("max"), 0),
     ],
 )
@@ -553,6 +585,7 @@ def test_agg_with_no_column_raises(pandas_df):
         lambda df: df.aggregate(min),
         lambda df: df.max(),
         lambda df: df.count(),
+        lambda df: df.corr(),
         lambda df: df.aggregate(x=("A", "min")),
     ],
 )
@@ -564,19 +597,20 @@ def test_agg_with_single_col(func):
 
 
 @pytest.mark.parametrize(
-    "func",
+    "func, expected_union_count",
     [
-        lambda df: df.aggregate(min),
-        lambda df: df.max(),
-        lambda df: df.count(),
-        lambda df: df.aggregate(x=("A", "min")),
+        (lambda df: df.aggregate(min), 0),
+        (lambda df: df.max(), 0),
+        (lambda df: df.count(), 0),
+        (lambda df: df.corr(), 1),
+        (lambda df: df.aggregate(x=("A", "min")), 0),
     ],
 )
-@sql_count_checker(query_count=1)
-def test_agg_with_multi_col(func):
+def test_agg_with_multi_col(func, expected_union_count):
     native_df = native_pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]})
     snow_df = pd.DataFrame(native_df)
-    eval_snowpark_pandas_result(snow_df, native_df, func)
+    with SqlCounter(query_count=1, union_count=expected_union_count):
+        eval_snowpark_pandas_result(snow_df, native_df, func)
 
 
 @pytest.mark.parametrize(
@@ -615,8 +649,8 @@ def test_ddof(numeric_native_df, func):
 @pytest.mark.parametrize(
     "func",
     [
-        lambda df: df.std(ddof=2),
-        lambda df: df.var(ddof=2),
+        "std",
+        "var",
     ],
 )
 @sql_count_checker(query_count=0)
@@ -625,9 +659,13 @@ def test_ddof_fallback_negative(numeric_native_df, func):
     snow_df = pd.DataFrame(numeric_native_df)
     with pytest.raises(
         NotImplementedError,
-        match="Aggregate function .* not supported yet in Snowpark pandas.",
+        match=re.escape(
+            f"Snowpark pandas aggregate does not yet support the aggregation '{func}' with the given arguments."
+        ),
     ):
-        eval_snowpark_pandas_result(snow_df, numeric_native_df, func)
+        eval_snowpark_pandas_result(
+            snow_df, numeric_native_df, lambda df: getattr(df, func)(ddof=2)
+        )
 
 
 @pytest.mark.parametrize("skipna", [True, False])
@@ -934,18 +972,73 @@ def test_named_agg_not_supported_axis_1(numeric_native_df):
         snow_df.agg(x=("A", "min"), axis=1)
 
 
+@pytest.mark.parametrize(
+    "func, kwargs, error_pattern",
+    # note that we expect some functions like `any` to become strings like
+    # 'any' in the error message because of preprocessing in the modin API
+    # layer in [1]. That's okay.
+    # [1] https://github.com/snowflakedb/snowpark-python/blob/7c854cb30df2383042d7899526d5237a44f9fdaf/src/snowflake/snowpark/modin/pandas/utils.py#L633
+    [
+        param(
+            sensitive_function_name,
+            {},
+            "Snowpark pandas aggregate does not yet support the aggregation Callable with the given arguments",
+            id="user_defined_function",
+        ),
+        param(
+            [sensitive_function_name, "size"],
+            {},
+            "Snowpark pandas aggregate does not yet support the aggregation \\[Callable, 'size'\\] with the given arguments",
+            id="list_with_user_defined_function_and_string",
+        ),
+        param(
+            (sensitive_function_name, "size"),
+            {},
+            "Snowpark pandas aggregate does not yet support the aggregation \\[Callable, 'size'\\] with the given arguments",
+            id="tuple_with_user_defined_function_and_string",
+        ),
+        param(
+            {sensitive_function_name, "size"},
+            {},
+            "Snowpark pandas aggregate does not yet support the aggregation \\[Callable, 'size'\\]|\\['size', Callable\\] with the given arguments",
+            id="set_with_user_defined_function_and_string",
+        ),
+        param(
+            (all, any, len, list, min, max, set, str, tuple, native_pd.Series.sum),
+            {},
+            "Snowpark pandas aggregate does not yet support the aggregation "
+            + "\\['all', 'any', <built-in function len>, list, 'min', 'max', set, str, tuple, Callable]"
+            + " with the given arguments",
+            id="tuple_with_builtins_and_native_pandas_function",
+        ),
+        param(
+            {"A": sensitive_function_name, "B": sum, "C": [np.mean, "size"]},
+            {},
+            "Snowpark pandas aggregate does not yet support the aggregation "
+            + "{label: Callable, label: 'sum', label: \\[np\\.mean, 'size'\\]}"
+            + " with the given arguments",
+            id="dict",
+        ),
+        param(
+            None,
+            {"x": ("A", np.exp), "y": pd.NamedAgg("C", sum)},
+            "Snowpark pandas aggregate does not yet support the aggregation "
+            + "new_label=\\(label, np\\.exp\\), new_label=\\(label, <built-in function sum>\\)"
+            + " with the given arguments",
+            id="named_agg",
+        ),
+    ],
+)
 @sql_count_checker(query_count=0)
-def test_named_agg_not_supported_function(numeric_native_df):
+def test_aggregate_unsupported_aggregation_SNOW_1526422(
+    numeric_native_df, func, kwargs, error_pattern
+):
     snow_df = pd.DataFrame(numeric_native_df)
     with pytest.raises(
         NotImplementedError,
-        match=re.escape(
-            "Aggregate with func=None and parameters "
-            + f"x=('A', {np.exp})"
-            + " not supported yet in Snowpark pandas."
-        ),
+        match=error_pattern,
     ):
-        snow_df.agg(x=("A", np.exp))
+        snow_df.agg(func, **kwargs)
 
 
 @sql_count_checker(query_count=0)

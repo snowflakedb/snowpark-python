@@ -456,7 +456,7 @@ def test_empty(input_dtype, expected_dtype, snowpark_dtype, to_pandas_dtype):
         (native_pd.Index([], dtype="float64"), np.dtype("float64")),
     ],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_empty_index(index, expected_index_dtype):
     expected = native_pd.Series(data=[], index=index)
     assert expected.dtype == np.dtype("object")

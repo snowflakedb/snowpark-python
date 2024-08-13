@@ -390,6 +390,11 @@ class Column:
             vals: The values, or a :class:`DataFrame` instance to use to check for membership against this column.
         """
         cols = parse_positional_args_to_list(*vals)
+
+        # If cols is an empty list then in_ will always be False
+        if not cols:
+            return Column(Literal(False))
+
         cols = [_to_col_if_lit(col, "in_") for col in cols]
 
         column_count = (
@@ -562,7 +567,11 @@ class Column:
             )
         )
 
-    def regexp(self, pattern: ColumnOrLiteralStr) -> "Column":
+    def regexp(
+        self,
+        pattern: ColumnOrLiteralStr,
+        parameters: Optional[ColumnOrLiteralStr] = None,
+    ) -> "Column":
         """Returns true if this Column matches the specified regular expression.
 
         Args:
@@ -579,6 +588,7 @@ class Column:
             RegExp(
                 self._expression,
                 Column._to_expr(pattern),
+                None if parameters is None else Column._to_expr(parameters),
             )
         )
 

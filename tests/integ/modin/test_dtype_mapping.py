@@ -21,6 +21,7 @@ from tests.integ.modin.sql_counter import SqlCounter
 from tests.utils import Utils
 
 
+@pytest.mark.modin_sp_precommit
 # TODO 849288 verify df.dtypes too
 @pytest.mark.parametrize(
     "col_name_type, samples, expected_dtype, expected_to_pandas_dtype, expected_to_pandas",

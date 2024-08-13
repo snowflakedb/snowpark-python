@@ -2,7 +2,7 @@
 DataFrame
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.pandas
+.. currentmodule:: modin.pandas
 .. rubric:: :doc:`All supported DataFrame APIs <supported/dataframe_supported>`
 
 .. rubric:: Constructor
@@ -53,6 +53,7 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.assign
     DataFrame.head
     DataFrame.loc
     DataFrame.iloc
@@ -60,6 +61,7 @@ DataFrame
     DataFrame.__iter__
     DataFrame.keys
     DataFrame.iterrows
+    DataFrame.items
     DataFrame.itertuples
     DataFrame.tail
     DataFrame.isin
@@ -147,6 +149,7 @@ DataFrame
     DataFrame.drop
     DataFrame.drop_duplicates
     DataFrame.duplicated
+    DataFrame.equals
     DataFrame.first
     DataFrame.get
     DataFrame.head
@@ -167,6 +170,8 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.backfill
+    DataFrame.bfill
     DataFrame.dropna
     DataFrame.ffill
     DataFrame.fillna
@@ -182,21 +187,28 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.melt
+    DataFrame.nlargest
+    DataFrame.nsmallest
+    DataFrame.pivot
     DataFrame.pivot_table
-    DataFrame.sort_values
     DataFrame.sort_index
     DataFrame.nlargest
     DataFrame.nsmallest
     DataFrame.melt
+    DataFrame.sort_values
     DataFrame.squeeze
+    DataFrame.stack
     DataFrame.T
     DataFrame.transpose
+    DataFrame.unstack
 
 .. rubric:: Combining / comparing / joining / merging
 
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.compare
     DataFrame.join
     DataFrame.merge
     DataFrame.update
@@ -210,3 +222,10 @@ DataFrame
     DataFrame.first_valid_index
     DataFrame.last_valid_index
     DataFrame.resample
+
+.. rubric:: Serialization / IO / conversion
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    DataFrame.to_csv

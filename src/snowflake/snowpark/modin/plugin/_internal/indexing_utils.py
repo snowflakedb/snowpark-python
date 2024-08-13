@@ -776,8 +776,8 @@ def _extract_loc_set_col_info(
             label for label in columns if label not in frame_data_columns
         ]
         columns = [label for label in columns if label in frame_data_columns]
-        before = frame_data_columns.to_pandas().value_counts()
-        after = union_data_columns.to_pandas().value_counts()
+        before = frame_data_columns.value_counts()
+        after = union_data_columns.value_counts()
         frame_data_col_labels = frame_data_columns.tolist()
         for label in after.index:
             if label in frame_data_columns:
@@ -872,7 +872,9 @@ def get_valid_col_positions_from_col_labels(
                     )
                 )
             )
-            col_loc = pd.Index(col_loc, convert_to_lazy=False)
+            col_loc = col_loc.index
+            if isinstance(col_loc, pd.Index):
+                col_loc = col_loc.to_pandas()
             # get the position of the selected labels
             return [pos for pos, label in enumerate(columns) if label in col_loc]
         else:
@@ -939,11 +941,8 @@ def get_valid_col_positions_from_col_labels(
         # Convert col_loc to Index with object dtype since _get_indexer_strict() converts None values in lists to
         # np.nan. This does not filter columns with label None and errors. Not using np.array(col_loc) as the key since
         # np.array(["A", 12]) turns into array(['A', '12'].
-        col_loc = pd.Index(
-            [label for label in col_loc if label in columns],
-            dtype=object,
-            # we do not convert to lazy because we are using this index as columns
-            convert_to_lazy=False,
+        col_loc = native_pd.Index(
+            [label for label in col_loc if label in columns], dtype=object
         )
 
         # `Index._get_indexer_strict` returns position index from label index

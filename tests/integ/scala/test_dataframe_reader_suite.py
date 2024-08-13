@@ -104,7 +104,6 @@ def get_df_from_reader_and_file_format(reader, file_format):
     test_file = get_file_path_for_format(file_format)
     file_path = f"@{tmp_stage_name1}/{test_file}"
 
-    print(f"file format is {file_format} and returning reader with .format")
     if file_format == "csv":
         return reader.schema(user_schema).csv(file_path)
     if file_format == "json":
@@ -393,6 +392,29 @@ def test_read_csv_with_infer_schema(session, mode, parse_header):
         .csv(test_file_on_stage)
     )
     Utils.check_answer(df, [Row(1, "one", 1.2), Row(2, "two", 2.2)])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1435112: csv infer schema option is not supported",
+)
+@pytest.mark.parametrize("mode", ["select", "copy"])
+@pytest.mark.parametrize("ignore_case", [True, False])
+def test_read_csv_with_infer_schema_options(session, mode, ignore_case):
+    reader = get_reader(session, mode)
+    df = (
+        reader.option("INFER_SCHEMA", True)
+        .option("PARSE_HEADER", True)
+        .option("INFER_SCHEMA_OPTIONS", {"IGNORE_CASE": ignore_case})
+        .csv(f"@{tmp_stage_name1}/{test_file_csv_header}")
+    )
+    Utils.check_answer(df, [Row(1, "one", 1.2), Row(2, "two", 2.2)])
+    headers = ["id", "name", "rating"]
+    if ignore_case:
+        expected_cols = [c.upper() for c in headers]
+    else:
+        expected_cols = [f'"{c}"' for c in headers]
+    assert df.columns == expected_cols
 
 
 @pytest.mark.skipif(

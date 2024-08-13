@@ -48,10 +48,8 @@ def test_series_idxmax_idxmin_with_multiindex(
     multiindex_native_int_series, func, skipna
 ):
     """
-    Test DataFrameGroupBy.idxmax and DataFrameGroupBy.idxmin with a MultiIndex DataFrame.
-    Here, the MultiIndex DataFrames are grouped by `level` and not `by`.
+    Test Series.idxmax and Series.idxmin with a MultiIndex Series.
     """
-    # Create MultiIndex DataFrames.
     native_series = multiindex_native_int_series
     snow_series = pd.Series(native_series)
     with pytest.raises(

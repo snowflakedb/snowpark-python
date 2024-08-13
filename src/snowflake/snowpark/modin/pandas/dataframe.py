@@ -317,7 +317,7 @@ class DataFrame(BasePandasDataset):
         else:
             return result
 
-    def _get_columns(self) -> pd.Index:
+    def _get_columns(self) -> pandas.Index:
         """
         Get the columns for this Snowpark pandas ``DataFrame``.
 
@@ -666,7 +666,6 @@ class DataFrame(BasePandasDataset):
             fill_value=fill_value,
         )
 
-    @dataframe_not_implemented()
     def assign(self, **kwargs):  # noqa: PR01, RT01, D200
         """
         Assign new columns to a ``DataFrame``.
@@ -724,7 +723,6 @@ class DataFrame(BasePandasDataset):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         return super().combine(other, func, fill_value=fill_value, overwrite=overwrite)
 
-    @dataframe_not_implemented()
     def compare(
         self,
         other,
@@ -750,23 +748,25 @@ class DataFrame(BasePandasDataset):
             )
         )
 
-    @dataframe_not_implemented()
     def corr(
-        self, method="pearson", min_periods=1, numeric_only=False
+        self,
+        method: str | Callable = "pearson",
+        min_periods: int | None = None,
+        numeric_only: bool = False,
     ):  # noqa: PR01, RT01, D200
         """
         Compute pairwise correlation of columns, excluding NA/null values.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        if not numeric_only:
-            return self._default_to_pandas(
-                pandas.DataFrame.corr,
-                method=method,
-                min_periods=min_periods,
-                numeric_only=numeric_only,
+        corr_df = self
+        if numeric_only:
+            corr_df = self.drop(
+                columns=[
+                    i for i in self.dtypes.index if not is_numeric_dtype(self.dtypes[i])
+                ]
             )
         return self.__constructor__(
-            query_compiler=self._query_compiler.corr(
+            query_compiler=corr_df._query_compiler.corr(
                 method=method,
                 min_periods=min_periods,
             )
@@ -859,21 +859,26 @@ class DataFrame(BasePandasDataset):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         return self._binary_op("eq", other, axis=axis, level=level)
 
-    @dataframe_not_implemented()
-    def equals(self, other):  # noqa: PR01, RT01, D200
+    def equals(self, other) -> bool:  # noqa: PR01, RT01, D200
         """
         Test whether two objects contain the same elements.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-
         if isinstance(other, pandas.DataFrame):
             # Copy into a Modin DataFrame to simplify logic below
             other = self.__constructor__(other)
-        return (
-            self.index.equals(other.index)
-            and self.columns.equals(other.columns)
-            and self.eq(other).all().all()
+
+        if (
+            type(self) is not type(other)
+            or not self.index.equals(other.index)
+            or not self.columns.equals(other.columns)
+        ):
+            return False
+
+        result = self.__constructor__(
+            query_compiler=self._query_compiler.equals(other._query_compiler)
         )
+        return result.all(axis=None)
 
     def _update_var_dicts_in_kwargs(self, expr, kwargs):
         """
@@ -1343,26 +1348,17 @@ class DataFrame(BasePandasDataset):
         partition_iterator = SnowparkPandasRowPartitionIterator(self, iterrow_builder)
         yield from partition_iterator
 
-    @dataframe_not_implemented()
     def items(self):  # noqa: D200
         """
         Iterate over (column name, ``Series``) pairs.
         """
-        # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
+
         def items_builder(s):
             """Return tuple of the given `s` parameter name and the parameter themselves."""
             return s.name, s
 
         partition_iterator = PartitionIterator(self, 1, items_builder)
         yield from partition_iterator
-
-    @dataframe_not_implemented()
-    def iteritems(self):  # noqa: RT01, D200
-        """
-        Iterate over (column name, ``Series``) pairs.
-        """
-        # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        return self.items()
 
     def itertuples(
         self, index: bool = True, name: str | None = "Pandas"
@@ -1795,31 +1791,60 @@ class DataFrame(BasePandasDataset):
             )
         )
 
-    @dataframe_not_implemented()
-    def unstack(self, level=-1, fill_value=None):  # noqa: PR01, RT01, D200
+    def unstack(
+        self,
+        level: int | str | list = -1,
+        fill_value: int | str | dict = None,
+        sort: bool = True,
+    ):
         """
         Pivot a level of the (necessarily hierarchical) index labels.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        if not isinstance(self.index, pandas.MultiIndex) or (
-            isinstance(self.index, pandas.MultiIndex)
-            and is_list_like(level)
-            and len(level) == self.index.nlevels
+        # This ensures that non-pandas MultiIndex objects are caught.
+        nlevels = self._query_compiler.nlevels()
+        is_multiindex = nlevels > 1
+
+        if not is_multiindex or (
+            is_multiindex and is_list_like(level) and len(level) == nlevels
         ):
             return self._reduce_dimension(
-                query_compiler=self._query_compiler.unstack(level, fill_value)
+                query_compiler=self._query_compiler.unstack(
+                    level, fill_value, sort, is_series_input=False
+                )
             )
         else:
             return self.__constructor__(
-                query_compiler=self._query_compiler.unstack(level, fill_value)
+                query_compiler=self._query_compiler.unstack(
+                    level, fill_value, sort, is_series_input=False
+                )
             )
 
-    @dataframe_not_implemented()
-    def pivot(self, index=None, columns=None, values=None):  # noqa: PR01, RT01, D200
+    def pivot(
+        self,
+        *,
+        columns: Any,
+        index: Any | NoDefault = no_default,
+        values: Any | NoDefault = no_default,
+    ):
         """
-        Return reshaped ``DataFrame`` organized by given index / column values.
+        Return reshaped DataFrame organized by given index / column values.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
+        if index is no_default:
+            index = None  # pragma: no cover
+        if values is no_default:
+            values = None
+
+        # if values is not specified, it should be the remaining columns not in
+        # index or columns
+        if values is None:
+            values = list(self.columns)
+            if index is not None:
+                values = [v for v in values if v not in index]
+            if columns is not None:
+                values = [v for v in values if v not in columns]
+
         return self.__constructor__(
             query_compiler=self._query_compiler.pivot(
                 index=index, columns=columns, values=values
@@ -2048,7 +2073,6 @@ class DataFrame(BasePandasDataset):
             new_query_compiler=new_qc, inplace=inplace
         )
 
-    @dataframe_not_implemented()
     def reindex(
         self,
         labels=None,
@@ -2355,23 +2379,39 @@ class DataFrame(BasePandasDataset):
                 return Series(query_compiler=self.T._query_compiler)
         return self.copy()
 
-    @dataframe_not_implemented()
-    def stack(self, level=-1, dropna=True):  # noqa: PR01, RT01, D200
+    def stack(
+        self,
+        level: int | str | list = -1,
+        dropna: bool | NoDefault = no_default,
+        sort: bool | NoDefault = no_default,
+        future_stack: bool = False,  # ignored
+    ):
         """
         Stack the prescribed level(s) from columns to index.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        if not isinstance(self.columns, pandas.MultiIndex) or (
-            isinstance(self.columns, pandas.MultiIndex)
-            and is_list_like(level)
-            and len(level) == self.columns.nlevels
+        if future_stack is not False:
+            WarningMessage.ignored_argument(  # pragma: no cover
+                operation="DataFrame.stack",
+                argument="future_stack",
+                message="future_stack parameter has been ignored with Snowflake execution engine",
+            )
+        if dropna is NoDefault:
+            dropna = True  # pragma: no cover
+        if sort is NoDefault:
+            sort = True  # pragma: no cover
+
+        # This ensures that non-pandas MultiIndex objects are caught.
+        is_multiindex = len(self.columns.names) > 1
+        if not is_multiindex or (
+            is_multiindex and is_list_like(level) and len(level) == self.columns.nlevels
         ):
             return self._reduce_dimension(
-                query_compiler=self._query_compiler.stack(level, dropna)
+                query_compiler=self._query_compiler.stack(level, dropna, sort)
             )
         else:
             return self.__constructor__(
-                query_compiler=self._query_compiler.stack(level, dropna)
+                query_compiler=self._query_compiler.stack(level, dropna, sort)
             )
 
     def sub(

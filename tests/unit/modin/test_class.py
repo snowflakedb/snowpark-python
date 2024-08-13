@@ -6,7 +6,7 @@ import modin.pandas as pd
 import pandas as native_pd
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.index import Index
+from snowflake.snowpark.modin.plugin.extensions.index import Index
 
 
 def test_class_equivalence():
@@ -24,7 +24,6 @@ def test_class_equivalence():
     assert pd.CategoricalDtype is native_pd.CategoricalDtype
     assert pd.CategoricalIndex is native_pd.CategoricalIndex
     assert pd.DateOffset is native_pd.DateOffset
-    assert pd.DatetimeIndex is native_pd.DatetimeIndex
     assert pd.DatetimeTZDtype is native_pd.DatetimeTZDtype
     assert pd.ExcelWriter is native_pd.ExcelWriter
     assert pd.Flags is native_pd.Flags

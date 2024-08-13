@@ -12,6 +12,7 @@ General functions
 
     melt
     crosstab
+    pivot
     pivot_table
     cut
     qcut

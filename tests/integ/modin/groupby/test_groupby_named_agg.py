@@ -121,7 +121,7 @@ def test_named_agg_with_invalid_function_raises_not_implemented(
     with pytest.raises(
         NotImplementedError,
         match=re.escape(
-            "Snowpark pandas GroupBy.agg(c1=('col2', 'min'), c2=('col2', 'random_function')) does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation new_label=(label, 'min'), new_label=(label, 'random_function')"
         ),
     ):
         pd.DataFrame(basic_df_data).groupby("col1").agg(
