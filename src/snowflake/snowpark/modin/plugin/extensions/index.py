@@ -1422,7 +1422,7 @@ class Index(metaclass=TelemetryMeta):
         }
 
         internal_data_types = (
-            self._query_compiler._modin_frame.quoted_identifier_to_snowflake_type()
+            self._query_compiler._modin_frame.quoted_identifier_to_type()
         )
         internal_index_column = (
             self._query_compiler._modin_frame.index_column_snowflake_quoted_identifiers[
