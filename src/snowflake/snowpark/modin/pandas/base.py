@@ -891,7 +891,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         limit=lib.no_default,
         fill_axis=lib.no_default,
         broadcast_axis=lib.no_default,
-    ):  # noqa: PR01, RT01, D200
+    ):  # pragma: no cover  # noqa: PR01, RT01, D200
         """
         Align two objects on their axes with the specified join method.
         """
@@ -1200,7 +1200,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         Select values at particular time of day (e.g., 9:30AM).
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        if asof:
+        if asof:  # pragma: no cover
             # pandas raises NotImplementedError for asof=True, so we do, too.
             raise NotImplementedError("'asof' argument is not supported")
         return self.between_time(

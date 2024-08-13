@@ -1753,7 +1753,7 @@ class Series(BasePandasDataset):
         copy: bool | None = None,
         limit=None,
         tolerance=None,
-    ) -> Series:
+    ) -> Series:  # pragma: no cover
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         # docs say "Same as calling .reindex(index=other.index, columns=other.columns,...).":
         # https://pandas.pydata.org/pandas-docs/version/1.4/reference/api/pandas.Series.reindex_like.html

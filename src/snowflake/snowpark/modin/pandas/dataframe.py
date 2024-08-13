@@ -442,7 +442,9 @@ class DataFrame(BasePandasDataset):
         )
 
     @dataframe_not_implemented()
-    def map(self, func, na_action: str | None = None, **kwargs) -> DataFrame:
+    def map(
+        self, func, na_action: str | None = None, **kwargs
+    ) -> DataFrame:  # pragma: no cover
         if not callable(func):
             raise ValueError(f"'{type(func)}' object is not callable")
         return self.__constructor__(
@@ -2096,7 +2098,7 @@ class DataFrame(BasePandasDataset):
         copy: bool | None = None,
         limit=None,
         tolerance=None,
-    ) -> DataFrame:
+    ) -> DataFrame:  # pragma: no cover
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         if copy is None:
             copy = True
