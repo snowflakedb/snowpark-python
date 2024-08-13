@@ -302,7 +302,56 @@ class Resampler:
         pass
 
     def fillna():
-        pass
+        """
+        Fill missing values introduced by upsampling.
+        Missing values that existed in the original data will not be modified.
+
+        Parameters
+        ----------
+        method : {'pad', 'backfill', 'ffill', 'bfill', 'nearest'}
+            Method to use for filling holes in resampled data. Note that only 'ffill' and 'pad' are currently supported.
+            'pad' or 'ffill': use previous valid observation to fill gap (forward fill).
+            'backfill' or 'bfill': use next valid observation to fill gap.
+            'nearest': use nearest valid observation to fill gap.
+
+        limit : int, optional
+            This parameter is not supported and will raise NotImplementedError.
+
+        Returns
+        -------
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            An upsampled Series or DataFrame with missing values filled.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 3], index=pd.date_range('20180101', periods=3, freq='h'))
+        >>> s
+        2018-01-01 00:00:00    1
+        2018-01-01 01:00:00    2
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
+        >>> s.resample('30min').fillna("pad")
+        2018-01-01 00:00:00    1
+        2018-01-01 00:30:00    1
+        2018-01-01 01:00:00    2
+        2018-01-01 01:30:00    2
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
+        >>> sm = pd.Series([1, None, 3],
+        ... index=pd.date_range('20180101', periods=3, freq='h'))
+        >>> sm
+        2018-01-01 00:00:00    1.0
+        2018-01-01 01:00:00    NaN
+        2018-01-01 02:00:00    3.0
+        Freq: None, dtype: float64
+        >>> sm.resample('30min').fillna('pad')
+        2018-01-01 00:00:00    1.0
+        2018-01-01 00:30:00    1.0
+        2018-01-01 01:00:00    NaN
+        2018-01-01 01:30:00    NaN
+        2018-01-01 02:00:00    3.0
+        Freq: None, dtype: float64
+        """
 
     def asfreq():
         pass

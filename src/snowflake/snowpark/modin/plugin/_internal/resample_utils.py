@@ -667,7 +667,7 @@ def perform_asof_join_on_frame(
     # are the steps to take:
 
     # 1. Construct right_frame using referenced_frame, which has a
-    # temporary column, interval_end_col, that olds the closest
+    # temporary column, interval_end_col, that holds the closest
     # following timestamp to every value in __index__. The last value in
     # interval_end_col is dummy value that represents the largest
     # possible date in Snowflake.

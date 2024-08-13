@@ -10748,8 +10748,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
             # The output frame's DatetimeIndex is identical to expected_frame's. For each date in the DatetimeIndex,
-            # a single row is selected from the input frame, where its date is the closest match earlier in time.
-            # We perform an ASOF join to accomplish this.
+            # a single row is selected from the input frame, where its date is the closest match in time based on
+            # the filling method. We perform an ASOF join to accomplish this.
             frame = perform_asof_join_on_frame(expected_frame, frame)
 
         elif resample_method in IMPLEMENTED_AGG_METHODS:

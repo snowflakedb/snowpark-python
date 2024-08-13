@@ -106,6 +106,19 @@ def test_resample_ffill_negative():
         snow_df.resample("1D").ffill(limit=10)
 
 
+@sql_count_checker(query_count=0)
+def test_resample_fillna_negative():
+    snow_df = pd.DataFrame(
+        {"a": range(15)},
+        index=native_pd.date_range("2020-01-01", periods=15, freq="1D"),
+    )
+    with pytest.raises(
+        NotImplementedError,
+        match="Method nearest is not implemented for Resampler!",
+    ):
+        snow_df.resample("1D").fillna(method="nearest")
+
+
 @sql_count_checker(query_count=1)
 def test_resample_tz_negative():
     snow_df = pd.DataFrame(

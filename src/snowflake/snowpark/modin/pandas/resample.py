@@ -240,20 +240,20 @@ class Resampler(metaclass=TelemetryMeta):
             )
         )
 
-    def backfill(self, limit: Optional[int] = None):
-        self._method_not_implemented("backfill")  # pragma: no cover
+    def backfill(self, limit: Optional[int] = None):  # pragma: no cover
+        self._method_not_implemented("backfill")
 
     def bfill(self, limit: Optional[int] = None):  # pragma: no cover
         self._method_not_implemented("bfill")
 
-    def pad(self, limit: Optional[int] = None):  # pragma: no cover
-        self._method_not_implemented("pad")
+    def pad(self, limit: Optional[int] = None):
+        return self.ffill(limit=limit)
 
     def nearest(self, limit: Optional[int] = None):  # pragma: no cover
         self._method_not_implemented("nearest")
 
-    def fillna(self, method, limit: Optional[int] = None):  # pragma: no cover
-        self._method_not_implemented("fillna")
+    def fillna(self, method: str, limit: Optional[int] = None):
+        return getattr(self, method)(limit=limit)
 
     def asfreq(self, fill_value: Optional[Any] = None):  # pragma: no cover
         self._method_not_implemented("asfreq")
