@@ -858,7 +858,7 @@ class SnowflakePlanBuilder:
             use_scoped_temp_objects: should we use scoped temp objects
             creation_source: the creator for the SnowflakeCreateTable node, today it can come from the
                 cache result api, compilation transformations like large query breakdown, or other like
-                save_as_table call. This parameter is used to identifier whether a table is internally
+                save_as_table call. This parameter is used to identify whether a table is internally
                 generated with cache_result or by the compilation transformation, and some special
                 check and handling needs to be applied to guarantee the correctness of generated query.
             child_attributes: child attributes will be none in the case of large query breakdown

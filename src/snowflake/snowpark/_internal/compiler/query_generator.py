@@ -132,10 +132,12 @@ class QueryGenerator(Analyzer):
             if (
                 logical_plan.creation_source
                 != TableCreationSource.LARGE_QUERY_BREAKDOWN
-                and self._snowflake_create_table_plan_info
-                and self._snowflake_create_table_plan_info.table_name
-                == logical_plan.table_name
             ):
+                assert self._snowflake_create_table_plan_info is not None
+                assert (
+                    self._snowflake_create_table_plan_info.table_name
+                    == logical_plan.table_name
+                )
                 child_attributes = (
                     self._snowflake_create_table_plan_info.child_attributes
                 )

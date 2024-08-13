@@ -201,6 +201,27 @@ def test_table_create_from_large_query_breakdown(session, plan_source_generator)
     )
 
 
+def test_create_query_generator_fails_with_large_query_breakdown(session):
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    child_df = session.sql("select 1 as a, 2 as b")
+    create_table_source = SnowflakeCreateTable(
+        [table_name],
+        column_names=None,
+        mode=SaveMode.ERROR_IF_EXISTS,
+        query=child_df._plan,
+        creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
+        table_type="temp",
+        clustering_exprs=None,
+        comment=None,
+    )
+
+    with pytest.raises(
+        AssertionError,
+        match="query generator is not supported for large query breakdown as creation source",
+    ):
+        create_query_generator(session._analyzer.resolve(create_table_source))
+
+
 def test_pivot_unpivot(session):
     session.sql(
         """create or replace temp table monthly_sales(empid int, amount int, month text)
