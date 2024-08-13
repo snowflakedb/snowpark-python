@@ -24,7 +24,7 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import Any, Callable, Hashable, Iterator, Literal
+from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 
 import modin
 import numpy as np
@@ -48,6 +48,7 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     index_not_implemented,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.types import ArrayType
 
 _CONSTRUCTOR_DEFAULTS = {
     "dtype": None,
@@ -1325,8 +1326,14 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458127 implement max
 
-    @index_not_implemented()
-    def reindex(self) -> None:
+    def reindex(
+        self,
+        target: Iterable,
+        method: str | None = None,
+        level: int | None = None,
+        limit: int | None = None,
+        tolerance: int | float | None = None,
+    ) -> tuple[Index, np.ndarray]:
         """
         Create index with target's values.
 
@@ -1371,12 +1378,67 @@ class Index(metaclass=TelemetryMeta):
         ValueError
             If non-unique index and ``method`` or ``limit`` passed.
 
+        Notes
+        -----
+        ``method=nearest`` is not supported.
+
+        If duplicate values are present, they are ignored,
+        and all duplicate values are present in the result.
+
+        If the source and target indices have no overlap,
+        monotonicity checks are skipped.
+
+        Tuple-like index values are not supported.
+
+        Examples
+        --------
+        >>> idx = pd.Index(['car', 'bike', 'train', 'tractor'])
+        >>> idx
+        Index(['car', 'bike', 'train', 'tractor'], dtype='object')
+
+        >>> idx.reindex(['car', 'bike'])
+        (Index(['car', 'bike'], dtype='object'), array([0, 1]))
+
         See Also
         --------
         Series.reindex : Conform Series to new index with optional filling logic.
         DataFrame.reindex : Conform DataFrame to new index with optional filling logic.
         """
-        # TODO: SNOW-1458121 implement reindex
+
+        # This code path is only hit if our index is lazy (as an eager index would simply call
+        # the method on its underlying pandas Index object and return the result of that wrapped
+        # appropriately.) Therefore, we specify axis=0, since the QueryCompiler expects lazy indices
+        # on axis=0, but eager indices on axis=1 (used for error checking).
+        if limit is not None and method is None:
+            raise ValueError(
+                "limit argument only valid if doing pad, backfill or nearest reindexing"
+            )
+        kwargs = {
+            "method": method,
+            "level": level,
+            "limit": limit,
+            "tolerance": tolerance,
+            "_is_index": True,
+        }
+
+        internal_data_types = (
+            self._query_compiler._modin_frame.quoted_identifier_to_snowflake_type()
+        )
+        internal_index_column = (
+            self._query_compiler._modin_frame.index_column_snowflake_quoted_identifiers[
+                0
+            ]
+        )
+        internal_index_type = internal_data_types[internal_index_column]
+        if isinstance(internal_index_type, ArrayType):
+            raise NotImplementedError(
+                "Snowpark pandas does not support `reindex` with tuple-like Index values."
+            )
+        else:
+            query_compiler, indices = self._query_compiler.reindex(
+                axis=0, labels=target, **kwargs
+            )
+            return Index(query_compiler=query_compiler), indices
 
     @index_not_implemented()
     def rename(self) -> None:
