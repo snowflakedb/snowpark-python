@@ -64,8 +64,16 @@ class MockedSnowflakeConnection(SnowflakeConnection):
         super().__init__(*args, **kwargs, application="localtesting")
         self._password = None
 
+        self._disable_query_context_cache = True
+
     def connect(self, **kwargs) -> None:
-        self._rest = Mock()
+        attrs = {
+            "request.return_value": {
+                "success": False,
+                "message": "Not implemented in MockConnection",
+            }
+        }
+        self._rest = Mock(**attrs)
 
     def close(self, retry: bool = True) -> None:
         self._rest = None

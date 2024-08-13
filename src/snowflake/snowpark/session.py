@@ -2338,6 +2338,7 @@ class Session:
         create_temp_table: bool = False,
         overwrite: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
+        _emit_ast: bool = True,
         **kwargs: Dict[str, Any],
     ) -> Table:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
@@ -2417,6 +2418,7 @@ class Session:
             or :func:`modin.pandas.Series.to_snowflake <snowflake.snowpark.modin.pandas.Series.to_snowflake>`
             internally to write a Snowpark pandas DataFrame into a Snowflake table.
         """
+
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
                 external_feature_name="Session.write_pandas",
@@ -2507,9 +2509,28 @@ class Session:
                 raise pe
 
         if success:
-            t = self.table(location)
-            set_api_call_source(t, "Session.write_pandas")
-            return t
+            table = self.table(location)
+            set_api_call_source(table, "Session.write_pandas")
+
+            # AST.
+            if _emit_ast:
+                # Create AST statement.
+                stmt = self._ast_batch.assign()
+
+                ast = with_src_position(stmt.expr.sp_write_pandas)  # noqa: F841
+
+                # # Save temp table and schema of it in AST (dataframe).
+                # ast.data.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (
+                #     temp_table_name
+                # )
+
+                # build_proto_from_struct_type(
+                #     table.schema, ast.schema.sp_dataframe_schema__struct.v
+                # )
+
+                table._ast_id = stmt.var_id.bitfield1
+
+            return table
         else:
             raise SnowparkClientExceptionMessages.DF_PANDAS_GENERAL_EXCEPTION(
                 str(ci_output)
