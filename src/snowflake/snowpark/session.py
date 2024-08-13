@@ -65,6 +65,7 @@ from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_python_val,
     build_proto_from_struct_type,
     build_session_table_fn_apply,
+    build_sp_table_name,
     build_table_fn_apply,
     with_src_position,
 )
@@ -2484,22 +2485,26 @@ class Session:
                 )
                 success, ci_output = True, ""
             else:
-                success, _, _, ci_output = write_pandas(
-                    self._conn._conn,
-                    df,
-                    table_name,
-                    database=database,
-                    schema=schema,
-                    chunk_size=chunk_size,
-                    compression=compression,
-                    on_error=on_error,
-                    parallel=parallel,
-                    quote_identifiers=quote_identifiers,
-                    auto_create_table=auto_create_table,
-                    overwrite=overwrite,
-                    table_type=table_type,
-                    **kwargs,
-                )
+                if isinstance(self._conn, MockServerConnection):
+                    # TODO: Implement here write_pandas correctly.
+                    success, ci_output = True, []
+                else:
+                    success, _, _, ci_output = write_pandas(
+                        self._conn._conn,
+                        df,
+                        table_name,
+                        database=database,
+                        schema=schema,
+                        chunk_size=chunk_size,
+                        compression=compression,
+                        on_error=on_error,
+                        parallel=parallel,
+                        quote_identifiers=quote_identifiers,
+                        auto_create_table=auto_create_table,
+                        overwrite=overwrite,
+                        table_type=table_type,
+                        **kwargs,
+                    )
         except ProgrammingError as pe:
             if pe.msg.endswith("does not exist"):
                 raise SnowparkClientExceptionMessages.DF_PANDAS_TABLE_DOES_NOT_EXIST_EXCEPTION(
@@ -2519,14 +2524,41 @@ class Session:
 
                 ast = with_src_position(stmt.expr.sp_write_pandas)  # noqa: F841
 
-                # # Save temp table and schema of it in AST (dataframe).
-                # ast.data.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (
-                #     temp_table_name
-                # )
+                ast.auto_create_table = auto_create_table
+                if chunk_size is not None:
+                    ast.chunk_size = chunk_size
+                ast.compression = compression
+                ast.create_temp_table = create_temp_table
+                if isinstance(df, pandas.DataFrame):
+                    ast.df.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (
+                        table.table_name
+                    )
+                else:
+                    raise NotImplementedError(
+                        f"Only pandas DataFrame supported, but not {type(df)}"
+                    )
+                if kwargs:
+                    for k, v in kwargs.items():
+                        t = ast.kwargs.add()
+                        t._1 = k
+                        build_expr_from_python_val(t._2, v)
+                ast.on_error = on_error
+                ast.overwrite = overwrite
+                ast.parallel = parallel
+                ast.quote_identifiers = False
 
-                # build_proto_from_struct_type(
-                #     table.schema, ast.schema.sp_dataframe_schema__struct.v
-                # )
+                # Convert to [...] location.
+                table_location = table_name
+                if schema is not None:
+                    table_location = [schema, table_location]
+                if database is not None:
+                    if schema is None:
+                        # TODO: unify API with other APIs using [...] syntax. Default schema is PUBLIC
+                        raise ValueError("Need to set schema when using database.")
+                    table_location = [database] + table_location
+
+                build_sp_table_name(ast.table_name, table_location)
+                ast.table_type = table_type
 
                 table._ast_id = stmt.var_id.bitfield1
 
