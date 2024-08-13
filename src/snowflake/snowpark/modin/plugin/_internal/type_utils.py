@@ -27,12 +27,7 @@ from pandas.core.arrays.integer import (
     UInt64Dtype,
 )
 from pandas.core.arrays.string_ import StringDtype
-from pandas.core.dtypes.common import (
-    is_bool_dtype,
-    is_float_dtype,
-    is_integer_dtype,
-    is_timedelta64_dtype,
-)
+from pandas.core.dtypes.common import is_bool_dtype, is_float_dtype, is_integer_dtype
 
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.type_utils import infer_type, merge_type
@@ -45,6 +40,10 @@ from snowflake.snowpark.functions import (
     length,
     to_varchar,
     to_variant,
+)
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    SnowparkPandasType,
+    get_snowpark_pandas_type_for_pandas_type,
 )
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     generate_timestamp_col,
@@ -180,10 +179,6 @@ def infer_series_type(series: native_pd.Series) -> DataType:
     """Infer the snowpark DataType for the given native pandas series"""
 
     data_type = series.dtype
-    if is_timedelta64_dtype(data_type):
-        raise NotImplementedError(
-            "Snowpark pandas does not support timedelta64 data type."
-        )
     if data_type == np.object_:
         # if the series type is object type, try to derive the snowpark type based on
         # the type of each data element of the series. If failed to derive the type
@@ -250,6 +245,10 @@ class TypeMapper:
         if is_float_dtype(p):
             return DoubleType()
 
+        snowpark_pandas_type = get_snowpark_pandas_type_for_pandas_type(p)
+        if snowpark_pandas_type is not None:
+            return snowpark_pandas_type()
+
         try:
             return PANDAS_TO_SNOWFLAKE_MAP[p]
         except KeyError:
@@ -268,6 +267,8 @@ class TypeMapper:
         # We also need to treat parameterized types correctly
         if isinstance(s, (StringType, ArrayType, MapType, GeographyType)):
             return np.dtype(np.object_)
+        if isinstance(s, SnowparkPandasType):
+            return type(s).pandas_type
         return SNOWFLAKE_TO_PANDAS_MAP.get(s, np.dtype(np.object_))
 
 

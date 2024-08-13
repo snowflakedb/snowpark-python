@@ -46,6 +46,10 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
     OrderingColumn,
 )
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    SnowparkPandasType,
+    rewrite_python_object_if_snowpark_pandas_type,
+)
 from snowflake.snowpark.modin.plugin._typing import LabelTuple
 from snowflake.snowpark.modin.plugin.utils.exceptions import (
     SnowparkPandasErrorCode,
@@ -1024,7 +1028,7 @@ def create_ordered_dataframe_from_pandas(
     snowflake_quoted_identifiers: list[str],
     ordering_columns: Optional[list[OrderingColumn]] = None,
     row_position_snowflake_quoted_identifier: Optional[str] = None,
-) -> OrderedDataFrame:
+) -> tuple[OrderedDataFrame, list[DataType]]:
     """
     Create Ordered dataframe from pandas dataframe with proper pre-processing.
     The preprocess includes:
@@ -1040,7 +1044,10 @@ def create_ordered_dataframe_from_pandas(
         row_position_snowflake_quoted_identifier: a row position snowflake quoted identifier
 
     Returns:
-        Ordered dataframe that is created out of the data of the given native pandas dataframe
+        Tuple containing the following in order:
+            1) Ordered dataframe that is created out of the data of the given native pandas dataframe
+            2) List of DataType for each column in the OrderedDataFrame. These may include
+               instances of SnowparkPythonType that Snowpark Python is not aware of.
     """
     assert len(snowflake_quoted_identifiers) == len(
         df.columns
@@ -1052,11 +1059,23 @@ def create_ordered_dataframe_from_pandas(
     # np.nan, pd.NA, pd.NaT and None all as missing value.
     isna_data = df.isna().to_numpy().tolist()
 
+    snowpark_pandas_types = []
     struct_fields = []
     for i, (label, _) in enumerate(df.dtypes.items()):
         quoted_identifier = snowflake_quoted_identifiers[i]
         snowflake_type = infer_series_type(df[label])
-        struct_fields.append(StructField(quoted_identifier, snowflake_type))
+        struct_fields.append(
+            StructField(
+                quoted_identifier,
+                (
+                    # Snowpark Python will not recognize SnowparkPandasType.
+                    snowflake_type.snowpark_type
+                    if isinstance(snowflake_type, SnowparkPandasType)
+                    else snowflake_type
+                ),
+            )
+        )
+        snowpark_pandas_types.append(snowflake_type)
 
     # in pandas, missing value can be represented ad np.nan, pd.NA, pd.NaT and None,
     # and should be mapped to None in Snowpark input, and eventually be mapped to NULL
@@ -1071,16 +1090,19 @@ def create_ordered_dataframe_from_pandas(
                 else (
                     data[x][y].item()
                     if isinstance(data[x][y], np.generic)
-                    else data[x][y]
+                    else rewrite_python_object_if_snowpark_pandas_type(data[x][y])
                 )
             )
 
     snowpark_df = pd.session.create_dataframe(data, StructType(struct_fields))
-    return OrderedDataFrame(
-        DataFrameReference(snowpark_df, snowflake_quoted_identifiers),
-        projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
-        ordering_columns=ordering_columns,
-        row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
+    return (
+        OrderedDataFrame(
+            DataFrameReference(snowpark_df, snowflake_quoted_identifiers),
+            projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
+            ordering_columns=ordering_columns,
+            row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
+        ),
+        snowpark_pandas_types,
     )
 
 
@@ -1226,6 +1248,7 @@ def snowpark_to_pandas_helper(
     ordered_dataframe: OrderedDataFrame,
     *,
     statement_params: Optional[dict[str, str]] = None,
+    type_overrides: Optional[list[DataType]] = None,
     **kwargs: Any,
 ) -> native_pd.DataFrame:
     """
@@ -1236,6 +1259,9 @@ def snowpark_to_pandas_helper(
     Args:
         ordered_dataframe: Ordered Dataframe abstraction to convert to pandas Dataframe
         statement_params: Dictionary of statement level parameters to be passed to conversion function of ordered dataframe abstraction.
+        type_overrides:
+            List of types for the ordered dataframe's projected columns. These
+            types override the types from Snowpark python.
         kwargs: Additional keyword-only args to pass to internal `to_pandas` conversion for orderded dataframe abstraction.
 
     Returns:
@@ -1333,7 +1359,20 @@ def snowpark_to_pandas_helper(
 
     # Return the original amount of columns by stripping any typeof(...) columns appended if
     # schema contained VariantType.
-    return pandas_df[pandas_df.columns[: len(columns_info)]]
+    downcast_pandas_df = pandas_df[pandas_df.columns[: len(columns_info)]]
+
+    if type_overrides is not None:
+        for pandas_label, snowpark_pandas_type in zip(
+            downcast_pandas_df.columns, type_overrides
+        ):
+            if snowpark_pandas_type is not None and isinstance(
+                snowpark_pandas_type, SnowparkPandasType
+            ):
+                downcast_pandas_df[pandas_label] = pandas_df[pandas_label].apply(
+                    snowpark_pandas_type.to_pandas
+                )
+
+    return downcast_pandas_df
 
 
 def is_integer_list_like(arr: Union[list, np.ndarray]) -> bool:
