@@ -1876,7 +1876,9 @@ def crosstab(
         if len(pass_objs) == 1:
             common_idx = pass_objs[0]
         else:
-            common_idx = pass_objs[0].intersection(pass_objs[1:])
+            common_idx = pass_objs[0].index.intersection(
+                [obj.index for obj in pass_objs[1:]]
+            )
 
     data = {
         **dict(zip(unique_rownames, index)),
