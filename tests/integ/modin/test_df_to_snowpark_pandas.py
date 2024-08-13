@@ -72,7 +72,7 @@ def test_to_snowpark_pandas_basic(session, tmp_table_basic, index_col, columns) 
                 assert snowpark_pandas_df.columns.tolist() == expected_data_cols
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3)
 def test_to_snowpark_pandas_from_views(session, tmp_table_basic) -> None:
     snowpark_df = session.sql(
         f"SELECT ID, SHOE_MODEL FROM {tmp_table_basic} WHERE ID > 1"
@@ -87,8 +87,7 @@ def test_to_snowpark_pandas_from_views(session, tmp_table_basic) -> None:
     assert sorted(snowpandas_index.values.tolist()) == [0, 1]
 
 
-# One extra query to check index dtype
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3)
 def test_to_snowpark_pandas_with_operations(session, tmp_table_basic) -> None:
     snowpark_df = session.table(tmp_table_basic)
     snowpark_df = (

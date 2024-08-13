@@ -656,11 +656,9 @@ def test_concat_keys_with_none(df1, df2, axis):
     "name1, name2", [("one", "two"), ("one", None), (None, "two"), (None, None)]
 )
 def test_concat_with_keys_and_names(df1, df2, names, name1, name2, axis):
-    # One extra query to convert index to native pandas when creating df
-    with SqlCounter(query_count=0 if name1 is None or axis == 1 else 4, join_count=0):
+    with SqlCounter(query_count=0 if name1 is None or axis == 1 else 3, join_count=0):
         df1 = df1.rename_axis(name1, axis=axis)
-    # One extra query to convert index to native pandas when creating df
-    with SqlCounter(query_count=0 if name2 is None or axis == 1 else 4, join_count=0):
+    with SqlCounter(query_count=0 if name2 is None or axis == 1 else 3, join_count=0):
         df2 = df2.rename_axis(name2, axis=axis)
 
     expected_join_count = (
@@ -872,7 +870,7 @@ def test_concat_verify_integrity_axis1_with_keys():
         (_multiindex([(1, 1), (1, 2)]), _multiindex([(2, 1), (2, 2)])),
     ],
 )
-@sql_count_checker(query_count=5, union_count=3)
+@sql_count_checker(query_count=4, union_count=2)
 def test_concat_verify_integrity_axis0(index1, index2):
     df1 = pd.DataFrame([1, 2], columns=["a"], index=index1)
     df2 = pd.DataFrame([1, 2], columns=["a"], index=index2)
@@ -885,7 +883,7 @@ def test_concat_verify_integrity_axis0(index1, index2):
     "index1, index2",
     [([0, 1], [0, 1]), (_multiindex([(1, 1), (1, 2)]), _multiindex([(2, 1), (1, 2)]))],
 )
-@sql_count_checker(query_count=5, union_count=3)
+@sql_count_checker(query_count=4, union_count=2)
 def test_concat_verify_integrity_axis0_with_keys(index1, index2):
     # Even though original frames have duplicate columns, after adding keys to column
     # labels duplicates are resolved, hence no error.
@@ -923,7 +921,7 @@ def test_concat_verify_integrity_axis0_with_ignore_index(index1, index2):
         ([1, 1], [2, 3]),
     ],
 )
-@sql_count_checker(query_count=5, union_count=3)
+@sql_count_checker(query_count=4, union_count=2)
 def test_concat_verify_integrity_axis0_negative(index1, index2):
     df1 = pd.DataFrame([1, 2], columns=["a"], index=index1)
     df2 = pd.DataFrame([1, 2], columns=["a"], index=index2)
@@ -937,7 +935,7 @@ def test_concat_verify_integrity_axis0_negative(index1, index2):
     )
 
 
-@sql_count_checker(query_count=3, union_count=3)
+@sql_count_checker(query_count=2, union_count=2)
 def test_concat_verify_integrity_axis0_large_overlap_negative():
     df = pd.DataFrame(data=list(range(100)))
     msg = "Indexes have overlapping values. Few of them are: .* Please run "

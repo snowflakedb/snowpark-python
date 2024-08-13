@@ -270,8 +270,11 @@ def in_expression(column: str, values: List[str]) -> str:
     return column + IN + block_expression(values)
 
 
-def regexp_expression(expr: str, pattern: str) -> str:
-    return expr + REG_EXP + pattern
+def regexp_expression(expr: str, pattern: str, parameters: Optional[str] = None) -> str:
+    if parameters is not None:
+        return function_expression("RLIKE", [expr, pattern, parameters], False)
+    else:
+        return expr + REG_EXP + pattern
 
 
 def collate_expression(expr: str, collation_spec: str) -> str:
@@ -895,7 +898,9 @@ def create_file_format_statement(
     )
 
 
-def infer_schema_statement(path: str, file_format_name: str) -> str:
+def infer_schema_statement(
+    path: str, file_format_name: str, options: Optional[Dict[str, str]] = None
+) -> str:
     return (
         SELECT
         + STAR
@@ -913,6 +918,11 @@ def infer_schema_statement(path: str, file_format_name: str) -> str:
         + SINGLE_QUOTE
         + file_format_name
         + SINGLE_QUOTE
+        + (
+            ", " + ", ".join(f"{k} => {v}" for k, v in options.items())
+            if options
+            else ""
+        )
         + RIGHT_PARENTHESIS
         + RIGHT_PARENTHESIS
     )
@@ -1019,7 +1029,7 @@ def rank_related_function_expression(
         func_name
         + LEFT_PARENTHESIS
         + expr
-        + (COMMA + str(offset) if offset else EMPTY_STRING)
+        + (COMMA + str(offset) if offset is not None else EMPTY_STRING)
         + (COMMA + default if default else EMPTY_STRING)
         + RIGHT_PARENTHESIS
         + (IGNORE_NULLS if ignore_nulls else EMPTY_STRING)
