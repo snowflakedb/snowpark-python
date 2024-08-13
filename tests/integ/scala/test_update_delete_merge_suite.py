@@ -5,6 +5,7 @@
 
 import copy
 import datetime
+from unittest.mock import patch
 
 import pytest
 
@@ -344,7 +345,7 @@ def test_merge_with_insert_clause_only(session, local_testing_mode):
     ) == MergeResult(1, 0, 0)
     Utils.check_answer(target, [Row(10, "old"), Row(11, "new"), Row(12, "new")])
 
-    now_datetime = datetime.datetime.now()
+    now_datetime = datetime.datetime(2024, 8, 13, 10, 1, 50)
     fixed_date = datetime.datetime(2024, 7, 18, 12, 12, 12)
     target_df = session.create_dataframe(
         [("id1", fixed_date, fixed_date.date(), fixed_date.time())],
@@ -367,39 +368,40 @@ def test_merge_with_insert_clause_only(session, local_testing_mode):
         ],
         schema=StructType([StructField("id", StringType())]),
     )
-    assert target.merge(
-        source_df,
-        target["id"] == source_df["id"],
-        [
-            when_not_matched().insert(
-                {
-                    "id": source_df["id"],
-                    "col_datetime": current_timestamp(),
-                    "col_date": current_date(),
-                    "col_time": current_time(),
-                }
-            )
-        ],
-    ) == MergeResult(2, 0, 0)
-    res = target.collect()
-    assert (
-        len(res) == 3
-        and res[0][0] == "id1"
-        and res[0][1] == fixed_date
-        and res[0][2] == fixed_date.date()
-        and res[0][3] == fixed_date.time()
-    )
-    assert res[1][0] == "id2" and res[2][0] == "id3"
+    with patch("snowflake.snowpark.mock._functions.datetime") as dt:
+        dt.datetime.now.return_value = now_datetime
+        assert target.merge(
+            source_df,
+            target["id"] == source_df["id"],
+            [
+                when_not_matched().insert(
+                    {
+                        "id": source_df["id"],
+                        "col_datetime": current_timestamp(),
+                        "col_date": current_date(),
+                        "col_time": current_time(),
+                    }
+                )
+            ],
+        ) == MergeResult(2, 0, 0)
+        res = target.collect()
+        assert (
+            len(res) == 3
+            and res[0][0] == "id1"
+            and res[0][1] == fixed_date
+            and res[0][2] == fixed_date.date()
+            and res[0][3] == fixed_date.time()
+        )
+        assert res[1][0] == "id2" and res[2][0] == "id3"
 
-    if local_testing_mode:
-        assert res[1][1].date() == res[2][1].date() == now_datetime.date()
-        assert res[1][2] == res[2][2] == now_datetime.date()
-        assert res[1][3].minute == res[2][3].minute == now_datetime.time().minute
-        assert res[1][3].hour == res[2][3].hour == now_datetime.time().hour
-    else:
-        # in live connection time can differ because server timezone and test machine timezone differ
-        # so that we do not test exact time
-        assert len(res[1]) == len(res[2]) == 4
+        if local_testing_mode:
+            assert res[1][1] == res[2][1] == now_datetime
+            assert res[1][2] == res[2][2] == now_datetime.date()
+            assert res[1][3] == res[2][3] == now_datetime.time()
+        else:
+            # in live connection time can differ because server timezone and test machine timezone differ
+            # so that we do not test exact time
+            assert len(res[1]) == len(res[2]) == 4
 
 
 def test_merge_with_matched_and_not_matched_clauses(session):
