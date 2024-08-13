@@ -2200,7 +2200,7 @@ class DataFrame:
                 - Left semi join: "semi", "leftsemi"
                 - Left anti join: "anti", "leftanti"
                 - Cross join: "cross"
-                - [Preview Feature] Asof join: "asof"
+                - Asof join: "asof"
 
                 You can also use ``join_type`` keyword to specify this condition.
                 Note that to avoid breaking changes, currently when ``join_type`` is specified,
