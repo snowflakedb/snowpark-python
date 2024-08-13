@@ -15,6 +15,7 @@ To view the docs for the most recent release, check that you’re viewing the st
    series_supported
    dataframe_supported
    index_supported
+   datetime_index_supported
    window_supported
    groupby_supported
    resampling_supported
