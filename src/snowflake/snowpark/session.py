@@ -2521,8 +2521,7 @@ class Session:
             if _emit_ast:
                 # Create AST statement.
                 stmt = self._ast_batch.assign()
-
-                ast = with_src_position(stmt.expr.sp_write_pandas)  # noqa: F841
+                ast = with_src_position(stmt.expr.sp_write_pandas, stmt)  # noqa: F841
 
                 ast.auto_create_table = auto_create_table
                 if chunk_size is not None and chunk_size != WRITE_PANDAS_CHUNK_SIZE:
