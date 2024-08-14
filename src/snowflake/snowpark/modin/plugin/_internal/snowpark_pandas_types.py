@@ -38,8 +38,11 @@ class SnowparkPandasTypeMetaclass(
     def __new__(cls: type, clsname: str, bases: Any, attrs: Any) -> type:
         # Create a type using this class's superclass. mypy raises the error
         # 'Argument 2 for "super" not an instance of argument 1', which is
-        # difficult to fix.
-        new_snowpark_python_type = super().__new__(cls, clsname, bases, attrs)  # type: ignore
+        # difficult to fix, so ignore that error.
+        # Wrap the type in dataclass(frozen=True) so that it's immutable.
+        new_snowpark_python_type = dataclass(
+            super().__new__(cls, clsname, bases, attrs), frozen=True  # type: ignore
+        )
 
         if inspect.isabstract(new_snowpark_python_type):
             return new_snowpark_python_type
@@ -96,7 +99,6 @@ class SnowparkPandasType(metaclass=SnowparkPandasTypeMetaclass):
         return _pandas_type_to_snowpark_pandas_type.get(pandas_type, None)
 
 
-@dataclass(frozen=True)
 class TimedeltaType(SnowparkPandasType, LongType):
     """
     Timedelta represents the difference between two times.
