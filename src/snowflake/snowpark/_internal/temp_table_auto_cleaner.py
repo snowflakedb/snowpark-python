@@ -76,7 +76,8 @@ class TempTableAutoCleaner:
             # TODO SNOW-1556553: Remove this workaround once multi-threading of Snowpark session is supported
             with self.session._conn._conn.cursor() as cursor:
                 cursor.execute(
-                    f"drop table if exists {name} /* internal query to drop unused temp table */"
+                    f"drop table if exists {name} /* internal query to drop unused temp table */",
+                    _statement_params={"auto_clean_up_temp_table": True},
                 )
             logging.debug(f"Cleanup Thread: Successfully dropped {common_log_text}")
         except Exception as ex:
