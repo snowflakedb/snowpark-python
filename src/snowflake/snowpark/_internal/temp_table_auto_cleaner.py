@@ -80,7 +80,7 @@ class TempTableAutoCleaner:
             with self.session._conn._conn.cursor() as cursor:
                 cursor.execute(
                     f"drop table if exists {name} /* internal query to drop unused temp table */",
-                    _statement_params={DROP_TABLE_STATEMENT_PARAM_NAME: True},
+                    _statement_params={DROP_TABLE_STATEMENT_PARAM_NAME: name},
                 )
             logging.debug(f"Cleanup Thread: Successfully dropped {common_log_text}")
         except Exception as ex:
