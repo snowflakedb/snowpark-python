@@ -18,22 +18,39 @@ RUN sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo && \
 
 RUN yum clean all && \
     yum groupinstall -y "Development Tools" && \
-    yum install -y redhat-rpm-config gcc sudo libffi-devel wget && \
+    yum install -y redhat-rpm-config gcc libffi-devel wget && \
     yum install -y perl-IPC-Cmd perl-Digest-SHA perl-Test-Simple perl-Pod-Html python38 python38-devel && \
     yum clean all && \
     rm -rf /var/cache/yum
 
+# build openssl 3.0.0
 RUN wget https://www.openssl.org/source/openssl-3.0.0.tar.gz && \
     tar -zxf openssl-3.0.0.tar.gz && \
     cd openssl-3.0.0 && \
     ./Configure enable-fips && \
     make
 
-RUN cd openssl-3.0.0 && mkdir -p /usr/local/ssl/ && sudo make install && sudo make install_fips && \
-    ln -s /usr/local/lib/libssl.so.3 /usr/lib/libssl.so.3 && \
-    ln -s /usr/local/lib/libcrypto.so.3 /usr/lib/libcrypto.so.3
+# install openssl 3.0.0
+RUN cd openssl-3.0.0 && \
+    make install && \
+    make install_fips
 
+# enable openssl fips mode
+RUN LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib openssl fipsinstall -out /usr/local/ssl/fipsmodule.cnf -module /usr/local/lib/ossl-modules/fips.so
+RUN cat <<EOF >> /usr/local/ssl/openssl.cnf
+openssl_conf = openssl_init
 
-RUN echo $PATH && ls /usr/local/bin && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib openssl fipsinstall -out /usr/local/ssl/fipsmodule.cnf -module /usr/local/lib/ossl-modules/fips.so
+.include /usr/local/ssl/fipsmodule.cnf
+
+[openssl_init]
+providers = provider_sect
+
+[provider_sect]
+fips = fips_sect
+base = base_sect
+
+[base_sect]
+activate = 1
+EOF
 
 RUN python3 -m pip install --user --upgrade pip setuptools wheel
