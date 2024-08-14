@@ -1833,7 +1833,9 @@ class Series(BasePandasDataset):
         Generate a new Series with the index reset.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        if name is no_default:
+        if drop:
+            name = self.name
+        elif name is no_default:
             # For backwards compatibility, keep columns as [0] instead of
             #  [None] when self.name is None
             name = 0 if self.name is None else self.name
