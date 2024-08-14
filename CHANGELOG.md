@@ -8,6 +8,7 @@
 
 - Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a util function to check the equality of two Snowpark DataFrames.
 - Added support for `Resampler.fillna` and `Resampler.bfill`.
+- Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
 
 #### Improvements
 
@@ -70,6 +71,10 @@
 - Added support for `DataFrame.items`.
 - Added support for `Series.dt.floor` and `Series.dt.ceil`.
 - Added support for `Index.reindex`.
+- Added support for `DatetimeIndex` properties: `year`, `month`, `day`, `hour`, `minute`, `second`, `microsecond`,
+    `nanosecond`, `date`, `dayofyear`, `day_of_year`, `dayofweek`, `day_of_week`, `weekday`, `quarter`,
+    `is_month_start`, `is_month_end`, `is_quarter_start`, `is_quarter_end`, `is_year_start`, `is_year_end`
+    and `is_leap_year`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
@@ -79,8 +84,9 @@
 - Made passing an unsupported aggregation function to `pivot_table` raise `NotImplementedError` instead of `KeyError`.
 - Removed axis labels and callable names from error messages and telemetry about unsupported aggregations.
 - Fixed AssertionError in `Series.drop_duplicates` and `DataFrame.drop_duplicates` when called after `sort_values`.
-- Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.
-- Fixed a bug where some Index docstrings are ignored.
+- Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.  
+- Fixed a bug where some Index docstrings are ignored. 
+- Fixed a bug in `Series.reset_index(drop=True)` where the result name may be wrong.
 
 ### Behavior change
 - `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
