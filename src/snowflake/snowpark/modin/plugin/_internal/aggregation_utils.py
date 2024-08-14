@@ -444,6 +444,11 @@ class AggregateColumnOpParameters(NamedTuple):
     # column.
     ordering_columns: Iterable[OrderingColumn]
 
+def get_aggregation_output_type(aggregation: AggregateColumnOpParameters):
+    if aggregation.snowflake_agg_func in (min_, max_):
+        return aggregation.data_type
+    return None
+
 
 def is_snowflake_agg_func(agg_func: AggFuncTypeBase) -> bool:
     return agg_func in SNOWFLAKE_BUILTIN_AGG_FUNC_MAP
