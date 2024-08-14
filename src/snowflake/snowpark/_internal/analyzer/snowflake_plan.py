@@ -232,7 +232,7 @@ class SnowflakePlan(LogicalPlan):
         session: "snowflake.snowpark.session.Session",
     ) -> None:
         super().__init__()
-        self.queries: List[Query] = queries
+        self.queries = queries
         self.schema_query = schema_query
         self.post_actions = post_actions if post_actions else []
         self.expr_to_alias = expr_to_alias if expr_to_alias else {}
