@@ -5,13 +5,14 @@
 import datetime
 import inspect
 from abc import ABCMeta, abstractmethod
+from dataclasses import dataclass
 from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import pandas as native_pd
 
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-from snowflake.snowpark.types import DataType, LongType
+from snowflake.snowpark.types import LongType
 
 TIMEDELTA_WARNING_MESSAGE = (
     "Snowpark pandas support for Timedelta is not currently available."
@@ -68,7 +69,7 @@ class SnowparkPandasTypeMetaclass(
         return new_snowpark_python_type
 
 
-class SnowparkPandasType(DataType, metaclass=SnowparkPandasTypeMetaclass):
+class SnowparkPandasType(metaclass=SnowparkPandasTypeMetaclass):
     """Abstract class for Snowpark pandas types."""
 
     @staticmethod
@@ -95,7 +96,8 @@ class SnowparkPandasType(DataType, metaclass=SnowparkPandasTypeMetaclass):
         return _pandas_type_to_snowpark_pandas_type.get(pandas_type, None)
 
 
-class TimedeltaType(SnowparkPandasType):
+@dataclass(frozen=True)
+class TimedeltaType(SnowparkPandasType, LongType):
     """
     Timedelta represents the difference between two times.
 

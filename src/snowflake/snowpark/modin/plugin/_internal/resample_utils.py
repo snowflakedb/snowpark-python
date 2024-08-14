@@ -291,7 +291,7 @@ def get_snowflake_quoted_identifier_for_resample_index_col(frame: InternalFrame)
         )
 
     index_col = index_cols[0]
-    sf_type = frame.quoted_identifier_to_type()[index_col]
+    sf_type = frame.quoted_identifier_to_snowflake_type()[index_col]
 
     if not isinstance(sf_type, (TimestampType, DateType)):
         raise TypeError("Only valid with DatetimeIndex.")

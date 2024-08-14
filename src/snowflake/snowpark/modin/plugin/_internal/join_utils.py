@@ -957,8 +957,8 @@ def convert_incompatible_types_to_variant(
     """
     assert len(left_ids) == len(right_ids)
 
-    left_id_to_type_map = left.quoted_identifier_to_type()
-    right_id_to_type_map = right.quoted_identifier_to_type()
+    left_id_to_type_map = left.quoted_identifier_to_snowflake_type()
+    right_id_to_type_map = right.quoted_identifier_to_snowflake_type()
 
     left_to_variant = {}
     right_to_variant = {}

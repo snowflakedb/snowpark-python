@@ -1034,9 +1034,9 @@ def generate_column_agg_info(
             The new index data column index names for the dataframe after aggregation
     """
 
-    quoted_identifier_to_type: dict[
+    quoted_identifier_to_snowflake_type: dict[
         str, DataType
-    ] = internal_frame.quoted_identifier_to_type()
+    ] = internal_frame.quoted_identifier_to_snowflake_type()
     num_levels: int = internal_frame.num_index_levels(axis=1)
     # reserve all index column name and ordering column names
     identifiers_to_exclude: list[str] = (
@@ -1098,7 +1098,7 @@ def generate_column_agg_info(
             column_agg_ops.append(
                 AggregateColumnOpParameters(
                     snowflake_quoted_identifier=agg_func_col,
-                    data_type=quoted_identifier_to_type[quoted_identifier],
+                    data_type=quoted_identifier_to_snowflake_type[quoted_identifier],
                     agg_pandas_label=label,
                     agg_snowflake_quoted_identifier=identifier,
                     snowflake_agg_func=snowflake_agg_func,

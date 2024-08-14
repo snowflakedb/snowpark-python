@@ -150,7 +150,7 @@ class InternalFrame:
     # n.b. that we map to SnowparkPandasType rather than to DataType, because
     # we don't want to try tracking regular Snowpark Python types at all.
     # This map is a MappingProxyType so that it's immutable.
-    snowflake_quoted_identifier_to_type: MappingProxyType[
+    snowflake_quoted_identifier_to_snowflake_type: MappingProxyType[
         str, Optional[SnowparkPandasType]
     ]
 
@@ -226,7 +226,7 @@ class InternalFrame:
                 from_pandas_label(name, num_levels=1)
                 for name in data_column_pandas_index_names
             ),
-            snowflake_quoted_identifier_to_type=_create_snowflake_quoted_identifier_to_data_type(
+            snowflake_quoted_identifier_to_snowflake_type=_create_snowflake_quoted_identifier_to_data_type(
                 data_column_snowflake_quoted_identifiers,
                 index_column_snowflake_quoted_identifiers,
                 data_column_types,
@@ -339,13 +339,13 @@ class InternalFrame:
             ]
         ]
 
-    def quoted_identifier_to_type(self) -> dict[str, DataType]:
+    def quoted_identifier_to_snowflake_type(self) -> dict[str, DataType]:
         identifier_to_type = {}
         for f in self.ordered_dataframe.schema.fields:
             # ordered dataframe may include columns that are not index or data
             # columns of this InternalFrame, so don't assume that each
-            # identifier is in snowflake_quoted_identifier_to_type.
-            cached_type = self.snowflake_quoted_identifier_to_type.get(
+            # identifier is in snowflake_quoted_identifier_to_snowflake_type.
+            cached_type = self.snowflake_quoted_identifier_to_snowflake_type.get(
                 f.column_identifier.quoted_name, None
             )
             identifier_to_type[f.column_identifier.quoted_name] = (
@@ -498,7 +498,7 @@ class InternalFrame:
             # We have one index column. Fill in the type correctly.
             index_identifier = self.index_column_snowflake_quoted_identifiers[0]
             index_type = TypeMapper.to_pandas(
-                self.quoted_identifier_to_type()[index_identifier]
+                self.quoted_identifier_to_snowflake_type()[index_identifier]
             )
             ret = native_pd.Index(
                 [row[0] for row in index_values],
@@ -767,7 +767,9 @@ class InternalFrame:
             A list of Snowpark types for this frame's data columns.
         """
         return [
-            self.snowflake_quoted_identifier_to_type[v.snowflake_quoted_identifier]
+            self.snowflake_quoted_identifier_to_snowflake_type[
+                v.snowflake_quoted_identifier
+            ]
             for v in self.label_to_snowflake_quoted_identifier[self.num_index_columns :]
         ]
 
@@ -788,7 +790,9 @@ class InternalFrame:
             A list of Snowpark types for this frame's index columns.
         """
         return [
-            self.snowflake_quoted_identifier_to_type[v.snowflake_quoted_identifier]
+            self.snowflake_quoted_identifier_to_snowflake_type[
+                v.snowflake_quoted_identifier
+            ]
             for v in self.label_to_snowflake_quoted_identifier[: self.num_index_columns]
         ]
 
