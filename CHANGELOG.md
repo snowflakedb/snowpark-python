@@ -5,6 +5,7 @@
 ### Snowpark Python API Updates
 
 #### New Features
+
 - Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a util function to check the equality of two Snowpark DataFrames.
 - Added support for `Resampler.fillna` and `Resampler.bfill`.
 
@@ -25,6 +26,7 @@
 - Fixed a bug in `DataFrame.lineage.trace` to split the quoted feature view's name and version correctly.
 - Fixed a bug in `Column.isin` that caused invalid sql generation when passed an empty list.
 - Fixed a bug that fails to raise NotImplementedError while setting cell with list like item.
+- Fixed a bug in query generation from set operations that allowed generation of duplicate queries when children have common subqueries.
 
 ### Snowpark Local Testing Updates
 
@@ -77,8 +79,8 @@
 - Made passing an unsupported aggregation function to `pivot_table` raise `NotImplementedError` instead of `KeyError`.
 - Removed axis labels and callable names from error messages and telemetry about unsupported aggregations.
 - Fixed AssertionError in `Series.drop_duplicates` and `DataFrame.drop_duplicates` when called after `sort_values`.
-- Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.  
-- Fixed a bug where some Index docstrings are ignored. 
+- Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.
+- Fixed a bug where some Index docstrings are ignored.
 
 ### Behavior change
 - `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
