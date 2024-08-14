@@ -10200,11 +10200,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def dt_end_time(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("end_time")
 
-    def dt_property(self, property_name: str) -> "SnowflakeQueryCompiler":
+    def dt_property(
+        self, property_name: str, include_index: bool = False
+    ) -> "SnowflakeQueryCompiler":
         """
         Extracts the specified date or time part from the timestamp.
+
+        Args:
+            property_name: The name of the property to extract.
+            include_index: Whether to include the index columns in the operation.
+
+        Returns:
+            A new SnowflakeQueryCompiler with the specified datetime property extracted.
         """
-        assert len(self.columns) == 1, "dt only works for series"
+        if not include_index:
+            assert len(self.columns) == 1, "dt only works for series"
 
         # mapping from the property name to the corresponding snowpark function
         dt_property_to_function_map = {
@@ -10282,34 +10292,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         }
         property_function = dt_property_to_function_map.get(property_name)
         if not property_function:
+            class_prefix = "DatetimeIndex" if include_index else "Series.dt"
             raise ErrorMessage.not_implemented(
-                f"Snowpark pandas doesn't yet support the property 'Series.dt.{property_name}'"
+                f"Snowpark pandas doesn't yet support the property '{class_prefix}.{property_name}'"
             )  # pragma: no cover
 
         internal_frame = self._modin_frame
-        snowpark_column = property_function(
-            internal_frame.data_column_snowflake_quoted_identifiers[0]
-        )
-        internal_frame_with_property_column = internal_frame.append_column(
-            internal_frame.data_column_pandas_labels[0], snowpark_column
-        )
+        snowflake_ids = internal_frame.data_column_snowflake_quoted_identifiers[0:1]
+        if include_index:
+            snowflake_ids.extend(
+                internal_frame.index_column_snowflake_quoted_identifiers
+            )
 
-        return SnowflakeQueryCompiler(
-            InternalFrame.create(
-                ordered_dataframe=internal_frame_with_property_column.ordered_dataframe,
-                # the result data column is the last data column of internal_frame_with_property_column
-                data_column_pandas_labels=internal_frame_with_property_column.data_column_pandas_labels[
-                    -1:
-                ],
-                data_column_pandas_index_names=internal_frame_with_property_column.data_column_pandas_index_names,
-                # the result data column is the last data column of internal_frame_with_property_column
-                data_column_snowflake_quoted_identifiers=internal_frame_with_property_column.data_column_snowflake_quoted_identifiers[
-                    -1:
-                ],
-                index_column_pandas_labels=internal_frame_with_property_column.index_column_pandas_labels,
-                index_column_snowflake_quoted_identifiers=internal_frame_with_property_column.index_column_snowflake_quoted_identifiers,
+        internal_frame_with_property_column = (
+            internal_frame.update_snowflake_quoted_identifiers_with_expressions(
+                {col_id: property_function(col_id) for col_id in snowflake_ids}
             )
         )
+
+        return SnowflakeQueryCompiler(internal_frame_with_property_column.frame)
 
     def isin(
         self,
