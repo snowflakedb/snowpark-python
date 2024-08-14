@@ -64,14 +64,14 @@ LEFT_PREFIX = "left"
 RIGHT_PREFIX = "right"
 
 
-def _create_snowflake_quoted_identifier_to_data_type(
+def _create_snowflake_quoted_identifier_to_snowpark_pandas_type(
     data_column_snowflake_quoted_identifiers: list[str],
     index_column_snowflake_quoted_identifiers: list[str],
     data_column_types: Optional[list[Optional[SnowparkPandasType]]],
     index_column_types: Optional[list[Optional[SnowparkPandasType]]],
 ) -> MappingProxyType[str, Optional[SnowparkPandasType]]:
     """
-    Helper method to a create map from snowflake quoted identifier to data type.
+    Helper method to create map from Snowflake quoted identifier to Snowpark pandas type.
 
     Args:
         data_column_snowflake_quoted_identifiers: Snowflake quoted identifiers of data columns.
@@ -80,7 +80,7 @@ def _create_snowflake_quoted_identifier_to_data_type(
         index_column_types: Snowpark pandas types of index columns.
 
     Returns:
-        dict mapping each column's snowflake quoted identifier to the column's Snowpark pandas type.
+        dict mapping each column's Snowflake quoted identifier to the column's Snowpark pandas type.
     """
     if data_column_types is not None:
         assert len(data_column_types) == len(data_column_snowflake_quoted_identifiers)
@@ -150,7 +150,7 @@ class InternalFrame:
     # n.b. that we map to SnowparkPandasType rather than to DataType, because
     # we don't want to try tracking regular Snowpark Python types at all.
     # This map is a MappingProxyType so that it's immutable.
-    snowflake_quoted_identifier_to_snowflake_type: MappingProxyType[
+    snowflake_quoted_identifier_to_snowpark_pandas_type: MappingProxyType[
         str, Optional[SnowparkPandasType]
     ]
 
@@ -226,7 +226,7 @@ class InternalFrame:
                 from_pandas_label(name, num_levels=1)
                 for name in data_column_pandas_index_names
             ),
-            snowflake_quoted_identifier_to_snowflake_type=_create_snowflake_quoted_identifier_to_data_type(
+            snowflake_quoted_identifier_to_snowpark_pandas_type=_create_snowflake_quoted_identifier_to_snowpark_pandas_type(
                 data_column_snowflake_quoted_identifiers,
                 index_column_snowflake_quoted_identifiers,
                 data_column_types,
@@ -345,7 +345,7 @@ class InternalFrame:
             # ordered dataframe may include columns that are not index or data
             # columns of this InternalFrame, so don't assume that each
             # identifier is in snowflake_quoted_identifier_to_snowflake_type.
-            cached_type = self.snowflake_quoted_identifier_to_snowflake_type.get(
+            cached_type = self.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
                 f.column_identifier.quoted_name, None
             )
             identifier_to_type[f.column_identifier.quoted_name] = (
@@ -767,7 +767,7 @@ class InternalFrame:
             A list of Snowpark types for this frame's data columns.
         """
         return [
-            self.snowflake_quoted_identifier_to_snowflake_type[
+            self.snowflake_quoted_identifier_to_snowpark_pandas_type[
                 v.snowflake_quoted_identifier
             ]
             for v in self.label_to_snowflake_quoted_identifier[self.num_index_columns :]
@@ -790,7 +790,7 @@ class InternalFrame:
             A list of Snowpark types for this frame's index columns.
         """
         return [
-            self.snowflake_quoted_identifier_to_snowflake_type[
+            self.snowflake_quoted_identifier_to_snowpark_pandas_type[
                 v.snowflake_quoted_identifier
             ]
             for v in self.label_to_snowflake_quoted_identifier[: self.num_index_columns]
