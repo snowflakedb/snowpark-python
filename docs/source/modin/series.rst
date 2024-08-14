@@ -265,6 +265,8 @@ Series
     Series.dt.is_year_start
     Series.dt.is_year_end
     Series.dt.is_leap_year
+    Series.dt.floor
+    Series.dt.ceil
 
 
 .. rubric:: String accessor methods

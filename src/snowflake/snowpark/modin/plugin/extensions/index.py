@@ -24,13 +24,13 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import Any, Callable, Hashable, Iterator, Literal
+from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 
 import modin
 import numpy as np
 import pandas as native_pd
 from pandas._libs import lib
-from pandas._typing import ArrayLike, DtypeObj, NaPosition
+from pandas._typing import ArrayLike, DateTimeErrorChoices, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_datetime64_any_dtype, pandas_dtype
@@ -39,6 +39,7 @@ from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
+from snowflake.snowpark.modin.plugin._internal.timestamp_utils import DateTimeOrigin
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -47,6 +48,7 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     index_not_implemented,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.types import ArrayType
 
 _CONSTRUCTOR_DEFAULTS = {
     "dtype": None,
@@ -1324,8 +1326,14 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458127 implement max
 
-    @index_not_implemented()
-    def reindex(self) -> None:
+    def reindex(
+        self,
+        target: Iterable,
+        method: str | None = None,
+        level: int | None = None,
+        limit: int | None = None,
+        tolerance: int | float | None = None,
+    ) -> tuple[Index, np.ndarray]:
         """
         Create index with target's values.
 
@@ -1370,12 +1378,67 @@ class Index(metaclass=TelemetryMeta):
         ValueError
             If non-unique index and ``method`` or ``limit`` passed.
 
+        Notes
+        -----
+        ``method=nearest`` is not supported.
+
+        If duplicate values are present, they are ignored,
+        and all duplicate values are present in the result.
+
+        If the source and target indices have no overlap,
+        monotonicity checks are skipped.
+
+        Tuple-like index values are not supported.
+
+        Examples
+        --------
+        >>> idx = pd.Index(['car', 'bike', 'train', 'tractor'])
+        >>> idx
+        Index(['car', 'bike', 'train', 'tractor'], dtype='object')
+
+        >>> idx.reindex(['car', 'bike'])
+        (Index(['car', 'bike'], dtype='object'), array([0, 1]))
+
         See Also
         --------
         Series.reindex : Conform Series to new index with optional filling logic.
         DataFrame.reindex : Conform DataFrame to new index with optional filling logic.
         """
-        # TODO: SNOW-1458121 implement reindex
+
+        # This code path is only hit if our index is lazy (as an eager index would simply call
+        # the method on its underlying pandas Index object and return the result of that wrapped
+        # appropriately.) Therefore, we specify axis=0, since the QueryCompiler expects lazy indices
+        # on axis=0, but eager indices on axis=1 (used for error checking).
+        if limit is not None and method is None:
+            raise ValueError(
+                "limit argument only valid if doing pad, backfill or nearest reindexing"
+            )
+        kwargs = {
+            "method": method,
+            "level": level,
+            "limit": limit,
+            "tolerance": tolerance,
+            "_is_index": True,
+        }
+
+        internal_data_types = (
+            self._query_compiler._modin_frame.quoted_identifier_to_snowflake_type()
+        )
+        internal_index_column = (
+            self._query_compiler._modin_frame.index_column_snowflake_quoted_identifiers[
+                0
+            ]
+        )
+        internal_index_type = internal_data_types[internal_index_column]
+        if isinstance(internal_index_type, ArrayType):
+            raise NotImplementedError(
+                "Snowpark pandas does not support `reindex` with tuple-like Index values."
+            )
+        else:
+            query_compiler, indices = self._query_compiler.reindex(
+                axis=0, labels=target, **kwargs
+            )
+            return Index(query_compiler=query_compiler), indices
 
     @index_not_implemented()
     def rename(self) -> None:
@@ -2368,3 +2431,65 @@ class Index(metaclass=TelemetryMeta):
         """
         WarningMessage.index_to_pandas_warning("str")
         return self.to_pandas().str
+
+    def _to_datetime(
+        self,
+        errors: DateTimeErrorChoices = "raise",
+        dayfirst: bool = False,
+        yearfirst: bool = False,
+        utc: bool = False,
+        format: str = None,
+        exact: bool | lib.NoDefault = lib.no_default,
+        unit: str = None,
+        infer_datetime_format: bool | lib.NoDefault = lib.no_default,
+        origin: DateTimeOrigin = "unix",
+    ) -> Index:
+        """
+        Convert index to DatetimeIndex.
+        Args:
+            errors: {'ignore', 'raise', 'coerce'}, default 'raise'
+              If 'raise', then invalid parsing will raise an exception.
+              If 'coerce', then invalid parsing will be set as NaT.
+              If 'ignore', then invalid parsing will return the input.
+            dayfirst: bool, default False
+              Specify a date parse order if arg is str or is list-like.
+            yearfirst: bool, default False
+              Specify a date parse order if arg is str or is list-like.
+            utc: bool, default False
+              Control timezone-related parsing, localization and conversion.
+            format: str, default None
+              The strftime to parse time
+            exact: bool, default True
+              Control how format is used:
+              True: require an exact format match.
+              False: allow the format to match anywhere in the target string.
+            unit: str, default 'ns'
+              The unit of the arg (D,s,ms,us,ns) denote the unit, which is an integer
+              or float number.
+            infer_datetime_format: bool, default False
+              If True and no format is given, attempt to infer the format of the \
+              datetime strings based on the first non-NaN element.
+            origin: scalar, default 'unix'
+              Define the reference date. The numeric values would be parsed as number
+              of units (defined by unit) since this reference date.
+
+        Returns:
+            DatetimeIndex
+        """
+        from snowflake.snowpark.modin.plugin.extensions.datetime_index import (
+            DatetimeIndex,
+        )
+
+        new_qc = self._query_compiler.series_to_datetime(
+            errors,
+            dayfirst,
+            yearfirst,
+            utc,
+            format,
+            exact,
+            unit,
+            infer_datetime_format,
+            origin,
+            include_index=True,
+        )
+        return DatetimeIndex(query_compiler=new_qc)

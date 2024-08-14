@@ -63,7 +63,7 @@ from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 @sql_count_checker(query_count=1)
 def test_regular_range(kwargs):
     assert_snowpark_pandas_equal_to_pandas(
-        pd.date_range(**kwargs), native_pd.Series(native_pd.date_range(**kwargs))
+        pd.date_range(**kwargs), native_pd.date_range(**kwargs)
     )
 
 
@@ -125,7 +125,7 @@ def test_regular_range(kwargs):
 @sql_count_checker(query_count=1)
 def test_irregular_range(kwargs):
     assert_snowpark_pandas_equal_to_pandas(
-        pd.date_range(**kwargs), native_pd.Series(native_pd.date_range(**kwargs))
+        pd.date_range(**kwargs), native_pd.date_range(**kwargs)
     )
 
 
@@ -168,7 +168,7 @@ def test_without_freq(periods, inclusive):
         "inclusive": inclusive,
     }
     assert_snowpark_pandas_equal_to_pandas(
-        pd.date_range(**kwargs), native_pd.Series(native_pd.date_range(**kwargs))
+        pd.date_range(**kwargs), native_pd.date_range(**kwargs)
     )
 
 
@@ -193,7 +193,7 @@ def test_without_freq(periods, inclusive):
 def test_inclusive(kwargs, inclusive):
     kwargs.update({"inclusive": inclusive})
     assert_snowpark_pandas_equal_to_pandas(
-        pd.date_range(**kwargs), native_pd.Series(native_pd.date_range(**kwargs))
+        pd.date_range(**kwargs), native_pd.date_range(**kwargs)
     )
 
 

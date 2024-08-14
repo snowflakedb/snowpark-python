@@ -6,6 +6,7 @@
 
 #### New Features
 - Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a util function to check the equality of two Snowpark DataFrames.
+- Added support for `Resampler.fillna` and `Resampler.bfill`.
 
 #### Improvements
 
@@ -64,6 +65,9 @@
 - Added support for lazy `DatetimeIndex`.
 - Added support for `Series.argmax` and `Series.argmin`.
 - Added support for `Series.dt.is_leap_year`.
+- Added support for `DataFrame.items`.
+- Added support for `Series.dt.floor` and `Series.dt.ceil`.
+- Added support for `Index.reindex`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
@@ -79,6 +83,8 @@
 ### Behavior change
 - `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
 - Refactor and introduce `query_compiler` argument in `Index` constructor to create `Index` from query compiler.
+- `pd.to_datetime` now returns a DatetimeIndex object instead of a Series object.
+- `pd.date_range` now returns a DatetimeIndex object instead of a Series object.
 
 ## 1.20.0 (2024-07-17)
 
