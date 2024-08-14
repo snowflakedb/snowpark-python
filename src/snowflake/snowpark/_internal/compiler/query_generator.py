@@ -18,6 +18,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     LogicalPlan,
     SnowflakeCreateTable,
+    TableCreationSource,
     WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -121,12 +122,22 @@ class QueryGenerator(Analyzer):
             # overwrite the SnowflakeCreateTable resolving, because the child
             # attribute will be pulled directly from the cache
             resolved_child = resolved_children[logical_plan.children[0]]
+
+            # when creating a table during query compilation stage, if the
+            # table being created is the same as the one that is cached, we
+            # pull the child attributes directly from the cache. Otherwise, we
+            # use the child attributes as None. This will be for the case when
+            # table creation source is temp table from large query breakdown.
             child_attributes = None
             if (
-                self._snowflake_create_table_plan_info
-                and self._snowflake_create_table_plan_info.table_name
-                == logical_plan.table_name
+                logical_plan.creation_source
+                != TableCreationSource.LARGE_QUERY_BREAKDOWN
             ):
+                assert self._snowflake_create_table_plan_info is not None
+                assert (
+                    self._snowflake_create_table_plan_info.table_name
+                    == logical_plan.table_name
+                )
                 child_attributes = (
                     self._snowflake_create_table_plan_info.child_attributes
                 )

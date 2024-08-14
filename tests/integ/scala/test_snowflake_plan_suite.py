@@ -359,5 +359,23 @@ def test_create_scoped_temp_table(session):
                 child_attributes=df._plan.attributes,
             )
 
+        with pytest.raises(
+            ValueError,
+            match="child attribute must be provided when table creation source is not large query breakdown",
+        ):
+            session._plan_builder.save_as_table(
+                [temp_table_name],
+                None,
+                SaveMode.ERROR_IF_EXISTS,
+                "temporary",
+                None,
+                None,
+                df._plan,
+                None,
+                use_scoped_temp_objects=True,
+                creation_source=TableCreationSource.OTHERS,
+                child_attributes=None,
+            )
+
     finally:
         Utils.drop_table(session, table_name)

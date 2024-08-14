@@ -163,11 +163,11 @@ class SaveMode(Enum):
 
 
 class TableCreationSource(Enum):
-    """The enum to indicate the source of a create table request.
+    """The enum to indicate the source where SnowflakeCreateTable was created.
 
-    CACHE_RESULT: when create table request comes from DataFrame.cache_result
-    LARGE_QUERY_BREAKDOWN: when request comes from large query breakdown optimization
-    OTHERS: when request comes from other sources like DataFrame.write.save_as_table
+    CACHE_RESULT: SnowflakeCreateTable created by DataFrame.cache_result
+    LARGE_QUERY_BREAKDOWN: SnowflakeCreateTable created by large query breakdown optimization
+    OTHERS: SnowflakeCreateTable created by other sources like DataFrame.write.save_as_table
     """
 
     CACHE_RESULT = "cache_result"

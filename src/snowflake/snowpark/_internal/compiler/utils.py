@@ -23,6 +23,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Limit,
     LogicalPlan,
     SnowflakeCreateTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     TableDelete,
@@ -51,6 +52,13 @@ def create_query_generator(plan: SnowflakePlan) -> QueryGenerator:
         plan.source_plan, SnowflakeCreateTable
     ):
         create_table_node = plan.source_plan
+        # we ensure that the source plan is not from large query breakdown because we
+        # do not cache attributes for this case.
+        assert (
+            create_table_node.creation_source
+            != TableCreationSource.LARGE_QUERY_BREAKDOWN
+        ), "query generator is not supported for large query breakdown as creation source"
+
         # resolve the node child to get the child attribute that is needed for later code
         # generation. Typically, the query attached to the create_table_node is already a
         # resolved plan, and the resolve will be a no-op.
