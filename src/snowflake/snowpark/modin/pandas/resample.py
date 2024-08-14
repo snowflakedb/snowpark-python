@@ -268,6 +268,16 @@ class Resampler(metaclass=TelemetryMeta):
         self._method_not_implemented("nearest")
 
     def fillna(self, method: str, limit: Optional[int] = None):
+        if not isinstance(method, str) or method not in (
+            "pad",
+            "ffill",
+            "backfill",
+            "bfill",
+            "nearest",
+        ):
+            raise ValueError(
+                f"Invalid fill method. Expecting pad (ffill), backfill (bfill) or nearest. Got {method}"
+            )
         return getattr(self, method)(limit=limit)
 
     def asfreq(self, fill_value: Optional[Any] = None):  # pragma: no cover

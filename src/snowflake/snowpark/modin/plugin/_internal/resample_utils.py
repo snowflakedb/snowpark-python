@@ -680,6 +680,8 @@ def perform_asof_join_on_frame(
         get_snowflake_quoted_identifier_for_resample_index_col(referenced_frame)
     )
     if fill_method == "bfill":
+        # Snowflake recommends using 1582 as the smallest year for date or timestamp type
+        # due to limits on the Gregorian calendar. See https://docs.snowflake.com/en/sql-reference/data-types-datetime
         interval_end_col = coalesce(
             lag(col(interval_start_snowflake_quoted_identifier)).over(
                 Window.order_by(col(interval_start_snowflake_quoted_identifier).asc())
@@ -687,12 +689,14 @@ def perform_asof_join_on_frame(
             pandas_lit("1582-01-01 00:00:00"),
         )
     else:
-        assert fill_method == "ffill"
+        # Snowflake recommends using 9999 as the largest year for date or timestamp type
+        # due to limits on the Gregorian calendar. See https://docs.snowflake.com/en/sql-reference/data-types-datetime
+        assert fill_method == "ffill", "`fill_method` can only be 'bfill' or 'ffill'"
         interval_end_col = coalesce(
             lead(col(interval_start_snowflake_quoted_identifier)).over(
                 Window.order_by(col(interval_start_snowflake_quoted_identifier).asc())
             ),
-            pandas_lit("9999-01-01 00:00:00"),
+            pandas_lit("9999-12-31 23:59:59"),
         )
     right_frame = referenced_frame.append_column(
         interval_end_pandas_label, interval_end_col
