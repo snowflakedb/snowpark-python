@@ -13404,7 +13404,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             label_to_snowflake_quoted_identifier=label_to_snowflake_quoted_identifier,
             num_index_columns=new_frame.num_index_columns,
             data_column_index_names=new_frame.data_column_index_names,
-            snowflake_quoted_identifier_to_snowflake_type={
+            snowflake_quoted_identifier_to_snowpark_pandas_type={
                 pair.snowflake_quoted_identifier: None
                 for pair in label_to_snowflake_quoted_identifier
             },
