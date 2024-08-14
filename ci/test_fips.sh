@@ -11,8 +11,10 @@ SNOWPARK_WHL="$(ls $SNOWPARK_DIR/dist/*.whl | sort -r | head -n 1)"
 python3.8 -m venv fips_env
 source fips_env/bin/activate
 export OPENSSL_FIPS=1
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+
 pip install -U setuptools pip
-pip install "${SNOWPARK_WHL}[pandas,secure-local-storage,development,opentelemetry]" "cryptography<3.3.0" --force-reinstall --no-binary cryptography
+pip install "${SNOWPARK_WHL}[pandas,secure-local-storage,development,opentelemetry]"
 pip install "pytest-timeout"
 
 echo "!!! Environment description !!!"
