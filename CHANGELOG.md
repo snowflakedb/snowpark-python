@@ -67,6 +67,7 @@
 - Added support for `DataFrame.items`.
 - Added support for `Series.dt.floor` and `Series.dt.ceil`.
 - Added support for `Index.reindex`.
+- Added support for index's arithmetic and comparison operators.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
@@ -79,7 +80,7 @@
 - Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.  
 - Fixed a bug where some Index docstrings are ignored. 
 - Fixed a bug in `Series.reset_index(drop=True)` where the result name may be wrong.
-- 
+
 ### Behavior change
 - `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
 - Refactor and introduce `query_compiler` argument in `Index` constructor to create `Index` from query compiler.
