@@ -309,13 +309,13 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     get_distinct_rows,
     get_mapping_from_left_to_right_columns_by_label,
     get_snowflake_quoted_identifier_to_pandas_label_mapping,
+    infer_snowpark_types_from_pandas,
     is_all_label_components_none,
     is_duplicate_free,
     label_prefix_match,
     pandas_lit,
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     parse_snowflake_object_construct_identifier_to_map,
-    snowpark_to_pandas_helper,
     unquote_name_if_quoted,
 )
 from snowflake.snowpark.modin.plugin._internal.where_utils import (
@@ -502,9 +502,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         # create snowpark df
+        snowpark_pandas_types, snowpark_types = infer_snowpark_types_from_pandas(df)
         ordered_dataframe = create_ordered_dataframe_from_pandas(
             df,
             snowflake_quoted_identifiers=current_df_data_column_snowflake_quoted_identifiers,
+            snowpark_types=snowpark_types,
             ordering_columns=[
                 OrderingColumn(row_position_snowflake_quoted_identifier),
             ],
@@ -517,9 +519,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ordered_dataframe=ordered_dataframe,
                 data_column_pandas_labels=original_column_labels,
                 data_column_pandas_index_names=original_column_index_names,
+                # data columns appear after the index columns, but before the
+                # row position column.
+                data_column_types=snowpark_pandas_types[
+                    len(index_snowflake_quoted_identifiers) : (
+                        len(index_snowflake_quoted_identifiers)
+                        + len(data_column_snowflake_quoted_identifiers)
+                    )
+                ],
                 data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
                 index_column_pandas_labels=original_index_pandas_labels,
                 index_column_snowflake_quoted_identifiers=index_snowflake_quoted_identifiers,
+                # The columns up to position `len(index_snowflake_quoted_identifiers)`
+                # are the index columns.
+                index_column_types=snowpark_pandas_types[
+                    : len(index_snowflake_quoted_identifiers)
+                ],
             )
         )
 
@@ -656,36 +671,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             The QueryCompiler converted to pandas.
 
         """
-        ordered_dataframe = self._modin_frame.ordered_dataframe.select(
-            self._modin_frame.index_column_snowflake_quoted_identifiers
-            + self._modin_frame.data_column_snowflake_quoted_identifiers
-        )
-
-        native_df = snowpark_to_pandas_helper(
-            ordered_dataframe, statement_params=statement_params, **kwargs
-        )
-
-        # to_pandas() does not preserve the index information and will just return a
-        # RangeIndex. Therefore, we need to set the index column manually
-        native_df.set_index(
-            [
-                extract_pandas_label_from_snowflake_quoted_identifier(identifier)
-                for identifier in self._modin_frame.index_column_snowflake_quoted_identifiers
-            ],
-            inplace=True,
-        )
-        # set index name
-        native_df.index = native_df.index.set_names(
-            self._modin_frame.index_column_pandas_labels
-        )
-
-        from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-
-        # set column names and potential casting
-        native_df.columns = try_convert_index_to_native(
-            self._modin_frame.data_columns_index
-        )
-        return native_df
+        return self._modin_frame.to_pandas(statement_params, **kwargs)
 
     def finalize(self) -> None:
         pass
@@ -1381,8 +1367,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_labels=new_pandas_labels.tolist(),
             data_column_pandas_index_names=new_pandas_labels.names,
             data_column_snowflake_quoted_identifiers=new_data_column_snowflake_quoted_identifiers,
+            data_column_types=renamed_frame.cached_data_column_snowpark_pandas_types,
             index_column_pandas_labels=renamed_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=renamed_frame.index_column_snowflake_quoted_identifiers,
+            index_column_types=renamed_frame.cached_index_column_snowpark_pandas_types,
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -5864,14 +5852,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         0
                     ]
                     # if index datatype may change after rename, we have to cast the new index column to variant
-                    quoted_identifier_to_type_map = (
+                    quoted_identifier_to_snowflake_type_map = (
                         index_renamer_internal_frame.quoted_identifier_to_snowflake_type()
                     )
                     index_datatype_may_change = [
-                        quoted_identifier_to_type_map[quoted_identifier]
+                        quoted_identifier_to_snowflake_type_map[quoted_identifier]
                         for quoted_identifier in index_renamer_internal_frame.index_column_snowflake_quoted_identifiers
                     ] != [
-                        quoted_identifier_to_type_map[quoted_identifier]
+                        quoted_identifier_to_snowflake_type_map[quoted_identifier]
                         for quoted_identifier in index_renamer_internal_frame.data_column_snowflake_quoted_identifiers
                     ]
                     index_col, new_index_col = col(index_col_id), col(new_index_col_id)
@@ -9259,7 +9247,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ]
         where_selected_columns += missing_ordering_column_snowflake_quoted_identifiers
 
-        snowflake_quoted_identifier_to_data_type = (
+        snowflake_quoted_identifier_to_snowflake_type = (
             joined_frame.quoted_identifier_to_snowflake_type()
         )
         new_data_column_snowflake_quoted_identifiers: list[ColumnOrName] = []
@@ -9279,7 +9267,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             other_snowflake_quoted_identifier = df_to_other_identifier_mappings.get(
                 snowflake_quoted_identifier
             )
-            col_data_type = snowflake_quoted_identifier_to_data_type.get(
+            col_data_type = snowflake_quoted_identifier_to_snowflake_type.get(
                 snowflake_quoted_identifier
             )
             # TODO (SNOW-904421): Other value can fail to cast in snowflake if not compatible type
@@ -9290,7 +9278,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     other_col_or_literal = to_variant(other_col_or_literal)
             elif other_snowflake_quoted_identifier:
                 other_col_or_literal = col(other_snowflake_quoted_identifier)
-                other_col_data_type = snowflake_quoted_identifier_to_data_type[
+                other_col_data_type = snowflake_quoted_identifier_to_snowflake_type[
                     other_snowflake_quoted_identifier
                 ]
                 if not is_compatible_snowpark_types(other_col_data_type, col_data_type):
@@ -13415,6 +13403,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             label_to_snowflake_quoted_identifier=label_to_snowflake_quoted_identifier,
             num_index_columns=new_frame.num_index_columns,
             data_column_index_names=new_frame.data_column_index_names,
+            snowflake_quoted_identifier_to_snowflake_type={
+                pair.snowflake_quoted_identifier: None
+                for pair in label_to_snowflake_quoted_identifier
+            },
         )
 
         return SnowflakeQueryCompiler(new_frame)
