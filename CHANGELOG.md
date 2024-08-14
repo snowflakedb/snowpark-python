@@ -6,7 +6,7 @@
 
 #### New Features
 - Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a util function to check the equality of two Snowpark DataFrames.
-- Added limited support for the `Timedelta` type.
+- Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
 
 #### Improvements
 
