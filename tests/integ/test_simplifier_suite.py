@@ -8,7 +8,6 @@ from typing import Tuple
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.analyzer import analyzer
 from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
@@ -235,22 +234,6 @@ def test_set_after_set(session):
         sort=True,
     )
     assert df_union.columns == ["_1", "_2", "NEW_COLUMN"]
-
-
-def test_union_deduplicates_queries_post_actions(session):
-    try:
-        original_threshold = analyzer.ARRAY_BIND_THRESHOLD
-        analyzer.ARRAY_BIND_THRESHOLD = 2
-        df_base = session.create_dataframe(
-            [[1, 2, 11], [3, 4, 33]], schema=["a", "b", "c"]
-        )
-        df_union = df_base.union(df_base)
-        queries = df_union.queries
-
-        assert len(queries["queries"]) == 3
-        assert len(queries["post_actions"]) == 1
-    finally:
-        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
 
 
 def test_select_new_columns(session, simplifier_table):

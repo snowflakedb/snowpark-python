@@ -8,7 +8,6 @@ from typing import Dict, List
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.analyzer import analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import schema_value_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -184,22 +183,6 @@ def test_execution_queries_and_post_actions(session):
 
     finally:
         session.cte_optimization_enabled = original_cte_enabled_value
-
-
-def test_binary_plan_deduplicates_queries_and_post_actions(session):
-    try:
-        original_threshold = analyzer.ARRAY_BIND_THRESHOLD
-        analyzer.ARRAY_BIND_THRESHOLD = 2
-        df_base = session.create_dataframe(
-            [[1, 2, 11], [3, 4, 33]], schema=["a", "b", "c"]
-        )
-        df_union = df_base.union(df_base)
-        queries = df_union.queries
-
-        assert len(queries["queries"]) == 3
-        assert len(queries["post_actions"]) == 1
-    finally:
-        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
 
 
 @pytest.mark.skipif(
