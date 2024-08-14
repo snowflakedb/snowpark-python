@@ -205,6 +205,17 @@ def _set_fn_name(name: Union[str, Iterable[str]], fn: proto.FnRefExpr) -> None:
         )
 
 
+def build_sp_table_name(
+    expr_builder: proto.SpTableName, name: Union[str, Iterable[str]]
+):
+    if isinstance(name, str):
+        expr_builder.sp_table_name_flat.name = name
+    elif isinstance(name, Iterable):
+        expr_builder.sp_table_name_structured.name.extend(name)
+    else:
+        raise ValueError(f"Invalid name type {type(name)} for SpTableName entity.")
+
+
 def build_builtin_fn_apply(
     ast: proto.Expr,
     builtin_name: str,
