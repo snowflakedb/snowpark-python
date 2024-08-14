@@ -1983,18 +1983,14 @@ def cast_column_to(
     if isinstance(target_data_type, TimeType):
         return mock_to_time(col, try_cast=try_cast)
     if isinstance(target_data_type, TimestampType):
-        if target_data_type.tz is TimestampTimeZone.DEFAULT:
-            return mock_to_timestamp(col, try_cast=try_cast)
-        elif target_data_type.tz is TimestampTimeZone.LTZ:
+        if target_data_type.tz is TimestampTimeZone.LTZ:
             return mock_to_timestamp_ltz(col, try_cast=try_cast)
         elif target_data_type.tz is TimestampTimeZone.NTZ:
             return mock_to_timestamp_ntz(col, try_cast=try_cast)
         elif target_data_type.tz is TimestampTimeZone.TZ:
             return mock_to_timestamp_tz(col, try_cast=try_cast)
         else:
-            raise SnowparkLocalTestingException(
-                f"Unkown timezone type {target_data_type.tz} during cast."
-            )
+            return mock_to_timestamp(col, try_cast=try_cast)
     if isinstance(target_data_type, DecimalType):
         return mock_to_decimal(
             col,

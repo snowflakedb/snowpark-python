@@ -37,6 +37,7 @@
     - ntile
     - datediff
 - Added support parsing regex flags in REGEX statements for mocked plans. This maintains parity with the `rlike` and `regexp` changes above.
+- Added support for type coercion when passing columns as input to udf calls
 
 #### Bug Fixes
 - Fixed a bug that Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
