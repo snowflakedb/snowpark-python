@@ -75,7 +75,7 @@ class Index(metaclass=TelemetryMeta):
     ) -> Index:
         """
         Override __new__ method to control new instance creation of Index.
-        Depending on data type, it will create a Index or DatetimeIndex instance.
+        Depending on data type, it will create an Index or DatetimeIndex instance.
 
         Parameters
         ----------
@@ -178,6 +178,7 @@ class Index(metaclass=TelemetryMeta):
         query_compiler: SnowflakeQueryCompiler = None,
         **kwargs: Any,
     ):
+        # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
         self._parent = None
         if query_compiler:
             # Raise warning if `data` is query compiler with non-default arguments.
@@ -187,7 +188,6 @@ class Index(metaclass=TelemetryMeta):
                 ), f"Non-default argument '{arg_name}={arg_value}' when constructing Index with query compiler"
             self._query_compiler = query_compiler
         elif isinstance(data, BasePandasDataset):
-            self._parent = data
             if data.ndim != 1:
                 raise ValueError("Index data must be 1 - dimensional")
             series_has_no_name = data.name is None
@@ -263,6 +263,12 @@ class Index(metaclass=TelemetryMeta):
         Returns: Type of the instance.
         """
         return type(self)
+
+    def _set_parent(self, parent: Series | DataFrame):
+        """
+        Set the parent object of the current Index to a given Series or DataFrame.
+        """
+        self._parent = parent
 
     @property
     def values(self) -> ArrayLike:
@@ -635,7 +641,9 @@ class Index(metaclass=TelemetryMeta):
             self.name = name
             return None
         else:
-            return self.__constructor__(name=names if is_scalar(names) else names[0])
+            res = self.__constructor__(query_compiler=self._query_compiler)
+            res.name = names if is_scalar(names) else names[0]
+            return res
 
     @property
     def ndim(self) -> int:

@@ -7,7 +7,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=0)
@@ -78,9 +78,8 @@ def test_index_rename_inplace(new_name):
 
 
 @pytest.mark.parametrize("new_name", [None, "grade", ("grade",), ("A", "B")])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_index_rename_copy(new_name):
-    # 1 query to create the new index.
     native_idx = native_pd.Index(["A", "C", "A", "B"], name="score")
     snow_idx = pd.Index(native_idx)
 
@@ -117,9 +116,9 @@ def test_df_index_rename_inplace(new_name):
 
 
 @pytest.mark.parametrize("new_name", [None, "grade", ("grade",), ("A", "B")])
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_df_index_rename_copy(new_name):
-    # 1 query to create the DataFrame, 1 query to create the new index.
+    # 1 query to create the DataFrame.
     # Create the DataFrame and the new index.
     native_idx = native_pd.Index(["A", "C"], name="score")
     snow_idx = pd.Index(native_idx)
@@ -138,15 +137,14 @@ def test_df_index_rename_copy(new_name):
 
 
 @pytest.mark.parametrize("new_name", [None, "grade", ["grade"], ("grade",)])
-@pytest.mark.parametrize("level", [0, -1])
 @sql_count_checker(query_count=0)
-def test_index_set_names_inplace(new_name, level):
+def test_index_set_names_inplace(new_name):
     native_idx = native_pd.Index(["A", "C", "A", "B"], name="score")
     snow_idx = pd.Index(native_idx)
 
     # Rename the index in place.
-    native_res = native_idx.set_names(new_name, level=level, inplace=True)
-    snow_res = snow_idx.set_names(new_name, level=level, inplace=True)
+    native_res = native_idx.set_names(new_name, inplace=True)
+    snow_res = snow_idx.set_names(new_name, inplace=True)
 
     # Verify that the return value is None, and `name` and `names` match.
     assert native_res is None
@@ -160,16 +158,14 @@ def test_index_set_names_inplace(new_name, level):
 
 
 @pytest.mark.parametrize("new_name", [None, "grade", ["grade"], ("grade",)])
-@pytest.mark.parametrize("level", [0, -1])
-@sql_count_checker(query_count=1)
-def test_index_set_names_copy(new_name, level):
-    # 1 query to create the new index.
+@sql_count_checker(query_count=0)
+def test_index_set_names_copy(new_name):
     native_idx = native_pd.Index(["A", "C", "A", "B"], name="score")
     snow_idx = pd.Index(native_idx)
 
     # Rename the index and create a new index.
-    new_native_idx = native_idx.set_names(new_name, level=level, inplace=False)
-    new_snow_idx = snow_idx.set_names(new_name, level=level, inplace=False)
+    new_native_idx = native_idx.set_names(new_name, inplace=False)
+    new_snow_idx = snow_idx.set_names(new_name, inplace=False)
 
     # Verify that `name` and `names` match, and the original index's name is unchanged.
     assert (
@@ -186,9 +182,8 @@ def test_index_set_names_copy(new_name, level):
 
 
 @pytest.mark.parametrize("new_name", [None, "grade", ["grade"], ("grade",)])
-@pytest.mark.parametrize("level", [0, -1])
 @sql_count_checker(query_count=1)
-def test_df_index_set_names_inplace(new_name, level):
+def test_df_index_set_names_inplace(new_name):
     # 1 query to create the DataFrame.
     # Create the DataFrame and the new index.
     native_idx = native_pd.Index(["A", "C"], name="score")
@@ -198,8 +193,8 @@ def test_df_index_set_names_inplace(new_name, level):
     snow_df = pd.DataFrame(data, index=snow_idx)
 
     # Rename the index in place.
-    native_res = native_df.index.set_names(new_name, level=level, inplace=True)
-    snow_res = snow_df.index.set_names(new_name, level=level, inplace=True)
+    native_res = native_df.index.set_names(new_name, inplace=True)
+    snow_res = snow_df.index.set_names(new_name, inplace=True)
 
     # Verify that the return value is None, and `name` and `names` match.
     assert native_res is None
@@ -217,10 +212,9 @@ def test_df_index_set_names_inplace(new_name, level):
 
 
 @pytest.mark.parametrize("new_name", [None, "grade", ["grade"], ("grade",)])
-@pytest.mark.parametrize("level", [0, -1])
-@sql_count_checker(query_count=2)
-def test_df_index_set_names_copy(new_name, level):
-    # 1 query to create the DataFrame, 1 query to create the new index.
+@sql_count_checker(query_count=1)
+def test_df_index_set_names_copy(new_name):
+    # 1 query to create the DataFrame.
     # Create the DataFrame and the new index.
     native_idx = native_pd.Index(["A", "C"], name="score")
     snow_idx = pd.Index(native_idx)
@@ -229,8 +223,8 @@ def test_df_index_set_names_copy(new_name, level):
     snow_df = pd.DataFrame(data, index=snow_idx)
 
     # Rename the index and create a new index.
-    new_native_idx = native_df.index.set_names(new_name, level=level, inplace=False)
-    new_snow_idx = snow_df.index.set_names(new_name, level=level, inplace=False)
+    new_native_idx = native_df.index.set_names(new_name, inplace=False)
+    new_snow_idx = snow_df.index.set_names(new_name, inplace=False)
 
     # Verify that `name` and `names` match, and the original index's name is unchanged.
     assert (
@@ -247,6 +241,7 @@ def test_df_index_set_names_copy(new_name, level):
 
 
 @pytest.mark.parametrize("inplace", [True, False])
+@sql_count_checker(query_count=0)
 def test_index_rename_list(inplace):
     # In native pandas, `rename` only works with hashable datatypes, however `set_names` works with
     # non-hashable datatypes as well (these are usually list-like types).
@@ -259,17 +254,15 @@ def test_index_rename_list(inplace):
     with pytest.raises(TypeError, match="Index.name must be a hashable type"):
         native_idx.rename(new_name, inplace=inplace)
 
-    with SqlCounter(query_count=0 if inplace else 1):
-        # 1 query to create the new index.
-        res = snow_idx.rename(new_name, inplace=inplace)
-        if inplace:
-            assert res is None
-            assert snow_idx.name == "grade"
-            assert snow_idx.names == ["grade"]
-        else:
-            assert res.name == "grade"
-            assert res.names == ["grade"]
-            assert snow_idx.name == "score"
+    res = snow_idx.rename(new_name, inplace=inplace)
+    if inplace:
+        assert res is None
+        assert snow_idx.name == "grade"
+        assert snow_idx.names == ["grade"]
+    else:
+        assert res.name == "grade"
+        assert res.names == ["grade"]
+        assert snow_idx.name == "score"
 
 
 @pytest.mark.parametrize("level", [-10, 1, "abc"])
@@ -279,3 +272,20 @@ def test_index_set_names_invalid_level(level):
     err_msg = f"Level does not exist: Index has only 1 level, {level} is not a valid level number."
     with pytest.raises(IndexError, match=err_msg):
         idx.set_names("grade", level=level)
+
+
+@pytest.mark.parametrize("level", [0, -1])
+@sql_count_checker(query_count=0)
+def test_index_set_names_level(level):
+    # The level parameter works for Snowpark pandas even in the case of a single Index.
+    # However, native pandas does not allow you to specify the level unless the index is
+    # a MultiIndex.
+    native_idx = native_pd.Index(["A", "C", "A", "B"], name="score")
+    snow_idx = pd.Index(native_idx)
+    with pytest.raises(ValueError, match="Level must be None for non-MultiIndex"):
+        native_idx.set_names("grade", level=level)
+
+    # Verifying the results.
+    native_res = native_idx.set_names("grade")
+    snow_res = snow_idx.set_names("grade", level=level)
+    assert native_res.name == snow_res.name == "grade"
