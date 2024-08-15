@@ -585,6 +585,11 @@ class DataFrame:
             raise NotImplementedError(
                 f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
             )
+        if self._ast_id is None and FAIL_ON_MISSING_AST:
+            _logger.debug(self._explain_string())
+            raise NotImplementedError(
+                f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+            )
         # TODO: remove the None guard below once we generate the correct AST.
         elif self._ast_id is not None:
             sp_dataframe_expr_builder.sp_dataframe_ref.id.bitfield1 = self._ast_id
@@ -1056,6 +1061,7 @@ class DataFrame:
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_to_df, stmt)
+            ast = with_src_position(stmt.expr.sp_dataframe_to_df, stmt)
             self.set_ast_ref(ast.df)
             ast.col_names.extend(col_names)
             ast.variadic = is_variadic
@@ -1213,7 +1219,7 @@ class DataFrame:
             Union[ColumnOrName, TableFunctionCall],
             Iterable[Union[ColumnOrName, TableFunctionCall]],
         ],
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: Optional[proto.Assign] = None,
         _emit_ast: bool = True,
         _caller_frame_depth=2,
     ) -> "DataFrame":
@@ -2081,6 +2087,7 @@ class DataFrame:
             Union[Iterable[LiteralType], "snowflake.snowpark.DataFrame"]
         ] = None,
         default_on_null: Optional[LiteralType] = None,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Rotates this DataFrame by turning the unique values from one column in the input
         expression into multiple columns and aggregating results where required on any
@@ -2137,6 +2144,10 @@ class DataFrame:
                 or None (default) will use all values of the pivot column.
             default_on_null: Expression to replace empty result values.
         """
+
+        if _emit_ast:
+            raise NotImplementedError("TODO SNOW-1491297, add coverage for pivot.")
+
         target_df, pc, pivot_values, default_on_null = prepare_pivot_arguments(
             self, "DataFrame.pivot", pivot_col, values, default_on_null
         )
@@ -2295,7 +2306,7 @@ class DataFrame:
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
 
     @df_api_usage
-    def union_all(self, other: "DataFrame") -> "DataFrame":
+    def union_all(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows. Both input
         DataFrames must contain the same number of columns.
@@ -2318,11 +2329,13 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+
         # AST.
-        stmt = self._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_union_all, stmt)
-        self.set_ast_ref(ast.df)
-        other.set_ast_ref(ast.other)
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_union_all, stmt)
+            self.set_ast_ref(ast.df)
+            other.set_ast_ref(ast.other)
 
         if self._select_statement:
             return self._with_plan(
@@ -3549,7 +3562,7 @@ class DataFrame:
             return result[0][0] if block else result
 
     @property
-    def write(self) -> DataFrameWriter:
+    def write(self, _emit_ast: bool = True) -> DataFrameWriter:
         """Returns a new :class:`DataFrameWriter` object that you can use to write the data in the :class:`DataFrame` to
         a Snowflake database or a stage location
 
@@ -3568,6 +3581,13 @@ class DataFrame:
             >>> df.write.copy_into_location("@test_stage/copied_from_dataframe")  # default CSV
             [Row(rows_unloaded=2, input_bytes=8, output_bytes=28)]
         """
+
+        # AST.
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_write, stmt)
+            self.set_ast_ref(expr.df)
+            self._writer._ast_stmt = stmt
 
         return self._writer
 
@@ -4323,6 +4343,7 @@ class DataFrame:
         # AST.
         stmt = self._session._ast_batch.assign()
         ast = with_src_position(stmt.expr.sp_dataframe_first, stmt)
+        ast = with_src_position(stmt.expr.sp_dataframe_first, stmt)
         if statement_params is not None:
             ast.statement_params.append((k, v) for k, v in statement_params)
         self.set_ast_ref(ast.df)
@@ -4356,7 +4377,10 @@ class DataFrame:
 
     @df_api_usage
     def sample(
-        self, frac: Optional[float] = None, n: Optional[int] = None
+        self,
+        frac: Optional[float] = None,
+        n: Optional[int] = None,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Samples rows based on either the number of rows to be returned or a
         percentage of rows to be returned.
@@ -4778,8 +4802,12 @@ class DataFrame:
             f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
         )
 
+        # TODO: Clarify whether cache_result() is an Eval or not. Currently, treat as Assign.
+
         if isinstance(self._session._conn, MockServerConnection):
-            self.write.save_as_table(temp_table_name, create_temp_table=True)
+            self._writer.save_as_table(
+                temp_table_name, create_temp_table=True, _emit_ast=False
+            )
         else:
             create_temp_table = self._session._analyzer.plan_builder.create_temp_table(
                 temp_table_name,
@@ -4838,6 +4866,7 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_random_split, stmt)
         ast = with_src_position(stmt.expr.sp_dataframe_random_split, stmt)
         self.set_ast_ref(ast.df)
         if not weights:
