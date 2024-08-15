@@ -587,17 +587,6 @@ class DataFrame:
 
     @property
     def stat(self) -> DataFrameStatFunctions:
-
-        # TODO: Feature flag for Phase0.
-        _emit_ast = True
-
-        # AST.
-        if _emit_ast:
-            stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_stats, stmt)
-            self.set_ast_ref(expr.df)
-            self._stat._ast_stmt = stmt
-
         return self._stat
 
     @property
