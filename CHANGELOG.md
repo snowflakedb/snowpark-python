@@ -6,8 +6,6 @@
 
 #### New Features
 - Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a util function to check the equality of two Snowpark DataFrames.
-- Added support for `Resampler.fillna` and `Resampler.bfill`.
-- Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
 
 #### Improvements
 
@@ -73,6 +71,8 @@
     `nanosecond`, `date`, `dayofyear`, `day_of_year`, `dayofweek`, `day_of_week`, `weekday`, `quarter`,
     `is_month_start`, `is_month_end`, `is_quarter_start`, `is_quarter_end`, `is_year_start`, `is_year_end`
     and `is_leap_year`.
+- Added support for `Resampler.fillna` and `Resampler.bfill`.
+- Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
 - Added support for index's arithmetic and comparison operators.
 
 #### Improvements
