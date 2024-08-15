@@ -257,6 +257,8 @@ def pivot_helper(
             data_column_snowflake_quoted_identifiers=[],
             index_column_pandas_labels=index,
             index_column_snowflake_quoted_identifiers=groupby_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
         )
     data_column_pandas_labels: list[Hashable] = []
     data_column_snowflake_quoted_identifiers: list[str] = []
@@ -482,6 +484,8 @@ def pivot_helper(
         data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
         index_column_pandas_labels=index,
         index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
 
@@ -1285,6 +1289,8 @@ def expand_pivot_result_with_pivot_table_margins_no_groupby_columns(
             data_column_snowflake_quoted_identifiers=margins_frame.data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=margins_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=margins_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=margins_frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=margins_frame.cached_index_column_snowpark_pandas_types,
         )
 
     # Need to create a QueryCompiler for the margins frame, but SnowflakeQueryCompiler is not present in this scope
@@ -1691,6 +1697,8 @@ def expand_pivot_result_with_pivot_table_margins(
         data_column_pandas_index_names=pivoted_frame.data_column_pandas_index_names,
         index_column_pandas_labels=pivoted_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=pivoted_frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
     from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
@@ -1758,6 +1766,8 @@ def expand_pivot_result_with_pivot_table_margins(
         index_column_snowflake_quoted_identifiers=margin_row_df_identifiers[
             0 : len(groupby_snowflake_quoted_identifiers)
         ],
+        data_column_types=None,
+        index_column_types=None,
     )
     single_row_qc = SnowflakeQueryCompiler(margin_row_frame)
 
