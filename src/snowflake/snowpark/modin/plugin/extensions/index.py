@@ -30,6 +30,7 @@ import modin
 import numpy as np
 import pandas as native_pd
 from pandas._libs import lib
+from pandas._libs.lib import is_list_like, is_scalar
 from pandas._typing import ArrayLike, DateTimeErrorChoices, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
@@ -132,7 +133,7 @@ class Index(metaclass=TelemetryMeta):
 
         Parameters
         ----------
-        data : array-like (1-dimensional), pandas.Index, modin.pandas.Series, optional
+        data : array-like (1-dimensional), pandas.Index, modin.pandas.Series, SnowflakeQueryCompiler, optional
         dtype : str, numpy.dtype, or ExtensionDtype, optional
             Data type for the output Index. If not specified, this will be
             inferred from `data`.
@@ -172,11 +173,12 @@ class Index(metaclass=TelemetryMeta):
 
     def _init_index(
         self,
-        data: ArrayLike | native_pd.Index | Series | None,
+        data: ArrayLike | native_pd.Index | Series | DataFrame | None,
         ctor_defaults: dict,
         query_compiler: SnowflakeQueryCompiler = None,
         **kwargs: Any,
     ):
+        self._parent = None
         if query_compiler:
             # Raise warning if `data` is query compiler with non-default arguments.
             for arg_name, arg_value in kwargs.items():
@@ -185,6 +187,7 @@ class Index(metaclass=TelemetryMeta):
                 ), f"Non-default argument '{arg_name}={arg_value}' when constructing Index with query compiler"
             self._query_compiler = query_compiler
         elif isinstance(data, BasePandasDataset):
+            self._parent = data
             if data.ndim != 1:
                 raise ValueError("Index data must be 1 - dimensional")
             series_has_no_name = data.name is None
@@ -537,7 +540,7 @@ class Index(metaclass=TelemetryMeta):
         Returns
         -------
         Hashable
-            name of this index
+            Name of this index.
 
         Examples
         --------
@@ -555,6 +558,10 @@ class Index(metaclass=TelemetryMeta):
         Set Index name.
         """
         self._query_compiler = self._query_compiler.set_index_names([value])
+        if self._parent is not None:
+            self._parent._update_inplace(
+                new_query_compiler=self._parent._query_compiler.set_index_names([value])
+            )
 
     def _get_names(self) -> list[Hashable]:
         """
@@ -576,6 +583,10 @@ class Index(metaclass=TelemetryMeta):
         TypeError if each name is not hashable.
         """
         self._query_compiler = self._query_compiler.set_index_names(values)
+        if self._parent is not None:
+            self._parent._update_inplace(
+                new_query_compiler=self._parent._query_compiler.set_index_names(values)
+            )
 
     names = property(fset=_set_names, fget=_get_names)
 
@@ -610,13 +621,21 @@ class Index(metaclass=TelemetryMeta):
         >>> idx.set_names('quarter')
         Index([1, 2, 3, 4], dtype='int64', name='quarter')
         """
-        # TODO: SNOW-1458122 implement set_names
-        WarningMessage.index_to_pandas_warning("set_names")
-        if not inplace:
-            return self.__constructor__(
-                self.to_pandas().set_names(names, level=level, inplace=inplace)
+        if is_list_like(names) and len(names) > 1:
+            raise ValueError(
+                f"Since Index is a single index object in Snowpark pandas, "
+                f"the length of new names must be 1, got {len(names)}."
             )
-        return self.to_pandas().set_names(names, level=level, inplace=inplace)
+        if level is not None and level not in [0, -1]:
+            raise IndexError(
+                f"Level does not exist: Index has only 1 level, {level} is not a valid level number."
+            )
+        if inplace:
+            name = names[0] if is_list_like(names) else names
+            self.name = name
+            return None
+        else:
+            return self.__constructor__(name=names if is_scalar(names) else names[0])
 
     @property
     def ndim(self) -> int:
@@ -1446,8 +1465,7 @@ class Index(metaclass=TelemetryMeta):
             )
             return Index(query_compiler=query_compiler), indices
 
-    @index_not_implemented()
-    def rename(self) -> None:
+    def rename(self, name: Any, inplace: bool = False) -> None:
         """
         Alter Index or MultiIndex name.
 
@@ -1470,8 +1488,29 @@ class Index(metaclass=TelemetryMeta):
         See Also
         --------
         Index.set_names : Able to set new names partially and by level.
+
+        Examples
+        --------
+        >>> idx = pd.Index(['A', 'C', 'A', 'B'], name='score')
+        >>> idx.rename('grade', inplace=False)
+        Index(['A', 'C', 'A', 'B'], dtype='object', name='grade')
+        >>> idx.rename('grade', inplace=True)
+
+        Note
+        ----
+        Native pandas only allows hashable types for names. Snowpark pandas allows
+        name to be any scalar or list-like type. If a type is used for the name,
+        the tuple itself will be the name.
+
+        For instance,
+        >>> idx = pd.Index([1, 2, 3])
+        >>> idx.rename(('a', 'b', 'c'), inplace=True)
+        >>> idx.name
+        ('a', 'b', 'c')
         """
-        # TODO: SNOW-1458122 implement rename
+        if isinstance(name, tuple):
+            name = [name]  # The entire tuple is the name
+        return self.set_names(names=name, inplace=inplace)
 
     def nunique(self, dropna: bool = True) -> int:
         """
