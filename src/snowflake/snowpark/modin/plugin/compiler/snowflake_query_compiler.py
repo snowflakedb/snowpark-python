@@ -6818,13 +6818,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             or suffixes != ("_x", "_y")
         ):
             ErrorMessage.not_implemented(
-                "Snowpark pandas merge_asof API does not currently support parameters "
-                + "'by', 'left_by', 'right_by, 'left_index', 'right_index', "
+                "Snowpark pandas merge_asof method does not currently support parameters "
+                + "'by', 'left_by', 'right_by', 'left_index', 'right_index', "
                 + "'suffixes', or 'tolerance'"
             )
         if direction not in ("backward", "forward"):
             ErrorMessage.not_implemented(
-                "Snowpark pandas merge_asof API only supports directions 'forward' and 'backward'"
+                "Snowpark pandas merge_asof method only supports directions 'forward' and 'backward'"
             )
 
         left_frame = self._modin_frame

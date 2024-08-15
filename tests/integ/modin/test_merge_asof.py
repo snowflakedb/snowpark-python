@@ -196,3 +196,62 @@ def test_merge_asof_timestamps(left_right_timestamp_data):
     native_output = native_pd.merge_asof(left_native_df, right_native_df, on="time")
     snow_output = pd.merge_asof(left_snow_df, right_snow_df, on="time")
     eval_snowpark_pandas_result(snow_output, native_output, lambda df: df)
+
+
+@sql_count_checker(query_count=0)
+def test_merge_asof_nearest_unsupported(left_right_timestamp_data):
+    left_native_df, right_native_df = left_right_timestamp_data
+    left_snow_df, right_snow_df = pd.DataFrame(left_native_df), pd.DataFrame(
+        right_native_df
+    )
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas merge_asof method only supports directions 'forward' and 'backward'",
+    ):
+        pd.merge_asof(left_snow_df, right_snow_df, on="time", direction="nearest")
+
+
+@sql_count_checker(query_count=0)
+def test_merge_asof_params_unsupported(left_right_timestamp_data):
+    left_native_df, right_native_df = left_right_timestamp_data
+    left_snow_df, right_snow_df = pd.DataFrame(left_native_df), pd.DataFrame(
+        right_native_df
+    )
+    with pytest.raises(
+        NotImplementedError,
+        match=(
+            "Snowpark pandas merge_asof method does not currently support parameters "
+            "'by', 'left_by', 'right_by', 'left_index', 'right_index', "
+            "'suffixes', or 'tolerance'"
+        ),
+    ):
+        pd.merge_asof(
+            left_snow_df, right_snow_df, on="time", by="price", direction="nearest"
+        )
+        pd.merge_asof(
+            left_snow_df, right_snow_df, on="time", left_by="price", right_by="quantity"
+        )
+        pd.merge_asof(
+            left_snow_df, right_snow_df, on="time", left_index=True, right_by="quantity"
+        )
+        pd.merge_asof(
+            left_snow_df,
+            right_snow_df,
+            on="time",
+            right_index=True,
+            right_by="quantity",
+        )
+        pd.merge_asof(
+            left_snow_df,
+            right_snow_df,
+            on="time",
+            right_index=True,
+            suffixes=("_hello", "_world"),
+        )
+        pd.merge_asof(
+            left_snow_df,
+            right_snow_df,
+            on="time",
+            right_index=True,
+            tolerance=native_pd.Timedelta("3s"),
+        )
