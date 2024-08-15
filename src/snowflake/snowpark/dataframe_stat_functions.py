@@ -51,10 +51,8 @@ class DataFrameStatFunctions:
     def __init__(
         self,
         df: "snowflake.snowpark.DataFrame",
-        _ast_stmt: Optional[proto.Assign] = None,
     ) -> None:
         self._dataframe = df
-        self._ast_stmt = _ast_stmt
 
     def approx_quantile(
         self,
