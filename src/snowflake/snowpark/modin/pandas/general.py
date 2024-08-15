@@ -410,7 +410,7 @@ def merge_asof(
     tolerance: int | Timedelta | None = None,
     allow_exact_matches: bool = True,
     direction: str = "backward",
-) -> DataFrame:  # noqa: PR01, RT01, D200
+):  # noqa: PR01, RT01, D200
     """
     Perform a merge by key distance.
 
@@ -423,14 +423,10 @@ def merge_asof(
 
     Optionally match on equivalent keys with ‘by’ before searching with ‘on’.
 
-    Returns
-    -------
-    Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
-
     Parameters
     ----------
-    left : DataFrame or named Series
-    right : DataFrame or named Series
+    left : :class:`~snowflake.snowpark.modin.pandas.DataFrame` or named :class:`~snowflake.snowpark.modin.pandas.Series`.
+    right : :class:`~snowflake.snowpark.modin.pandas.DataFrame` or named :class:`~snowflake.snowpark.modin.pandas.Series`.
     on : label
         Field name to join on. Must be found in both DataFrames. The data MUST be ordered.
         Furthermore, this must be a numeric column such as datetimelike, integer, or float.
@@ -458,6 +454,10 @@ def merge_asof(
         If False, don’t match the same ‘on’ value (i.e., strictly less-than / strictly greater-than).
     direction : ‘backward’ (default), ‘forward’, or ‘nearest’
         Whether to search for prior, subsequent, or closest matches.
+
+    Returns
+    -------
+    Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
 
     Examples
     --------

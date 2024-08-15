@@ -6870,6 +6870,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             match_condition=match_condition,
             how="asof",
         ).order_by(order_by_expr)
+
         if on:
             # Output pandas labels consists of all data pandas labels in left_frame and
             # all data pandas labels except the "on" pandas label in the right frame
