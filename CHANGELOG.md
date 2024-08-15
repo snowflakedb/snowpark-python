@@ -76,6 +76,7 @@
 - Added support for `Resampler.fillna` and `Resampler.bfill`.
 - Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
 - Added support for `Index.argmax` and `Index.argmin`.
+- Added support for index's arithmetic and comparison operators.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
