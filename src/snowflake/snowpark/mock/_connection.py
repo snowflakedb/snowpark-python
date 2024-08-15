@@ -64,8 +64,16 @@ class MockedSnowflakeConnection(SnowflakeConnection):
         super().__init__(*args, **kwargs, application="localtesting")
         self._password = None
 
+        self._disable_query_context_cache = True
+
     def connect(self, **kwargs) -> None:
-        self._rest = Mock()
+        attrs = {
+            "request.return_value": {
+                "success": False,
+                "message": "Not implemented in MockConnection",
+            }
+        }
+        self._rest = Mock(**attrs)
 
     def close(self, retry: bool = True) -> None:
         self._rest = None
@@ -541,6 +549,7 @@ class MockServerConnection:
                 raise_error=NotImplementedError,
             )
 
+        rows = []
         res = execute_mock_plan(plan, plan.expr_to_alias)
         if isinstance(res, TableEmulator):
             # stringfy the variant type in the result df

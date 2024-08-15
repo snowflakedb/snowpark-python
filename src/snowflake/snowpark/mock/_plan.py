@@ -19,6 +19,8 @@ from functools import cached_property, partial
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
+import pandas
+
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     DeleteMergeExpression,
     InsertMergeExpression,
@@ -196,6 +198,7 @@ class MockExecutionPlan(LogicalPlan):
         super().__init__()
         self.source_plan = source_plan
         self.session = session
+        self.schema_query = None
         mock_query = MagicMock()
         mock_query.sql = "SELECT MOCK_TEST_FAKE_QUERY()"
         self.queries = [mock_query]
@@ -674,6 +677,9 @@ def execute_mock_plan(
         offset: Optional[int] = source_plan.offset
 
         from_df = execute_mock_plan(from_, expr_to_alias)
+
+        if from_df is None:
+            return pandas.DataFrame()
 
         columns = []
         data = []

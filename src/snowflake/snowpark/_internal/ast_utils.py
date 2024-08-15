@@ -22,6 +22,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Star,
     UnresolvedAttribute,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
@@ -29,11 +30,14 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     ColumnOrSqlExpr,
 )
+from snowflake.snowpark._internal.utils import str_to_enum
 
 # This flag causes an explicit error to be raised if any Snowpark object instance is missing an AST or field, when this
 # AST or field is required to populate the AST field of a different Snowpark object instance.
 FAIL_ON_MISSING_AST = True
 
+# The path to the snowpark package.
+SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
 
 def build_expr_from_python_val(
         expr_builder: proto.Expr, 
@@ -63,6 +67,7 @@ def build_expr_from_python_val(
         sp_row_ast = with_src_position(expr_builder.sp_row, caller_frame_depth=caller_frame_depth)
         if hasattr(obj, "_named_values") and obj._named_values is not None:
             for field in obj._fields:
+                sp_row_ast.names.list.append(field)
                 sp_row_ast.names.list.append(field)
                 build_expr_from_python_val(
                     sp_row_ast.vs.add(), obj._named_values[field], caller_frame_depth=caller_frame_depth+1
@@ -103,22 +108,33 @@ def build_expr_from_python_val(
             unscaled_val *= -1
         req_bytes = (unscaled_val.bit_length() + 7) // 8
         big_decimal_val_ast.unscaled_value = unscaled_val.to_bytes(
+        big_decimal_val_ast.unscaled_value = unscaled_val.to_bytes(
             req_bytes, "big", signed=True
         )
+        big_decimal_val_ast.scale = dec_tuple.exponent
         big_decimal_val_ast.scale = dec_tuple.exponent
 
     elif isinstance(obj, datetime.datetime):
         python_timestamp_val_ast = with_src_position(expr_builder.python_timestamp_val, caller_frame_depth=caller_frame_depth)
         if obj.tzinfo is not None:
             python_timestamp_val_ast.tz.offset_seconds = int(
+            python_timestamp_val_ast.tz.offset_seconds = int(
                 obj.tzinfo.utcoffset(obj).total_seconds()
             )
             tz = obj.tzinfo.tzname(obj)
             if tz is not None:
                 python_timestamp_val_ast.tz.name.value = tz
+                python_timestamp_val_ast.tz.name.value = tz
         else:
             obj = obj.astimezone(datetime.timezone.utc)
 
+        python_timestamp_val_ast.year = obj.year
+        python_timestamp_val_ast.month = obj.month
+        python_timestamp_val_ast.day = obj.day
+        python_timestamp_val_ast.hour = obj.hour
+        python_timestamp_val_ast.minute = obj.minute
+        python_timestamp_val_ast.second = obj.second
+        python_timestamp_val_ast.microsecond = obj.microsecond
         python_timestamp_val_ast.year = obj.year
         python_timestamp_val_ast.month = obj.month
         python_timestamp_val_ast.day = obj.day
@@ -138,14 +154,20 @@ def build_expr_from_python_val(
         datetime_val = datetime.datetime.combine(datetime.date.today(), obj)
         if obj.tzinfo is not None:
             python_time_val_ast.tz.offset_seconds = int(
+            python_time_val_ast.tz.offset_seconds = int(
                 obj.tzinfo.utcoffset(datetime_val).total_seconds()
             )
             tz = obj.tzinfo.tzname(datetime_val)
             if tz is not None:
                 python_time_val_ast.tz.name.value = tz
+                python_time_val_ast.tz.name.value = tz
         else:
             obj = datetime_val.astimezone(datetime.timezone.utc)
 
+        python_time_val_ast.hour = obj.hour
+        python_time_val_ast.minute = obj.minute
+        python_time_val_ast.second = obj.second
+        python_time_val_ast.microsecond = obj.microsecond
         python_time_val_ast.hour = obj.hour
         python_time_val_ast.minute = obj.minute
         python_time_val_ast.second = obj.second
@@ -205,6 +227,17 @@ def _set_fn_name(name: Union[str, Iterable[str]], fn: proto.FnRefExpr) -> None:
         raise ValueError(
             f"Invalid function name: {name}. The function name must be a string or an iterable of strings."
         )
+
+
+def build_sp_table_name(
+    expr_builder: proto.SpTableName, name: Union[str, Iterable[str]]
+):
+    if isinstance(name, str):
+        expr_builder.sp_table_name_flat.name = name
+    elif isinstance(name, Iterable):
+        expr_builder.sp_table_name_structured.name.extend(name)
+    else:
+        raise ValueError(f"Invalid name type {type(name)} for SpTableName entity.")
 
 
 def build_builtin_fn_apply(
@@ -342,8 +375,8 @@ assignment_re = re.compile(r"^\s*([a-zA-Z_]\w*)\s*=.*$", re.DOTALL)
 def with_src_position(
     expr_ast: proto.Expr, 
     assign: Optional[proto.Assign] = None,
-    caller_frame_depth: int = 2,
-    debug: bool = True
+    caller_frame_depth: Optional[int] = None,
+    debug: bool = False,
 ) -> proto.Expr:
     """
     Sets the src_position on the supplied Expr AST node and returns it.
@@ -353,6 +386,7 @@ def with_src_position(
         expr_ast: The AST node to set the src_position on.
         assign: The Assign AST node to set the symbol value on.
         caller_frame_depth: The number of frames to step back from the current frame to find the code of interest.
+                            If this is not provided, the filename for each frame is probed to find the code of interest.
     """
     src = expr_ast.src
     frame = inspect.currentframe()
@@ -368,19 +402,33 @@ def with_src_position(
             src.file = "<unknown>"
             return expr_ast
         
-        # If frame is not None, use the provided stack depth to step back to the relevant frame.
-        # This frame should be the first frame outside of the snowpark package, and contain the code of interest.
         # NOTE: The inspect module provides many other APIs to get information about the current frame and its callers.
         # All of these (except for currentframe) unnecessarily incur the overhead of resolving the filename for each
         # frame and making sure the file exists (even if the context parameter is set to 0 to avoid capturing lineno, 
         # source line, etc.). Since we should know exactly how many frames to step back, we can and should avoid this 
         # overhead. Using the inspect.currentframe() (a wrapper around sys._getframe that handles the None case) is the
         # most efficient way to get the current frame. Stepping back from this frame via frame.f_back is also the most 
-        # efficient method to walk the stack.
-        stack_index = 0
-        while stack_index < caller_frame_depth and frame is not None:
-            frame, prev_frame = frame.f_back, frame
-            stack_index += 1
+        # efficient method to walk the stack as each frame object contains the minimal amount of needed context.
+        if caller_frame_depth is None:
+            # If the frame is not None, one guarantee we have is that two frames back is the caller's caller, and this
+            # frame contains the code of interest from the user if they are using a simple public API with no further
+            # nesting or indirection. This is the most common case.
+            frame, prev_frame = frame.f_back.f_back, frame.f_back
+            while frame is not None and SNOWPARK_LIB_PATH in Path(frame.f_code.co_filename).parents:
+                frame, prev_frame = frame.f_back, frame
+        else:
+            # If the frame is not None, use the provided stack depth to step back to the relevant frame.
+            # This frame should be the first frame outside of the snowpark package, and contain the code of interest.
+            curr_frame_depth = 0
+            while frame is not None and curr_frame_depth < caller_frame_depth:
+                frame, prev_frame = frame.f_back, frame
+                curr_frame_depth += 1
+
+        if debug:
+            last_snowpark_file = prev_frame.f_code.co_filename
+            assert SNOWPARK_LIB_PATH in Path(last_snowpark_file).parents
+            first_non_snowpark_file = frame.f_code.co_filename
+            assert SNOWPARK_LIB_PATH not in Path(first_non_snowpark_file).parents
 
         # Once we've stepped out of the snowpark package, we should be in the code of interest.
         # However, the code of interest may execute in an environment that is not accessible via the filesystem.
@@ -389,14 +437,7 @@ def with_src_position(
         if frame is None or not Path(filename).is_file():
             src.file = "<unknown>"
             return expr_ast
-        
-        if debug:
-            snowpark_path = Path(__file__).parents[1]
-            last_snowpark_file = prev_frame.f_code.co_filename
-            assert snowpark_path in Path(last_snowpark_file).parents
-            first_non_snowpark_file = frame.f_code.co_filename
-            assert snowpark_path not in Path(first_non_snowpark_file).parents
-        
+                
         # The context argument specifies the number of lines of context to capture around the current line.
         # If IO performance is an issue, this can be set to 0 but this will disable symbol capture. Some
         # potential alternatives to consider here are the linecache and traceback modules.
@@ -640,3 +681,58 @@ def snowpark_expression_to_ast(expr: Expression, caller_frame_depth = 0) -> prot
         raise NotImplementedError(
             f"Snowpark expr {expr} of type {type(expr)} is an expression with missing AST or for which an AST can not be auto-generated."
         )
+
+
+def fill_sp_save_mode(expr: proto.SpSaveMode, save_mode: Union[str, SaveMode]) -> None:
+    if isinstance(save_mode, str):
+        save_mode = str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")
+
+    if save_mode == SaveMode.APPEND:
+        expr.sp_save_mode_append = True
+    elif save_mode == SaveMode.ERROR_IF_EXISTS:
+        expr.sp_save_mode_error_if_exists = True
+    elif save_mode == SaveMode.IGNORE:
+        expr.sp_save_mode_ignore = True
+    elif save_mode == SaveMode.OVERWRITE:
+        expr.sp_save_mode_overwrite = True
+    elif save_mode == SaveMode.TRUNCATE:
+        expr.sp_save_mode_truncate = True
+
+
+def fill_sp_write_file(
+    expr: proto.Expr,
+    location: str,
+    *,
+    partition_by: Optional[ColumnOrSqlExpr] = None,
+    format_type_options: Optional[Dict[str, str]] = None,
+    header: bool = False,
+    statement_params: Optional[Dict[str, str]] = None,
+    block: bool = True,
+    **copy_options: dict,
+) -> None:
+    expr.location = location
+
+    if partition_by is not None:
+        build_expr_from_snowpark_column_or_sql_str(expr.partition_by, partition_by)
+
+    if format_type_options is not None:
+        for k, v in format_type_options.items():
+            t = expr.format_type_options.add()
+            t._1 = k
+            t._2 = v
+
+    expr.header = header
+
+    if statement_params is not None:
+        for k, v in statement_params.items():
+            t = expr.statement_params.add()
+            t._1 = k
+            t._2 = v
+
+    expr.block = block
+
+    if copy_options:
+        for k, v in copy_options.items():
+            t = expr.copy_options.add()
+            t._1 = k
+            build_expr_from_python_val(t._2, v)
