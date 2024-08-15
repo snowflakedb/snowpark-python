@@ -98,6 +98,7 @@
 - Fixed a bug in `DataFrame.lineage.trace` to split the quoted feature view's name and version correctly.
 - Fixed a bug in `Column.isin` that caused invalid sql generation when passed an empty list.
 - Fixed a bug that fails to raise NotImplementedError while setting cell with list like item.
+- Fixed a bug where calling `DataFrame.to_snowpark_pandas_dataframe` without explicitly initializing the Snowpark pandas plugin caused an error.
 
 ### Snowpark Local Testing Updates
 
