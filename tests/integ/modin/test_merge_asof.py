@@ -160,6 +160,7 @@ def test_merge_asof_on_switch_column_order(
 
 @allow_exact_matches
 @direction
+@sql_count_checker(query_count=1, join_count=1)
 def test_merge_asof_left_right_on(
     left_right_native_df_left_right_by, allow_exact_matches, direction
 ):
@@ -186,6 +187,7 @@ def test_merge_asof_left_right_on(
     eval_snowpark_pandas_result(snow_output, native_output, lambda df: df)
 
 
+@sql_count_checker(query_count=1, join_count=1)
 def test_merge_asof_timestamps(left_right_timestamp_data):
     left_native_df, right_native_df = left_right_timestamp_data
     left_snow_df, right_snow_df = pd.DataFrame(left_native_df), pd.DataFrame(

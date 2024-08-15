@@ -6803,6 +6803,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             If False, don’t match the same ‘on’ value (i.e., strictly less-than / strictly greater-than).
         direction : ‘backward’ (default), ‘forward’, or ‘nearest’
             Whether to search for prior, subsequent, or closest matches.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
         """
         if (
             by

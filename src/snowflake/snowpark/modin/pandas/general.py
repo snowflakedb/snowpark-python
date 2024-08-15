@@ -423,6 +423,10 @@ def merge_asof(
 
     Optionally match on equivalent keys with ‘by’ before searching with ‘on’.
 
+    Returns
+    -------
+    Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+
     Parameters
     ----------
     left : DataFrame or named Series
@@ -486,6 +490,9 @@ def merge_asof(
     0   1        a        1.0
     1   5        b        6.0
     2  10        c        NaN
+
+    Here is a real-world times-series example:
+
     >>> quotes = native_pd.DataFrame(
     ...    {
     ...        "time": [
@@ -501,7 +508,7 @@ def merge_asof(
     ...        "bid": [720.50, 51.95, 51.97, 51.99, 720.50, 97.99, 720.50, 52.01],
     ...        "ask": [720.93, 51.96, 51.98, 52.00, 720.93, 98.01, 720.88, 52.03]
     ...    }
-    ...)
+    ... )
     >>> quotes
                          time     bid     ask
     0 2016-05-25 13:30:00.023  720.50  720.93
@@ -524,7 +531,7 @@ def merge_asof(
     ...        "price": [51.95, 51.95, 720.77, 720.92, 98.0],
     ...        "quantity": [75, 155, 100, 100, 100]
     ...    }
-    ...)
+    ... )
     >>> trades
                          time   price  quantity
     0 2016-05-25 13:30:00.023   51.95        75
