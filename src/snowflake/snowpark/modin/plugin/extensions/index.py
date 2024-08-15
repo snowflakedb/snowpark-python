@@ -237,6 +237,81 @@ class Index(metaclass=TelemetryMeta):
                     )
             raise err
 
+    def _binary_ops(self, method: str, other: Any) -> Index:
+        if isinstance(other, Index):
+            other = other.to_series().reset_index(drop=True)
+        return self.__constructor__(
+            self.to_series().reset_index(drop=True).__getattr__(method)(other)
+        )
+
+    def _unary_ops(self, method: str) -> Index:
+        return self.__constructor__(
+            self.to_series().reset_index(drop=True).__getattr__(method)()
+        )
+
+    def __add__(self, other: Any) -> Index:
+        return self._binary_ops("__add__", other)
+
+    def __radd__(self, other: Any) -> Index:
+        return self._binary_ops("__radd__", other)
+
+    def __mul__(self, other: Any) -> Index:
+        return self._binary_ops("__mul__", other)
+
+    def __rmul__(self, other: Any) -> Index:
+        return self._binary_ops("__rmul__", other)
+
+    def __neg__(self) -> Index:
+        return self._unary_ops("__neg__")
+
+    def __sub__(self, other: Any) -> Index:
+        return self._binary_ops("__sub__", other)
+
+    def __rsub__(self, other: Any) -> Index:
+        return self._binary_ops("__rsub__", other)
+
+    def __truediv__(self, other: Any) -> Index:
+        return self._binary_ops("__truediv__", other)
+
+    def __rtruediv__(self, other: Any) -> Index:
+        return self._binary_ops("__rtruediv__", other)
+
+    def __floordiv__(self, other: Any) -> Index:
+        return self._binary_ops("__floordiv__", other)
+
+    def __rfloordiv__(self, other: Any) -> Index:
+        return self._binary_ops("__rfloordiv__", other)
+
+    def __pow__(self, other: Any) -> Index:
+        return self._binary_ops("__pow__", other)
+
+    def __rpow__(self, other: Any):
+        return self._binary_ops("__rpow__", other)
+
+    def __mod__(self, other: Any) -> Index:
+        return self._binary_ops("__mod__", other)
+
+    def __rmod__(self, other: Any):
+        return self._binary_ops("__rmod__", other)
+
+    def __eq__(self, other: Any) -> Index:
+        return self._binary_ops("eq", other)
+
+    def __ne__(self, other: Any) -> Index:
+        return self._binary_ops("ne", other)
+
+    def __ge__(self, other: Any) -> Index:
+        return self._binary_ops("ge", other)
+
+    def __gt__(self, other: Any) -> Index:
+        return self._binary_ops("gt", other)
+
+    def __le__(self, other: Any) -> Index:
+        return self._binary_ops("le", other)
+
+    def __lt__(self, other: Any) -> Index:
+        return self._binary_ops("lt", other)
+
     def to_pandas(
         self,
         *,
