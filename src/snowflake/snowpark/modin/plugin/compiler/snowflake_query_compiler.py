@@ -6922,12 +6922,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     for i in range(right_frame_num_valid_cols)
                 ]
             )
-
-        data_column_snowflake_quoted_identifiers = []
-        for i in valid_data_indices:
-            data_column_snowflake_quoted_identifiers.append(
-                joined_snowpark_df.columns[i]
-            )
+        data_column_snowflake_quoted_identifiers = [
+            joined_snowpark_df.columns[i] for i in valid_data_indices
+        ]
 
         joined_frame = InternalFrame.create(
             ordered_dataframe=OrderedDataFrame(DataFrameReference(joined_snowpark_df)),
