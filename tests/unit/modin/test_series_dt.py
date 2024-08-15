@@ -42,7 +42,6 @@ def mock_query_compiler_for_dt_series() -> SnowflakeQueryCompiler:
         (lambda s: s.dt.tz_convert(tz="UTC"), "tz_convert"),
         (lambda s: s.dt.normalize(), "normalize"),
         (lambda s: s.dt.strftime(date_format="YY/MM/DD"), "strftime"),
-        (lambda s: s.dt.round(freq="1D"), "round"),
         (lambda s: s.dt.total_seconds(), "total_seconds"),
         (lambda s: s.dt.seconds, "seconds"),
         (lambda s: s.dt.days, "days"),
