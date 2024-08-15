@@ -1132,6 +1132,7 @@ class SnowflakePlanBuilder:
             "Boolean": bool,
         }
         new_options = {**file_format_options}
+        # SNOW-1628625: This query and subsequent merge operations should be done lazily
         file_format = self.session.sql(
             f"DESCRIBE FILE FORMAT {options['FORMAT_NAME']}"
         ).collect()
