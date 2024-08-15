@@ -6,7 +6,7 @@
 
 #### New Features
 
-- Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a util function to check the equality of two Snowpark DataFrames.
+- Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a utility function to check the equality of two Snowpark DataFrames.
 
 #### Improvements
 
@@ -32,19 +32,19 @@
 
 - Added support for the following APIs:
   - snowflake.snowpark.functions
-    - rank
-    - dense_rank
-    - percent_rank
-    - cume_dist
-    - ntile
-    - datediff
-    - array_agg
+    - `rank`
+    - `dense_rank`
+    - `percent_rank`
+    - `cume_dist`
+    - `ntile`
+    - `datediff`
+    - `array_agg`
   - snowflake.snowpark.column.Column.within_group
-- Added support parsing regex flags in REGEX statements for mocked plans. This maintains parity with the `rlike` and `regexp` changes above.
+- Added support for parsing flags in regex statements for mocked plans. This maintains parity with the `rlike` and `regexp` changes above.
 
 #### Bug Fixes
 
-- Fixed a bug that Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
+- Fixed a bug where Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
 - Fixed a bug where values were not populated into the result DataFrame during the insertion of table merge operation.
 
 #### Improvements
@@ -85,7 +85,7 @@
 
 #### Improvements
 
-- Removed the public preview warning message upon importing Snowpark pandas.
+- Removed the public preview warning message when importing Snowpark pandas.
 - Removed unnecessary count query from `SnowflakeQueryCompiler.is_series_like` method.
 
 #### Bug Fixes
