@@ -245,6 +245,7 @@ class Column:
         expr1: Union[str, Expression],
         expr2: Optional[str] = None,
         ast: Optional[proto.Expr] = None,
+        _emit_ast: bool = True,
     ) -> None:
         self._ast = ast
 
@@ -264,7 +265,7 @@ class Column:
             # Alias field should be from the parameter provided to DataFrame.alias(self, name: str)
             # A column from the aliased DataFrame instance can be created using this alias like col(<df_alias>, <col_name>)
             # In the IR we will need to store this alias to resolve which DataFrame instance the user is referring to
-            if self._ast is None:
+            if self._ast is None and _emit_ast:
                 self._ast = create_ast_for_column(expr1, expr2)
 
         elif isinstance(expr1, str):
@@ -273,13 +274,13 @@ class Column:
             else:
                 self._expression = UnresolvedAttribute(quote_name(expr1))
 
-            if self._ast is None:
+            if self._ast is None and _emit_ast:
                 self._ast = create_ast_for_column(expr1, None)
 
         elif isinstance(expr1, Expression):
             self._expression = expr1
 
-            if self._ast is None:
+            if self._ast is None and _emit_ast:
                 if hasattr(expr1, "_ast"):
                     self._ast = expr1._ast
                 else:
@@ -612,10 +613,10 @@ class Column:
         build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(BitwiseXor(Column._to_expr(other), self._expression), ast=expr)
 
-    def __neg__(self) -> "Column":
+    def __neg__(self, _caller_frame_depth=2) -> "Column":
         """Unary minus."""
         expr = proto.Expr()
-        ast = with_src_position(expr.neg)
+        ast = with_src_position(expr.neg, caller_frame_depth=_caller_frame_depth)
         ast.operand.CopyFrom(self._ast)
         return Column(UnaryMinus(self._expression), ast=expr)
 
@@ -627,19 +628,21 @@ class Column:
         build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(EqualNullSafe(self._expression, Column._to_expr(other)), ast=expr)
 
-    def equal_nan(self) -> "Column":
+    def equal_nan(self, _caller_frame_depth=2) -> "Column":
         """Is NaN."""
         expr = proto.Expr()
-        ast = with_src_position(expr.sp_column_equal_nan)
+        ast = with_src_position(expr.sp_column_equal_nan, caller_frame_depth=_caller_frame_depth)
         ast.col.CopyFrom(self._ast)
         return Column(IsNaN(self._expression), ast=expr)
 
-    def is_null(self) -> "Column":
+    def is_null(self, _emit_ast=True, _caller_frame_depth=2) -> "Column":
         """Is null."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.sp_column_is_null)
-        ast.col.CopyFrom(self._ast)
-        return Column(IsNull(self._expression), ast=expr)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.sp_column_is_null, caller_frame_depth=_caller_frame_depth)
+            ast.col.CopyFrom(self._ast)
+        return Column(IsNull(self._expression), ast=expr, _emit_ast=_emit_ast)
 
     def is_not_null(self) -> "Column":
         """Is not null."""
@@ -690,82 +693,102 @@ class Column:
         ast.operand.CopyFrom(self._ast)
         return Column(Not(self._expression), ast=expr)
 
-    def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
+    def _cast(
+        self, 
+        to: Union[str, DataType], 
+        try_: bool = False,
+        emit_ast: bool = True,
+        caller_frame_depth=2
+    ) -> "Column":
         if isinstance(to, str):
             to = type_string_to_type_object(to)
-        expr = proto.Expr()
-        if try_:
-            ast = with_src_position(expr.sp_column_try_cast)
-            ast.col.CopyFrom(self._ast)
-            to._fill_ast(ast.to)
-        else:
-            ast = with_src_position(expr.sp_column_cast)
-            ast.col.CopyFrom(self._ast)
-            to._fill_ast(ast.to)
+        expr = None
+        if emit_ast:
+            expr = proto.Expr()
+            if try_:
+                ast = with_src_position(expr.sp_column_try_cast, caller_frame_depth=caller_frame_depth)
+                ast.col.CopyFrom(self._ast)
+                to._fill_ast(ast.to)
+            else:
+                ast = with_src_position(expr.sp_column_cast, caller_frame_depth=caller_frame_depth)
+                ast.col.CopyFrom(self._ast)
+                to._fill_ast(ast.to)
 
-        return Column(Cast(self._expression, to, try_), ast=expr)
+        return Column(Cast(self._expression, to, try_), ast=expr, _emit_ast=emit_ast)
 
-    def cast(self, to: Union[str, DataType]) -> "Column":
+    def cast(self, to: Union[str, DataType], _emit_ast=True, _caller_frame_depth=3) -> "Column":
         """Casts the value of the Column to the specified data type.
         It raises an error when  the conversion can not be performed.
         """
-        return self._cast(to, False)
+        return self._cast(to, False, _emit_ast, _caller_frame_depth)
 
-    def try_cast(self, to: Union[str, DataType]) -> "Column":
+    def try_cast(self, to: Union[str, DataType], _emit_ast=True, _caller_frame_depth=3) -> "Column":
         """Tries to cast the value of the Column to the specified data type.
         It returns a NULL value instead of raising an error when the conversion can not be performed.
         """
-        return self._cast(to, True)
+        return self._cast(to, True, _emit_ast, _caller_frame_depth)
 
-    def desc(self) -> "Column":
+    def desc(self, _emit_ast=True, _caller_frame_depth=2) -> "Column":
         """Returns a Column expression with values sorted in descending order."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.sp_column_desc)
-        ast.col.CopyFrom(self._ast)
-        return Column(SortOrder(self._expression, Descending()), ast=expr)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.sp_column_desc, caller_frame_depth=_caller_frame_depth)
+            ast.col.CopyFrom(self._ast)
+        return Column(SortOrder(self._expression, Descending()), ast=expr, _emit_ast=_emit_ast)
 
-    def desc_nulls_first(self) -> "Column":
+    def desc_nulls_first(self, _emit_ast=True, _caller_frame_depth=2) -> "Column":
         """Returns a Column expression with values sorted in descending order
         (null values sorted before non-null values)."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.sp_column_desc)
-        ast.col.CopyFrom(self._ast)
-        ast.nulls_first.value = True
-        return Column(SortOrder(self._expression, Descending(), NullsFirst()), ast=expr)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.sp_column_desc, caller_frame_depth=_caller_frame_depth)
+            ast.col.CopyFrom(self._ast)
+            ast.nulls_first.value = True
+        return Column(SortOrder(self._expression, Descending(), NullsFirst()), ast=expr, _emit_ast=_emit_ast)
 
-    def desc_nulls_last(self) -> "Column":
+    def desc_nulls_last(self, _emit_ast=True, _caller_from_depth=2) -> "Column":
         """Returns a Column expression with values sorted in descending order
         (null values sorted after non-null values)."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.sp_column_desc)
-        ast.col.CopyFrom(self._ast)
-        ast.nulls_first.value = False
-        return Column(SortOrder(self._expression, Descending(), NullsLast()), ast=expr)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.sp_column_desc, caller_frame_depth=_caller_from_depth)
+            ast.col.CopyFrom(self._ast)
+            ast.nulls_first.value = False
+        return Column(SortOrder(self._expression, Descending(), NullsLast()), ast=expr, _emit_ast=_emit_ast)
 
-    def asc(self) -> "Column":
+    def asc(self, _emit_ast=True, _caller_frame_depth=2) -> "Column":
         """Returns a Column expression with values sorted in ascending order."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.sp_column_asc)
-        ast.col.CopyFrom(self._ast)
-        return Column(SortOrder(self._expression, Ascending()), ast=expr)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.sp_column_asc, caller_frame_depth=_caller_frame_depth)
+            ast.col.CopyFrom(self._ast)
+        return Column(SortOrder(self._expression, Ascending()), ast=expr, _emit_ast=_emit_ast)
 
-    def asc_nulls_first(self) -> "Column":
+    def asc_nulls_first(self, _emit_ast=True, _caller_frame_depth=2) -> "Column":
         """Returns a Column expression with values sorted in ascending order
         (null values sorted before non-null values)."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.sp_column_asc)
-        ast.col.CopyFrom(self._ast)
-        ast.nulls_first.value = True
-        return Column(SortOrder(self._expression, Ascending(), NullsFirst()), ast=expr)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.sp_column_asc, caller_frame_depth=_caller_frame_depth)
+            ast.col.CopyFrom(self._ast)
+            ast.nulls_first.value = True
+        return Column(SortOrder(self._expression, Ascending(), NullsFirst()), ast=expr, _emit_ast=_emit_ast)
 
-    def asc_nulls_last(self) -> "Column":
+    def asc_nulls_last(self, _emit_ast=True, _caller_frame_depth=2) -> "Column":
         """Returns a Column expression with values sorted in ascending order
         (null values sorted after non-null values)."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.sp_column_asc)
-        ast.col.CopyFrom(self._ast)
-        ast.nulls_first.value = False
-        return Column(SortOrder(self._expression, Ascending(), NullsLast()), ast=expr)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.sp_column_asc, caller_frame_depth=_caller_frame_depth)
+            ast.col.CopyFrom(self._ast)
+            ast.nulls_first.value = False
+        return Column(SortOrder(self._expression, Ascending(), NullsLast()), ast=expr, _emit_ast=_emit_ast)
 
     def like(self, pattern: ColumnOrLiteralStr) -> "Column":
         """Allows case-sensitive matching of strings based on comparison with a pattern.
@@ -900,26 +923,25 @@ class Column:
     def __repr__(self):
         return f"Column({self._expression})"  # pragma: no cover
 
-    def as_(self, alias: str) -> "Column":
+    def as_(self, alias: str, _emit_ast=True, _caller_frame_depth=3) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
-        return self.name(alias, variant_is_as=True)
+        return self.name(alias, variant_is_as=True, _emit_ast=_emit_ast, _caller_frame_depth=_caller_frame_depth)
 
-    def alias(self, alias: str) -> "Column":
+    def alias(self, alias: str, _emit_ast=True, _caller_frame_depth=3) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
-        return self.name(alias, variant_is_as=False)
+        return self.name(alias, variant_is_as=False, _emit_ast=_emit_ast, _caller_frame_depth=_caller_frame_depth)
 
-    def name(self, alias: str, variant_is_as: bool = None) -> "Column":
+    def name(self, alias: str, variant_is_as: bool = None, _emit_ast=True, _caller_frame_depth=2) -> "Column":
         """Returns a new renamed Column."""
-        if self._ast is None:
-            expr = None
-        else:
+        expr = None
+        if self._ast is not None and _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_alias)
+            ast = with_src_position(expr.sp_column_alias, caller_frame_depth=_caller_frame_depth)
             ast.col.CopyFrom(self._ast)
             ast.name = alias
             if variant_is_as is not None:
                 ast.variant_is_as.value = variant_is_as
-        return Column(Alias(self._expression, quote_name(alias)), ast=expr)
+        return Column(Alias(self._expression, quote_name(alias)), ast=expr, _emit_ast=_emit_ast)
 
     def over(self, window: Optional[WindowSpec] = None) -> "Column":
         """

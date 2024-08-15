@@ -213,7 +213,7 @@ def _alias_if_needed(
     suffix: Optional[str],
     common_col_names: List[str],
 ):
-    col = df.col(c)
+    col = df.col(c, _emit_ast=False)
     unquoted_col_name = c.strip('"')
     if c in common_col_names:
         if suffix:
@@ -1157,13 +1157,13 @@ class DataFrame:
 
     def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
         if isinstance(item, str):
-            return self.col(item)
+            return self.col(item, _caller_frame_depth=3)
         elif isinstance(item, Column):
-            return self.filter(item)
+            return self.filter(item, _caller_frame_depth=3)
         elif isinstance(item, (list, tuple)):
-            return self.select(item)
+            return self.select(item, _caller_frame_depth=3)
         elif isinstance(item, int):
-            return self.__getitem__(self.columns[item])
+            return self.__getitem__(self.columns[item], _caller_frame_depth=4)
         else:
             raise TypeError(f"Unexpected item type: {type(item)}")
 
@@ -1173,7 +1173,7 @@ class DataFrame:
             raise AttributeError(
                 f"{self.__class__.__name__} object has no attribute {name}"
             )
-        return self.col(name)
+        return self.col(name, _caller_frame_depth=3)
 
     @property
     def columns(self) -> List[str]:
@@ -1193,16 +1193,18 @@ class DataFrame:
         """
         return self.schema.names
 
-    def col(self, col_name: str) -> Column:
+    def col(self, col_name: str, _emit_ast=True, _caller_frame_depth=2) -> Column:
         """Returns a reference to a column in the DataFrame."""
-        expr = proto.Expr()
-        col_expr_ast = with_src_position(expr.sp_dataframe_col)
-        self.set_ast_ref(col_expr_ast.df)
-        col_expr_ast.col_name = col_name
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            col_expr_ast = with_src_position(expr.sp_dataframe_col, _caller_frame_depth=_caller_frame_depth)
+            self.set_ast_ref(col_expr_ast.df)
+            col_expr_ast.col_name = col_name
         if col_name == "*":
-            return Column(Star(self._output), ast=expr)
+            return Column(Star(self._output), ast=expr, _emit_ast=_emit_ast)
         else:
-            return Column(self._resolve(col_name), ast=expr)
+            return Column(self._resolve(col_name), ast=expr, _emit_ast=_emit_ast)
 
     @df_api_usage
     def select(
@@ -1213,6 +1215,7 @@ class DataFrame:
         ],
         _ast_stmt: proto.Assign = None,
         _emit_ast: bool = True,
+        _caller_frame_depth=2,
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -1270,7 +1273,7 @@ class DataFrame:
 
         if _emit_ast and _ast_stmt is None:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
+            ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt, _caller_frame_depth=_caller_frame_depth)
             self.set_ast_ref(ast.df)
             ast.variadic = is_variadic
 
@@ -1502,6 +1505,7 @@ class DataFrame:
         expr: ColumnOrSqlExpr,
         _ast_stmt: proto.Assign = None,
         _emit_ast: bool = True,
+        _caller_frame_depth=2,
     ) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
@@ -1528,7 +1532,7 @@ class DataFrame:
         if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
-                ast = with_src_position(stmt.expr.sp_dataframe_filter, stmt)
+                ast = with_src_position(stmt.expr.sp_dataframe_filter, stmt, _caller_frame_depth=_caller_frame_depth)
                 self.set_ast_ref(ast.df)
                 build_expr_from_snowpark_column_or_sql_str(ast.condition, expr)
             else:
@@ -1996,7 +2000,7 @@ class DataFrame:
                 ast = None
 
         df = self.group_by(
-            [self.col(quote_name(f.name)) for f in self.schema.fields], _emit_ast=False
+            [self.col(quote_name(f.name), _emit_ast=False) for f in self.schema.fields], _emit_ast=False
         ).agg(_emit_ast=False)
 
         if _emit_ast:

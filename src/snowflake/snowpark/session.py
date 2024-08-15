@@ -2820,7 +2820,7 @@ class Session:
                 project_columns.append(to_object(parse_json(column(name))).as_(name))
             elif isinstance(field.datatype, VectorType):
                 project_columns.append(
-                    parse_json(column(name)).cast(field.datatype).as_(name)
+                    parse_json(column(name)).cast(field.datatype, _emit_ast=False).as_(name)
                 )
             else:
                 project_columns.append(column(name))
