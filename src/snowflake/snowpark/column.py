@@ -245,6 +245,7 @@ class Column:
         expr1: Union[str, Expression],
         expr2: Optional[str] = None,
         ast: Optional[proto.Expr] = None,
+        _emit_ast: bool = True,
     ) -> None:
         self._ast = ast
 
@@ -264,7 +265,7 @@ class Column:
             # Alias field should be from the parameter provided to DataFrame.alias(self, name: str)
             # A column from the aliased DataFrame instance can be created using this alias like col(<df_alias>, <col_name>)
             # In the IR we will need to store this alias to resolve which DataFrame instance the user is referring to
-            if self._ast is None:
+            if self._ast is None and _emit_ast:
                 self._ast = create_ast_for_column(expr1, expr2)
 
         elif isinstance(expr1, str):
@@ -273,13 +274,13 @@ class Column:
             else:
                 self._expression = UnresolvedAttribute(quote_name(expr1))
 
-            if self._ast is None:
+            if self._ast is None and _emit_ast:
                 self._ast = create_ast_for_column(expr1, None)
 
         elif isinstance(expr1, Expression):
             self._expression = expr1
 
-            if self._ast is None:
+            if self._ast is None and _emit_ast:
                 if hasattr(expr1, "_ast"):
                     self._ast = expr1._ast
                 else:
