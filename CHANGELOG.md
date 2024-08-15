@@ -87,6 +87,7 @@
 - Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.  
 - Fixed a bug where some Index docstrings are ignored. 
 - Fixed a bug in `Series.reset_index(drop=True)` where the result name may be wrong.
+- Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 
 ### Behavior change
 - `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
