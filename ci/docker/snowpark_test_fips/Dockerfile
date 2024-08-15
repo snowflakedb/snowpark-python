@@ -28,12 +28,12 @@ RUN wget https://www.openssl.org/source/openssl-3.0.0.tar.gz && \
     tar -zxf openssl-3.0.0.tar.gz && \
     cd openssl-3.0.0 && \
     ./Configure enable-fips && \
-    make
+    make > /dev/null
 
 # install openssl 3.0.0
 RUN cd openssl-3.0.0 && \
-    make install && \
-    make install_fips
+    make install > /dev/null && \
+    make install_fips > /dev/null
 
 # enable openssl fips mode
 RUN LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib64 openssl fipsinstall -out /usr/local/ssl/fipsmodule.cnf -module /usr/local/lib64/ossl-modules/fips.so
