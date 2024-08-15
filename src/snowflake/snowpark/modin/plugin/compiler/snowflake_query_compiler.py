@@ -3833,7 +3833,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 func(snowflake_quoted_id, ignore_nulls=True).over(
                     Window.partition_by(by_list)
                     .order_by(
-                        self._modin_frame.row_position_snowflake_quoted_identifier
+                        self._modin_frame.ordering_column_snowflake_quoted_identifiers
                     )
                     .rows_between(window_start, window_end)
                 ),
