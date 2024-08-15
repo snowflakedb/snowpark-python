@@ -23,6 +23,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Limit,
     LogicalPlan,
     SnowflakeCreateTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     TableDelete,
@@ -51,6 +52,13 @@ def create_query_generator(plan: SnowflakePlan) -> QueryGenerator:
         plan.source_plan, SnowflakeCreateTable
     ):
         create_table_node = plan.source_plan
+        # we ensure that the source plan is not from large query breakdown because we
+        # do not cache attributes for this case.
+        assert (
+            create_table_node.creation_source
+            != TableCreationSource.LARGE_QUERY_BREAKDOWN
+        ), "query generator is not supported for large query breakdown as creation source"
+
         # resolve the node child to get the child attribute that is needed for later code
         # generation. Typically, the query attached to the create_table_node is already a
         # resolved plan, and the resolve will be a no-op.
@@ -180,7 +188,11 @@ def update_resolvable_node(
     query_generator: QueryGenerator,
 ):
     """
-    Helper function to re-resolve the resolvable node and do an in-place update for cached fields.
+    Helper function to make an in-place update for a node that has had its child updated.
+    It works in two parts:
+      1. Re-resolve the proper fields based on the child.
+      2. Resets re-calculable fields such as _sql_query, _snowflake_plan, _cumulative_node_complexity.
+
     The re-resolve is only needed for SnowflakePlan node and Selectable node, because only those nodes
     are resolved node with sql query state.
 
@@ -201,18 +213,45 @@ def update_resolvable_node(
     if not isinstance(node, (SnowflakePlan, Selectable)):
         raise ValueError(f"It is not valid to update node with type {type(node)}.")
 
+    # reset the cumulative_node_complexity for all nodes
+    node.reset_cumulative_node_complexity()
+
     if isinstance(node, SnowflakePlan):
         assert node.source_plan is not None
         if isinstance(node.source_plan, (SnowflakePlan, Selectable)):
             update_resolvable_node(node.source_plan, query_generator)
         resolve_and_update_snowflake_plan(node, query_generator)
 
-    elif isinstance(node, (SelectStatement, SetStatement)):
+    elif isinstance(node, SelectStatement):
         # clean up the cached sql query and snowflake plan to allow
         # re-calculation of the sql query and snowflake plan
         node._sql_query = None
         node._snowflake_plan = None
         node.analyzer = query_generator
+
+        # update the pre_actions and post_actions for the select statement
+        node.pre_actions = node.from_.pre_actions
+        node.post_actions = node.from_.post_actions
+        node.expr_to_alias = node.from_.expr_to_alias
+        node.df_aliased_col_name_to_real_col_name.clear()
+        node.df_aliased_col_name_to_real_col_name.update(
+            node.from_.df_aliased_col_name_to_real_col_name
+        )
+
+    elif isinstance(node, SetStatement):
+        # clean up the cached sql query and snowflake plan to allow
+        # re-calculation of the sql query and snowflake plan
+        node._sql_query = None
+        node._snowflake_plan = None
+        node.analyzer = query_generator
+
+        # update the pre_actions and post_actions for the set statement
+        node.pre_actions, node.post_actions = [], []
+        for operand in node.set_operands:
+            if operand.selectable.pre_actions:
+                node.pre_actions.extend(operand.selectable.pre_actions)
+            if operand.selectable.post_actions:
+                node.post_actions.extend(operand.selectable.post_actions)
 
     elif isinstance(node, (SelectSnowflakePlan, SelectTableFunction)):
         assert node.snowflake_plan is not None

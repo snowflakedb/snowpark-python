@@ -319,7 +319,7 @@ def test_series_loc_get_key_bool(key, key_type, default_index_native_series):
         return _ser.loc[_key]
 
     default_index_series = pd.Series(default_index_native_series)
-    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             default_index_series,
             default_index_native_series,
@@ -477,10 +477,7 @@ def test_series_loc_get_key_non_boolean_series(
         return s.loc[type_convert(native_series_key, isinstance(s, pd.Series))]
 
     # default index
-    # Note: here number of queries are 2 due to the data type of the series is variant and to_pandas needs to call
-    # typeof to get the value types
-    # TODO: SNOW-933782 optimize to_pandas for variant columns to only fire one query
-    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_series,
             default_index_native_series,
@@ -497,7 +494,7 @@ def test_series_loc_get_key_non_boolean_series(
     non_default_index_snowpark_pandas_series = pd.Series(
         non_default_index_native_series
     )
-    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             non_default_index_snowpark_pandas_series,
             non_default_index_native_series,
@@ -514,7 +511,7 @@ def test_series_loc_get_key_non_boolean_series(
         ]
     )
     dup_snowpandas_series = pd.Series(dup_native_series)
-    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             dup_snowpandas_series,
             dup_native_series,
@@ -539,7 +536,7 @@ def test_series_loc_get_key_non_boolean_series(
         ]
     )
     dup_snowpandas_series = pd.Series(dup_native_series)
-    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             dup_snowpandas_series,
             dup_native_series,
@@ -776,15 +773,15 @@ def test_series_loc_set_series_and_list_like_row_key_and_item(
         s.loc[_row_key] = _item
 
     query_count = 1
-    # 6 extra queries: sum of two cases below
+    # 5 extra queries: sum of two cases below
     if item_type.startswith("index") and key_type.startswith("index"):
-        query_count = 7
+        query_count = 6
     # 4 extra queries: 1 query to convert item index to pandas in loc_set_helper, 2 for iter, and 1 for to_list
     elif item_type.startswith("index"):
         query_count = 5
-    # 2 extra queries: 1 query to convert key index to pandas in loc_set_helper and 1 to convert to series to setitem
+    # 1 extra query to convert to series to setitem
     elif key_type.startswith("index"):
-        query_count = 3
+        query_count = 2
     with SqlCounter(query_count=query_count, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             pd.Series(series), series, loc_set_helper, inplace=True
@@ -834,11 +831,7 @@ def test_series_loc_set_dataframe_item_negative(key_type):
         else:
             s.loc[pd.Series(row_key)] = pd.DataFrame(item)
 
-    qc = 0
-    if key_type == "index":
-        qc = 1
-
-    with SqlCounter(query_count=qc):
+    with SqlCounter(query_count=0):
         eval_snowpark_pandas_result(
             pd.Series(series),
             series,
@@ -1753,7 +1746,7 @@ def test_series_non_partial_string_indexing_cases(ops, error):
 def test_series_partial_string_indexing_behavior_diff():
     native_series_minute = native_pd.Series(
         [1, 2, 3],
-        pd.DatetimeIndex(
+        native_pd.DatetimeIndex(
             ["2011-12-31 23:59:00", "2012-01-01 00:00:00", "2012-01-01 00:02:00"]
         ),
     )
@@ -1771,7 +1764,7 @@ def test_series_partial_string_indexing_behavior_diff():
         snow_res,
         native_pd.Series(
             [1],
-            pd.DatetimeIndex(["2011-12-31 23:59:00"]),
+            native_pd.DatetimeIndex(["2011-12-31 23:59:00"]),
         ),
         check_dtype=False,
     )

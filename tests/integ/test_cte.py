@@ -116,7 +116,7 @@ def test_unary(session, action):
         lambda x, y: x.join(y.select("a"), how="left", rsuffix="_y"),
     ],
 )
-def test_binary(session, action):
+def test_binary(session, action, sql_simplifier_enabled):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     check_result(session, action(df, df), expect_cte_optimized=True)
 
@@ -130,7 +130,23 @@ def test_binary(session, action):
         df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_threshold
-    check_result(session, action(df2, df2), expect_cte_optimized=True)
+    df3 = action(df2, df2)
+    check_result(session, df3, expect_cte_optimized=True)
+    plan_queries = df3.queries
+    # check the number of queries
+    binary_build_used = (not sql_simplifier_enabled) or (
+        "JOIN" in plan_queries["queries"][-1]
+    )
+    # TODO (SNOW-1569005): Deduplicate queries during plan build for binary operators. This currently
+    #   is only fixed when _query_compilation_stage_enabled for build_binary.
+    if session._query_compilation_stage_enabled and binary_build_used:
+        num_queries = 3
+        num_post_actions = 1
+    else:
+        num_queries = 5
+        num_post_actions = 2
+    assert len(plan_queries["queries"]) == num_queries
+    assert len(plan_queries["post_actions"]) == num_post_actions
 
 
 @pytest.mark.parametrize(

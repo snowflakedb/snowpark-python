@@ -18,6 +18,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     LogicalPlan,
     SnowflakeCreateTable,
+    TableCreationSource,
     WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -121,19 +122,28 @@ class QueryGenerator(Analyzer):
             # overwrite the SnowflakeCreateTable resolving, because the child
             # attribute will be pulled directly from the cache
             resolved_child = resolved_children[logical_plan.children[0]]
-            # when the plan is for SnowflakeCreateTable, there must be a snowflake_create_table_plan_info
-            # associated with the current query generator.
-            # TODO: this check need to be relaxed when large query breakdown with temp table
-            #       is implemented, because the child attributes are not necessary to create
-            #       the temp table
-            assert self._snowflake_create_table_plan_info is not None
-            assert (
-                self._snowflake_create_table_plan_info.table_name
-                == logical_plan.table_name
-            )
+
+            # when creating a table during query compilation stage, if the
+            # table being created is the same as the one that is cached, we
+            # pull the child attributes directly from the cache. Otherwise, we
+            # use the child attributes as None. This will be for the case when
+            # table creation source is temp table from large query breakdown.
+            child_attributes = None
+            if (
+                logical_plan.creation_source
+                != TableCreationSource.LARGE_QUERY_BREAKDOWN
+            ):
+                assert self._snowflake_create_table_plan_info is not None
+                assert (
+                    self._snowflake_create_table_plan_info.table_name
+                    == logical_plan.table_name
+                )
+                child_attributes = (
+                    self._snowflake_create_table_plan_info.child_attributes
+                )
 
             # update the resolved child
-            copied_resolved_child = copy.deepcopy(resolved_child)
+            copied_resolved_child = copy.copy(resolved_child)
             final_queries = get_snowflake_plan_queries(
                 copied_resolved_child, self.resolved_with_query_block
             )
@@ -151,8 +161,8 @@ class QueryGenerator(Analyzer):
                 copied_resolved_child,
                 logical_plan,
                 self.session._use_scoped_temp_objects,
-                logical_plan.is_generated,
-                self._snowflake_create_table_plan_info.child_attributes,
+                logical_plan.creation_source,
+                child_attributes,
             )
 
         elif isinstance(
@@ -173,7 +183,7 @@ class QueryGenerator(Analyzer):
             # the with definition must be generated before create, update, delete, merge and copy into
             # query.
             resolved_child = resolved_children[logical_plan.children[0]]
-            copied_resolved_child = copy.deepcopy(resolved_child)
+            copied_resolved_child = copy.copy(resolved_child)
             final_queries = get_snowflake_plan_queries(
                 copied_resolved_child, self.resolved_with_query_block
             )

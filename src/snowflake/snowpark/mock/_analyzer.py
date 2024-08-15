@@ -188,6 +188,9 @@ class MockAnalyzer:
             return regexp_expression(
                 self.analyze(expr.expr, expr_to_alias, parse_local_name),
                 self.analyze(expr.pattern, expr_to_alias, parse_local_name),
+                self.analyze(expr.parameters, expr_to_alias, parse_local_name)
+                if expr.parameters is not None
+                else None,
             )
 
         if isinstance(expr, Collate):

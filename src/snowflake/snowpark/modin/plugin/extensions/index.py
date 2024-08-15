@@ -23,20 +23,23 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Hashable, Iterator, Literal
+from functools import cached_property
+from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 
 import modin
 import numpy as np
 import pandas as native_pd
 from pandas._libs import lib
-from pandas._typing import ArrayLike, DtypeObj, NaPosition
+from pandas._typing import ArrayLike, DateTimeErrorChoices, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
-from pandas.core.dtypes.common import pandas_dtype
+from pandas.core.dtypes.common import is_datetime64_any_dtype, pandas_dtype
 
 from snowflake.snowpark.modin.pandas import DataFrame, Series
+from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
+from snowflake.snowpark.modin.plugin._internal.timestamp_utils import DateTimeOrigin
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -45,25 +48,37 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     index_not_implemented,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.types import ArrayType
+
+_CONSTRUCTOR_DEFAULTS = {
+    "dtype": None,
+    "copy": False,
+    "name": None,
+    "tupleize_cols": True,
+}
 
 
 class Index(metaclass=TelemetryMeta):
-    def __init__(
-        self,
-        data: ArrayLike | SnowflakeQueryCompiler | None = None,
-        dtype: str | np.dtype | ExtensionDtype | None = None,
-        copy: bool = False,
-        name: object = None,
-        tupleize_cols: bool = True,
-    ) -> None:
-        """
-        Immutable sequence used for indexing and alignment.
 
-        The basic object storing axis labels for all pandas objects.
+    # Equivalent index type in native pandas
+    _NATIVE_INDEX_TYPE = native_pd.Index
+
+    def __new__(
+        cls,
+        data: ArrayLike | native_pd.Index | Series | None = None,
+        dtype: str | np.dtype | ExtensionDtype | None = _CONSTRUCTOR_DEFAULTS["dtype"],
+        copy: bool = _CONSTRUCTOR_DEFAULTS["copy"],
+        name: object = _CONSTRUCTOR_DEFAULTS["name"],
+        tupleize_cols: bool = _CONSTRUCTOR_DEFAULTS["tupleize_cols"],
+        query_compiler: SnowflakeQueryCompiler = None,
+    ) -> Index:
+        """
+        Override __new__ method to control new instance creation of Index.
+        Depending on data type, it will create a Index or DatetimeIndex instance.
 
         Parameters
         ----------
-        data : array-like (1-dimensional)
+        data : array-like (1-dimensional), pandas.Index, modin.pandas.Series, optional
         dtype : str, numpy.dtype, or ExtensionDtype, optional
             Data type for the output Index. If not specified, this will be
             inferred from `data`.
@@ -74,7 +89,62 @@ class Index(metaclass=TelemetryMeta):
             Name to be stored in the index.
         tupleize_cols : bool (default: True)
             When True, attempt to create a MultiIndex if possible.
+        query_compiler : SnowflakeQueryCompiler, optional
+            A query compiler object to create the ``Index`` from.
+        Returns
+        -------
+            New instance of Index or DatetimeIndex.
+            DatetimeIndex object will be returned if the column/data have datetime type.
+        """
+        from snowflake.snowpark.modin.plugin.extensions.datetime_index import (
+            DatetimeIndex,
+        )
 
+        if query_compiler:
+            dtype = query_compiler.index_dtypes[0]
+            if dtype == np.dtype("datetime64[ns]"):
+                return DatetimeIndex(query_compiler=query_compiler)
+        elif isinstance(data, BasePandasDataset):
+            if data.ndim != 1:
+                raise ValueError("Index data must be 1 - dimensional")
+            dtype = data.dtype
+            if dtype == np.dtype("datetime64[ns]"):
+                return DatetimeIndex(data, dtype, copy, name, tupleize_cols)
+        else:
+            index = native_pd.Index(data, dtype, copy, name, tupleize_cols)
+            if isinstance(index, native_pd.DatetimeIndex):
+                return DatetimeIndex(data)
+        return object.__new__(cls)
+
+    def __init__(
+        self,
+        data: ArrayLike | native_pd.Index | Series | None = None,
+        dtype: str | np.dtype | ExtensionDtype | None = _CONSTRUCTOR_DEFAULTS["dtype"],
+        copy: bool = _CONSTRUCTOR_DEFAULTS["copy"],
+        name: object = _CONSTRUCTOR_DEFAULTS["name"],
+        tupleize_cols: bool = _CONSTRUCTOR_DEFAULTS["tupleize_cols"],
+        query_compiler: SnowflakeQueryCompiler = None,
+    ) -> None:
+        """
+        Immutable sequence used for indexing and alignment.
+
+        The basic object storing axis labels for all pandas objects.
+
+        Parameters
+        ----------
+        data : array-like (1-dimensional), pandas.Index, modin.pandas.Series, optional
+        dtype : str, numpy.dtype, or ExtensionDtype, optional
+            Data type for the output Index. If not specified, this will be
+            inferred from `data`.
+            See the :ref:`user guide <basics.dtypes>` for more usages.
+        copy : bool, default False
+            Copy input data.
+        name : object
+            Name to be stored in the index.
+        tupleize_cols : bool (default: True)
+            When True, attempt to create a MultiIndex if possible.
+        query_compiler : SnowflakeQueryCompiler, optional
+            A query compiler object to create the ``Index`` from.
         Notes
         -----
         An Index instance can **only** contain hashable objects.
@@ -92,19 +162,46 @@ class Index(metaclass=TelemetryMeta):
         >>> pd.Index([1, 2, 3], dtype="uint8")
         Index([1, 2, 3], dtype='int64')
         """
-        if isinstance(data, SnowflakeQueryCompiler):
-            qc = data
+        kwargs = {
+            "dtype": dtype,
+            "copy": copy,
+            "name": name,
+            "tupleize_cols": tupleize_cols,
+        }
+        self._init_index(data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs)
+
+    def _init_index(
+        self,
+        data: ArrayLike | native_pd.Index | Series | None,
+        ctor_defaults: dict,
+        query_compiler: SnowflakeQueryCompiler = None,
+        **kwargs: Any,
+    ):
+        if query_compiler:
+            # Raise warning if `data` is query compiler with non-default arguments.
+            for arg_name, arg_value in kwargs.items():
+                assert (
+                    arg_value == ctor_defaults[arg_name]
+                ), f"Non-default argument '{arg_name}={arg_value}' when constructing Index with query compiler"
+            self._query_compiler = query_compiler
+        elif isinstance(data, BasePandasDataset):
+            if data.ndim != 1:
+                raise ValueError("Index data must be 1 - dimensional")
+            series_has_no_name = data.name is None
+            idx = (
+                data.to_frame().set_index(0 if series_has_no_name else data.name).index
+            )
+            if series_has_no_name:
+                idx.name = None
+            self._query_compiler = idx._query_compiler
         else:
-            qc = DataFrame(
-                index=native_pd.Index(
-                    data=data,
-                    dtype=dtype,
-                    copy=copy,
-                    name=name,
-                    tupleize_cols=tupleize_cols,
-                )
+            self._query_compiler = DataFrame(
+                index=self._NATIVE_INDEX_TYPE(data=data, **kwargs)
             )._query_compiler
-        self._query_compiler = qc.drop(columns=qc.columns)
+        if len(self._query_compiler.columns):
+            self._query_compiler = self._query_compiler.drop(
+                columns=self._query_compiler.columns
+            )
 
     def __getattr__(self, key: str) -> Any:
         """
@@ -128,7 +225,7 @@ class Index(metaclass=TelemetryMeta):
             return object.__getattribute__(self, key)
         except AttributeError as err:
             if not key.startswith("_"):
-                native_index = native_pd.Index([])
+                native_index = self._NATIVE_INDEX_TYPE([])
                 if hasattr(native_index, key):
                     # Any methods that not supported by the current Index.py but exist in a
                     # native pandas index object should raise a not implemented error for now.
@@ -156,6 +253,13 @@ class Index(metaclass=TelemetryMeta):
         return self._query_compiler._modin_frame.index_columns_pandas_index(
             statement_params=statement_params, **kwargs
         )
+
+    @cached_property
+    def __constructor__(self):
+        """
+        Returns: Type of the instance.
+        """
+        return type(self)
 
     @property
     def values(self) -> ArrayLike:
@@ -320,8 +424,8 @@ class Index(metaclass=TelemetryMeta):
             raise IndexError(
                 f"Too many levels: Index has only 1 level, {level} is not a valid level number."
             )
-        return Index(
-            data=self._query_compiler.groupby_agg(
+        return self.__constructor__(
+            query_compiler=self._query_compiler.groupby_agg(
                 by=self._query_compiler.get_index_names(axis=0),
                 agg_func={},
                 axis=0,
@@ -414,7 +518,16 @@ class Index(metaclass=TelemetryMeta):
             column: dtype for column in self._query_compiler.get_index_names()
         }
         new_query_compiler = self._query_compiler.astype_index(col_dtypes)
-        return Index(data=new_query_compiler)
+
+        if is_datetime64_any_dtype(dtype):
+            # local import to avoid circular dependency.
+            from snowflake.snowpark.modin.plugin.extensions.datetime_index import (
+                DatetimeIndex,
+            )
+
+            return DatetimeIndex(query_compiler=new_query_compiler)
+
+        return Index(query_compiler=new_query_compiler)
 
     @property
     def name(self) -> Hashable:
@@ -500,7 +613,7 @@ class Index(metaclass=TelemetryMeta):
         # TODO: SNOW-1458122 implement set_names
         WarningMessage.index_to_pandas_warning("set_names")
         if not inplace:
-            return Index(
+            return self.__constructor__(
                 self.to_pandas().set_names(names, level=level, inplace=inplace)
             )
         return self.to_pandas().set_names(names, level=level, inplace=inplace)
@@ -769,7 +882,9 @@ class Index(metaclass=TelemetryMeta):
         False
         """
         WarningMessage.ignored_argument(operation="copy", argument="deep", message="")
-        return Index(self._query_compiler.copy(), name=name)
+        return self.__constructor__(
+            query_compiler=self._query_compiler.copy(), name=name
+        )
 
     @index_not_implemented()
     def delete(self) -> None:
@@ -825,7 +940,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458146 implement drop
         WarningMessage.index_to_pandas_warning("drop")
-        return Index(self.to_pandas().drop(labels=labels, errors=errors))
+        return self.__constructor__(self.to_pandas().drop(labels=labels, errors=errors))
 
     @index_not_implemented()
     def drop_duplicates(self) -> None:
@@ -973,13 +1088,13 @@ class Index(metaclass=TelemetryMeta):
         if self is other:
             return True
 
-        if not isinstance(other, (Index, native_pd.Index)):
+        if not isinstance(other, (type(self), self._NATIVE_INDEX_TYPE)):
             return False
 
-        if isinstance(other, native_pd.Index):
+        if isinstance(other, self._NATIVE_INDEX_TYPE):
             # Same as DataFrame/Series equals. Convert native Index to Snowpark pandas
             # Index for comparison.
-            other = Index(other)
+            other = self.__constructor__(other)
 
         return self._query_compiler.index_equals(other._query_compiler)
 
@@ -1217,8 +1332,14 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458127 implement max
 
-    @index_not_implemented()
-    def reindex(self) -> None:
+    def reindex(
+        self,
+        target: Iterable,
+        method: str | None = None,
+        level: int | None = None,
+        limit: int | None = None,
+        tolerance: int | float | None = None,
+    ) -> tuple[Index, np.ndarray]:
         """
         Create index with target's values.
 
@@ -1263,12 +1384,67 @@ class Index(metaclass=TelemetryMeta):
         ValueError
             If non-unique index and ``method`` or ``limit`` passed.
 
+        Notes
+        -----
+        ``method=nearest`` is not supported.
+
+        If duplicate values are present, they are ignored,
+        and all duplicate values are present in the result.
+
+        If the source and target indices have no overlap,
+        monotonicity checks are skipped.
+
+        Tuple-like index values are not supported.
+
+        Examples
+        --------
+        >>> idx = pd.Index(['car', 'bike', 'train', 'tractor'])
+        >>> idx
+        Index(['car', 'bike', 'train', 'tractor'], dtype='object')
+
+        >>> idx.reindex(['car', 'bike'])
+        (Index(['car', 'bike'], dtype='object'), array([0, 1]))
+
         See Also
         --------
         Series.reindex : Conform Series to new index with optional filling logic.
         DataFrame.reindex : Conform DataFrame to new index with optional filling logic.
         """
-        # TODO: SNOW-1458121 implement reindex
+
+        # This code path is only hit if our index is lazy (as an eager index would simply call
+        # the method on its underlying pandas Index object and return the result of that wrapped
+        # appropriately.) Therefore, we specify axis=0, since the QueryCompiler expects lazy indices
+        # on axis=0, but eager indices on axis=1 (used for error checking).
+        if limit is not None and method is None:
+            raise ValueError(
+                "limit argument only valid if doing pad, backfill or nearest reindexing"
+            )
+        kwargs = {
+            "method": method,
+            "level": level,
+            "limit": limit,
+            "tolerance": tolerance,
+            "_is_index": True,
+        }
+
+        internal_data_types = (
+            self._query_compiler._modin_frame.quoted_identifier_to_snowflake_type()
+        )
+        internal_index_column = (
+            self._query_compiler._modin_frame.index_column_snowflake_quoted_identifiers[
+                0
+            ]
+        )
+        internal_index_type = internal_data_types[internal_index_column]
+        if isinstance(internal_index_type, ArrayType):
+            raise NotImplementedError(
+                "Snowpark pandas does not support `reindex` with tuple-like Index values."
+            )
+        else:
+            query_compiler, indices = self._query_compiler.reindex(
+                axis=0, labels=target, **kwargs
+            )
+            return Index(query_compiler=query_compiler), indices
 
     @index_not_implemented()
     def rename(self) -> None:
@@ -1785,7 +1961,7 @@ class Index(metaclass=TelemetryMeta):
             key=key,
             include_indexer=return_indexer,
         )
-        index = Index(res)
+        index = self.__constructor__(query_compiler=res)
         if return_indexer:
             # When `return_indexer` is True, `res` is a query compiler with one index column
             # and one data column.
@@ -1865,7 +2041,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458151 implement intersection
         WarningMessage.index_to_pandas_warning("intersection")
-        return Index(
+        return self.__constructor__(
             self.to_pandas().intersection(
                 other=try_convert_index_to_native(other), sort=sort
             )
@@ -1918,7 +2094,7 @@ class Index(metaclass=TelemetryMeta):
         # TODO: SNOW-1458149 implement union w/o sort
         # TODO: SNOW-1468240 implement union w/ sort
         WarningMessage.index_to_pandas_warning("union")
-        return Index(
+        return self.__constructor__(
             self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort)
         )
 
@@ -1957,7 +2133,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458152 implement difference
         WarningMessage.index_to_pandas_warning("difference")
-        return Index(
+        return self.__constructor__(
             self.to_pandas().difference(try_convert_index_to_native(other), sort=sort)
         )
 
@@ -1989,7 +2165,7 @@ class Index(metaclass=TelemetryMeta):
         """
         WarningMessage.index_to_pandas_warning("_get_indexer_strict")
         tup = self.to_pandas()._get_indexer_strict(key=key, axis_name=axis_name)
-        return Index(tup[0]), tup[1]
+        return self.__constructor__(tup[0]), tup[1]
 
     def get_level_values(self, level: int | str) -> Index:
         """
@@ -2024,7 +2200,7 @@ class Index(metaclass=TelemetryMeta):
         Index(['a', 'b', 'c'], dtype='object')
         """
         WarningMessage.index_to_pandas_warning("get_level_values")
-        return Index(self.to_pandas().get_level_values(level=level))
+        return self.__constructor__(self.to_pandas().get_level_values(level=level))
 
     @index_not_implemented()
     def isin(self) -> None:
@@ -2261,3 +2437,65 @@ class Index(metaclass=TelemetryMeta):
         """
         WarningMessage.index_to_pandas_warning("str")
         return self.to_pandas().str
+
+    def _to_datetime(
+        self,
+        errors: DateTimeErrorChoices = "raise",
+        dayfirst: bool = False,
+        yearfirst: bool = False,
+        utc: bool = False,
+        format: str = None,
+        exact: bool | lib.NoDefault = lib.no_default,
+        unit: str = None,
+        infer_datetime_format: bool | lib.NoDefault = lib.no_default,
+        origin: DateTimeOrigin = "unix",
+    ) -> Index:
+        """
+        Convert index to DatetimeIndex.
+        Args:
+            errors: {'ignore', 'raise', 'coerce'}, default 'raise'
+              If 'raise', then invalid parsing will raise an exception.
+              If 'coerce', then invalid parsing will be set as NaT.
+              If 'ignore', then invalid parsing will return the input.
+            dayfirst: bool, default False
+              Specify a date parse order if arg is str or is list-like.
+            yearfirst: bool, default False
+              Specify a date parse order if arg is str or is list-like.
+            utc: bool, default False
+              Control timezone-related parsing, localization and conversion.
+            format: str, default None
+              The strftime to parse time
+            exact: bool, default True
+              Control how format is used:
+              True: require an exact format match.
+              False: allow the format to match anywhere in the target string.
+            unit: str, default 'ns'
+              The unit of the arg (D,s,ms,us,ns) denote the unit, which is an integer
+              or float number.
+            infer_datetime_format: bool, default False
+              If True and no format is given, attempt to infer the format of the \
+              datetime strings based on the first non-NaN element.
+            origin: scalar, default 'unix'
+              Define the reference date. The numeric values would be parsed as number
+              of units (defined by unit) since this reference date.
+
+        Returns:
+            DatetimeIndex
+        """
+        from snowflake.snowpark.modin.plugin.extensions.datetime_index import (
+            DatetimeIndex,
+        )
+
+        new_qc = self._query_compiler.series_to_datetime(
+            errors,
+            dayfirst,
+            yearfirst,
+            utc,
+            format,
+            exact,
+            unit,
+            infer_datetime_format,
+            origin,
+            include_index=True,
+        )
+        return DatetimeIndex(query_compiler=new_qc)
