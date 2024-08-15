@@ -162,7 +162,7 @@ def test_df_groupby_head_tail_df_with_duplicate_columns(op_type, n):
 
 
 @sql_count_checker(query_count=1)
-def test_df_groupby_last_chained_pivot_table():
+def test_df_groupby_last_chained_pivot_table_SNOW_1628228():
     native_df = native_pd.DataFrame(
         data=native_pd.Series(
             native_pd.date_range(start="2024-01-01", freq="min", periods=10)
