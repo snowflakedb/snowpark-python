@@ -75,6 +75,8 @@
     and `is_leap_year`.
 - Added support for `Resampler.fillna` and `Resampler.bfill`.
 - Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
+- Added support for `Index.argmax` and `Index.argmin`.
+- Added support for index's arithmetic and comparison operators.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
@@ -87,6 +89,7 @@
 - Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.  
 - Fixed a bug where some Index docstrings are ignored. 
 - Fixed a bug in `Series.reset_index(drop=True)` where the result name may be wrong.
+- Fixed a bug in `Groupby.first/last` ordering by the correct columns in the underlying window expression.
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 
 ### Behavior change
