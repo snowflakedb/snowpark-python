@@ -198,7 +198,7 @@ class DataFrameAnalyticsFunctions:
         }
 
         if unit == "mm":
-            base_date = lit("1970-01-01").cast("date")
+            base_date = lit("1970-01-01").cast("date", _emit_ast=False)
             months_since_base = months_between(time_col, base_date)
             current_window_start_month = (months_since_base / duration).cast(
                 "long"

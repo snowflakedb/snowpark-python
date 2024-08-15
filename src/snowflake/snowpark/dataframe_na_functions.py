@@ -220,10 +220,10 @@ class DataFrameNaFunctions:
                     df_col_type_dict[normalized_col_name], (FloatType, DoubleType)
                 ):
                     # iff(col = 'NaN' or col is null, 0, 1)
-                    is_na = iff((col == math.nan) | col.is_null(), 0, 1)
+                    is_na = iff((col == math.nan) | col.is_null(_emit_ast=False), 0, 1)
                 else:
                     # iff(col is null, 0, 1)
-                    is_na = iff(col.is_null(), 0, 1)
+                    is_na = iff(col.is_null(_emit_ast=False), 0, 1)
                 if col_counter is not None:
                     col_counter += is_na
                 else:
@@ -405,13 +405,13 @@ class DataFrameNaFunctions:
                     if isinstance(datatype, (FloatType, DoubleType)):
                         # iff(col = 'NaN' or col is null, value, col)
                         res_columns.append(
-                            iff((col == math.nan) | col.is_null(), value, col).as_(
+                            iff((col == math.nan) | col.is_null(_emit_ast=False), value, col).as_(
                                 col_name
                             )
                         )
                     else:
                         # iff(col is null, value, col)
-                        res_columns.append(iff(col.is_null(), value, col).as_(col_name))
+                        res_columns.append(iff(col.is_null(_emit_ast=False), value, col).as_(col_name))
                 else:
                     _logger.warning(
                         "Input value type doesn't match the target column data type, "
@@ -615,7 +615,7 @@ class DataFrameNaFunctions:
                     if _is_value_type_matching_for_na_function(
                         key, datatype
                     ) and _is_value_type_matching_for_na_function(value, datatype):
-                        cond = col.is_null() if key is None else (col == lit(key))
+                        cond = col.is_null(_emit_ast=False) if key is None else (col == lit(key))
                         replace_value = lit(None) if value is None else lit(value)
                         case_when = (
                             case_when.when(cond, replace_value)

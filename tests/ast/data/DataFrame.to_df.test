@@ -11,6 +11,6 @@ non_variadic = df.to_df(["one", "two"])
 
 df = session.table("test_table")
 
-res1 = df.to_df("one", "two")
+variadic = df.to_df("one", "two")
 
-res2 = df.to_df(["one", "two"])
+non_variadic = df.to_df(["one", "two"])

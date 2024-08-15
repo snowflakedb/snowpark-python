@@ -306,7 +306,7 @@ def column(name1: str, name2: Optional[str] = None) -> Column:
         return Column(name1, name2, ast=ast)
 
 
-def lit(literal: LiteralType) -> Column:
+def lit(literal: LiteralType, _emit_ast=True) -> Column:
     """
     Creates a :class:`~snowflake.snowpark.Column` expression for a literal value.
     It supports basic Python data types, including ``int``, ``float``, ``str``,
@@ -330,10 +330,11 @@ def lit(literal: LiteralType) -> Column:
         ---------------------------------------------------------------------------------------
         <BLANKLINE>
     """
-
-    ast = proto.Expr()
-    build_builtin_fn_apply(ast, "lit", literal)
-    return literal if isinstance(literal, Column) else Column(Literal(literal), ast=ast)
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "lit", literal)
+    return literal if isinstance(literal, Column) else Column(Literal(literal), ast=ast, _emit_ast=_emit_ast)
 
 
 def sql_expr(sql: str, _emit_ast: bool = True) -> Column:
@@ -560,7 +561,7 @@ def bitshiftright(to_shift_column: ColumnOrName, n: Union[Column, int]) -> Colum
     return call_builtin("bitshiftright", c, n)
 
 
-def bround(col: ColumnOrName, scale: Union[Column, int]) -> Column:
+def bround(col: ColumnOrName, scale: Union[Column, int], _emit_ast=True) -> Column:
     """
     Rounds the number using `HALF_TO_EVEN` option. The `HALF_TO_EVEN` rounding mode rounds the given decimal value to the specified scale (number of decimal places) as follows:
     * If scale is greater than or equal to 0, round to the specified number of decimal places using half-even rounding. This rounds towards the nearest value with ties (equally close values) rounding to the nearest even digit.
@@ -599,8 +600,10 @@ def bround(col: ColumnOrName, scale: Union[Column, int]) -> Column:
     col = _to_col_if_str(col, "bround")
     scale = _to_col_if_lit(scale, "bround")
 
-    ast = proto.Expr()
-    build_builtin_fn_apply(ast, "bround", col, scale)
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "bround", col, scale)
 
     # Note: Original Snowpark python code capitalized here.
     col = call_builtin("ROUND", col, scale, lit("HALF_TO_EVEN"))
@@ -1542,7 +1545,7 @@ def equal_nan(e: ColumnOrName) -> Column:
         [Row(EQUAL_NAN=False), Row(EQUAL_NAN=True), Row(EQUAL_NAN=False)]
     """
     c = _to_col_if_str(e, "equal_nan")
-    return c.equal_nan()
+    return c.equal_nan(_caller_frame_depth=3)
 
 
 def is_null(e: ColumnOrName) -> Column:
@@ -1557,7 +1560,7 @@ def is_null(e: ColumnOrName) -> Column:
         [Row(A=False), Row(A=False), Row(A=True), Row(A=False)]
     """
     c = _to_col_if_str(e, "is_null")
-    return c.is_null()
+    return c.is_null(_caller_frame_depth=3)
 
 
 def negate(e: ColumnOrName) -> Column:
@@ -1576,7 +1579,7 @@ def negate(e: ColumnOrName) -> Column:
     """
 
     c = _to_col_if_str(e, "negate")
-    return -c
+    return c.__neg__(_caller_frame_depth=3)
 
 
 def not_(e: ColumnOrName) -> Column:
@@ -1638,9 +1641,9 @@ def uniform(
 
     def convert_limit_to_col(limit):
         if isinstance(limit, int):
-            return lit(limit)
+            return lit(limit, _emit_ast=False)
         elif isinstance(limit, float):
-            return lit(limit).cast(FloatType())
+            return lit(limit, _emit_ast=False).cast(FloatType(), _emit_ast=False)
         return _to_col_if_str(limit, "uniform")
 
     min_col = convert_limit_to_col(min_)
@@ -2027,7 +2030,7 @@ def format_number(col: ColumnOrName, d: Union[Column, int]):
             <BLANKLINE>
     """
     col = _to_col_if_str(col, "format_number")
-    return bround(col, d).cast(StringType())
+    return bround(col, d, _emit_ast=False).cast(StringType(), _emit_ast=False)
 
 
 def sin(e: ColumnOrName) -> Column:
@@ -5938,7 +5941,7 @@ def asc(c: ColumnOrName) -> Column:
         [Row(A=None), Row(A=None), Row(A=1), Row(A=2), Row(A=3)]
     """
     c = _to_col_if_str(c, "asc")
-    return c.asc()
+    return c.asc(_caller_frame_depth=3)
 
 
 def asc_nulls_first(c: ColumnOrName) -> Column:
@@ -5952,7 +5955,7 @@ def asc_nulls_first(c: ColumnOrName) -> Column:
         [Row(A=None), Row(A=None), Row(A=1), Row(A=2), Row(A=3)]
     """
     c = _to_col_if_str(c, "asc_nulls_first")
-    return c.asc_nulls_first()
+    return c.asc_nulls_first(_caller_frame_depth=3)
 
 
 def asc_nulls_last(c: ColumnOrName) -> Column:
@@ -5966,7 +5969,7 @@ def asc_nulls_last(c: ColumnOrName) -> Column:
         [Row(A=1), Row(A=2), Row(A=3), Row(A=None), Row(A=None)]
     """
     c = _to_col_if_str(c, "asc_nulls_last")
-    return c.asc_nulls_last()
+    return c.asc_nulls_last(_caller_frame_depth=3)
 
 
 def desc(c: ColumnOrName) -> Column:
@@ -5980,7 +5983,7 @@ def desc(c: ColumnOrName) -> Column:
         [Row(A=3), Row(A=2), Row(A=1), Row(A=None), Row(A=None)]
     """
     c = _to_col_if_str(c, "desc")
-    return c.desc()
+    return c.desc(_caller_frame_depth=3)
 
 
 def desc_nulls_first(c: ColumnOrName) -> Column:
@@ -5995,7 +5998,7 @@ def desc_nulls_first(c: ColumnOrName) -> Column:
         [Row(A=None), Row(A=None), Row(A=3), Row(A=2), Row(A=1)]
     """
     c = _to_col_if_str(c, "desc_nulls_first")
-    return c.desc_nulls_first()
+    return c.desc_nulls_first(_caller_frame_depth=3)
 
 
 def desc_nulls_last(c: ColumnOrName) -> Column:
@@ -6009,7 +6012,7 @@ def desc_nulls_last(c: ColumnOrName) -> Column:
         [Row(A=3), Row(A=2), Row(A=1), Row(A=None), Row(A=None)]
     """
     c = _to_col_if_str(c, "desc_nulls_last")
-    return c.desc_nulls_last()
+    return c.desc_nulls_last(_caller_frame_depth=3)
 
 
 def as_array(variant: ColumnOrName) -> Column:
@@ -6118,7 +6121,7 @@ def cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(column, "cast")
-    return c.cast(to)
+    return c.cast(to, _caller_frame_depth=4)
 
 
 def try_cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
@@ -6143,7 +6146,7 @@ def try_cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
 
     """
     c = _to_col_if_str(column, "try_cast")
-    return c.try_cast(to)
+    return c.try_cast(to, _caller_frame_depth=4)
 
 
 def _as_decimal_or_number(
