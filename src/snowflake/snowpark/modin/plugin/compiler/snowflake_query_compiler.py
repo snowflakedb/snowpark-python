@@ -15714,7 +15714,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even
 
         # First, we need to calculate the length of half a slice.
-        # This is straightforward if the lenght is already even.
+        # This is straightforward if the length is already even.
         # If not, we then need to first downlevel the freq to a
         # lower granularity to ensure that it is even.
 
@@ -15789,14 +15789,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             round_column_if_not_half_point,
         )
 
-        internal_frame = internal_frame.append_column(
-            internal_frame.data_column_pandas_labels[0], round_column
+        internal_frame = (
+            internal_frame.update_snowflake_quoted_identifiers_with_expressions(
+                {
+                    internal_frame.data_column_snowflake_quoted_identifiers[
+                        0
+                    ]: round_column
+                }
+            ).frame
         )
 
         return SnowflakeQueryCompiler(
             InternalFrame.create(
                 ordered_dataframe=internal_frame.ordered_dataframe,
-                data_column_pandas_labels=[None],
+                data_column_pandas_labels=internal_frame.data_column_pandas_labels[-1:],
                 data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
                 data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers[
                     -1:
