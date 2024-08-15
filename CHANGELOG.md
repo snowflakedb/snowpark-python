@@ -36,6 +36,8 @@
     - cume_dist
     - ntile
     - datediff
+    - array_agg
+  - snowflake.snowpark.column.Column.within_group
 - Added support parsing regex flags in REGEX statements for mocked plans. This maintains parity with the `rlike` and `regexp` changes above.
 
 #### Bug Fixes
@@ -73,6 +75,7 @@
     and `is_leap_year`.
 - Added support for `Resampler.fillna` and `Resampler.bfill`.
 - Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
+- Added support for `Index.argmax` and `Index.argmin`.
 - Added support for index's arithmetic and comparison operators.
 
 #### Improvements
