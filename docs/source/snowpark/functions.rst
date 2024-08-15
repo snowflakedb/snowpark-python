@@ -49,6 +49,7 @@ Functions
     array_to_string
     array_unique_agg
     arrays_overlap
+    array_remove
     as_array
     as_binary
     as_char

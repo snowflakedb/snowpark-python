@@ -36,6 +36,7 @@ from snowflake.snowpark.functions import (
     array_intersection,
     array_position,
     array_prepend,
+    array_remove,
     array_size,
     array_slice,
     array_to_string,
@@ -2820,6 +2821,34 @@ def test_array_append(session):
             Row('[\n  6,\n  7,\n  8,\n  1,\n  "e2"\n]'),
         ],
         TestData.array2(session).select(array_append(array_append("arr1", "d"), "e")),
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_remove is not yet supported in local testing mode.",
+)
+def test_array_remove(session):
+    Utils.check_answer(
+        [
+            Row("[\n  2,\n  3\n]"),
+            Row("[\n  6,\n  7\n]"),
+        ],
+        TestData.array1(session).select(
+            array_remove(array_remove(col("arr1"), lit(1)), lit(8))
+        ),
+        sort=False,
+    )
+
+    Utils.check_answer(
+        [
+            Row("[\n  2,\n  3\n]"),
+            Row("[\n  6,\n  7\n]"),
+        ],
+        TestData.array1(session).select(
+            array_remove(array_remove(col("arr1"), 1), lit(8))
+        ),
+        sort=False,
     )
 
 

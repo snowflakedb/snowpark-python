@@ -5333,6 +5333,32 @@ def array_append(array: ColumnOrName, element: ColumnOrName) -> Column:
     return builtin("array_append")(a, e)
 
 
+def array_remove(array: ColumnOrName, element) -> Column:
+    """Returns an object constructed by removing all elements that are equal to the specified element from the given array.
+
+    Args:
+        array: name of column containing array.
+        element: element to be removed from the array.
+    Examples::
+        >>> df = session.create_dataframe([([1, 2, 3, 1, 1],)], ['data'])
+        >>> df.select(array_remove(df.data, 1).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |[          |
+        |  2,       |
+        |  3        |
+        |]          |
+        -------------
+        <BLANKLINE>
+
+    See Also:
+        - https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-object for information on Objects
+    """
+    a = _to_col_if_str(array, "array_remove")
+    return builtin("array_remove")(a, element)
+
+
 def array_cat(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     """Returns the concatenation of two ARRAYs.
 
