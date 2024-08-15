@@ -270,6 +270,24 @@ def mock_approx_percentile_estimate(
     return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
 
 
+@patch("covar_samp")
+def mock_covar_samp(
+    column1: Union[TableEmulator, ColumnEmulator],
+    column2: Union[TableEmulator, ColumnEmulator],
+) -> ColumnEmulator:
+    # TODO: Fix, returns dummy of 42 for now.
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
+
+
+@patch("corr")
+def mock_corr_samp(
+    column1: Union[TableEmulator, ColumnEmulator],
+    column2: Union[TableEmulator, ColumnEmulator],
+) -> ColumnEmulator:
+    # TODO: Fix, returns dummy of 42 for now.
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
+
+
 @patch("count")
 def mock_count(column: Union[TableEmulator, ColumnEmulator]) -> ColumnEmulator:
     if isinstance(column, ColumnEmulator):

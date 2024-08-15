@@ -11,6 +11,7 @@ import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.ast_utils import (
     FAIL_ON_MISSING_AST,
+    build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
     with_src_position,
 )
@@ -183,6 +184,7 @@ class DataFrameStatFunctions:
         col1: ColumnOrName,
         col2: ColumnOrName,
         *,
+        _emit_ast: bool = True,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> Optional[float]:
         """Calculates the correlation coefficient for non-null pairs in two numeric columns.
@@ -203,9 +205,45 @@ class DataFrameStatFunctions:
             If there is not enough data to generate the correlation, the method returns ``None``.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        df = self._dataframe.select(corr_func(col1, col2))
+
+        if _emit_ast:
+            # Add an assign node that applies SpDataframeStatsCorr() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_dataframe_stats_corr, repr)
+
+            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._dataframe._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+
+            build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
+            build_expr_from_snowpark_column_or_col_name(expr.col2, col2)
+
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = expr.statement_params.add()
+                    t._1 = k
+                    t._2 = v
+
+            self._dataframe._session._ast_batch.eval(repr)
+
+        if self._dataframe._session._conn.is_phase1_enabled():
+            # TODO: Logic here should be
+            # ast = self._dataframe._session._ast_batch.flush()
+            # res = self._dataframe._session._conn.ast_query(ast)
+            raise NotImplementedError(
+                "TODO: Implement corr() with EvalResult in Phase1."
+            )
+
+        # Phase 0 flushes AST and encodes it as part of the query.
+        kwargs = {}
+        _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+
+        df = self._dataframe.select(corr_func(col1, col2), _emit_ast=False)
         adjust_api_subcalls(df, "DataFrameStatFunctions.corr", len_subcalls=1)
-        res = df._internal_collect_with_tag(statement_params=statement_params)
+        res = df._internal_collect_with_tag(statement_params=statement_params, **kwargs)
         return res[0][0] if res[0] is not None else None
 
     def cov(
@@ -213,6 +251,7 @@ class DataFrameStatFunctions:
         col1: ColumnOrName,
         col2: ColumnOrName,
         *,
+        _emit_ast: bool = True,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> Optional[float]:
         """Calculates the sample covariance for non-null pairs in two numeric columns.
@@ -232,9 +271,45 @@ class DataFrameStatFunctions:
             The sample covariance of the two numeric columns.
             If there is not enough data to generate the covariance, the method returns None.
         """
-        df = self._dataframe.select(covar_samp(col1, col2))
+
+        if _emit_ast:
+            # Add an assign node that applies SpDataframeStatsCov() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_dataframe_stats_cov, repr)
+
+            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._dataframe._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+
+            build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
+            build_expr_from_snowpark_column_or_col_name(expr.col2, col2)
+
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = expr.statement_params.add()
+                    t._1 = k
+                    t._2 = v
+
+            self._dataframe._session._ast_batch.eval(repr)
+
+        if self._dataframe._session._conn.is_phase1_enabled():
+            # TODO: Logic here should be
+            # ast = self._dataframe._session._ast_batch.flush()
+            # res = self._dataframe._session._conn.ast_query(ast)
+            raise NotImplementedError(
+                "TODO: Implement corr() with EvalResult in Phase1."
+            )
+
+            # Phase 0 flushes AST and encodes it as part of the query.
+        kwargs = {}
+        _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+
+        df = self._dataframe.select(covar_samp(col1, col2), _emit_ast=False)
         adjust_api_subcalls(df, "DataFrameStatFunctions.corr", len_subcalls=1)
-        res = df._internal_collect_with_tag(statement_params=statement_params)
+        res = df._internal_collect_with_tag(statement_params=statement_params, **kwargs)
         return res[0][0] if res[0] is not None else None
 
     def crosstab(
@@ -242,6 +317,7 @@ class DataFrameStatFunctions:
         col1: ColumnOrName,
         col2: ColumnOrName,
         *,
+        _emit_ast: bool = True,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> "snowflake.snowpark.DataFrame":
         """Computes a pair-wise frequency table (a ``contingency table``) for the specified columns.
@@ -275,29 +351,70 @@ class DataFrameStatFunctions:
             col2: The name of the second column to use.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+
+        if _emit_ast:
+            # Add an assign node that applies SpDataframeStatsCrossTab() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_dataframe_stats_cross_tab, repr)
+
+            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._dataframe._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+
+            build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
+            build_expr_from_snowpark_column_or_col_name(expr.col2, col2)
+
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = expr.statement_params.add()
+                    t._1 = k
+                    t._2 = v
+
+            self._dataframe._session._ast_batch.eval(repr)
+
+        if self._dataframe._session._conn.is_phase1_enabled():
+            # TODO: Logic here should be
+            # ast = self._dataframe._session._ast_batch.flush()
+            # res = self._dataframe._session._conn.ast_query(ast)
+            raise NotImplementedError(
+                "TODO: Implement corr() with EvalResult in Phase1."
+            )
+
+            # Phase 0 flushes AST and encodes it as part of the query.
+        kwargs = {}
+        _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+
         row_count = self._dataframe.select(
-            count_distinct(col2)
-        )._internal_collect_with_tag(statement_params=statement_params)[0][0]
+            count_distinct(col2), _emit_ast=False
+        )._internal_collect_with_tag(statement_params=statement_params, **kwargs)[0][0]
         if row_count > _MAX_COLUMNS_PER_TABLE:
             raise SnowparkClientExceptionMessages.DF_CROSS_TAB_COUNT_TOO_LARGE(
                 row_count, _MAX_COLUMNS_PER_TABLE
             )
         column_names = [
             row[0]
-            for row in self._dataframe.select(col2)
-            .distinct()
-            ._internal_collect_with_tag(statement_params=statement_params)
+            for row in self._dataframe.select(col2, _emit_ast=False)
+            .distinct(_emit_ast=False)
+            ._internal_collect_with_tag(
+                statement_params=statement_params
+            )  # Do not issue request again, done in previous query.
         ]
         df = (
-            self._dataframe.select(col1, col2)
-            .pivot(col2, column_names)
-            .agg(count(col2))
+            self._dataframe.select(col1, col2, _emit_ast=False)
+            .pivot(col2, column_names, _emit_ast=False)
+            .agg(count(col2), _emit_ast=False)
         )
         adjust_api_subcalls(df, "DataFrameStatFunctions.crosstab", len_subcalls=3)
         return df
 
     def sample_by(
-        self, col: ColumnOrName, fractions: Dict[LiteralType, float]
+        self,
+        col: ColumnOrName,
+        fractions: Dict[LiteralType, float],
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         """Returns a DataFrame containing a stratified sample without replacement, based on a ``dict`` that specifies the fraction for each stratum.
 
@@ -312,16 +429,43 @@ class DataFrameStatFunctions:
             fractions: A ``dict`` that specifies the fraction to use for the sample for each stratum.
                 If a stratum is not specified in the ``dict``, the method uses 0 as the fraction.
         """
+
+        if _emit_ast:
+            # Add an assign node that applies SpDataframeStatsSampleBy() to the input, followed by its Eval.
+            stmt = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_stats_sample_by, stmt)
+
+            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._dataframe._plan.api_calls} is missing complete AST logging."
+                )
+
+            build_expr_from_snowpark_column_or_col_name(expr.col, col)
+
+            if fractions is not None:
+                for k, v in fractions.items():
+                    t = expr.fractions.add()
+                    build_expr_from_python_val(t._1, k)
+                    t._2 = v
+
+            self._dataframe.set_ast_ref(expr.df)
+
         if not fractions:
-            res_df = self._dataframe.limit(0)
+            res_df = self._dataframe.limit(0, _emit_ast=False)
             adjust_api_subcalls(
                 res_df, "DataFrameStatFunctions.sample_by", len_subcalls=1
             )
+
             return res_df
         col = _to_col_if_str(col, "sample_by")
         res_df = reduce(
             lambda x, y: x.union_all(y),
-            [self._dataframe.filter(col == k).sample(v) for k, v in fractions.items()],
+            [
+                self._dataframe.filter(col == k, _emit_ast=False).sample(
+                    v, _emit_ast=False
+                )
+                for k, v in fractions.items()
+            ],
         )
         adjust_api_subcalls(
             res_df,
@@ -329,6 +473,7 @@ class DataFrameStatFunctions:
             precalls=self._dataframe._plan.api_calls,
             subcalls=res_df._plan.api_calls.copy(),
         )
+
         return res_df
 
     approxQuantile = approx_quantile

@@ -594,6 +594,8 @@ class DataFrame:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_stats, stmt)
+            self.set_ast_ref(expr.df)
             self._stat._ast_stmt = stmt
 
         return self._stat
@@ -1199,24 +1201,30 @@ class DataFrame:
         """
         return self.schema.names
 
-    def col(self, col_name: str) -> Column:
+    def col(self, col_name: str, _emit_ast: bool = True) -> Column:
         """Returns a reference to a column in the DataFrame."""
-        col_expr_ast = proto.Expr()
-        if self._ast_id is None and FAIL_ON_MISSING_AST:
-            _logger.debug(self._explain_string())
-            raise NotImplementedError(
-                f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-            )
-        elif self._ast_id is not None:
-            col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = (
-                self._ast_id
-            )
-        set_src_position(col_expr_ast.sp_dataframe_col.src)
+
+        col_expr_ast = None
+        if _emit_ast:
+            col_expr_ast = proto.Expr()
+            if self._ast_id is None and FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+            elif self._ast_id is not None:
+                col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = (
+                    self._ast_id
+                )
+            set_src_position(col_expr_ast.sp_dataframe_col.src)
+
         if col_name == "*":
-            col_expr_ast.sp_dataframe_col.col_name = "*"
+            if _emit_ast:
+                col_expr_ast.sp_dataframe_col.col_name = "*"
             return Column(Star(self._output), ast=col_expr_ast)
         else:
-            col_expr_ast.sp_dataframe_col.col_name = col_name
+            if _emit_ast:
+                col_expr_ast.sp_dataframe_col.col_name = col_name
             return Column(self._resolve(col_name), ast=col_expr_ast)
 
     @df_api_usage
@@ -2011,7 +2019,8 @@ class DataFrame:
                 ast = None
 
         df = self.group_by(
-            [self.col(quote_name(f.name)) for f in self.schema.fields], _emit_ast=False
+            [self.col(quote_name(f.name), _emit_ast=False) for f in self.schema.fields],
+            _emit_ast=False,
         ).agg(_emit_ast=False)
 
         if _emit_ast:
@@ -2092,6 +2101,7 @@ class DataFrame:
             Union[Iterable[LiteralType], "snowflake.snowpark.DataFrame"]
         ] = None,
         default_on_null: Optional[LiteralType] = None,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Rotates this DataFrame by turning the unique values from one column in the input
         expression into multiple columns and aggregating results where required on any
@@ -2148,6 +2158,10 @@ class DataFrame:
                 or None (default) will use all values of the pivot column.
             default_on_null: Expression to replace empty result values.
         """
+
+        if _emit_ast:
+            raise NotImplementedError("TODO SNOW-1491297, add coverage for pivot.")
+
         target_df, pc, pivot_values, default_on_null = prepare_pivot_arguments(
             self, "DataFrame.pivot", pivot_col, values, default_on_null
         )
@@ -4375,7 +4389,10 @@ class DataFrame:
 
     @df_api_usage
     def sample(
-        self, frac: Optional[float] = None, n: Optional[int] = None
+        self,
+        frac: Optional[float] = None,
+        n: Optional[int] = None,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Samples rows based on either the number of rows to be returned or a
         percentage of rows to be returned.
@@ -4388,15 +4405,17 @@ class DataFrame:
         """
         DataFrame._validate_sample_input(frac, n)
 
-        # AST.
-        stmt = self._session._ast_batch.assign()
-        ast = stmt.expr.sp_dataframe_sample
-        if frac:
-            ast.probability_fraction.value = frac
-        if n:
-            ast.num.value = n
-        self.set_ast_ref(ast.df)
-        set_src_position(ast.src)
+        stmt = None
+        if _emit_ast:
+            # AST.
+            stmt = self._session._ast_batch.assign()
+            ast = stmt.expr.sp_dataframe_sample
+            if frac:
+                ast.probability_fraction.value = frac
+            if n:
+                ast.num.value = n
+            self.set_ast_ref(ast.df)
+            set_src_position(ast.src)
 
         sample_plan = Sample(self._plan, probability_fraction=frac, row_count=n)
         if self._select_statement:
