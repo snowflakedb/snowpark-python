@@ -395,6 +395,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Fixed a bug in `DataFrame.lineage.trace` to split the quoted feature view's name and version correctly.
 - Fixed a bug in `Column.isin` that caused invalid sql generation when passed an empty list.
 - Fixed a bug that fails to raise NotImplementedError while setting cell with list like item.
+- Fixed a bug in `pyspark.sql.functions.array_remove` to remove is available in SQL but there is no corresponding API.
 
 ### Snowpark Local Testing Updates
 
