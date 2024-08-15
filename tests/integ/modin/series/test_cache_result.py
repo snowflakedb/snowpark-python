@@ -104,10 +104,6 @@ class TestCacheResultReducesQueryCount:
         native_series = perform_chained_operations(
             native_pd.Series(np.arange(50)), native_pd
         )
-        # Fix for https://snowflakecomputing.atlassian.net/browse/SNOW-1442354
-        # snow_series.reset_index names the returned series 0, so we must
-        # name the pandas Series as well so that they match.
-        native_series.name = 0
         with SqlCounter(query_count=1, union_count=99):
             snow_series = perform_chained_operations(snow_series, pd)
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
@@ -133,10 +129,6 @@ class TestCacheResultReducesQueryCount:
         native_series = perform_chained_operations(
             native_pd.Series(simple_test_data).apply(lambda x: x + x), native_pd
         )
-        # Fix for https://snowflakecomputing.atlassian.net/browse/SNOW-1442354
-        # snow_series.reset_index names the returned series 0, so we must
-        # name the pandas Series as well so that they match.
-        native_series.name = 0
         with SqlCounter(query_count=5, union_count=9):
             snow_series = pd.Series(simple_test_data).apply(lambda x: x + x)
             repr(snow_series)

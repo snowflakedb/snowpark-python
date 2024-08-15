@@ -1,21 +1,30 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+import copy
 from typing import DefaultDict, Dict, Iterable, List, NamedTuple, Optional
 
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    CreateViewCommand,
     PlanQueryType,
     Query,
     SnowflakePlan,
     SnowflakePlanBuilder,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    CopyIntoLocationNode,
     LogicalPlan,
     SnowflakeCreateTable,
+    TableCreationSource,
+    WithQueryBlock,
+)
+from snowflake.snowpark._internal.analyzer.table_merge_expression import (
+    TableDelete,
+    TableMerge,
+    TableUpdate,
 )
 from snowflake.snowpark.session import Session
 
@@ -49,6 +58,13 @@ class QueryGenerator(Analyzer):
         self._snowflake_create_table_plan_info: Optional[
             SnowflakeCreateTablePlanInfo
         ] = snowflake_create_table_plan_info
+        # Records the definition of all the with query blocks encountered during the code generation.
+        # This information will be used to generate the final query of a SnowflakePlan with the
+        # correct CTE definition.
+        # NOTE: the dict used here is an ordered dict, all with query block definition is recorded in the
+        # order of when the with query block is visited. The order is important to make sure the dependency
+        # between the CTE definition is satisfied.
+        self.resolved_with_query_block: Dict[str, str] = {}
 
     def generate_queries(
         self, logical_plans: List[LogicalPlan]
@@ -60,14 +76,21 @@ class QueryGenerator(Analyzer):
         -------
 
         """
+        from snowflake.snowpark._internal.compiler.utils import (
+            get_snowflake_plan_queries,
+        )
+
         # generate queries for each logical plan
         snowflake_plans = [self.resolve(logical_plan) for logical_plan in logical_plans]
         # merge all results into final set of queries
         queries = []
         post_actions = []
         for snowflake_plan in snowflake_plans:
-            queries.extend(snowflake_plan.queries)
-            post_actions.extend(snowflake_plan.post_actions)
+            plan_queries = get_snowflake_plan_queries(
+                snowflake_plan, self.resolved_with_query_block
+            )
+            queries.extend(plan_queries[PlanQueryType.QUERIES])
+            post_actions.extend(plan_queries[PlanQueryType.POST_ACTIONS])
 
         return {
             PlanQueryType.QUERIES: queries,
@@ -85,28 +108,47 @@ class QueryGenerator(Analyzer):
                 assert logical_plan.source_plan is not None
                 # when encounter a SnowflakePlan with no queries, try to re-resolve
                 # the source plan to construct the result
-                res = self.resolve(logical_plan.source_plan)
+                res = self.do_resolve(logical_plan.source_plan)
                 resolved_children[logical_plan] = res
-                return res
+                resolved_plan = res
             else:
-                return logical_plan
+                resolved_plan = logical_plan
 
-        if isinstance(logical_plan, SnowflakeCreateTable):
+        elif isinstance(logical_plan, SnowflakeCreateTable):
+            from snowflake.snowpark._internal.compiler.utils import (
+                get_snowflake_plan_queries,
+            )
+
             # overwrite the SnowflakeCreateTable resolving, because the child
             # attribute will be pulled directly from the cache
             resolved_child = resolved_children[logical_plan.children[0]]
-            # when the plan is for SnowflakeCreateTable, there must be a snowflake_create_table_plan_info
-            # associated with the current query generator.
-            # TODO: this check need to be relaxed when large query breakdown with temp table
-            #       is implemented, because the child attributes are not necessary to create
-            #       the temp table
-            assert self._snowflake_create_table_plan_info is not None
-            assert (
-                self._snowflake_create_table_plan_info.table_name
-                == logical_plan.table_name
-            )
 
-            return self.plan_builder.save_as_table(
+            # when creating a table during query compilation stage, if the
+            # table being created is the same as the one that is cached, we
+            # pull the child attributes directly from the cache. Otherwise, we
+            # use the child attributes as None. This will be for the case when
+            # table creation source is temp table from large query breakdown.
+            child_attributes = None
+            if (
+                logical_plan.creation_source
+                != TableCreationSource.LARGE_QUERY_BREAKDOWN
+            ):
+                assert self._snowflake_create_table_plan_info is not None
+                assert (
+                    self._snowflake_create_table_plan_info.table_name
+                    == logical_plan.table_name
+                )
+                child_attributes = (
+                    self._snowflake_create_table_plan_info.child_attributes
+                )
+
+            # update the resolved child
+            copied_resolved_child = copy.copy(resolved_child)
+            final_queries = get_snowflake_plan_queries(
+                copied_resolved_child, self.resolved_with_query_block
+            )
+            copied_resolved_child.queries = final_queries[PlanQueryType.QUERIES]
+            resolved_plan = self.plan_builder.save_as_table(
                 logical_plan.table_name,
                 logical_plan.column_names,
                 logical_plan.mode,
@@ -116,18 +158,65 @@ class QueryGenerator(Analyzer):
                     for x in logical_plan.clustering_exprs
                 ],
                 logical_plan.comment,
-                resolved_child,
+                copied_resolved_child,
                 logical_plan,
                 self.session._use_scoped_temp_objects,
-                logical_plan.is_generated,
-                self._snowflake_create_table_plan_info.child_attributes,
+                logical_plan.creation_source,
+                child_attributes,
             )
 
-        if isinstance(logical_plan, Selectable):
+        elif isinstance(
+            logical_plan,
+            (
+                CreateViewCommand,
+                TableUpdate,
+                TableDelete,
+                TableMerge,
+                CopyIntoLocationNode,
+            ),
+        ):
+            from snowflake.snowpark._internal.compiler.utils import (
+                get_snowflake_plan_queries,
+            )
+
+            # for CreateViewCommand, TableUpdate, TableDelete, TableMerge and CopyIntoLocationNode,
+            # the with definition must be generated before create, update, delete, merge and copy into
+            # query.
+            resolved_child = resolved_children[logical_plan.children[0]]
+            copied_resolved_child = copy.copy(resolved_child)
+            final_queries = get_snowflake_plan_queries(
+                copied_resolved_child, self.resolved_with_query_block
+            )
+            copied_resolved_child.queries = final_queries[PlanQueryType.QUERIES]
+            resolved_children[logical_plan.children[0]] = copied_resolved_child
+            resolved_plan = super().do_resolve_with_resolved_children(
+                logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
+            )
+
+        elif isinstance(logical_plan, Selectable):
             # overwrite the Selectable resolving to make sure we are triggering
             # any schema query build
-            return logical_plan.get_snowflake_plan(skip_schema_query=True)
+            resolved_plan = logical_plan.get_snowflake_plan(skip_schema_query=True)
 
-        return super().do_resolve_with_resolved_children(
-            logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
-        )
+        elif isinstance(logical_plan, WithQueryBlock):
+            resolved_child = resolved_children[logical_plan.children[0]]
+            # record the CTE definition of the current block
+            if logical_plan.name not in self.resolved_with_query_block:
+                self.resolved_with_query_block[
+                    logical_plan.name
+                ] = resolved_child.queries[-1].sql
+
+            resolved_plan = self.plan_builder.with_query_block(
+                logical_plan.name,
+                resolved_child,
+                logical_plan,
+            )
+
+        else:
+            resolved_plan = super().do_resolve_with_resolved_children(
+                logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
+            )
+
+        resolved_plan._is_valid_for_replacement = True
+
+        return resolved_plan

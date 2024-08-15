@@ -62,6 +62,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SaveMode,
     SnowflakeCreateTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -2200,7 +2201,7 @@ class DataFrame:
                 - Left semi join: "semi", "leftsemi"
                 - Left anti join: "anti", "leftanti"
                 - Cross join: "cross"
-                - [Preview Feature] Asof join: "asof"
+                - Asof join: "asof"
 
                 You can also use ``join_type`` keyword to specify this condition.
                 Note that to avoid breaking changes, currently when ``join_type`` is specified,
@@ -3967,8 +3968,8 @@ class DataFrame:
                     None,
                     SaveMode.ERROR_IF_EXISTS,
                     self._plan,
+                    creation_source=TableCreationSource.CACHE_RESULT,
                     table_type="temp",
-                    is_generated=True,
                 )
             )
             self._session._conn.execute(

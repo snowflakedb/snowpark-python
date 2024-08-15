@@ -567,7 +567,11 @@ class Column:
             )
         )
 
-    def regexp(self, pattern: ColumnOrLiteralStr) -> "Column":
+    def regexp(
+        self,
+        pattern: ColumnOrLiteralStr,
+        parameters: Optional[ColumnOrLiteralStr] = None,
+    ) -> "Column":
         """Returns true if this Column matches the specified regular expression.
 
         Args:
@@ -584,6 +588,7 @@ class Column:
             RegExp(
                 self._expression,
                 Column._to_expr(pattern),
+                None if parameters is None else Column._to_expr(parameters),
             )
         )
 

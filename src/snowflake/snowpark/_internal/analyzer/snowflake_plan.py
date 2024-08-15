@@ -18,6 +18,7 @@ from typing import (
     List,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Union,
 )
@@ -95,6 +96,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SaveMode,
     SnowflakeCreateTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateDynamicTableCommand,
@@ -222,6 +224,10 @@ class SnowflakePlan(LogicalPlan):
         # TODO (SNOW-1541096): Remove placeholder_query once CTE is supported with the
         #               new compilation step.
         placeholder_query: Optional[str] = None,
+        # This field records all the CTE tables that are referred by the
+        # current SnowflakePlan tree. This is needed for the final query
+        # generation to generate the correct sql query with CTE definition.
+        referenced_ctes: Optional[Set[str]] = None,
         *,
         session: "snowflake.snowpark.session.Session",
     ) -> None:
@@ -249,6 +255,9 @@ class SnowflakePlan(LogicalPlan):
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
         self._id = encode_id(queries[-1].sql, queries[-1].params)
+        self.referenced_ctes: Set[str] = (
+            referenced_ctes.copy() if referenced_ctes else set()
+        )
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
@@ -295,7 +304,13 @@ class SnowflakePlan(LogicalPlan):
 
     def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
         # parameter protection
-        if not self.session._cte_optimization_enabled:
+        # the common subquery elimination will be applied if cte_optimization is not enabled
+        # and the new compilation stage is not enabled. When new compilation stage is enabled,
+        # the common subquery elimination will be done through the new plan transformation.
+        if (
+            not self.session._cte_optimization_enabled
+            or self.session._query_compilation_stage_enabled
+        ):
             return self
 
         # if source_plan or placeholder_query is none, it must be a leaf node,
@@ -323,7 +338,7 @@ class SnowflakePlan(LogicalPlan):
             return self
 
         # if there is no duplicate node, no optimization will be performed
-        duplicate_plan_set = find_duplicate_subtrees(self)
+        duplicate_plan_set, _ = find_duplicate_subtrees(self)
         if not duplicate_plan_set:
             return self
 
@@ -345,7 +360,7 @@ class SnowflakePlan(LogicalPlan):
             for query in plan.queries[:-1]:
                 if query not in pre_queries:
                     pre_queries.append(query)
-            # when self.schema_query is None, that means no schema query is propogated during
+            # when self.schema_query is None, that means no schema query is propagated during
             # the process, there is no need to update the schema query.
             if (new_schema_query is not None) and (plan.schema_query is not None):
                 new_schema_query = new_schema_query.replace(
@@ -404,7 +419,8 @@ class SnowflakePlan(LogicalPlan):
 
     @cached_property
     def num_duplicate_nodes(self) -> int:
-        return len(find_duplicate_subtrees(self))
+        duplicated_nodes, _ = find_duplicate_subtrees(self)
+        return len(duplicated_nodes)
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -438,6 +454,7 @@ class SnowflakePlan(LogicalPlan):
                 self.df_aliased_col_name_to_real_col_name,
                 session=self.session,
                 placeholder_query=self.placeholder_query,
+                referenced_ctes=self.referenced_ctes,
             )
         else:
             return SnowflakePlan(
@@ -451,6 +468,7 @@ class SnowflakePlan(LogicalPlan):
                 self.df_aliased_col_name_to_real_col_name,
                 session=self.session,
                 placeholder_query=self.placeholder_query,
+                referenced_ctes=self.referenced_ctes,
             )
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
@@ -478,6 +496,7 @@ class SnowflakePlan(LogicalPlan):
             # note that there is no copy of the session object, be careful when using the
             # session object after deepcopy
             session=self.session,
+            referenced_ctes=self.referenced_ctes,
         )
         copied_plan._is_valid_for_replacement = True
         if copied_source_plan:
@@ -511,6 +530,11 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         schema_query: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
+        # Whether propagate the referenced ctes from child to the new plan built.
+        # In general, the referenced should be propagated from child, but for cases
+        # like SnowflakeCreateTable, the CTEs should not be propagated, because
+        # the CTEs are already embedded and consumed in the child.
+        propagate_referenced_ctes: bool = True,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
         queries = select_child.queries[:-1] + [
@@ -547,6 +571,9 @@ class SnowflakePlanBuilder:
             df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
             session=self.session,
             placeholder_query=placeholder_query,
+            referenced_ctes=child.referenced_ctes
+            if propagate_referenced_ctes
+            else None,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -559,27 +586,13 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         select_left = self.add_result_scan_if_not_select(left)
         select_right = self.add_result_scan_if_not_select(right)
-        queries = (
-            select_left.queries[:-1]
-            + select_right.queries[:-1]
-            + [
-                Query(
-                    sql_generator(
-                        select_left.queries[-1].sql, select_right.queries[-1].sql
-                    ),
-                    params=[
-                        *select_left.queries[-1].params,
-                        *select_right.queries[-1].params,
-                    ],
-                )
-            ]
-        )
         if self._skip_schema_query:
             schema_query = None
         else:
             left_schema_query = schema_value_statement(select_left.attributes)
             right_schema_query = schema_value_statement(select_right.attributes)
             schema_query = sql_generator(left_schema_query, right_schema_query)
+
         placeholder_query = (
             sql_generator(select_left._id, select_right._id)
             if self.session._cte_optimization_enabled
@@ -601,15 +614,54 @@ class SnowflakePlanBuilder:
         }
         api_calls = [*select_left.api_calls, *select_right.api_calls]
 
+        referenced_ctes: Set[str] = set()
+        if (
+            self.session.cte_optimization_enabled
+            and self.session._query_compilation_stage_enabled
+        ):
+            # When the cte optimization and the new compilation stage is enabled, the
+            # queries, referred cte tables, and post actions propagated from
+            # left and right can have duplicated queries if there is a common CTE block referenced
+            # by both left and right.
+            # Need to do a deduplication to avoid repeated query.
+            merged_queries = select_left.queries[:-1].copy()
+            for query in select_right.queries[:-1]:
+                if query not in merged_queries:
+                    merged_queries.append(copy.copy(query))
+
+            referenced_ctes.update(select_left.referenced_ctes)
+            referenced_ctes.update(select_right.referenced_ctes)
+
+            post_actions = select_left.post_actions.copy()
+            for post_action in select_right.post_actions:
+                if post_action not in post_actions:
+                    post_actions.append(copy.copy(post_action))
+        else:
+            merged_queries = select_left.queries[:-1] + select_right.queries[:-1]
+            post_actions = select_left.post_actions + select_right.post_actions
+
+        queries = merged_queries + [
+            Query(
+                sql_generator(
+                    select_left.queries[-1].sql, select_right.queries[-1].sql
+                ),
+                params=[
+                    *select_left.queries[-1].params,
+                    *select_right.queries[-1].params,
+                ],
+            )
+        ]
+
         return SnowflakePlan(
             queries,
             schema_query,
-            select_left.post_actions + select_right.post_actions,
+            post_actions,
             new_expr_to_alias,
             source_plan,
             api_calls=api_calls,
             session=self.session,
             placeholder_query=placeholder_query,
+            referenced_ctes=referenced_ctes,
         )
 
     def query(
@@ -789,12 +841,49 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         use_scoped_temp_objects: bool,
-        is_generated: bool,  # true if the table is generated internally
-        child_attributes: List[Attribute],
+        creation_source: TableCreationSource,
+        child_attributes: Optional[List[Attribute]],
     ) -> SnowflakePlan:
+        """Returns a SnowflakePlan to materialize the child plan into a table.
+
+        Args:
+            table_name: fully qualified table name
+            column_names: names of columns for the table
+            mode: APPEND, TRUNCATE, OVERWRITE, IGNORE, ERROR_IF_EXISTS
+            table_type: temporary, transient, or permanent
+            clustering_keys: list of clustering columns
+            comment: comment associated with the table
+            child: the SnowflakePlan that is being materialized into a table
+            source_plan: the source plan of the child
+            use_scoped_temp_objects: should we use scoped temp objects
+            creation_source: the creator for the SnowflakeCreateTable node, today it can come from the
+                cache result api, compilation transformations like large query breakdown, or other like
+                save_as_table call. This parameter is used to identify whether a table is internally
+                generated with cache_result or by the compilation transformation, and some special
+                check and handling needs to be applied to guarantee the correctness of generated query.
+            child_attributes: child attributes will be none in the case of large query breakdown
+                where we use ctas query to create the table which does not need to know the column
+                metadata.
+        """
+        is_generated = creation_source in (
+            TableCreationSource.CACHE_RESULT,
+            TableCreationSource.LARGE_QUERY_BREAKDOWN,
+        )
         if is_generated and mode != SaveMode.ERROR_IF_EXISTS:
+            # an internally generated save_as_table comes from two sources:
+            #   1. df.cache_result: plan is created with create table + insert statement
+            #   2. large query breakdown: plan is created using a CTAS statement
+            # For these cases, we must use mode ERROR_IF_EXISTS
             raise ValueError(
                 "Internally generated tables must be called with mode ERROR_IF_EXISTS"
+            )
+
+        if (
+            child_attributes is None
+            and creation_source != TableCreationSource.LARGE_QUERY_BREAKDOWN
+        ):
+            raise ValueError(
+                "child attribute must be provided when table creation source is not large query breakdown"
             )
 
         full_table_name = ".".join(table_name)
@@ -803,18 +892,41 @@ class SnowflakePlanBuilder:
         # the attributes set to ($1, VariantType()) which cannot be used as valid column name
         # in save as table. So we rename ${number} with COL{number}.
         hidden_column_pattern = r"\"\$(\d+)\""
-        column_definition_with_hidden_columns = attribute_to_schema_string(
-            child_attributes
-        )
-        column_definition = re.sub(
-            hidden_column_pattern,
-            lambda match: f'"COL{match.group(1)}"',
-            column_definition_with_hidden_columns,
-        )
+        column_definition = None
+        if child_attributes is not None:
+            column_definition_with_hidden_columns = attribute_to_schema_string(
+                child_attributes or []
+            )
+            column_definition = re.sub(
+                hidden_column_pattern,
+                lambda match: f'"COL{match.group(1)}"',
+                column_definition_with_hidden_columns,
+            )
 
         child = child.replace_repeated_subquery_with_cte()
 
-        def get_create_and_insert_plan(child: SnowflakePlan, replace=False, error=True):
+        def get_create_table_as_select_plan(child: SnowflakePlan, replace, error):
+            return self.build(
+                lambda x: create_table_as_select_statement(
+                    full_table_name,
+                    x,
+                    column_definition,
+                    replace=replace,
+                    error=error,
+                    table_type=table_type,
+                    clustering_key=clustering_keys,
+                    comment=comment,
+                ),
+                child,
+                source_plan,
+                is_ddl_on_temp_object=is_temp_table_type,
+                propagate_referenced_ctes=False,
+            )
+
+        def get_create_and_insert_plan(child: SnowflakePlan, replace, error):
+            assert (
+                column_definition is not None
+            ), "column definition is required for create table statement"
             create_table = create_table_statement(
                 full_table_name,
                 column_definition,
@@ -862,9 +974,11 @@ class SnowflakePlanBuilder:
                     ),
                     child,
                     source_plan,
+                    propagate_referenced_ctes=False,
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
+
         elif mode == SaveMode.TRUNCATE:
             if self.session._table_exists(table_name):
                 return self.build(
@@ -873,69 +987,24 @@ class SnowflakePlanBuilder:
                     ),
                     child,
                     source_plan,
+                    propagate_referenced_ctes=False,
                 )
             else:
-                return self.build(
-                    lambda x: create_table_as_select_statement(
-                        full_table_name,
-                        x,
-                        column_definition,
-                        replace=True,
-                        table_type=table_type,
-                        clustering_key=clustering_keys,
-                        comment=comment,
-                    ),
-                    child,
-                    source_plan,
-                    is_ddl_on_temp_object=is_temp_table_type,
-                )
+                return get_create_table_as_select_plan(child, replace=True, error=True)
+
         elif mode == SaveMode.OVERWRITE:
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name,
-                    x,
-                    column_definition,
-                    replace=True,
-                    table_type=table_type,
-                    clustering_key=clustering_keys,
-                    comment=comment,
-                ),
-                child,
-                source_plan,
-                is_ddl_on_temp_object=is_temp_table_type,
-            )
+            return get_create_table_as_select_plan(child, replace=True, error=True)
+
         elif mode == SaveMode.IGNORE:
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name,
-                    x,
-                    column_definition,
-                    error=False,
-                    table_type=table_type,
-                    clustering_key=clustering_keys,
-                    comment=comment,
-                ),
-                child,
-                source_plan,
-                is_ddl_on_temp_object=is_temp_table_type,
-            )
+            return get_create_table_as_select_plan(child, replace=False, error=False)
+
         elif mode == SaveMode.ERROR_IF_EXISTS:
-            if is_generated:
+            if creation_source == TableCreationSource.CACHE_RESULT:
+                # if the table is created from cache result, we use create and replace
+                # table in order to avoid breaking any current transaction.
                 return get_create_and_insert_plan(child, replace=False, error=True)
 
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name,
-                    x,
-                    column_definition,
-                    table_type=table_type,
-                    clustering_key=clustering_keys,
-                    comment=comment,
-                ),
-                child,
-                source_plan,
-                is_ddl_on_temp_object=is_temp_table_type,
-            )
+            return get_create_table_as_select_plan(child, replace=False, error=True)
 
     def limit(
         self,
@@ -1013,6 +1082,7 @@ class SnowflakePlanBuilder:
             lambda x: create_or_replace_view_statement(name, x, is_temp, comment),
             child,
             source_plan,
+            propagate_referenced_ctes=False,
         )
 
     def create_or_replace_dynamic_table(
@@ -1295,6 +1365,7 @@ class SnowflakePlanBuilder:
             query,
             source_plan,
             query.schema_query,
+            propagate_referenced_ctes=False,
         )
 
     def update(
@@ -1316,6 +1387,7 @@ class SnowflakePlanBuilder:
                 ),
                 source_data,
                 source_plan,
+                propagate_referenced_ctes=False,
             )
         else:
             return self.query(
@@ -1345,6 +1417,7 @@ class SnowflakePlanBuilder:
                 ),
                 source_data,
                 source_plan,
+                propagate_referenced_ctes=False,
             )
         else:
             return self.query(
@@ -1369,6 +1442,7 @@ class SnowflakePlanBuilder:
             lambda x: merge_statement(table_name, x, join_expr, clauses),
             source_data,
             source_plan,
+            propagate_referenced_ctes=False,
         )
 
     def lateral(
@@ -1432,7 +1506,33 @@ class SnowflakePlanBuilder:
                 plan.source_plan,
                 api_calls=plan.api_calls,
                 session=self.session,
+                referenced_ctes=plan.referenced_ctes,
             )
+
+    def with_query_block(
+        self, name: str, child: SnowflakePlan, source_plan: LogicalPlan
+    ) -> SnowflakePlan:
+        if not self._skip_schema_query:
+            raise ValueError(
+                "schema query for WithQueryBlock is currently not supported"
+            )
+
+        new_query = project_statement([], name)
+
+        queries = child.queries[:-1] + [Query(sql=new_query)]
+        # propagate the cte table
+        referenced_ctes = {name}.union(child.referenced_ctes)
+
+        return SnowflakePlan(
+            queries,
+            schema_query=None,
+            post_actions=child.post_actions,
+            expr_to_alias=child.expr_to_alias,
+            source_plan=source_plan,
+            api_calls=child.api_calls,
+            session=self.session,
+            referenced_ctes=referenced_ctes,
+        )
 
 
 class PlanQueryType(Enum):
@@ -1476,6 +1576,7 @@ class Query:
             self.sql == other.sql
             and self.query_id_place_holder == other.query_id_place_holder
             and self.is_ddl_on_temp_object == other.is_ddl_on_temp_object
+            and self.params == other.params
         )
 
 

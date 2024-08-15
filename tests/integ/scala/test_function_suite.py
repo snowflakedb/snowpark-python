@@ -1936,6 +1936,7 @@ def test_to_date(session):
             df.select(*[to_date(col(column)) for column in df.columns]), expected
         )
 
+    # with format column
     expected4 = [
         Row(date(2024, 4, 18)),
         Row(date(1999, 9, 1)),
@@ -1943,9 +1944,17 @@ def test_to_date(session):
         Row(date(2015, 5, 15)),
     ]
     df = TestData.date_primitives4(session)
-    Utils.check_answer(
-        df.select(to_date(*[col(column) for column in df.columns])), expected4
-    )
+    Utils.check_answer(df.select(to_date(df.a, df.b)), expected4)
+
+    # with string format column
+    data5 = ["1999-01-01", "2000-02-02", "2024-03-03"]
+    expected5 = [
+        Row(date(1999, 1, 1)),
+        Row(date(2000, 2, 2)),
+        Row(date(2024, 3, 3)),
+    ]
+    df = session.create_dataframe(data5).to_df(["a"])
+    Utils.check_answer(df.select(to_date(df.a, "YYYY-MM-DD")), expected5)
 
 
 @pytest.mark.skipif(
@@ -2650,10 +2659,6 @@ def test_array_agg(session, col_amount):
     ) == [200, 400, 800, 2500, 3000, 4500, 5000, 6000, 8000, 9500, 10000, 35000, 90500]
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_array_agg_within_group(session):
     assert json.loads(
         TestData.monthly_sales(session)
@@ -2679,10 +2684,6 @@ def test_array_agg_within_group(session):
     ]
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_array_agg_within_group_order_by_desc(session):
     assert json.loads(
         TestData.monthly_sales(session)
@@ -2708,10 +2709,6 @@ def test_array_agg_within_group_order_by_desc(session):
     ]
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_array_agg_within_group_order_by_multiple_columns(session):
     sort_columns = [col("month").asc(), col("empid").desc(), col("amount")]
     amount_values = (
@@ -2728,10 +2725,6 @@ def test_array_agg_within_group_order_by_multiple_columns(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_window_function_array_agg_within_group(session):
     value1 = "[\n  1,\n  3\n]"
     value2 = "[\n  1,\n  3,\n  10\n]"
@@ -4902,10 +4895,6 @@ def test_row_number(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_listagg(session):
     df = session.create_dataframe([1, 2, 3, 2, 4, 5], schema=["col"])
     Utils.check_answer(

@@ -3,6 +3,7 @@
 #
 
 import modin.pandas as pd
+import pandas as native_pd
 import pytest
 from numpy.testing import assert_equal
 from pandas._libs import lib
@@ -15,6 +16,7 @@ from tests.integ.modin.index.conftest import (
 )
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
+    assert_frame_equal,
     assert_index_equal,
     assert_series_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -58,7 +60,7 @@ def test_df_index_equals(native_df):
     snow_df = pd.DataFrame(native_df)
     assert native_df.columns.equals(native_df.columns)
     assert snow_df.columns.equals(snow_df.columns)
-    assert native_df.columns.equals(snow_df.columns.to_pandas())
+    assert native_df.columns.equals(snow_df.columns)
     assert snow_df.columns.equals(native_df.columns)
 
     assert native_df.index.equals(native_df.index)
@@ -270,7 +272,7 @@ def test_df_index_columns_to_series(native_df, generate_extra_index, name):
         row_index = None
         col_index = None
 
-    with SqlCounter(query_count=2, join_count=1 if generate_extra_index else 0):
+    with SqlCounter(query_count=1, join_count=1 if generate_extra_index else 0):
         assert_series_equal(
             snow_df.index.to_series(index=row_index, name=name),
             native_df.index.to_series(index=row_index, name=name),
@@ -298,21 +300,15 @@ def test_index_to_frame(native_index, name, index):
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 @pytest.mark.parametrize("name", [None, "name", True, 1, lib.no_default])
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("native_df", TEST_DFS)
-def test_df_index_columns_to_frame(native_df, index, name):
+def test_df_index_to_frame(native_df, index, name):
     snow_df = pd.DataFrame(native_df)
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         snow_df.index.to_frame(index=index, name=name),
         native_df.index.to_frame(index=index, name=name),
-        check_index_type=False,
-        check_column_type=False,
-    )
-    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-        snow_df.columns.to_frame(index=index, name=name),
-        native_df.columns.to_frame(index=index, name=name),
         check_index_type=False,
         check_column_type=False,
     )
@@ -322,7 +318,11 @@ def test_df_index_columns_to_frame(native_df, index, name):
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_dtype(native_index):
     snow_index = pd.Index(native_index)
-    assert snow_index.dtype == native_index.dtype
+    if isinstance(native_index, native_pd.DatetimeIndex):
+        # Snowpark pandas does not include timezone info in dtype datetime64[ns],
+        assert snow_index.dtype == "datetime64[ns]"
+    else:
+        assert snow_index.dtype == native_index.dtype
 
 
 @sql_count_checker(query_count=0)
@@ -336,16 +336,67 @@ def test_df_index_columns_dtype(native_df):
 
 
 @pytest.mark.parametrize("index", NATIVE_INDEX_UNIQUE_TEST_DATA)
-@pytest.mark.parametrize("is_lazy", [True, False])
-def test_is_unique(index, is_lazy):
-    with SqlCounter(query_count=int(is_lazy)):
-        snow_index = pd.Index(index, convert_to_lazy=is_lazy)
+def test_is_unique(index):
+    with SqlCounter(query_count=1):
+        snow_index = pd.Index(index)
         assert index.is_unique == snow_index.is_unique
 
 
 @pytest.mark.parametrize("index", NATIVE_INDEX_UNIQUE_TEST_DATA)
-@pytest.mark.parametrize("is_lazy", [True, False])
-def test_has_duplicates(index, is_lazy):
-    with SqlCounter(query_count=int(is_lazy)):
-        snow_index = pd.Index(index, convert_to_lazy=is_lazy)
+def test_has_duplicates(index):
+    with SqlCounter(query_count=1):
+        snow_index = pd.Index(index)
         assert index.has_duplicates == snow_index.has_duplicates
+
+
+@sql_count_checker(query_count=6)
+def test_index_parent():
+    """
+    Check whether the parent field in Index is updated properly.
+    """
+    native_idx1 = native_pd.Index(["A", "B"], name="xyz")
+    native_idx2 = native_pd.Index(["A", "B", "D", "E", "G", "H"], name="CFI")
+
+    # DataFrame case.
+    df = pd.DataFrame([[1, 2], [3, 4]], index=native_idx1)
+    snow_idx = df.index
+    assert_frame_equal(snow_idx._parent, df)
+    assert_index_equal(snow_idx, native_idx1)
+
+    # Series case.
+    s = pd.Series([1, 2, 4, 5, 6, 7], index=native_idx2, name="zyx")
+    snow_idx = s.index
+    assert_series_equal(snow_idx._parent, s)
+    assert_index_equal(snow_idx, native_idx2)
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"dtype": "str"}, {"copy": True}, {"name": "abc"}, {"tupleize_cols": False}],
+)
+def test_non_default_args(kwargs):
+    idx = pd.Index([1, 2, 3, 4], name="name", dtype="int64")
+
+    name = list(kwargs.keys())[0]
+    value = list(kwargs.values())[0]
+    msg = f"Non-default argument '{name}={value}' when constructing Index with query compiler"
+    with pytest.raises(AssertionError, match=msg):
+        pd.Index(query_compiler=idx._query_compiler, **kwargs)
+
+
+@sql_count_checker(query_count=2)
+def test_create_index_from_series():
+    idx = pd.Index(pd.Series([5, 6]))
+    assert_index_equal(idx, native_pd.Index([5, 6]))
+
+    idx = pd.Index(pd.Series([5, 6], name="abc"))
+    assert_index_equal(idx, native_pd.Index([5, 6], name="abc"))
+
+
+@sql_count_checker(query_count=0)
+def test_create_index_from_df_negative():
+    with pytest.raises(ValueError):
+        pd.Index(pd.DataFrame([[1, 2], [3, 4]]))
+    with pytest.raises(ValueError):
+        pd.DatetimeIndex(pd.DataFrame([[1, 2], [3, 4]]))
