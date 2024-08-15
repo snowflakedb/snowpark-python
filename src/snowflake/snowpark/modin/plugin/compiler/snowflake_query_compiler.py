@@ -3826,6 +3826,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             func = first_value
             window_start = Window.CURRENT_ROW
             window_end = Window.UNBOUNDED_FOLLOWING
+
         return {
             snowflake_quoted_id: coalesce(
                 snowflake_quoted_id,
