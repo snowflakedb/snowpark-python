@@ -493,7 +493,7 @@ def merge_asof(
 
     Here is a real-world times-series example:
 
-    >>> quotes = native_pd.DataFrame(
+    >>> quotes = pd.DataFrame(
     ...    {
     ...        "time": [
     ...            pd.Timestamp("2016-05-25 13:30:00.023"),
@@ -519,7 +519,7 @@ def merge_asof(
     5 2016-05-25 13:30:00.049   97.99   98.01
     6 2016-05-25 13:30:00.072  720.50  720.88
     7 2016-05-25 13:30:00.075   52.01   52.03
-    >>> trades = native_pd.DataFrame(
+    >>> trades = pd.DataFrame(
     ...    {
     ...        "time": [
     ...            pd.Timestamp("2016-05-25 13:30:00.023"),
