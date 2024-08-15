@@ -390,6 +390,15 @@ def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEm
     )
 
 
+@patch("array_agg")
+def mock_array_agg(column: ColumnEmulator, is_distinct: bool) -> ColumnEmulator:
+    columns_data = ColumnEmulator(column.unique()) if is_distinct else column
+    return ColumnEmulator(
+        data=[list(columns_data.dropna())],
+        sf_type=ColumnType(ArrayType(), False),
+    )
+
+
 @patch("listagg")
 def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column
