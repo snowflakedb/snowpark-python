@@ -51,10 +51,8 @@ class DataFrameStatFunctions:
     def __init__(
         self,
         df: "snowflake.snowpark.DataFrame",
-        _ast_stmt: Optional[proto.Assign] = None,
     ) -> None:
         self._dataframe = df
-        self._ast_stmt = _ast_stmt
 
     def approx_quantile(
         self,
@@ -92,14 +90,8 @@ class DataFrameStatFunctions:
         if _emit_ast:
             # Add an assign node that applies SpDataframeStatsApproxQuantile() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_stats_approx_quantile, repr)
-
-            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._dataframe._plan.api_calls} is missing complete AST logging."
-                )
-
-            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+            expr = with_src_position(repr.expr.sp_dataframe_stat_approx_quantile, repr)
+            expr.id.bitfield1 = self._dataframe._ast_id
 
             if isinstance(col, Iterable) and not isinstance(col, str):
                 for c in col:
@@ -209,14 +201,8 @@ class DataFrameStatFunctions:
         if _emit_ast:
             # Add an assign node that applies SpDataframeStatsCorr() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_stats_corr, repr)
-
-            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._dataframe._plan.api_calls} is missing complete AST logging."
-                )
-
-            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+            expr = with_src_position(repr.expr.sp_dataframe_stat_corr, repr)
+            expr.id.bitfield1 = self._dataframe._ast_id
 
             build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
             build_expr_from_snowpark_column_or_col_name(expr.col2, col2)
@@ -275,14 +261,8 @@ class DataFrameStatFunctions:
         if _emit_ast:
             # Add an assign node that applies SpDataframeStatsCov() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_stats_cov, repr)
-
-            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._dataframe._plan.api_calls} is missing complete AST logging."
-                )
-
-            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+            expr = with_src_position(repr.expr.sp_dataframe_stat_cov, repr)
+            expr.id.bitfield1 = self._dataframe._ast_id
 
             build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
             build_expr_from_snowpark_column_or_col_name(expr.col2, col2)
@@ -355,14 +335,8 @@ class DataFrameStatFunctions:
         if _emit_ast:
             # Add an assign node that applies SpDataframeStatsCrossTab() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_stats_cross_tab, repr)
-
-            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._dataframe._plan.api_calls} is missing complete AST logging."
-                )
-
-            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+            expr = with_src_position(repr.expr.sp_dataframe_stat_cross_tab, repr)
+            expr.id.bitfield1 = self._dataframe._ast_id
 
             build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
             build_expr_from_snowpark_column_or_col_name(expr.col2, col2)
@@ -433,13 +407,7 @@ class DataFrameStatFunctions:
         if _emit_ast:
             # Add an assign node that applies SpDataframeStatsSampleBy() to the input, followed by its Eval.
             stmt = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_stats_sample_by, stmt)
-
-            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._dataframe._plan.api_calls} is missing complete AST logging."
-                )
-
+            expr = with_src_position(stmt.expr.sp_dataframe_stat_sample_by, stmt)
             build_expr_from_snowpark_column_or_col_name(expr.col, col)
 
             if fractions is not None:
