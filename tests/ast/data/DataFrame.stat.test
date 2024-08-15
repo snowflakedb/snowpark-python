@@ -1,0 +1,8 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df2 = df.stat.approx_quantile("NUM", [0.5])
+
+
+## EXPECTED OUTPUT

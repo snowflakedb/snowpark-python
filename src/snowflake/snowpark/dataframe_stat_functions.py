@@ -7,7 +7,13 @@ from functools import reduce
 from typing import Dict, List, Optional, Union
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark import Column
+from snowflake.snowpark._internal.ast_utils import (
+    FAIL_ON_MISSING_AST,
+    build_expr_from_snowpark_column_or_col_name,
+    with_src_position,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import adjust_api_subcalls
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
@@ -29,6 +35,10 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+from logging import getLogger
+
+_logger = getLogger(__name__)
+
 _MAX_COLUMNS_PER_TABLE = 1000
 
 
@@ -37,8 +47,13 @@ class DataFrameStatFunctions:
     To access an object of this class, use :attr:`DataFrame.stat`.
     """
 
-    def __init__(self, df: "snowflake.snowpark.DataFrame") -> None:
-        self._df = df
+    def __init__(
+        self,
+        df: "snowflake.snowpark.DataFrame",
+        _ast_stmt: Optional[proto.Assign] = None,
+    ) -> None:
+        self._dataframe = df
+        self._ast_stmt = _ast_stmt
 
     def approx_quantile(
         self,
@@ -46,6 +61,7 @@ class DataFrameStatFunctions:
         percentile: Iterable[float],
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
     ) -> Union[List[float], List[List[float]]]:
         """For a specified numeric column and a list of desired quantiles, returns an approximate value for the column at each of the desired quantiles.
         This function uses the t-Digest algorithm.
@@ -68,17 +84,70 @@ class DataFrameStatFunctions:
              with the dimensions ``(len(col) * len(percentile)`` containing the
              approximate percentile values if ``col`` is a list of column names.
         """
-        temp_col_name = "t"
+
         if not percentile or not col:
             return []
+
+        if _emit_ast:
+            # Add an assign node that applies SpDataframeStatsApproxQuantile() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_dataframe_stats_approx_quantile, repr)
+
+            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._dataframe._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+
+            if isinstance(col, Iterable) and not isinstance(col, str):
+                for c in col:
+                    build_expr_from_snowpark_column_or_col_name(expr.cols.add(), c)
+            else:
+                build_expr_from_snowpark_column_or_col_name(expr.cols.add(), col)
+
+            # Because we build AST at beginning, error out if not iterable.
+            if not isinstance(percentile, Iterable):
+                raise ValueError(
+                    f"percentile is of type {type(percentile)}, but expected Iterable."
+                )
+
+            expr.percentile.extend(percentile)
+
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = expr.statement_params.add()
+                    t._1 = k
+                    t._2 = v
+
+            self._dataframe._session._ast_batch.eval(repr)
+
+        if self._dataframe._session._conn.is_phase1_enabled():
+            # TODO: Logic here should be
+            # ast = self._dataframe._session._ast_batch.flush()
+            # res = self._dataframe._session._conn.ast_query(ast)
+            raise NotImplementedError(
+                "TODO: Implement approx_quantile() with EvalResult in Phase1."
+            )
+
+        # Phase 0 flushes AST and encodes it as part of the query.
+        kwargs = {}
+        _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+
+        temp_col_name = "t"
         if isinstance(col, (Column, str)):
-            df = self._df.select(
-                approx_percentile_accumulate(col).as_(temp_col_name)
-            ).select([approx_percentile_estimate(temp_col_name, p) for p in percentile])
+            df = self._dataframe.select(
+                approx_percentile_accumulate(col).as_(temp_col_name), _emit_ast=False
+            ).select(
+                [approx_percentile_estimate(temp_col_name, p) for p in percentile],
+                _emit_ast=False,
+            )
             adjust_api_subcalls(
                 df, "DataFrameStatFunctions.approx_quantile", len_subcalls=2
             )
-            res = df._internal_collect_with_tag(statement_params=statement_params)
+            res = df._internal_collect_with_tag(
+                statement_params=statement_params, **kwargs
+            )
             return list(res[0])
         elif isinstance(col, (list, tuple)):
             accumate_cols = [
@@ -91,11 +160,15 @@ class DataFrameStatFunctions:
                 for p in percentile
             ]
             percentile_len = len(output_cols) // len(accumate_cols)
-            df = self._df.select(accumate_cols).select(output_cols)
+            df = self._dataframe.select(accumate_cols, _emit_ast=False).select(
+                output_cols, _emit_ast=False
+            )
             adjust_api_subcalls(
                 df, "DataFrameStatFunctions.approx_quantile", len_subcalls=2
             )
-            res = df._internal_collect_with_tag(statement_params=statement_params)
+            res = df._internal_collect_with_tag(
+                statement_params=statement_params, **kwargs
+            )
             return [
                 [x for x in res[0][j * percentile_len : (j + 1) * percentile_len]]
                 for j in range(len(accumate_cols))
@@ -130,7 +203,7 @@ class DataFrameStatFunctions:
             If there is not enough data to generate the correlation, the method returns ``None``.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        df = self._df.select(corr_func(col1, col2))
+        df = self._dataframe.select(corr_func(col1, col2))
         adjust_api_subcalls(df, "DataFrameStatFunctions.corr", len_subcalls=1)
         res = df._internal_collect_with_tag(statement_params=statement_params)
         return res[0][0] if res[0] is not None else None
@@ -159,7 +232,7 @@ class DataFrameStatFunctions:
             The sample covariance of the two numeric columns.
             If there is not enough data to generate the covariance, the method returns None.
         """
-        df = self._df.select(covar_samp(col1, col2))
+        df = self._dataframe.select(covar_samp(col1, col2))
         adjust_api_subcalls(df, "DataFrameStatFunctions.corr", len_subcalls=1)
         res = df._internal_collect_with_tag(statement_params=statement_params)
         return res[0][0] if res[0] is not None else None
@@ -202,20 +275,24 @@ class DataFrameStatFunctions:
             col2: The name of the second column to use.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        row_count = self._df.select(count_distinct(col2))._internal_collect_with_tag(
-            statement_params=statement_params
-        )[0][0]
+        row_count = self._dataframe.select(
+            count_distinct(col2)
+        )._internal_collect_with_tag(statement_params=statement_params)[0][0]
         if row_count > _MAX_COLUMNS_PER_TABLE:
             raise SnowparkClientExceptionMessages.DF_CROSS_TAB_COUNT_TOO_LARGE(
                 row_count, _MAX_COLUMNS_PER_TABLE
             )
         column_names = [
             row[0]
-            for row in self._df.select(col2)
+            for row in self._dataframe.select(col2)
             .distinct()
             ._internal_collect_with_tag(statement_params=statement_params)
         ]
-        df = self._df.select(col1, col2).pivot(col2, column_names).agg(count(col2))
+        df = (
+            self._dataframe.select(col1, col2)
+            .pivot(col2, column_names)
+            .agg(count(col2))
+        )
         adjust_api_subcalls(df, "DataFrameStatFunctions.crosstab", len_subcalls=3)
         return df
 
@@ -236,7 +313,7 @@ class DataFrameStatFunctions:
                 If a stratum is not specified in the ``dict``, the method uses 0 as the fraction.
         """
         if not fractions:
-            res_df = self._df.limit(0)
+            res_df = self._dataframe.limit(0)
             adjust_api_subcalls(
                 res_df, "DataFrameStatFunctions.sample_by", len_subcalls=1
             )
@@ -244,12 +321,12 @@ class DataFrameStatFunctions:
         col = _to_col_if_str(col, "sample_by")
         res_df = reduce(
             lambda x, y: x.union_all(y),
-            [self._df.filter(col == k).sample(v) for k, v in fractions.items()],
+            [self._dataframe.filter(col == k).sample(v) for k, v in fractions.items()],
         )
         adjust_api_subcalls(
             res_df,
             "DataFrameStatFunctions.sample_by",
-            precalls=self._df._plan.api_calls,
+            precalls=self._dataframe._plan.api_calls,
             subcalls=res_df._plan.api_calls.copy(),
         )
         return res_df
