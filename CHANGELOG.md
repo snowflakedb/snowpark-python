@@ -73,6 +73,7 @@
     and `is_leap_year`.
 - Added support for `Resampler.fillna` and `Resampler.bfill`.
 - Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
+- Added support for `Series.dt.round`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.

@@ -15637,7 +15637,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS:
             ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.dt.ceil' method doesn't support setting 'freq' parameter to '{freq}'"
+                f"Snowpark pandas 'Series.dt.ceil' method doesn't support setting 'freq' parameter to '{freq}'"
             )
         base_column = col(internal_frame.data_column_snowflake_quoted_identifiers[0])
         floor_column = builtin("time_slice")(
@@ -15669,7 +15669,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def dt_round(
         self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
-    ) -> None:
+    ) -> "SnowflakeQueryCompiler":
         """
         Args:
             freq: The frequency level to round the index to.
@@ -15690,8 +15690,120 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             A new QueryCompiler with round values.
 
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.round'"
+        if ambiguous != "raise":
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.round' method doesn't yet support 'ambiguous' parameter"
+            )
+        if nonexistent != "raise":
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.round' method doesn't yet support 'nonexistent' parameter"
+            )
+        internal_frame = self._modin_frame
+
+        slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(
+            rule=freq  # type:  ignore[arg-type]
+        )
+
+        if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS or slice_unit == "second":
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas 'Series.dt.round' method doesn't support setting 'freq' parameter to '{freq}'"
+            )
+
+        # We need to implement the algorithm for rounding half to even whenever
+        # the date value is at half point of the slice:
+        # https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even
+
+        # First, we need to calculate the length of half a slice.
+        # This is straightforward if the lenght is already even.
+        # If not, we then need to first downlevel the freq to a
+        # lower granularity to ensure that it is even.
+
+        def down_level_freq(slice_length: int, slice_unit: str) -> tuple[int, str]:
+            if slice_unit == "minute":
+                slice_length *= 60
+                slice_unit = "second"
+            elif slice_unit == "hour":
+                slice_length *= 60
+                slice_unit = "minute"
+            elif slice_unit == "day":
+                slice_length *= 24
+                slice_unit = "hour"
+            else:
+                f"Snowpark pandas 'Series.dt.round' method doesn't support setting 'freq' parameter with '{slice_unit}' unit"
+            return slice_length, slice_unit
+
+        if slice_length % 2 == 1:
+            slice_length, slice_unit = down_level_freq(slice_length, slice_unit)
+        half_slice_length = int(slice_length / 2)
+        base_column = col(internal_frame.data_column_snowflake_quoted_identifiers[0])
+
+        # Second, we determine whether floor represents an even number of slices.
+        # To do so, we must divide the number of epoch seconds in it over the number
+        # of epoch seconds in one slice. This way, we can get the number of slices.
+
+        floor_column = builtin("time_slice")(
+            base_column, slice_length, slice_unit, "START"
+        )
+        ceil_column = builtin("time_slice")(
+            base_column, slice_length, slice_unit, "END"
+        )
+
+        def slice_length_when_unit_is_second(slice_length: int, slice_unit: str) -> int:
+            while slice_unit != "second":
+                slice_length, slice_unit = down_level_freq(slice_length, slice_unit)
+            return slice_length
+
+        floor_epoch_seconds_column = builtin("extract")("epoch_second", floor_column)
+        floor_num_slices_column = cast(
+            floor_epoch_seconds_column
+            / pandas_lit(slice_length_when_unit_is_second(slice_length, slice_unit)),
+            IntegerType(),
+        )
+
+        # Now that we know the number of slices, we can check if they are even or odd.
+
+        floor_is_even = (floor_num_slices_column % pandas_lit(2)).equal_null(
+            pandas_lit(0)
+        )
+
+        # Accordingly, we can decide if the round column should be the floor or ceil
+        # of the slice.
+
+        round_column_if_half_point = iff(floor_is_even, floor_column, ceil_column)
+
+        # In case the date value is not at half point of the slice, then we shift it
+        # by half a slice, and take the floor from there.
+
+        base_plus_half_slice_column = dateadd(
+            slice_unit, pandas_lit(half_slice_length), base_column
+        )
+        round_column_if_not_half_point = builtin("time_slice")(
+            base_plus_half_slice_column, slice_length, slice_unit, "START"
+        )
+
+        # The final expression for the round column.
+
+        round_column = iff(
+            base_plus_half_slice_column.equal_null(ceil_column),
+            round_column_if_half_point,
+            round_column_if_not_half_point,
+        )
+
+        internal_frame = internal_frame.append_column(
+            internal_frame.data_column_pandas_labels[0], round_column
+        )
+
+        return SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=internal_frame.ordered_dataframe,
+                data_column_pandas_labels=[None],
+                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
+                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers[
+                    -1:
+                ],
+                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+            )
         )
 
     def dt_floor(
@@ -15732,7 +15844,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS:
             ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.dt.floor' method doesn't support setting 'freq' parameter to '{freq}'"
+                f"Snowpark pandas 'Series.dt.floor' method doesn't support setting 'freq' parameter to '{freq}'"
             )
         snowpark_column = builtin("time_slice")(
             col(internal_frame.data_column_snowflake_quoted_identifiers[0]),
