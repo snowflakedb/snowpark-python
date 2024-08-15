@@ -36,7 +36,7 @@ RUN cd openssl-3.0.0 && \
     make install_fips
 
 # enable openssl fips mode
-RUN LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib openssl fipsinstall -out /usr/local/ssl/fipsmodule.cnf -module /usr/local/lib/ossl-modules/fips.so
+RUN LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib64 openssl fipsinstall -out /usr/local/ssl/fipsmodule.cnf -module /usr/local/lib/ossl-modules/fips.so
 RUN cat <<EOF >> /usr/local/ssl/openssl.cnf
 openssl_conf = openssl_init
 
