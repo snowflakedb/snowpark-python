@@ -12,8 +12,8 @@ df = df.select(col("NUM").in_([1, 2, 3]))
 
 df = session.table("test_table")
 
-df = df.select(col("NUM").in_(1, 2, 3))
+df1 = df.select(col("NUM").in_(1, 2, 3))
 
-df = df.select(col("NUM").in_(df))
+df2 = df1.select(col("NUM").in_(df1))
 
-df = df.select(col("NUM").in_([1, 2, 3]))
+df3 = df2.select(col("NUM").in_([1, 2, 3]))

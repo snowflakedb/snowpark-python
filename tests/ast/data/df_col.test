@@ -9,4 +9,4 @@ df = df.select(df.col("STR"), df.STR, df["STR"])
 
 df = session.table("test_table")
 
-df = df.select(df["STR"], df["STR"], df["STR"])
+df1 = df.select(df["STR"], df["STR"], df["STR"])

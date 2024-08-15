@@ -26,10 +26,10 @@ df3 = df1.union(df2)
 
 df4 = df1.union_all(df2)
 
-df1 = session.table("test_df3")
+df11 = session.table("test_df3")
 
-df2 = session.table("test_df4")
+df22 = session.table("test_df4")
 
-df5 = df1.union_by_name(df2)
+df5 = df11.union_by_name(df22)
 
-df6 = df1.union_all_by_name(df2)
+df6 = df11.union_all_by_name(df22)

@@ -1,0 +1,22 @@
+## TEST CASE
+
+df = session.table("test_table")
+df2 = df.sample(n=3)
+
+def foo(p):
+  df = p.distinct()
+  return df
+
+df3 = foo(df)
+
+df4 = df.flatten("STR", "path", True, False)
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+res1 = df.sample(None, 3)
+
+df2 = df.distinct()
+
+df4 = df.flatten("STR", Some("path"), True, False, "BOTH")

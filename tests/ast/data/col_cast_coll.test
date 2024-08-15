@@ -27,18 +27,18 @@ df = df.select(col("A").cast(StructType([
 
 df = session.table("test_table")
 
-df = df.select(col("A").cast(StringType(42)))
+df1 = df.select(col("A").cast(StringType(42)))
 
-df = df.select(col("A").cast(TimestampType(TimestampTimeZone.NTZ)))
+df2 = df1.select(col("A").cast(TimestampType(TimestampTimeZone.NTZ)))
 
-df = df.select(col("A").cast(TimestampType(TimestampTimeZone.LTZ)))
+df3 = df2.select(col("A").cast(TimestampType(TimestampTimeZone.LTZ)))
 
-df = df.select(col("A").cast(TimestampType(TimestampTimeZone.TZ)))
+df4 = df3.select(col("A").cast(TimestampType(TimestampTimeZone.TZ)))
 
-df = df.select(col("A").cast(ArrayType(GeometryType(), structured=True)))
+df5 = df4.select(col("A").cast(ArrayType(GeometryType(), structured=True)))
 
-df = df.select(col("A").cast(MapType(GeographyType(), VariantType(), structured=True)))
+df6 = df5.select(col("A").cast(MapType(GeographyType(), VariantType(), structured=True)))
 
-df = df.select(col("A").cast(VectorType(IntegerType(), 64)))
+df7 = df6.select(col("A").cast(VectorType(IntegerType(), 64)))
 
-df = df.select(col("A").cast(StructType([StructField("test1", StringType(), nullable=False), StructField("test2", IntegerType(), nullable=True), StructField("test3", ArrayType(LongType(), structured=False), nullable=True), StructField("test4", MapType(DecimalType(42, 23), VectorType(FloatType(), 64), structured=False), nullable=True)], structured=True)))
+df8 = df7.select(col("A").cast(StructType([StructField("test1", StringType(), nullable=False), StructField("test2", IntegerType(), nullable=True), StructField("test3", ArrayType(LongType(), structured=False), nullable=True), StructField("test4", MapType(DecimalType(42, 23), VectorType(FloatType(), 64), structured=False), nullable=True)], structured=True)))

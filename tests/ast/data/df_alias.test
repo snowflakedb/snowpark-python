@@ -8,4 +8,4 @@ df = df.alias("new_name")
 
 df = session.table("test_table")
 
-df = df.alias("new_name")
+df1 = df.alias("new_name")

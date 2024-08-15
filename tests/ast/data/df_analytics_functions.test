@@ -67,6 +67,6 @@ compute_lag_res = res1.analytics.compute_lag(cols=["SALESAMOUNT"], lags=[1, 2], 
 
 compute_lead_res = res1.analytics.compute_lead(cols=["SALESAMOUNT"], leads=[1, 2], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], formatted_col_names=["SALESAMOUNT_LEAD_1", "SALESAMOUNT_LEAD_2"])
 
-df = res1.with_column("ORDERDATE", to_timestamp(res1["ORDERDATE"]))
+df2 = res1.with_column("ORDERDATE", to_timestamp(res1["ORDERDATE"]))
 
-time_series_agg_res = df.analytics.time_series_agg(time_col="ORDERDATE", aggs={"SALESAMOUNT": ["SUM", "MAX"]}, windows=["1D", "-1D"], group_by=["PRODUCTKEY"], sliding_interval="12H", formatted_col_names=["SUM_SALESAMOUNT_1D", "MAX_SALESAMOUNT_1D", "SUM_SALESAMOUNT_-1D", "MAX_SALESAMOUNT_-1D"])
+time_series_agg_res = df2.analytics.time_series_agg(time_col="ORDERDATE", aggs={"SALESAMOUNT": ["SUM", "MAX"]}, windows=["1D", "-1D"], group_by=["PRODUCTKEY"], sliding_interval="12H", formatted_col_names=["SUM_SALESAMOUNT_1D", "MAX_SALESAMOUNT_1D", "SUM_SALESAMOUNT_-1D", "MAX_SALESAMOUNT_-1D"])

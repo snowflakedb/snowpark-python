@@ -14,4 +14,4 @@ df2 = session.table("test_table")
 
 df3 = df1.join(df2, on="num", how="inner")
 
-df3 = df3.select(df1["num"].alias("n1"), df1["str"], df2["str"])
+df31 = df3.select(df1["num"].alias("n1"), df1["str"], df2["str"])
