@@ -6890,11 +6890,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         left_frame_num_valid_cols = len(left_frame.data_column_pandas_labels)
         right_frame_num_valid_cols = len(right_frame.data_column_pandas_labels)
         left_snowpark_df_num_cols = len(left_snowpark_df.columns)
-        # Get the valid indices from the joined_snowpark_df corresponding to the left_snowpark_df
-        # Use i + 1 since we skip the index column of the left_snowpark_df
+        # Get the valid indices of data column snowflake quoted identifiers
+        # from the joined_snowpark_df corresponding to the left_snowpark_df.
+        # Use i + 1 since we skip the index column of the left_snowpark_df.
         valid_data_indices = [i + 1 for i in range(left_frame_num_valid_cols)]
         if on:
-            # Get the valid indices from the joined_snowpark_df corresponding to the right_snowpark_df
+            # Get the valid data indices of data column snowflake quoted identifiers
+            # from the joined_snowpark_df corresponding to the right_snowpark_df.
             # Use left_snowpark_df_num_cols + i + 1 to skip the left_snowpark_df columns and the
             # right_snowpark_df index column. Also skip the index of the 'on' value in the right_snowpark_df.
             valid_data_indices.extend(
@@ -6911,7 +6913,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         else:
             assert left_on and right_on
-            # Get the valid indices from the joined_snowpark_df corresponding to the right_snowpark_df
+            # Get the valid data indices Get the valid data indices of data column snowflake quoted identifiers
+            # from the joined_snowpark_df corresponding to the right_snowpark_df.
             # Use left_snowpark_df_num_cols + i + 1 to skip the left_snowpark_df columns and the
             # right_snowpark_df index column, but keep the index of the 'on' value in the right_snowpark_df.
             valid_data_indices.extend(
