@@ -77,6 +77,7 @@
 - Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
 - Added support for `Index.argmax` and `Index.argmin`.
 - Added support for index's arithmetic and comparison operators.
+- Added support for `Series.dt.round`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
