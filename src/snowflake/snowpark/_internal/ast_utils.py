@@ -36,6 +36,8 @@ from snowflake.snowpark._internal.utils import str_to_enum
 # AST or field is required to populate the AST field of a different Snowpark object instance.
 FAIL_ON_MISSING_AST = True
 
+# The path to the snowpark package.
+SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
 
 def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
     """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance
@@ -351,7 +353,8 @@ assignment_re = re.compile(r"^\s*([a-zA-Z_]\w*)\s*=.*$", re.DOTALL)
 def with_src_position(
     expr_ast: proto.Expr, 
     assign: Optional[proto.Assign] = None,
-    max_stack_lookback: int = 3,
+    caller_frame_depth: Optional[int] = None,
+    debug: bool = False,
 ) -> proto.Expr:
     """
     Sets the src_position on the supplied Expr AST node and returns it.
@@ -360,8 +363,8 @@ def with_src_position(
     Args:
         expr_ast: The AST node to set the src_position on.
         assign: The Assign AST node to set the symbol value on.
-        max_stack_lookback: The maximum number of stack frames to look back from the caller's caller if 
-                            the caller's caller is still in the snowpark package.
+        caller_frame_depth: The number of frames to step back from the current frame to find the code of interest.
+                            If this is not provided, the filename for each frame is probed to find the code of interest.
     """
     src = expr_ast.src
     frame = inspect.currentframe()
@@ -377,28 +380,42 @@ def with_src_position(
             src.file = "<unknown>"
             return expr_ast
         
-        # If frame is not None, we can step back to the caller's caller via f_back twice.
-        # Since all uses of this function should be from public APIs, this should immediately reach the
-        # code of interest most of the time. Could still be None depending on the execution context.
-        frame = frame.f_back.f_back
-        filename = frame.f_code.co_filename if frame is not None else "<unknown>"
+        # NOTE: The inspect module provides many other APIs to get information about the current frame and its callers.
+        # All of these (except for currentframe) unnecessarily incur the overhead of resolving the filename for each
+        # frame and making sure the file exists (even if the context parameter is set to 0 to avoid capturing lineno, 
+        # source line, etc.). Since we should know exactly how many frames to step back, we can and should avoid this 
+        # overhead. Using the inspect.currentframe() (a wrapper around sys._getframe that handles the None case) is the
+        # most efficient way to get the current frame. Stepping back from this frame via frame.f_back is also the most 
+        # efficient method to walk the stack as each frame object contains the minimal amount of needed context.
+        if caller_frame_depth is None:
+            # If the frame is not None, one guarantee we have is that two frames back is the caller's caller, and this
+            # frame contains the code of interest from the user if they are using a simple public API with no further
+            # nesting or indirection. This is the most common case.
+            frame, prev_frame = frame.f_back.f_back, frame.f_back
+            while frame is not None and SNOWPARK_LIB_PATH in Path(frame.f_code.co_filename).parents:
+                frame, prev_frame = frame.f_back, frame
+        else:
+            # If the frame is not None, use the provided stack depth to step back to the relevant frame.
+            # This frame should be the first frame outside of the snowpark package, and contain the code of interest.
+            curr_frame_depth = 0
+            while frame is not None and curr_frame_depth < caller_frame_depth:
+                frame, prev_frame = frame.f_back, frame
+                curr_frame_depth += 1
 
-        stack_depth = 0
-        # If the caller's caller is in the snowpark package, keep stepping back until we're out of it.
-        snowpark_path = Path(__file__).parents[1]
-        while stack_depth < max_stack_lookback and \
-        frame is not None and snowpark_path in Path(filename).parents:
-            frame = frame.f_back
-            filename = frame.f_code.co_filename
-            stack_depth += 1
+        if debug:
+            last_snowpark_file = prev_frame.f_code.co_filename
+            assert SNOWPARK_LIB_PATH in Path(last_snowpark_file).parents
+            first_non_snowpark_file = frame.f_code.co_filename
+            assert SNOWPARK_LIB_PATH not in Path(first_non_snowpark_file).parents
 
-        # Again, once we've stepped out of the snowpark package, we should be in the code of interest.
+        # Once we've stepped out of the snowpark package, we should be in the code of interest.
         # However, the code of interest may execute in an environment that is not accessible via the filesystem.
         # e.g. Jupyter notebooks, REPLs, calls to exec, etc.
+        filename = frame.f_code.co_filename if frame is not None else "<unknown>"
         if frame is None or not Path(filename).is_file():
             src.file = "<unknown>"
             return expr_ast
-        
+                
         # The context argument specifies the number of lines of context to capture around the current line.
         # If IO performance is an issue, this can be set to 0 but this will disable symbol capture. Some
         # potential alternatives to consider here are the linecache and traceback modules.
