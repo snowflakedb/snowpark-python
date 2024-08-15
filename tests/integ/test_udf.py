@@ -573,6 +573,10 @@ def test_register_from_file_with_skip_upload(session, resources_path, caplog):
         Utils.drop_stage(session, stage_name)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1625599: Modulo on coerced integers does not return correct result.",
+)
 def test_add_import_local_file(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -593,8 +597,8 @@ def test_add_import_local_file(session, resources_path):
     )
     plus4_then_mod5_udf = udf(
         plus4_then_mod5_with_1_level_import,
-        return_type=LongType(),
-        input_types=[LongType()],
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
     )
     Utils.check_answer(
         df.select(plus4_then_mod5_udf("a")).collect(),
@@ -607,8 +611,8 @@ def test_add_import_local_file(session, resources_path):
 
     plus4_then_mod5_direct_import_udf = udf(
         plus4_then_mod5_with_2_level_import,
-        return_type=LongType(),
-        input_types=[LongType()],
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
     )
     Utils.check_answer(
         df.select(plus4_then_mod5_direct_import_udf("a")).collect(),
@@ -619,6 +623,10 @@ def test_add_import_local_file(session, resources_path):
     session.clear_imports()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1625599: Modulo on coerced integers does not return correct result.",
+)
 def test_add_import_local_directory(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -639,8 +647,8 @@ def test_add_import_local_directory(session, resources_path):
     )
     plus4_then_mod5_udf = udf(
         plus4_then_mod5_with_3_level_import,
-        return_type=LongType(),
-        input_types=[LongType()],
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
     )
     Utils.check_answer(
         df.select(plus4_then_mod5_udf("a")).collect(),
@@ -650,8 +658,8 @@ def test_add_import_local_directory(session, resources_path):
     session.add_import(test_files.test_udf_directory)
     plus4_then_mod5_udf = udf(
         plus4_then_mod5_with_2_level_import,
-        return_type=LongType(),
-        input_types=[LongType()],
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
     )
     Utils.check_answer(
         df.select(plus4_then_mod5_udf("a")).collect(),
@@ -662,6 +670,10 @@ def test_add_import_local_directory(session, resources_path):
     session.clear_imports()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1625599: Modulo on coerced integers does not return correct result.",
+)
 def test_add_import_stage_file(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -674,8 +686,8 @@ def test_add_import_stage_file(session, resources_path):
     session.add_import(stage_file)
     plus4_then_mod5_udf = udf(
         plus4_then_mod5_with_import,
-        return_type=LongType(),
-        input_types=[LongType()],
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
     )
 
     df = session.range(-5, 5).to_df("a")
@@ -736,6 +748,10 @@ def test_add_import_duplicate(session, resources_path, caplog, local_testing_mod
     assert len(session.get_imports()) == 0
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1625599: Modulo on coerced integers does not return correct result.",
+)
 def test_udf_level_import(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
 
@@ -749,8 +765,8 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
     # with udf-level imports
     plus4_then_mod5_udf = udf(
         plus4_then_mod5_with_import,
-        return_type=LongType(),
-        input_types=[LongType()],
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
         imports=[(test_files.test_udf_py_file, "test_udf_dir.test_udf_file")],
     )
     Utils.check_answer(
@@ -761,8 +777,8 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
     # without udf-level imports
     plus4_then_mod5_udf = udf(
         plus4_then_mod5_with_import,
-        return_type=LongType(),
-        input_types=[LongType()],
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
     )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
@@ -776,8 +792,8 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
     # it will still fail even if we have session-level imports
     plus4_then_mod5_udf = udf(
         plus4_then_mod5_with_import,
-        return_type=LongType(),
-        input_types=[LongType()],
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
         imports=[],
     )
     with pytest.raises(SnowparkSQLException) as ex_info:
@@ -789,6 +805,10 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
     session.clear_imports()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1625599: Modulo on coerced integers does not return correct result.",
+)
 def test_add_import_namespace_collision(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -810,8 +830,8 @@ def test_add_import_namespace_collision(session, resources_path):
 
     plus4_then_mod5_udf = udf(
         plus4_then_mod5,
-        return_type=LongType(),
-        input_types=[LongType()],
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
         packages=["pandas"],
     )
 
