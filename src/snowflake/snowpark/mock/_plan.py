@@ -94,6 +94,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldInt,
     SubfieldString,
     UnresolvedAttribute,
+    WithinGroup,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
@@ -257,6 +258,13 @@ class MockFileOperation(MockExecutionPlan):
         self.format = format
         self.schema = schema
         self.options = options
+
+
+def coerce_order_by_arguments(order_by: List[Expression]):
+    return [
+        order if isinstance(order, SortOrder) else SortOrder(order, Ascending())
+        for order in order_by
+    ]
 
 
 def handle_order_by_clause(
@@ -766,6 +774,16 @@ def execute_mock_plan(
         for i in range(len(intermediate_mapped_column)):
             agg_expr = source_plan.aggregate_expressions[i]
             if isinstance(agg_expr, Alias):
+                # Pop wthin group clause and reorder data if needed
+                if isinstance(agg_expr.child, WithinGroup):
+                    order_by_cols = coerce_order_by_arguments(
+                        agg_expr.child.order_by_cols
+                    )
+                    child_rf = handle_order_by_clause(
+                        order_by_cols, child_rf, analyzer, expr_to_alias, False
+                    )
+                    agg_expr = agg_expr.child
+
                 if isinstance(agg_expr.child, Literal) and isinstance(
                     agg_expr.child.datatype, _NumericType
                 ):
@@ -1629,6 +1647,12 @@ def calculate_expression(
             is_distinct=exp.is_distinct,
             delimiter=exp.delimiter,
         )
+    if isinstance(exp, WithinGroup):
+        order_by_cols = coerce_order_by_arguments(exp.order_by_cols)
+        ordered_data = handle_order_by_clause(
+            order_by_cols, input_data, analyzer, expr_to_alias, False
+        )
+        return calculate_expression(exp.child, ordered_data, analyzer, expr_to_alias)
     if isinstance(exp, IsNull):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
@@ -1936,11 +1960,16 @@ def calculate_expression(
         window_spec = exp.window_spec
 
         # Process order by clause
-        if window_spec.order_spec:
+        if window_spec.order_spec or isinstance(window_function, WithinGroup):
+            order_spec = window_spec.order_spec
+            if isinstance(window_function, WithinGroup):
+                order_spec = coerce_order_by_arguments(window_function.order_by_cols)
+                window_function = window_function.child
+
             # If the window function is a function expression then any intermediate
             # columns that are used for ordering may be needed later and should be retained.
             ordered = handle_order_by_clause(
-                window_spec.order_spec,
+                order_spec,
                 input_data,
                 analyzer,
                 expr_to_alias,

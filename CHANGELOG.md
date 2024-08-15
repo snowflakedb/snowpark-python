@@ -36,6 +36,8 @@
     - cume_dist
     - ntile
     - datediff
+    - array_agg
+  - snowflake.snowpark.column.Column.within_group
 - Added support parsing regex flags in REGEX statements for mocked plans. This maintains parity with the `rlike` and `regexp` changes above.
 
 #### Bug Fixes
