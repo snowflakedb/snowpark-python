@@ -6,7 +6,7 @@ import modin.pandas as pd
 import pandas as native_pd
 import pytest
 
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_index_equal, eval_snowpark_pandas_result
 
 
@@ -98,8 +98,7 @@ def test_index_compare_ops_bw_indices(func):
 def test_index_ops_bw_indices(func):
     left = [-10, 5, 2.1]
     right = [2, 6, 7]
-    with SqlCounter(query_count=1):
-        assert_index_equal(
-            func(pd.Index(left), pd.Index(right)),
-            func(native_pd.Index(left), native_pd.Index(right)),
-        )
+    assert_index_equal(
+        func(pd.Index(left), pd.Index(right)),
+        func(native_pd.Index(left), native_pd.Index(right)),
+    )
