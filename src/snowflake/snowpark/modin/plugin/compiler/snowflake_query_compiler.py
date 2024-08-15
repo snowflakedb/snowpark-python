@@ -15789,7 +15789,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             round_column_if_not_half_point,
         )
 
-        internal_frame = (
+        return SnowflakeQueryCompiler(
             internal_frame.update_snowflake_quoted_identifiers_with_expressions(
                 {
                     internal_frame.data_column_snowflake_quoted_identifiers[
@@ -15797,19 +15797,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     ]: round_column
                 }
             ).frame
-        )
-
-        return SnowflakeQueryCompiler(
-            InternalFrame.create(
-                ordered_dataframe=internal_frame.ordered_dataframe,
-                data_column_pandas_labels=internal_frame.data_column_pandas_labels[-1:],
-                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
-                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers[
-                    -1:
-                ],
-                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
-                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
-            )
         )
 
     def dt_floor(
