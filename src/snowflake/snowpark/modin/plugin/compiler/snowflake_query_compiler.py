@@ -21,6 +21,7 @@ import pandas.io.parsers
 import pandas.io.parsers.readers
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
 from numpy import dtype
+from pandas import Timedelta
 from pandas._libs import lib
 from pandas._libs.lib import no_default
 from pandas._libs.tslibs import Tick
@@ -6743,6 +6744,188 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             merged_qc = merged_qc.reset_index(drop=True)
 
         return merged_qc
+
+    def merge_asof(
+        self,
+        right: "SnowflakeQueryCompiler",
+        on: Optional[str] = None,
+        left_on: Optional[str] = None,
+        right_on: Optional[str] = None,
+        left_index: bool = False,
+        right_index: bool = False,
+        by: Optional[Union[str, list[str]]] = None,
+        left_by: Optional[str] = None,
+        right_by: Optional[str] = None,
+        suffixes: Suffixes = ("_x", "_y"),
+        tolerance: Optional[Union[int, Timedelta]] = None,
+        allow_exact_matches: bool = True,
+        direction: str = "backward",
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Perform a merge by key distance.
+
+        This is similar to a left-join except that we match on nearest key rather than equal keys.
+        Both DataFrames must be sorted by the key. For each row in the left DataFrame:
+
+        A “backward” search selects the last row in the right DataFrame whose ‘on’ key is less than or equal to the left’s key.
+        A “forward” search selects the first row in the right DataFrame whose ‘on’ key is greater than or equal to the left’s key.
+        A “nearest” search selects the row in the right DataFrame whose ‘on’ key is closest in absolute distance to the left’s key.
+
+        Optionally match on equivalent keys with ‘by’ before searching with ‘on’.
+
+        Parameters
+        ----------
+        right: other SnowflakeQueryCompiler to merge with.
+        on : label
+            Field name to join on. Must be found in both DataFrames. The data MUST be ordered.
+            Furthermore, this must be a numeric column such as datetimelike, integer, or float.
+            On or left_on/right_on must be given.
+        left_on : label
+            Field name to join on in left DataFrame.
+        right_on : label
+            Field name to join on in right DataFrame.
+        left_index : bool
+            Use the index of the left DataFrame as the join key.
+        right_index : bool
+            Use the index of the right DataFrame as the join key.
+        by : column name or list of column names
+            Match on these columns before performing merge operation.
+        left_by : column name
+            Field names to match on in the left DataFrame.
+        right_by : column name
+            Field names to match on in the right DataFrame.
+        suffixes : 2-length sequence (tuple, list, …)
+            Suffix to apply to overlapping column names in the left and right side, respectively.
+        tolerance: int or Timedelta, optional, default None
+            Select asof tolerance within this range; must be compatible with the merge index.
+        allow_exact_matches : bool, default True
+            If True, allow matching with the same ‘on’ value (i.e. less-than-or-equal-to / greater-than-or-equal-to)
+            If False, don’t match the same ‘on’ value (i.e., strictly less-than / strictly greater-than).
+        direction : ‘backward’ (default), ‘forward’, or ‘nearest’
+            Whether to search for prior, subsequent, or closest matches.
+        """
+        if (
+            by
+            or left_by
+            or right_by
+            or left_index
+            or right_index
+            or tolerance
+            or suffixes != ("_x", "_y")
+        ):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas merge_asof API does not currently support parameters "
+                + "'by', 'left_by', 'right_by, 'left_index', 'right_index', "
+                + "'suffixes', or 'tolerance'"
+            )
+        if direction not in ("backward", "forward"):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas merge_asof API only supports directions 'forward' and 'backward'"
+            )
+
+        left_frame = self._modin_frame
+        right_frame = right._modin_frame
+        # Project to Snowpark DataFrame in order to perform ASOF Join
+        left_snowpark_df = (
+            left_frame.ordered_dataframe.to_projected_snowpark_dataframe()
+        )
+        right_snowpark_df = (
+            right_frame.ordered_dataframe.to_projected_snowpark_dataframe()
+        )
+        if on:
+            on_quoted_identifier = quote_name_without_upper_casing(on)
+            lhs_expr = left_snowpark_df[on_quoted_identifier]
+            rhs_expr = right_snowpark_df[on_quoted_identifier]
+            order_by_expr = [
+                left_snowpark_df[on_quoted_identifier],
+                right_snowpark_df[on_quoted_identifier],
+            ]
+        else:
+            assert left_on and right_on
+            left_on_quoted_identifier = quote_name_without_upper_casing(left_on)
+            right_on_quoted_identifier = quote_name_without_upper_casing(right_on)
+
+            lhs_expr = left_snowpark_df[left_on_quoted_identifier]
+            rhs_expr = right_snowpark_df[right_on_quoted_identifier]
+            order_by_expr = [
+                left_snowpark_df[left_on_quoted_identifier],
+                right_snowpark_df[right_on_quoted_identifier],
+            ]
+
+        if direction == "backward":
+            match_condition = (
+                (lhs_expr >= rhs_expr) if allow_exact_matches else (lhs_expr > rhs_expr)
+            )
+        else:
+            match_condition = (
+                (lhs_expr <= rhs_expr) if allow_exact_matches else (lhs_expr < rhs_expr)
+            )
+
+        joined_snowpark_df = left_snowpark_df.join(
+            right=right_snowpark_df,
+            match_condition=match_condition,
+            how="asof",
+        ).order_by(order_by_expr)
+
+        if on:
+            # Output pandas labels consists of all data pandas labels in left_frame and
+            # all data pandas labels except the "on" pandas label in the right frame
+            right_frame_on_index = right_frame.data_column_pandas_labels.index(on)
+            data_column_pandas_labels = (
+                left_frame.data_column_pandas_labels
+                + right_frame.data_column_pandas_labels[0:right_frame_on_index]
+                + right_frame.data_column_pandas_labels[right_frame_on_index + 1 :]
+            )
+        else:
+            # Output pandas labels consists of all data pandas labels in both frames
+            assert left_on and right_on
+            data_column_pandas_labels = (
+                left_frame.data_column_pandas_labels
+                + right_frame.data_column_pandas_labels
+            )
+
+        data_column_snowflake_quoted_identifiers = []
+        left_frame_num_cols = len(left_frame.data_column_pandas_labels)
+        joined_snowpark_df_num_cols = len(joined_snowpark_df.columns)
+        if on:
+            # data_column_snowflake_quoted_identifiers consists of all identifiers corresponding to the left snowpark df
+            # except for the index and row position identifier and all the identifiers of the right snowpark df
+            # except for the index, row position identifier, and "on" label identifier
+            indices_to_skip = [
+                0,  # Left snowpark df index col
+                left_frame_num_cols + 1,  # Left snowpark df row position col
+                left_frame_num_cols + 2,  # Right snowpark df index col
+                left_frame_num_cols
+                + 2
+                + right_frame_on_index
+                + 1,  # Right snowpark df "on" column
+                joined_snowpark_df_num_cols - 1,  # Right snowpark df row position col
+            ]
+        else:
+            assert left_on and right_on
+            # data_column_snowflake_quoted_identifiers consists of all identifiers corresponding to both snowpark
+            # dfs, except for the row position and index identifiers
+            indices_to_skip = [
+                0,  # Left snowpark df index col
+                left_frame_num_cols + 1,  # Left snowpark df row position col
+                left_frame_num_cols + 2,  # Right snowpark df index col
+                joined_snowpark_df_num_cols - 1,  # Right snowpark df row position col
+            ]
+        for i in range(joined_snowpark_df_num_cols):
+            if i not in indices_to_skip:
+                data_column_snowflake_quoted_identifiers.append(
+                    joined_snowpark_df.columns[i]
+                )
+
+        joined_frame = InternalFrame.create(
+            ordered_dataframe=OrderedDataFrame(DataFrameReference(joined_snowpark_df)),
+            data_column_pandas_labels=data_column_pandas_labels,
+            data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
+            index_column_pandas_labels=left_frame.index_column_pandas_labels,
+            index_column_snowflake_quoted_identifiers=[joined_snowpark_df.columns[0]],
+            data_column_pandas_index_names=left_frame.data_column_pandas_index_names,
+        )
+        return SnowflakeQueryCompiler(joined_frame)
 
     def _apply_with_udtf_and_dynamic_pivot_along_axis_1(
         self,

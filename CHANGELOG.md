@@ -81,6 +81,7 @@
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
+- Added support for `pd.merge_asof`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
