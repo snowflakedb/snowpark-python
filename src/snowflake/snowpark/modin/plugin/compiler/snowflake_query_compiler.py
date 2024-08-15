@@ -6913,10 +6913,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         else:
             assert left_on and right_on
-            # Get the valid data indices Get the valid data indices of data column snowflake quoted identifiers
+            # Get the valid data indices of data column snowflake quoted identifiers
             # from the joined_snowpark_df corresponding to the right_snowpark_df.
-            # Use left_snowpark_df_num_cols + i + 1 to skip the left_snowpark_df columns and the
-            # right_snowpark_df index column, but keep the index of the 'on' value in the right_snowpark_df.
+            # Similar to the 'on' case, but keep the index of the 'on' value in the right_snowpark_df.
             valid_data_indices.extend(
                 [
                     left_snowpark_df_num_cols + i + 1
