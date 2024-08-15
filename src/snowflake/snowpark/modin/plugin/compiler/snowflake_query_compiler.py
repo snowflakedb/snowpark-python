@@ -6837,25 +6837,35 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             right_frame.ordered_dataframe.to_projected_snowpark_dataframe()
         )
         if on:
-            on_quoted_identifier = quote_name_without_upper_casing(on)
-            lhs_expr = left_snowpark_df[on_quoted_identifier]
-            rhs_expr = right_snowpark_df[on_quoted_identifier]
-            order_by_expr = [
-                left_snowpark_df[on_quoted_identifier],
-                right_snowpark_df[on_quoted_identifier],
-            ]
+            left_on_quoted_identifier = (
+                left_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    [on]
+                )[0][0]
+            )
+            right_on_quoted_identifier = (
+                right_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    [on]
+                )[0][0]
+            )
         else:
             assert left_on and right_on
-            left_on_quoted_identifier = quote_name_without_upper_casing(left_on)
-            right_on_quoted_identifier = quote_name_without_upper_casing(right_on)
+            left_on_quoted_identifier = (
+                left_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    [left_on]
+                )[0][0]
+            )
+            right_on_quoted_identifier = (
+                right_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    [right_on]
+                )[0][0]
+            )
 
-            lhs_expr = left_snowpark_df[left_on_quoted_identifier]
-            rhs_expr = right_snowpark_df[right_on_quoted_identifier]
-            order_by_expr = [
-                left_snowpark_df[left_on_quoted_identifier],
-                right_snowpark_df[right_on_quoted_identifier],
-            ]
-
+        lhs_expr = left_snowpark_df[left_on_quoted_identifier]
+        rhs_expr = right_snowpark_df[right_on_quoted_identifier]
+        order_by_expr = [
+            left_snowpark_df[left_on_quoted_identifier],
+            right_snowpark_df[right_on_quoted_identifier],
+        ]
         if direction == "backward":
             match_condition = (
                 (lhs_expr >= rhs_expr) if allow_exact_matches else (lhs_expr > rhs_expr)

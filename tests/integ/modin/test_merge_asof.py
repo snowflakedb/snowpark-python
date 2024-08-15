@@ -8,7 +8,7 @@ import pandas as native_pd
 import pytest
 
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 
 
 @pytest.fixture(scope="function")
@@ -50,7 +50,7 @@ def left_right_native_df_switch_column_order():
 
 
 @pytest.fixture(scope="function")
-def left_right_native_df_left_right_by():
+def left_right_native_df_left_right_on():
     df1 = native_pd.DataFrame(
         {
             "a": [1, 5, 10],
@@ -128,7 +128,7 @@ def test_merge_asof_on(left_right_native_df, allow_exact_matches, direction):
         allow_exact_matches=allow_exact_matches,
         direction=direction,
     )
-    eval_snowpark_pandas_result(snow_output, native_output, lambda df: df)
+    assert_snowpark_pandas_equal_to_pandas(snow_output, native_output)
 
 
 @allow_exact_matches
@@ -155,16 +155,16 @@ def test_merge_asof_on_switch_column_order(
         allow_exact_matches=allow_exact_matches,
         direction=direction,
     )
-    eval_snowpark_pandas_result(snow_output, native_output, lambda df: df)
+    assert_snowpark_pandas_equal_to_pandas(snow_output, native_output)
 
 
 @allow_exact_matches
 @direction
 @sql_count_checker(query_count=1, join_count=1)
 def test_merge_asof_left_right_on(
-    left_right_native_df_left_right_by, allow_exact_matches, direction
+    left_right_native_df_left_right_on, allow_exact_matches, direction
 ):
-    left_native_df, right_native_df = left_right_native_df_left_right_by
+    left_native_df, right_native_df = left_right_native_df_left_right_on
     left_snow_df, right_snow_df = pd.DataFrame(left_native_df), pd.DataFrame(
         right_native_df
     )
@@ -184,7 +184,7 @@ def test_merge_asof_left_right_on(
         allow_exact_matches=allow_exact_matches,
         direction=direction,
     )
-    eval_snowpark_pandas_result(snow_output, native_output, lambda df: df)
+    assert_snowpark_pandas_equal_to_pandas(snow_output, native_output)
 
 
 @sql_count_checker(query_count=1, join_count=1)
@@ -195,7 +195,7 @@ def test_merge_asof_timestamps(left_right_timestamp_data):
     )
     native_output = native_pd.merge_asof(left_native_df, right_native_df, on="time")
     snow_output = pd.merge_asof(left_snow_df, right_snow_df, on="time")
-    eval_snowpark_pandas_result(snow_output, native_output, lambda df: df)
+    assert_snowpark_pandas_equal_to_pandas(snow_output, native_output)
 
 
 @sql_count_checker(query_count=0)
@@ -228,30 +228,51 @@ def test_merge_asof_params_unsupported(left_right_timestamp_data):
         pd.merge_asof(
             left_snow_df, right_snow_df, on="time", by="price", direction="nearest"
         )
+    with pytest.raises(
+        NotImplementedError,
+        match=(
+            "Snowpark pandas merge_asof method does not currently support parameters "
+            "'by', 'left_by', 'right_by', 'left_index', 'right_index', "
+            "'suffixes', or 'tolerance'"
+        ),
+    ):
         pd.merge_asof(
             left_snow_df, right_snow_df, on="time", left_by="price", right_by="quantity"
         )
-        pd.merge_asof(
-            left_snow_df, right_snow_df, on="time", left_index=True, right_by="quantity"
-        )
+    with pytest.raises(
+        NotImplementedError,
+        match=(
+            "Snowpark pandas merge_asof method does not currently support parameters "
+            "'by', 'left_by', 'right_by', 'left_index', 'right_index', "
+            "'suffixes', or 'tolerance'"
+        ),
+    ):
+        pd.merge_asof(left_snow_df, right_snow_df, left_index=True, right_index=True)
+    with pytest.raises(
+        NotImplementedError,
+        match=(
+            "Snowpark pandas merge_asof method does not currently support parameters "
+            "'by', 'left_by', 'right_by', 'left_index', 'right_index', "
+            "'suffixes', or 'tolerance'"
+        ),
+    ):
         pd.merge_asof(
             left_snow_df,
             right_snow_df,
             on="time",
-            right_index=True,
-            right_by="quantity",
-        )
-        pd.merge_asof(
-            left_snow_df,
-            right_snow_df,
-            on="time",
-            right_index=True,
             suffixes=("_hello", "_world"),
         )
+    with pytest.raises(
+        NotImplementedError,
+        match=(
+            "Snowpark pandas merge_asof method does not currently support parameters "
+            "'by', 'left_by', 'right_by', 'left_index', 'right_index', "
+            "'suffixes', or 'tolerance'"
+        ),
+    ):
         pd.merge_asof(
             left_snow_df,
             right_snow_df,
             on="time",
-            right_index=True,
             tolerance=native_pd.Timedelta("3s"),
         )
