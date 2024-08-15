@@ -2320,7 +2320,7 @@ class DataFrame:
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
 
     @df_api_usage
-    def union_all(self, other: "DataFrame") -> "DataFrame":
+    def union_all(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows. Both input
         DataFrames must contain the same number of columns.
@@ -2343,11 +2343,13 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+
         # AST.
-        stmt = self._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_union_all, stmt)
-        self.set_ast_ref(ast.df)
-        other.set_ast_ref(ast.other)
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_union_all, stmt)
+            self.set_ast_ref(ast.df)
+            other.set_ast_ref(ast.other)
 
         if self._select_statement:
             return self._with_plan(

@@ -459,7 +459,7 @@ class DataFrameStatFunctions:
             return res_df
         col = _to_col_if_str(col, "sample_by")
         res_df = reduce(
-            lambda x, y: x.union_all(y),
+            lambda x, y: x.union_all(y, _emit_ast=False),
             [
                 self._dataframe.filter(col == k, _emit_ast=False).sample(
                     v, _emit_ast=False
