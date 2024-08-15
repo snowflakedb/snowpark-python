@@ -546,7 +546,6 @@ def merge_asof(
     2 2016-05-25 13:30:00.048  720.77       100  720.50  720.93
     3 2016-05-25 13:30:00.048  720.92       100  720.50  720.93
     4 2016-05-25 13:30:00.048   98.00       100  720.50  720.93
-
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
     if not isinstance(left, DataFrame):

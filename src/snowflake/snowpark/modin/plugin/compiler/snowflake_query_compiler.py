@@ -6870,7 +6870,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             match_condition=match_condition,
             how="asof",
         ).order_by(order_by_expr)
-
         if on:
             # Output pandas labels consists of all data pandas labels in left_frame and
             # all data pandas labels except the "on" pandas label in the right frame
@@ -6878,7 +6877,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_labels = (
                 left_frame.data_column_pandas_labels
                 + right_frame.data_column_pandas_labels[0:right_frame_on_index]
-                + right_frame.data_column_pandas_labels[right_frame_on_index + 1 :]
+                + right_frame.data_column_pandas_labels[(right_frame_on_index + 1) :]
             )
         else:
             # Output pandas labels consists of all data pandas labels in both frames
@@ -6888,38 +6887,45 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 + right_frame.data_column_pandas_labels
             )
 
-        data_column_snowflake_quoted_identifiers = []
-        left_frame_num_cols = len(left_frame.data_column_pandas_labels)
-        joined_snowpark_df_num_cols = len(joined_snowpark_df.columns)
+        left_frame_num_valid_cols = len(left_frame.data_column_pandas_labels)
+        right_frame_num_valid_cols = len(right_frame.data_column_pandas_labels)
+        left_snowpark_df_num_cols = len(left_snowpark_df.columns)
+        # Get the valid indices from the joined_snowpark_df corresponding to the left_snowpark_df
+        # Use i + 1 since we skip the index column of the left_snowpark_df
+        valid_data_indices = [i + 1 for i in range(left_frame_num_valid_cols)]
         if on:
-            # data_column_snowflake_quoted_identifiers consists of all identifiers corresponding to the left snowpark df
-            # except for the index and row position identifier and all the identifiers of the right snowpark df
-            # except for the index, row position identifier, and "on" label identifier
-            indices_to_skip = [
-                0,  # Left snowpark df index col
-                left_frame_num_cols + 1,  # Left snowpark df row position col
-                left_frame_num_cols + 2,  # Right snowpark df index col
-                left_frame_num_cols
-                + 2
-                + right_frame_on_index
-                + 1,  # Right snowpark df "on" column
-                joined_snowpark_df_num_cols - 1,  # Right snowpark df row position col
-            ]
+            # Get the valid indices from the joined_snowpark_df corresponding to the right_snowpark_df
+            # Use left_snowpark_df_num_cols + i + 1 to skip the left_snowpark_df columns and the
+            # right_snowpark_df index column. Also skip the index of the 'on' value in the right_snowpark_df.
+            valid_data_indices.extend(
+                [
+                    left_snowpark_df_num_cols + i + 1
+                    for i in range(0, right_frame_on_index)
+                ]
+            )
+            valid_data_indices.extend(
+                [
+                    left_snowpark_df_num_cols + i + 1
+                    for i in range(right_frame_on_index + 1, right_frame_num_valid_cols)
+                ]
+            )
         else:
             assert left_on and right_on
-            # data_column_snowflake_quoted_identifiers consists of all identifiers corresponding to both snowpark
-            # dfs, except for the row position and index identifiers
-            indices_to_skip = [
-                0,  # Left snowpark df index col
-                left_frame_num_cols + 1,  # Left snowpark df row position col
-                left_frame_num_cols + 2,  # Right snowpark df index col
-                joined_snowpark_df_num_cols - 1,  # Right snowpark df row position col
-            ]
-        for i in range(joined_snowpark_df_num_cols):
-            if i not in indices_to_skip:
-                data_column_snowflake_quoted_identifiers.append(
-                    joined_snowpark_df.columns[i]
-                )
+            # Get the valid indices from the joined_snowpark_df corresponding to the right_snowpark_df
+            # Use left_snowpark_df_num_cols + i + 1 to skip the left_snowpark_df columns and the
+            # right_snowpark_df index column, but keep the index of the 'on' value in the right_snowpark_df.
+            valid_data_indices.extend(
+                [
+                    left_snowpark_df_num_cols + i + 1
+                    for i in range(right_frame_num_valid_cols)
+                ]
+            )
+
+        data_column_snowflake_quoted_identifiers = []
+        for i in valid_data_indices:
+            data_column_snowflake_quoted_identifiers.append(
+                joined_snowpark_df.columns[i]
+            )
 
         joined_frame = InternalFrame.create(
             ordered_dataframe=OrderedDataFrame(DataFrameReference(joined_snowpark_df)),
