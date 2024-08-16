@@ -2423,8 +2423,33 @@ class Index(metaclass=TelemetryMeta):
                 return "'" + str(elem) + "'"
             return str(elem)
 
-        seven_space_indent = " " * 7
+        # The representation begins with class name followed by parentheses; the data representation is enclosed in
+        # square brackets.
+        # For example, "DatetimeIndex([" or "Index([".
+        class_name = self.__class__.__name__
+        len_class_name = len(class_name)
+        data_indent = " " * (
+            2 + len_class_name
+        )  # 1 character for '[', 1 for '(' in "Index([".
         format_fields_on_different_lines = False
+
+        # In the case of DatetimeIndex, if the data is timezone aware, the timezone is displayed
+        # within the dtype field. This is not directly supported in Snowpark pandas.
+        # Record the dtype here before formatting the local_index data and use in repr later.
+        dtype = self.dtype
+        if "DatetimeIndex" in class_name:
+            # In some cases of DatetimeIndex, when the timestamp is displayed, only
+            # the date is displayed.
+            # For instance,
+            # >>> pd.date_range(start='1/1/2018', end='1/08/2018')
+            # DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03', '2018-01-04',
+            #                '2018-01-05', '2018-01-06', '2018-01-07', '2018-01-08'],
+            #               dtype='datetime64[ns]', freq='D')
+            # Therefore, use astype(str) with the native pandas version of the index to
+            # display the timestamp in the right format.
+            native_pd_idx = native_pd.Index(local_index)
+            dtype = native_pd_idx.dtype
+            local_index = native_pd_idx.astype(str)
 
         if length_of_index == 0:
             data_repr = "[]"
@@ -2468,7 +2493,7 @@ class Index(metaclass=TelemetryMeta):
                         _format_string_elem(element).rjust(length_of_longest_elem)
                         + ","
                         + (
-                            "\n" + seven_space_indent
+                            "\n" + data_indent
                             if (i and (i + 1) % num_elem_to_print == 0)
                             else " "
                         )
@@ -2479,7 +2504,8 @@ class Index(metaclass=TelemetryMeta):
 
             first_ten_elem_repr = _format_elem(first_and_last_ten_elem[:10])
             last_ten_elem_repr = _format_elem(first_and_last_ten_elem[10:])
-            # A seven space indent is necessary to correctly align the last 10 elements with the first 10.
+            # An indent is necessary to correctly align the last 10 elements with the first 10.
+            # The size of this indent depends on the length of the class name.
             # Output needs to look like:
             # 'Index([   0,    1,    2,    3,    4,    5,    6,    7,    8,    9,\n'
             # '       ...\n'
@@ -2489,9 +2515,9 @@ class Index(metaclass=TelemetryMeta):
                 "["
                 + first_ten_elem_repr
                 + ",\n"
-                + seven_space_indent
+                + data_indent
                 + "...\n"
-                + seven_space_indent
+                + data_indent
                 + last_ten_elem_repr
                 + "]"
             )
@@ -2500,14 +2526,17 @@ class Index(metaclass=TelemetryMeta):
             # In the case where the number of elements in the index is less than the number of
             # elements to display, display them all separated by commas.
             data_repr = "[" + _format_string_elem(local_index[0])
-            line_length = 6 + len(data_repr)  # 6 is the length of "Index("
+            # Account for class name, "Index(" or "DatetimeIndex(" at the start.
+            line_length = len_class_name + len(data_repr)
             for e in local_index[1:]:
                 formatted_e = _format_string_elem(e)
-                if (line_length + len(formatted_e)) + 6 > display_width:
+                if (
+                    line_length + len(formatted_e) + 2 > display_width
+                ):  # 2 is the length of the comma and space.
                     # The fields need to be formatted on new lines since data is also formatted on new lines.
                     format_fields_on_different_lines = True
-                    data_repr += ",\n" + seven_space_indent
-                    line_length = 7 + len(formatted_e)  # 7 is the length of the indent.
+                    data_repr += ",\n" + data_indent
+                    line_length = len(data_indent) + len(formatted_e)
                 else:
                     data_repr += ", "
                     line_length += (
@@ -2518,24 +2547,28 @@ class Index(metaclass=TelemetryMeta):
 
         # Next, creating the representation for each field with their respective labels.
         # Assign a None value to optional fields that should not be displayed.
-        dtype_repr = f"dtype='{self.dtype}'"
+        dtype_repr = f"dtype='{dtype}'"
         name_repr = f"name='{self.name}'" if self.name else None
         length_repr = f"length={length_of_index}" if too_many_elem else ""
+        # The frequency is displayed only for DatetimeIndex.
+        # TODO: SNOW-1625233 update freq_repr; replace None with the correct value.
+        freq_repr = "freq=None" if "DatetimeIndex" in class_name else None
 
         # The index always displays the data and datatype, and optionally the name and length.
         if format_fields_on_different_lines:
             # Length is displayed only when some elements are displayed, which is when the number
             # of elements is greater than the number of elements to display.
-            # If the elements are truncated (too many elements to display), there is a possibility
-            # that the fields (dtype, name, and length) need to be printed on new lines.
-            six_space_indent = " " * 6  # required to correctly align fields with data.
-            dtype_repr = ",\n" + six_space_indent + dtype_repr
+            # If the elements are truncated (too many elements to display) OR the elements themselves are very long,
+            # there is a possibility that the fields (dtype, name, and length) need to be printed on new lines.
+            # The field_indent is required to correctly align fields with data; 1 char is ( in "Index(".
+            field_indent = " " * (len_class_name + 1)
+            dtype_repr = ",\n" + field_indent + dtype_repr
             last_line_len = len(dtype_repr)
 
             if name_repr:
                 if last_line_len + len(name_repr) > display_width:
-                    name_repr = ",\n" + six_space_indent + name_repr  # pragma: no cover
-                    last_line_len = len(name_repr)  # pragma: no cover
+                    last_line_len = len(field_indent) + len(name_repr)
+                    name_repr = ",\n" + field_indent + name_repr  # pragma: no cover
                 else:
                     name_repr = ", " + name_repr
                     last_line_len += len(name_repr)
@@ -2545,15 +2578,44 @@ class Index(metaclass=TelemetryMeta):
             if too_many_elem:
                 # Display the length field only when the elements are truncated.
                 if last_line_len + len(length_repr) > display_width:
-                    length_repr = ",\n" + six_space_indent + length_repr
+                    last_line_len = len(field_indent) + len(length_repr)
+                    length_repr = ",\n" + field_indent + length_repr
                 else:
                     length_repr = ", " + length_repr
+                    last_line_len += len(length_repr)
 
-            repr = "Index(" + data_repr + dtype_repr + name_repr + length_repr + ")"
+            if "DatetimeIndex" in class_name:
+                if last_line_len + len(freq_repr) > display_width:
+                    freq_repr = ",\n" + field_indent + freq_repr
+                else:
+                    freq_repr = ", " + freq_repr
+            else:
+                freq_repr = ""
+
+            repr = (
+                class_name
+                + "("
+                + data_repr
+                + dtype_repr
+                + name_repr
+                + length_repr
+                + freq_repr
+                + ")"
+            )
 
         else:
             name_repr = (", " + name_repr) if name_repr else ""
-            repr = "Index(" + data_repr + ", " + dtype_repr + name_repr + ")"
+            freq_repr = (", " + freq_repr) if freq_repr else ""
+            repr = (
+                class_name
+                + "("
+                + data_repr
+                + ", "
+                + dtype_repr
+                + name_repr
+                + freq_repr
+                + ")"
+            )
 
         return repr
 
