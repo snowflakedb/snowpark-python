@@ -45,6 +45,7 @@
 #### Bug Fixes
 - Fixed a bug that Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
 - Fixed a bug where values were not populated into the result DataFrame during the insertion of table merge operation.
+- Fixed a bug where the truncate mode in `DataFrameWriter.save_as_table` incorrectly handled DataFrames containing only a subset of columns from the existing table.
 
 #### Improvements
 - Fix pandas FutureWarning about integer indexing.
@@ -81,6 +82,7 @@
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
+- Added support for `Index.name`, `Index.names`, `Index.rename`, and `Index.set_names`.
 - Added support for `Index.__repr__`.
 
 #### Improvements
