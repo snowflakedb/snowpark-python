@@ -2955,6 +2955,11 @@ def test_create_dynamic_table(session, table_name_1, is_transient):
         Utils.drop_dynamic_table(session, dt_name)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Dynamic table is a SQL feature",
+    run=False,
+)
 def test_create_dynamic_table_mode(session, table_name_1):
     """We test create dynamic table modes in using the following sequence of
     commands:
