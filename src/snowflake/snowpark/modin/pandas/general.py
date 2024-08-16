@@ -549,6 +549,8 @@ def merge_asof(
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
     if not isinstance(left, DataFrame):
+        raise ValueError(f"can not merge DataFrame with instance of type {type(left)}")
+    if not isinstance(right, DataFrame):
         raise ValueError(f"can not merge DataFrame with instance of type {type(right)}")
 
     # As of pandas 1.2 these should raise an error; before that it did
