@@ -15,10 +15,10 @@ df = df.select(col("A").is_not_null())
 
 df = session.table("test_table")
 
-df = df.select(col("A").equal_null(col("B")))
+df1 = df.select(col("A").equal_null(col("B")))
 
-df = df.select(col("A").equal_nan())
+df2 = df1.select(col("A").equal_nan())
 
-df = df.select(col("A").is_null())
+df3 = df2.select(col("A").is_null())
 
-df = df.select(col("A").is_not_null())
+df4 = df3.select(col("A").is_not_null())

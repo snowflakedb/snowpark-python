@@ -14,8 +14,8 @@ df = df.select(col("A").asc_nulls_last())
 
 df = session.table("test_table")
 
-df = df.select(col("A").asc())
+df1 = df.select(col("A").asc())
 
-df = df.select(col("A").asc_nulls_first())
+df2 = df1.select(col("A").asc_nulls_first())
 
-df = df.select(col("A").asc_nulls_last())
+df3 = df2.select(col("A").asc_nulls_last())

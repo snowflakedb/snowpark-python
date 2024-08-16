@@ -580,13 +580,14 @@ class DataFrame:
         """
         Given a field builder expression of the AST type SpDataframeExpr, points the builder to reference this dataframe.
         """
-        if self._ast_id is None and FAIL_ON_MISSING_AST:
-            _logger.debug(self._explain_string())
-            raise NotImplementedError(
-                f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-            )
         # TODO: remove the None guard below once we generate the correct AST.
-        elif self._ast_id is not None:
+        if self._ast_id is None: 
+            if FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+        else:
             sp_dataframe_expr_builder.sp_dataframe_ref.id.bitfield1 = self._ast_id
 
     @property

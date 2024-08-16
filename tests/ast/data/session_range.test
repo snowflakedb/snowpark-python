@@ -14,10 +14,10 @@ r = session.range(1, None, 2)
 
 r = session.range(10, None, 1)
 
-r = session.range(1, 10, 1)
+r1 = session.range(1, 10, 1)
 
-r = session.range(1, 10, 2)
+r2 = session.range(1, 10, 2)
 
-r = session.range(1, None, 1)
+r3 = session.range(1, None, 1)
 
-r = session.range(1, None, 2)
+r4 = session.range(1, None, 2)

@@ -12,8 +12,8 @@ df = df.select(col("A").desc_nulls_last())
 
 df = session.table("test_table")
 
-df = df.select(col("A").desc())
+df1 = df.select(col("A").desc())
 
-df = df.select(col("A").desc_nulls_first())
+df2 = df1.select(col("A").desc_nulls_first())
 
-df = df.select(col("A").desc_nulls_last())
+df3 = df2.select(col("A").desc_nulls_last())

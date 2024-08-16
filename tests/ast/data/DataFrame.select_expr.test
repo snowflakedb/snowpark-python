@@ -15,10 +15,10 @@ df = df.select_expr(["COUNT $1", "SUM $2", "AVG $3", "MIN $4", "MAX $5", "COUNT 
 
 df = session.table("test_table")
 
-df = df.select_expr("$1")
+df1 = df.select_expr("$1")
 
-df = df.select_expr(["$1"])
+df2 = df1.select_expr(["$1"])
 
-df = df.select_expr("COUNT $1", "SUM $2", "AVG $3", "MIN $4", "MAX $5", "COUNT DISTINCT $6")
+df3 = df2.select_expr("COUNT $1", "SUM $2", "AVG $3", "MIN $4", "MAX $5", "COUNT DISTINCT $6")
 
-df = df.select_expr(["COUNT $1", "SUM $2", "AVG $3", "MIN $4", "MAX $5", "COUNT DISTINCT $6"])
+df4 = df3.select_expr(["COUNT $1", "SUM $2", "AVG $3", "MIN $4", "MAX $5", "COUNT DISTINCT $6"])

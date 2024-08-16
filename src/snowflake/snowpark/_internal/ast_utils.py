@@ -60,113 +60,113 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
         expr_builder.CopyFrom(obj._ast)
 
     elif isinstance(obj, Row):
-        sp_row_ast = with_src_position(expr_builder.sp_row)
+        ast = with_src_position(expr_builder.sp_row)
         if hasattr(obj, "_named_values") and obj._named_values is not None:
             for field in obj._fields:
-                sp_row_ast.names.list.append(field)
+                ast.names.list.append(field)
                 build_expr_from_python_val(
-                    sp_row_ast.vs.add(), obj._named_values[field]
+                    ast.vs.add(), obj._named_values[field]
                 )
         else:
             for field in obj:
-                build_expr_from_python_val(sp_row_ast.vs.add(), field)
+                build_expr_from_python_val(ast.vs.add(), field)
 
     elif isinstance(obj, bool):
-        bool_val_ast = with_src_position(expr_builder.bool_val)
-        bool_val_ast.v = obj
+        ast = with_src_position(expr_builder.bool_val)
+        ast.v = obj
 
     elif isinstance(obj, int):
-        int64_val_ast = with_src_position(expr_builder.int64_val)
-        int64_val_ast.v = obj
+        ast = with_src_position(expr_builder.int64_val)
+        ast.v = obj
 
     elif isinstance(obj, float):
-        float64_val_ast = with_src_position(expr_builder.float64_val)
-        float64_val_ast.v = obj
+        ast = with_src_position(expr_builder.float64_val)
+        ast.v = obj
 
     elif isinstance(obj, str):
-        string_val_ast = with_src_position(expr_builder.string_val)
-        string_val_ast.v = obj
+        ast = with_src_position(expr_builder.string_val)
+        ast.v = obj
 
     elif isinstance(obj, bytes):
-        binary_val_ast = with_src_position(expr_builder.binary_val)
-        binary_val_ast.v = obj
+        ast = with_src_position(expr_builder.binary_val)
+        ast.v = obj
 
     elif isinstance(obj, bytearray):
-        binary_val_ast = with_src_position(expr_builder.binary_val)
-        binary_val_ast.v = bytes(obj)
+        ast = with_src_position(expr_builder.binary_val)
+        ast.v = bytes(obj)
 
     elif isinstance(obj, decimal.Decimal):
-        big_decimal_val_ast = with_src_position(expr_builder.big_decimal_val)
+        ast = with_src_position(expr_builder.big_decimal_val)
         dec_tuple = obj.as_tuple()
         unscaled_val = reduce(lambda val, digit: val * 10 + digit, dec_tuple.digits)
         if dec_tuple.sign != 0:
             unscaled_val *= -1
         req_bytes = (unscaled_val.bit_length() + 7) // 8
-        big_decimal_val_ast.unscaled_value = unscaled_val.to_bytes(
+        ast.unscaled_value = unscaled_val.to_bytes(
             req_bytes, "big", signed=True
         )
-        big_decimal_val_ast.scale = dec_tuple.exponent
+        ast.scale = dec_tuple.exponent
 
     elif isinstance(obj, datetime.datetime):
-        python_timestamp_val_ast = with_src_position(expr_builder.python_timestamp_val)
+        ast = with_src_position(expr_builder.python_timestamp_val)
         if obj.tzinfo is not None:
-            python_timestamp_val_ast.tz.offset_seconds = int(
+            ast.tz.offset_seconds = int(
                 obj.tzinfo.utcoffset(obj).total_seconds()
             )
             tz = obj.tzinfo.tzname(obj)
             if tz is not None:
-                python_timestamp_val_ast.tz.name.value = tz
+                ast.tz.name.value = tz
         else:
             obj = obj.astimezone(datetime.timezone.utc)
 
-        python_timestamp_val_ast.year = obj.year
-        python_timestamp_val_ast.month = obj.month
-        python_timestamp_val_ast.day = obj.day
-        python_timestamp_val_ast.hour = obj.hour
-        python_timestamp_val_ast.minute = obj.minute
-        python_timestamp_val_ast.second = obj.second
-        python_timestamp_val_ast.microsecond = obj.microsecond
+        ast.year = obj.year
+        ast.month = obj.month
+        ast.day = obj.day
+        ast.hour = obj.hour
+        ast.minute = obj.minute
+        ast.second = obj.second
+        ast.microsecond = obj.microsecond
 
     elif isinstance(obj, datetime.date):
-        python_date_val_ast = with_src_position(expr_builder.python_date_val)
-        python_date_val_ast.year = obj.year
-        python_date_val_ast.month = obj.month
-        python_date_val_ast.day = obj.day
+        ast = with_src_position(expr_builder.python_date_val)
+        ast.year = obj.year
+        ast.month = obj.month
+        ast.day = obj.day
 
     elif isinstance(obj, datetime.time):
-        python_time_val_ast = with_src_position(expr_builder.python_time_val)
+        ast = with_src_position(expr_builder.python_time_val)
         datetime_val = datetime.datetime.combine(datetime.date.today(), obj)
         if obj.tzinfo is not None:
-            python_time_val_ast.tz.offset_seconds = int(
+            ast.tz.offset_seconds = int(
                 obj.tzinfo.utcoffset(datetime_val).total_seconds()
             )
             tz = obj.tzinfo.tzname(datetime_val)
             if tz is not None:
-                python_time_val_ast.tz.name.value = tz
+                ast.tz.name.value = tz
         else:
             obj = datetime_val.astimezone(datetime.timezone.utc)
 
-        python_time_val_ast.hour = obj.hour
-        python_time_val_ast.minute = obj.minute
-        python_time_val_ast.second = obj.second
-        python_time_val_ast.microsecond = obj.microsecond
+        ast.hour = obj.hour
+        ast.minute = obj.minute
+        ast.second = obj.second
+        ast.microsecond = obj.microsecond
 
     elif isinstance(obj, dict):
-        seq_map_val_ast = with_src_position(expr_builder.seq_map_val)
+        ast = with_src_position(expr_builder.seq_map_val)
         for key, value in obj.items():
-            kv_tuple_ast = seq_map_val_ast.kvs.add()
-            build_expr_from_python_val(kv_tuple_ast.vs.add(), key)
-            build_expr_from_python_val(kv_tuple_ast.vs.add(), value)
+            kv_ast = ast.kvs.add()
+            build_expr_from_python_val(kv_ast.vs.add(), key)
+            build_expr_from_python_val(kv_ast.vs.add(), value)
 
     elif isinstance(obj, list):
-        list_val_ast = with_src_position(expr_builder.list_val)
+        ast = with_src_position(expr_builder.list_val)
         for v in obj:
-            build_expr_from_python_val(list_val_ast.vs.add(), v)
+            build_expr_from_python_val(ast.vs.add(), v)
 
     elif isinstance(obj, tuple):
-        tuple_val_ast = with_src_position(expr_builder.tuple_val)
+        ast = with_src_position(expr_builder.tuple_val)
         for v in obj:
-            build_expr_from_python_val(tuple_val_ast.vs.add(), v)
+            build_expr_from_python_val(ast.vs.add(), v)
 
     else:
         raise NotImplementedError("not supported type: %s" % type(obj))
@@ -377,7 +377,7 @@ def with_src_position(
         # setting src fields for explicit presence of the encapsulating message in the AST.
         # e.g., Null values have no fields, so the assignment to src fields ensures their presence.
         if frame is None:
-            src.file = "<unknown>"
+            src.file = ""
             return expr_ast
         
         # NOTE: The inspect module provides many other APIs to get information about the current frame and its callers.
@@ -411,9 +411,9 @@ def with_src_position(
         # Once we've stepped out of the snowpark package, we should be in the code of interest.
         # However, the code of interest may execute in an environment that is not accessible via the filesystem.
         # e.g. Jupyter notebooks, REPLs, calls to exec, etc.
-        filename = frame.f_code.co_filename if frame is not None else "<unknown>"
+        filename = frame.f_code.co_filename if frame is not None else ""
         if frame is None or not Path(filename).is_file():
-            src.file = "<unknown>"
+            src.file = ""
             return expr_ast
                 
         # The context argument specifies the number of lines of context to capture around the current line.
