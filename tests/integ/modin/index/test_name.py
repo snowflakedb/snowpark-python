@@ -8,6 +8,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.utils import assert_frame_equal
 
 
 @sql_count_checker(query_count=0)
@@ -289,3 +290,30 @@ def test_index_set_names_level(level):
     native_res = native_idx.set_names("grade")
     snow_res = snow_idx.set_names("grade", level=level)
     assert native_res.name == snow_res.name == "grade"
+
+
+@sql_count_checker(query_count=0)
+def test_index_non_hashable_name():
+    idx = pd.Index(["A", "C", "A", "B"], name="score")
+    with pytest.raises(TypeError, match="Index.name must be a hashable type"):
+        idx.name = ["grade"]
+
+
+@sql_count_checker(query_count=1)
+def test_index_SNOW_1021837():
+    """
+    Bug SNOW-1021837:
+    Previously, updating index.name inplace did not affect index column name after reset_index().
+    This test verifies that index column names are correctly updated.
+    """
+    native_df = native_pd.DataFrame([0])
+    snow_df = pd.DataFrame(native_df)
+
+    # Set the index names.
+    native_df.index.name = "index_name"
+    snow_df.index.name = "index_name"
+
+    # Perform reset index and check if name is correctly updated.
+    native_df_reset = native_df.reset_index()
+    snow_df_reset = snow_df.reset_index()
+    assert_frame_equal(snow_df_reset, native_df_reset)

@@ -35,6 +35,7 @@ from pandas._typing import ArrayLike, DateTimeErrorChoices, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_datetime64_any_dtype, pandas_dtype
+from pandas.core.dtypes.inference import is_hashable
 
 from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.base import BasePandasDataset
@@ -638,6 +639,8 @@ class Index(metaclass=TelemetryMeta):
         """
         Set Index name.
         """
+        if not is_hashable(value):
+            raise TypeError(f"{type(self).__name__}.name must be a hashable type")
         self._query_compiler = self._query_compiler.set_index_names([value])
         if self._parent is not None:
             self._parent._update_inplace(
