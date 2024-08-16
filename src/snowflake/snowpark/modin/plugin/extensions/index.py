@@ -133,7 +133,7 @@ class Index(metaclass=TelemetryMeta):
 
         Parameters
         ----------
-        data : array-like (1-dimensional), pandas.Index, modin.pandas.Series, SnowflakeQueryCompiler, optional
+        data : array-like (1-dimensional), pandas.Index, modin.pandas.Series, optional
         dtype : str, numpy.dtype, or ExtensionDtype, optional
             Data type for the output Index. If not specified, this will be
             inferred from `data`.
