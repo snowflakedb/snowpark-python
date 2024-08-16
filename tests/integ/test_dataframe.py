@@ -2898,11 +2898,20 @@ def test_append_existing_table(session, local_testing_mode):
     reason="Dynamic table is a SQL feature",
     run=False,
 )
-def test_create_dynamic_table(session, table_name_1):
+@pytest.mark.parametrize("is_transient", [True, False])
+def test_create_dynamic_table(session, table_name_1, is_transient):
     try:
         df = session.table(table_name_1)
         dt_name = Utils.random_name_for_temp_object(TempObjectType.DYNAMIC_TABLE)
         comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+        if is_transient:
+            # for transient dynamic tables, we cannot set data retention time
+            # and max data extension time
+            data_retention_time = None
+            max_data_extension_time = None
+        else:
+            data_retention_time = 2
+            max_data_extension_time = 4
         df.create_or_replace_dynamic_table(
             dt_name,
             warehouse=session.get_current_warehouse(),
@@ -2911,9 +2920,9 @@ def test_create_dynamic_table(session, table_name_1):
             refresh_mode="FULL",
             initialize="ON_SCHEDULE",
             clustering_keys=["num"],
-            is_transient=False,
-            data_retention_time=2,
-            max_data_extension_time=4,
+            is_transient=is_transient,
+            data_retention_time=data_retention_time,
+            max_data_extension_time=max_data_extension_time,
         )
         # scheduled refresh is not deterministic which leads to flakiness that dynamic table is not initialized
         # here we manually refresh the dynamic table
@@ -2927,16 +2936,20 @@ def test_create_dynamic_table(session, table_name_1):
         assert "refresh_mode = FULL" in ddl_result, ddl_result
         assert "initialize = ON_SCHEDULE" in ddl_result, ddl_result
         assert 'cluster by ("NUM")' in ddl_result, ddl_result
-
-        # data retention and max data extension time cannot be queried from get_ddl
-        # we run a show parameters query to get the values for these parameters
-        show_params_sql = f"show parameters like '%TIME_IN_DAYS%' in table {dt_name}"
-        show_params_result = session.sql(show_params_sql).collect()
-        for row in show_params_result:
-            if row[0] == "DATA_RETENTION_TIME_IN_DAYS":
-                assert row[1] == "2"
-            elif row[0] == "MAX_DATA_EXTENSION_TIME_IN_DAYS":
-                assert row[1] == "4"
+        if is_transient:
+            assert "create or replace transient" in ddl_result, ddl_result
+        else:
+            # data retention and max data extension time cannot be queried from get_ddl
+            # we run a show parameters query to get the values for these parameters
+            show_params_sql = (
+                f"show parameters like '%TIME_IN_DAYS%' in table {dt_name}"
+            )
+            show_params_result = session.sql(show_params_sql).collect()
+            for row in show_params_result:
+                if row[0] == "DATA_RETENTION_TIME_IN_DAYS":
+                    assert row[1] == "2"
+                elif row[0] == "MAX_DATA_EXTENSION_TIME_IN_DAYS":
+                    assert row[1] == "4"
 
     finally:
         Utils.drop_dynamic_table(session, dt_name)
