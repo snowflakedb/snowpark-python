@@ -168,6 +168,8 @@ def test_create_or_replace_dynamic_table_statement():
         warehouse,
         "1 minute",
         None,
+        True,
+        False,
         None,
         None,
         None,
@@ -183,7 +185,45 @@ def test_create_or_replace_dynamic_table_statement():
         dt_name,
         warehouse,
         "1 minute",
+        None,
+        False,
+        False,
+        None,
+        None,
+        None,
+        False,
+        None,
+        None,
+        "select * from foo",
+    ) == (
+        f" CREATE  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse} "
+        "AS  SELECT  *  FROM (select * from foo)"
+    )
+    assert create_or_replace_dynamic_table_statement(
+        dt_name,
+        warehouse,
+        "1 minute",
+        None,
+        False,
+        True,
+        None,
+        None,
+        None,
+        False,
+        None,
+        None,
+        "select * from foo",
+    ) == (
+        f" CREATE  DYNAMIC  TABLE  If  NOT  EXISTS {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse} "
+        "AS  SELECT  *  FROM (select * from foo)"
+    )
+    assert create_or_replace_dynamic_table_statement(
+        dt_name,
+        warehouse,
+        "1 minute",
         comment,
+        True,
+        False,
         refresh_mode,
         initialize,
         cluster_by,

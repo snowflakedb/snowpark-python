@@ -93,6 +93,7 @@ from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     CopyIntoTableNode,
+    DynamicTableCreateMode,
     LogicalPlan,
     SaveMode,
     SnowflakeCreateTable,
@@ -1091,6 +1092,7 @@ class SnowflakePlanBuilder:
         warehouse: str,
         lag: str,
         comment: Optional[str],
+        create_mode: DynamicTableCreateMode,
         refresh_mode: Optional[str],
         initialize: Optional[str],
         clustering_keys: Iterable[str],
@@ -1106,6 +1108,19 @@ class SnowflakePlanBuilder:
         if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_SELECT_ONLY()
 
+        if create_mode == DynamicTableCreateMode.OVERWRITE:
+            replace = True
+            if_not_exists = False
+        elif create_mode == DynamicTableCreateMode.ERROR_IF_EXISTS:
+            replace = False
+            if_not_exists = False
+        elif create_mode == DynamicTableCreateMode.IGNORE:
+            replace = False
+            if_not_exists = True
+        else:
+            # should never reach here
+            raise ValueError(f"Unknown create mode: {create_mode}")  # pragma: no cover
+
         child = child.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: create_or_replace_dynamic_table_statement(
@@ -1113,6 +1128,8 @@ class SnowflakePlanBuilder:
                 warehouse,
                 lag,
                 comment,
+                replace,
+                if_not_exists,
                 refresh_mode,
                 initialize,
                 clustering_keys,

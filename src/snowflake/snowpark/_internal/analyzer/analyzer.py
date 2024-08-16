@@ -1130,6 +1130,7 @@ class Analyzer:
                 logical_plan.warehouse,
                 logical_plan.lag,
                 logical_plan.comment,
+                logical_plan.create_mode,
                 logical_plan.refresh_mode,
                 logical_plan.initialize,
                 [

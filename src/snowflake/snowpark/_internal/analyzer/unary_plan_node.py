@@ -14,6 +14,9 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     sum_node_complexities,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    DynamicTableCreateMode,
+)
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 
 
@@ -270,8 +273,9 @@ class CreateDynamicTableCommand(UnaryNode):
         warehouse: str,
         lag: str,
         comment: Optional[str],
-        refresh_mode: str,
-        initialize: str,
+        create_mode: DynamicTableCreateMode,
+        refresh_mode: Optional[str],
+        initialize: Optional[str],
         clustering_exprs: Iterable[Expression],
         is_transient: bool,
         data_retention_time: Optional[int],
@@ -283,6 +287,7 @@ class CreateDynamicTableCommand(UnaryNode):
         self.warehouse = warehouse
         self.lag = lag
         self.comment = comment
+        self.create_mode = create_mode
         self.refresh_mode = refresh_mode
         self.initialize = initialize
         self.clustering_exprs = clustering_exprs

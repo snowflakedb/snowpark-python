@@ -1083,6 +1083,8 @@ def create_or_replace_dynamic_table_statement(
     warehouse: str,
     lag: str,
     comment: Optional[str],
+    replace: bool,
+    if_not_exists: bool,
     refresh_mode: Optional[str],
     initialize: Optional[str],
     clustering_keys: Iterable[str],
@@ -1100,14 +1102,16 @@ def create_or_replace_dynamic_table_statement(
         else EMPTY_STRING
     )
     comment_sql = get_comment_sql(comment)
+    replace_sql = OR + REPLACE if replace else EMPTY_STRING
+    if_not_exists_sql = IF + NOT + EXISTS if if_not_exists else EMPTY_STRING
 
     return (
         CREATE
-        + OR
-        + REPLACE
+        + replace_sql
         + (TRANSIENT if is_transient else EMPTY_STRING)
         + DYNAMIC
         + TABLE
+        + if_not_exists_sql
         + name
         + f"{LAG + EQUALS + convert_value_to_sql_option(lag)}"
         + f"{WAREHOUSE + EQUALS + warehouse}"

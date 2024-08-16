@@ -58,6 +58,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
 from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoTableNode,
+    DynamicTableCreateMode,
     Limit,
     LogicalPlan,
     SaveMode,
@@ -123,6 +124,7 @@ from snowflake.snowpark._internal.utils import (
     prepare_pivot_arguments,
     quote_name,
     random_name_for_temp_object,
+    str_to_enum,
     validate_object_name,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
@@ -3418,6 +3420,7 @@ class DataFrame:
         warehouse: str,
         lag: str,
         comment: Optional[str] = None,
+        mode: str = "overwrite",
         refresh_mode: Optional[str] = None,
         initialize: Optional[str] = None,
         clustering_keys: Optional[Iterable[ColumnOrName]] = None,
@@ -3441,6 +3444,10 @@ class DataFrame:
             lag: specifies the target data freshness
             comment: Adds a comment for the created table. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
+            mode: Specifies the behavior of create dynamic table. Allowed values are:
+                - "overwrite" (default): Overwrite the table by dropping the old table.
+                - "errorifexists": Throw and exception if the table already exists.
+                - "ignore": Ignore the operation if table already exists.
             refresh_mode: Specifies the refresh mode of the dynamic table. The value can be "AUTO",
                 "FULL", or "INCREMENTAL".
             initialize: Specifies the behavior of initial refresh. The value can be "ON_CREATE" or
@@ -3479,10 +3486,13 @@ class DataFrame:
                 "The lag input of create_or_replace_dynamic_table() can only be a str."
             )
 
+        create_mode = str_to_enum(mode.lower(), DynamicTableCreateMode, "`mode`")
+
         return self._do_create_or_replace_dynamic_table(
             formatted_name,
             warehouse,
             lag,
+            create_mode,
             comment,
             refresh_mode,
             initialize,
@@ -3562,6 +3572,7 @@ class DataFrame:
         name: str,
         warehouse: str,
         lag: str,
+        create_mode: DynamicTableCreateMode,
         comment: Optional[str] = None,
         refresh_mode: Optional[str] = None,
         initialize: Optional[str] = None,
@@ -3587,6 +3598,7 @@ class DataFrame:
             warehouse,
             lag,
             comment,
+            create_mode,
             refresh_mode,
             initialize,
             clustering_exprs,

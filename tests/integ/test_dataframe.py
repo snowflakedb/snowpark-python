@@ -2955,6 +2955,82 @@ def test_create_dynamic_table(session, table_name_1, is_transient):
         Utils.drop_dynamic_table(session, dt_name)
 
 
+def test_create_dynamic_table_mode(session, table_name_1):
+    """We test create dynamic table modes in using the following sequence of
+    commands:
+    0. Drop dynamic table t1 if it exists
+    1. Create a dynamic table t1 with mode "errorifexists" (expect to succeed)
+    2. Create dynamic table t1 again with mode "errorifexists" (expect to fail)
+    3. Create dynamic table t1 again with mode "overwrite" and comment c1 (expect to succeed)
+    4a. Create dynamic table t1 again with mode "ignore" (expect to succeed)
+    4b. Check ddl for table t1 to ensure that the comment is still c1.
+    5a. Drop dynamic table t1.
+    5b. Create dynamic table t1 with mode "ignore" (expect to succeed)
+    5c. Check ddl for table t1 to ensure that comment is empty.
+
+    Args:
+        session: _description_
+        table_name_1: _description_
+    """
+    try:
+        df = session.table(table_name_1)
+        dt_name = Utils.random_name_for_temp_object(TempObjectType.DYNAMIC_TABLE)
+        comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+        ddl_sql = f"select get_ddl('TABLE', '{dt_name}')"
+
+        # step 0
+        Utils.drop_dynamic_table(session, dt_name)
+
+        # step 1
+        df.create_or_replace_dynamic_table(
+            dt_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+            mode="errorifexists",
+        )
+
+        # step 2
+        with pytest.raises(SnowparkSQLException, match=f"'{dt_name}' already exists."):
+            df.create_or_replace_dynamic_table(
+                dt_name,
+                warehouse=session.get_current_warehouse(),
+                lag="1000 minutes",
+                mode="errorifexists",
+            )
+
+        # step 3
+        df.create_or_replace_dynamic_table(
+            dt_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+            mode="overwrite",
+            comment=comment,
+        )
+        assert comment in session.sql(ddl_sql).collect()[0][0]
+
+        # step 4
+        df.create_or_replace_dynamic_table(
+            dt_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+            mode="ignore",
+            comment=comment,
+        )
+        assert comment in session.sql(ddl_sql).collect()[0][0]
+
+        # step 5
+        Utils.drop_dynamic_table(session, dt_name)
+        df.create_or_replace_dynamic_table(
+            dt_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+            mode="ignore",
+        )
+        assert comment not in session.sql(ddl_sql).collect()[0][0]
+    finally:
+        Utils.drop_dynamic_table(session, dt_name)
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="DataFrame.copy_into_location is not supported in Local Testing",
