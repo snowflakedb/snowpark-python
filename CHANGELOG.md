@@ -82,6 +82,7 @@
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
+- Added support for `Index.name`, `Index.names`, `Index.rename`, and `Index.set_names`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
