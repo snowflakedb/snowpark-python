@@ -171,7 +171,7 @@ class DataFrameWriter:
             max_data_extension_time: Specifies the maximum number of days for which Snowflake can extend the data retention period for the table to prevent
                 streams on the table from becoming stale.
             change_tracking: Specifies whether to enable change tracking for the table. If not set, the default behavior is used.
-            copy_grants: xx
+            copy_grants: When true, retain the access privileges from the original table when a new table is created with "overwrite" mode.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
