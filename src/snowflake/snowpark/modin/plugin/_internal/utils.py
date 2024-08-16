@@ -38,6 +38,8 @@ from snowflake.snowpark.functions import (
     mean,
     min as min_,
     sum as sum_,
+    to_timestamp_ntz,
+    to_timestamp_tz,
     typeof,
 )
 from snowflake.snowpark.modin.plugin._internal import frame
@@ -1491,7 +1493,10 @@ def convert_numpy_pandas_scalar_to_snowpark_literal(value: Any) -> LiteralType:
     if isinstance(value, np.generic):
         value = value.item()
     elif isinstance(value, native_pd.Timestamp):
-        value = value.to_pydatetime()
+        raise ValueError(
+            "Internal error: cannot represent Timestamp as a Snowpark literal. "
+            + "Represent as a string and call to_timestamp() instead."
+        )
     elif native_pd.isna(value):
         value = None
     return value
@@ -1511,6 +1516,14 @@ def pandas_lit(value: Any, datatype: Optional[DataType] = None) -> Column:
     Returns:
         Snowpark Column expression
     """
+    if isinstance(value, native_pd.Timestamp):
+        # Reuse the Timestamp literal conversion code from
+        # snowflake.snowpark.Session.create_dataframe:
+        # https://github.com/snowflakedb/snowpark-python/blob/19a9139be1cb41eb1e6179f3cd3c427618c0e6b1/src/snowflake/snowpark/session.py#L2775
+        return (to_timestamp_ntz if value.tz is None else to_timestamp_tz)(
+            Column(Literal(str(value)))
+        )
+
     value = (
         convert_numpy_pandas_scalar_to_snowpark_literal(value)
         if is_scalar(value)

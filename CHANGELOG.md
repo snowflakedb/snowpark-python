@@ -93,6 +93,7 @@
 - Fixed a bug where some Index docstrings are ignored. 
 - Fixed a bug in `Series.reset_index(drop=True)` where the result name may be wrong.
 - Fixed a bug in `Groupby.first/last` ordering by the correct columns in the underlying window expression.
+- Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 
 ### Behavior change
 - `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
