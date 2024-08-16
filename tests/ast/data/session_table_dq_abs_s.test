@@ -7,4 +7,4 @@ df = df.select("num")
 
 df = session.table("mock_database.mock_schema.\"the#qui.ck#bro.wn#\"\"Fox\"\"won't#jump!\"")
 
-df1 = df.select(col("num"))
+df = df.select(col("num"))

@@ -40,34 +40,34 @@ df3 = df.stat.approx_quantile(["NUM", "NUM"], [0.0, 0.2, 0.4], statement_params=
 
 df3
 
-df1 = session.create_dataframe([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
+df = session.create_dataframe([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
 
-df4 = df1.stat.cov("a", "b")
+df4 = df.stat.cov("a", "b")
 
 df4
 
-df5 = df1.stat.cov("a", "b", statement_params={"a": "b"})
+df5 = df.stat.cov("a", "b", statement_params={"a": "b"})
 
 df5
 
-df42 = df1.stat.corr("a", "b")
+df4 = df.stat.corr("a", "b")
 
-df42
+df4
 
-df53 = df1.stat.corr("a", "b", statement_params={"a": "b"})
+df5 = df.stat.corr("a", "b", statement_params={"a": "b"})
 
-df53
+df5
 
-df6 = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 1), (2, 3), (3, 2), (3, 3)], schema=["key", "value"])
+df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 1), (2, 3), (3, 2), (3, 3)], schema=["key", "value"])
 
-ct = df6.stat.crosstab("key", "value")
+ct = df.stat.crosstab("key", "value")
 
 ct
 
-ct2 = df6.stat.crosstab("key", "value", statement_params={"a": "b"})
+ct2 = df.stat.crosstab("key", "value", statement_params={"a": "b"})
 
 ct2
 
-df7 = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=["name", "age"])
+df = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=["name", "age"])
 
-sample_df = df7.stat.sample_by("name", {"Bob": 0.5}{"Nico": 1.0})
+sample_df = df.stat.sample_by("name", {"Bob": 0.5}{"Nico": 1.0})

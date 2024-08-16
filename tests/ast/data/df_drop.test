@@ -9,4 +9,4 @@ df = df.drop(col("A"))
 
 df = session.table("test_table")
 
-df1 = df.drop(col("A"))
+df = df.drop(col("A"))

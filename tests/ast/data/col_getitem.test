@@ -9,4 +9,4 @@ df = df.select(col("A")[2], col("B")["test"])
 
 df = session.table("test_table")
 
-df1 = df.select(col("A")[2], col("B")["test"])
+df = df.select(col("A")[2], col("B")["test"])

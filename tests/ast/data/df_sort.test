@@ -18,14 +18,14 @@ df = df.sort(col("B"))
 
 df = session.table("test_table")
 
-df1 = df.sort(col("A"), ascending=True)
+df = df.sort(col("A"), ascending=True)
 
-df2 = df1.sort(col("A"), ascending=0)
+df = df.sort(col("A"), ascending=0)
 
-df3 = df2.sort(col("A"), col("B"), ascending=[True, False])
+df = df.sort(col("A"), col("B"), ascending=[True, False])
 
-df4 = df3.sort(col("A"), col("B"), ascending=[0, 1])
+df = df.sort(col("A"), col("B"), ascending=[0, 1])
 
-df5 = df4.sort(col("A"), col("B"), col("C"), ascending=[0, True, 1])
+df = df.sort(col("A"), col("B"), col("C"), ascending=[0, True, 1])
 
-df6 = df5.sort(col("B"))
+df = df.sort(col("B"))

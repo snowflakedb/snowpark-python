@@ -11,6 +11,6 @@ df = df.select(~col("A"))
 
 df = session.table("test_table")
 
-df1 = df.select(-col("A"))
+df = df.select(-col("A"))
 
-df2 = df1.select(~col("A"))
+df = df.select(~col("A"))

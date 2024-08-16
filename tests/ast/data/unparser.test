@@ -1,7 +1,6 @@
 ## TEST CASE
 
-df = session.table("test_table")
-df2 = df.sample(n=3)
+df = session.table("test_table").drop(col("NUM"))
 
 def foo(p):
   df = p.distinct()
@@ -15,8 +14,8 @@ df4 = df.flatten("STR", "path", True, False)
 
 df = session.table("test_table")
 
-res1 = df.sample(None, 3)
+df_res1 = df.drop(col("NUM"))
 
-df2 = df.distinct()
+df = df_res1.distinct()
 
-df4 = df.flatten("STR", Some("path"), True, False, "BOTH")
+df4 = df_res1.flatten("STR", Some("path"), True, False, "BOTH")
