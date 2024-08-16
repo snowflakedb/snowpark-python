@@ -2908,6 +2908,12 @@ def test_create_dynamic_table(session, table_name_1):
             warehouse=session.get_current_warehouse(),
             lag="1000 minutes",
             comment=comment,
+            refresh_mode="FULL",
+            initialize="ON_SCHEDULE",
+            clustering_keys=["num"],
+            is_transient=False,
+            data_retention_time=2,
+            max_data_extension_time=4,
         )
         # scheduled refresh is not deterministic which leads to flakiness that dynamic table is not initialized
         # here we manually refresh the dynamic table
@@ -2916,7 +2922,21 @@ def test_create_dynamic_table(session, table_name_1):
         assert len(res) == 1
 
         ddl_sql = f"select get_ddl('TABLE', '{dt_name}')"
-        assert comment in session.sql(ddl_sql).collect()[0][0]
+        ddl_result = session.sql(ddl_sql).collect()[0][0]
+        assert comment in ddl_result, ddl_result
+        assert "refresh_mode = FULL" in ddl_result, ddl_result
+        assert "initialize = ON_SCHEDULE" in ddl_result, ddl_result
+        assert 'cluster by ("NUM")' in ddl_result, ddl_result
+
+        # data retention and max data extension time cannot be queried from get_ddl
+        # we run a show parameters query to get the values for these parameters
+        show_params_sql = f"show parameters like '%TIME_IN_DAYS%' in table {dt_name}"
+        show_params_result = session.sql(show_params_sql).collect()
+        for row in show_params_result:
+            if row[0] == "DATA_RETENTION_TIME_IN_DAYS":
+                assert row[1] == "2"
+            elif row[0] == "MAX_DATA_EXTENSION_TIME_IN_DAYS":
+                assert row[1] == "4"
 
     finally:
         Utils.drop_dynamic_table(session, dt_name)
