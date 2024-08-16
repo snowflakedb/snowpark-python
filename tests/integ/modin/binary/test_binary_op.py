@@ -705,6 +705,34 @@ S5 = _gen_random_float_list_with_nones(18)
 S6 = _gen_random_float_list_with_nones(18, scale=0.002)
 ALL_SNOWFLAKE_COMPATIBLE_NUMERIC_TEST_SERIES = [S3, S4, S5, S6]
 
+
+PANDAS_TIMESTAMP_SERIES_WITH_NULLS_NO_TIMEZONE_1 = (
+    native_pd.Series(
+        [
+            None,
+            pd.Timestamp(year=1994, month=7, day=29),
+            None,
+            pd.Timestamp(year=1996, month=1, day=23),
+            pd.Timestamp(year=2000, month=1, day=23),
+            pd.Timestamp(
+                year=1700, month=1, day=1, second=22, microsecond=12345, nanosecond=56
+            ),
+        ]
+    ),
+    native_pd.Series(
+        [
+            None,
+            None,
+            pd.Timestamp(year=1995, month=7, day=29),
+            pd.Timestamp(year=1996, month=1, day=24),
+            pd.Timestamp(year=2024, month=7, day=8),
+            pd.Timestamp(
+                year=1700, month=1, day=2, second=49, microsecond=7, nanosecond=98
+            ),
+        ]
+    ),
+)
+
 all_supported_binary_ops = pytest.mark.parametrize(
     "op",
     [
@@ -745,34 +773,6 @@ def test_arithmetic_binary_ops_between_series_for_numeric_data(lhs, rhs, op):
     native_ans = op(native_pd.Series(lhs), native_pd.Series(rhs))
 
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_ans, native_ans)
-
-
-PANDAS_TIMESTAMP_SERIES_WITH_NULLS_NO_TIMEZONE_1 = (
-    native_pd.Series(
-        [
-            None,
-            pd.Timestamp(year=1994, month=7, day=29),
-            None,
-            pd.Timestamp(year=1996, month=1, day=23),
-            pd.Timestamp(year=2000, month=1, day=23),
-            pd.Timestamp(
-                year=1700, month=1, day=1, second=22, microsecond=12345, nanosecond=56
-            ),
-        ]
-    ),
-    native_pd.Series(
-        [
-            None,
-            None,
-            pd.Timestamp(year=1995, month=7, day=29),
-            pd.Timestamp(year=1996, month=1, day=24),
-            pd.Timestamp(year=2024, month=7, day=8),
-            pd.Timestamp(
-                year=1700, month=1, day=2, second=49, microsecond=7, nanosecond=98
-            ),
-        ]
-    ),
-)
 
 
 @pytest.mark.parametrize(
@@ -834,17 +834,6 @@ def test_subtract_two_timestamp_series_timezones_disallowed(pandas_lhs, pandas_r
         assert_exception_equal=False,
         except_exception_type=TypeError,
     )
-
-
-@sql_count_checker(query_count=0)
-def test_loss_of_precision():
-    # lose nanosecond precision due to limits of float64 precision if there are
-    # NONES in the column (float64 has less precision than int64)
-    # dates that have differences much larger than nanoseconds, e.g. con.execute_string('SELECT * FROM VALUES  (34214399999999999) , (NULL)')[0].fetch_pandas_all().iloc[0, 0]
-    pd.Timestamp(year=1994, month=11, day=21, nanosecond=1)
-    pd.Timestamp(year=1995, month=12, day=22),
-
-    raise NotImplementedError
 
 
 # The goal of tests below is to check whether fill_value is working as expected. Since we are testing all the
@@ -2392,6 +2381,7 @@ def test_binary_op_between_dataframe_and_series_axis0(opname, df, s):
 
 
 @pytest.mark.parametrize("op", ["sub", "rsub"])
+@sql_count_checker(query_count=1, join_count=1)
 def test_timestamp_dataframe_sub_and_rsub_series_axis0(op):
     snow_df, pandas_df = create_test_dfs(
         [
@@ -2512,6 +2502,11 @@ def test_binary_add_dataframe_sub_series_axis1(df, s):
         eval_snowpark_pandas_result(snow_ans, ans, lambda x: x)
 
 
+@sql_count_checker(
+    # One query to materialize the series for the subtraction, and another
+    # query to materialize the result.
+    query_count=2
+)
 def test_dataframe_sub_series_timestamps_axis1_pandas_bug_59529():
     pandas_df = native_pd.DataFrame(
         [
@@ -2547,6 +2542,11 @@ def test_dataframe_sub_series_timestamps_axis1_pandas_bug_59529():
     )
 
 
+@sql_count_checker(
+    # One query to materialize the series for the subtraction, and another
+    # query to materialize the result.
+    query_count=2
+)
 def test_series_sub_dataframe_timestamps_axis1_pandas_bug_5929():
     pandas_df = native_pd.DataFrame(
         [
