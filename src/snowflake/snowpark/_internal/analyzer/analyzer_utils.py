@@ -765,6 +765,11 @@ def create_table_statement(
     table_type: str = EMPTY_STRING,
     clustering_key: Optional[Iterable[str]] = None,
     comment: Optional[str] = None,
+    enable_schema_evolution: Optional[bool] = None,
+    data_retention_time: Optional[int] = None,
+    max_data_extension_time: Optional[int] = None,
+    change_tracking: Optional[bool] = None,
+    copy_grants: bool = False,
     *,
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
@@ -776,11 +781,28 @@ def create_table_statement(
     )
     comment_sql = get_comment_sql(comment)
     return (
-        f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
-        f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
-        f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
-        f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}"
-        f"{cluster_by_clause}{comment_sql}"
+        CREATE
+        + (OR + REPLACE if replace else EMPTY_STRING)
+        + SPACE
+        + (
+            get_temp_type_for_object(use_scoped_temp_objects, is_generated)
+            if table_type.lower() in TEMPORARY_STRING_SET
+            else table_type
+        ).upper()
+        + SPACE
+        + TABLE
+        + table_name
+        + (IF + NOT + EXISTS if not replace and not error else EMPTY_STRING)
+        + LEFT_PARENTHESIS
+        + schema
+        + RIGHT_PARENTHESIS
+        + cluster_by_clause
+        + get_assign_param_sql(ENABLE_SCHEMA_EVOLUTION, enable_schema_evolution)
+        + get_assign_param_sql(DATA_RETENTION_TIME_IN_DAYS, data_retention_time)
+        + get_assign_param_sql(MAX_DATA_EXTENSION_TIME_IN_DAYS, max_data_extension_time)
+        + get_assign_param_sql(CHANGE_TRACKING, change_tracking)
+        + (COPY_GRANTS if copy_grants else EMPTY_STRING)
+        + comment_sql
     )
 
 
