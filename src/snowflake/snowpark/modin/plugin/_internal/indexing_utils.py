@@ -3163,8 +3163,16 @@ def get_row_position_index_from_bool_indexer(index: InternalFrame) -> InternalFr
         index_column_snowflake_quoted_identifiers=[
             index_column_snowflake_quoted_identifier
         ],
-        data_column_types=index.cached_data_column_snowpark_pandas_types,
-        index_column_types=index.cached_index_column_snowpark_pandas_types,
+        data_column_types=[
+            index.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
+                data_column_snowflake_quoted_identifier, None
+            )
+        ],
+        index_column_types=[
+            index.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
+                index_column_snowflake_quoted_identifier, None
+            )
+        ],
     )
     return index
 

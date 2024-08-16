@@ -389,15 +389,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Copying and modifying self.snowpark_pandas_api_calls is taken care of in telemetry decorators
         self.snowpark_pandas_api_calls: list = []
 
-    def _raise_not_implemented_error_for_timedelta(self, method: str) -> None:
+    def _raise_not_implemented_error_for_timedelta(self) -> None:
         """Raise NotImplementedError for SnowflakeQueryCompiler methods which does not support timedelta yet."""
         for (
             val
         ) in (
             self._modin_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.values()
         ):
+            method = "Unknown method"
             if isinstance(val, TimedeltaType):
-                ErrorMessage.not_implemented_for_timedelta(method)
+                try:
+                    method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
+                except Exception:
+                    pass
+                finally:
+                    ErrorMessage.not_implemented_for_timedelta(method)
 
     def snowpark_pandas_type_immutable_check(func: Callable) -> Any:
         """The decorator to check on SnowflakeQueryCompiler methods which return a new SnowflakeQueryCompiler.
@@ -1256,7 +1262,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Args:
             **kwargs: to_csv arguments.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         # Raise not implemented error for unsupported parameters.
         unsupported_params = [
@@ -1313,7 +1319,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         index_label: Optional[IndexLabel] = None,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
     ) -> None:
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         if if_exists not in ("fail", "replace", "append"):
             # Same error message as native pandas.
@@ -1358,7 +1364,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         For details, please see comment in _to_snowpark_dataframe_of_pandas_dataframe.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         return self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
             index, index_label
@@ -1429,9 +1435,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_labels=new_pandas_labels.tolist(),
             data_column_pandas_index_names=new_pandas_labels.names,
             data_column_snowflake_quoted_identifiers=new_data_column_snowflake_quoted_identifiers,
-            data_column_types=renamed_frame.cached_data_column_snowpark_pandas_types,
             index_column_pandas_labels=renamed_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=renamed_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=renamed_frame.cached_data_column_snowpark_pandas_types,
             index_column_types=renamed_frame.cached_index_column_snowpark_pandas_types,
         )
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -1740,7 +1746,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             The new SnowflakeQueryCompiler after the set_index operation
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         assert (
             len(key._modin_frame.data_column_pandas_labels) == 1
@@ -1863,7 +1869,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         from snowflake.snowpark.modin.pandas.series import Series
 
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         # Step 1: Convert other to a Series and join on the row position with self.
         other_qc = Series(other)._query_compiler
@@ -2010,7 +2016,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         from snowflake.snowpark.modin.pandas.series import Series
         from snowflake.snowpark.modin.pandas.utils import is_scalar
 
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         # fail explicitly for unsupported scenarios
         if level is not None:
@@ -2285,7 +2291,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             and the Snowflake quoted identifiers for the monotonically increasing and monotonically
             decreasing columns (in that order).
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         modin_frame = self._modin_frame
         modin_frame = modin_frame.ensure_row_position_column()
@@ -2365,7 +2371,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler
             QueryCompiler with aligned axis.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         new_index_qc = pd.Series(labels)._query_compiler
         new_index_modin_frame = new_index_qc._modin_frame
@@ -2645,7 +2651,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler
             QueryCompiler with aligned axis.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         method = kwargs.get("method", None)
         level = kwargs.get("level", None)
@@ -3224,7 +3230,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             KeyError if a hashable label in by (groupby items) can not be found in the current dataframe
             ValueError if more than one column can be found for the groupby item
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         validate_groupby_columns(self, by, axis, level)
 
@@ -3234,7 +3240,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: int,
         groupby_kwargs: dict[str, Any],
     ) -> int:
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         level = groupby_kwargs.get("level", None)
         dropna = groupby_kwargs.get("dropna", True)
@@ -3321,7 +3327,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         level = groupby_kwargs.get("level", None)
 
@@ -3602,7 +3608,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
             A query compiler with the result.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         level = groupby_kwargs.get("level", None)
         if not check_is_groupby_supported_by_snowflake(by, level, axis):
@@ -4068,7 +4074,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: The result of groupby_first()
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         return self._groupby_first_last(
             "first", by, axis, groupby_kwargs, agg_args, agg_kwargs, drop, **kwargs
@@ -4103,7 +4109,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: The result of groupby_last()
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         return self._groupby_first_last(
             "last", by, axis, groupby_kwargs, agg_args, agg_kwargs, drop, **kwargs
@@ -4179,7 +4185,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         5      1
         6      2
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         level = groupby_kwargs.get("level", None)
         dropna = groupby_kwargs.get("dropna", True)
@@ -4353,7 +4359,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         # TODO: handle cases where the fill_value has a different type from
         # the column. SNOW-990325 deals with fillna that has a similar problem.
@@ -4502,7 +4508,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: The result of groupby_get_group().
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         level = groupby_kwargs.get("level", None)
         is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
@@ -4571,7 +4577,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: The result of groupby_size()
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         level = groupby_kwargs.get("level", None)
         is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
@@ -4653,7 +4659,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         4    5        2                     4                     5
         0    8        9                     0                     8
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         original_index_names = self.get_index_names()
         frame = self._modin_frame
@@ -4762,7 +4768,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             dict: a map from group keys to row labels.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         frame = self._modin_frame.ensure_row_position_column()
         return dict(
@@ -4809,7 +4815,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         return SnowflakeQueryCompiler(
             get_groupby_cumagg_frame_axis0(
@@ -4846,7 +4852,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         return SnowflakeQueryCompiler(
             get_groupby_cumagg_frame_axis0(
@@ -4882,7 +4888,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         return SnowflakeQueryCompiler(
             get_groupby_cumagg_frame_axis0(
@@ -4915,7 +4921,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         return SnowflakeQueryCompiler(
             get_groupby_cumagg_frame_axis0(
@@ -4939,7 +4945,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         drop: bool = False,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
@@ -4964,7 +4970,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         drop: bool = False,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
@@ -4989,7 +4995,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         drop: bool = False,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
@@ -5010,7 +5016,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         prefix: Hashable,
         prefix_sep: str,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         dummy_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
         # We need to add a column that will help us differentiate between identical
@@ -5243,7 +5249,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         1  2       0       1       1       0       0
         2  3       1       0       0       0       1
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         if dummy_na is True or drop_first is True or dtype is not None:
             ErrorMessage.not_implemented(
@@ -5313,7 +5319,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             args: the arguments passed for the aggregation
             kwargs: keyword arguments passed for the aggregation function.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         numeric_only = kwargs.get("numeric_only", False)
         # Call fallback if the aggregation function passed in the arg is currently not supported
@@ -5751,7 +5757,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A new SnowflakeQueryCompiler instance with new column.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         if not isinstance(value, SnowflakeQueryCompiler):
             # Scalar value
@@ -5880,7 +5886,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A new QueryCompiler instance with updated index.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         index_column_pandas_labels = keys
         index_column_snowflake_quoted_identifiers = []
@@ -6335,7 +6341,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             NOTE: Original column level names are lost and result column index has only
             one level.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         if levels is not None:
             raise NotImplementedError(
@@ -6526,7 +6532,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler instance with cumulative sum of Series or DataFrame.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         if axis == 1:
             ErrorMessage.not_implemented("cumsum with axis=1 is not supported yet")
@@ -6555,7 +6561,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler instance with cumulative min of Series or DataFrame.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         if axis == 1:
             ErrorMessage.not_implemented("cummin with axis=1 is not supported yet")
@@ -6584,7 +6590,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler instance with cumulative max of Series or DataFrame.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         if axis == 1:
             ErrorMessage.not_implemented("cummax with axis=1 is not supported yet")
@@ -6625,7 +6631,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Notes:
             melt does not yet handle multiindex or ignore index
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         if col_level is not None:
             raise NotImplementedError(
@@ -6729,7 +6735,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler instance with merged result.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         if validate:
             ErrorMessage.not_implemented(
@@ -6961,7 +6967,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler which may be Series or DataFrame representing result of .apply(axis=1)
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         # Process using general approach via UDTF + dynamic pivot to handle column expansion case.
 
@@ -7254,7 +7260,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler representing a Series holding the result of apply(func, axis=1).
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         # extract index columns and types, which are passed as first columns to UDF.
         type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
@@ -7372,7 +7378,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         **kwargs : dict
             Keyword arguments to pass to `func`.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         # axis=0 is not supported, raise error.
         if axis == 0:
@@ -7466,7 +7472,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args : iterable
         **kwargs : dict
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.
@@ -7508,7 +7514,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         na_action: Optional[Literal["ignore"]] = None,
     ) -> "SnowflakeQueryCompiler":
         """This method will only be called from Series."""
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         # TODO SNOW-801847: support series.map when arg is a dict/series
         # Currently, NULL values are always passed into the udtf even if strict=True,
@@ -7540,7 +7546,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         **kwargs : dict
             Keyword arguments to pass to `func`.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         assert self.is_series_like()
 
@@ -7596,7 +7602,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         # Call pivot_table which is a more generalized version of pivot with `min` aggregation
         # Note we differ from pandas by not checking for duplicates and raising a ValueError as that would require an eager query
@@ -7626,7 +7632,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         observed: bool,
         sort: bool,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         """
         Create a spreadsheet-style pivot table from underlying data.
@@ -7977,7 +7983,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         BaseQueryCompiler
             New masked QueryCompiler.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         # TODO: SNOW-884220 support multiindex
         # index can only be a query compiler or slice object
@@ -8297,7 +8303,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         if self._modin_frame.is_multiindex(axis=0) and (
             is_scalar(index) or isinstance(index, tuple)
@@ -8405,7 +8411,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler
                 Transposed new QueryCompiler object.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         frame = self._modin_frame
 
@@ -8563,7 +8569,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # STEP 1) Construct a temporary index column that contains the original index with position.
         # STEP 2) Perform an unpivot which flattens the original data columns into a single name and value rows
         # grouped by the temporary transpose index column.
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         unpivot_result = prepare_and_unpivot_for_transpose(
             frame, self, is_single_row=False
@@ -11328,7 +11334,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             dropna : bool
                 Don't include counts of NaN.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         # validate whether by is valid (e.g., contains duplicates or non-existing labels)
         self.validate_groupby(by=by, axis=0, level=None)
@@ -11723,7 +11729,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         column would allow us to create an accurate row position column, but would require a
         potentially expensive JOIN operator afterwards to apply the correct index labels.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         assert len(self._modin_frame.data_column_pandas_labels) == 1
 
@@ -12473,7 +12479,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         return self._window_agg(
             window_func=WindowFunction.ROLLING,
@@ -12492,7 +12498,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_sum", engine, engine_kwargs
@@ -12514,7 +12520,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_mean", engine, engine_kwargs
@@ -12548,7 +12554,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_var", engine, engine_kwargs
@@ -12571,7 +12577,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_var", engine, engine_kwargs
@@ -12593,7 +12599,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_min", engine, engine_kwargs
@@ -12615,7 +12621,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_max", engine, engine_kwargs
@@ -12712,7 +12718,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         return self._window_agg(
             window_func=WindowFunction.ROLLING,
@@ -12858,7 +12864,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         expanding_kwargs: dict,
         numeric_only: bool = False,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         return self._window_agg(
             window_func=WindowFunction.EXPANDING,
@@ -12875,7 +12881,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_sum", engine, engine_kwargs
@@ -12895,7 +12901,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_mean", engine, engine_kwargs
@@ -12926,7 +12932,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_var", engine, engine_kwargs
@@ -12947,7 +12953,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_std", engine, engine_kwargs
@@ -12967,7 +12973,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_min", engine, engine_kwargs
@@ -12987,7 +12993,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_max", engine, engine_kwargs
@@ -13077,7 +13083,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ddof: int = 1,
         numeric_only: bool = False,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         return self._window_agg(
             window_func=WindowFunction.EXPANDING,
@@ -13594,7 +13600,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler representing result of binary op operation.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         assert (
             other.is_series_like()
@@ -13773,7 +13779,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         return self._idxmax_idxmin(
             func="idxmax", axis=axis, skipna=skipna, numeric_only=numeric_only
@@ -13799,7 +13805,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         return self._idxmax_idxmin(
             func="idxmin", axis=axis, skipna=skipna, numeric_only=numeric_only
@@ -15547,7 +15553,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A SnowflakeQueryCompiler object representing a DataFrame.
         """
-        self._raise_not_implemented_error_for_timedelta(inspect.stack()[0][3])
+        self._raise_not_implemented_error_for_timedelta()
 
         original_frame = self._modin_frame
         ordered_dataframe = original_frame.ordered_dataframe
@@ -16991,7 +16997,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
                 index_column_pandas_labels=[None],
                 index_column_snowflake_quoted_identifiers=[index_quoted_identifier],
-                data_column_types=frame.cached_data_column_snowpark_pandas_types,
+                data_column_types=None,
                 index_column_types=[None],
             )
 

@@ -1098,11 +1098,11 @@ class InternalFrame:
                 self.data_column_snowflake_quoted_identifiers
             ),
             data_column_pandas_index_names=self.data_column_pandas_index_names,
-            data_column_types=self.cached_data_column_snowpark_pandas_types,
             index_column_pandas_labels=self.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=get_updated_identifiers(
                 self.index_column_snowflake_quoted_identifiers
             ),
+            data_column_types=self.cached_data_column_snowpark_pandas_types,
             index_column_types=self.cached_index_column_snowpark_pandas_types,
         )
 

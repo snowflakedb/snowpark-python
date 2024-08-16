@@ -228,8 +228,8 @@ def union_all(
         data_column_pandas_index_names=frame1.data_column_pandas_index_names,
         index_column_pandas_labels=frame1.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=frame1.index_column_snowflake_quoted_identifiers,
-        data_column_types=frame1.cached_data_column_snowpark_pandas_types,
-        index_column_types=frame1.cached_index_column_snowpark_pandas_types,
+        data_column_types=None,
+        index_column_types=None,
     )
 
 
