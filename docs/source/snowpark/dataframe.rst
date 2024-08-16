@@ -30,6 +30,7 @@ DataFrame
     DataFrame.corr
     DataFrame.count
     DataFrame.cov
+    DataFrame.create_or_dynamic_table
     DataFrame.createOrReplaceTempView
     DataFrame.createOrReplaceView
     DataFrame.create_or_replace_temp_view
@@ -114,7 +115,7 @@ DataFrame
     DataFrameAnalyticsFunctions.compute_lag
     DataFrameAnalyticsFunctions.compute_lead
     DataFrameAnalyticsFunctions.time_series_agg
-    
+
 
 
 

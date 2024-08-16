@@ -1091,6 +1091,12 @@ class SnowflakePlanBuilder:
         warehouse: str,
         lag: str,
         comment: Optional[str],
+        refresh_mode: Optional[str],
+        initialize: Optional[str],
+        clustering_keys: Iterable[str],
+        is_transient: bool,
+        data_retention_time: Optional[int],
+        max_data_extension_time: Optional[int],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
@@ -1103,7 +1109,17 @@ class SnowflakePlanBuilder:
         child = child.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: create_or_replace_dynamic_table_statement(
-                name, warehouse, lag, comment, x
+                name,
+                warehouse,
+                lag,
+                comment,
+                refresh_mode,
+                initialize,
+                clustering_keys,
+                is_transient,
+                data_retention_time,
+                max_data_extension_time,
+                x,
             ),
             child,
             source_plan,

@@ -70,6 +70,10 @@ GROUP_BY = " GROUP BY "
 PARTITION_BY = " PARTITION BY "
 ORDER_BY = " ORDER BY "
 CLUSTER_BY = " CLUSTER BY "
+REFRESH_MODE = " REFRESH_MODE "
+INITIALIZE = " INITIALIZE "
+DATA_RETENTION_TIME_IN_DAYS = " DATA_RETENTION_TIME_IN_DAYS "
+MAX_DATA_EXTENSION_TIME_IN_DAYS = " MAX_DATA_EXTENSION_TIME_IN_DAYS "
 OVER = " OVER "
 SELECT = " SELECT "
 FROM = " FROM "
@@ -94,6 +98,7 @@ DYNAMIC = " DYNAMIC "
 LAG = " LAG "
 WAREHOUSE = " WAREHOUSE "
 TEMPORARY = " TEMPORARY "
+TRANSIENT = " TRANSIENT "
 IF = " If "
 INSERT = " INSERT "
 OVERWRITE = " OVERWRITE "
@@ -1074,18 +1079,43 @@ def create_or_replace_view_statement(
 
 
 def create_or_replace_dynamic_table_statement(
-    name: str, warehouse: str, lag: str, comment: Optional[str], child: str
+    name: str,
+    warehouse: str,
+    lag: str,
+    comment: Optional[str],
+    refresh_mode: Optional[str],
+    initialize: Optional[str],
+    clustering_keys: Iterable[str],
+    is_transient: bool,
+    data_retention_time: Optional[int],
+    max_data_extension_time: Optional[int],
+    child: str,
 ) -> str:
+    def get_assign_param_sql(param_name: str, param_value: Optional[str]) -> str:
+        return f"{param_name}{EQUALS}{param_value}" if param_value else EMPTY_STRING
+
+    clustery_by_sql = (
+        f"{CLUSTER_BY}{LEFT_PARENTHESIS}{COMMA.join(clustering_keys)}{RIGHT_PARENTHESIS}"
+        if clustering_keys
+        else EMPTY_STRING
+    )
     comment_sql = get_comment_sql(comment)
+
     return (
         CREATE
         + OR
         + REPLACE
+        + (TRANSIENT if is_transient else EMPTY_STRING)
         + DYNAMIC
         + TABLE
         + name
         + f"{LAG + EQUALS + convert_value_to_sql_option(lag)}"
         + f"{WAREHOUSE + EQUALS + warehouse}"
+        + get_assign_param_sql(REFRESH_MODE, refresh_mode)
+        + get_assign_param_sql(INITIALIZE, initialize)
+        + clustery_by_sql
+        + get_assign_param_sql(DATA_RETENTION_TIME_IN_DAYS, data_retention_time)
+        + get_assign_param_sql(MAX_DATA_EXTENSION_TIME_IN_DAYS, max_data_extension_time)
         + comment_sql
         + AS
         + project_statement([], child)

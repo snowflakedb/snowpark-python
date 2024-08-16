@@ -1130,6 +1130,15 @@ class Analyzer:
                 logical_plan.warehouse,
                 logical_plan.lag,
                 logical_plan.comment,
+                logical_plan.refresh_mode,
+                logical_plan.initialize,
+                [
+                    self.analyze(x, df_aliased_col_name_to_real_col_name)
+                    for x in logical_plan.clustering_exprs
+                ],
+                logical_plan.is_transient,
+                logical_plan.data_retention_time,
+                logical_plan.max_data_extension_time,
                 resolved_children[logical_plan.child],
                 logical_plan,
             )
