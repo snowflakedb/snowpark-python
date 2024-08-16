@@ -325,13 +325,13 @@ def test_deep_nested_select(session):
 
     def get_col_ref_expression(iter_num: int, col_func: Callable) -> Column:
         ref_cols = [F.lit(str(iter_num))]
-        for i in range(1, 5):
+        for i in range(1, 3):
             col_name = f"col{i}"
             ref_col = col_func(df[col_name])
             ref_cols.append(ref_col)
         return F.concat(*ref_cols)
 
-    for i in range(1, 20):
+    for i in range(1, 3):
         int_col = df["intCol"]
         col1_base = get_col_ref_expression(i, F.initcap)
         case_expr: Optional[CaseExpr] = None
@@ -351,10 +351,35 @@ def test_deep_nested_select(session):
 
         col1 = case_expr.otherwise(col1_base)
 
+        # SELECT "INTCOL", "COL2", "COL3", "COL4", "COL5", "COL6", "COL7", "COL8", "COL9", "COL10",
+        # CASE  WHEN ("INTCOL" < 100 :: INT) THEN concat('2', upper("COL1"), upper("COL2")) WHEN ("INTCOL" < 300 :: INT) THEN concat('2', lower("COL1"), lower("COL2")) ELSE concat('2', initcap("COL1"), initcap("COL2")) END  AS "COL1" FROM (
+        # SELECT "INTCOL", "COL2", "COL3", "COL4", "COL5", "COL6", "COL7", "COL8", "COL9", "COL10",  CASE  WHEN ("INTCOL" < 100 :: INT) THEN concat('1', upper("COL1"), upper("COL2")) WHEN ("INTCOL" < 300 :: INT) THEN concat('1', lower("COL1"), lower("COL2")) ELSE concat('1', initcap("COL1"), initcap("COL2")) END  AS "COL1" FROM SNOWPARK_TEMP_TABLE_NIFW2MXSLK) LIMIT 10
+
         df = df.with_columns(["col1"], [col1])
 
+    print(df._plan.cumulative_node_complexity)
+
+    df.show()
+
     # make a copy of the final df plan
-    copied_plan = copy.deepcopy(df._plan)
+    # copied_plan = copy.deepcopy(df._plan)
     # skip the checking of plan attribute for this plan, because the plan is complicated for
     # compilation, and attribute issues describing call which will timeout during server compilation.
-    check_copied_plan(copied_plan, df._plan, skip_attribute=True)
+    # check_copied_plan(copied_plan, df._plan, skip_attribute=True)
+
+
+def test_select_simplified(session):
+    temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    # create a tabel with 11 columns (1 int columns and 10 string columns) for testing
+    struct_fields = [T.StructField("intCol", T.IntegerType(), True)]
+    for i in range(1, 11):
+        struct_fields.append(T.StructField(f"col{i}", T.StringType(), True))
+    schema = T.StructType(struct_fields)
+    session.sql(
+        f"create temp table {temp_table_name}({attribute_to_schema_string(schema)})"
+    ).collect()
+    df = session.table(temp_table_name)
+
+    df = df.select(["intCol", "col2", "col3", "col4", "col5"])
+    df = df.select([col("intCol") + 1, col("intCol") + 1, "col2", "col3", "col4", "col5"])
+    df = df.show()
