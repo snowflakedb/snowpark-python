@@ -400,3 +400,22 @@ def test_create_index_from_df_negative():
         pd.Index(pd.DataFrame([[1, 2], [3, 4]]))
     with pytest.raises(ValueError):
         pd.DatetimeIndex(pd.DataFrame([[1, 2], [3, 4]]))
+
+
+@sql_count_checker(query_count=4, join_count=4)
+def test_identical():
+    i1 = pd.Index(["a", "b", "c"])
+    i2 = pd.Index(["a", "b", "c"])
+
+    assert i1.identical(i2)
+
+    i1 = i1.rename("foo")
+    assert i1.equals(i2)
+    assert not i1.identical(i2)
+
+    i2 = i2.rename("foo")
+    assert i1.identical(i2)
+
+    i3 = pd.Index([("a", "a"), ("a", "b"), ("b", "a")])
+    i4 = pd.Index([("a", "a"), ("a", "b"), ("b", "a")], tupleize_cols=False)
+    assert not i3.identical(i4)

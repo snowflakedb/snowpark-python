@@ -66,6 +66,8 @@ class Index(metaclass=TelemetryMeta):
     # Equivalent index type in native pandas
     _NATIVE_INDEX_TYPE = native_pd.Index
 
+    _comparables: list[str] = ["name"]
+
     def __new__(
         cls,
         data: ArrayLike | native_pd.Index | Series | None = None,
@@ -1204,18 +1206,37 @@ class Index(metaclass=TelemetryMeta):
 
         return self._query_compiler.index_equals(other._query_compiler)
 
-    @index_not_implemented()
-    def identical(self) -> None:
+    def identical(self, other: Any) -> bool:
         """
         Similar to equals, but checks that object attributes and types are also equal.
 
         Returns
         -------
         bool
-            If two Index objects have equal elements and the same type True,
+            If two Index objects have equal elements and same type True,
             otherwise False.
+
+        Examples
+        --------
+        >>> idx1 = pd.Index(['1', '2', '3'])
+        >>> idx2 = pd.Index(['1', '2', '3'])
+        >>> idx2.identical(idx1)
+        True
+
+        >>> idx1 = pd.Index(['1', '2', '3'], name="A")
+        >>> idx2 = pd.Index(['1', '2', '3'], name="B")
+        >>> idx2.identical(idx1)
+        False
         """
-        # TODO: SNOW-1458148 implement identical
+        return (
+            self.equals(other)
+            and all(
+                getattr(self, c, None) == getattr(other, c, None)
+                for c in self._comparables
+            )
+            and type(self) == type(other)
+            and self.dtype == other.dtype
+        )
 
     @index_not_implemented()
     def insert(self) -> None:

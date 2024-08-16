@@ -13,6 +13,7 @@
 #### New Features
 
 - Added support for type coercion when passing columns as input to udf calls
+- Added support for `Index.identical`.
 
 #### Bug Fixes
 
