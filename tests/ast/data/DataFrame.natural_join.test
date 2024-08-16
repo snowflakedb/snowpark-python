@@ -12,6 +12,4 @@ df1 = session.table("test_table")
 
 df2 = session.table("test_table")
 
-res1 = df1.natural_join(df2, "inner")
-
-res2 = res1.select("*")
+res2 = df1.natural_join(df2, "inner").select("*")
