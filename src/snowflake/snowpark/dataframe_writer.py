@@ -124,6 +124,11 @@ class DataFrameWriter:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         comment: Optional[str] = None,
+        enable_schema_evolution: Optional[bool] = None,
+        data_retention_time: Optional[int] = None,
+        max_data_extension_time: Optional[int] = None,
+        change_tracking: Optional[bool] = None,
+        copy_grants: bool = False,
     ) -> Optional[AsyncJob]:
         """Writes the data to the specified table in a Snowflake database.
 
@@ -159,6 +164,14 @@ class DataFrameWriter:
             comment: Adds a comment for the created table. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_. This argument is ignored if a
                 table already exists and save mode is ``append`` or ``truncate``.
+            enable_schema_evolution: Enables or disables automatic changes to the table schema from data loaded into the table from source files. Setting
+                to ``True`` enables automatic schema evolution and setting to ``False`` disables it. If not set, the default behavior is used.
+            data_retention_time: Specifies the retention period for the table in days so that Time Travel actions (SELECT, CLONE, UNDROP) can be performed
+                on historical data in the table.
+            max_data_extension_time: Specifies the maximum number of days for which Snowflake can extend the data retention period for the table to prevent
+                streams on the table from becoming stale.
+            change_tracking: Specifies whether to enable change tracking for the table. If not set, the default behavior is used.
+            copy_grants: xx
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
@@ -228,6 +241,11 @@ class DataFrameWriter:
                 table_type,
                 clustering_exprs,
                 comment,
+                enable_schema_evolution,
+                data_retention_time,
+                max_data_extension_time,
+                change_tracking,
+                copy_grants,
             )
             session = self._dataframe._session
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)

@@ -123,6 +123,11 @@ LOCATION = " LOCATION "
 FILE_FORMAT = " FILE_FORMAT "
 FORMAT_NAME = " FORMAT_NAME "
 COPY = " COPY "
+COPY_GRANTS = " COPY GRANTS "
+ENABLE_SCHEMA_EVOLUTION = " ENABLE_SCHEMA_EVOLUTION "
+DATA_RETENTION_TIME_IN_DAYS = " DATA_RETENTION_TIME_IN_DAYS "
+MAX_DATA_EXTENSION_TIME_IN_DAYS = " MAX_DATA_EXTENSION_TIME_IN_DAYS "
+CHANGE_TRACKING = " CHANGE_TRACKING "
 REG_EXP = " REGEXP "
 COLLATE = " COLLATE "
 RESULT_SCAN = " RESULT_SCAN"
@@ -819,6 +824,10 @@ def batch_insert_into_statement(
     )
 
 
+def get_assign_param_sql(param_name: str, param_value: Optional[Any]) -> str:
+    return f"{param_name}{EQUALS}{param_value}" if param_value else EMPTY_STRING
+
+
 def create_table_as_select_statement(
     table_name: str,
     child: str,
@@ -828,6 +837,11 @@ def create_table_as_select_statement(
     table_type: str = EMPTY_STRING,
     clustering_key: Optional[Iterable[str]] = None,
     comment: Optional[str] = None,
+    enable_schema_evolution: Optional[bool] = None,
+    data_retention_time: Optional[int] = None,
+    max_data_extension_time: Optional[int] = None,
+    change_tracking: Optional[bool] = None,
+    copy_grants: bool = False,
 ) -> str:
     column_definition_sql = (
         f"{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
@@ -841,10 +855,27 @@ def create_table_as_select_statement(
     )
     comment_sql = get_comment_sql(comment)
     return (
-        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"
-        f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
-        f"{table_name}{column_definition_sql}"
-        f"{cluster_by_clause} {comment_sql} {AS}{project_statement([], child)}"
+        CREATE
+        + (OR + REPLACE if replace else EMPTY_STRING)
+        + SPACE
+        + table_type.upper()
+        + SPACE
+        + TABLE
+        + (IF + NOT + EXISTS if not replace and not error else EMPTY_STRING)
+        + SPACE
+        + table_name
+        + column_definition_sql
+        + cluster_by_clause
+        + get_assign_param_sql(ENABLE_SCHEMA_EVOLUTION, enable_schema_evolution)
+        + get_assign_param_sql(DATA_RETENTION_TIME_IN_DAYS, data_retention_time)
+        + get_assign_param_sql(MAX_DATA_EXTENSION_TIME_IN_DAYS, max_data_extension_time)
+        + get_assign_param_sql(CHANGE_TRACKING, change_tracking)
+        + (COPY_GRANTS if copy_grants else EMPTY_STRING)
+        + SPACE
+        + comment_sql
+        + SPACE
+        + AS
+        + project_statement([], child)
     )
 
 

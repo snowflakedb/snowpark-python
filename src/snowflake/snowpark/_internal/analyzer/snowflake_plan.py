@@ -838,6 +838,11 @@ class SnowflakePlanBuilder:
         table_type: str,
         clustering_keys: Iterable[str],
         comment: Optional[str],
+        enable_schema_evolution: Optional[bool],
+        data_retention_time: Optional[int],
+        max_data_extension_time: Optional[int],
+        change_tracking: Optional[bool],
+        copy_grants: bool,
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         use_scoped_temp_objects: bool,
@@ -853,6 +858,11 @@ class SnowflakePlanBuilder:
             table_type: temporary, transient, or permanent
             clustering_keys: list of clustering columns
             comment: comment associated with the table
+            enable_schema_evolution: whether to enable schema evolution
+            data_retention_time: data retention time in days
+            max_data_extension_time: max data extension time in days
+            change_tracking: whether to enable change tracking
+            copy_grants: whether to copy grants
             child: the SnowflakePlan that is being materialized into a table
             source_plan: the source plan of the child
             use_scoped_temp_objects: should we use scoped temp objects

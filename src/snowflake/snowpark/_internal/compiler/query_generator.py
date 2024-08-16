@@ -158,6 +158,11 @@ class QueryGenerator(Analyzer):
                     for x in logical_plan.clustering_exprs
                 ],
                 logical_plan.comment,
+                logical_plan.enable_schema_evolution,
+                logical_plan.data_retention_time,
+                logical_plan.max_data_extension_time,
+                logical_plan.change_tracking,
+                logical_plan.copy_grants,
                 copied_resolved_child,
                 logical_plan,
                 self.session._use_scoped_temp_objects,
