@@ -336,6 +336,26 @@ def test_binary_method_numpy_and_pandas_type_scalar(data, scalars):
             ],
             2,
         ],
+        pytest.param(
+            [pd.Timestamp(1, unit="ns")],
+            [
+                pd.Timestamp(0, unit="ns"),
+                pd.Timestamp(1, unit="ns"),
+                pd.Timestamp(2, unit="ns"),
+            ],
+            3,
+            id="with_nanoseconds_no_timezone_SNOW_1628400",
+        ),
+        pytest.param(
+            [pd.Timestamp(1, unit="ns", tz="Asia/Kolkata")],
+            [
+                pd.Timestamp(0, unit="ns", tz="Asia/Kolkata"),
+                pd.Timestamp(1, unit="ns", tz="Asia/Kolkata"),
+                pd.Timestamp(2, unit="ns", tz="Asia/Kolkata"),
+            ],
+            3,
+            id="with_nanoseconds_and_timezone_SNOW_1628400",
+        ),
     ],
 )
 @pytest.mark.parametrize(
