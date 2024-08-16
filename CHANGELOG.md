@@ -45,6 +45,7 @@
 #### Bug Fixes
 - Fixed a bug that Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
 - Fixed a bug where values were not populated into the result DataFrame during the insertion of table merge operation.
+- Fixed a bug where function `to_timestamp` does not set the timezone information of the column datatype correctly.
 
 #### Improvements
 - Fix pandas FutureWarning about integer indexing.

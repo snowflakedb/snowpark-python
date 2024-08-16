@@ -943,7 +943,9 @@ def mock_to_timestamp(
     try_cast: bool = False,
 ):
     result = mock_to_timestamp_ntz(column, fmt, try_cast)
-    result.sf_type = ColumnType(TimestampType(), column.sf_type.nullable)
+    result.sf_type = ColumnType(
+        TimestampType(TimestampTimeZone.NTZ), column.sf_type.nullable
+    )
     return result
 
 
