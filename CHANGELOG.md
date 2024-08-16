@@ -24,6 +24,7 @@
 - Fixed a bug in `DataFrame.lineage.trace` to split the quoted feature view's name and version correctly.
 - Fixed a bug in `Column.isin` that caused invalid sql generation when passed an empty list.
 - Fixed a bug that fails to raise NotImplementedError while setting cell with list like item.
+- Fixed a bug in `session.read.csv` that caused an error when setting `PARSE_HEADER = True` in an externally defined file format.
 
 ### Snowpark Local Testing Updates
 
@@ -77,6 +78,8 @@
 - Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
 - Added support for `Index.argmax` and `Index.argmin`.
 - Added support for index's arithmetic and comparison operators.
+- Added support for `Series.dt.round`.
+- Added documentation pages for `DatetimeIndex`.
 - Added support for `Index.__repr__`.
 
 #### Improvements
@@ -91,6 +94,7 @@
 - Fixed a bug where some Index docstrings are ignored. 
 - Fixed a bug in `Series.reset_index(drop=True)` where the result name may be wrong.
 - Fixed a bug in `Groupby.first/last` ordering by the correct columns in the underlying window expression.
+- Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 
 ### Behavior change
 - `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
