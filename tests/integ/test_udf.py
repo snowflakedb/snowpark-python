@@ -67,6 +67,7 @@ from snowflake.snowpark.types import (
     Geometry,
     GeometryType,
     IntegerType,
+    LongType,
     MapType,
     StringType,
     StructField,
@@ -572,6 +573,10 @@ def test_register_from_file_with_skip_upload(session, resources_path, caplog):
         Utils.drop_stage(session, stage_name)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1625599: Modulo on coerced integers does not return correct result.",
+)
 def test_add_import_local_file(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -618,6 +623,10 @@ def test_add_import_local_file(session, resources_path):
     session.clear_imports()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1625599: Modulo on coerced integers does not return correct result.",
+)
 def test_add_import_local_directory(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -661,6 +670,10 @@ def test_add_import_local_directory(session, resources_path):
     session.clear_imports()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1625599: Modulo on coerced integers does not return correct result.",
+)
 def test_add_import_stage_file(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -735,6 +748,10 @@ def test_add_import_duplicate(session, resources_path, caplog, local_testing_mod
     assert len(session.get_imports()) == 0
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1625599: Modulo on coerced integers does not return correct result.",
+)
 def test_udf_level_import(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
 
@@ -788,6 +805,10 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
     session.clear_imports()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1625599: Modulo on coerced integers does not return correct result.",
+)
 def test_add_import_namespace_collision(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -1364,6 +1385,42 @@ def test_add_import_negative(session, resources_path):
         "udf-level import can only be a file path (str) "
         "or a tuple of the file path (str) and the import path (str)" in str(ex_info)
     )
+
+
+def test_udf_coercion(session):
+    def get_data_type(value):
+        return str(type(value))
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    str_udf = udf(
+        get_data_type,
+        return_type=StringType(),
+        input_types=[StringType()],
+        name=f"{udf_name}str",
+        session=session,
+    )
+    float_udf = udf(
+        get_data_type,
+        return_type=StringType(),
+        input_types=[FloatType()],
+        name=f"{udf_name}float",
+        session=session,
+    )
+    int_udf = udf(
+        get_data_type,
+        return_type=StringType(),
+        input_types=[LongType()],
+        name=f"{udf_name}int",
+        session=session,
+    )
+
+    df = session.create_dataframe([[1]], schema=["a"])
+
+    # Check that int input type can be coerced to expected inputs
+    Utils.check_answer(df.select(str_udf("a")), [Row("<class 'str'>")])
+    Utils.check_answer(df.select(float_udf("a")), [Row("<class 'float'>")])
+    Utils.check_answer(df.select(int_udf("a")), [Row("<class 'int'>")])
 
 
 def test_udf_variant_type(session, local_testing_mode):
