@@ -29,12 +29,12 @@ from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 import modin
 import numpy as np
 import pandas as native_pd
+from pandas import get_option
 from pandas._libs import lib
 from pandas._typing import ArrayLike, DateTimeErrorChoices, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_datetime64_any_dtype, pandas_dtype
-from pandas.io.formats.console import get_console_size
 
 from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.base import BasePandasDataset
@@ -2409,14 +2409,22 @@ class Index(metaclass=TelemetryMeta):
             local_index = temp_df.iloc[:, 0].to_list()
         else:
             local_index = []
-        console_size = get_console_size()[0]
+        display_width = get_option("display.width") or 80
         too_many_elem = max_seq_items < length_of_index
 
         def _format_string_elem(elem) -> str:
             """
             When an element is a string, surround it by single quotes.
             """
-            return "'" + str(elem) + "'" if isinstance(elem, str) else str(elem)
+            if isinstance(elem, str):
+                elem = (
+                    elem.replace("\n", "\\n").replace("\t", "\\t").replace("\r", "\\r")
+                )
+                return "'" + str(elem) + "'"
+            return str(elem)
+
+        seven_space_indent = " " * 7
+        format_fields_on_different_lines = False
 
         if length_of_index == 0:
             data_repr = "[]"
@@ -2425,6 +2433,7 @@ class Index(metaclass=TelemetryMeta):
             data_repr = "[" + _format_string_elem(local_index[0]) + "]"
 
         elif too_many_elem:
+            format_fields_on_different_lines = True
             # Display the first and last 10 elements.
             first_and_last_ten_elem = local_index[:10] + local_index[-10:]
 
@@ -2438,18 +2447,12 @@ class Index(metaclass=TelemetryMeta):
             length_of_longest_elem = 0
             for elem in first_and_last_ten_elem:
                 # Need to account for the single quotes around strings.
-                elem_len = len(str(elem)) + (2 if isinstance(elem, str) else 0)
+                elem_len = len(_format_string_elem(elem))
                 if elem_len > length_of_longest_elem:
                     length_of_longest_elem = elem_len
 
             # Get the number of elements to print in a single line.
-            # In case there is no console size, default to 10 elements in one line.
-            if console_size is not None:
-                num_elem_to_print = console_size // (length_of_longest_elem + 1)
-            else:
-                num_elem_to_print = 10  # pragma: no cover
-
-            seven_space_indent = " " * 7
+            num_elem_to_print = display_width // (length_of_longest_elem + 1)
 
             # Using the information above, stitch together the elements in the index.
             def _format_elem(elem_list) -> str:
@@ -2476,7 +2479,7 @@ class Index(metaclass=TelemetryMeta):
 
             first_ten_elem_repr = _format_elem(first_and_last_ten_elem[:10])
             last_ten_elem_repr = _format_elem(first_and_last_ten_elem[10:])
-            # A seven space indent is needed to correctly align the last 10 elements with the first 10.
+            # A seven space indent is necessary to correctly align the last 10 elements with the first 10.
             # Output needs to look like:
             # 'Index([   0,    1,    2,    3,    4,    5,    6,    7,    8,    9,\n'
             # '       ...\n'
@@ -2496,19 +2499,31 @@ class Index(metaclass=TelemetryMeta):
         else:
             # In the case where the number of elements in the index is less than the number of
             # elements to display, display them all separated by commas.
-            data_repr = ""
-            for e in local_index[:-1]:
-                data_repr += _format_string_elem(e) + ", "
-            data_repr = "[" + data_repr + _format_string_elem(local_index[-1]) + "]"
+            data_repr = "[" + _format_string_elem(local_index[0])
+            line_length = 6 + len(data_repr)  # 6 is the length of "Index("
+            for e in local_index[1:]:
+                formatted_e = _format_string_elem(e)
+                if (line_length + len(formatted_e)) + 6 > display_width:
+                    # The fields need to be formatted on new lines since data is also formatted on new lines.
+                    format_fields_on_different_lines = True
+                    data_repr += ",\n" + seven_space_indent
+                    line_length = 7 + len(formatted_e)  # 7 is the length of the indent.
+                else:
+                    data_repr += ", "
+                    line_length += (
+                        len(formatted_e) + 2
+                    )  # 2 is the length of the comma and space.
+                data_repr += formatted_e
+            data_repr += "]"
 
         # Next, creating the representation for each field with their respective labels.
         # Assign a None value to optional fields that should not be displayed.
         dtype_repr = f"dtype='{self.dtype}'"
         name_repr = f"name='{self.name}'" if self.name else None
-        length_repr = f"length={length_of_index}" if too_many_elem else None
+        length_repr = f"length={length_of_index}" if too_many_elem else ""
 
         # The index always displays the data and datatype, and optionally the name and length.
-        if too_many_elem:
+        if format_fields_on_different_lines:
             # Length is displayed only when some elements are displayed, which is when the number
             # of elements is greater than the number of elements to display.
             # If the elements are truncated (too many elements to display), there is a possibility
@@ -2518,7 +2533,7 @@ class Index(metaclass=TelemetryMeta):
             last_line_len = len(dtype_repr)
 
             if name_repr:
-                if last_line_len + len(name_repr) > console_size:
+                if last_line_len + len(name_repr) > display_width:
                     name_repr = ",\n" + six_space_indent + name_repr  # pragma: no cover
                     last_line_len = len(name_repr)  # pragma: no cover
                 else:
@@ -2527,10 +2542,12 @@ class Index(metaclass=TelemetryMeta):
             else:
                 name_repr = ""
 
-            if last_line_len + len(length_repr) > console_size:
-                length_repr = ",\n" + six_space_indent + length_repr
-            else:
-                length_repr = ", " + length_repr
+            if too_many_elem:
+                # Display the length field only when the elements are truncated.
+                if last_line_len + len(length_repr) > display_width:
+                    length_repr = ",\n" + six_space_indent + length_repr
+                else:
+                    length_repr = ", " + length_repr
 
             repr = "Index(" + data_repr + dtype_repr + name_repr + length_repr + ")"
 

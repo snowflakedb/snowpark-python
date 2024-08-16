@@ -16,7 +16,22 @@ from tests.integ.modin.sql_counter import SqlCounter
         native_pd.Index([]),
         native_pd.Index(["lone element"], name="A B C D  E"),
         native_pd.Index(list(range(250)), name="lots of numbers"),
-        native_pd.Index(["a", "b", "c", "d o j", "e", "f", "g", "hello", "i", "j"]),
+        native_pd.Index(
+            [
+                "a",
+                "b",
+                "c",
+                "d o j",
+                "e",
+                "f",
+                "g",
+                "hello",
+                "i",
+                "j",
+                "can't, shan't, won't",
+                "N\nN\n\t\n",
+            ]
+        ),
         native_pd.Index(["this is a very long string"] * 200, name="unnecessary name"),
         native_pd.Index(["abc", 12, 0.03, None]),
         native_pd.Index([e / 100 for e in range(-100, 100)], name="numbers"),
