@@ -157,18 +157,23 @@ def test_create_or_replace_dynamic_table_statement():
     dt_name = "my_dt"
     warehouse = "my_warehouse"
     comment = "my_comment"
+    refresh_mode = "INCREMENTAL"
+    initialize = "ON_SCHEDULE"
+    cluster_by = "col1"
+    data_retention_time = "2"
+    max_data_extension_time = "4"
 
     assert (
         create_or_replace_dynamic_table_statement(
-            dt_name, warehouse, "1 minute", None, "select * from foo"
+            dt_name, warehouse, "1 minute", None, None, None, None, False, None, None, "select * from foo"
         )
         == f" CREATE  OR  REPLACE  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse} AS  SELECT  *  FROM (select * from foo)"
     )
     assert (
         create_or_replace_dynamic_table_statement(
-            dt_name, warehouse, "1 minute", comment, "select * from foo"
+            dt_name, warehouse, "1 minute", comment, refresh_mode, initialize, cluster_by, True, data_retention_time, max_data_extension_time, "select * from foo"
         )
-        == f" CREATE  OR  REPLACE  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse} COMMENT  = '{comment}' AS  SELECT  *  FROM (select * from foo)"
+        == f" CREATE  OR  REPLACE  TRANSIENT  DYNAMIC  TABLE my_dt LAG  = '1 minute' WAREHOUSE  = my_warehouse REFRESH_MODE  = INCREMENTAL INITIALIZE  = ON_SCHEDULE CLUSTER BY (c, o, l, 1) DATA_RETENTION_TIME_IN_DAYS  = 2 MAX_DATA_EXTENSION_TIME_IN_DAYS  = 4 COMMENT  = 'my_comment' AS  SELECT  *  FROM (select * from foo)"
     )
 
 
