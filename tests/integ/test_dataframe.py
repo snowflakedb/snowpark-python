@@ -2962,7 +2962,7 @@ def test_create_dynamic_table_mode(session, table_name_1):
     1. Create a dynamic table t1 with mode "errorifexists" (expect to succeed)
     2. Create dynamic table t1 again with mode "errorifexists" (expect to fail)
     3. Create dynamic table t1 again with mode "overwrite" and comment c1 (expect to succeed)
-    4a. Create dynamic table t1 again with mode "ignore" (expect to succeed)
+    4a. Create dynamic table t1 again with mode "ignore" and no comment (expect to succeed)
     4b. Check ddl for table t1 to ensure that the comment is still c1.
     5a. Drop dynamic table t1.
     5b. Create dynamic table t1 with mode "ignore" (expect to succeed)
@@ -3014,7 +3014,6 @@ def test_create_dynamic_table_mode(session, table_name_1):
             warehouse=session.get_current_warehouse(),
             lag="1000 minutes",
             mode="ignore",
-            comment=comment,
         )
         assert comment in session.sql(ddl_sql).collect()[0][0]
 

@@ -7,6 +7,7 @@
 #### New Features
 - Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a util function to check the equality of two Snowpark DataFrames.
 - Added support for specifying the following attributes when create `DataFrame.create_or_replace_dynamic_table`:
+  - `mode`
   - `refresh_mode`
   - `initialize`
   - `clustering_keys`
