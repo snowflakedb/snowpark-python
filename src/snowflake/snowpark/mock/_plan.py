@@ -487,29 +487,21 @@ def handle_udf_expression(
                 child, input_data, analyzer, expr_to_alias
             )
 
-            # SNOW-929218: Once proper type coercion is supported use that instead.
-            if isinstance(expected_type, VariantType) and not isinstance(
-                column_data.sf_type.datatype, VariantType
-            ):
-                column_data.sf_type = ColumnType(
-                    VariantType(), column_data.sf_type.nullable
-                )
-
             # Variant Data is often cast to specific python types when passed to a udf.
             if isinstance(expected_type, VariantType):
                 column_data = column_data.apply(coerce_variant_input)
 
-            function_input[col_name] = column_data
-
-            if (
-                get_coerce_result_type(
-                    column_data.sf_type, ColumnType(expected_type, False)
-                )
-                is None
-            ):
+            coerce_result = get_coerce_result_type(
+                column_data.sf_type, ColumnType(expected_type, False)
+            )
+            if coerce_result is None:
                 raise SnowparkLocalTestingException(
                     f"UDF received input type {column_data.sf_type.datatype} for column {child.name}, but expected input type of {expected_type}"
                 )
+
+            function_input[col_name] = cast_column_to(
+                column_data, ColumnType(expected_type, False)
+            )
 
         try:
             # we do not use pd.apply here because pd.apply will auto infer dtype for the output column
