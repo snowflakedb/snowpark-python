@@ -28,25 +28,6 @@ class TestSeriesDatetimeValues:
             ser.dt.freq
 
     @pytest.mark.parametrize(
-        "method, dates",
-        [
-            ["round", ["2012-01-02", "2012-01-02", "2012-01-01"]],
-        ],
-    )
-    @sql_count_checker(query_count=0)
-    def test_dt_round(self, method, dates):
-        # round
-        ser = pd.Series(
-            native_pd.to_datetime(
-                ["2012-01-01 13:00:00", "2012-01-01 12:01:00", "2012-01-01 08:00:00"]
-            ),
-            name="xxx",
-        )
-        msg = f"Snowpark pandas doesn't yet support the method 'Series.dt.{method}'"
-        with pytest.raises(NotImplementedError, match=msg):
-            getattr(ser.dt, method)("D")
-
-    @pytest.mark.parametrize(
         "date, format_string, expected",
         [
             (

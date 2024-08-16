@@ -177,7 +177,7 @@ def test_dt_properties(property_name, freq):
 
 
 @pytest.mark.parametrize(
-    "property", ["time", "timetz", "tz", "freqstr", "inferred_freq"]
+    "property", ["time", "timetz", "tz", "freqstr", "freq", "inferred_freq"]
 )
 @sql_count_checker(query_count=0)
 def test_dt_property_not_implemented(property):
