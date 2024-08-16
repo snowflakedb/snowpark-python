@@ -61,56 +61,56 @@ df = df.select(col("A").try_cast("object"))
 
 df = session.table("test_table")
 
-df1 = df.select(col("A").try_cast(NullType()))
+df = df.select(col("A").try_cast(NullType()))
 
-df2 = df1.select(col("A").try_cast(BinaryType()))
+df = df.select(col("A").try_cast(BinaryType()))
 
-df3 = df2.select(col("A").try_cast(BooleanType()))
+df = df.select(col("A").try_cast(BooleanType()))
 
-df4 = df3.select(col("A").try_cast(DateType()))
+df = df.select(col("A").try_cast(DateType()))
 
-df5 = df4.select(col("A").try_cast(StringType()))
+df = df.select(col("A").try_cast(StringType()))
 
-df6 = df5.select(col("A").try_cast(ByteType()))
+df = df.select(col("A").try_cast(ByteType()))
 
-df7 = df6.select(col("A").try_cast(ShortType()))
+df = df.select(col("A").try_cast(ShortType()))
 
-df8 = df7.select(col("A").try_cast(IntegerType()))
+df = df.select(col("A").try_cast(IntegerType()))
 
-df9 = df8.select(col("A").try_cast(LongType()))
+df = df.select(col("A").try_cast(LongType()))
 
-df10 = df9.select(col("A").try_cast(FloatType()))
+df = df.select(col("A").try_cast(FloatType()))
 
-df11 = df10.select(col("A").try_cast(DoubleType()))
+df = df.select(col("A").try_cast(DoubleType()))
 
-df12 = df11.select(col("A").try_cast(TimestampType()))
+df = df.select(col("A").try_cast(TimestampType()))
 
-df13 = df12.select(col("A").try_cast(TimeType()))
+df = df.select(col("A").try_cast(TimeType()))
 
-df14 = df13.select(col("A").try_cast(ArrayType(StringType(), structured=False)))
+df = df.select(col("A").try_cast(ArrayType(StringType(), structured=False)))
 
-df15 = df14.select(col("A").try_cast(MapType(StringType(), StringType(), structured=False)))
+df = df.select(col("A").try_cast(MapType(StringType(), StringType(), structured=False)))
 
-df16 = df15.select(col("A").try_cast(VectorType(FloatType(), 42)))
+df = df.select(col("A").try_cast(VectorType(FloatType(), 42)))
 
-df17 = df16.select(col("A").try_cast(StructType([], structured=False)))
+df = df.select(col("A").try_cast(StructType([], structured=False)))
 
-df18 = df17.select(col("A").try_cast(VariantType()))
+df = df.select(col("A").try_cast(VariantType()))
 
-df19 = df18.select(col("A").try_cast(GeographyType()))
+df = df.select(col("A").try_cast(GeographyType()))
 
-df20 = df19.select(col("A").try_cast(GeometryType()))
+df = df.select(col("A").try_cast(GeometryType()))
 
-df21 = df20.select(col("A").try_cast(IntegerType()))
+df = df.select(col("A").try_cast(IntegerType()))
 
-df22 = df21.select(col("A").try_cast(ShortType()))
+df = df.select(col("A").try_cast(ShortType()))
 
-df23 = df22.select(col("A").try_cast(ByteType()))
+df = df.select(col("A").try_cast(ByteType()))
 
-df24 = df23.select(col("A").try_cast(LongType()))
+df = df.select(col("A").try_cast(LongType()))
 
-df25 = df24.select(col("A").try_cast(DecimalType(38, 0)))
+df = df.select(col("A").try_cast(DecimalType(38, 0)))
 
-df26 = df25.select(col("A").try_cast(DecimalType(38, 0)))
+df = df.select(col("A").try_cast(DecimalType(38, 0)))
 
-df27 = df26.select(col("A").try_cast(MapType(StringType(), StringType(), structured=False)))
+df = df.select(col("A").try_cast(MapType(StringType(), StringType(), structured=False)))

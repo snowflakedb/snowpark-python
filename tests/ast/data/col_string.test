@@ -21,16 +21,16 @@ df = df.select(col("A").contains("test"))
 
 df = session.table("test_table")
 
-df1 = df.select(col("A").like("test"))
+df = df.select(col("A").like("test"))
 
-df2 = df1.select(col("A").regexp("test"))
+df = df.select(col("A").regexp("test"))
 
-df3 = df2.select(col("A").startswith("test"))
+df = df.select(col("A").startswith("test"))
 
-df4 = df3.select(col("A").endswith("test"))
+df = df.select(col("A").endswith("test"))
 
-df5 = df4.select(col("A").substr(col("B"), col("C")))
+df = df.select(col("A").substr(col("B"), col("C")))
 
-df6 = df5.select(col("A").collate("test"))
+df = df.select(col("A").collate("test"))
 
-df7 = df6.select(col("A").contains("test"))
+df = df.select(col("A").contains("test"))

@@ -42,30 +42,30 @@ df15 = df.select(avg("value").over(Window.rangeBetween(Window.currentRow, Window
 
 df = session.table("test_table")
 
-df1 = df.select(col("NUM").as_("key"), col("STR").as_("value"))
+df = df.select(col("NUM").as_("key"), col("STR").as_("value"))
 
-df3 = df1.select(avg(col("value")).over(Window.partition_by(col("value")).order_by(col("key")).rows_between(Window.currentRow, 2)).as_("window1"), avg(col("value")).over(Window.order_by(col("key").desc()).range_between(Window.unboundedPreceding, Window.unboundedFollowing)).as_("window2"))
+df3 = df.select(avg(col("value")).over(Window.partition_by(col("value")).order_by(col("key")).rows_between(Window.currentRow, 2)).as_("window1"), avg(col("value")).over(Window.order_by(col("key").desc()).range_between(Window.unboundedPreceding, Window.unboundedFollowing)).as_("window2"))
 
-df4 = df1.select(stddev(col("value")).over(Window.order_by(col("key"))))
+df4 = df.select(stddev(col("value")).over(Window.order_by(col("key"))))
 
-df5 = df1.select(stddev(col("value")).over(Window.order_by(col("key"), col("value"))))
+df5 = df.select(stddev(col("value")).over(Window.order_by(col("key"), col("value"))))
 
-df6 = df1.select(avg(col("value")).over(Window.partition_by(col("key"))))
+df6 = df.select(avg(col("value")).over(Window.partition_by(col("key"))))
 
-df7 = df1.select(avg(col("value")).over(Window.partition_by(col("key"))))
+df7 = df.select(avg(col("value")).over(Window.partition_by(col("key"))))
 
-df8 = df1.select(avg(col("value")).over(Window.range_between(0, 2)))
+df8 = df.select(avg(col("value")).over(Window.range_between(0, 2)))
 
-df9 = df1.select(avg(col("value")).over(Window.range_between(1, 2)))
+df9 = df.select(avg(col("value")).over(Window.range_between(1, 2)))
 
-df10 = df1.select(avg(col("value")).over(Window.rows_between(0, 2)))
+df10 = df.select(avg(col("value")).over(Window.rows_between(0, 2)))
 
-df11 = df1.select(avg(col("value")).over(Window.rows_between(1, 2)))
+df11 = df.select(avg(col("value")).over(Window.rows_between(1, 2)))
 
-df12 = df1.select(avg(col("value")).over(Window.range_between(Window.currentRow, Window.unboundedFollowing)))
+df12 = df.select(avg(col("value")).over(Window.range_between(Window.currentRow, Window.unboundedFollowing)))
 
-df13 = df1.select(avg(col("value")).over(Window.range_between(Window.currentRow, Window.unboundedPreceding)))
+df13 = df.select(avg(col("value")).over(Window.range_between(Window.currentRow, Window.unboundedPreceding)))
 
-df14 = df1.select(avg(col("value")).over(Window.range_between(Window.currentRow, Window.unboundedFollowing)))
+df14 = df.select(avg(col("value")).over(Window.range_between(Window.currentRow, Window.unboundedFollowing)))
 
-df15 = df1.select(avg(col("value")).over(Window.range_between(Window.currentRow, Window.unboundedPreceding)))
+df15 = df.select(avg(col("value")).over(Window.range_between(Window.currentRow, Window.unboundedPreceding)))

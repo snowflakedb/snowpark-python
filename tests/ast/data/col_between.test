@@ -9,4 +9,4 @@ df = df.select(col("A").between(col("B"), 42))
 
 df = session.table("test_table")
 
-df1 = df.select(col("A").between(col("B"), 42))
+df = df.select(col("A").between(col("B"), 42))

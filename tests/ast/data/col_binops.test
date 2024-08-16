@@ -35,30 +35,30 @@ df = df.select(col("A") | col("B"))
 
 df = session.table("test_table")
 
-df1 = df.select(col("A") == col("B"))
+df = df.select(col("A") == col("B"))
 
-df2 = df1.select(col("A") != col("B"))
+df = df.select(col("A") != col("B"))
 
-df3 = df2.select(col("A") > col("B"))
+df = df.select(col("A") > col("B"))
 
-df4 = df3.select(col("A") < col("B"))
+df = df.select(col("A") < col("B"))
 
-df5 = df4.select(col("A") >= col("B"))
+df = df.select(col("A") >= col("B"))
 
-df6 = df5.select(col("A") <= col("B"))
+df = df.select(col("A") <= col("B"))
 
-df7 = df6.select(col("A") + col("B"))
+df = df.select(col("A") + col("B"))
 
-df8 = df7.select(col("A") - col("B"))
+df = df.select(col("A") - col("B"))
 
-df9 = df8.select(col("A") * col("B"))
+df = df.select(col("A") * col("B"))
 
-df10 = df9.select(col("A") / col("B"))
+df = df.select(col("A") / col("B"))
 
-df11 = df10.select(col("A") % col("B"))
+df = df.select(col("A") % col("B"))
 
-df12 = df11.select(col("A") ** col("B"))
+df = df.select(col("A") ** col("B"))
 
-df13 = df12.select(col("A") & col("B"))
+df = df.select(col("A") & col("B"))
 
-df14 = df13.select(col("A") | col("B"))
+df = df.select(col("A") | col("B"))

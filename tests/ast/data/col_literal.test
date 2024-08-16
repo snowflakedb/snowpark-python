@@ -54,46 +54,46 @@ df = df.select(col("A") + (0, ("test", 42.24, {None: ("hello", bytes("test", 'ut
 
 df = session.table("test_table")
 
-df1 = df.select(col("A") + None)
+df = df.select(col("A") + None)
 
-df2 = df1.select(col("A") + True)
+df = df.select(col("A") + True)
 
-df3 = df2.select(col("A") + False)
+df = df.select(col("A") + False)
 
-df4 = df3.select(col("A") + 42)
+df = df.select(col("A") + 42)
 
-df5 = df4.select(col("A") + 42.24)
+df = df.select(col("A") + 42.24)
 
-df6 = df5.select(col("A") + "test")
+df = df.select(col("A") + "test")
 
-df7 = df6.select(col("A") + bytes("test", "utf-8"))
+df = df.select(col("A") + bytes("test", "utf-8"))
 
-df8 = df7.select(col("A") + bytes("test", "utf-8"))
+df = df.select(col("A") + bytes("test", "utf-8"))
 
-df9 = df8.select(col("A") + datetime.datetime(2024, 6, 8, 3, 15, 33, 403587, tzinfo=datetime.timezone.utc))
+df = df.select(col("A") + datetime.datetime(2024, 6, 8, 3, 15, 33, 403587, tzinfo=datetime.timezone.utc))
 
-df10 = df9.select(col("A") + datetime.datetime(2024, 6, 7, 23, 15, 33, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=11700), name="test")))
+df = df.select(col("A") + datetime.datetime(2024, 6, 7, 23, 15, 33, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=11700), name="test")))
 
-df11 = df10.select(col("A") + datetime.datetime(2024, 6, 7, 23, 15, 33, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=-11700), name="UTC-03:15")))
+df = df.select(col("A") + datetime.datetime(2024, 6, 7, 23, 15, 33, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=-11700), name="UTC-03:15")))
 
-df12 = df11.select(col("A") + datetime.date(2024, 6, 7))
+df = df.select(col("A") + datetime.date(2024, 6, 7))
 
-df13 = df12.select(col("A") + datetime.time(9, 42, 23, 403587, tzinfo=datetime.timezone.utc))
+df = df.select(col("A") + datetime.time(9, 42, 23, 403587, tzinfo=datetime.timezone.utc))
 
-df14 = df13.select(col("A") + datetime.time(5, 42, 23, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=11700), name="test")))
+df = df.select(col("A") + datetime.time(5, 42, 23, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=11700), name="test")))
 
-df15 = df14.select(col("A") + datetime.time(5, 42, 23, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=-11700), name="UTC-03:15")))
+df = df.select(col("A") + datetime.time(5, 42, 23, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=-11700), name="UTC-03:15")))
 
-df16 = df15.select(col("A") + decimal.Decimal("403487.436973"))
+df = df.select(col("A") + decimal.Decimal("403487.436973"))
 
-df17 = df16.select(col("A") + decimal.Decimal("-403487.436973"))
+df = df.select(col("A") + decimal.Decimal("-403487.436973"))
 
-df18 = df17.select(col("A") + decimal.Decimal("403487"))
+df = df.select(col("A") + decimal.Decimal("403487"))
 
-df19 = df18.select(col("A") + decimal.Decimal("403487000"))
+df = df.select(col("A") + decimal.Decimal("403487000"))
 
-df20 = df19.select(col("A") + {0: "test", 42.24: None, "hello": bytes("test", "utf-8"), True: decimal.Decimal("-403487.436973"), None: datetime.date(2024, 6, 7)})
+df = df.select(col("A") + {0: "test", 42.24: None, "hello": bytes("test", "utf-8"), True: decimal.Decimal("-403487.436973"), None: datetime.date(2024, 6, 7)})
 
-df21 = df20.select(col("A") + [(0, "test", 42.24), None, "hello", bytes("test", "utf-8"), {True: decimal.Decimal("-403487.436973"), None: datetime.date(2024, 6, 7)}])
+df = df.select(col("A") + [(0, "test", 42.24), None, "hello", bytes("test", "utf-8"), {True: decimal.Decimal("-403487.436973"), None: datetime.date(2024, 6, 7)}])
 
-df22 = df21.select(col("A") + (0, ("test", 42.24, {None: ("hello", bytes("test", "utf-8"))}), [True, decimal.Decimal("-403487.436973"), {None: datetime.date(2024, 6, 7)}]))
+df = df.select(col("A") + (0, ("test", 42.24, {None: ("hello", bytes("test", "utf-8"))}), [True, decimal.Decimal("-403487.436973"), {None: datetime.date(2024, 6, 7)}]))
