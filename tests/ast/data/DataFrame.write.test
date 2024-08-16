@@ -36,62 +36,24 @@ df.write.parquet(remote_file_path, format_type_options={"compression":"bzip2"}, 
 
 df = session.table("test_table")
 
-res1 = df.write
+df.write.save_as_table("saved_table")
 
-res2 = res1.save_as_table("saved_table")
+df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
 
-res2
-
-res3 = df.write.mode("overwrite")
-
-res4 = res3.save_as_table("saved_table", table_type="temporary")
-
-res4
-
-res5 = df.write.mode("truncate")
-
-res6 = res5.save_as_table("test_destination", statement_params={"k": "v"}, column_order="name", table_type="transient", clustering_keys=["STR", col("num1")], comment="test")
-
-res6
+df.write.mode("truncate").save_as_table("test_destination", statement_params={"k": "v"}, column_order="name", table_type="transient", clustering_keys=["STR", col("num1")], comment="test")
 
 stage_created_result = session.sql("create temp stage if not exists test_stage")
 
-res7 = stage_created_result.collect()
+stage_created_result.collect()
 
-res7
+df.write.copy_into_location("@test_stage/copied_from_dataframe")
 
-res8 = df.write
+df.write.copy_into_location("@test_stage/copied_from_dataframe", file_format_type="parquet", header=True, overwrite=True, single=True)
 
-res9 = res8.copy_into_location("@test_stage/copied_from_dataframe")
+df.write.copy_into_location("@test_stage/copied_from_dataframe", file_format_name="csv", format_type_options={"compression": "bzip2"}, block=False, INCLUDE_QUERY_ID=True, DETAILED_OUTPUT=False)
 
-res9
+df.write.csv("@test_stage/test.csv", format_type_options={"compression": "bzip2"}, header=True, overwrite=True, single=True)
 
-res10 = df.write
+df.write.json("@test_stage/test.json", format_type_options={"compression": "bzip2"}, overwrite=True, single=True)
 
-res11 = res10.copy_into_location("@test_stage/copied_from_dataframe", file_format_type="parquet", header=True, overwrite=True, single=True)
-
-res11
-
-res12 = df.write
-
-res13 = res12.copy_into_location("@test_stage/copied_from_dataframe", file_format_name="csv", format_type_options={"compression": "bzip2"}, block=False, INCLUDE_QUERY_ID=True, DETAILED_OUTPUT=False)
-
-res13
-
-res14 = df.write
-
-res15 = res14.csv("@test_stage/test.csv", format_type_options={"compression": "bzip2"}, header=True, overwrite=True, single=True)
-
-res15
-
-res16 = df.write
-
-res17 = res16.json("@test_stage/test.json", format_type_options={"compression": "bzip2"}, overwrite=True, single=True)
-
-res17
-
-res18 = df.write
-
-res19 = res18.parquet("@test_stage/test.parquet", format_type_options={"compression": "bzip2"}, overwrite=True, single=True)
-
-res19
+df.write.parquet("@test_stage/test.parquet", format_type_options={"compression": "bzip2"}, overwrite=True, single=True)

@@ -20,30 +20,16 @@ df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, log_on_except
 
 df = session.table("test_table")
 
-res1 = df.collect()
+df.collect()
 
-res1
+df.collect(block=False)
 
-res2 = df.collect(block=False)
+df.collect(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
-res2
+df.collect(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False, log_on_exception=True, case_sensitive=False)
 
-res3 = df.collect(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+df.collect_nowait()
 
-res3
+df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
-res4 = df.collect(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False, log_on_exception=True, case_sensitive=False)
-
-res4
-
-res5 = df.collect_nowait()
-
-res5
-
-res6 = df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
-
-res6
-
-res7 = df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, log_on_exception=True, case_sensitive=False)
-
-res7
+df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, log_on_exception=True, case_sensitive=False)
