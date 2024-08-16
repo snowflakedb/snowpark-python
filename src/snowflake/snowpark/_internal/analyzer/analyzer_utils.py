@@ -1091,7 +1091,7 @@ def create_or_replace_dynamic_table_statement(
     max_data_extension_time: Optional[int],
     child: str,
 ) -> str:
-    def get_assign_param_sql(param_name: str, param_value: Optional[str]) -> str:
+    def get_assign_param_sql(param_name: str, param_value: Optional[Any]) -> str:
         return f"{param_name}{EQUALS}{param_value}" if param_value else EMPTY_STRING
 
     clustery_by_sql = (
