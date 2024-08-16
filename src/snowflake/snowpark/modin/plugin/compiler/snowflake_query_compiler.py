@@ -1761,8 +1761,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 only arithmetic binary operation has this parameter (e.g., add() has, but eq() doesn't have).
         """
         type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
-        replace_mapping = {
-            identifier: compute_binary_op_with_fill_value(
+        replace_mapping = {}
+        data_column_snowpark_pandas_types = []
+        for identifier in self._modin_frame.data_column_snowflake_quoted_identifiers:
+            expression, snowpark_pandas_type = compute_binary_op_with_fill_value(
                 op=op,
                 lhs=col(identifier),
                 lhs_datatype=lambda: type_map[identifier],  # noqa: B023
@@ -1770,11 +1772,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 rhs_datatype=lambda: infer_object_type(other),
                 fill_value=fill_value,
             )
-            for identifier in self._modin_frame.data_column_snowflake_quoted_identifiers
-        }
+            replace_mapping[identifier] = expression
+            data_column_snowpark_pandas_types.append(snowpark_pandas_type)
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
-                replace_mapping
+                quoted_identifier_to_column_map=replace_mapping,
+                data_column_snowpark_pandas_types=data_column_snowpark_pandas_types,
             ).frame
         )
 
@@ -1817,8 +1820,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         other_identifier = new_frame.data_column_snowflake_quoted_identifiers[-1]
         # Step 3: Create a map from the column identifier to the binary operation expression. This is used
         # to update the column data.
-        replace_mapping = {
-            identifier: compute_binary_op_with_fill_value(
+        replace_mapping = {}
+        snowpark_pandas_types = []
+        for identifier in new_frame.data_column_snowflake_quoted_identifiers[:-1]:
+            expression, snowpark_pandas_type = compute_binary_op_with_fill_value(
                 op=op,
                 lhs=col(identifier),
                 lhs_datatype=lambda: identifier_to_type_map[identifier],  # noqa: B023
@@ -1826,8 +1831,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 rhs_datatype=lambda: identifier_to_type_map[other_identifier],
                 fill_value=fill_value,
             )
-            for identifier in new_frame.data_column_snowflake_quoted_identifiers[:-1]
-        }
+            replace_mapping[identifier] = expression
+            snowpark_pandas_types.append(snowpark_pandas_type)
 
         # Step 4: Update the frame with the expressions map and return a new query compiler after removing the
         # column representing other's data.
@@ -1843,6 +1848,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_index_names=new_frame.data_column_pandas_index_names,
             index_column_pandas_labels=new_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=new_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=snowpark_pandas_types,
         )
         return SnowflakeQueryCompiler(new_frame)
 
@@ -1873,6 +1879,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # each element in the list-like object can be treated as a scalar for each corresponding column.
         type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
+        snowpark_pandas_types = []
         for idx, identifier in enumerate(
             self._modin_frame.data_column_snowflake_quoted_identifiers
         ):
@@ -1886,7 +1893,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # rhs is not guaranteed to be a scalar value - it can be a list-like as well.
             # Convert all list-like objects to a list.
             rhs_lit = pandas_lit(rhs) if is_scalar(rhs) else pandas_lit(rhs.tolist())
-            replace_mapping[identifier] = compute_binary_op_with_fill_value(
+            expression, snowpark_pandas_type = compute_binary_op_with_fill_value(
                 op,
                 lhs=lhs,
                 lhs_datatype=lambda: type_map[identifier],  # noqa: B023
@@ -1894,10 +1901,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 rhs_datatype=lambda: infer_object_type(rhs),  # noqa: B023
                 fill_value=fill_value,
             )
+            replace_mapping[identifier] = expression
+            snowpark_pandas_types.append(snowpark_pandas_type)
 
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
-                replace_mapping
+                replace_mapping, snowpark_pandas_types
             ).frame
         )
 
@@ -2017,7 +2026,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )[0]
 
             # add new column with result as unnamed
-            new_column_expr = compute_binary_op_with_fill_value(
+            new_column_expr, snowpark_pandas_type = compute_binary_op_with_fill_value(
                 op=op,
                 lhs=col(lhs_quoted_identifier),
                 lhs_datatype=lambda: identifier_to_type_map[lhs_quoted_identifier],
@@ -2034,7 +2043,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 else lhs_frame.data_column_pandas_labels[0]
             )
 
-            new_frame = aligned_frame.append_column(new_column_name, new_column_expr)
+            new_frame = aligned_frame.append_column(
+                new_column_name, new_column_expr, value_type=snowpark_pandas_type
+            )
 
             # return only newly created column. Because column has been appended, this is the last column indexed by -1
             return SnowflakeQueryCompiler(
@@ -13376,15 +13387,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         right_datatype = right_datatypes[0]
 
         # now replace in result frame identifiers with binary op result
+        replace_mapping = {}
+        snowpark_pandas_types = []
+        for left, left_datatype in zip(left_result_data_identifiers, left_datatypes):
+            (
+                expression,
+                snowpark_pandas_type,
+            ) = compute_binary_op_between_snowpark_columns(
+                op, col(left), left_datatype, col(right), right_datatype
+            )
+            snowpark_pandas_types.append(snowpark_pandas_type)
+            replace_mapping[left] = expression
         update_result = joined_frame.result_frame.update_snowflake_quoted_identifiers_with_expressions(
-            {
-                left: compute_binary_op_between_snowpark_columns(
-                    op, col(left), left_datatype, col(right), right_datatype
-                )
-                for left, left_datatype in zip(
-                    left_result_data_identifiers, left_datatypes
-                )
-            }
+            replace_mapping, snowpark_pandas_types
         )
         new_frame = update_result.frame
 
@@ -13392,22 +13407,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         identifiers_to_keep = set(
             new_frame.index_column_snowflake_quoted_identifiers
         ) | set(update_result.old_id_to_new_id_mappings.values())
-        label_to_snowflake_quoted_identifier = tuple(
-            filter(
-                lambda pair: pair.snowflake_quoted_identifier in identifiers_to_keep,
-                new_frame.label_to_snowflake_quoted_identifier,
-            )
-        )
+        label_to_snowflake_quoted_identifier = []
+        snowflake_quoted_identifier_to_snowpark_pandas_type = {}
+        for pair in new_frame.label_to_snowflake_quoted_identifier:
+            if pair.snowflake_quoted_identifier in identifiers_to_keep:
+                label_to_snowflake_quoted_identifier.append(pair)
+                snowflake_quoted_identifier_to_snowpark_pandas_type[
+                    pair.snowflake_quoted_identifier
+                ] = new_frame.snowflake_quoted_identifier_to_snowpark_pandas_type[
+                    pair.snowflake_quoted_identifier
+                ]
 
         new_frame = InternalFrame(
             ordered_dataframe=new_frame.ordered_dataframe,
-            label_to_snowflake_quoted_identifier=label_to_snowflake_quoted_identifier,
+            label_to_snowflake_quoted_identifier=tuple(
+                label_to_snowflake_quoted_identifier
+            ),
             num_index_columns=new_frame.num_index_columns,
             data_column_index_names=new_frame.data_column_index_names,
-            snowflake_quoted_identifier_to_snowpark_pandas_type={
-                pair.snowflake_quoted_identifier: None
-                for pair in label_to_snowflake_quoted_identifier
-            },
+            snowflake_quoted_identifier_to_snowpark_pandas_type=snowflake_quoted_identifier_to_snowpark_pandas_type,
         )
 
         return SnowflakeQueryCompiler(new_frame)
@@ -13619,8 +13637,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             align_result, combined_data_labels, self_frame, other_frame
         )
 
-        replace_mapping = {
-            p.identifier: compute_binary_op_with_fill_value(
+        replace_mapping = {}
+        data_column_snowpark_pandas_types = []
+        for p in left_right_pairs:
+            result_expression, snowpark_pandas_type = compute_binary_op_with_fill_value(
                 op=op,
                 lhs=p.lhs,
                 lhs_datatype=p.lhs_datatype,
@@ -13628,9 +13648,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 rhs_datatype=p.rhs_datatype,
                 fill_value=fill_value,
             )
-            for p in left_right_pairs
-        }
-
+            replace_mapping[p.identifier] = result_expression
+            data_column_snowpark_pandas_types.append(snowpark_pandas_type)
         # Create restricted frame with only combined / replaced labels.
         updated_result = align_result.result_frame.update_snowflake_quoted_identifiers_with_expressions(
             replace_mapping
@@ -13647,6 +13666,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=updated_data_identifiers,
             index_column_pandas_labels=new_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=new_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=data_column_snowpark_pandas_types,
         )
 
         return SnowflakeQueryCompiler(result_frame)
@@ -13882,9 +13902,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             for _, identifier in overlapping_pairs  # noqa: B023
         }
 
-        new_frame = new_frame.update_snowflake_quoted_identifiers_with_expressions(
-            {
-                identifier: compute_binary_op_between_scalar_and_snowpark_column(
+        replace_mapping = {}
+        snowpark_pandas_labels = []
+        for label, identifier in overlapping_pairs:
+            expression, new_type = (
+                compute_binary_op_between_scalar_and_snowpark_column(
                     op,
                     series.loc[label],
                     col(identifier),
@@ -13897,11 +13919,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     datatype_getters[identifier],
                     series.loc[label],
                 )
-                for label, identifier in overlapping_pairs
-            }
-        ).frame
-
-        return SnowflakeQueryCompiler(new_frame)
+            )
+            snowpark_pandas_labels.append(new_type)
+            replace_mapping[identifier] = expression
+        return SnowflakeQueryCompiler(
+            new_frame.update_snowflake_quoted_identifiers_with_expressions(
+                replace_mapping, snowpark_pandas_labels
+            ).frame
+        )
 
     def _replace_non_str(
         self,
@@ -16308,7 +16333,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         replace_mapping = {
             p.identifier: compute_binary_op_between_snowpark_columns(
                 "equal_null", p.lhs, p.lhs_datatype, p.rhs, p.rhs_datatype
-            )
+            )[0]
             for p in left_right_pairs
         }
 

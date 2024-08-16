@@ -1161,6 +1161,11 @@ def get_frame_by_col_pos(
         data_column_snowflake_quoted_identifiers=selected_columns_quoted_identifiers,
         index_column_pandas_labels=internal_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=[
+            internal_frame.cached_data_column_snowpark_pandas_types[i]
+            for i in valid_indices
+        ],
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
