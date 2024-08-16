@@ -2910,7 +2910,7 @@ def test_create_dynamic_table(session, table_name_1, is_transient):
             data_retention_time = None
             max_data_extension_time = None
         else:
-            data_retention_time = 2
+            data_retention_time = 1
             max_data_extension_time = 4
         df.create_or_replace_dynamic_table(
             dt_name,
@@ -2947,7 +2947,7 @@ def test_create_dynamic_table(session, table_name_1, is_transient):
             show_params_result = session.sql(show_params_sql).collect()
             for row in show_params_result:
                 if row[0] == "DATA_RETENTION_TIME_IN_DAYS":
-                    assert row[1] == "2"
+                    assert row[1] == "1"
                 elif row[0] == "MAX_DATA_EXTENSION_TIME_IN_DAYS":
                     assert row[1] == "4"
 
