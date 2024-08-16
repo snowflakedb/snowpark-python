@@ -30,7 +30,7 @@ DataFrame
     DataFrame.corr
     DataFrame.count
     DataFrame.cov
-    DataFrame.create_or_dynamic_table
+    DataFrame.create_or_replace_dynamic_table
     DataFrame.createOrReplaceTempView
     DataFrame.createOrReplaceView
     DataFrame.create_or_replace_temp_view
