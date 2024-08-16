@@ -2401,7 +2401,7 @@ class Index(metaclass=TelemetryMeta):
         # First, create the data representation.
         # When the number of elements in the Index is greater than the number of
         # elements to display, display only the first and last 10 elements.
-        max_seq_items = native_pd.get_option("display.max_seq_items") or 100
+        max_seq_items = get_option("display.max_seq_items") or 100
         length_of_index, _, temp_df = self.to_series()._query_compiler.build_repr_df(
             max_seq_items, 1
         )

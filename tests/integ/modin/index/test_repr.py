@@ -33,7 +33,7 @@ from tests.integ.modin.sql_counter import SqlCounter
             ]
         ),
         native_pd.Index(["this is a very long string"] * 200, name="unnecessary name"),
-        native_pd.Index(["abc", 12, 0.03, None]),
+        native_pd.Index(["abc", 12, 0.03, None, "..."]),
         native_pd.Index([e / 100 for e in range(-100, 100)], name="numbers"),
     ],
 )
