@@ -173,7 +173,7 @@ class Index(metaclass=TelemetryMeta):
 
     def _init_index(
         self,
-        data: ArrayLike | native_pd.Index | Series | DataFrame | None,
+        data: ArrayLike | native_pd.Index | Series | None,
         ctor_defaults: dict,
         query_compiler: SnowflakeQueryCompiler = None,
         **kwargs: Any,
@@ -1582,7 +1582,7 @@ class Index(metaclass=TelemetryMeta):
         Note
         ----
         Native pandas only allows hashable types for names. Snowpark pandas allows
-        name to be any scalar or list-like type. If a type is used for the name,
+        name to be any scalar or list-like type. If a tuple is used for the name,
         the tuple itself will be the name.
 
         For instance,
