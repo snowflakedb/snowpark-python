@@ -2838,6 +2838,56 @@ def test_write_table_with_clustering_keys_and_comment(
         Utils.drop_table(session, table_name3)
 
 
+def test_write_table_with_all_options(session):
+    try:
+        table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        df = session.create_dataframe(
+            [],
+            schema=StructType(
+                [
+                    StructField("c1", DateType()),
+                    StructField("c2", StringType()),
+                    StructField("c3", IntegerType()),
+                ]
+            ),
+        )
+        comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+
+        with session.query_history() as history:
+            df.write.save_as_table(
+                table_name,
+                mode="overwrite",
+                clustering_keys=["c1", "c2"],
+                comment=comment,
+                enable_schema_evolution=True,
+                data_retention_time=1,
+                max_data_extension_time=4,
+                change_tracking=True,
+                copy_grants=True,
+            )
+        ddl = session._run_query(f"select get_ddl('table', '{table_name}')")[0][0]
+
+        assert 'cluster by ("C1", "C2")' in ddl
+        assert comment in ddl
+        # data retention and max data extension time cannot be queried from get_ddl
+        # we run a show parameters query to get the values for these parameters
+        show_params_sql = f"show parameters like '%TIME_IN_DAYS%' in table {table_name}"
+        show_params_result = session._run_query(show_params_sql)
+        for row in show_params_result:
+            if row[0] == "DATA_RETENTION_TIME_IN_DAYS":
+                assert row[1] == "1"
+            elif row[0] == "MAX_DATA_EXTENSION_TIME_IN_DAYS":
+                assert row[1] == "4"
+
+        for query in history.queries:
+            if table_name in query.sql_text:
+                assert "ENABLE_SCHEMA_EVOLUTION  = True" in query.sql_text
+                assert "CHANGE_TRACKING  = True" in query.sql_text
+                assert "COPY GRANTS" in query.sql_text
+    finally:
+        Utils.drop_table(session, table_name)
+
+
 @pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
