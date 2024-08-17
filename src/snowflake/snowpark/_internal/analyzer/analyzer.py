@@ -204,6 +204,13 @@ class Analyzer:
                 self.analyze(
                     expr.pattern, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
+                self.analyze(
+                    expr.parameters,
+                    df_aliased_col_name_to_real_col_name,
+                    parse_local_name,
+                )
+                if expr.parameters is not None
+                else None,
             )
 
         if isinstance(expr, Collate):
@@ -984,7 +991,7 @@ class Analyzer:
                 resolved_child,
                 logical_plan,
                 self.session._use_scoped_temp_objects,
-                logical_plan.is_generated,
+                logical_plan.creation_source,
                 resolved_child.attributes,
             )
 

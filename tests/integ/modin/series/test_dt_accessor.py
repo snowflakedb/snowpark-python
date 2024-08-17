@@ -90,6 +90,74 @@ def test_date(datetime_index_value):
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.dt.date)
 
 
+@pytest.mark.parametrize(
+    "datetime_index_value",
+    [
+        ["2014-04-04 23:56:20", "2014-07-18 21:24:30", "2015-11-22 22:14:40"],
+        ["04/04/2014", "07/18/2013", "11/22/2015"],
+        ["2014-04-04 23:56", pd.NaT, "2014-07-18 21:24", "2015-11-22 22:14", pd.NaT],
+        [
+            pd.Timestamp(2017, 1, 1, 12),
+            pd.Timestamp(2018, 2, 1, 10),
+            pd.Timestamp(2000, 2, 1, 10),
+        ],
+    ],
+)
+@pytest.mark.parametrize("func", ["floor", "ceil", "round"])
+@pytest.mark.parametrize(
+    "freq",
+    [
+        "1d",
+        "2d",
+        "1h",
+        "2h",
+        "1min",
+        "2min",
+        "1s",
+        "2s",
+    ],
+)
+def test_floor_ceil_round(datetime_index_value, func, freq):
+    native_ser = native_pd.Series(native_pd.DatetimeIndex(datetime_index_value))
+    snow_ser = pd.Series(native_ser)
+    if func == "round" and "s" in freq:
+        with SqlCounter(query_count=0):
+            with pytest.raises(NotImplementedError):
+                snow_ser.dt.round(freq=freq)
+    else:
+        with SqlCounter(query_count=1):
+            eval_snowpark_pandas_result(
+                snow_ser, native_ser, lambda ser: getattr(ser.dt, func)(freq)
+            )
+
+
+@pytest.mark.parametrize("func", ["floor", "ceil", "round"])
+@pytest.mark.parametrize(
+    "freq, ambiguous, nonexistent",
+    [
+        ("1w", "raise", "raise"),
+        ("1h", "infer", "raise"),
+        ("1h", "raise", "shift_forward"),
+        ("1w", "infer", "shift_forward"),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_floor_ceil_round_negative(func, freq, ambiguous, nonexistent):
+    datetime_index_value = [
+        "2014-04-04 23:56",
+        pd.NaT,
+        "2014-07-18 21:24",
+        "2015-11-22 22:14",
+        pd.NaT,
+    ]
+    native_ser = native_pd.Series(native_pd.DatetimeIndex(datetime_index_value))
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(NotImplementedError):
+        getattr(snow_ser.dt, func)(
+            freq=freq, ambiguous=ambiguous, nonexistent=nonexistent
+        )
+
+
 def test_isocalendar():
     with SqlCounter(query_count=1):
         date_range = native_pd.date_range("2020-05-01", periods=5, freq="4D")

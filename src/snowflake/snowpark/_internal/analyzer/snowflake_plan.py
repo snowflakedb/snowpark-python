@@ -96,6 +96,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SaveMode,
     SnowflakeCreateTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateDynamicTableCommand,
@@ -840,12 +841,49 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         use_scoped_temp_objects: bool,
-        is_generated: bool,  # true if the table is generated internally
-        child_attributes: List[Attribute],
+        creation_source: TableCreationSource,
+        child_attributes: Optional[List[Attribute]],
     ) -> SnowflakePlan:
+        """Returns a SnowflakePlan to materialize the child plan into a table.
+
+        Args:
+            table_name: fully qualified table name
+            column_names: names of columns for the table
+            mode: APPEND, TRUNCATE, OVERWRITE, IGNORE, ERROR_IF_EXISTS
+            table_type: temporary, transient, or permanent
+            clustering_keys: list of clustering columns
+            comment: comment associated with the table
+            child: the SnowflakePlan that is being materialized into a table
+            source_plan: the source plan of the child
+            use_scoped_temp_objects: should we use scoped temp objects
+            creation_source: the creator for the SnowflakeCreateTable node, today it can come from the
+                cache result api, compilation transformations like large query breakdown, or other like
+                save_as_table call. This parameter is used to identify whether a table is internally
+                generated with cache_result or by the compilation transformation, and some special
+                check and handling needs to be applied to guarantee the correctness of generated query.
+            child_attributes: child attributes will be none in the case of large query breakdown
+                where we use ctas query to create the table which does not need to know the column
+                metadata.
+        """
+        is_generated = creation_source in (
+            TableCreationSource.CACHE_RESULT,
+            TableCreationSource.LARGE_QUERY_BREAKDOWN,
+        )
         if is_generated and mode != SaveMode.ERROR_IF_EXISTS:
+            # an internally generated save_as_table comes from two sources:
+            #   1. df.cache_result: plan is created with create table + insert statement
+            #   2. large query breakdown: plan is created using a CTAS statement
+            # For these cases, we must use mode ERROR_IF_EXISTS
             raise ValueError(
                 "Internally generated tables must be called with mode ERROR_IF_EXISTS"
+            )
+
+        if (
+            child_attributes is None
+            and creation_source != TableCreationSource.LARGE_QUERY_BREAKDOWN
+        ):
+            raise ValueError(
+                "child attribute must be provided when table creation source is not large query breakdown"
             )
 
         full_table_name = ".".join(table_name)
@@ -854,18 +892,41 @@ class SnowflakePlanBuilder:
         # the attributes set to ($1, VariantType()) which cannot be used as valid column name
         # in save as table. So we rename ${number} with COL{number}.
         hidden_column_pattern = r"\"\$(\d+)\""
-        column_definition_with_hidden_columns = attribute_to_schema_string(
-            child_attributes
-        )
-        column_definition = re.sub(
-            hidden_column_pattern,
-            lambda match: f'"COL{match.group(1)}"',
-            column_definition_with_hidden_columns,
-        )
+        column_definition = None
+        if child_attributes is not None:
+            column_definition_with_hidden_columns = attribute_to_schema_string(
+                child_attributes or []
+            )
+            column_definition = re.sub(
+                hidden_column_pattern,
+                lambda match: f'"COL{match.group(1)}"',
+                column_definition_with_hidden_columns,
+            )
 
         child = child.replace_repeated_subquery_with_cte()
 
-        def get_create_and_insert_plan(child: SnowflakePlan, replace=False, error=True):
+        def get_create_table_as_select_plan(child: SnowflakePlan, replace, error):
+            return self.build(
+                lambda x: create_table_as_select_statement(
+                    full_table_name,
+                    x,
+                    column_definition,
+                    replace=replace,
+                    error=error,
+                    table_type=table_type,
+                    clustering_key=clustering_keys,
+                    comment=comment,
+                ),
+                child,
+                source_plan,
+                is_ddl_on_temp_object=is_temp_table_type,
+                propagate_referenced_ctes=False,
+            )
+
+        def get_create_and_insert_plan(child: SnowflakePlan, replace, error):
+            assert (
+                column_definition is not None
+            ), "column definition is required for create table statement"
             create_table = create_table_statement(
                 full_table_name,
                 column_definition,
@@ -917,6 +978,7 @@ class SnowflakePlanBuilder:
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
+
         elif mode == SaveMode.TRUNCATE:
             if self.session._table_exists(table_name):
                 return self.build(
@@ -928,71 +990,21 @@ class SnowflakePlanBuilder:
                     propagate_referenced_ctes=False,
                 )
             else:
-                return self.build(
-                    lambda x: create_table_as_select_statement(
-                        full_table_name,
-                        x,
-                        column_definition,
-                        replace=True,
-                        table_type=table_type,
-                        clustering_key=clustering_keys,
-                        comment=comment,
-                    ),
-                    child,
-                    source_plan,
-                    is_ddl_on_temp_object=is_temp_table_type,
-                    propagate_referenced_ctes=False,
-                )
+                return get_create_table_as_select_plan(child, replace=True, error=True)
+
         elif mode == SaveMode.OVERWRITE:
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name,
-                    x,
-                    column_definition,
-                    replace=True,
-                    table_type=table_type,
-                    clustering_key=clustering_keys,
-                    comment=comment,
-                ),
-                child,
-                source_plan,
-                is_ddl_on_temp_object=is_temp_table_type,
-                propagate_referenced_ctes=False,
-            )
+            return get_create_table_as_select_plan(child, replace=True, error=True)
+
         elif mode == SaveMode.IGNORE:
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name,
-                    x,
-                    column_definition,
-                    error=False,
-                    table_type=table_type,
-                    clustering_key=clustering_keys,
-                    comment=comment,
-                ),
-                child,
-                source_plan,
-                is_ddl_on_temp_object=is_temp_table_type,
-                propagate_referenced_ctes=False,
-            )
+            return get_create_table_as_select_plan(child, replace=False, error=False)
+
         elif mode == SaveMode.ERROR_IF_EXISTS:
-            if is_generated:
+            if creation_source == TableCreationSource.CACHE_RESULT:
+                # if the table is created from cache result, we use create and replace
+                # table in order to avoid breaking any current transaction.
                 return get_create_and_insert_plan(child, replace=False, error=True)
 
-            return self.build(
-                lambda x: create_table_as_select_statement(
-                    full_table_name,
-                    x,
-                    column_definition,
-                    table_type=table_type,
-                    clustering_key=clustering_keys,
-                    comment=comment,
-                ),
-                child,
-                source_plan,
-                is_ddl_on_temp_object=is_temp_table_type,
-                propagate_referenced_ctes=False,
-            )
+            return get_create_table_as_select_plan(child, replace=False, error=True)
 
     def limit(
         self,
@@ -1097,6 +1109,46 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
+    def _merge_file_format_options(
+        self, file_format_options: Dict[str, Any], options: Dict[str, str]
+    ) -> Dict[str, Any]:
+        """
+        Merges remotely defined file_format options with the local options set. This allows the client
+        to override any locally defined options that are incompatible with the file format.
+        """
+        if "FORMAT_NAME" not in options:
+            return file_format_options
+
+        def process_list(list_property):
+            split_list = list_property.lstrip("[").rstrip("]").split(", ")
+            if len(split_list) == 1:
+                return split_list[0]
+            return tuple(split_list)
+
+        type_map = {
+            "String": str,
+            "List": process_list,
+            "Integer": int,
+            "Boolean": bool,
+        }
+        new_options = {**file_format_options}
+        # SNOW-1628625: This query and subsequent merge operations should be done lazily
+        file_format = self.session.sql(
+            f"DESCRIBE FILE FORMAT {options['FORMAT_NAME']}"
+        ).collect()
+
+        for setting in file_format:
+            if (
+                setting["property_value"] == setting["property_default"]
+                or setting["property"] in new_options
+            ):
+                continue
+
+            new_options[str(setting["property"])] = type_map.get(
+                str(setting["property_type"]), str
+            )(setting["property_value"])
+        return new_options
+
     def read_file(
         self,
         path: str,
@@ -1109,6 +1161,9 @@ class SnowflakePlanBuilder:
         metadata_schema: Optional[List[Attribute]] = None,
     ):
         format_type_options, copy_options = get_copy_into_table_options(options)
+        format_type_options = self._merge_file_format_options(
+            format_type_options, options
+        )
         pattern = options.get("PATTERN")
         # Can only infer the schema for parquet, orc and avro
         # csv and json in preview
@@ -1134,33 +1189,29 @@ class SnowflakePlanBuilder:
         if not copy_options:  # use select
             queries: List[Query] = []
             post_queries: List[Query] = []
-            use_temp_file_format: bool = "FORMAT_NAME" not in options
-            if use_temp_file_format:
-                format_name = self.session.get_fully_qualified_name_if_possible(
-                    random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+            format_name = self.session.get_fully_qualified_name_if_possible(
+                random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+            )
+            queries.append(
+                Query(
+                    create_file_format_statement(
+                        format_name,
+                        format,
+                        format_type_options,
+                        temp=True,
+                        if_not_exist=True,
+                        use_scoped_temp_objects=self.session._use_scoped_temp_objects,
+                        is_generated=True,
+                    ),
+                    is_ddl_on_temp_object=True,
                 )
-                queries.append(
-                    Query(
-                        create_file_format_statement(
-                            format_name,
-                            format,
-                            format_type_options,
-                            temp=True,
-                            if_not_exist=True,
-                            use_scoped_temp_objects=self.session._use_scoped_temp_objects,
-                            is_generated=True,
-                        ),
-                        is_ddl_on_temp_object=True,
-                    )
+            )
+            post_queries.append(
+                Query(
+                    drop_file_format_if_exists_statement(format_name),
+                    is_ddl_on_temp_object=True,
                 )
-                post_queries.append(
-                    Query(
-                        drop_file_format_if_exists_statement(format_name),
-                        is_ddl_on_temp_object=True,
-                    )
-                )
-            else:
-                format_name = options["FORMAT_NAME"]
+            )
 
             if infer_schema:
                 assert schema_to_cast is not None

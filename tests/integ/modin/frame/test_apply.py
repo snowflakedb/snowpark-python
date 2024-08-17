@@ -60,44 +60,11 @@ BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP = [
     ),
 ]
 
-# test data where return type is a pandas Series
-BASIC_DATA_FUNC_SERIES_RETURN_TYPE_MAP = [
-    [[[1.1, 2.2], [3, np.nan]], lambda x: x + 1, "native_pd.Series"],
-    [[[1.1, 2.2], [3, np.nan]], np.sqrt, "native_pd.Series"],
-    [[[1.1, 2.2], [3, np.nan]], lambda x: x > 2, "native_pd.Series"],
-    [
-        [["snow", "flake"], ["data", "cloud"]],
-        lambda x: x.str.replace("a", "b"),
-        "native_pd.Series",
-    ],
-    [[[True, False], [False, False]], lambda x: x.astype(np.int64), "native_pd.Series"],
-    [[[True, False], [False, False]], lambda x: x[0] ^ x[1], "bool"],
-    (
-        [
-            [bytes("snow", "utf-8"), bytes("flake", "utf-8")],
-            [bytes("data", "utf-8"), bytes("cloud", "utf-8")],
-        ],
-        lambda x: x.astype(str),
-        "native_pd.Series",
-    ),
-    (
-        [[["a", "b"], ["c", "d"]], [["a", "b"], ["c", "d"]]],
-        lambda x: x,
-        "native_pd.Series",
-    ),
-    (
-        [[{"a": "b"}, {"c": "d"}], [{"c": "b"}, {"a": "d"}]],
-        lambda x: x,
-        "native_pd.Series",
-    ),
-]
 
-BASIC_DATA_FUNC_RETURN_TYPE_MAP = (
-    BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP + BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP
+@pytest.mark.parametrize(
+    "data, func, return_type", BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP
 )
-
-
-@pytest.mark.parametrize("data, func, return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
+@pytest.mark.modin_sp_precommit
 def test_axis_1_basic_types_without_type_hints(data, func, return_type):
     # this test processes functions without type hints and invokes the UDTF solution.
     native_df = native_pd.DataFrame(data, columns=["A", "b"])
@@ -109,6 +76,7 @@ def test_axis_1_basic_types_without_type_hints(data, func, return_type):
 @pytest.mark.parametrize(
     "data, func, return_type", BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP
 )
+@pytest.mark.modin_sp_precommit
 def test_axis_1_basic_types_with_type_hints(data, func, return_type):
     # create explicitly for supported python types UDF with type hints and process via vUDF.
     native_df = native_pd.DataFrame(data, columns=["A", "b"])
@@ -369,7 +337,9 @@ def test_axis_1_apply_args_kwargs():
 
 
 class TestNotImplemented:
-    @pytest.mark.parametrize("data, func, return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
+    @pytest.mark.parametrize(
+        "data, func, return_type", BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP
+    )
     @sql_count_checker(query_count=0)
     def test_axis_0(self, data, func, return_type):
         snow_df = pd.DataFrame(data)
@@ -603,7 +573,7 @@ TRANSFORM_DATA_FUNC_MAP = [
 ]
 
 
-@pytest.mark.modin_sp_short_regress
+@pytest.mark.modin_sp_precommit
 @pytest.mark.parametrize("data, apply_func", TRANSFORM_DATA_FUNC_MAP)
 @sql_count_checker(query_count=0)
 def test_basic_dataframe_transform(data, apply_func):
@@ -846,6 +816,7 @@ def test_apply_axis_1_frame_with_column_of_all_nulls_snow_1233832(null_value):
 import scipy.stats  # noqa: E402
 
 
+@pytest.mark.modin_sp_precommit
 @pytest.mark.parametrize(
     "packages,expected_query_count",
     [

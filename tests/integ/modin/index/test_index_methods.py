@@ -318,7 +318,11 @@ def test_df_index_to_frame(native_df, index, name):
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_dtype(native_index):
     snow_index = pd.Index(native_index)
-    assert snow_index.dtype == native_index.dtype
+    if isinstance(native_index, native_pd.DatetimeIndex):
+        # Snowpark pandas does not include timezone info in dtype datetime64[ns],
+        assert snow_index.dtype == "datetime64[ns]"
+    else:
+        assert snow_index.dtype == native_index.dtype
 
 
 @sql_count_checker(query_count=0)
@@ -364,3 +368,35 @@ def test_index_parent():
     snow_idx = s.index
     assert_series_equal(snow_idx._parent, s)
     assert_index_equal(snow_idx, native_idx2)
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"dtype": "str"}, {"copy": True}, {"name": "abc"}, {"tupleize_cols": False}],
+)
+def test_non_default_args(kwargs):
+    idx = pd.Index([1, 2, 3, 4], name="name", dtype="int64")
+
+    name = list(kwargs.keys())[0]
+    value = list(kwargs.values())[0]
+    msg = f"Non-default argument '{name}={value}' when constructing Index with query compiler"
+    with pytest.raises(AssertionError, match=msg):
+        pd.Index(query_compiler=idx._query_compiler, **kwargs)
+
+
+@sql_count_checker(query_count=2)
+def test_create_index_from_series():
+    idx = pd.Index(pd.Series([5, 6]))
+    assert_index_equal(idx, native_pd.Index([5, 6]))
+
+    idx = pd.Index(pd.Series([5, 6], name="abc"))
+    assert_index_equal(idx, native_pd.Index([5, 6], name="abc"))
+
+
+@sql_count_checker(query_count=0)
+def test_create_index_from_df_negative():
+    with pytest.raises(ValueError):
+        pd.Index(pd.DataFrame([[1, 2], [3, 4]]))
+    with pytest.raises(ValueError):
+        pd.DatetimeIndex(pd.DataFrame([[1, 2], [3, 4]]))

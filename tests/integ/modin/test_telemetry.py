@@ -325,7 +325,7 @@ def test_telemetry_args():
 )
 @sql_count_checker(query_count=7, fallback_count=1, sproc_count=1)
 def test_property_methods_telemetry():
-    datetime_series = pd.date_range("2000-01-01", periods=3, freq="h")
+    datetime_series = pd.Series(pd.date_range("2000-01-01", periods=3, freq="h"))
     ret_series = datetime_series.dt.timetz
     assert len(ret_series._query_compiler.snowpark_pandas_api_calls) == 1
     api_call = ret_series._query_compiler.snowpark_pandas_api_calls[0]
@@ -355,7 +355,7 @@ def test_telemetry_with_not_implemented_error():
     index = pandas.date_range("1/1/2000", periods=9, freq="min")
     ser = pd.Series(range(9), index=index)
     try:
-        ser.resample("3T").bfill()
+        ser.resample("3T").fillna(method="nearest")
     except NotImplementedError:
         pass
 
@@ -474,7 +474,7 @@ def test_telemetry_private_method(name, method, expected_query_count):
     assert data["api_calls"] == [{"name": f"DataFrame.DataFrame.{name}"}]
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_telemetry_property_index():
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     df._query_compiler.snowpark_pandas_api_calls.clear()
