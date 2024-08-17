@@ -77,7 +77,10 @@
     `is_month_start`, `is_month_end`, `is_quarter_start`, `is_quarter_end`, `is_year_start`, `is_year_end`
     and `is_leap_year`.
 - Added support for `Resampler.fillna` and `Resampler.bfill`.
-- Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
+- Added limited support for the `Timedelta` type, including
+  - support for creating `Timedelta` columns and `to_pandas`.
+  - support `copy`, `cache_result`, `shift`, `sort_index`.
+  - `NotImplementedError` will be raised for the rest of methods that do not support `Timedelta`.
 - Added support for `Index.argmax` and `Index.argmin`.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.

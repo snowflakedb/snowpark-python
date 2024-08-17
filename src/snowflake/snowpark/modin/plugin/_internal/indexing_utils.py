@@ -406,6 +406,8 @@ def get_frame_by_row_pos_frame(
             data_column_pandas_index_names=key.data_column_pandas_index_names,
             index_column_snowflake_quoted_identifiers=key.index_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=key.index_column_pandas_labels,
+            data_column_types=key.cached_data_column_snowpark_pandas_types[1:],
+            index_column_types=key.cached_index_column_snowpark_pandas_types,
         )
     return _get_frame_by_row_pos_int_frame(internal_frame, key)
 
@@ -453,6 +455,8 @@ def _get_frame_by_row_pos_boolean_frame(
         index_column_snowflake_quoted_identifiers=result_column_mapper.map_left_quoted_identifiers(
             internal_frame.index_column_snowflake_quoted_identifiers
         ),
+        data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -500,6 +504,8 @@ def _get_frame_by_row_pos_int_frame(
         index_column_snowflake_quoted_identifiers=result_column_mapper.map_right_quoted_identifiers(
             internal_frame.index_column_snowflake_quoted_identifiers
         ),
+        data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -553,6 +559,8 @@ def _get_adjusted_key_frame_by_row_pos_int_frame(
             count_ordered_dataframe.row_position_snowflake_quoted_identifier
         ],
         data_column_pandas_index_names=[None],
+        data_column_types=[None],
+        index_column_types=[None],
     )
 
     # cross join the count with the key to append the count column with the key frame. For example: if the
@@ -682,6 +690,8 @@ def get_frame_by_row_pos_slice_frame(
         data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers,
         index_column_pandas_labels=internal_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -1013,6 +1023,8 @@ def get_frame_by_col_label(
             data_column_pandas_index_names=new_data_column_pandas_index_names,
             index_column_pandas_labels=result.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=result.index_column_snowflake_quoted_identifiers,
+            data_column_types=result.cached_data_column_snowpark_pandas_types,
+            index_column_types=result.cached_index_column_snowpark_pandas_types,
         )
     return result
 
@@ -1129,10 +1141,19 @@ def get_frame_by_col_pos(
     selected_columns: list[ColumnOrName] = []
     # the snowflake quoted identifiers for the selected Snowpark columns
     selected_columns_quoted_identifiers: list[str] = []
+    selected_columns_types = []
+
     for col_index in valid_indices:
         snowflake_quoted_identifier = frame_data_column_quoted_identifiers_list[
             col_index
         ]
+
+        selected_columns_types.append(
+            internal_frame.snowflake_quoted_identifier_to_snowpark_pandas_type[
+                snowflake_quoted_identifier
+            ]
+        )
+
         pandas_label = frame_data_column_pandas_labels_list[col_index]
         if snowflake_quoted_identifier in selected_columns_quoted_identifiers:
             # if the current column has already been selected, duplicate the column with
@@ -1161,6 +1182,8 @@ def get_frame_by_col_pos(
         data_column_snowflake_quoted_identifiers=selected_columns_quoted_identifiers,
         index_column_pandas_labels=internal_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=selected_columns_types,
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -1275,6 +1298,9 @@ def _get_frame_by_row_multiindex_label_tuple(
     new_index_column_snowflake_quoted_identifiers = (
         filtered_frame.index_column_snowflake_quoted_identifiers[levels_to_drop:]
     )
+    new_index_types = filtered_frame.cached_index_column_snowpark_pandas_types[
+        levels_to_drop:
+    ]
 
     return InternalFrame.create(
         ordered_dataframe=filtered_frame.ordered_dataframe,
@@ -1283,6 +1309,8 @@ def _get_frame_by_row_multiindex_label_tuple(
         data_column_pandas_index_names=filtered_frame.data_column_pandas_index_names,
         index_column_pandas_labels=new_index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=new_index_column_snowflake_quoted_identifiers,
+        data_column_types=filtered_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=new_index_types,
     )
 
 
@@ -1541,6 +1569,8 @@ def _get_frame_by_row_label_slice(
         data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers,
         index_column_pandas_labels=internal_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -1590,6 +1620,8 @@ def _get_frame_by_row_label_boolean_frame(
         index_column_snowflake_quoted_identifiers=result_column_mapper.map_left_quoted_identifiers(
             internal_frame.index_column_snowflake_quoted_identifiers
         ),
+        data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -1664,6 +1696,8 @@ def _get_frame_by_row_label_non_boolean_frame(
         index_column_snowflake_quoted_identifiers=result_column_mapper.map_right_quoted_identifiers(
             internal_frame.index_column_snowflake_quoted_identifiers
         ),
+        data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -1724,6 +1758,8 @@ def _get_frame_by_row_series_bool(
         data_column_snowflake_quoted_identifiers=key.data_column_snowflake_quoted_identifiers,
         index_column_pandas_labels=key.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=key.index_column_snowflake_quoted_identifiers,
+        data_column_types=key.cached_data_column_snowpark_pandas_types,
+        index_column_types=key.cached_index_column_snowpark_pandas_types,
     )
 
     joined_frame, result_column_mapper = join(
@@ -1745,6 +1781,8 @@ def _get_frame_by_row_series_bool(
         index_column_snowflake_quoted_identifiers=result_column_mapper.map_right_quoted_identifiers(
             internal_frame.index_column_snowflake_quoted_identifiers
         ),
+        data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -2759,6 +2797,8 @@ def set_frame_2d_positional(
         data_column_snowflake_quoted_identifiers=new_data_column_snowflake_quoted_identifiers,
         index_column_pandas_labels=frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -2909,6 +2949,8 @@ def get_kv_frame_from_index_and_item_frames(
         + new_item_data_column_snowflake_identifiers,
         index_column_pandas_labels=kv_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=kv_frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=kv_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=kv_frame.cached_index_column_snowpark_pandas_types,
     )
 
     return new_kv_frame
@@ -2979,6 +3021,8 @@ def get_item_series_as_single_row_frame(
 
     item_series_snowflake_quoted_identifiers: list[str] = []
     item_series_column_exprs: list[Column] = []
+    item_series_data_column_types = []
+
     for row_position, pandas_label in enumerate(item_series_pandas_labels):
         new_snowflake_quoted_identifier = (
             item_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
@@ -2999,6 +3043,9 @@ def get_item_series_as_single_row_frame(
         )
         item_series_snowflake_quoted_identifiers.append(new_snowflake_quoted_identifier)
         item_series_column_exprs.append(new_column_expr)
+        item_series_data_column_types.append(
+            item.cached_data_column_snowpark_pandas_types[0]
+        )
 
     item_ordered_dataframe = append_columns(
         item_frame.ordered_dataframe,
@@ -3022,6 +3069,8 @@ def get_item_series_as_single_row_frame(
         index_column_snowflake_quoted_identifiers=item.index_column_snowflake_quoted_identifiers[
             :1
         ],
+        data_column_types=item_series_data_column_types,
+        index_column_types=item.cached_index_column_snowpark_pandas_types[:1],
     )
     return item
 
@@ -3113,6 +3162,16 @@ def get_row_position_index_from_bool_indexer(index: InternalFrame) -> InternalFr
         index_column_pandas_labels=index.index_column_pandas_labels[:1],
         index_column_snowflake_quoted_identifiers=[
             index_column_snowflake_quoted_identifier
+        ],
+        data_column_types=[
+            index.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
+                data_column_snowflake_quoted_identifier, None
+            )
+        ],
+        index_column_types=[
+            index.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
+                index_column_snowflake_quoted_identifier, None
+            )
         ],
     )
     return index

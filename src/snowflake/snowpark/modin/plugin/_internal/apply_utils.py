@@ -1257,6 +1257,8 @@ def groupby_apply_create_internal_frame_from_final_ordered_dataframe(
         + func_result_index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=group_quoted_identifiers
         + func_result_index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
 
