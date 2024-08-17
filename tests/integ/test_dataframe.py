@@ -2838,6 +2838,11 @@ def test_write_table_with_clustering_keys_and_comment(
         Utils.drop_table(session, table_name3)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Clustering is a SQL feature",
+    run=False,
+)
 def test_write_table_with_all_options(session):
     try:
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
