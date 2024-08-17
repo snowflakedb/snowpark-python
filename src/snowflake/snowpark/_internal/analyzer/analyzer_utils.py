@@ -757,6 +757,14 @@ def get_comment_sql(comment: Optional[str]) -> str:
     )
 
 
+def get_assign_param_sql(param_name: str, param_value: Optional[Any]) -> str:
+    return (
+        f"{param_name}{EQUALS}{param_value}"
+        if param_value is not None
+        else EMPTY_STRING
+    )
+
+
 def create_table_statement(
     table_name: str,
     schema: str,
@@ -844,10 +852,6 @@ def batch_insert_into_statement(
         f"{VALUES}{LEFT_PARENTHESIS}"
         f"{COMMA.join(placeholder_marks)}{RIGHT_PARENTHESIS}"
     )
-
-
-def get_assign_param_sql(param_name: str, param_value: Optional[Any]) -> str:
-    return f"{param_name}{EQUALS}{param_value}" if param_value else EMPTY_STRING
 
 
 def create_table_as_select_statement(
