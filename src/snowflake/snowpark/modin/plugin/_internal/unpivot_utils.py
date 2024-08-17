@@ -660,6 +660,8 @@ def clean_up_unpivot(
         data_column_snowflake_quoted_identifiers=final_snowflake_qouted_identfiers,
         index_column_pandas_labels=index_column_pandas_names,
         index_column_snowflake_quoted_identifiers=index_column_quoted_names,
+        data_column_types=None,
+        index_column_types=None,
     )
 
     # Rename the data column snowflake quoted identifiers to be closer to pandas labels, normalizing names
@@ -879,6 +881,8 @@ def _simple_unpivot(
         index_column_snowflake_quoted_identifiers=[
             ordered_dataframe.row_position_snowflake_quoted_identifier
         ],
+        data_column_types=None,
+        index_column_types=None,
     )
 
 
