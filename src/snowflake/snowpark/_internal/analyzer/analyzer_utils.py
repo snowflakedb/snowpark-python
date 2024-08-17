@@ -757,6 +757,14 @@ def get_comment_sql(comment: Optional[str]) -> str:
     )
 
 
+def get_assign_param_sql(param_name: str, param_value: Optional[Any]) -> str:
+    return (
+        f"{param_name}{EQUALS}{param_value}"
+        if param_value is not None
+        else EMPTY_STRING
+    )
+
+
 def create_table_statement(
     table_name: str,
     schema: str,
@@ -1093,9 +1101,6 @@ def create_or_replace_dynamic_table_statement(
     max_data_extension_time: Optional[int],
     child: str,
 ) -> str:
-    def get_assign_param_sql(param_name: str, param_value: Optional[Any]) -> str:
-        return f"{param_name}{EQUALS}{param_value}" if param_value else EMPTY_STRING
-
     clustery_by_sql = (
         f"{CLUSTER_BY}{LEFT_PARENTHESIS}{COMMA.join(clustering_keys)}{RIGHT_PARENTHESIS}"
         if clustering_keys
