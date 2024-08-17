@@ -1,6 +1,6 @@
 # Release History
 
-## 1.21.0 (2024-08-16)
+## 1.21.0 (2024-08-19)
 
 ### Snowpark Python API Updates
 
@@ -87,6 +87,10 @@
 
 - Removed the public preview warning message when importing Snowpark pandas.
 - Removed unnecessary count query from `SnowflakeQueryCompiler.is_series_like` method.
+- `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
+- Refactor and introduce `query_compiler` argument in `Index` constructor to create `Index` from query compiler.
+- `pd.to_datetime` now returns a DatetimeIndex object instead of a Series object.
+- `pd.date_range` now returns a DatetimeIndex object instead of a Series object.
 
 #### Bug Fixes
 
@@ -97,13 +101,6 @@
 - Fixed a bug where some Index docstrings are ignored.
 - Fixed a bug in `Series.reset_index(drop=True)` where the result name may be wrong.
 - Fixed a bug in `Groupby.first/last` ordering by the correct columns in the underlying window expression.
-
-### Behavior change
-
-- `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
-- Refactor and introduce `query_compiler` argument in `Index` constructor to create `Index` from query compiler.
-- `pd.to_datetime` now returns a DatetimeIndex object instead of a Series object.
-- `pd.date_range` now returns a DatetimeIndex object instead of a Series object.
 
 ## 1.20.0 (2024-07-17)
 
