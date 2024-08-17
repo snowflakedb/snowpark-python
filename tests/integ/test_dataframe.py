@@ -2866,9 +2866,9 @@ def test_write_table_with_all_options(session):
                 copy_grants=True,
             )
         ddl = session._run_query(f"select get_ddl('table', '{table_name}')")[0][0]
-
         assert 'cluster by ("C1", "C2")' in ddl
         assert comment in ddl
+
         # data retention and max data extension time cannot be queried from get_ddl
         # we run a show parameters query to get the values for these parameters
         show_params_sql = f"show parameters like '%TIME_IN_DAYS%' in table {table_name}"
@@ -2880,7 +2880,9 @@ def test_write_table_with_all_options(session):
                 assert row[1] == "4"
 
         for query in history.queries:
-            if table_name in query.sql_text:
+            # for the create table query, check we set the following options
+            # because it does not show up in ddl, or table parameters
+            if f"CREATE  OR  REPLACE    TABLE  {table_name}" in query.sql_text:
                 assert "ENABLE_SCHEMA_EVOLUTION  = True" in query.sql_text
                 assert "CHANGE_TRACKING  = True" in query.sql_text
                 assert "COPY GRANTS" in query.sql_text
