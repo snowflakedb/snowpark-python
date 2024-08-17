@@ -38,9 +38,9 @@ from snowflake.snowpark.functions import (
     lit,
     max as max_,
     pow,
-    reference,
     sproc,
     sqrt,
+    system_reference,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
@@ -426,7 +426,7 @@ def test_stored_procedure_with_structured_returns(
     "config.getoption('local_testing_mode', default=False)",
     reason="system functions not supported by local testing",
 )
-def test_sproc_pass_reference(session):
+def test_sproc_pass_system_reference(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1,)]).to_df(["a"])
     df.write.save_as_table(table_name)
@@ -440,7 +440,7 @@ def test_sproc_pass_reference(session):
     try:
         assert (
             insert_sproc(
-                reference(
+                system_reference(
                     "TABLE",
                     table_name,
                     "SESSION",

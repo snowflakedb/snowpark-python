@@ -327,7 +327,7 @@ def sql_expr(sql: str) -> Column:
     return Column._expr(sql)
 
 
-def reference(
+def system_reference(
     object_type: str,
     object_identifier: str,
     scope: str = "CALL",
@@ -341,7 +341,7 @@ def reference(
     Example::
         >>> df = session.create_dataframe([(1,)], schema=["A"])
         >>> df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
-        >>> df.select(substr(reference("table", "my_table"), 1, 14).alias("identifier")).collect()
+        >>> df.select(substr(system_reference("table", "my_table"), 1, 14).alias("identifier")).collect()
         [Row(IDENTIFIER='ENT_REF_TABLE_')]
     """
     privileges = privileges or []

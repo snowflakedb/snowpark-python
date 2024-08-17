@@ -154,7 +154,6 @@ from snowflake.snowpark.functions import (
     radians,
     random,
     rank,
-    reference,
     regexp_count,
     repeat,
     replace,
@@ -180,6 +179,7 @@ from snowflake.snowpark.functions import (
     substring,
     sum,
     sum_distinct,
+    system_reference,
     tan,
     tanh,
     time_from_parts,
@@ -255,13 +255,13 @@ def test_lit(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="system functions not supported by local testing",
 )
-def test_reference(session):
+def test_system_reference(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1,)]).to_df(["a"])
     df.write.save_as_table(table_name)
 
     try:
-        data = df.select(reference("TABLE", table_name)).collect()
+        data = df.select(system_reference("TABLE", table_name)).collect()
         assert data[0][0].startswith("ENT_REF_TABLE")
     finally:
         session.table(table_name).drop_table()
