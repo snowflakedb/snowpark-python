@@ -310,6 +310,8 @@ def compute_bin_indices(
         data_column_snowflake_quoted_identifiers=[new_data_identifier],
         index_column_pandas_labels=value_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=value_index_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
     return new_frame

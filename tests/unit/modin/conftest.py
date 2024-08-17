@@ -20,6 +20,9 @@ def mock_single_col_query_compiler() -> SnowflakeQueryCompiler:
     mock_internal_frame = mock.create_autospec(InternalFrame)
     mock_internal_frame.data_columns_index = native_pd.Index(["A"], name="B")
     mock_internal_frame.data_column_snowflake_quoted_identifiers = ['"A"']
+    mock_internal_frame.snowflake_quoted_identifier_to_snowpark_pandas_type = {
+        '"A"': None
+    }
     fake_query_compiler = SnowflakeQueryCompiler(mock_internal_frame)
 
     return fake_query_compiler

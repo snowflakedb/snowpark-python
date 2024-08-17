@@ -232,6 +232,8 @@ def compute_isin_with_dataframe(
         + new_identifiers,
         index_column_pandas_labels=frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
     # local import to avoid circular import
