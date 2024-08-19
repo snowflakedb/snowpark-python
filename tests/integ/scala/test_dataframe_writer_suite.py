@@ -15,6 +15,7 @@ from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
+    LongType,
     StringType,
     StructField,
     StructType,
@@ -85,6 +86,48 @@ def test_write_with_target_column_name_order(session, local_testing_mode):
             Utils.check_answer(session.table(special_table_name), [Row(2, 1)])
         finally:
             Utils.drop_table(session, special_table_name)
+
+
+def test_write_truncate_with_less_columns(session):
+    # test truncate mode saving dataframe with fewer columns than the target table but column name in the same order
+    schema1 = StructType(
+        [
+            StructField("A", LongType(), False),
+            StructField("B", LongType(), True),
+        ]
+    )
+    schema2 = StructType([StructField("A", LongType(), False)])
+    df1 = session.create_dataframe([(1, 2), (3, 4)], schema=schema1)
+    df2 = session.create_dataframe([1, 2], schema=schema2)
+    table_name1 = Utils.random_table_name()
+
+    try:
+        df1.write.save_as_table(table_name1, mode="truncate")
+        Utils.check_answer(session.table(table_name1), [Row(1, 2), Row(3, 4)])
+        df2.write.save_as_table(table_name1, mode="truncate")
+        Utils.check_answer(session.table(table_name1), [Row(1, None), Row(2, None)])
+    finally:
+        Utils.drop_table(session, table_name1)
+
+    # test truncate mode saving dataframe with fewer columns than the target table but column name not in order
+    schema3 = StructType(
+        [
+            StructField("A", LongType(), True),
+            StructField("B", LongType(), True),
+        ]
+    )
+    schema4 = StructType([StructField("B", LongType(), False)])
+    df3 = session.create_dataframe([(1, 2), (3, 4)], schema=schema3)
+    df4 = session.create_dataframe([1, 2], schema=schema4)
+    table_name2 = Utils.random_table_name()
+
+    try:
+        df3.write.save_as_table(table_name2, mode="truncate")
+        Utils.check_answer(session.table(table_name2), [Row(1, 2), Row(3, 4)])
+        df4.write.save_as_table(table_name2, mode="truncate")
+        Utils.check_answer(session.table(table_name2), [Row(None, 1), Row(None, 2)])
+    finally:
+        Utils.drop_table(session, table_name2)
 
 
 @pytest.mark.xfail(

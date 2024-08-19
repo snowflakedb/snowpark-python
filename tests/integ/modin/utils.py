@@ -343,7 +343,7 @@ def assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64(
             **kwargs,
         )
     else:
-        assert_index_equal(snow_to_native, native)
+        assert_index_equal(snow_to_native, native, **kwargs)
 
 
 def assert_series_equal(*args, **kwargs) -> None:
@@ -421,7 +421,7 @@ def eval_snowpark_pandas_result(
                 # If the operation affected the snow_pandas object in place,
                 # we have to call to_pandas() on snow_pandas.
                 snow_pandas.to_pandas()
-            elif isinstance(result, (DataFrame, Series)):
+            elif isinstance(result, (DataFrame, Series, Index)):
                 # otherwise, we have to call to_pandas() on the result.
                 result.to_pandas()
         if expect_exception_type:

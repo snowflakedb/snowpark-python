@@ -54,7 +54,7 @@ def test_nlargest_nsmallest_large_n(snow_df, native_df, method):
     )
 
 
-@sql_count_checker(query_count=4, join_count=1)
+@sql_count_checker(query_count=3)
 def test_nlargest_nsmallest_overlapping_index_name(snow_df, native_df, method):
     snow_df = snow_df.rename_axis("A")
     native_df = native_df.rename_axis("A")
