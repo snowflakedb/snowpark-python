@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from dataclasses import dataclass
 import importlib.util
 import os
 import pathlib
@@ -10,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from dataclasses import dataclass
 from typing import List, Union
 
 import pytest
@@ -191,7 +191,9 @@ def run_test(session):
 
     # We use temp files to enable symbol capture in the AST. Having an underlying file instead of simply calling
     # `exec(source, globals)` allows the Python interpreter to correctly capture symbols, which we use in the AST.
-    test_file = tempfile.NamedTemporaryFile(mode="w", prefix="test_ast", suffix=".py", delete=False)
+    test_file = tempfile.NamedTemporaryFile(
+        mode="w", prefix="test_ast", suffix=".py", delete=False
+    )
     try:
         test_file.write(source)
         test_file.close()
@@ -208,7 +210,9 @@ def run_test(session):
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
 def test_ast(session, test_case):
-    actual, base64 = run_test(session, test_case.filename.replace(".", "_"), test_case.source)
+    actual, base64 = run_test(
+        session, test_case.filename.replace(".", "_"), test_case.source
+    )
     if pytest.update_expectations:
         with open(DATA_DIR / test_case.filename, "w", encoding="utf-8") as f:
             f.writelines(
