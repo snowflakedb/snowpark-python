@@ -281,6 +281,7 @@ class Table(DataFrame):
             ast = with_src_position(ast_stmt.expr.sp_table, ast_stmt)
             ast.name.sp_table_name_flat.name = table_name
             ast.variant.sp_table_init = True
+            ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
 
         snowflake_table_plan = SnowflakeTable(
             table_name,

@@ -815,12 +815,21 @@ class Column:
         :meth:`rlike` is an alias of :meth:`regexp`.
 
         """
+
+        expr = proto.Expr()
+        ast = with_src_position(expr.sp_column_string_regexp)
+        ast.col.CopyFrom(self._ast)
+        build_expr_from_snowpark_column_or_python_val(ast.pattern, pattern)
+        if parameters is not None:
+            build_expr_from_snowpark_column_or_python_val(ast.parameters, parameters)
+
         return Column(
             RegExp(
                 self._expression,
                 Column._to_expr(pattern),
                 None if parameters is None else Column._to_expr(parameters),
-            )
+            ),
+            ast=expr,
         )
 
     def startswith(self, other: ColumnOrLiteralStr) -> "Column":
