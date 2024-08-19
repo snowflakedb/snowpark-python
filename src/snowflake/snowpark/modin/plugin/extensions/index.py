@@ -2459,13 +2459,11 @@ class Index(metaclass=TelemetryMeta):
             local_index = temp_df.iloc[:, 0].to_list()
         else:
             local_index = []
-        display_width = get_option("display.width") or 80
         too_many_elem = max_seq_items < length_of_index
 
         # The representation begins with class name followed by parentheses; the data representation is enclosed in
         # square brackets. For example, "DatetimeIndex([" or "Index([".
         class_name = self.__class__.__name__
-        len_class_name = len(class_name)
 
         # In the case of DatetimeIndex, if the data is timezone-aware, the timezone is displayed
         # within the dtype field. This is not directly supported in Snowpark pandas.
@@ -2477,56 +2475,14 @@ class Index(metaclass=TelemetryMeta):
         data_repr = native_pd_idx._format_data()
 
         # Next, creating the representation for each field with their respective labels.
-        # Assign a None value to optional fields that should not be displayed.
+        # The index always displays the data and datatype, and optionally the name, length, and freq.
         dtype_repr = f"dtype='{dtype}'"
-        name_repr = f"name='{self.name}'" if self.name else None
+        name_repr = f", name='{self.name}'" if self.name else ""
         # Length is displayed only when the number of elements is greater than the number of elements to display.
-        length_repr = f"length={length_of_index}" if too_many_elem else ""
+        length_repr = f", length={length_of_index}" if too_many_elem else ""
         # The frequency is displayed only for DatetimeIndex.
         # TODO: SNOW-1625233 update freq_repr; replace None with the correct value.
-        freq_repr = "freq=None" if "DatetimeIndex" in class_name else None
-
-        # The index always displays the data and datatype, and optionally the name, length, and freq.
-        if "\n" in data_repr:
-            # If the elements are truncated (too many elements to display) OR the elements themselves are very long,
-            # there is a possibility that the fields (dtype, name, and length) need to be printed on new lines.
-            # If a newline is present in the data representation, the following fields need to be checked to see if
-            # they need to be displayed on a new line.
-            # The field_indent is required to correctly align fields with data.
-            field_indent = " " * (len_class_name + 1)  # 1 char is ( in "Index("
-            last_line_len = len(dtype_repr) + len(field_indent)
-
-            if name_repr:
-                if last_line_len + len(name_repr) >= display_width:
-                    last_line_len = len(field_indent) + len(name_repr)
-                    name_repr = ",\n" + field_indent + name_repr  # pragma: no cover
-                else:
-                    name_repr = ", " + name_repr
-                    last_line_len += len(name_repr)
-            else:
-                name_repr = ""
-
-            if too_many_elem:
-                # Display the length field only when the elements are truncated.
-                if last_line_len + len(length_repr) >= display_width:
-                    last_line_len = len(field_indent) + len(length_repr)
-                    length_repr = ",\n" + field_indent + length_repr
-                else:
-                    length_repr = ", " + length_repr
-                    last_line_len += len(length_repr)
-
-            if "DatetimeIndex" in class_name:
-                if last_line_len + len(freq_repr) >= display_width:
-                    freq_repr = ",\n" + field_indent + freq_repr
-                else:
-                    freq_repr = ", " + freq_repr
-            else:
-                freq_repr = ""
-
-        else:
-            # All fields are displayed continuously.
-            name_repr = (", " + name_repr) if name_repr else ""
-            freq_repr = (", " + freq_repr) if freq_repr else ""
+        freq_repr = ", freq=None" if "DatetimeIndex" in class_name else ""
 
         repr = (
             class_name
