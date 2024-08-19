@@ -527,7 +527,7 @@ class ServerConnection:
 
         run_all_sp_async = self._get_client_side_session_parameter(
             "RUN_ALL_STORED_PROCEDURES_ASYNC_PYTHON",
-            False,
+            True,
         )
 
         # Only ignore 'block' if run_all_sp_async and is_in_sp are both true.
