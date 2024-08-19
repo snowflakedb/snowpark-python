@@ -513,8 +513,9 @@ class ServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
+        is_in_sp = is_in_stored_procedure()
         if (
-            is_in_stored_procedure()
+            is_in_sp
             and not block
             and not self._get_client_side_session_parameter(
                 "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
@@ -523,16 +524,33 @@ class ServerConnection:
             raise NotImplementedError(
                 "Async query is not supported in stored procedure yet"
             )
+
+        run_all_sp_async = self._get_client_side_session_parameter(
+            "RUN_ALL_STORED_PROCEDURES_ASYNC_PYTHON",
+            False,
+        )
+
+        # Only ignore 'block' if run_all_sp_async and is_in_sp are both true.
+        run_async = run_all_sp_async and is_in_sp
+
         result_set, result_meta = self.get_result_set(
             plan,
             to_pandas,
             to_iter,
             **kwargs,
-            block=block,
+            block=(not run_async) and block,
             data_type=data_type,
             log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
         )
+
+        # If we were supposed to block but didn't, we need to wait for a result.
+        if block and run_async:
+            while not result_set.is_done():
+                time.sleep(0.0000000001)
+
+            result_set = result_set.result()
+
         if not block:
             return result_set
         elif to_pandas:
