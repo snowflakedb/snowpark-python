@@ -317,7 +317,8 @@ class LargeQueryBreakdown:
             temp_table_node, analyzer=self._query_generator
         )
 
-        # add drop table in post action and see if it propagates to the root
+        # add drop table in post action since the temp table created here
+        # is only used for the current query.
         drop_table_query = Query(
             drop_table_if_exists_statement(temp_table_name), is_ddl_on_temp_object=True
         )
