@@ -2581,7 +2581,7 @@ class Index(metaclass=TelemetryMeta):
             for e in local_index[1:]:
                 formatted_e = _format_string_elem(e)
                 if (
-                    line_length + len(formatted_e) + 2 > display_width
+                    line_length + len(formatted_e) + 2 >= display_width
                 ):  # 2 is the length of the comma and space.
                     # The fields need to be formatted on new lines since data is also formatted on new lines.
                     format_fields_on_different_lines = True
@@ -2616,7 +2616,7 @@ class Index(metaclass=TelemetryMeta):
             last_line_len = len(dtype_repr)
 
             if name_repr:
-                if last_line_len + len(name_repr) > display_width:
+                if last_line_len + len(name_repr) >= display_width:
                     last_line_len = len(field_indent) + len(name_repr)
                     name_repr = ",\n" + field_indent + name_repr  # pragma: no cover
                 else:
@@ -2627,7 +2627,7 @@ class Index(metaclass=TelemetryMeta):
 
             if too_many_elem:
                 # Display the length field only when the elements are truncated.
-                if last_line_len + len(length_repr) > display_width:
+                if last_line_len + len(length_repr) >= display_width:
                     last_line_len = len(field_indent) + len(length_repr)
                     length_repr = ",\n" + field_indent + length_repr
                 else:
@@ -2635,7 +2635,7 @@ class Index(metaclass=TelemetryMeta):
                     last_line_len += len(length_repr)
 
             if "DatetimeIndex" in class_name:
-                if last_line_len + len(freq_repr) > display_width:
+                if last_line_len + len(freq_repr) >= display_width:
                     freq_repr = ",\n" + field_indent + freq_repr
                 else:
                     freq_repr = ", " + freq_repr
