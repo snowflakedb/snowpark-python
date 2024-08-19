@@ -551,7 +551,7 @@ class ServerConnection:
             while not result_set.is_done():
                 time.sleep(0.0000000001)
 
-            result_set = result_set.result()
+            return result_set.result()
 
         if not block:
             return result_set
