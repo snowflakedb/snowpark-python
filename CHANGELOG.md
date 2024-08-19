@@ -29,6 +29,7 @@
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
 - Added support for `Index.name`, `Index.names`, `Index.rename`, and `Index.set_names`.
+- Added support for `Index.__repr__`.
 
 #### Bug Fixes
 
