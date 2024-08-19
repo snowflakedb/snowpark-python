@@ -20,6 +20,7 @@ from tests.integ.modin.utils import (
     assert_index_equal,
     assert_series_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    eval_snowpark_pandas_result,
 )
 
 
@@ -400,3 +401,41 @@ def test_create_index_from_df_negative():
         pd.Index(pd.DataFrame([[1, 2], [3, 4]]))
     with pytest.raises(ValueError):
         pd.DatetimeIndex(pd.DataFrame([[1, 2], [3, 4]]))
+
+
+def test_df_set_index_and_reset_index():
+    native_df = native_pd.DataFrame(
+        {"A": [1, 2, 3], "B": [4, 5, 6]}, index=["A", "B", "C"]
+    )
+    snow_df = pd.DataFrame(native_df)
+    native_idx = native_pd.Index([11, 22, 33])
+    snow_idx = pd.Index(native_idx)
+
+    # Test that df.index = new_index works with lazy index.
+    with SqlCounter(query_count=3):
+        native_df.index = native_idx
+        snow_df.index = snow_idx
+        assert_frame_equal(snow_df, native_df)
+
+    # Check if reset_index works with lazy index.
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.reset_index())
+
+
+def test_series_set_index_and_reset_index():
+    native_ser = native_pd.Series(
+        {"A": [1, 2, 3], "B": [4, 5, 6]}, index=["A", "B", "C"]
+    )
+    snow_ser = pd.Series(native_ser)
+    native_idx = native_pd.Index([11, 22, 33])
+    snow_idx = pd.Index(native_idx)
+
+    # Test that df.index = new_index works with lazy index.
+    with SqlCounter(query_count=3):
+        native_ser.index = native_idx
+        snow_ser.index = snow_idx
+        assert_series_equal(snow_ser, native_ser)
+
+    # Check if reset_index works with lazy index.
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(snow_ser, native_ser, lambda s: s.reset_index())
