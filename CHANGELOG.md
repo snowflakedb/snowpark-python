@@ -29,6 +29,7 @@
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
 - Added support for `Index.name`, `Index.names`, `Index.rename`, and `Index.set_names`.
+- Added support for subtracting two timestamps.
 
 #### Bug Fixes
 
@@ -116,11 +117,6 @@
 - Added support for `Resampler.fillna` and `Resampler.bfill`.
 - Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
 - Added support for `Index.argmax` and `Index.argmin`.
-- Added support for index's arithmetic and comparison operators.
-- Added support for `Series.dt.round`.
-- Added documentation pages for `DatetimeIndex`.
-- Added support for `Index.name`, `Index.names`, `Index.rename`, and `Index.set_names`.
-- Added support for subtracting two timestamps.
 
 #### Improvements
 
