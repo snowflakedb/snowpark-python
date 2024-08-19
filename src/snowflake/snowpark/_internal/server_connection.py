@@ -546,6 +546,8 @@ class ServerConnection:
 
         # If we were supposed to block but didn't, we need to wait for a result.
         if block and run_async:
+            if TYPE_CHECKING:
+                assert isinstance(result_set, AsyncJob)
             while not result_set.is_done():
                 time.sleep(0.0000000001)
 
