@@ -1,5 +1,39 @@
 # Release History
 
+## 1.22.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug in `session.read.csv` that caused an error when setting `PARSE_HEADER = True` in an externally defined file format.
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for type coercion when passing columns as input to udf calls
+
+#### Bug Fixes
+
+- Fixed a bug where the truncate mode in `DataFrameWriter.save_as_table` incorrectly handled DataFrames containing only a subset of columns from the existing table.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added limited support for the `Timedelta` type, including
+  - support `copy`, `cache_result`, `shift`, `sort_index`.
+  - `NotImplementedError` will be raised for the rest of methods that do not support `Timedelta`.
+- Added support for index's arithmetic and comparison operators.
+- Added support for `Series.dt.round`.
+- Added documentation pages for `DatetimeIndex`.
+- Added support for `Index.name`, `Index.names`, `Index.rename`, and `Index.set_names`.
+
+#### Bug Fixes
+
+- Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
+
 ## 1.21.0 (2024-08-19)
 
 ### Snowpark Python API Updates

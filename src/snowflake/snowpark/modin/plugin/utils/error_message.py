@@ -158,6 +158,12 @@ class ErrorMessage:
         logger.debug(f"NotImplementedError: {message}")
         raise NotImplementedError(message)
 
+    @classmethod
+    def not_implemented_for_timedelta(cls, method: str) -> NoReturn:
+        ErrorMessage.not_implemented(
+            f"SnowflakeQueryCompiler::{method} is not yet implemented for Timedelta Type"
+        )
+
     @staticmethod
     def method_not_implemented_error(
         name: str, class_: str
