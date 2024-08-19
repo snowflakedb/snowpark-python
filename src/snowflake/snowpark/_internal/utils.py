@@ -55,6 +55,8 @@ if TYPE_CHECKING:
     except ImportError:
         ResultMetadataV2 = ResultMetadata
 
+logger = logging.getLogger("snowflake.snowpark")
+
 STAGE_PREFIX = "@"
 SNOWURL_PREFIX = "snow://"
 SNOWFLAKE_PATH_PREFIXES = [
@@ -672,9 +674,6 @@ class PythonObjJSONEncoder(JSONEncoder):
             return value.tolist()
         else:
             return super().default(value)
-
-
-logger = logging.getLogger("snowflake.snowpark")
 
 
 class WarningHelper:
