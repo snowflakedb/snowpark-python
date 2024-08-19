@@ -55,6 +55,11 @@ DEVELOPMENT_REQUIREMENTS = [
     "matplotlib",  # used in plot tests
     "pre-commit",
     "protoc-wheel-0",
+    "aiohttp",  # vcrpy requirements.
+    "boto",  # vcrpy requirements.
+    "httplib2",  # vcrpy requirements.
+    "httpx",  # vcrpy requirements.
+    "tornado",  # vcrpy requirements.
 ]
 
 # read the version
