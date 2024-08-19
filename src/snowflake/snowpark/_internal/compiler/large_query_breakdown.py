@@ -20,7 +20,6 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectSnowflakePlan,
     SelectStatement,
-    SelectTableFunction,
     SetStatement,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
@@ -53,6 +52,8 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.session import Session
 
+# The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
+# in Snowflake. This is the limit where we start seeing compilation errors.
 COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
 COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 
@@ -60,13 +61,51 @@ _logger = logging.getLogger(__name__)
 
 
 class LargeQueryBreakdown:
-    """Optimization to break down large query plans into smaller partitions based on
+    r"""Optimization to break down large query plans into smaller partitions based on
     estimated complexity score of the plan nodes.
 
     This optimization works by analyzing computed query complexity score for each input
     plan and breaking down the plan into smaller partitions if we detect valid node
     candidates for partitioning. The partitioning is done by creating temp tables for the
     partitioned nodes and replacing the partitioned subtree with the temp table selectable.
+
+    Example:
+        For a data pipeline with a large query plan created like so:
+
+            >>> base_df = session.sql("select 1 as A, 2 as B")
+            >>> df1 = base_df.with_column("A", F.col("A") + F.lit(1))
+            >>> x = 100
+            >>> for i in range(x):
+            >>>     df1 = df1.with_column("A", F.col("A") + F.lit(i))
+            >>> df1 = df1.group_by(F.col("A")).agg(F.sum(F.col("B")).alias("B"))
+
+            >>> df2 = base_df.with_column("B", F.col("B") + F.lit(1))
+            >>> for i in range(x):
+            >>>     df2 = df2.with_column("B", F.col("B") + F.lit(i))
+            >>> df2 = df2.group_by(F.col("B")).agg(F.sum(F.col("A")).alias("A"))
+
+            >>> union_df = df1.union_all(df2)
+            >>> final_df = union_df.with_column("A", F.col("A") + F.lit(1))
+
+        The corresponding query plan has the following structure:
+
+                                 projection on result
+                                           |
+                                       UNION ALL
+        Groupby + Agg (A) ---------------/   \------------------ Groupby + Agg (B)
+        with columns set 1                                      with columns set 2
+
+
+
+        Given the right complexity bounds, large query breakdown optimization will break down
+        the plan into smaller partition and give us the following plan:
+
+
+           Create Temp table (T1)                                    projection on result
+                    |                      ,                                   |
+            Groupby + Agg (A)                                              UNION ALL
+            with columns set 1                  Select * from T1 -----------/  \-----------  Groupby + Agg (B)
+                                                                                             with columns set 2
     """
 
     def __init__(
@@ -78,6 +117,7 @@ class LargeQueryBreakdown:
         self.session = session
         self._query_generator = query_generator
         self.logical_plans = logical_plans
+        self._parent_map = defaultdict(set)
 
     def apply(self) -> List[LogicalPlan]:
         if is_active_transaction(self.session):
@@ -93,14 +133,25 @@ class LargeQueryBreakdown:
             # nodes of the plan to be SnowflakePlan or Selectable. Here,
             # we resolve the plan to make sure we get a valid plan tree.
             resolved_plan = self._query_generator.resolve(logical_plan)
-            partition_plans = self._breakdown_plan(i, resolved_plan)
+            partition_plans = self._try_to_breakdown_plan(i, resolved_plan)
             resulting_plans.extend(partition_plans)
 
         return resulting_plans
 
-    def _breakdown_plan(self, plan_index: int, root: TreeNode) -> List[LogicalPlan]:
+    def _try_to_breakdown_plan(
+        self, plan_index: int, root: TreeNode
+    ) -> List[LogicalPlan]:
         """Method to breakdown a single TreeNode into smaller partitions based on
         cumulative complexity score and node type.
+
+        This method tried to breakdown the root plan into smaller partitions until the root complexity
+        score is within the upper bound. To do this, we follow these steps until the root complexity is
+        above the upper bound:
+
+        1. Find a valid node for partitioning.
+        2. If not node if found, break the partitioning loop and return all partitioned plans.
+        3. For each valid node, cut the node out from the root and create a temp table plan for the partition.
+        4. Update the ancestors snowflake plans to generate the correct queries.
         """
         if (
             isinstance(root, SnowflakePlan)
@@ -125,21 +176,31 @@ class LargeQueryBreakdown:
         plans = []
         # TODO: SNOW-1617634 Have a one pass algorithm to find the valid node for partitioning
         while complexity_score > COMPLEXITY_SCORE_UPPER_BOUND:
-            partition = self._get_partitioned_plan(root)
-            if partition is None:
-                _logger.debug("Could not find a valid node for partitioning.")
+            child = self._find_node_to_breakdown(root)
+            if child is None:
+                _logger.debug(
+                    f"Could not find a valid node for partitioning. Skipping with root {complexity_score=}"
+                )
                 break
 
+            partition = self._get_partitioned_plan(root, child)
             plans.append(partition)
             complexity_score = get_complexity_score(root.cumulative_node_complexity)
 
         plans.append(root)
         return plans
 
-    def _get_partitioned_plan(self, root: TreeNode) -> Optional[SnowflakePlan]:
+    def _find_node_to_breakdown(self, root: TreeNode) -> Optional[TreeNode]:
+        """This method traverses the plan tree and partitions the plan based if a valid partition node
+        if found. The steps involved are:
+
+        1. Traverse the plan tree and find the valid nodes for partitioning.
+        2. If no valid node is found, return None.
+        3. Keep valid nodes in a sorted list based on the complexity score.
+        4. Return the node with the highest complexity score.
+        """
         current_level = [root]
         pipeline_breaker_list = SortedList(key=lambda x: x[0])
-        parent_map = defaultdict(set)
 
         while current_level:
             next_level = []
@@ -150,7 +211,7 @@ class LargeQueryBreakdown:
                     else node.children
                 )
                 for child in children:
-                    parent_map[child].add(node)
+                    self._parent_map[child].add(node)
                     score = get_complexity_score(child.cumulative_node_complexity)
                     if self._is_node_valid_to_breakdown(score, child):
                         # Append score and child to the pipeline breaker sorted list
@@ -169,9 +230,22 @@ class LargeQueryBreakdown:
 
         # Get the node with the highest complexity score
         _, child = pipeline_breaker_list.pop()
+        return child
+
+    def _get_partitioned_plan(self, root: TreeNode, child: TreeNode) -> SnowflakePlan:
+        """This method takes cuts the child out from the root, creates a temp table plan for the
+        partitioned child and returns the plan. The steps involved are:
+
+        1. Create a temp table for the partition.
+        2. Update the parent with the temp table selectable
+        3. Reset snowflake plans for all ancestors so they contain correct queries.
+        3. Return the temp table plan.
+        """
 
         # Create a temp table for the partitioned node
-        temp_table_name = self._get_temp_table_name()
+        temp_table_name = self.session.get_fully_qualified_name_if_possible(
+            f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
+        )
         temp_table_plan = self._query_generator.resolve(
             SnowflakeCreateTable(
                 [temp_table_name],
@@ -184,7 +258,7 @@ class LargeQueryBreakdown:
         )
 
         # Update the ancestors with the temp table selectable
-        self._replace_child_and_update_ancestors(parent_map, child, temp_table_name)
+        self._replace_child_and_update_ancestors(child, temp_table_name)
 
         return temp_table_plan
 
@@ -199,19 +273,25 @@ class LargeQueryBreakdown:
 
         If the node contains a SnowflakePlan, we check its source plan recursively.
         """
+        # Pivot/Unpivot, Sort, and GroupBy+Aggregate are pipeline breakers.
         if isinstance(node, (Pivot, Unpivot, Sort, Aggregate)):
             return True
 
         if isinstance(node, Sample):
+            # Row sampling is a pipeline breaker
             return node.row_count is not None
 
         if isinstance(node, Union):
+            # Union is a pipeline breaker since it is a UNION ALL + group by aggregation
             return not node.is_all
 
         if isinstance(node, SelectStatement):
+            # SelectStatement is a pipeline breaker if it contains an order by clause since sorting
+            # is a pipeline breaker.
             return node.order_by is not None
 
         if isinstance(node, SetStatement):
+            # SetStatement is a pipeline breaker if it has a UNION operator.
             return any(operand.operator == SET_UNION for operand in node.set_operands)
 
         if isinstance(node, SnowflakePlan):
@@ -219,13 +299,13 @@ class LargeQueryBreakdown:
                 node.source_plan
             )
 
-        if isinstance(node, (SelectSnowflakePlan, SelectTableFunction)):
+        if isinstance(node, (SelectSnowflakePlan)):
             return self._is_node_pipeline_breaker(node.snowflake_plan)
 
         return False
 
     def _replace_child_and_update_ancestors(
-        self, parent_map: defaultdict, child: LogicalPlan, temp_table_name: str
+        self, child: LogicalPlan, temp_table_name: str
     ) -> None:
         """This method replaces the child node with a temp table selectable, resets
         the snowflake plan and cumulative complexity score for the ancestors, and
@@ -243,7 +323,7 @@ class LargeQueryBreakdown:
         )
         temp_table_selectable.post_actions = [drop_table_query]
 
-        parents = parent_map[child]
+        parents = self._parent_map[child]
         updated_nodes = set()
         for parent in parents:
             replace_child(parent, child, temp_table_selectable, self._query_generator)
@@ -258,10 +338,5 @@ class LargeQueryBreakdown:
             update_resolvable_node(node, self._query_generator)
             updated_nodes.add(node)
 
-            parents = parent_map[node]
+            parents = self._parent_map[node]
             nodes_to_reset.extend(parents)
-
-    def _get_temp_table_name(self) -> str:
-        return self.session.get_fully_qualified_name_if_possible(
-            f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
-        )
