@@ -217,7 +217,7 @@ class DatetimeIndex(Index):
         >>> idx
         DatetimeIndex(['2000-12-31', '2001-12-31', '2002-12-31'], dtype='datetime64[ns]', freq=None)
         >>> idx.year
-        Index([2000, 2001, 2002], dtype='int16')
+        Index([2000, 2001, 2002], dtype='int64')
         """
         return self._dt_property("year")
 
@@ -236,7 +236,7 @@ class DatetimeIndex(Index):
         >>> idx
         DatetimeIndex(['2000-01-31', '2000-02-29', '2000-03-31'], dtype='datetime64[ns]', freq=None)
         >>> idx.month
-        Index([1, 2, 3], dtype='int8')
+        Index([1, 2, 3], dtype='int64')
         """
         return self._dt_property("month")
 
@@ -255,7 +255,7 @@ class DatetimeIndex(Index):
         >>> idx
         DatetimeIndex(['2000-01-01', '2000-01-02', '2000-01-03'], dtype='datetime64[ns]', freq=None)
         >>> idx.day
-        Index([1, 2, 3], dtype='int8')
+        Index([1, 2, 3], dtype='int64')
         """
         return self._dt_property("day")
 
@@ -276,7 +276,7 @@ class DatetimeIndex(Index):
                        '2000-01-01 02:00:00'],
                       dtype='datetime64[ns]', freq=None)
         >>> idx.hour
-        Index([0, 1, 2], dtype='int8')
+        Index([0, 1, 2], dtype='int64')
         """
         return self._dt_property("hour")
 
@@ -297,7 +297,7 @@ class DatetimeIndex(Index):
                        '2000-01-01 00:02:00'],
                       dtype='datetime64[ns]', freq=None)
         >>> idx.minute
-        Index([0, 1, 2], dtype='int8')
+        Index([0, 1, 2], dtype='int64')
         """
         return self._dt_property("minute")
 
@@ -318,7 +318,7 @@ class DatetimeIndex(Index):
                        '2000-01-01 00:00:02'],
                       dtype='datetime64[ns]', freq=None)
         >>> idx.second
-        Index([0, 1, 2], dtype='int8')
+        Index([0, 1, 2], dtype='int64')
         """
         return self._dt_property("second")
 
@@ -361,7 +361,7 @@ class DatetimeIndex(Index):
                        '2000-01-01 00:00:00.000000002'],
                       dtype='datetime64[ns]', freq=None)
         >>> idx.nanosecond
-        Index([0, 1, 2], dtype='int32')
+        Index([0, 1, 2], dtype='int64')
         """
         return self._dt_property("nanosecond")
 
@@ -402,7 +402,7 @@ class DatetimeIndex(Index):
         --------
         >>> idx = pd.date_range('2016-12-31', '2017-01-08', freq='D')
         >>> idx.dayofweek
-        Index([5, 6, 0, 1, 2, 3, 4, 5, 6], dtype='int16')
+        Index([5, 6, 0, 1, 2, 3, 4, 5, 6], dtype='int64')
         """
         return self._dt_property("dayofweek")
 
@@ -423,7 +423,7 @@ class DatetimeIndex(Index):
         >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
         ...                         "2/1/2020 11:00:00+00:00"])
         >>> idx.dayofyear
-        Index([1, 32], dtype='int16')
+        Index([1, 32], dtype='int64')
         """
         return self._dt_property("dayofyear")
 
@@ -443,7 +443,7 @@ class DatetimeIndex(Index):
         >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
         ...                         "2/1/2020 11:00:00+00:00"])
         >>> idx.quarter
-        Index([1, 1], dtype='int8')
+        Index([1, 1], dtype='int64')
         """
         return self._dt_property("quarter")
 

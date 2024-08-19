@@ -101,6 +101,8 @@ def _create_qc_from_snowpark_dataframe(
             index_column_snowflake_quoted_identifiers=[
                 odf.row_position_snowflake_quoted_identifier
             ],
+            data_column_types=None,
+            index_column_types=None,
         )
     )
 

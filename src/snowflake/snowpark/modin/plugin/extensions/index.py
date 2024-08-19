@@ -29,11 +29,14 @@ from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 import modin
 import numpy as np
 import pandas as native_pd
+from pandas import get_option
 from pandas._libs import lib
+from pandas._libs.lib import is_list_like, is_scalar
 from pandas._typing import ArrayLike, DateTimeErrorChoices, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_datetime64_any_dtype, pandas_dtype
+from pandas.core.dtypes.inference import is_hashable
 
 from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.base import BasePandasDataset
@@ -74,7 +77,7 @@ class Index(metaclass=TelemetryMeta):
     ) -> Index:
         """
         Override __new__ method to control new instance creation of Index.
-        Depending on data type, it will create a Index or DatetimeIndex instance.
+        Depending on data type, it will create an Index or DatetimeIndex instance.
 
         Parameters
         ----------
@@ -177,6 +180,8 @@ class Index(metaclass=TelemetryMeta):
         query_compiler: SnowflakeQueryCompiler = None,
         **kwargs: Any,
     ):
+        # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
+        self._parent = None
         if query_compiler:
             # Raise warning if `data` is query compiler with non-default arguments.
             for arg_name, arg_value in kwargs.items():
@@ -335,6 +340,12 @@ class Index(metaclass=TelemetryMeta):
         Returns: Type of the instance.
         """
         return type(self)
+
+    def _set_parent(self, parent: Series | DataFrame):
+        """
+        Set the parent object of the current Index to a given Series or DataFrame.
+        """
+        self._parent = parent
 
     @property
     def values(self) -> ArrayLike:
@@ -612,7 +623,7 @@ class Index(metaclass=TelemetryMeta):
         Returns
         -------
         Hashable
-            name of this index
+            Name of this index.
 
         Examples
         --------
@@ -629,7 +640,13 @@ class Index(metaclass=TelemetryMeta):
         """
         Set Index name.
         """
+        if not is_hashable(value):
+            raise TypeError(f"{type(self).__name__}.name must be a hashable type")
         self._query_compiler = self._query_compiler.set_index_names([value])
+        if self._parent is not None:
+            self._parent._update_inplace(
+                new_query_compiler=self._parent._query_compiler.set_index_names([value])
+            )
 
     def _get_names(self) -> list[Hashable]:
         """
@@ -651,6 +668,10 @@ class Index(metaclass=TelemetryMeta):
         TypeError if each name is not hashable.
         """
         self._query_compiler = self._query_compiler.set_index_names(values)
+        if self._parent is not None:
+            self._parent._update_inplace(
+                new_query_compiler=self._parent._query_compiler.set_index_names(values)
+            )
 
     names = property(fset=_set_names, fget=_get_names)
 
@@ -685,13 +706,23 @@ class Index(metaclass=TelemetryMeta):
         >>> idx.set_names('quarter')
         Index([1, 2, 3, 4], dtype='int64', name='quarter')
         """
-        # TODO: SNOW-1458122 implement set_names
-        WarningMessage.index_to_pandas_warning("set_names")
-        if not inplace:
-            return self.__constructor__(
-                self.to_pandas().set_names(names, level=level, inplace=inplace)
+        if is_list_like(names) and len(names) > 1:
+            raise ValueError(
+                f"Since Index is a single index object in Snowpark pandas, "
+                f"the length of new names must be 1, got {len(names)}."
             )
-        return self.to_pandas().set_names(names, level=level, inplace=inplace)
+        if level is not None and level not in [0, -1]:
+            raise IndexError(
+                f"Level does not exist: Index has only 1 level, {level} is not a valid level number."
+            )
+        if inplace:
+            name = names[0] if is_list_like(names) else names
+            self.name = name
+            return None
+        else:
+            res = self.__constructor__(query_compiler=self._query_compiler)
+            res.name = names if is_scalar(names) else names[0]
+            return res
 
     @property
     def ndim(self) -> int:
@@ -1521,8 +1552,7 @@ class Index(metaclass=TelemetryMeta):
             )
             return Index(query_compiler=query_compiler), indices
 
-    @index_not_implemented()
-    def rename(self) -> None:
+    def rename(self, name: Any, inplace: bool = False) -> None:
         """
         Alter Index or MultiIndex name.
 
@@ -1545,8 +1575,29 @@ class Index(metaclass=TelemetryMeta):
         See Also
         --------
         Index.set_names : Able to set new names partially and by level.
+
+        Examples
+        --------
+        >>> idx = pd.Index(['A', 'C', 'A', 'B'], name='score')
+        >>> idx.rename('grade', inplace=False)
+        Index(['A', 'C', 'A', 'B'], dtype='object', name='grade')
+        >>> idx.rename('grade', inplace=True)
+
+        Note
+        ----
+        Native pandas only allows hashable types for names. Snowpark pandas allows
+        name to be any scalar or list-like type. If a tuple is used for the name,
+        the tuple itself will be the name.
+
+        For instance,
+        >>> idx = pd.Index([1, 2, 3])
+        >>> idx.rename(('a', 'b', 'c'), inplace=True)
+        >>> idx.name
+        ('a', 'b', 'c')
         """
-        # TODO: SNOW-1458122 implement rename
+        if isinstance(name, tuple):
+            name = [name]  # The entire tuple is the name
+        return self.set_names(names=name, inplace=inplace)
 
     def nunique(self, dropna: bool = True) -> int:
         """
@@ -2396,8 +2447,54 @@ class Index(metaclass=TelemetryMeta):
         """
         Return a string representation for this object.
         """
-        WarningMessage.index_to_pandas_warning("__repr__")
-        return self.to_pandas().__repr__()
+        # Create the representation for each field in the index and then join them.
+        # First, create the data representation.
+        # When the number of elements in the Index is greater than the number of
+        # elements to display, display only the first and last 10 elements.
+        max_seq_items = get_option("display.max_seq_items") or 100
+        length_of_index, _, temp_df = self.to_series()._query_compiler.build_repr_df(
+            max_seq_items, 1
+        )
+        if isinstance(temp_df, native_pd.DataFrame) and not temp_df.empty:
+            local_index = temp_df.iloc[:, 0].to_list()
+        else:
+            local_index = []
+        too_many_elem = max_seq_items < length_of_index
+
+        # The representation begins with class name followed by parentheses; the data representation is enclosed in
+        # square brackets. For example, "DatetimeIndex([" or "Index([".
+        class_name = self.__class__.__name__
+
+        # In the case of DatetimeIndex, if the data is timezone-aware, the timezone is displayed
+        # within the dtype field. This is not directly supported in Snowpark pandas.
+        native_pd_idx = native_pd.Index(local_index)
+        dtype = native_pd_idx.dtype if "DatetimeIndex" in class_name else self.dtype
+
+        # _format_data() correctly indents the data and places newlines where necessary.
+        # It also accounts for the comma, newline, and indentation for the next field (dtype).
+        data_repr = native_pd_idx._format_data()
+
+        # Next, creating the representation for each field with their respective labels.
+        # The index always displays the data and datatype, and optionally the name, length, and freq.
+        dtype_repr = f"dtype='{dtype}'"
+        name_repr = f", name='{self.name}'" if self.name else ""
+        # Length is displayed only when the number of elements is greater than the number of elements to display.
+        length_repr = f", length={length_of_index}" if too_many_elem else ""
+        # The frequency is displayed only for DatetimeIndex.
+        # TODO: SNOW-1625233 update freq_repr; replace None with the correct value.
+        freq_repr = ", freq=None" if "DatetimeIndex" in class_name else ""
+
+        repr = (
+            class_name
+            + "("
+            + data_repr
+            + dtype_repr
+            + name_repr
+            + length_repr
+            + freq_repr
+            + ")"
+        )
+        return repr
 
     def __iter__(self) -> Iterator:
         """

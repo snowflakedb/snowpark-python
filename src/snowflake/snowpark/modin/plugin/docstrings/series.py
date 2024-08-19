@@ -2432,6 +2432,11 @@ class Series:
         is the previous index value when the data is sorted.
         """
 
+    def reindex_like():
+        """
+        Return an object with matching indices as `other` object.
+        """
+
     def rename_axis():
         """
         Set the name of the axis for the index or columns.
@@ -3368,6 +3373,11 @@ class Series:
     def to_timestamp():
         """
         Cast to DatetimeIndex of Timestamps, at beginning of period.
+        """
+
+    def transform():
+        """
+        Call ``func`` on self producing a `BasePandasDataset` with the same axis shape as self.
         """
 
     def transpose():
