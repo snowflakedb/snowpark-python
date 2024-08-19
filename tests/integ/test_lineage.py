@@ -155,7 +155,7 @@ def test_lineage_trace(session):
     # CASE 4 : trace with masked object
     test_role = "lineage_test_role"
     session.sql(f"USE ROLE {primary_role}").collect()
-    session.sql(f"GRANT VIEW LINEAGE ON ACCOUNT TO ROLE {test_role}")
+    session.sql(f"GRANT VIEW LINEAGE ON ACCOUNT TO ROLE {test_role}").collect()
     session.sql(f"GRANT USAGE ON database {db} TO ROLE {test_role}").collect()
     session.sql(f"GRANT USAGE ON schema {db}.{schema} TO ROLE {test_role}").collect()
     session.sql(f"GRANT select on VIEW {db}.{schema}.V5 TO ROLE {test_role}").collect()
