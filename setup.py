@@ -41,6 +41,7 @@ MODIN_REQUIREMENTS = [
 DEVELOPMENT_REQUIREMENTS = [
     "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
     "pytest-cov",
+    "wrapt",
     "coverage",
     "sphinx==5.0.2",
     "cachetools",  # used in UDF doctest
