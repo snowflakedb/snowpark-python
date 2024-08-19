@@ -335,7 +335,7 @@ class DatetimeIndex(Index):
         --------
         >>> idx = pd.date_range("2000-01-01", periods=3, freq="us")
         >>> idx
-        DatetimeIndex(['2000-01-01 00:00:00.000000', '2000-01-01 00:00:00.000001',
+        DatetimeIndex([       '2000-01-01 00:00:00', '2000-01-01 00:00:00.000001',
                        '2000-01-01 00:00:00.000002'],
                       dtype='datetime64[ns]', freq=None)
         >>> idx.microsecond
@@ -356,7 +356,8 @@ class DatetimeIndex(Index):
         --------
         >>> idx = pd.date_range("2000-01-01", periods=3, freq="ns")
         >>> idx
-        DatetimeIndex(['2000-01-01 00:00:00.000000000', '2000-01-01 00:00:00.000000001',
+        DatetimeIndex([          '2000-01-01 00:00:00',
+                       '2000-01-01 00:00:00.000000001',
                        '2000-01-01 00:00:00.000000002'],
                       dtype='datetime64[ns]', freq=None)
         >>> idx.nanosecond
