@@ -402,8 +402,8 @@ def test_create_index_from_df_negative():
         pd.DatetimeIndex(pd.DataFrame([[1, 2], [3, 4]]))
 
 
-@sql_count_checker(query_count=4, join_count=4)
-def test_identical():
+@sql_count_checker(query_count=3, join_count=3)
+def test_index_identical():
     i1 = pd.Index(["a", "b", "c"])
     i2 = pd.Index(["a", "b", "c"])
 

@@ -16582,10 +16582,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         try:
             rows = join_result.result_frame.ordered_dataframe.agg(agg_exprs).collect()
-        except Exception:
-            # return not equal for any exception from SQL, e.g., type conversion error while comparing with two
-            # different types.
-            return False
+        except SnowparkSQLException as e:
+            matcher = re.compile(
+                r"^.*\n.*Can not convert parameter.*into expected type.*$"
+            )
+            if matcher.match(e.message):
+                # return not equal for exception from SQL, e.g., type conversion error while comparing with two
+                # different types.
+                return False
+            raise e
         # In case of empty table/dataframe booland_agg returns None. Add special case
         # handling for that.
         return all(x is None for x in rows[0]) or all(rows[0])

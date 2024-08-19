@@ -1229,13 +1229,13 @@ class Index(metaclass=TelemetryMeta):
         False
         """
         return (
-            self.equals(other)
-            and all(
+            all(
                 getattr(self, c, None) == getattr(other, c, None)
                 for c in self._comparables
             )
             and type(self) == type(other)
             and self.dtype == other.dtype
+            and self.equals(other)
         )
 
     @index_not_implemented()
