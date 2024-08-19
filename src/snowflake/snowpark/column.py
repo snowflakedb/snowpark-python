@@ -695,15 +695,9 @@ class Column:
         if isinstance(to, str):
             to = type_string_to_type_object(to)
         expr = proto.Expr()
-        if try_:
-            ast = with_src_position(expr.sp_column_try_cast)
-            ast.col.CopyFrom(self._ast)
-            to._fill_ast(ast.to)
-        else:
-            ast = with_src_position(expr.sp_column_cast)
-            ast.col.CopyFrom(self._ast)
-            to._fill_ast(ast.to)
-
+        ast = with_src_position(expr.sp_column_try_cast if try_ else expr.sp_column_cast)
+        ast.col.CopyFrom(self._ast)
+        to._fill_ast(ast.to)
         return Column(Cast(self._expression, to, try_), ast=expr)
 
     def cast(self, to: Union[str, DataType]) -> "Column":
