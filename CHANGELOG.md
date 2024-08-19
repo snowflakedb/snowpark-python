@@ -45,6 +45,7 @@
 #### Bug Fixes
 - Fixed a bug that Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
 - Fixed a bug where values were not populated into the result DataFrame during the insertion of table merge operation.
+- Fixed a bug where the truncate mode in `DataFrameWriter.save_as_table` incorrectly handled DataFrames containing only a subset of columns from the existing table.
 
 #### Improvements
 - Fix pandas FutureWarning about integer indexing.
@@ -76,11 +77,15 @@
     `is_month_start`, `is_month_end`, `is_quarter_start`, `is_quarter_end`, `is_year_start`, `is_year_end`
     and `is_leap_year`.
 - Added support for `Resampler.fillna` and `Resampler.bfill`.
-- Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
+- Added limited support for the `Timedelta` type, including
+  - support for creating `Timedelta` columns and `to_pandas`.
+  - support `copy`, `cache_result`, `shift`, `sort_index`.
+  - `NotImplementedError` will be raised for the rest of methods that do not support `Timedelta`.
 - Added support for `Index.argmax` and `Index.argmin`.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
+- Added support for `Index.name`, `Index.names`, `Index.rename`, and `Index.set_names`.
 - Added support for subtracting two timestamps.
 
 #### Improvements

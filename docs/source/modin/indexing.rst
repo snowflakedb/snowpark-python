@@ -138,6 +138,7 @@ Index
 
 DatetimeIndex
 -------------
+
 .. autosummary::
    :toctree: pandas_api/
 
@@ -148,74 +149,74 @@ DatetimeIndex
 .. autosummary::
     :toctree: pandas_api/
 
-   DatetimeIndex.year
-   DatetimeIndex.month
-   DatetimeIndex.day
-   DatetimeIndex.hour
-   DatetimeIndex.minute
-   DatetimeIndex.second
-   DatetimeIndex.microsecond
-   DatetimeIndex.nanosecond
-   DatetimeIndex.date
-   DatetimeIndex.time
-   DatetimeIndex.timetz
-   DatetimeIndex.dayofyear
-   DatetimeIndex.day_of_year
-   DatetimeIndex.dayofweek
-   DatetimeIndex.day_of_week
-   DatetimeIndex.weekday
-   DatetimeIndex.quarter
-   DatetimeIndex.tz
-   DatetimeIndex.freq
-   DatetimeIndex.freqstr
-   DatetimeIndex.is_month_start
-   DatetimeIndex.is_month_end
-   DatetimeIndex.is_quarter_start
-   DatetimeIndex.is_quarter_end
-   DatetimeIndex.is_year_start
-   DatetimeIndex.is_year_end
-   DatetimeIndex.is_leap_year
-   DatetimeIndex.inferred_freq
+    DatetimeIndex.year
+    DatetimeIndex.month
+    DatetimeIndex.day
+    DatetimeIndex.hour
+    DatetimeIndex.minute
+    DatetimeIndex.second
+    DatetimeIndex.microsecond
+    DatetimeIndex.nanosecond
+    DatetimeIndex.date
+    DatetimeIndex.time
+    DatetimeIndex.timetz
+    DatetimeIndex.dayofyear
+    DatetimeIndex.day_of_year
+    DatetimeIndex.dayofweek
+    DatetimeIndex.day_of_week
+    DatetimeIndex.weekday
+    DatetimeIndex.quarter
+    DatetimeIndex.tz
+    DatetimeIndex.freq
+    DatetimeIndex.freqstr
+    DatetimeIndex.is_month_start
+    DatetimeIndex.is_month_end
+    DatetimeIndex.is_quarter_start
+    DatetimeIndex.is_quarter_end
+    DatetimeIndex.is_year_start
+    DatetimeIndex.is_year_end
+    DatetimeIndex.is_leap_year
+    DatetimeIndex.inferred_freq
 
 .. rubric:: `DatetimeIndex` Selecting
 
 .. autosummary::
     :toctree: pandas_api/
 
-   DatetimeIndex.indexer_at_time
-   DatetimeIndex.indexer_between_time
+    DatetimeIndex.indexer_at_time
+    DatetimeIndex.indexer_between_time
 
 .. rubric:: `DatetimeIndex` Time-specific operations
 
 .. autosummary::
     :toctree: pandas_api/
 
-   DatetimeIndex.normalize
-   DatetimeIndex.strftime
-   DatetimeIndex.snap
-   DatetimeIndex.tz_convert
-   DatetimeIndex.tz_localize
-   DatetimeIndex.round
-   DatetimeIndex.floor
-   DatetimeIndex.ceil
-   DatetimeIndex.month_name
-   DatetimeIndex.day_name
+    DatetimeIndex.normalize
+    DatetimeIndex.strftime
+    DatetimeIndex.snap
+    DatetimeIndex.tz_convert
+    DatetimeIndex.tz_localize
+    DatetimeIndex.round
+    DatetimeIndex.floor
+    DatetimeIndex.ceil
+    DatetimeIndex.month_name
+    DatetimeIndex.day_name
 
 .. rubric:: `DatetimeIndex` Conversion
 
 .. autosummary::
     :toctree: pandas_api/
 
-   DatetimeIndex.as_unit
-   DatetimeIndex.to_period
-   DatetimeIndex.to_pydatetime
-   DatetimeIndex.to_series
-   DatetimeIndex.to_frame
+    DatetimeIndex.as_unit
+    DatetimeIndex.to_period
+    DatetimeIndex.to_pydatetime
+    DatetimeIndex.to_series
+    DatetimeIndex.to_frame
 
 .. rubric:: `DatetimeIndex` Methods
 
 .. autosummary::
     :toctree: pandas_api/
 
-   DatetimeIndex.mean
-   DatetimeIndex.std
+    DatetimeIndex.mean
+    DatetimeIndex.std
