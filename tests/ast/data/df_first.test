@@ -12,8 +12,8 @@ df3 = df.first()
 
 df = session.table("test_table")
 
-res1 = df.first(-5, True)
+df1 = df.first(-5, True)
 
-res2 = df.first(2, True)
+df2 = df.first(2, True)
 
-res3 = df.first(1, True)
+df3 = df.first(1, True)
