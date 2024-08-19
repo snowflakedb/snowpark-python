@@ -1765,6 +1765,7 @@ def create_frame_with_data_columns(
 
     new_frame_data_column_pandas_labels = []
     new_frame_data_column_snowflake_quoted_identifier = []
+    new_frame_data_column_types = []
 
     data_column_label_to_snowflake_quoted_identifier = {
         data_column_pandas_label: data_column_snowflake_quoted_identifier
@@ -1786,6 +1787,11 @@ def create_frame_with_data_columns(
         new_frame_data_column_snowflake_quoted_identifier.append(
             snowflake_quoted_identifier
         )
+        new_frame_data_column_types.append(
+            frame.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
+                snowflake_quoted_identifier, None
+            )
+        )
 
     return InternalFrame.create(
         ordered_dataframe=frame.ordered_dataframe,
@@ -1794,6 +1800,8 @@ def create_frame_with_data_columns(
         data_column_pandas_index_names=frame.data_column_pandas_index_names,
         index_column_pandas_labels=frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=new_frame_data_column_types,
+        index_column_types=frame.cached_index_column_snowpark_pandas_types,
     )
 
 
