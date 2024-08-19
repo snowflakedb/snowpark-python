@@ -390,6 +390,15 @@ def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEm
     )
 
 
+@patch("array_agg")
+def mock_array_agg(column: ColumnEmulator, is_distinct: bool) -> ColumnEmulator:
+    columns_data = ColumnEmulator(column.unique()) if is_distinct else column
+    return ColumnEmulator(
+        data=[list(columns_data.dropna())],
+        sf_type=ColumnType(ArrayType(), False),
+    )
+
+
 @patch("listagg")
 def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column
@@ -933,13 +942,13 @@ def mock_to_timestamp(
     fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
-    result = mock_timestamp_ntz(column, fmt, try_cast)
+    result = mock_to_timestamp_ntz(column, fmt, try_cast)
     result.sf_type = ColumnType(TimestampType(), column.sf_type.nullable)
     return result
 
 
 @patch("to_timestamp_ntz")
-def mock_timestamp_ntz(
+def mock_to_timestamp_ntz(
     column: ColumnEmulator,
     fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
@@ -1976,12 +1985,21 @@ def cast_column_to(
 ) -> Optional[ColumnEmulator]:
     # col.sf_type.nullable = target_column_type.nullable
     target_data_type = target_column_type.datatype
+    if col.sf_type == target_column_type:
+        return col
     if isinstance(target_data_type, DateType):
         return mock_to_date(col, try_cast=try_cast)
     if isinstance(target_data_type, TimeType):
         return mock_to_time(col, try_cast=try_cast)
     if isinstance(target_data_type, TimestampType):
-        return mock_to_timestamp(col, try_cast=try_cast)
+        if target_data_type.tz is TimestampTimeZone.LTZ:
+            return mock_to_timestamp_ltz(col, try_cast=try_cast)
+        elif target_data_type.tz is TimestampTimeZone.NTZ:
+            return mock_to_timestamp_ntz(col, try_cast=try_cast)
+        elif target_data_type.tz is TimestampTimeZone.TZ:
+            return mock_to_timestamp_tz(col, try_cast=try_cast)
+        else:
+            return mock_to_timestamp(col, try_cast=try_cast)
     if isinstance(target_data_type, DecimalType):
         return mock_to_decimal(
             col,

@@ -139,6 +139,10 @@ index_not_implemented = _make_not_implemented_decorator(
     decorating_functions=False, attribute_prefix="Index"
 )
 
+datetime_index_not_implemented = _make_not_implemented_decorator(
+    decorating_functions=False, attribute_prefix="DatetimeIndex"
+)
+
 pandas_module_level_function_not_implemented = _make_not_implemented_decorator(
     decorating_functions=True, attribute_prefix="pd"
 )
@@ -153,6 +157,12 @@ class ErrorMessage:
     def not_implemented(cls, message: str) -> NoReturn:  # pragma: no cover
         logger.debug(f"NotImplementedError: {message}")
         raise NotImplementedError(message)
+
+    @classmethod
+    def not_implemented_for_timedelta(cls, method: str) -> NoReturn:
+        ErrorMessage.not_implemented(
+            f"SnowflakeQueryCompiler::{method} is not yet implemented for Timedelta Type"
+        )
 
     @staticmethod
     def method_not_implemented_error(

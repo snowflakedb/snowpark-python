@@ -674,7 +674,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             return self._query_compiler.index
 
         idx = Index(query_compiler=self._query_compiler)
-        idx._parent = self
+        idx._set_parent(self)
         return idx
 
     index = property(_get_index, _set_index)
