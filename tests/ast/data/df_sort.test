@@ -1,0 +1,31 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.sort(col("A"), ascending=True)
+
+df = df.sort(col("A"), ascending=0)
+
+df = df.sort(col("A"), col("B"), ascending=[True, False])
+
+df = df.sort(col("A"), col("B"), ascending=[0, 1])
+
+df = df.sort(col("A"), col("B"), col("C"), ascending=[0, True, 1])
+
+df = df.sort(col("B"))
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.sort(col("A"), ascending=True)
+
+df = df.sort(col("A"), ascending=0)
+
+df = df.sort(col("A"), col("B"), ascending=[True, False])
+
+df = df.sort(col("A"), col("B"), ascending=[0, 1])
+
+df = df.sort(col("A"), col("B"), col("C"), ascending=[0, True, 1])
+
+df = df.sort(col("B"))

@@ -1,0 +1,53 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df.create_or_replace_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+df.create_or_replace_view("test_view", statement_params={"foo": "bar"})
+
+df.create_or_replace_temp_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+df.create_or_replace_temp_view("test_view", statement_params={"foo": "bar"})
+
+# TODO: remove the suppress check in `copy_into_table()`.
+# session.file.put(local_file_name="test.json", stage_location="test", auto_compress=False)
+# df2 = session.read.option("INFER_SCHEMA", True).json("@test/test.json")
+
+df.copy_into_table(
+    ["test_db", "test_schema", "test_table2"],
+    files=["file1", "file2"],
+    pattern="[A-Z]+",
+    validation_mode="RETURN_ERRORS",
+    target_columns=["n", "str"],
+    transformations=[col("n") * 10, col("str")],
+    format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"},
+    statement_params={"foo": "bar"},
+    force=True,
+)
+
+df3 = df.cache_result()
+
+df4 = df.cache_result(statement_params={"foo": "bar"})
+
+df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo")
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+res1 = df.create_or_replace_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+res2 = df.create_or_replace_view("test_view", statement_params={"foo": "bar"})
+
+res3 = df.create_or_replace_temp_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+res4 = df.create_or_replace_temp_view("test_view", statement_params={"foo": "bar"})
+
+res5 = df.copy_into_table(["test_db", "test_schema", "test_table2"], files=["file1", "file2"], pattern="[A-Z]+", validation_mode="RETURN_ERRORS", target_columns=["n", "str"], transformations=[col("n") * 10, col("str")], format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"}, statement_params={"foo": "bar"}, force=True)
+
+df3 = df.cache_result()
+
+df4 = df.cache_result(statement_params={"foo": "bar"})
+
+res6 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo")

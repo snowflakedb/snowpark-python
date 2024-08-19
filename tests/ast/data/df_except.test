@@ -1,0 +1,16 @@
+## TEST CASE
+
+df1 = session.table("test_df1")
+
+df2 = session.table("test_df2")
+
+df3 = df1.except_(df2)
+
+
+## EXPECTED OUTPUT
+
+df1 = session.table("test_df1")
+
+df2 = session.table("test_df2")
+
+df3 = df1.except_(df2)

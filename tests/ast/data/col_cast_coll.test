@@ -1,0 +1,44 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.select(col("A").cast("string(42)"))
+
+df = df.select(col("A").cast(TimestampType(TimestampTimeZone.NTZ)))
+
+df = df.select(col("A").cast(TimestampType(TimestampTimeZone.LTZ)))
+
+df = df.select(col("A").cast(TimestampType(TimestampTimeZone.TZ)))
+
+df = df.select(col("A").cast(ArrayType(GeometryType(), structured=True)))
+
+df = df.select(col("A").cast(MapType(GeographyType(), VariantType(), structured=True)))
+
+df = df.select(col("A").cast(VectorType(int, 64)))
+
+df = df.select(col("A").cast(StructType([
+    StructField(ColumnIdentifier("test1"), StringType(), nullable=False),
+    StructField("test2", IntegerType(), nullable=True),
+    StructField(ColumnIdentifier("test3"), ArrayType(LongType())),
+    StructField("test4", MapType(DecimalType(42, 23), VectorType("float", 64)))
+], structured=True)))
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.select(col("A").cast(StringType(42)))
+
+df = df.select(col("A").cast(TimestampType(TimestampTimeZone.NTZ)))
+
+df = df.select(col("A").cast(TimestampType(TimestampTimeZone.LTZ)))
+
+df = df.select(col("A").cast(TimestampType(TimestampTimeZone.TZ)))
+
+df = df.select(col("A").cast(ArrayType(GeometryType(), structured=True)))
+
+df = df.select(col("A").cast(MapType(GeographyType(), VariantType(), structured=True)))
+
+df = df.select(col("A").cast(VectorType(IntegerType(), 64)))
+
+df = df.select(col("A").cast(StructType([StructField("test1", StringType(), nullable=False), StructField("test2", IntegerType(), nullable=True), StructField("test3", ArrayType(LongType(), structured=False), nullable=True), StructField("test4", MapType(DecimalType(42, 23), VectorType(FloatType(), 64), structured=False), nullable=True)], structured=True)))

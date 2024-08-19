@@ -1,0 +1,17 @@
+## TEST CASE
+
+df1 = session.table("test_table")
+
+df2 = session.table("test_table")
+
+df3 = df1.join(df2, "num").select(df1.num.alias("n1"), df1.str, df2.str)
+
+## EXPECTED OUTPUT
+
+df1 = session.table("test_table")
+
+df2 = session.table("test_table")
+
+df3 = df1.join(df2, on="num", how="inner")
+
+df3 = df3.select(df1["num"].alias("n1"), df1["str"], df2["str"])

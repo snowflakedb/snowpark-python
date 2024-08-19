@@ -1,0 +1,12 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.select(col("*"))
+
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.select("*")
