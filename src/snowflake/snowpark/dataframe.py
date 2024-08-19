@@ -542,6 +542,7 @@ class DataFrame:
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
+        self._ast_id = None
         if _emit_ast:
             self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
 
