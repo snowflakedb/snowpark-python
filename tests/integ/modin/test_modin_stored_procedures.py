@@ -8,14 +8,15 @@ import modin.pandas as pd
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.modin.plugin import (
+    actual_pandas_version,
     supported_modin_version,
-    supported_pandas_version,
 )
 from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import multithreaded_run
 
 PACKAGE_LIST = [
-    f"pandas=={supported_pandas_version}",
+    # modin 0.30.1 supports any pandas 2.2.x, so just pick whichever one is installed in the client
+    f"pandas=={actual_pandas_version}",
     f"modin=={supported_modin_version}",
     "snowflake-snowpark-python",
     "numpy",
