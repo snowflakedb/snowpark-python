@@ -36,6 +36,7 @@
 #### Bug Fixes
 
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
+- Fixed AssertionError in tree of binary operations.
 
 ## 1.21.0 (2024-08-19)
 
