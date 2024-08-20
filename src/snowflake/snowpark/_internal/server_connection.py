@@ -183,6 +183,9 @@ class ServerConnection:
             "_skip_upload_on_content_match" in signature.parameters
         )
 
+        self._async_query_submission_in_stored_procedures: bool = False
+        self._async_query_submission_polling_interval_ns: float = 0
+
     def _add_application_parameters(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
             # Mirrored from snowflake-connector-python/src/snowflake/connector/connection.py#L295
@@ -525,13 +528,9 @@ class ServerConnection:
                 "Async query is not supported in stored procedure yet"
             )
 
-        run_all_sp_async = self._get_client_side_session_parameter(
-            "RUN_ALL_STORED_PROCEDURES_ASYNC_PYTHON",
-            True,
-        )
-
-        # Only ignore 'block' if run_all_sp_async and is_in_sp are both true.
-        run_async = run_all_sp_async and is_in_sp
+        # Only ignore 'block' if _async_query_submission_in_stored_procedures and is_in_sp are both
+        # true.
+        run_async = self._async_query_submission_in_stored_procedures and is_in_sp
 
         result_set, result_meta = self.get_result_set(
             plan,
@@ -549,7 +548,7 @@ class ServerConnection:
             if TYPE_CHECKING:
                 assert isinstance(result_set, AsyncJob)
             while not result_set.is_done():
-                time.sleep(0.0000000001)
+                time.sleep(self._async_query_submission_polling_interval_ns)
 
             return result_set.result()
 
