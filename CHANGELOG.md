@@ -29,7 +29,7 @@
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
 - Added support for `Index.name`, `Index.names`, `Index.rename`, and `Index.set_names`.
-- Added support for subtracting two timestamps.
+- Added support for subtracting two timestamps resulting in a Timedelta.
 
 #### Bug Fixes
 

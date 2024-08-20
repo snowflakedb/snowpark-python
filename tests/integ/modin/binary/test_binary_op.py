@@ -93,7 +93,7 @@ def test_binary_arithmetic_method_number_scalar(func):
 )
 @pytest.mark.parametrize("operation", ["sub", "rsub"])
 @sql_count_checker(query_count=1)
-def test_timestamp_dataframe_minus_timedelta_scalar(scalar, operation):
+def test_timestamp_dataframe_minus_timestamp_scalar(scalar, operation):
     eval_snowpark_pandas_result(
         *create_test_dfs(
             [
@@ -119,7 +119,7 @@ def test_timestamp_dataframe_minus_timedelta_scalar(scalar, operation):
 )
 @sql_count_checker(query_count=1)
 @pytest.mark.parametrize("operation", ["sub", "rsub"])
-def test_timestamp_series_minus_timedelta_scalar(operation, scalar):
+def test_timestamp_series_minus_timestamp_scalar(operation, scalar):
     eval_snowpark_pandas_result(
         *create_test_series(
             [
