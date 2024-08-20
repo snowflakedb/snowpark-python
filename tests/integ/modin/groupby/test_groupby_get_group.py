@@ -77,7 +77,7 @@ def test_groupby_get_group(by):
     # DataFrame with __getitem__
     with pytest.raises(
         NotImplementedError,
-        match="get_group is not yet implemented for SeriesGroupBy",
+        match="Snowpark pandas does not yet support the method SeriesGroupBy.get_group",
     ):
         snowpark_pandas_df.groupby(by)["col5_int16"].get_group(name)
 
