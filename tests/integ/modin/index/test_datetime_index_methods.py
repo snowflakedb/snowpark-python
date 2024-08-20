@@ -109,6 +109,7 @@ dt_properties = pytest.mark.parametrize(
         "microsecond",
         "nanosecond",
         "date",
+        "time",
         "dayofyear",
         "day_of_year",
         "dayofweek",
@@ -176,9 +177,7 @@ def test_dt_properties(property_name, freq):
     )
 
 
-@pytest.mark.parametrize(
-    "property", ["time", "timetz", "tz", "freqstr", "freq", "inferred_freq"]
-)
+@pytest.mark.parametrize("property", ["timetz", "tz", "freqstr", "inferred_freq"])
 @sql_count_checker(query_count=0)
 def test_dt_property_not_implemented(property):
     snow_index = pd.DatetimeIndex(["2021-01-01", "2021-01-02", "2021-01-03"])

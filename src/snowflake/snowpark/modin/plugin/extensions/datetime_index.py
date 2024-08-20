@@ -185,6 +185,7 @@ class DatetimeIndex(Index):
         """
         if property_name in (
             "date",
+            "time",
             "is_month_start",
             "is_month_end",
             "is_quarter_start",
@@ -617,7 +618,6 @@ class DatetimeIndex(Index):
         """
         return self._dt_property("is_leap_year")
 
-    @datetime_index_not_implemented()
     @property
     def time(self) -> Index:
         """
@@ -631,9 +631,10 @@ class DatetimeIndex(Index):
         --------
         >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
         ...                         "2/1/2020 11:00:00+00:00"])
-        >>> idx.time  # doctest: +SKIP
+        >>> idx.time
         Index(["10:00:00", "11:00:00"], dtype='object')
         """
+        return self._dt_property("time")
 
     @datetime_index_not_implemented()
     @property

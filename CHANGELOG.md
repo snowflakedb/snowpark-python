@@ -30,6 +30,7 @@
 - Added documentation pages for `DatetimeIndex`.
 - Added support for `Index.name`, `Index.names`, `Index.rename`, and `Index.set_names`.
 - Added support for `Index.__repr__`.
+- Added support for `Series.dt.weekday`, `Series.dt.time`, and `DatetimeIndex.time`.
 
 #### Bug Fixes
 
