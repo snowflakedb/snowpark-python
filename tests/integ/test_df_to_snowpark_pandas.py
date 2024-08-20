@@ -40,13 +40,7 @@ def test_to_snowpark_pandas_no_modin(session, tmp_table_basic):
     # Check if modin is installed (if so, we're running in Snowpark pandas; if not, we're just in Snowpark Python)
     try:
         import modin  # noqa: F401
-
-        modin_installed = True
     except ModuleNotFoundError:
-        modin_installed = False
-    if modin_installed:
-        snowpark_df.to_snowpark_pandas()  # should have no errors
-    else:
         # Current Snowpark Python installs pandas==2.2.2, but Snowpark pandas depends on modin
         # 0.28.1, which needs pandas==2.2.1. The pandas version check is currently performed
         # before Snowpark pandas checks whether modin is installed.
@@ -58,3 +52,5 @@ def test_to_snowpark_pandas_no_modin(session, tmp_table_basic):
             match="does not match the supported pandas version in Snowpark pandas",
         ):
             snowpark_df.to_snowpark_pandas()
+    else:
+        snowpark_df.to_snowpark_pandas()  # should have no errors
