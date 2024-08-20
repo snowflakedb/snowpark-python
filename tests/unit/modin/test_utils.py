@@ -698,8 +698,6 @@ def test_fillna_label_to_value_map(value, columns, expected):
         np.double(2.5),
         np.bool_(True),
         np.datetime64("2005-02-25"),
-        native_pd.Timestamp(2017, 1, 1, 12),
-        native_pd.Timestamp("2017-01-01T12"),
         np.nan,
         native_pd.NaT,
         native_pd.NA,
@@ -714,6 +712,20 @@ def test_convert_numpy_pandas_scalar_to_snowpark_literal(value):
         )
 
     check(value, convert_numpy_pandas_scalar_to_snowpark_literal(value))
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        native_pd.Timestamp(2017, 1, 1, 12),
+        native_pd.Timestamp("2017-01-01T12"),
+    ],
+)
+def test_convert_numpy_pandas_scalar_to_snowpark_literal_invalid_for_timestamp(value):
+    with pytest.raises(
+        ValueError, match="cannot represent Timestamp as a Snowpark literal"
+    ):
+        convert_numpy_pandas_scalar_to_snowpark_literal(value)
 
 
 @pytest.mark.parametrize(

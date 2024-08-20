@@ -6,6 +6,7 @@ import logging
 
 import modin.pandas as pd
 import pandas as native_pd
+import pytest
 
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
     TIMEDELTA_WARNING_MESSAGE,
@@ -83,3 +84,33 @@ def test_timedelta_series_dtypes():
         lambda s: s.dtype,
         comparator=lambda snow_type, pandas_type: snow_type == pandas_type
     )
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError)
+def test_timedelta_precision_insufficient_with_nulls_SNOW_1628925():
+    # Storing this timedelta requires more than 15 digits of precision
+    # TODO(SNOW-1628925): Fix this bug.
+    timedelta = pd.Timedelta(days=105, nanoseconds=1)
+    eval_snowpark_pandas_result(
+        pd, native_pd, lambda lib: lib.Series([None, timedelta])
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_timedelta_not_supported():
+    df = pd.DataFrame(
+        {
+            "a": ["one", "two", "three"],
+            "b": ["abc", "pqr", "xyz"],
+            "dt": [
+                pd.Timedelta("1 days"),
+                pd.Timedelta("2 days"),
+                pd.Timedelta("3 days"),
+            ],
+        }
+    )
+    with pytest.raises(
+        NotImplementedError,
+        match="validate_groupby is not yet implemented for Timedelta Type",
+    ):
+        df.groupby("a").count()

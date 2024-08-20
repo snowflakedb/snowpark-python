@@ -2432,6 +2432,11 @@ class Series:
         is the previous index value when the data is sorted.
         """
 
+    def reindex_like():
+        """
+        Return an object with matching indices as `other` object.
+        """
+
     def rename_axis():
         """
         Set the name of the axis for the index or columns.
@@ -3192,9 +3197,8 @@ class Series:
 
         Slicing a single row from a single column will produce a single
         scalar DataFrame:
-        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
 
-        >>> df_0a = df.loc[df.index.to_pandas() < 1, ['a']]
+        >>> df_0a = df.loc[df.index < 1, ['a']]
         >>> df_0a
            a
         0  1
@@ -3369,6 +3373,11 @@ class Series:
     def to_timestamp():
         """
         Cast to DatetimeIndex of Timestamps, at beginning of period.
+        """
+
+    def transform():
+        """
+        Call ``func`` on self producing a `BasePandasDataset` with the same axis shape as self.
         """
 
     def transpose():
