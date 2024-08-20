@@ -39,6 +39,7 @@ FAIL_ON_MISSING_AST = True
 # The path to the snowpark package.
 SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
 
+
 def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
     """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance
 
@@ -64,9 +65,7 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
         if hasattr(obj, "_named_values") and obj._named_values is not None:
             for field in obj._fields:
                 ast.names.list.append(field)
-                build_expr_from_python_val(
-                    ast.vs.add(), obj._named_values[field]
-                )
+                build_expr_from_python_val(ast.vs.add(), obj._named_values[field])
         else:
             for field in obj:
                 build_expr_from_python_val(ast.vs.add(), field)
@@ -102,17 +101,13 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
         if dec_tuple.sign != 0:
             unscaled_val *= -1
         req_bytes = (unscaled_val.bit_length() + 7) // 8
-        ast.unscaled_value = unscaled_val.to_bytes(
-            req_bytes, "big", signed=True
-        )
+        ast.unscaled_value = unscaled_val.to_bytes(req_bytes, "big", signed=True)
         ast.scale = dec_tuple.exponent
 
     elif isinstance(obj, datetime.datetime):
         ast = with_src_position(expr_builder.python_timestamp_val)
         if obj.tzinfo is not None:
-            ast.tz.offset_seconds = int(
-                obj.tzinfo.utcoffset(obj).total_seconds()
-            )
+            ast.tz.offset_seconds = int(obj.tzinfo.utcoffset(obj).total_seconds())
             tz = obj.tzinfo.tzname(obj)
             if tz is not None:
                 ast.tz.name.value = tz
@@ -350,8 +345,9 @@ def set_builtin_fn_alias(ast: proto.Expr, alias: str) -> None:
 
 assignment_re = re.compile(r"^\s*([a-zA-Z_]\w*)\s*=.*$", re.DOTALL)
 
+
 def with_src_position(
-    expr_ast: proto.Expr, 
+    expr_ast: proto.Expr,
     assign: Optional[proto.Assign] = None,
     caller_frame_depth: Optional[int] = None,
     debug: bool = False,
@@ -373,26 +369,29 @@ def with_src_position(
     # to avoid reference cycles and memory leaks. The above frame assignment is removed in the finally block.
     try:
         # Need this None guard as depending on the implementation of sys._getframe, frame may be None.
-        # Note the assignment to src.file is needed as several upstream uses of this method rely on 
+        # Note the assignment to src.file is needed as several upstream uses of this method rely on
         # setting src fields for explicit presence of the encapsulating message in the AST.
         # e.g., Null values have no fields, so the assignment to src fields ensures their presence.
         if frame is None:
             src.file = ""
             return expr_ast
-        
+
         # NOTE: The inspect module provides many other APIs to get information about the current frame and its callers.
         # All of these (except for currentframe) unnecessarily incur the overhead of resolving the filename for each
-        # frame and making sure the file exists (even if the context parameter is set to 0 to avoid capturing lineno, 
-        # source line, etc.). Since we should know exactly how many frames to step back, we can and should avoid this 
+        # frame and making sure the file exists (even if the context parameter is set to 0 to avoid capturing lineno,
+        # source line, etc.). Since we should know exactly how many frames to step back, we can and should avoid this
         # overhead. Using the inspect.currentframe() (a wrapper around sys._getframe that handles the None case) is the
-        # most efficient way to get the current frame. Stepping back from this frame via frame.f_back is also the most 
+        # most efficient way to get the current frame. Stepping back from this frame via frame.f_back is also the most
         # efficient method to walk the stack as each frame object contains the minimal amount of needed context.
         if caller_frame_depth is None:
             # If the frame is not None, one guarantee we have is that two frames back is the caller's caller, and this
             # frame contains the code of interest from the user if they are using a simple public API with no further
             # nesting or indirection. This is the most common case.
             frame, prev_frame = frame.f_back.f_back, frame.f_back
-            while frame is not None and SNOWPARK_LIB_PATH in Path(frame.f_code.co_filename).parents:
+            while (
+                frame is not None
+                and SNOWPARK_LIB_PATH in Path(frame.f_code.co_filename).parents
+            ):
                 frame, prev_frame = frame.f_back, frame
         else:
             # If the frame is not None, use the provided stack depth to step back to the relevant frame.
@@ -415,7 +414,7 @@ def with_src_position(
         if frame is None or not Path(filename).is_file():
             src.file = ""
             return expr_ast
-                
+
         # The context argument specifies the number of lines of context to capture around the current line.
         # If IO performance is an issue, this can be set to 0 but this will disable symbol capture. Some
         # potential alternatives to consider here are the linecache and traceback modules.

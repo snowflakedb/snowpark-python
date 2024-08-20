@@ -68,7 +68,7 @@ def _extract_schema_and_data_from_pandas_df(
         for col_idx in range(data.shape[1]):
             if plain_data[row_idx][col_idx] is None:
                 continue
-            if isinstance(plain_data[row_idx][col_idx], (float, numpy.float_)):
+            if isinstance(plain_data[row_idx][col_idx], (float, numpy.float64)):
                 # in pandas, a float is represented in type numpy.float64
                 # which can not be inferred by snowpark python, we cast to built-in float type
                 if math.isnan(plain_data[row_idx][col_idx]):
@@ -78,9 +78,9 @@ def _extract_schema_and_data_from_pandas_df(
                     # pandas PANDAS_INTEGER_TYPES (e.g. INT8Dtye) will also store data in the format of float64
                     # here we use the col dtype info to convert data
                     plain_data[row_idx][col_idx] = (
-                        int(data.iloc[row_idx][col_idx])
-                        if isinstance(data.dtypes[col_idx], PANDAS_INTEGER_TYPES)
-                        else float(str(data.iloc[row_idx][col_idx]))
+                        int(data.iloc[row_idx, col_idx])
+                        if isinstance(data.dtypes.iloc[col_idx], PANDAS_INTEGER_TYPES)
+                        else float(str(data.iloc[row_idx, col_idx]))
                     )
             elif isinstance(plain_data[row_idx][col_idx], numpy.float32):
                 # convert str first and then to float to avoid precision drift as its stored in float32 format
@@ -93,7 +93,7 @@ def _extract_schema_and_data_from_pandas_df(
             ):
                 plain_data[row_idx][col_idx] = int(plain_data[row_idx][col_idx])
             elif isinstance(plain_data[row_idx][col_idx], pd.Timestamp):
-                if isinstance(data.dtypes[col_idx], pd.DatetimeTZDtype):
+                if isinstance(data.dtypes.iloc[col_idx], pd.DatetimeTZDtype):
                     # this is to align with the current snowflake behavior that it
                     # apply the tz diff to time and then removes the tz information during ingestion
                     plain_data[row_idx][col_idx] = (
@@ -116,7 +116,7 @@ def _extract_schema_and_data_from_pandas_df(
             elif isinstance(plain_data[row_idx][col_idx], pd.Interval):
 
                 def convert_to_python_obj(obj):
-                    if isinstance(obj, numpy.float_):
+                    if isinstance(obj, numpy.float64):
                         return float(obj)
                     elif isinstance(obj, numpy.int64):
                         # on Windows, numpy.int64 and numpy.int_ are different

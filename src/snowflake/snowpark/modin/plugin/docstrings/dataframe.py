@@ -8,9 +8,13 @@ from textwrap import dedent
 
 from pandas.util._decorators import doc
 
-from snowflake.snowpark.modin.pandas.base import _doc_binary_op_kwargs
-from snowflake.snowpark.modin.pandas.shared_docs import _shared_docs
-from snowflake.snowpark.modin.pandas.utils import _doc_binary_op
+from snowflake.snowpark.modin.plugin.docstrings.shared_docs import (
+    _doc_binary_op,
+    _shared_docs,
+)
+
+_doc_binary_op_kwargs = {"returns": "BasePandasDataset", "left": "BasePandasDataset"}
+
 
 _shared_doc_kwargs = {
     "axes": "index, columns",
@@ -864,6 +868,81 @@ class DataFrame:
         dtype: float64
         """
 
+    def assign():
+        """
+        Assign new columns to a ``DataFrame``.
+
+        Returns a new object with all original columns in addition to new ones. Existing
+        columns that are re-assigned will be overwritten.
+
+        Parameters
+        ----------
+        **kwargs: dict of {str: callable or Series}
+            The column names are the keywords. If the values are callable, they are computed
+            on the DataFrame and assigned to the new columns. The callable must not change input
+            DataFrame (though Snowpark pandas doesn't check it). If the values are not callable,
+            (e.g. a Series, scalar, or array), they are simply assigned.
+
+        Returns
+        -------
+        DataFrame
+            A new DataFrame with the new columns in addition to all the existing columns.
+
+        Notes
+        -----
+        - Assigning multiple columns within the same assign is possible. Later items in `**kwargs`
+          may refer to newly created or modified columns in `df`; items are computed and assigned into `df` in order.
+
+        - If an array that of the wrong length is passed in to assign, Snowpark pandas will either truncate the array, if it is too long,
+          or broadcast the last element of the array until the array is the correct length if it is too short. This differs from native pandas,
+          which will error out with a ValueError if the length of the array does not match the length of `df`.
+          This is done to preserve Snowpark pandas' lazy evaluation paradigm.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'temp_c': [17.0, 25.0]},
+        ...                   index=['Portland', 'Berkeley'])
+        >>> df
+                  temp_c
+        Portland    17.0
+        Berkeley    25.0
+
+        >>> df.assign(temp_f=lambda x: x.temp_c * 9 / 5 + 32)
+                  temp_c  temp_f
+        Portland    17.0    62.6
+        Berkeley    25.0    77.0
+
+        >>> df.assign(temp_f=df['temp_c'] * 9 / 5 + 32)
+                  temp_c  temp_f
+        Portland    17.0    62.6
+        Berkeley    25.0    77.0
+
+        >>> df.assign(temp_f=lambda x: x['temp_c'] * 9 / 5 + 32,
+        ...           temp_k=lambda x: (x['temp_f'] + 459.67) * 5 / 9)
+                  temp_c  temp_f  temp_k
+        Portland    17.0    62.6  290.15
+        Berkeley    25.0    77.0  298.15
+
+        >>> df = pd.DataFrame({'col1': [17.0, 25.0, 22.0]})
+        >>> df
+           col1
+        0  17.0
+        1  25.0
+        2  22.0
+
+        >>> df.assign(new_col=[10, 11])
+           col1  new_col
+        0  17.0       10
+        1  25.0       11
+        2  22.0       11
+
+        >>> df.assign(new_col=[10, 11, 12, 13, 14])
+           col1  new_col
+        0  17.0       10
+        1  25.0       11
+        2  22.0       12
+        """
+
     def groupby():
         """
         Group DataFrame using a mapper or by a Series of columns.
@@ -1106,9 +1185,75 @@ class DataFrame:
         Get addition of ``DataFrame`` and `other`, element-wise (binary operator `add`).
         """
 
-    def assign():
+    def bfill():
         """
-        Assign new columns to a ``DataFrame``.
+        Fill NA/NaN values by using the next valid observation to fill the gap.
+
+        Parameters
+        ----------
+        axis : {0 or ‘index’} for Series, {0 or ‘index’, 1 or ‘columns’} for DataFrame
+            Axis along which to fill missing values. For Series this parameter is unused and defaults to 0.
+        inplace : bool, default False
+            If True, fill in-place. Note: this will modify any other views on this object (e.g., a no-copy slice for a column in a DataFrame).
+        limit : int, default None
+            If method is specified, this is the maximum number of consecutive NaN values to forward/backward fill. In other words, if there is a gap with more than this number of consecutive NaNs, it will only be partially filled. If method is not specified, this is the maximum number of entries along the entire axis where NaNs will be filled. Must be greater than 0 if not None.
+        limit_area : {None, ‘inside’, ‘outside’}, default None
+            If limit is specified, consecutive NaNs will be filled with this restriction.
+            - None: No fill restriction.
+            - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
+            - ‘outside’: Only fill NaNs outside valid values (extrapolate).
+
+        New in version 2.2.0.
+
+        downcast : dict, default is None
+            A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
+
+        Deprecated since version 2.2.0.
+
+        Returns
+        -------
+        Series/DataFrame or None
+            Object with missing values filled or None if inplace=True.
+
+        Examples
+        --------
+        For Series:
+
+        >>> s = pd.Series([1, None, None, 2])
+        >>> s.bfill()
+        0    1.0
+        1    2.0
+        2    2.0
+        3    2.0
+        dtype: float64
+        >>> s.bfill(limit=1)
+        0    1.0
+        1    NaN
+        2    2.0
+        3    2.0
+        dtype: float64
+
+        With DataFrame:
+
+        >>> df = pd.DataFrame({'A': [1, None, None, 4], 'B': [None, 5, None, 7]})
+        >>> df
+             A    B
+        0  1.0  NaN
+        1  NaN  5.0
+        2  NaN  NaN
+        3  4.0  7.0
+        >>> df.bfill()
+             A    B
+        0  1.0  5.0
+        1  4.0  5.0
+        2  4.0  7.0
+        3  4.0  7.0
+        >>> df.bfill(limit=1)
+             A    B
+        0  1.0  5.0
+        1  NaN  5.0
+        2  4.0  7.0
+        3  4.0  7.0
         """
 
     def boxplot():
@@ -1123,12 +1268,153 @@ class DataFrame:
 
     def compare():
         """
-        Compare to another ``DataFrame`` and show the differences.
+        Compare to another DataFrame and show the differences.
+
+        Parameters
+        ----------
+        other : DataFrame
+            DataFrame to compare with.
+
+        align_axis : {{0 or 'index', 1 or 'columns'}}, default 1
+            Which axis to align the comparison on.
+
+            * 0, or 'index' : Resulting differences are stacked vertically
+                with rows drawn alternately from self and other.
+            * 1, or 'columns' : Resulting differences are aligned horizontally
+                with columns drawn alternately from self and other.
+
+            Snowpark pandas does not yet support 1 / 'columns'.
+
+        keep_shape : bool, default False
+            If true, keep all rows and columns.
+            Otherwise, only keep rows and columns with different values.
+
+            Snowpark pandas does not yet support `keep_shape = True`.
+
+        keep_equal : bool, default False
+            If true, keep values that are equal.
+            Otherwise, show equal values as nulls.
+
+            Snowpark pandas does not yet support `keep_equal = True`.
+
+        result_names : tuple, default ('self', 'other')
+            How to distinguish this dataframe's values from the other's values
+            in the result.
+
+            Snowpark pandas does not yet support names other than the default.
+
+        Returns
+        -------
+        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            The result of the comparison.
+
+
+        See Also
+        --------
+        Series.compare : Show the differences between two Series.
+        DataFrame.equals : Test whether two DataFrames contain the same elements.
+
+        Notes
+        -----
+        Matching null values, such as None and NaN, will not appear as a
+        difference.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame(
+        ...     {
+        ...         "col1": ["a", "a", "b", "b", "a"],
+        ...         "col2": [1.0, 2.0, 3.0, np.nan, 5.0],
+        ...         "col3": [1.0, 2.0, 3.0, 4.0, 5.0]
+        ...     },
+        ...     columns=["col1", "col2", "col3"],
+        ... )
+        >>> df
+          col1  col2  col3
+        0    a   1.0   1.0
+        1    a   2.0   2.0
+        2    b   3.0   3.0
+        3    b   NaN   4.0
+        4    a   5.0   5.0
+
+        >>> df2 = df.copy()
+        >>> df2.loc[0, 'col1'] = 'c'
+        >>> df2.loc[2, 'col3'] = 4.0
+        >>> df2
+          col1  col2  col3
+        0    c   1.0   1.0
+        1    a   2.0   2.0
+        2    b   3.0   4.0
+        3    b   NaN   4.0
+        4    a   5.0   5.0
+
+        Align the differences on columns
+
+        >>> df.compare(df2) # doctest: +NORMALIZE_WHITESPACE
+           col1       col3
+           self other self other
+        0     a     c  NaN   NaN
+        2  None  None  3.0   4.0
         """
 
     def corr():
         """
         Compute pairwise correlation of columns, excluding NA/null values.
+
+        Parameters
+        ----------
+        method : {‘pearson’, ‘kendall’, ‘spearman’} or callable
+            Method of correlation:
+            pearson : standard correlation coefficient
+            kendall : Kendall Tau correlation coefficient
+            spearman : Spearman rank correlation
+            callable: callable with input two 1d ndarrays
+                and returning a float. Note that the returned matrix from corr will have 1 along the diagonals and will be symmetric regardless of the callable’s behavior.
+
+        min_periods : int, optional
+            Minimum number of observations required per pair of columns to have a valid result. Currently only available for Pearson and Spearman correlation.
+
+        numeric_only : bool, default False
+            Include only float, int or boolean data.
+
+        Returns
+        -------
+        DataFrame
+            Correlation matrix.
+
+        See also
+        --------
+        DataFrame.corrwith
+            Compute pairwise correlation with another DataFrame or Series.
+        Series.corr
+            Compute the correlation between two Series.
+
+        Notes
+        -----
+        Pearson, Kendall and Spearman correlation are currently computed using pairwise complete observations.
+
+            Pearson correlation coefficient
+            Kendall rank correlation coefficient
+            Spearman’s rank correlation coefficient
+
+        Examples
+        --------
+        >>> def histogram_intersection(a, b):
+        ...     v = np.minimum(a, b).sum().round(decimals=1)
+        ...     return v
+        >>> df = pd.DataFrame([(.2, .3), (.0, .6), (.6, .0), (.2, .1)],
+        ...                   columns=['dogs', 'cats'])
+        >>> df.corr(method=histogram_intersection)  # doctest: +SKIP
+              dogs  cats
+        dogs   1.0   0.3
+        cats   0.3   1.0
+
+        >>> df = pd.DataFrame([(1, 1), (2, np.nan), (np.nan, 3), (4, 4)],
+        ...                   columns=['dogs', 'cats'])
+        >>> df.corr(min_periods=3)
+              dogs  cats
+        dogs   1.0   1.0
+        cats   1.0   1.0
         """
 
     def corrwith():
@@ -1151,12 +1437,148 @@ class DataFrame:
 
     def equals():
         """
-        Test whether two objects contain the same elements.
+        Test whether two dataframes contain the same elements.
+
+        This function allows two DataFrames to be compared against
+        each other to see if they have the same shape and elements. NaNs in
+        the same location are considered equal.
+
+        The row/column index do not need to have the same type, as long
+        as the values are considered equal. Corresponding columns and
+        index must be of the same dtype. Note: int variants (int8, int16 etc) are
+        considered equal dtype i.e int8 == int16. Similarly, float variants (float32,
+        float64 etc) are considered equal dtype.
+
+        Parameters
+        ----------
+        other : DataFrame
+            The other DataFrame to be compared with the first.
+
+        Returns
+        -------
+        bool
+            True if all elements are the same in both dataframes, False
+            otherwise.
+
+        See Also
+        --------
+        Series.eq : Compare two Series objects of the same length
+            and return a Series where each element is True if the element
+            in each Series is equal, False otherwise.
+        DataFrame.eq : Compare two DataFrame objects of the same shape and
+            return a DataFrame where each element is True if the respective
+            element in each DataFrame is equal, False otherwise.
+        testing.assert_series_equal : Raises an AssertionError if left and
+            right are not equal. Provides an easy interface to ignore
+            inequality in dtypes, indexes and precision among others.
+        testing.assert_frame_equal : Like assert_series_equal, but targets
+            DataFrames.
+        numpy.array_equal : Return True if two arrays have the same shape
+            and elements, False otherwise.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({1: [10], 2: [20]})
+        >>> df
+            1   2
+        0  10  20
+
+        DataFrames df and exactly_equal have the same types and values for
+        their elements and column labels, which will return True.
+
+        >>> exactly_equal = pd.DataFrame({1: [10], 2: [20]})
+        >>> exactly_equal
+            1   2
+        0  10  20
+        >>> df.equals(exactly_equal)
+        True
+
+        DataFrames df and different_column_type have the same element
+        types and values, but have different types for the column labels,
+        which will still return True.
+
+        >>> different_column_type = pd.DataFrame({1.0: [10], 2.0: [20]})
+        >>> different_column_type
+           1.0  2.0
+        0   10   20
+        >>> df.equals(different_column_type)
+        True
+
+        DataFrames df and different_data_type have different types for the
+        same values for their elements, and will return False even though
+        their column labels are the same values and types.
+
+        >>> different_data_type = pd.DataFrame({1: [10.0], 2: [20.0]})
+        >>> different_data_type
+              1     2
+        0  10.0  20.0
+        >>> df.equals(different_data_type)
+        False
         """
 
     def eval():
         """
         Evaluate a string describing operations on ``DataFrame`` columns.
+        """
+
+    def ffill():
+        """
+        Fill NA/NaN values by propagating the last valid observation to next valid.
+
+        Parameters
+        ----------
+        axis : {0 or ‘index’} for Series, {0 or ‘index’, 1 or ‘columns’} for DataFrame
+            Axis along which to fill missing values. For Series this parameter is unused and defaults to 0.
+        inplace : bool, default False
+            If True, fill in-place. Note: this will modify any other views on this object (e.g., a no-copy slice for a column in a DataFrame).
+        limit : int, default None
+            If method is specified, this is the maximum number of consecutive NaN values to forward/backward fill. In other words, if there is a gap with more than this number of consecutive NaNs, it will only be partially filled. If method is not specified, this is the maximum number of entries along the entire axis where NaNs will be filled. Must be greater than 0 if not None.
+        limit_area : {None, ‘inside’, ‘outside’}, default None
+            If limit is specified, consecutive NaNs will be filled with this restriction.
+            - None: No fill restriction.
+            - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
+            - ‘outside’: Only fill NaNs outside valid values (extrapolate).
+
+        New in version 2.2.0.
+
+        downcast : dict, default is None
+            A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
+
+        Deprecated since version 2.2.0.
+
+        Returns
+        -------
+        Series/DataFrame or None
+            Object with missing values filled or None if inplace=True.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame([[np.nan, 2, np.nan, 0],
+        ...                    [3, 4, np.nan, 1],
+        ...                    [np.nan, np.nan, np.nan, np.nan],
+        ...                    [np.nan, 3, np.nan, 4]],
+        ...                   columns=list("ABCD"))
+        >>> df
+             A    B   C    D
+        0  NaN  2.0 NaN  0.0
+        1  3.0  4.0 NaN  1.0
+        2  NaN  NaN NaN  NaN
+        3  NaN  3.0 NaN  4.0
+
+        >>> df.ffill()
+             A    B   C    D
+        0  NaN  2.0 NaN  0.0
+        1  3.0  4.0 NaN  1.0
+        2  3.0  4.0 NaN  1.0
+        3  3.0  3.0 NaN  4.0
+
+        >>> ser = pd.Series([1, np.nan, 2, 3])
+        >>> ser.ffill()
+        0    1.0
+        1    1.0
+        2    2.0
+        3    3.0
+        dtype: float64
         """
 
     def fillna():
@@ -1248,6 +1670,15 @@ class DataFrame:
         2  0.0  1.0  2.0  3.0
         3  0.0  3.0  2.0  4.0
 
+        Only replace the first NaN element.
+
+        >>> df.fillna(method="ffill", limit=1)
+             A    B   C    D
+        0  NaN  2.0 NaN  0.0
+        1  3.0  4.0 NaN  1.0
+        2  3.0  4.0 NaN  1.0
+        3  NaN  3.0 NaN  4.0
+
         When filling using a DataFrame, replacement happens along
         the same column names and same indices
 
@@ -1260,6 +1691,10 @@ class DataFrame:
         3  0.0  3.0  0.0  4.0
 
         Note that column D is not affected since it is not present in df2.
+
+        Notes
+        -----
+        `limit` parameter is only supported when using `method` parameter.
         """
 
     def floordiv():
@@ -1486,11 +1921,50 @@ class DataFrame:
     def items():
         """
         Iterate over (column name, ``Series``) pairs.
-        """
 
-    def iteritems():
-        """
-        Iterate over (column name, ``Series``) pairs.
+        Iterates over the DataFrame columns, returning a tuple with
+        the column name and the content as a Series.
+
+        Yields
+        ------
+        label : object
+            The column names for the DataFrame being iterated over.
+        content : Series
+            The column entries belonging to each label, as a Series.
+
+        See Also
+        --------
+        DataFrame.iterrows : Iterate over DataFrame rows as
+            (index, Series) pairs.
+        DataFrame.itertuples : Iterate over DataFrame rows as namedtuples
+            of the values.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'species': ['bear', 'bear', 'marsupial'],
+        ...                   'population': [1864, 22000, 80000]},
+        ...                   index=['panda', 'polar', 'koala'])
+        >>> df
+                 species  population
+        panda       bear        1864
+        polar       bear       22000
+        koala  marsupial       80000
+        >>> for label, content in df.items():
+        ...    print(f'label: {label}')
+        ...    print(f'content:\\n{content}')
+        ...
+        label: species
+        content:
+        panda         bear
+        polar         bear
+        koala    marsupial
+        Name: species, dtype: object
+        label: population
+        content:
+        panda     1864
+        polar    22000
+        koala    80000
+        Name: population, dtype: int64
         """
 
     def itertuples():
@@ -1888,21 +2362,394 @@ class DataFrame:
     def nlargest():
         """
         Return the first `n` rows ordered by `columns` in descending order.
+
+        Return the first `n` rows with the largest values in `columns`, in
+        descending order. The columns that are not specified are returned as
+        well, but not used for ordering.
+
+        This method is equivalent to
+        ``df.sort_values(columns, ascending=False).head(n)``
+
+        Parameters
+        ----------
+        n : int
+            Number of rows to return.
+        columns : label or list of labels
+            Column label(s) to order by.
+        keep : {'first', 'last', 'all'}, default 'first'
+            Where there are duplicate values:
+
+            - ``first`` : prioritize the first occurrence(s)
+            - ``last`` : prioritize the last occurrence(s)
+            - ``all`` : keep all the ties of the smallest item even if it means
+              selecting more than ``n`` items.
+
+        Returns
+        -------
+        DataFrame
+            The first `n` rows ordered by the given columns in descending
+            order.
+
+        See Also
+        --------
+        DataFrame.nsmallest : Return the first `n` rows ordered by `columns` in
+            ascending order.
+        DataFrame.sort_values : Sort DataFrame by the values.
+        DataFrame.head : Return the first `n` rows without re-ordering.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'population': [59000000, 65000000, 434000,
+        ...                                   434000, 434000, 337000, 11300,
+        ...                                   11300, 11300],
+        ...                    'GDP': [1937894, 2583560 , 12011, 4520, 12128,
+        ...                            17036, 182, 38, 311],
+        ...                    'alpha-2': ["IT", "FR", "MT", "MV", "BN",
+        ...                                "IS", "NR", "TV", "AI"]},
+        ...                   index=["Italy", "France", "Malta",
+        ...                          "Maldives", "Brunei", "Iceland",
+        ...                          "Nauru", "Tuvalu", "Anguilla"])
+        >>> df
+                  population      GDP alpha-2
+        Italy       59000000  1937894      IT
+        France      65000000  2583560      FR
+        Malta         434000    12011      MT
+        Maldives      434000     4520      MV
+        Brunei        434000    12128      BN
+        Iceland       337000    17036      IS
+        Nauru          11300      182      NR
+        Tuvalu         11300       38      TV
+        Anguilla       11300      311      AI
+
+        In the following example, we will use ``nlargest`` to select the three
+        rows having the largest values in column "population".
+
+        >>> df.nlargest(3, 'population')
+                population      GDP alpha-2
+        France    65000000  2583560      FR
+        Italy     59000000  1937894      IT
+        Malta       434000    12011      MT
+
+        When using ``keep='last'``, ties are resolved in reverse order:
+
+        >>> df.nlargest(3, 'population', keep='last')
+                population      GDP alpha-2
+        France    65000000  2583560      FR
+        Italy     59000000  1937894      IT
+        Brunei      434000    12128      BN
+
+        When using ``keep='all'``, the number of element kept can go beyond ``n``
+        if there are duplicate values for the smallest element, all the
+        ties are kept:
+
+        >>> df.nlargest(3, 'population', keep='all')  # doctest: +SKIP
+                  population      GDP alpha-2
+        France      65000000  2583560      FR
+        Italy       59000000  1937894      IT
+        Malta         434000    12011      MT
+        Maldives      434000     4520      MV
+        Brunei        434000    12128      BN
+
+        However, ``nlargest`` does not keep ``n`` distinct largest elements:
+
+        >>> df.nlargest(5, 'population', keep='all')  # doctest: +SKIP
+                  population      GDP alpha-2
+        France      65000000  2583560      FR
+        Italy       59000000  1937894      IT
+        Malta         434000    12011      MT
+        Maldives      434000     4520      MV
+        Brunei        434000    12128      BN
+
+        To order by the largest values in column "population" and then "GDP",
+        we can specify multiple columns like in the next example.
+
+        >>> df.nlargest(3, ['population', 'GDP'])
+                population      GDP alpha-2
+        France    65000000  2583560      FR
+        Italy     59000000  1937894      IT
+        Brunei      434000    12128      BN
         """
 
     def nsmallest():
         """
         Return the first `n` rows ordered by `columns` in ascending order.
+
+        Return the first `n` rows with the smallest values in `columns`, in
+        ascending order. The columns that are not specified are returned as
+        well, but not used for ordering.
+
+        This method is equivalent to
+        ``df.sort_values(columns, ascending=True).head(n)``
+
+        Parameters
+        ----------
+        n : int
+            Number of items to retrieve.
+        columns : list or str
+            Column name or names to order by.
+        keep : {'first', 'last', 'all'}, default 'first'
+            Where there are duplicate values:
+
+            - ``first`` : take the first occurrence.
+            - ``last`` : take the last occurrence.
+            - ``all`` : keep all the ties of the largest item even if it means
+              selecting more than ``n`` items.
+
+        Returns
+        -------
+        DataFrame
+
+        See Also
+        --------
+        DataFrame.nlargest : Return the first `n` rows ordered by `columns` in
+            descending order.
+        DataFrame.sort_values : Sort DataFrame by the values.
+        DataFrame.head : Return the first `n` rows without re-ordering.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'population': [59000000, 65000000, 434000,
+        ...                                   434000, 434000, 337000, 337000,
+        ...                                   11300, 11300],
+        ...                    'GDP': [1937894, 2583560 , 12011, 4520, 12128,
+        ...                            17036, 182, 38, 311],
+        ...                    'alpha-2': ["IT", "FR", "MT", "MV", "BN",
+        ...                                "IS", "NR", "TV", "AI"]},
+        ...                   index=["Italy", "France", "Malta",
+        ...                          "Maldives", "Brunei", "Iceland",
+        ...                          "Nauru", "Tuvalu", "Anguilla"])
+        >>> df
+                  population      GDP alpha-2
+        Italy       59000000  1937894      IT
+        France      65000000  2583560      FR
+        Malta         434000    12011      MT
+        Maldives      434000     4520      MV
+        Brunei        434000    12128      BN
+        Iceland       337000    17036      IS
+        Nauru         337000      182      NR
+        Tuvalu         11300       38      TV
+        Anguilla       11300      311      AI
+
+        In the following example, we will use ``nsmallest`` to select the
+        three rows having the smallest values in column "population".
+
+        >>> df.nsmallest(3, 'population')
+                  population    GDP alpha-2
+        Tuvalu         11300     38      TV
+        Anguilla       11300    311      AI
+        Iceland       337000  17036      IS
+
+        When using ``keep='last'``, ties are resolved in reverse order:
+
+        >>> df.nsmallest(3, 'population', keep='last')
+                  population  GDP alpha-2
+        Anguilla       11300  311      AI
+        Tuvalu         11300   38      TV
+        Nauru         337000  182      NR
+
+        When using ``keep='all'``, the number of element kept can go beyond ``n``.
+        if there are duplicate values for the largest element, all the
+        ties are kept.
+
+        >>> df.nsmallest(3, 'population', keep='all')  # doctest: +SKIP
+                  population    GDP alpha-2
+        Tuvalu         11300     38      TV
+        Anguilla       11300    311      AI
+        Iceland       337000  17036      IS
+        Nauru         337000    182      NR
+
+        However, ``nsmallest`` does not keep ``n`` distinct
+        smallest elements:
+
+        >>> df.nsmallest(4, 'population', keep='all')  # doctest: +SKIP
+                  population    GDP alpha-2
+        Tuvalu         11300     38      TV
+        Anguilla       11300    311      AI
+        Iceland       337000  17036      IS
+        Nauru         337000    182      NR
+
+        To order by the smallest values in column "population" and then "GDP", we can
+        specify multiple columns like in the next example.
+
+        >>> df.nsmallest(3, ['population', 'GDP'])
+                  population  GDP alpha-2
+        Tuvalu         11300   38      TV
+        Anguilla       11300  311      AI
+        Nauru         337000  182      NR
         """
 
     def unstack():
         """
         Pivot a level of the (necessarily hierarchical) index labels.
+
+        Returns a DataFrame having a new level of column labels whose
+        inner-most level consists of the pivoted index labels.
+
+        If the index is not a MultiIndex, the output will be a Series
+        (the analogue of stack when the columns are not a MultiIndex).
+
+        Parameters
+        ----------
+        level : int, str, list, default -1
+            Level(s) of index to unstack, can pass level name.
+
+        fillna : int, str, dict, optional
+            Replace NaN with this value if the unstack produces missing values.
+
+        sort : bool, default True
+            Sort the level(s) in the resulting MultiIndex columns.
+
+        Returns
+        -------
+        Series or DataFrame
+
+        Notes
+        -----
+        Supports only integer ``level`` and ``sort = True``. Internally, calls ``pivot_table``
+        or ``melt`` to perform `unstack` operation.
+
+        See Also
+        --------
+        DataFrame.pivot : Pivot without aggregation that can handle
+            non-numeric data.
+        DataFrame.stack : Pivot a level of the column labels (inverse
+            operation from unstack).
+
+        Examples
+        --------
+        >>> index = pd.MultiIndex.from_tuples([('one', 'a'), ('one', 'b'),
+        ...                                    ('two', 'a'), ('two', 'b')])
+        >>> s = pd.Series(np.arange(1.0, 5.0), index=index)
+        >>> s
+        one  a    1.0
+             b    2.0
+        two  a    3.0
+             b    4.0
+        dtype: float64
+        >>> s.unstack(level=-1)
+               a    b
+        one  1.0  2.0
+        two  3.0  4.0
+        >>> s.unstack(level=0)
+           one  two
+        a  1.0  3.0
+        b  2.0  4.0
+        >>> df = s.unstack(level=0)
+        >>> df.unstack()
+        one  a    1.0
+             b    2.0
+        two  a    3.0
+             b    4.0
+        dtype: float64
+        """
+
+    def pad():
+        """
+        Fill NA/NaN values by propagating the last valid observation to next valid.
+
+        Returns
+        -------
+        Series/DataFrame or None
+            Object with missing values filled or None if inplace=True.
+
+        Examples
+        --------
+        Please see examples for DataFrame.ffill() or Series.ffill().
         """
 
     def pivot():
         """
-        Return reshaped ``DataFrame`` organized by given index / column values.
+        Return reshaped DataFrame organized by given index / column values.
+
+        Reshape data (produce a "pivot" table) based on column values. Uses unique values from
+        specified index / columns to form axes of the resulting DataFrame. This function does not
+        support data aggregation, multiple values will result in a MultiIndex in the columns.
+
+        Parameters
+        ----------
+        columns : str or object or a list of str
+            Column to use to make new frame’s columns.
+        index : str or object or a list of str, optional
+            Column to use to make new frame’s index. If not given, uses existing index.
+        values : str, object or a list of the previous, optional
+            Column(s) to use for populating new frame’s values. If not specified, all remaining columns
+            will be used and the result will have hierarchically indexed columns.
+
+        Returns
+        -------
+        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+
+        Notes
+        -----
+        Calls pivot_table with columns, values, index and aggregation "min".
+
+        See Also
+        --------
+        DataFrame.pivot_table : Generalization of pivot that can handle
+            duplicate values for one index/column pair.
+        DataFrame.unstack: Pivot based on the index values instead
+            of a column.
+        wide_to_long : Wide panel to long format. Less flexible but more
+            user-friendly than melt.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'foo': ['one', 'one', 'one', 'two', 'two',
+        ...                   'two'],
+        ...           'bar': ['A', 'B', 'C', 'A', 'B', 'C'],
+        ...           'baz': [1, 2, 3, 4, 5, 6],
+        ...           'zoo': ['x', 'y', 'z', 'q', 'w', 't']})
+        >>> df
+           foo bar  baz zoo
+        0  one   A    1   x
+        1  one   B    2   y
+        2  one   C    3   z
+        3  two   A    4   q
+        4  two   B    5   w
+        5  two   C    6   t
+        >>> df.pivot(index='foo', columns='bar', values='baz')  # doctest: +NORMALIZE_WHITESPACE
+        bar  A  B  C
+        foo
+        one  1  2  3
+        two  4  5  6
+        >>> df.pivot(index='foo', columns='bar')['baz']  # doctest: +NORMALIZE_WHITESPACE
+        bar  A  B  C
+        foo
+        one  1  2  3
+        two  4  5  6
+        >>> df.pivot(index='foo', columns='bar', values=['baz', 'zoo'])  # doctest: +NORMALIZE_WHITESPACE
+            baz       zoo
+        bar   A  B  C   A  B  C
+        foo
+        one   1  2  3   x  y  z
+        two   4  5  6   q  w  t
+        >>> df = pd.DataFrame({
+        ...     "lev1": [1, 1, 1, 2, 2, 2],
+        ...     "lev2": [1, 1, 2, 1, 1, 2],
+        ...     "lev3": [1, 2, 1, 2, 1, 2],
+        ...     "lev4": [1, 2, 3, 4, 5, 6],
+        ...     "values": [0, 1, 2, 3, 4, 5]})
+        >>> df
+           lev1  lev2  lev3  lev4  values
+        0     1     1     1     1       0
+        1     1     1     2     2       1
+        2     1     2     1     3       2
+        3     2     1     2     4       3
+        4     2     1     1     5       4
+        5     2     2     2     6       5
+        >>> df.pivot(index="lev1", columns=["lev2", "lev3"], values="values")  # doctest: +NORMALIZE_WHITESPACE
+        lev2  1       2
+        lev3  1  2    1    2
+        lev1
+        1     0  1  2.0  NaN
+        2     4  3  NaN  5.0
+        >>> df.pivot(index=["lev1", "lev2"], columns=["lev3"], values="values")  # doctest: +NORMALIZE_WHITESPACE
+        lev3         1    2
+        lev1 lev2
+        1    1     0.0  1.0
+             2     2.0  NaN
+        2    1     4.0  3.0
+             2     NaN  5.0
         """
 
     def pivot_table():
@@ -2268,7 +3115,210 @@ class DataFrame:
         """
 
     def reindex():
-        pass
+        """
+        Conform DataFrame to new index with optional filling logic.
+
+        Places NA/NaN in locations having no value in the previous index. A new object is produced
+        unless the new index is equivalent to the current one and copy=False.
+
+        Parameters
+        ----------
+        index : array-like, optional
+            New labels for the index.
+        axis : int or str, optional
+            Unused.
+        method :  {None, "backfill"/"bfill", "pad"/"ffill", "nearest"}, default: None
+            Method to use for filling holes in reindexed DataFrame.
+
+            * None (default): don't fill gaps
+            * pad / ffill: Propagate last valid observation forward to next valid.
+            * backfill / bfill: Use next valid observation to fill gap.
+            * nearest: Use nearest valid observations to fill gap. Unsupported by Snowpark pandas.
+
+        copy : bool, default True
+            Return a new object, even if the passed indexes are the same.
+
+        level : int or name
+            Broadcast across a level, matching Index values on the passed MultiIndex level.
+
+        fill_value : scalar, default np.nan
+            Value to use for missing values. Defaults to NaN, but can be any “compatible” value.
+
+        limit : int, default None
+            Maximum number of consecutive elements to forward or backward fill.
+
+        tolerance : optional
+            Maximum distance between original and new labels for inexact matches.
+            The values of the index at the matching locations most satisfy the
+            equation abs(index[indexer] - target) <= tolerance. Unsupported by
+            Snowpark pandas.
+
+        Returns
+        -------
+        DataFrame
+            DataFrame with changed index.
+
+        Notes
+        -----
+        For axis 0, Snowpark pandas' behaviour diverges from vanilla pandas in order
+        to maintain Snowpark's lazy execution paradigm. The behaviour changes are as follows:
+
+            * Snowpark pandas does not error if the existing index is not monotonically increasing
+              or decreasing when `method` is specified for filling. It instead assumes that
+              the index is monotonically increasing, performs the reindex, and fills the values
+              as though the index is sorted (which involves sorting internally).
+            * Snowpark pandas does not error out if there are duplicates - they are included in the
+              output.
+            * Snowpark pandas does not error if a `limit` value is passed and the new index is not
+              monotonically increasing or decreasing - instead, it reindexes, sorts the new index,
+              fills using limit, and then reorders the data to be in the correct order (the order
+              of the target labels passed in to the method).
+
+        For axis 1, Snowpark pandas' error checking remains the same as vanilla pandas.
+
+        MultiIndex is currently unsupported.
+
+        ``method="nearest"`` is currently unsupported.
+
+        Examples
+        --------
+        Create a dataframe with some fictional data.
+
+        >>> index = ['Firefox', 'Chrome', 'Safari', 'IE10', 'Konqueror']
+        >>> df = pd.DataFrame({'http_status': [200, 200, 404, 404, 301],
+        ...             'response_time': [0.04, 0.02, 0.07, 0.08, 1.0]},
+        ...             index=index)
+        >>> df
+                   http_status  response_time
+        Firefox            200           0.04
+        Chrome             200           0.02
+        Safari             404           0.07
+        IE10               404           0.08
+        Konqueror          301           1.00
+
+        Create a new index and reindex the dataframe. By default, values in the new index
+        that do not have corresponding records in the dataframe are assigned NaN.
+
+        >>> new_index = ['Safari', 'Iceweasel', 'Comodo Dragon', 'IE10',
+        ...              'Chrome']
+        >>> df.reindex(new_index)
+                       http_status  response_time
+        Safari               404.0           0.07
+        Iceweasel              NaN            NaN
+        Comodo Dragon          NaN            NaN
+        IE10                 404.0           0.08
+        Chrome               200.0           0.02
+
+        We can fill in the missing values by passing a value to the keyword fill_value.
+
+        >>> df.reindex(new_index, fill_value=0)
+                       http_status  response_time
+        Safari                 404           0.07
+        Iceweasel                0           0.00
+        Comodo Dragon            0           0.00
+        IE10                   404           0.08
+        Chrome                 200           0.02
+
+        >>> df.reindex(new_index, fill_value=-1)  # doctest: +NORMALIZE_WHITESPACE
+                       http_status    response_time
+        Safari                 404             0.07
+        Iceweasel               -1            -1.00
+        Comodo Dragon           -1            -1.00
+        IE10                   404             0.08
+        Chrome                 200             0.02
+
+        We can also reindex the columns.
+
+        >>> df.reindex(columns=['http_status', 'user_agent']) # doctest: +NORMALIZE_WHITESPACE
+                   http_status   user_agent
+        Firefox            200         None
+        Chrome             200         None
+        Safari             404         None
+        IE10               404         None
+        Konqueror          301         None
+
+        Or we can use “axis-style” keyword arguments
+
+        >>> df.reindex(['http_status', 'user_agent'], axis="columns")  # doctest: +NORMALIZE_WHITESPACE
+                   http_status   user_agent
+        Firefox            200         None
+        Chrome             200         None
+        Safari             404         None
+        IE10               404         None
+        Konqueror          301         None
+
+        To further illustrate the filling functionality in reindex, we will create a dataframe
+        with a monotonically increasing index (for example, a sequence of dates).
+
+        >>> date_index = pd.date_range('1/1/2010', periods=6, freq='D')
+        >>> df2 = pd.DataFrame({"prices": [100, 101, np.nan, 100, 89, 88]},
+        ...                    index=date_index)
+        >>> df2
+                    prices
+        2010-01-01   100.0
+        2010-01-02   101.0
+        2010-01-03     NaN
+        2010-01-04   100.0
+        2010-01-05    89.0
+        2010-01-06    88.0
+
+        Suppose we decide to expand the dataframe to cover a wider date range.
+
+        >>> date_index2 = pd.date_range('12/29/2009', periods=10, freq='D')
+        >>> df2.reindex(date_index2)
+                    prices
+        2009-12-29     NaN
+        2009-12-30     NaN
+        2009-12-31     NaN
+        2010-01-01   100.0
+        2010-01-02   101.0
+        2010-01-03     NaN
+        2010-01-04   100.0
+        2010-01-05    89.0
+        2010-01-06    88.0
+        2010-01-07     NaN
+
+        The index entries that did not have a value in the original data frame (for example,
+        ``2009-12-29``) are by default filled with NaN. If desired, we can fill in the missing
+        values using one of several options.
+
+        For example, to back-propagate the last valid value to fill the NaN values, pass bfill as
+        an argument to the method keyword.
+
+        >>> df2.reindex(date_index2, method='bfill')
+                    prices
+        2009-12-29   100.0
+        2009-12-30   100.0
+        2009-12-31   100.0
+        2010-01-01   100.0
+        2010-01-02   101.0
+        2010-01-03     NaN
+        2010-01-04   100.0
+        2010-01-05    89.0
+        2010-01-06    88.0
+        2010-01-07     NaN
+
+        Please note that the NaN value present in the original dataframe (at index value 2010-01-03) will
+        not be filled by any of the value propagation schemes. This is because filling while reindexing
+        does not look at dataframe values, but only compares the original and desired indexes. If you do
+        want to fill in the NaN values present in the original dataframe, use the fillna() method.
+
+        An example illustrating Snowpark pandas' behavior when dealing with non-monotonic indices.
+        >>> unordered_dataframe = pd.DataFrame([[5]*3, [8]*3, [6]*3], columns=list("ABC"), index=[5, 8, 6])
+        >>> unordered_dataframe
+           A  B  C
+        5  5  5  5
+        8  8  8  8
+        6  6  6  6
+        >>> unordered_dataframe.reindex([6, 8, 7], method="ffill")
+           A  B  C
+        6  6  6  6
+        8  8  8  8
+        7  6  6  6
+
+        In the example above, index value ``7`` is forward filled from index value ``6``, since that
+        is the previous index value when the data is sorted.
+        """
 
     def replace():
         """
@@ -2944,6 +3994,59 @@ class DataFrame:
     def stack():
         """
         Stack the prescribed level(s) from columns to index.
+
+        Return a reshaped DataFrame or Series having a multi-level index with one
+        or more new inner-most levels compared to the current DataFrame. The new inner-most
+        levels are created by pivoting the columns of the current dataframe.
+        If the columns have a single level, the output is a Series.
+        If the columns have multiple levels, the new index level(s) is (are)
+        taken from the prescribed level(s) and the output is a DataFrame.
+
+        Parameters
+        ----------
+        level : int, str, list, default -1
+            Level(s) to stack from the column axis onto the index axis,
+            defined as one index or label, or a list of indices or labels.
+
+        dropna : bool, default True
+            Whether to drop rows in the resulting Frame/Series with missing values. Stacking a
+            column level onto the index axis can create combinations of index and column values
+            that are missing from the original dataframe.
+
+        sort : bool, default True
+            Whether to sort the levels of the resulting MultiIndex.
+
+        future_stack : bool, default False
+            This argument is ignored in Snowpark pandas.
+
+        Returns
+        -------
+        DataFrame or Series
+            Stacked dataframe or series.
+
+        Notes
+        -----
+        level != -1 and MultiIndex dataframes are not yet supported by Snowpark pandas.
+
+        See Also
+        --------
+        DataFrame.unstack : Unstack prescribed level(s) from index axis onto column axis.
+        DataFrame.pivot : Reshape dataframe from long format to wide format.
+        DataFrame.pivot_table : Create a spreadsheet-style pivot table as a DataFrame.
+
+        Examples
+        --------
+        >>> df_single_level_cols = pd.DataFrame([[0, 1], [2, 3]], index=['cat', 'dog'], columns=['weight', 'height'])
+        >>> df_single_level_cols
+             weight  height
+        cat       0       1
+        dog       2       3
+        >>> df_single_level_cols.stack()
+        cat  weight    0
+             height    1
+        dog  weight    2
+             height    3
+        dtype: int64
         """
 
     def sub():
@@ -4136,4 +5239,152 @@ class DataFrame:
         1  foo      8
         2  bar      7
         3  bar      8
+        """
+
+    def to_csv():
+        """
+        Write object to a comma-separated values (csv) file. This can write csv file
+        either to local filesystem or to snowflake stage. Filepath staring with `@` is
+        treated as snowflake stage location.
+
+        Note: Writing to local filesystem supports all parameters but writing to
+        snowflake stage does not support float_format, mode, encoding, quoting,
+        quotechar, lineterminator, doublequote and decimal parameters. Also when
+        writing to snowflake stage, chuncksize, errors and storage_options parameters
+        are ignored.
+
+        Parameters
+        ----------
+        path_or_buf : str, path object, file-like object, or None, default None
+            String, path object (implementing os.PathLike[str]), or file-like
+            object implementing a write() function. If None, the result is
+            returned as a string. If a non-binary file object is passed, it should
+            be opened with `newline=''`, disabling universal newlines. If a binary
+            file object is passed, `mode` might need to contain a `'b'`.
+        sep : str, default ','
+            String of length 1. Field delimiter for the output file.
+        na_rep : str, default ''
+            Missing data representation.
+        float_format : str, Callable, default None
+            Format string for floating point numbers. If a Callable is given, it takes
+            precedence over other numeric formatting parameters, like decimal.
+        columns : sequence, optional
+            Columns to write.
+        header : bool or list of str, default True
+            Write out the column names. If a list of strings is given it is
+            assumed to be aliases for the column names.
+        index : bool, default True
+            Write row names (index).
+        index_label : str or sequence, or False, default None
+            Column label for index column(s) if desired. If None is given, and
+            `header` and `index` are True, then the index names are used. A
+            sequence should be given if the object uses MultiIndex. If
+            False do not print fields for index names. Use index_label=False
+            for easier importing in R.
+        mode : {{'w', 'x', 'a'}}, default 'w'
+            Forwarded to either `open(mode=)` or `fsspec.open(mode=)` to control
+            the file opening. Typical values include:
+
+            - 'w', truncate the file first.
+            - 'x', exclusive creation, failing if the file already exists.
+            - 'a', append to the end of file if it exists.
+        encoding : str, optional
+            A string representing the encoding to use in the output file,
+            defaults to 'utf-8'. `encoding` is not supported if `path_or_buf`
+            is a non-binary file object.
+        compression : str or dict, default 'infer'
+            For on-the-fly compression of the output data. If 'infer' and '%s' is
+            path-like, then detect compression from the following extensions: '.gz',
+            '.bz2', '.zip', '.xz', '.zst', '.tar', '.tar.gz', '.tar.xz' or '.tar.bz2'
+            (otherwise no compression).
+            Set to ``None`` for no compression.
+            Can also be a dict with key ``'method'`` set
+            to one of {``'zip'``, ``'gzip'``, ``'bz2'``, ``'zstd'``, ``'xz'``, ``'tar'``} and
+            other key-value pairs are forwarded to
+            ``zipfile.ZipFile``, ``gzip.GzipFile``,
+            ``bz2.BZ2File``, ``zstandard.ZstdCompressor``, ``lzma.LZMAFile`` or
+            ``tarfile.TarFile``, respectively.
+            As an example, the following could be passed for faster compression and to create
+            a reproducible gzip archive:
+            ``compression={'method': 'gzip', 'compresslevel': 1, 'mtime': 1}``.
+
+            Note: Supported compression algorithms are different when writing to
+            snowflake stage.
+            Please refer to https://docs.snowflake.com/en/sql-reference/sql/copy-into-table#type-csv
+            for supported compression algorithms.
+        quoting : optional constant from csv module
+            Defaults to csv.QUOTE_MINIMAL. If you have set a `float_format`
+            then floats are converted to strings and thus csv.QUOTE_NONNUMERIC
+            will treat them as non-numeric.
+        quotechar : str, default '\"'
+            String of length 1. Character used to quote fields.
+        lineterminator : str, optional
+            The newline character or character sequence to use in the output
+            file. Defaults to `os.linesep`, which depends on the OS in which
+            this method is called ('\\n' for linux, '\\r\\n' for Windows, i.e.).
+        chunksize : int or None
+            Rows to write at a time.
+        date_format : str, default None
+            Format string for datetime objects.
+        doublequote : bool, default True
+            Control quoting of `quotechar` inside a field.
+        escapechar : str, default None
+            String of length 1. Character used to escape `sep` and `quotechar`
+            when appropriate.
+        decimal : str, default '.'
+            Character recognized as decimal separator. E.g. use ',' for
+            European data.
+        errors : str, default 'strict'
+            Specifies how encoding and decoding errors are to be handled.
+            See the errors argument for :func:`open` for a full list
+            of options.
+        storage_options : dict, optional
+            Extra options that make sense for a particular storage connection, e.g.
+            host, port, username, password, etc. For HTTP(S) URLs the key-value pairs
+            are forwarded to ``urllib.request.Request`` as header options. For other
+            URLs (e.g. starting with "s3://", and "gcs://") the key-value pairs are
+            forwarded to ``fsspec.open``. Please see ``fsspec`` and ``urllib`` for more
+            details, and for more examples on storage options refer `here
+            <https://pandas.pydata.org/docs/user_guide/io.html?
+            highlight=storage_options#reading-writing-remote-files>`_.
+
+        Returns
+        -------
+        None or str
+            If path_or_buf is None, returns the resulting csv format as a
+            string. Otherwise returns None.
+
+        See Also
+        --------
+        read_csv : Load a CSV file into a DataFrame.
+        to_excel : Write DataFrame to an Excel file.
+
+        Examples
+        --------
+        Create 'out.csv' containing 'df' without indices
+
+        >>> df = pd.DataFrame({'name': ['Raphael', 'Donatello'],
+        ...                    'mask': ['red', 'purple'],
+        ...                    'weapon': ['sai', 'bo staff']})
+        >>> df.to_csv('out.csv', index=False)  # doctest: +SKIP
+
+        Create 'out.zip' containing 'out.csv'
+
+        >>> df.to_csv(index=False)  # doctest: +SKIP
+        >>> compression_opts = dict(method='zip',
+        ...                         archive_name='out.csv')  # doctest: +SKIP
+        >>> df.to_csv('out.zip', index=False,
+        ...           compression=compression_opts)  # doctest: +SKIP
+
+        To write a csv file to a new folder or nested folder you will first
+        need to create it using either Pathlib or os:
+
+        >>> from pathlib import Path  # doctest: +SKIP
+        >>> filepath = Path('folder/subfolder/out.csv')  # doctest: +SKIP
+        >>> filepath.parent.mkdir(parents=True, exist_ok=True)  # doctest: +SKIP
+        >>> df.to_csv(filepath)  # doctest: +SKIP
+
+        >>> import os  # doctest: +SKIP
+        >>> os.makedirs('folder/subfolder', exist_ok=True)  # doctest: +SKIP
+        >>> df.to_csv('folder/subfolder/out.csv')  # doctest: +SKIP
         """

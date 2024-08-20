@@ -126,7 +126,6 @@ def test_create_dataframe_for_large_values_check_plan(session, use_scoped_temp_o
         session._use_scoped_temp_objects = origin_use_scoped_temp_objects_setting
 
 
-@pytest.mark.localtest
 def test_create_dataframe_for_large_values_basic_types(session):
     schema = StructType(
         [

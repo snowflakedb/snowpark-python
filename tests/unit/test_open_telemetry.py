@@ -3,29 +3,27 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import functools
-import inspect
-import os
-from unittest import mock
 
-from opentelemetry import trace
-from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+import pytest
 
-import snowflake.snowpark.session
 from snowflake.snowpark._internal.open_telemetry import (
     build_method_chain,
     decorator_count,
 )
-from snowflake.snowpark._internal.server_connection import ServerConnection
 
+from ..conftest import opentelemetry_installed
 
-def spans_to_dict(spans):
-    res = {}
-    for span in spans:
-        res[span.name] = span
-    return res
+pytestmark = [
+    pytest.mark.udf,
+    pytest.mark.skipif(
+        "config.getoption('enable_cte_optimization', default=False)",
+        reason="Flaky in CTE mode",
+    ),
+    pytest.mark.skipif(
+        not opentelemetry_installed,
+        reason="opentelemetry is not installed",
+    ),
+]
 
 
 def dummy_decorator(func):
@@ -49,53 +47,6 @@ api_calls = [
     {"name": "Session.create_dataframe[values]"},
     {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
 ]
-
-resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
-trace_provider = TracerProvider(resource=resource)
-dict_exporter = InMemorySpanExporter()
-processor = SimpleSpanProcessor(dict_exporter)
-trace_provider.add_span_processor(processor)
-trace.set_tracer_provider(trace_provider)
-
-
-def test_open_telemetry_span_from_dataframe_writer_and_dataframe():
-    # set up exporter
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
-    session._conn._telemetry_client = mock.MagicMock()
-    df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
-    df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
-    lineno = inspect.currentframe().f_lineno - 1
-
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "save_as_table" in spans
-    span = spans["save_as_table"]
-    assert span.attributes["method.chain"] == "DataFrame.to_df().save_as_table()"
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
-    )
-    assert span.attributes["code.lineno"] == lineno
-    dict_exporter.clear()
-
-
-def test_open_telemetry_span_from_dataframe_writer():
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
-    session._conn._telemetry_client = mock.MagicMock()
-    df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
-    df.collect()
-    lineno = inspect.currentframe().f_lineno - 1
-
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "collect" in spans
-    span = spans["collect"]
-    assert span.attributes["method.chain"] == "DataFrame.to_df().collect()"
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
-    )
-    assert span.attributes["code.lineno"] == lineno
 
 
 def test_decorator_count():

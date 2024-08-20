@@ -39,7 +39,6 @@ with warnings.catch_warnings():
         CategoricalDtype,
         CategoricalIndex,
         DateOffset,
-        DatetimeIndex,
         DatetimeTZDtype,
         ExcelWriter,
         Flags,
@@ -88,6 +87,8 @@ with warnings.catch_warnings():
     )
 
 # TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
+from modin.pandas import plotting  # type: ignore[import]
+
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.pandas.general import (
     concat,
@@ -140,7 +141,6 @@ from snowflake.snowpark.modin.pandas.io import (
     read_xml,
     to_pickle,
 )
-from snowflake.snowpark.modin.pandas.plotting import Plotting as plotting
 from snowflake.snowpark.modin.pandas.series import Series
 from snowflake.snowpark.modin.plugin._internal.session import SnowpandasSessionHolder
 
@@ -155,6 +155,7 @@ import snowflake.snowpark.modin.plugin.extensions.pd_extensions as pd_extensions
 import snowflake.snowpark.modin.plugin.extensions.pd_overrides  # isort: skip  # noqa: E402,F401
 from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: skip  # noqa: E402,F401
     Index,
+    DatetimeIndex,
 )
 import snowflake.snowpark.modin.plugin.extensions.dataframe_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.dataframe_overrides  # isort: skip  # noqa: E402,F401

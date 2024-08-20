@@ -53,7 +53,6 @@ from snowflake.snowpark.types import (
 from tests.utils import IS_IN_STORED_PROC, Utils
 
 
-@pytest.mark.localtest
 def test_to_pandas_new_df_from_range(session):
     # Single column
     snowpark_df = session.range(3, 8)
@@ -79,7 +78,6 @@ def test_to_pandas_new_df_from_range(session):
     assert all(pandas_df["OTHER"][i] == i + 3 for i in range(5))
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("to_pandas_api", ["to_pandas", "to_pandas_batches"])
 def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
     snowpark_df = session.create_dataframe(
@@ -225,7 +223,6 @@ def test_to_pandas_non_select(session):
     isinstance(df.toPandas(), PandasDF)
 
 
-@pytest.mark.localtest
 def test_to_pandas_for_int_column_with_none_values(session):
     # Assert that we try to fit into int64 when possible and keep precision
     data = [[0], [1], [None]]
@@ -242,7 +239,6 @@ def test_to_pandas_for_int_column_with_none_values(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-507565: Need localaws for large result"
 )
-@pytest.mark.localtest
 def test_to_pandas_batches(session, local_testing_mode):
     df = session.range(100000).cache_result()
     iterator = df.to_pandas_batches()

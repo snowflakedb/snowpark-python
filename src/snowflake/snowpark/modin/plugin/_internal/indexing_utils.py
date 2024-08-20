@@ -82,6 +82,7 @@ ILOC_INT_ONLY_INDEXING_ERROR_MESSAGE = (
 "INCLUDED, END point is EXCLUDED), list-like of integers, boolean array] types."
 
 MULTIPLE_ELLIPSIS_INDEXING_ERROR_MESSAGE = "indexer may only contain one '...' entry"
+TOO_FEW_INDEXERS_INDEXING_ERROR_MESSAGE = "Too few indexers"
 TOO_MANY_INDEXERS_INDEXING_ERROR_MESSAGE = "Too many indexers"
 CANNOT_REINDEX_ON_DUPLICATE_ERROR_MESSAGE = (
     "cannot reindex on an axis with duplicate labels"
@@ -872,6 +873,8 @@ def get_valid_col_positions_from_col_labels(
                 )
             )
             col_loc = col_loc.index
+            if isinstance(col_loc, pd.Index):
+                col_loc = col_loc.to_pandas()
             # get the position of the selected labels
             return [pos for pos, label in enumerate(columns) if label in col_loc]
         else:
@@ -938,7 +941,7 @@ def get_valid_col_positions_from_col_labels(
         # Convert col_loc to Index with object dtype since _get_indexer_strict() converts None values in lists to
         # np.nan. This does not filter columns with label None and errors. Not using np.array(col_loc) as the key since
         # np.array(["A", 12]) turns into array(['A', '12'].
-        col_loc = pd.Index(
+        col_loc = native_pd.Index(
             [label for label in col_loc if label in columns], dtype=object
         )
 

@@ -127,7 +127,6 @@ def table_name_1(session):
     Utils.drop_table(session, table_name)
 
 
-@pytest.mark.localtest
 def test_dataframe_get_item(session):
     df = session.create_dataframe([[1, "a"], [2, "b"], [3, "c"], [4, "d"]]).to_df(
         "id", "value"
@@ -142,7 +141,6 @@ def test_dataframe_get_item(session):
     assert "Unexpected item type: " in str(exc_info)
 
 
-@pytest.mark.localtest
 def test_dataframe_get_attr(session):
     df = session.create_dataframe([[1, "a"], [2, "b"], [3, "c"], [4, "d"]]).to_df(
         "id", "value"
@@ -228,7 +226,6 @@ def test_show_using_with_select_statement(session):
     )
 
 
-@pytest.mark.localtest
 def test_distinct(session):
     """Tests df.distinct()."""
 
@@ -265,7 +262,6 @@ def test_distinct(session):
     assert res == [Row(None), Row(1), Row(2), Row(3), Row(4), Row(5)]
 
 
-@pytest.mark.localtest
 def test_first(session):
     """Tests df.first()."""
 
@@ -311,7 +307,6 @@ def test_first(session):
     assert "Invalid type of argument passed to first()" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_new_df_from_range(session):
     """Tests df.range()."""
 
@@ -355,7 +350,6 @@ def test_new_df_from_range(session):
     assert res == expected
 
 
-@pytest.mark.localtest
 def test_select_single_column(session):
     """Tests df.select() on dataframes with a single column."""
 
@@ -382,7 +376,6 @@ def test_select_single_column(session):
     assert res == expected
 
 
-@pytest.mark.localtest
 def test_select_star(session):
     """Tests df.select('*')."""
 
@@ -960,7 +953,6 @@ def test_with_columns_negative(session):
     )
 
 
-@pytest.mark.localtest
 def test_df_subscriptable(session):
     """Tests select & filter as df[...]"""
 
@@ -1010,7 +1002,6 @@ def test_df_subscriptable(session):
     assert res == expected
 
 
-@pytest.mark.localtest
 def test_filter(session):
     """Tests for df.filter()."""
     df = session.range(1, 10, 2)
@@ -1060,7 +1051,6 @@ def test_filter_with_sql_str(session):
     )
 
 
-@pytest.mark.localtest
 def test_filter_incorrect_type(session):
     """Tests for incorrect type passed to DataFrame.filter()."""
     df = session.range(1, 10, 2)
@@ -1073,7 +1063,6 @@ def test_filter_incorrect_type(session):
     )
 
 
-@pytest.mark.localtest
 def test_filter_chained(session):
     """Tests for chained DataFrame.filter() operations"""
 
@@ -1105,7 +1094,6 @@ def test_filter_chained(session):
     assert res == expected
 
 
-@pytest.mark.localtest
 def test_filter_chained_col_objects_int(session):
     """Tests for chained DataFrame.filter() operations."""
 
@@ -1135,7 +1123,6 @@ def test_filter_chained_col_objects_int(session):
     assert res == expected
 
 
-@pytest.mark.localtest
 def test_drop(session):
     """Test for dropping columns from a dataframe."""
 
@@ -1169,7 +1156,6 @@ def test_drop(session):
     assert res == expected
 
 
-@pytest.mark.localtest
 def test_alias(session):
     """Test for dropping columns from a dataframe."""
 
@@ -1192,7 +1178,6 @@ def test_alias(session):
     assert res == expected
 
 
-@pytest.mark.localtest
 def test_join_inner(session):
     """Test for inner join of dataframes."""
 
@@ -1224,7 +1209,6 @@ def test_join_inner(session):
     assert res == expected
 
 
-@pytest.mark.localtest
 def test_join_left_anti(session):
     """Test for left-anti join of dataframes."""
 
@@ -1255,7 +1239,6 @@ def test_join_left_anti(session):
     assert res == [Row(ID=None), Row(ID=None)]
 
 
-@pytest.mark.localtest
 def test_join_left_outer(session):
     """Test for left-outer join of dataframes."""
 
@@ -1292,7 +1275,6 @@ def test_join_left_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
-@pytest.mark.localtest
 def test_join_right_outer(session):
     """Test for right-outer join of dataframes."""
 
@@ -1329,7 +1311,6 @@ def test_join_right_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
-@pytest.mark.localtest
 def test_join_left_semi(session):
     """Test for left semi join of dataframes."""
 
@@ -1354,7 +1335,6 @@ def test_join_left_semi(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
-@pytest.mark.localtest
 def test_join_cross(session):
     """Test for cross join of dataframes."""
 
@@ -1394,7 +1374,6 @@ def test_join_cross(session):
     assert sorted(res, key=lambda r: (r[0], r[1])) == expected
 
 
-@pytest.mark.localtest
 def test_join_outer(session):
     """Test for outer join of dataframes."""
 
@@ -1443,7 +1422,6 @@ def test_join_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
-@pytest.mark.localtest
 def test_toDF(session):
     """Test df.to_df()."""
 
@@ -1471,7 +1449,6 @@ def test_toDF(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
-@pytest.mark.localtest
 def test_df_col(session):
     """Test df.col()"""
 
@@ -1483,6 +1460,25 @@ def test_df_col(session):
     c = df.col("*")
     assert isinstance(c, Column)
     assert isinstance(c._expression, Star)
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Session.query_history is not supported",
+    run=False,
+)
+def test_cache_result_query(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    with session.query_history() as history:
+        df.cache_result()
+
+    assert len(history.queries) == 2
+    assert "CREATE  SCOPED TEMPORARY  TABLE" in history.queries[0].sql_text
+    assert (
+        "INSERT  INTO" in history.queries[1].sql_text
+        and 'SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, 2 :: INT)'
+        in history.queries[1].sql_text
+    )
 
 
 def test_create_dataframe_with_basic_data_types(session):
@@ -1530,7 +1526,6 @@ def test_create_dataframe_with_basic_data_types(session):
     assert df.select(expected_names).collect() == expected_rows
 
 
-@pytest.mark.localtest
 def test_create_dataframe_with_semi_structured_data_types(session):
     data = [
         [
@@ -1647,7 +1642,6 @@ def test_create_dataframe_with_dict(session):
     )
 
 
-@pytest.mark.localtest
 def test_create_dataframe_with_dict_given_schema(session):
     schema = StructType(
         [
@@ -1710,7 +1704,6 @@ def test_create_dataframe_with_dict_given_schema(session):
     Utils.check_answer(df, [Row(None, None), Row(None, None)])
 
 
-@pytest.mark.localtest
 def test_create_dataframe_with_namedtuple(session):
     Data = namedtuple("Data", [f"snow_{idx + 1}" for idx in range(5)])
     data = Data(*[idx**3 for idx in range(5)])
@@ -1732,7 +1725,6 @@ def test_create_dataframe_with_namedtuple(session):
     Utils.check_answer(df, [Row(1, 2, None, None), Row(None, None, 3, 4)])
 
 
-@pytest.mark.localtest
 def test_create_dataframe_with_row(session):
     row1 = Row(a=1, b=2)
     row2 = Row(a=3, b=4)
@@ -1768,7 +1760,6 @@ def test_create_dataframe_with_row(session):
     assert "4 fields are required by schema but 2 values are provided" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_create_dataframe_with_mixed_dict_namedtuple_row(session):
     d = {"a": 1, "b": 2}
     Data = namedtuple("Data", ["a", "b"])
@@ -1786,7 +1777,6 @@ def test_create_dataframe_with_mixed_dict_namedtuple_row(session):
     )
 
 
-@pytest.mark.localtest
 def test_create_dataframe_with_schema_col_names(session):
     col_names = ["a", "b", "c", "d"]
     df = session.create_dataframe([[1, 2, 3, 4]], schema=col_names)
@@ -1807,7 +1797,6 @@ def test_create_dataframe_with_schema_col_names(session):
         assert Utils.equals_ignore_case(field.name, expected_name)
 
 
-@pytest.mark.localtest
 def test_create_dataframe_with_variant(session):
     data = [
         1,
@@ -1845,7 +1834,6 @@ def test_create_dataframe_with_variant(session):
     ]
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
 def test_create_dataframe_with_single_value(session, data):
     expected_names = ["_1"]
@@ -1914,7 +1902,6 @@ def test_create_dataframe_empty(session):
     assert df.with_column("c", lit(2)).columns == ["A", "B", "C"]
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_create_dataframe_from_none_data(session):
     assert session.create_dataframe([None, None]).collect() == [
@@ -1994,7 +1981,6 @@ def test_create_dataframe_large_respects_paramstyle_negative(db_parameters):
         new_session.close()
 
 
-@pytest.mark.localtest
 def test_create_dataframe_with_invalid_data(session):
     # None input
     with pytest.raises(ValueError) as ex_info:
@@ -2047,7 +2033,6 @@ def test_create_dataframe_with_invalid_data(session):
     assert "data consists of rows with different lengths" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_attribute_reference_to_sql(session):
     from snowflake.snowpark.functions import sum as sum_
 
@@ -2206,7 +2191,6 @@ def test_case_insensitive_local_iterator(session):
     assert row["P@$$W0RD"] == "test"
 
 
-@pytest.mark.localtest
 def test_dropna(session, local_testing_mode):
     Utils.check_answer(
         TestData.double3(session, local_testing_mode).dropna(), [Row(1.0, 1)]
@@ -2236,21 +2220,27 @@ def test_dropna(session, local_testing_mode):
     assert "subset should be a list or tuple of column names" in str(ex_info)
 
 
-@pytest.mark.localtest
+def test_dropna_large_num_of_columns(session):
+    n = 1000
+    data = [str(i) for i in range(n)]
+    none_data = [None for _ in range(n)]
+    df = session.create_dataframe([data, none_data], schema=data)
+    Utils.check_answer(df.dropna(how="all"), [Row(*data)])
+
+
 def test_fillna(session, local_testing_mode):
-    if not local_testing_mode:  # Enable for local testing after coercion support
-        Utils.check_answer(
-            TestData.double3(session, local_testing_mode).fillna(11),
-            [
-                Row(1.0, 1),
-                Row(11.0, 2),
-                Row(11.0, 3),
-                Row(4.0, 11),
-                Row(11.0, 11),
-                Row(11.0, 11),
-            ],
-            sort=False,
-        )
+    Utils.check_answer(
+        TestData.double3(session, local_testing_mode).fillna(11),
+        [
+            Row(1.0, 1),
+            Row(11.0, 2),
+            Row(11.0, 3),
+            Row(4.0, 11),
+            Row(11.0, 11),
+            Row(11.0, 11),
+        ],
+        sort=False,
+    )
 
     Utils.check_answer(
         TestData.double3(session, local_testing_mode).fillna(11.0, subset=["a"]),
@@ -2325,10 +2315,6 @@ def test_fillna(session, local_testing_mode):
     assert "subset should be a list or tuple of column names" in str(ex_info)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-929218: support coercion in Local Testing",
-)
 def test_replace_with_coercion(session):
     df = session.create_dataframe(
         [[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"]
@@ -2406,7 +2392,6 @@ def test_replace_with_coercion(session):
     assert "to_replace and value lists should be of the same length" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_select_case_expr(session):
     df = session.create_dataframe([1, 2, 3], schema=["a"])
     Utils.check_answer(
@@ -2590,7 +2575,6 @@ def test_truncate_existing_table(session):
     assert session.table(table_name).count() == 3
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
@@ -2854,7 +2838,6 @@ def test_write_table_with_clustering_keys_and_comment(
         Utils.drop_table(session, table_name3)
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
@@ -2882,7 +2865,6 @@ def test_write_temp_table_no_breaking_change(
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.localtest
 def test_write_invalid_table_type(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
@@ -3020,7 +3002,6 @@ def test_queries(session):
     assert post_actions[0].startswith("DROP")
 
 
-@pytest.mark.localtest
 def test_df_columns(session):
     assert session.create_dataframe([1], schema=["a"]).columns == ["A"]
 
@@ -3340,14 +3321,12 @@ def test_call_with_statement_params(session):
     Utils.drop_stage(session, temp_stage)
 
 
-@pytest.mark.localtest
 def test_limit_offset(session):
     df = session.create_dataframe([[1, 2, 3], [4, 5, 6]], schema=["a", "b", "c"])
     assert df.limit(1).collect() == [Row(A=1, B=2, C=3)]
     assert df.limit(1, offset=1).collect() == [Row(A=4, B=5, C=6)]
 
 
-@pytest.mark.localtest
 def test_df_join_how_on_overwrite(session):
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
         ["int", "int2", "str"]
@@ -3363,7 +3342,6 @@ def test_df_join_how_on_overwrite(session):
     Utils.check_answer(df, [Row(1, 1, "1"), Row(2, 3, "5")])
 
 
-@pytest.mark.localtest
 def test_create_dataframe_special_char_column_name(session):
     df1 = session.create_dataframe(
         [[1, 2, 3], [1, 2, 3]], schema=["a b", '"abc"', "@%!^@&#"]
@@ -3384,7 +3362,6 @@ def test_create_dataframe_with_tuple_schema(session):
     Utils.check_answer(df, [Row(20000101, 1, "x"), Row(20000101, 2, "y")])
 
 
-@pytest.mark.localtest
 def test_df_join_suffix(session):
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "c"])
     df2 = session.create_dataframe([[1, 1, "1"], [2, 3, "5"]]).to_df(["a", "b", "c"])
@@ -3447,7 +3424,6 @@ def test_df_join_suffix(session):
     assert df14.columns == ['"a_l"', '"a_r"']
 
 
-@pytest.mark.localtest
 def test_df_cross_join_suffix(session):
     df1 = session.create_dataframe([[1, 1, "1"]]).to_df(["a", "b", "c"])
     df2 = session.create_dataframe([[1, 1, "1"]]).to_df(["a", "b", "c"])
@@ -3491,7 +3467,6 @@ def test_df_cross_join_suffix(session):
     assert df14.columns == ['"a_l"', '"a_r"']
 
 
-@pytest.mark.localtest
 def test_suffix_negative(session):
     df1 = session.create_dataframe([[1, 1, "1"]]).to_df(["a", "b", "c"])
     df2 = session.create_dataframe([[1, 1, "1"]]).to_df(["a", "b", "c"])
@@ -3537,7 +3512,6 @@ def test_create_or_replace_dynamic_table_with_multiple_queries(session):
         )
 
 
-@pytest.mark.localtest
 def test_nested_joins(session):
     df1 = session.create_dataframe([[1, 2], [4, 5]], schema=["a", "b"])
     df2 = session.create_dataframe([[1, 3], [4, 6]], schema=["c", "d"])
@@ -3805,7 +3779,6 @@ def test_dataframe_alias_negative(session):
         col("df", df["a"])
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot change schema in SP")
 def test_dataframe_result_cache_changing_schema(session):
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]).to_df(
@@ -4009,3 +3982,27 @@ def test_create_empty_dataframe(session):
         ]
     )
     assert not session.create_dataframe(data=[], schema=schema).collect()
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
+def test_dataframe_to_local_iterator_with_to_pandas_isolation(
+    session, local_testing_mode
+):
+    df = session.create_dataframe(
+        [["xyz", int("1" * 19)] for _ in range(200000)], schema=["a1", "b1"]
+    )
+    trigger_df = session.create_dataframe(
+        [[1.0]], schema=StructType([StructField("A", DecimalType())])
+    )
+    my_iter = df.to_pandas_batches()
+    batch_count = 0
+    for pdf in my_iter:
+        # modify result_cursor and trigger _fix_pandas_df_fixed_type()
+        trigger_df.select(col("A")).collect()
+        # column name should remain unchanged
+        assert tuple(pdf.columns) == ("A1", "B1")
+        batch_count += 1
+        print(batch_count)
+    # local testing always give 1 chunk
+    if not local_testing_mode:
+        assert batch_count > 1

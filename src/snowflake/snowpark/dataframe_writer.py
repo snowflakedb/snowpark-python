@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     SaveMode,
     SnowflakeCreateTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.ast_utils import (
     FAIL_ON_MISSING_AST,
@@ -319,6 +320,7 @@ class DataFrameWriter:
                 column_names,
                 save_mode,
                 self._dataframe._plan,
+                TableCreationSource.OTHERS,
                 table_type,
                 clustering_exprs,
                 comment,

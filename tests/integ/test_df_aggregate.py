@@ -12,7 +12,6 @@ from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     approx_percentile_combine,
-    array_agg,
     avg,
     col,
     count,
@@ -35,7 +34,6 @@ from snowflake.snowpark.types import DoubleType
 from tests.utils import Utils
 
 
-@pytest.mark.localtest
 def test_df_agg_tuples_basic_without_std(session):
     df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
         ["first", "second"]
@@ -179,7 +177,6 @@ def test_df_agg_tuples_basic(session):
     Utils.assert_rows(res, [Row(1, 4, 2, 4.75, 0.577349980514419)])
 
 
-@pytest.mark.localtest
 def test_df_agg_tuples_avg_basic(session):
     """Test for making sure all avg word-variations work as expected"""
 
@@ -215,7 +212,6 @@ def test_df_agg_tuples_std_basic(session):
     Utils.assert_rows(res, [Row(0.577349980514419)])
 
 
-@pytest.mark.localtest
 def test_df_agg_tuples_count_basic(session):
     """Test for making sure all count variations work as expected"""
 
@@ -230,7 +226,6 @@ def test_df_agg_tuples_count_basic(session):
     Utils.assert_rows(res, [Row(4)])
 
 
-@pytest.mark.localtest
 def test_df_group_by_invalid_input(session):
     """Test for check invalid input for group_by function"""
 
@@ -251,7 +246,6 @@ def test_df_group_by_invalid_input(session):
     )
 
 
-@pytest.mark.localtest
 def test_df_agg_tuples_sum_basic(session):
     """Test for making sure sum works as expected"""
 
@@ -278,7 +272,6 @@ def test_df_agg_tuples_sum_basic(session):
     Utils.assert_rows(res, [Row(1, 8), Row(2, 11)])
 
 
-@pytest.mark.localtest
 def test_df_agg_dict_arg(session):
     """Test for making sure dict when passed to agg() works as expected"""
 
@@ -320,7 +313,6 @@ def test_df_agg_dict_arg(session):
     )
 
 
-@pytest.mark.localtest
 def test_df_agg_invalid_args_in_list(session):
     """Test for making sure when a list passed to agg() produces correct errors."""
 
@@ -376,7 +368,6 @@ def test_df_agg_invalid_args_in_list(session):
     )
 
 
-@pytest.mark.localtest
 def test_df_agg_empty_args(session):
     """Test for making sure dict when passed to agg() works as expected"""
 
@@ -387,7 +378,6 @@ def test_df_agg_empty_args(session):
     Utils.assert_rows(df.agg({}).collect(), [Row(1, 4)])
 
 
-@pytest.mark.localtest
 def test_df_agg_varargs_tuple_list(session):
     df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
         ["first", "second"]
@@ -401,7 +391,6 @@ def test_df_agg_varargs_tuple_list(session):
     Utils.check_answer(df.agg(["first", "count"], ("second", "sum")), [Row(4, 19)])
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "col1,col2,alias1,alias2",
     [
@@ -425,7 +414,6 @@ def test_df_agg_with_nonascii_column_names(session, col1, col2, alias1, alias2):
     assert df.agg(count(col1), sum_(col2)).columns == [alias1, alias2]
 
 
-@pytest.mark.localtest
 def test_agg_single_column(session, local_testing_mode):
     val = "86.333333"
     origin_df = session.create_dataframe(
@@ -443,7 +431,6 @@ def test_agg_single_column(session, local_testing_mode):
     assert origin_df.count() == 7
 
 
-@pytest.mark.localtest
 def test_agg_double_column(session):
     origin_df = session.create_dataframe(
         [
@@ -479,7 +466,6 @@ def test_agg_double_column(session):
     assert math.isnan(origin_df.select(sum_(col("m") - col("n"))).collect()[0][0])
 
 
-@pytest.mark.localtest
 def test_agg_function_multiple_parameters(session):
     origin_df = session.create_dataframe(["k1", "k1", "k3", "k4", [None]], schema=["v"])
     assert origin_df.select(listagg("v", delimiter='~!1,."')).collect() == [
@@ -491,7 +477,6 @@ def test_agg_function_multiple_parameters(session):
     ).collect() == [Row('k1~!1,."k3~!1,."k4')]
 
 
-@pytest.mark.localtest
 def test_register_new_methods(session, local_testing_mode):
     if not local_testing_mode:
         pytest.skip("mock implementation does not apply to live code")
@@ -550,19 +535,6 @@ def test_register_new_methods(session, local_testing_mode):
 
     assert origin_df.select(stddev("n")).collect() == [Row(123)]
 
-    # array_agg
-    with pytest.raises(NotImplementedError):
-        origin_df.select(array_agg("n", False)).collect()
-
-    # instead of kwargs, positional argument also works
-    @snowpark_mock_functions.patch(array_agg)
-    def mock_mock_array_agg(column: ColumnEmulator, is_distinct):
-        assert is_distinct is True
-        assert column.tolist() == [11.0, 22.0, 0.0, 35.0]
-        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
-
-    assert origin_df.select(array_agg("n", True)).collect() == [Row(123)]
-
     # grouping
     with pytest.raises(NotImplementedError):
         origin_df.select(grouping("m", col("n"))).collect()
@@ -577,7 +549,6 @@ def test_register_new_methods(session, local_testing_mode):
     assert origin_df.select(grouping("m", col("n"))).collect() == [Row(123)]
 
 
-@pytest.mark.localtest
 def test_group_by(session, local_testing_mode):
     origin_df = session.create_dataframe(
         [
@@ -645,7 +616,6 @@ def test_group_by(session, local_testing_mode):
     )
 
 
-@pytest.mark.localtest
 def test_agg(session, local_testing_mode):
     origin_df = session.create_dataframe(
         [
@@ -670,8 +640,9 @@ def test_agg(session, local_testing_mode):
     if not local_testing_mode:
         pytest.skip("mock implementation does not apply to live code")
 
-    snowpark_mock_functions._unregister_func_implementation("stddev")
-    snowpark_mock_functions._unregister_func_implementation("stddev_pop")
+    registry = snowpark_mock_functions.MockedFunctionRegistry.get_or_create()
+    registry.unregister("stddev")
+    registry.unregister("stddev_pop")
 
     with pytest.raises(NotImplementedError):
         origin_df.select(stddev("n"), stddev_pop("m")).collect()
