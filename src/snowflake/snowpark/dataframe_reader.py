@@ -617,6 +617,7 @@ class DataFrameReader:
                 drop_tmp_file_format_if_exists_query = (
                     drop_file_format_if_exists_statement(file_format_name)
                 )
+            # SNOW-1628625: Schema inference should be done lazily
             results = self._session._conn.run_query(infer_schema_query)["data"]
             if len(results) == 0:
                 raise FileNotFoundError(

@@ -656,6 +656,71 @@ def test_to_read_files_from_stage(session, resources_path, mode, local_testing_m
             session.sql(f"DROP STAGE IF EXISTS {data_files_stage}")
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local testing does not support external file formats",
+    run=False,
+)
+def test_csv_external_file_format(session, resources_path, temp_schema):
+    data_files_stage = Utils.random_stage_name()
+    file_format = Utils.random_stage_name()
+    test_files = TestFiles(resources_path)
+
+    try:
+        # Upload test file
+        Utils.create_stage(session, data_files_stage, is_temporary=True)
+        Utils.upload_to_stage(
+            session, "@" + data_files_stage, test_files.test_file_csv_header, False
+        )
+
+        # Create external file format
+        session.sql(
+            f"""
+        CREATE OR REPLACE FILE FORMAT {file_format}
+        """
+            + r"""
+        TYPE = 'CSV'
+        ERROR_ON_COLUMN_COUNT_MISMATCH = TRUE
+        FIELD_DELIMITER = ','
+        REPLACE_INVALID_CHARACTERS = TRUE
+        ESCAPE = '\\'
+        FIELD_OPTIONALLY_ENCLOSED_BY = '\"'
+        ESCAPE_UNENCLOSED_FIELD = none
+        SKIP_BLANK_LINES = TRUE
+        EMPTY_FIELD_AS_NULL = TRUE
+        PARSE_HEADER = True
+        ENCODING = 'UTF8';
+        """
+        ).collect()
+
+        # Try loading with external format
+        df = session.read.option("format_name", file_format).csv(
+            f"@{data_files_stage}/"
+        )
+
+        # Validate Merge
+        assert df._session._plan_builder._merge_file_format_options(
+            {}, {"FORMAT_NAME": file_format}
+        ) == {
+            "PARSE_HEADER": True,
+            "ESCAPE": r"\\",
+            "ESCAPE_UNENCLOSED_FIELD": "NONE",
+            "FIELD_OPTIONALLY_ENCLOSED_BY": r"\"",
+            "SKIP_BLANK_LINES": True,
+            "REPLACE_INVALID_CHARACTERS": True,
+        }
+
+        res = df.collect()
+        res.sort(key=lambda x: x[0])
+        assert res == [
+            Row(id=1, name="one", rating=Decimal("1.2")),
+            Row(id=2, name="two", rating=Decimal("2.2")),
+        ]
+    finally:
+        session.sql(f"DROP STAGE IF EXISTS {data_files_stage}").collect()
+        session.sql(f"drop file format if exists {file_format}").collect()
+
+
 @pytest.mark.xfail(reason="SNOW-575700 flaky test", strict=False)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_for_all_csv_compression_keywords(session, temp_schema, mode):

@@ -652,6 +652,12 @@ def drop_non_numeric_data_columns(
         col.snowflake_quoted_identifier for col in data_column_to_retain
     ]
 
+    new_data_column_types = [
+        type
+        for id, type in original_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.items()
+        if id in new_data_column_snowflake_quoted_identifiers
+    ]
+
     return SnowflakeQueryCompiler(
         InternalFrame.create(
             ordered_dataframe=original_frame.ordered_dataframe,
@@ -660,6 +666,8 @@ def drop_non_numeric_data_columns(
             data_column_pandas_index_names=original_frame.data_column_pandas_index_names,
             index_column_pandas_labels=original_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=original_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=new_data_column_types,
+            index_column_types=original_frame.cached_index_column_snowpark_pandas_types,
         )
     )
 

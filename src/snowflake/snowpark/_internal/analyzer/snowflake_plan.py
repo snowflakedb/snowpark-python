@@ -1106,6 +1106,46 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
+    def _merge_file_format_options(
+        self, file_format_options: Dict[str, Any], options: Dict[str, str]
+    ) -> Dict[str, Any]:
+        """
+        Merges remotely defined file_format options with the local options set. This allows the client
+        to override any locally defined options that are incompatible with the file format.
+        """
+        if "FORMAT_NAME" not in options:
+            return file_format_options
+
+        def process_list(list_property):
+            split_list = list_property.lstrip("[").rstrip("]").split(", ")
+            if len(split_list) == 1:
+                return split_list[0]
+            return tuple(split_list)
+
+        type_map = {
+            "String": str,
+            "List": process_list,
+            "Integer": int,
+            "Boolean": bool,
+        }
+        new_options = {**file_format_options}
+        # SNOW-1628625: This query and subsequent merge operations should be done lazily
+        file_format = self.session.sql(
+            f"DESCRIBE FILE FORMAT {options['FORMAT_NAME']}"
+        ).collect()
+
+        for setting in file_format:
+            if (
+                setting["property_value"] == setting["property_default"]
+                or setting["property"] in new_options
+            ):
+                continue
+
+            new_options[str(setting["property"])] = type_map.get(
+                str(setting["property_type"]), str
+            )(setting["property_value"])
+        return new_options
+
     def read_file(
         self,
         path: str,
@@ -1118,6 +1158,9 @@ class SnowflakePlanBuilder:
         metadata_schema: Optional[List[Attribute]] = None,
     ):
         format_type_options, copy_options = get_copy_into_table_options(options)
+        format_type_options = self._merge_file_format_options(
+            format_type_options, options
+        )
         pattern = options.get("PATTERN")
         # Can only infer the schema for parquet, orc and avro
         # csv and json in preview
@@ -1143,33 +1186,29 @@ class SnowflakePlanBuilder:
         if not copy_options:  # use select
             queries: List[Query] = []
             post_queries: List[Query] = []
-            use_temp_file_format: bool = "FORMAT_NAME" not in options
-            if use_temp_file_format:
-                format_name = self.session.get_fully_qualified_name_if_possible(
-                    random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+            format_name = self.session.get_fully_qualified_name_if_possible(
+                random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+            )
+            queries.append(
+                Query(
+                    create_file_format_statement(
+                        format_name,
+                        format,
+                        format_type_options,
+                        temp=True,
+                        if_not_exist=True,
+                        use_scoped_temp_objects=self.session._use_scoped_temp_objects,
+                        is_generated=True,
+                    ),
+                    is_ddl_on_temp_object=True,
                 )
-                queries.append(
-                    Query(
-                        create_file_format_statement(
-                            format_name,
-                            format,
-                            format_type_options,
-                            temp=True,
-                            if_not_exist=True,
-                            use_scoped_temp_objects=self.session._use_scoped_temp_objects,
-                            is_generated=True,
-                        ),
-                        is_ddl_on_temp_object=True,
-                    )
+            )
+            post_queries.append(
+                Query(
+                    drop_file_format_if_exists_statement(format_name),
+                    is_ddl_on_temp_object=True,
                 )
-                post_queries.append(
-                    Query(
-                        drop_file_format_if_exists_statement(format_name),
-                        is_ddl_on_temp_object=True,
-                    )
-                )
-            else:
-                format_name = options["FORMAT_NAME"]
+            )
 
             if infer_schema:
                 assert schema_to_cast is not None
