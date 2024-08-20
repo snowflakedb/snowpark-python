@@ -740,3 +740,45 @@ def test_create_session_from_default_config_file(monkeypatch, db_parameters):
         # sensitive information that this test needs to handle.
         # db_parameter contains passwords.
         pytest.fail("something failed", pytrace=False)
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="use schema is not allowed in stored proc (owner mode)"
+)
+def test_get_session_stage(session):
+    with session.query_history() as history:
+        session_stage = session.get_session_stage()
+    assert len(history.queries) == 1
+    assert "stage if not exists" in history.queries[0].sql_text
+    # check if session_stage is a fully qualified name
+    assert session.get_current_database() in session_stage
+    assert session.get_current_schema() in session_stage
+
+    # no create stage sql again
+    with session.query_history() as history:
+        session_stage = session.get_session_stage()
+    assert len(history.queries) == 0
+
+    # switch database and schema, session stage will not be created again
+    new_schema = f"schema_{Utils.random_alphanumeric_str(10)}"
+    new_database = f"db_{Utils.random_alphanumeric_str(10)}"
+    current_schema = session.get_current_schema()
+    current_database = session.get_current_database()
+    try:
+        session._run_query(f"create schema if not exists {new_schema}")
+        session.use_schema(new_schema)
+        new_session_stage = session.get_session_stage()
+        assert session_stage == new_session_stage
+    finally:
+        Utils.drop_schema(session, new_schema)
+        session.use_schema(current_schema)
+
+    try:
+        session._run_query(f"create database if not exists {new_database}")
+        session.use_database(new_database)
+        new_session_stage = session.get_session_stage()
+        assert session_stage == new_session_stage
+    finally:
+        Utils.drop_database(session, new_database)
+        session.use_database(current_database)
+        session.use_schema(current_schema)

@@ -68,7 +68,6 @@ def setup(session, resources_path, local_testing_mode):
 @pytest.fixture(autouse=True)
 def clean_up(session):
     session._session_stage = Utils.random_stage_name()
-    session._stage_created = False
     session.clear_packages()
     session.clear_imports()
     session.custom_package_usage_config = {}
