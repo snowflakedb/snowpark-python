@@ -241,19 +241,44 @@ class Resampler(metaclass=TelemetryMeta):
         )
 
     def backfill(self, limit: Optional[int] = None):
-        self._method_not_implemented("backfill")  # pragma: no cover
+        return self.bfill(limit=limit)
 
-    def bfill(self, limit: Optional[int] = None):  # pragma: no cover
-        self._method_not_implemented("bfill")
+    def bfill(self, limit: Optional[int] = None):
+        is_series = not self._dataframe._is_dataframe
 
-    def pad(self, limit: Optional[int] = None):  # pragma: no cover
-        self._method_not_implemented("pad")
+        if limit is not None:
+            ErrorMessage.not_implemented(
+                "Parameter limit of resample.bfill has not been implemented."
+            )
+
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.resample(
+                self.resample_kwargs,
+                "bfill",
+                (),
+                {},
+                is_series,
+            )
+        )
+
+    def pad(self, limit: Optional[int] = None):
+        return self.ffill(limit=limit)
 
     def nearest(self, limit: Optional[int] = None):  # pragma: no cover
         self._method_not_implemented("nearest")
 
-    def fillna(self, method, limit: Optional[int] = None):  # pragma: no cover
-        self._method_not_implemented("fillna")
+    def fillna(self, method: str, limit: Optional[int] = None):
+        if not isinstance(method, str) or method not in (
+            "pad",
+            "ffill",
+            "backfill",
+            "bfill",
+            "nearest",
+        ):
+            raise ValueError(
+                f"Invalid fill method. Expecting pad (ffill), backfill (bfill) or nearest. Got {method}"
+            )
+        return getattr(self, method)(limit=limit)
 
     def asfreq(self, fill_value: Optional[Any] = None):  # pragma: no cover
         self._method_not_implemented("asfreq")
@@ -292,23 +317,51 @@ class Resampler(metaclass=TelemetryMeta):
 
     def first(
         self,
-        numeric_only: Union[bool, lib.NoDefault] = lib.no_default,
+        numeric_only: bool = False,
         min_count: int = 0,
+        skipna: bool = True,
         *args: Any,
         **kwargs: Any,
-    ):  # pragma: no cover
+    ):
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        self._method_not_implemented("first")
+        self._validate_numeric_only_for_aggregate_methods(numeric_only)
+
+        agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count, skipna=skipna)
+        is_series = not self._dataframe._is_dataframe
+
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.resample(
+                self.resample_kwargs,
+                "first",
+                tuple(),
+                agg_kwargs,
+                is_series,
+            )
+        )
 
     def last(
         self,
-        numeric_only: Union[bool, lib.NoDefault] = lib.no_default,
+        numeric_only: bool = False,
         min_count: int = 0,
+        skipna: bool = True,
         *args: Any,
         **kwargs: Any,
-    ):  # pragma: no cover
+    ):
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        self._method_not_implemented("last")
+        self._validate_numeric_only_for_aggregate_methods(numeric_only)
+
+        agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count, skipna=skipna)
+        is_series = not self._dataframe._is_dataframe
+
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.resample(
+                self.resample_kwargs,
+                "last",
+                tuple(),
+                agg_kwargs,
+                is_series,
+            )
+        )
 
     def max(
         self,
@@ -417,9 +470,25 @@ class Resampler(metaclass=TelemetryMeta):
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         self._method_not_implemented("prod")
 
-    def size(self):  # pragma: no cover
+    def size(self):
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        self._method_not_implemented("size")
+        from .series import Series
+
+        is_series = not self._dataframe._is_dataframe
+
+        output_series = Series(
+            query_compiler=self._query_compiler.resample(
+                self.resample_kwargs,
+                "size",
+                tuple(),
+                dict(),
+                is_series,
+            )
+        )
+        if not isinstance(self._dataframe, Series):
+            # If input is a DataFrame, rename output Series to None
+            return output_series.rename(None)
+        return output_series
 
     def sem(
         self,

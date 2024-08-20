@@ -8,27 +8,22 @@ import linecache
 import logging
 import os
 import traceback
-import uuid
 from typing import Dict
 
 import pytest
 from pytest import fail
 
-import _vendored.vcrpy as vcr
 import snowflake.connector
+import tests._vendored.vcrpy as vcr
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.query_history import QueryListener, QueryRecord
 from tests.parameters import CONNECTION_PARAMETERS
-from tests.utils import Utils
+from tests.utils import TEST_SCHEMA, Utils, running_on_jenkins, running_on_public_ci
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
-TEST_SCHEMA = f"GH_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
-if RUNNING_ON_JENKINS:
-    TEST_SCHEMA = f"JENKINS_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
-
 
 test_dir = os.path.dirname(__file__)
 test_data_dir = os.path.join(test_dir, "cassettes")
@@ -62,16 +57,6 @@ vcr.default_vcr = vcr.VCR(
     record_mode="all",
 )
 vcr.use_cassette = vcr.default_vcr.use_cassette
-
-
-def running_on_public_ci() -> bool:
-    """Whether or not tests are currently running on one of our public CIs."""
-    return RUNNING_ON_GH
-
-
-def running_on_jenkins() -> bool:
-    """Whether or not tests are currently running on a Jenkins node."""
-    return RUNNING_ON_JENKINS
 
 
 def print_help() -> None:

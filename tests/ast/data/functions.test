@@ -890,7 +890,7 @@ df145 = df111.select(convert_timezone("UTC", lit(1234), col("A")), convert_timez
 
 df146 = df111.select(convert_timezone(lit(1234), "UTC", col("A")), convert_timezone(col("B"), "UTC", col("A")))
 
-df147 = df111.select(to_date(col("A")), to_date(col("A"), col("A")), to_date(col("A")))
+df147 = df111.select(to_date("A"), to_date("A", col("A")), to_date(col("A")))
 
 df148 = df111.select(current_timestamp())
 
@@ -1010,7 +1010,7 @@ df214 = df111.select(timestamp_from_parts(col("A"), col("A")), timestamp_from_pa
 
 df215 = df111.select(timestamp_from_parts(2000, 12, 0, 12, 3, 1), timestamp_from_parts(2000, 12, 0, 12, 3, 1), timestamp_from_parts(2000, 12, 0, 12, 3, 1), timestamp_from_parts(2000, 12, 0, 12, 3, 1, lit(0), "us"))
 
-df216 = df111.select(timestamp_from_parts(col("year"), col("month"), col("day"), col("hour"), col("minute"), col("second")), timestamp_from_parts(to_date(col("date")), to_time(col("time"))))
+df216 = df111.select(timestamp_from_parts(col("year"), col("month"), col("day"), col("hour"), col("minute"), col("second")), timestamp_from_parts(to_date("date"), to_time(col("time"))))
 
 df217 = df111.select(timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1, 12))
 

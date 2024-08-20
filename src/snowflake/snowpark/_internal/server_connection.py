@@ -43,6 +43,7 @@ from snowflake.snowpark._internal.analyzer.schema_utils import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
+    PlanQueryType,
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -74,6 +75,7 @@ logger = getLogger(__name__)
 PARAM_APPLICATION = "application"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
+DEFAULT_STRING_SIZE = 16777216
 
 
 def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
@@ -156,6 +158,17 @@ class ServerConnection:
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self._add_application_parameters()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
+        self.max_string_size = DEFAULT_STRING_SIZE
+        if self._conn._session_parameters:
+            try:
+                self.max_string_size = int(
+                    self._conn._session_parameters.get(
+                        "VARCHAR_AND_BINARY_MAX_SIZE_IN_RESULT", self.max_string_size
+                    )
+                )
+            except TypeError:
+                pass
+
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
         self._cursor = self._conn.cursor()
@@ -231,7 +244,9 @@ class ServerConnection:
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
-        return convert_result_meta_to_attribute(run_new_describe(self._cursor, query))
+        return convert_result_meta_to_attribute(
+            run_new_describe(self._cursor, query), self.max_string_size
+        )
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
     def upload_file(
@@ -454,9 +469,7 @@ class ServerConnection:
         to_iter: bool = False,
     ) -> Dict[str, Any]:
         qid = results_cursor.sfqid
-        if (
-            to_iter and not to_pandas
-        ):  # Fix for SNOW-869536, to_pandas doesn't have this issue, SnowflakeCursor.fetch_pandas_batches already handles the isolation.
+        if to_iter:
             new_cursor = results_cursor.connection.cursor()
             new_cursor.execute(f"SELECT * FROM TABLE(RESULT_SCAN('{qid}'))")
             results_cursor = new_cursor
@@ -566,22 +579,22 @@ class ServerConnection:
         Union[List[ResultMetadata], List["ResultMetadataV2"]],
     ]:
         action_id = plan.session._generate_new_action_id()
-        # potentially optimize the query using CTEs
-        plan = plan.replace_repeated_subquery_with_cte()
+        plan_queries = plan.execution_queries
         result, result_meta = None, None
         try:
+            main_queries = plan_queries[PlanQueryType.QUERIES]
             placeholders = {}
             is_batch_insert = False
-            for q in plan.queries:
+            for q in main_queries:
                 if isinstance(q, BatchInsertQuery):
                     is_batch_insert = True
                     break
             # since batch insert does not support async execution (? in the query), we handle it separately here
-            if len(plan.queries) > 1 and not block and not is_batch_insert:
+            if len(main_queries) > 1 and not block and not is_batch_insert:
                 params = []
                 final_queries = []
                 last_place_holder = None
-                for q in plan.queries:
+                for q in main_queries:
                     final_queries.append(
                         q.sql.replace(f"'{last_place_holder}'", "LAST_QUERY_ID()")
                         if last_place_holder
@@ -594,13 +607,13 @@ class ServerConnection:
                     ";".join(final_queries),
                     to_pandas,
                     to_iter,
-                    is_ddl_on_temp_object=plan.queries[0].is_ddl_on_temp_object,
+                    is_ddl_on_temp_object=main_queries[0].is_ddl_on_temp_object,
                     block=block,
                     data_type=data_type,
                     async_job_plan=plan,
                     log_on_exception=log_on_exception,
                     case_sensitive=case_sensitive,
-                    num_statements=len(plan.queries),
+                    num_statements=len(main_queries),
                     params=params,
                     ignore_results=ignore_results,
                     **kwargs,
@@ -612,18 +625,18 @@ class ServerConnection:
                 if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
             else:
-                for i, query in enumerate(plan.queries):
+                for i, query in enumerate(main_queries):
                     if isinstance(query, BatchInsertQuery):
                         self.run_batch_insert(query.sql, query.rows, **kwargs)
                     else:
-                        is_last = i == len(plan.queries) - 1 and not block
+                        is_last = i == len(main_queries) - 1 and not block
                         final_query = query.sql
                         for holder, id_ in placeholders.items():
                             final_query = final_query.replace(holder, id_)
                         result = self.run_query(
                             final_query,
                             to_pandas,
-                            to_iter and (i == len(plan.queries) - 1),
+                            to_iter and (i == len(main_queries) - 1),
                             is_ddl_on_temp_object=query.is_ddl_on_temp_object,
                             block=not is_last,
                             data_type=data_type,
@@ -643,7 +656,7 @@ class ServerConnection:
         finally:
             # delete created tmp object
             if block:
-                for action in plan.post_actions:
+                for action in plan_queries[PlanQueryType.POST_ACTIONS]:
                     self.run_query(
                         action.sql,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,
@@ -663,7 +676,7 @@ class ServerConnection:
     ) -> Tuple[List[Row], List[Attribute]]:
         result_set, result_meta = self.get_result_set(plan, **kwargs)
         result = result_set_to_rows(result_set["data"])
-        attributes = convert_result_meta_to_attribute(result_meta)
+        attributes = convert_result_meta_to_attribute(result_meta, self.max_string_size)
         return result, attributes
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
@@ -767,7 +780,7 @@ def _fix_pandas_df_fixed_type(
                         pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
                     except OverflowError:
                         pd_df[pandas_col_name] = pandas.to_numeric(
-                            pd_df[pandas_col_name], downcast="integer"
+                            pd_df[pandas_col_name]
                         )
                 else:
                     pd_df[pandas_col_name] = pandas.to_numeric(

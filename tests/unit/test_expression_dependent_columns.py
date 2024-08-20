@@ -204,7 +204,6 @@ def test_cast():
 @pytest.mark.parametrize(
     "expression_class",
     [
-        BinaryExpression,
         Add,
         And,
         BinaryArithmeticExpression,

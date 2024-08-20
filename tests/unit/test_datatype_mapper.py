@@ -9,9 +9,9 @@ from decimal import Decimal
 import pytest
 
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
+    numeric_to_sql_without_cast,
     schema_expression,
     to_sql,
-    to_sql_without_cast,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -185,17 +185,30 @@ def test_datetime_to_sql_timestamp(timezone, expected):
     assert to_sql(dt, TimestampType(timezone)) == expected
 
 
-def test_to_sql_without_cast():
-    assert to_sql_without_cast(None, NullType()) == "NULL"
-    assert to_sql_without_cast(None, IntegerType()) == "NULL"
+def test_numeric_to_sql_without_cast():
+    assert numeric_to_sql_without_cast(None, NullType()) == "NULL"
+    assert numeric_to_sql_without_cast(None, IntegerType()) == "NULL"
 
-    assert to_sql_without_cast("abc", StringType()) == "'abc'"
-    assert to_sql_without_cast(123, StringType()) == "'123'"
-    assert to_sql_without_cast(0.2, StringType()) == "'0.2'"
+    assert numeric_to_sql_without_cast("abc", StringType()) == "'abc'"
 
-    assert to_sql_without_cast(123, IntegerType()) == "123"
-    assert to_sql_without_cast(0.2, FloatType()) == "0.2"
-    assert to_sql_without_cast(0.2, DoubleType()) == "0.2"
+    assert numeric_to_sql_without_cast(123, IntegerType()) == "123"
+    assert numeric_to_sql_without_cast(0.2, FloatType()) == "0.2"
+    assert numeric_to_sql_without_cast(0.2, DoubleType()) == "0.2"
+
+    assert numeric_to_sql_without_cast(float("nan"), FloatType()) == "'NAN' :: FLOAT"
+    assert numeric_to_sql_without_cast(float("inf"), DoubleType()) == "'INF' :: FLOAT"
+
+
+@pytest.mark.parametrize(
+    "value, datatype",
+    [
+        (123, StringType()),
+        (0.2, StringType()),
+    ],
+)
+def test_numeric_to_sql_without_cast_invalid(value, datatype):
+    with pytest.raises(TypeError, match="Unsupported datatype"):
+        assert numeric_to_sql_without_cast(value, datatype)
 
 
 def test_schema_expression():

@@ -46,6 +46,23 @@ def str_to_sql(value: str) -> str:
     return f"'{sql_str}'"
 
 
+def float_nan_inf_to_sql(value: float) -> str:
+    """
+    convert the float nan and inf value to a snowflake compatible sql.
+    Note that nan and inf value will always require a cast with ::FLOAT in snowflake
+    """
+    if math.isnan(value):
+        cast_value = "'NAN'"
+    elif math.isinf(value) and value > 0:
+        cast_value = "'INF'"
+    elif math.isinf(value) and value < 0:
+        cast_value = "'-INF'"
+    else:
+        raise ValueError("None inf or nan float value is received")
+
+    return f"{cast_value} :: FLOAT"
+
+
 def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) -> str:
     """Convert a value with DataType to a snowflake compatible sql"""
 
@@ -98,15 +115,10 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         return f"{value} :: BOOLEAN"
 
     if isinstance(value, float) and isinstance(datatype, _FractionalType):
-        if math.isnan(value):
-            cast_value = "'NAN'"
-        elif math.isinf(value) and value > 0:
-            cast_value = "'INF'"
-        elif math.isinf(value) and value < 0:
-            cast_value = "'-INF'"
+        if math.isnan(value) or math.isinf(value):
+            return float_nan_inf_to_sql(value)
         else:
-            cast_value = f"'{value}'"
-        return f"{cast_value} :: FLOAT"
+            return f"'{value}' :: FLOAT"
 
     if isinstance(value, Decimal) and isinstance(datatype, DecimalType):
         return f"{value} :: {analyzer_utils.number(datatype.precision, datatype.scale)}"
@@ -152,6 +164,12 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
     if isinstance(datatype, VariantType):
         # PARSE_JSON returns VARIANT, so no need to append :: VARIANT here explicitly.
         return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
+
+    if isinstance(value, str) and isinstance(datatype, GeographyType):
+        return f"TO_GEOGRAPHY({str_to_sql(value)})"
+
+    if isinstance(value, str) and isinstance(datatype, GeometryType):
+        return f"TO_GEOMETRY({str_to_sql(value)})"
 
     if isinstance(datatype, VectorType):
         return f"{value} :: VECTOR({datatype.element_type},{datatype.dimension})"
@@ -216,9 +234,22 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
     raise Exception(f"Unsupported data type: {data_type.__class__.__name__}")
 
 
-def to_sql_without_cast(value: Any, datatype: DataType) -> str:
+def numeric_to_sql_without_cast(value: Any, datatype: DataType) -> str:
+    """
+    Generate the sql str for numeric datatype without cast expression. One exception
+    is for float nan and inf, where a cast is always required for Snowflake to be able
+    to handle it correctly.
+    """
     if value is None:
         return "NULL"
-    if isinstance(datatype, StringType):
-        return f"'{value}'"
+
+    if not isinstance(datatype, _NumericType):
+        # if the value is not numeric or the datatype is not numeric, fallback to the
+        # regular to_sql generation
+        return to_sql(value, datatype)
+
+    if isinstance(value, float) and isinstance(datatype, _FractionalType):
+        # when the float value is NAN or INF, a cast is still required
+        if math.isnan(value) or math.isinf(value):
+            return float_nan_inf_to_sql(value)
     return str(value)

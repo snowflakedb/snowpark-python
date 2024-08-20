@@ -60,10 +60,14 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectStatement,
     SelectTableFunction,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoTableNode,
     Limit,
     LogicalPlan,
+    SaveMode,
+    SnowflakeCreateTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -137,7 +141,6 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list_variadic,
     parse_table_name,
     prepare_pivot_arguments,
-    private_preview,
     quote_name,
     random_name_for_temp_object,
     validate_object_name,
@@ -539,6 +542,7 @@ class DataFrame:
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
+        self._ast_id = None
         if _emit_ast:
             self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
 
@@ -581,7 +585,7 @@ class DataFrame:
         Given a field builder expression of the AST type SpDataframeExpr, points the builder to reference this dataframe.
         """
         # TODO: remove the None guard below once we generate the correct AST.
-        if self._ast_id is None: 
+        if self._ast_id is None:
             if FAIL_ON_MISSING_AST:
                 _logger.debug(self._explain_string())
                 raise NotImplementedError(
@@ -792,14 +796,15 @@ class DataFrame:
         self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> str:
         """This method is only used in stored procedures."""
-        return self._session._conn.get_result_query_id(
-            self._plan,
-            _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params or self._statement_params,
-                self._session.query_tag,
-                SKIP_LEVELS_THREE,
-            ),
-        )
+        with open_telemetry_context_manager(self._execute_and_get_query_id, self):
+            return self._session._conn.get_result_query_id(
+                self._plan,
+                _statement_params=create_or_update_statement_params_with_query_tag(
+                    statement_params or self._statement_params,
+                    self._session.query_tag,
+                    SKIP_LEVELS_THREE,
+                ),
+            )
 
     @overload
     def to_local_iterator(
@@ -2647,7 +2652,7 @@ class DataFrame:
                 - Left semi join: "semi", "leftsemi"
                 - Left anti join: "anti", "leftanti"
                 - Cross join: "cross"
-                - [Preview Feature] Asof join: "asof"
+                - Asof join: "asof"
 
                 You can also use ``join_type`` keyword to specify this condition.
                 Note that to avoid breaking changes, currently when ``join_type`` is specified,
@@ -2661,7 +2666,7 @@ class DataFrame:
             You can reference to these randomly named columns using :meth:`Column.alias` (See the first usage in Examples).
 
         See Also:
-            - Usage notes for asof join: https://docs.snowflake.com/LIMITEDACCESS/asof-join#usage-notes
+            - Usage notes for asof join: https://docs.snowflake.com/sql-reference/constructs/asof-join#usage-notes
 
         Examples::
             >>> from snowflake.snowpark.functions import col
@@ -4111,7 +4116,6 @@ class DataFrame:
         )
 
     @df_collect_api_telemetry
-    @private_preview(version="1.4.0")
     def create_or_replace_dynamic_table(
         self,
         name: Union[str, Iterable[str]],
@@ -4804,21 +4808,30 @@ class DataFrame:
                 temp_table_name, create_temp_table=True, _emit_ast=False
             )
         else:
-            create_temp_table = self._session._analyzer.plan_builder.create_temp_table(
-                temp_table_name,
-                self._plan,
-                use_scoped_temp_objects=self._session._use_scoped_temp_objects,
-                is_generated=True,
+            df = self._with_plan(
+                SnowflakeCreateTable(
+                    [temp_table_name],
+                    None,
+                    SaveMode.ERROR_IF_EXISTS,
+                    self._plan,
+                    creation_source=TableCreationSource.CACHE_RESULT,
+                    table_type="temp",
+                )
             )
             self._session._conn.execute(
-                create_temp_table,
+                df._plan,
                 _statement_params=create_or_update_statement_params_with_query_tag(
                     statement_params or self._statement_params,
                     self._session.query_tag,
                     SKIP_LEVELS_TWO,
                 ),
             )
-        cached_df = self._session.table(temp_table_name, _emit_ast=False)
+        cached_df = snowflake.snowpark.table.Table(
+            temp_table_name,
+            self._session,
+            is_temp_table_for_cleanup=True,
+            _emit_ast=False,
+        )
         cached_df.is_cached = True
         cached_df._ast_id = stmt.var_id.bitfield1
         return cached_df
@@ -4910,10 +4923,14 @@ class DataFrame:
         evaluate this DataFrame with the key `queries`, and a list of post-execution
         actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
         """
-        plan = self._plan.replace_repeated_subquery_with_cte()
+        plan_queries = self._plan.execution_queries
         return {
-            "queries": [query.sql.strip() for query in plan.queries],
-            "post_actions": [query.sql.strip() for query in plan.post_actions],
+            "queries": [
+                query.sql.strip() for query in plan_queries[PlanQueryType.QUERIES]
+            ],
+            "post_actions": [
+                query.sql.strip() for query in plan_queries[PlanQueryType.POST_ACTIONS]
+            ],
         }
 
     def explain(self) -> None:
@@ -4927,20 +4944,20 @@ class DataFrame:
         print(self._explain_string())  # noqa: T201: we need to print here.
 
     def _explain_string(self) -> str:
-        plan = self._plan.replace_repeated_subquery_with_cte()
+        plan_queries = self._plan.execution_queries[PlanQueryType.QUERIES]
         output_queries = "\n---\n".join(
-            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(plan.queries)
+            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(plan_queries)
         )
         msg = f"""---------DATAFRAME EXECUTION PLAN----------
 Query List:
 {output_queries}"""
         # if query list contains more then one queries, skip execution plan
-        if len(plan.queries) == 1:
-            exec_plan = self._session._explain_query(plan.queries[0].sql)
+        if len(plan_queries) == 1:
+            exec_plan = self._session._explain_query(plan_queries[0].sql)
             if exec_plan:
                 msg = f"{msg}\nLogical Execution Plan:\n{exec_plan}"
             else:
-                msg = f"{plan.queries[0].sql} can't be explained"
+                msg = f"{plan_queries[0].sql} can't be explained"
 
         return f"{msg}\n--------------------------------------------"
 

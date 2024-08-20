@@ -1733,6 +1733,18 @@ def seq8(sign: int = 0) -> Column:
     return _call_function("seq8", False, Literal(sign), is_data_generator=True)
 
 
+def to_boolean(e: ColumnOrName) -> Column:
+    """Converts an input expression to a boolean.
+
+    Example::
+        >>> df = session.create_dataframe(['yes', 'no'], schema=['a'])
+        >>> df.select(to_boolean(col('a')).as_('ans')).collect()
+        [Row(ANS=True), Row(ANS=False)]
+    """
+    c = _to_col_if_str(e, "to_boolean")
+    return builtin("to_boolean")(c)
+
+
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
     """Converts an input expression to a decimal.
 
@@ -3390,7 +3402,9 @@ def to_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
     return builtin("convert_timezone")(tz_c, "UTC", c)
 
 
-def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+def to_date(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteral] = None, _emit_ast: bool = True
+) -> Column:
     """Converts an input expression into a date.
 
     Example::
@@ -3399,13 +3413,31 @@ def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         >>> df.select(to_date(col('a')).as_('ans')).collect()
         [Row(ANS=datetime.date(2013, 5, 17)), Row(ANS=datetime.date(2013, 5, 17))]
 
+        >>> df = session.create_dataframe(['2013-05-17', '2013-05-17'], schema=['a'])
+        >>> df.select(to_date(col('a'), 'YYYY-MM-DD').as_('ans')).collect()
+        [Row(ANS=datetime.date(2013, 5, 17)), Row(ANS=datetime.date(2013, 5, 17))]
+
         >>> df = session.create_dataframe(['31536000000000', '71536004000000'], schema=['a'])
         >>> df.select(to_date(col('a')).as_('ans')).collect()
         [Row(ANS=datetime.date(1971, 1, 1)), Row(ANS=datetime.date(1972, 4, 7))]
 
     """
     c = _to_col_if_str(e, "to_date")
-    return builtin("to_date")(c, fmt) if fmt is not None else builtin("to_date")(c)
+
+    ans = (
+        builtin("to_date")(c)
+        if fmt is None
+        else builtin("to_date")(c, Column._to_expr(fmt))
+    )
+    if _emit_ast:
+        ast = proto.Expr()
+        args = (e, fmt) if fmt is not None else (e,)
+        build_builtin_fn_apply(ast, "to_date", *args)
+        ans._ast = ast
+    else:
+        ans._ast = None
+
+    return ans
 
 
 def current_timestamp() -> Column:
@@ -4137,6 +4169,66 @@ def arrays_to_object(
     keys_c = _to_col_if_str(keys, "arrays_to_object")
     values_c = _to_col_if_str(values, "arrays_to_object")
     return builtin("arrays_to_object")(keys_c, values_c)
+
+
+def arrays_zip(*cols: ColumnOrName) -> Column:
+    """Returns an array of structured objects, where the N-th object contains the N-th elements of the input arrays.
+
+    Args:
+        cols: The columns to zip together.
+
+    Returns:
+        A new array of structured objects.
+
+    Examples::
+        >>> df = session.sql("select array_construct('10', '20', '30') as A, array_construct(10, 20, 30) as B")
+        >>> df.select(arrays_zip(df.a, df.b).as_("zipped")).show(statement_params={"enable_arrays_zip_function": "TRUE"})
+        -------------------
+        |"ZIPPED"         |
+        -------------------
+        |[                |
+        |  {              |
+        |    "$1": "10",  |
+        |    "$2": 10     |
+        |  },             |
+        |  {              |
+        |    "$1": "20",  |
+        |    "$2": 20     |
+        |  },             |
+        |  {              |
+        |    "$1": "30",  |
+        |    "$2": 30     |
+        |  }              |
+        |]                |
+        -------------------
+        <BLANKLINE>
+        >>> df = session.sql("select array_construct('10', '20', '30') as A, array_construct(1, 2) as B, array_construct(1.1) as C")
+        >>> df.select(arrays_zip(df.a, df.b, df.c).as_("zipped")).show(statement_params={"enable_arrays_zip_function": "TRUE"})
+        -------------------
+        |"ZIPPED"         |
+        -------------------
+        |[                |
+        |  {              |
+        |    "$1": "10",  |
+        |    "$2": 1,     |
+        |    "$3": 1.1    |
+        |  },             |
+        |  {              |
+        |    "$1": "20",  |
+        |    "$2": 2,     |
+        |    "$3": null   |
+        |  },             |
+        |  {              |
+        |    "$1": "30",  |
+        |    "$2": null,  |
+        |    "$3": null   |
+        |  }              |
+        |]                |
+        -------------------
+        <BLANKLINE>
+    """
+    cols = [_to_col_if_str(c, "arrays_zip") for c in cols]
+    return builtin("arrays_zip")(*cols)
 
 
 def array_generate_range(
@@ -7034,15 +7126,15 @@ def ntile(e: Union[int, ColumnOrName]) -> Column:
         ...     [["C", "SPY", 3], ["C", "AAPL", 10], ["N", "SPY", 5], ["N", "AAPL", 7], ["Q", "MSFT", 3]],
         ...     schema=["exchange", "symbol", "shares"]
         ... )
-        >>> df.select(col("exchange"), col("symbol"), ntile(3).over(Window.partition_by("exchange").order_by("shares")).alias("ntile_3")).show()
+        >>> df.select(col("exchange"), col("symbol"), ntile(3).over(Window.partition_by("exchange").order_by("shares")).alias("ntile_3")).order_by(["exchange","symbol"]).show()
         -------------------------------------
         |"EXCHANGE"  |"SYMBOL"  |"NTILE_3"  |
         -------------------------------------
-        |Q           |MSFT      |1          |
-        |N           |SPY       |1          |
-        |N           |AAPL      |2          |
-        |C           |SPY       |1          |
         |C           |AAPL      |2          |
+        |C           |SPY       |1          |
+        |N           |AAPL      |2          |
+        |N           |SPY       |1          |
+        |Q           |MSFT      |1          |
         -------------------------------------
         <BLANKLINE>
     """

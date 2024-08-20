@@ -5,17 +5,13 @@
 import importlib
 import inspect
 import math
-import os
 import re
-import shutil
 import statistics
-import sys
-import tempfile
 import typing
 import uuid
 from collections.abc import Iterable
 from enum import Enum
-from functools import cached_property, partial
+from functools import cached_property, partial, reduce
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
@@ -41,12 +37,8 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     UnboundedPreceding,
     WindowExpression,
 )
-from snowflake.snowpark.mock._udf_utils import (
-    coerce_variant_input,
-    remove_null_wrapper,
-    types_are_compatible,
-)
-from snowflake.snowpark.mock._util import get_fully_qualified_name
+from snowflake.snowpark.mock._udf_utils import coerce_variant_input, remove_null_wrapper
+from snowflake.snowpark.mock._util import ImportContext, get_fully_qualified_name
 from snowflake.snowpark.mock._window_utils import (
     EntireWindowIndexer,
     RowFrameIndexer,
@@ -56,8 +48,6 @@ from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 
 if TYPE_CHECKING:
     from snowflake.snowpark.mock._analyzer import MockAnalyzer
-
-from contextlib import ExitStack
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     EXCEPT,
@@ -91,6 +81,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import Join
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     CaseWhen,
+    ColumnSum,
     Expression,
     FunctionExpression,
     InExpression,
@@ -105,15 +96,20 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldInt,
     SubfieldString,
     UnresolvedAttribute,
+    WithinGroup,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    PlanQueryType,
+    Query,
+    SnowflakePlan,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     Range,
     SaveMode,
     SnowflakeCreateTable,
+    SnowflakeTable,
     SnowflakeValues,
-    UnresolvedRelation,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -142,7 +138,7 @@ from snowflake.snowpark._internal.utils import (
     parse_table_name,
 )
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.mock._functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
+from snowflake.snowpark.mock._functions import MockedFunctionRegistry, cast_column_to
 from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._select_statement import (
     MockSelectable,
@@ -155,6 +151,7 @@ from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
     TableEmulator,
+    get_coerce_result_type,
 )
 from snowflake.snowpark.mock._util import (
     convert_wildcard_to_regex,
@@ -163,24 +160,17 @@ from snowflake.snowpark.mock._util import (
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
-    ArrayType,
-    BinaryType,
     BooleanType,
     ByteType,
-    DateType,
     DecimalType,
     DoubleType,
     FloatType,
     IntegerType,
     LongType,
-    MapType,
     NullType,
     ShortType,
     StringType,
-    TimestampType,
-    TimeType,
     VariantType,
-    _IntegralType,
     _NumericType,
 )
 
@@ -235,6 +225,13 @@ class MockExecutionPlan(LogicalPlan):
     def post_actions(self):
         return []
 
+    @property
+    def execution_queries(self) -> Dict[PlanQueryType, List[Query]]:
+        return {
+            PlanQueryType.QUERIES: self.queries,
+            PlanQueryType.POST_ACTIONS: self.post_actions,
+        }
+
 
 class MockFileOperation(MockExecutionPlan):
     class Operator(str, Enum):
@@ -266,11 +263,19 @@ class MockFileOperation(MockExecutionPlan):
         self.options = options
 
 
+def coerce_order_by_arguments(order_by: List[Expression]):
+    return [
+        order if isinstance(order, SortOrder) else SortOrder(order, Ascending())
+        for order in order_by
+    ]
+
+
 def handle_order_by_clause(
     order_by: List[SortOrder],
     result_df: TableEmulator,
     analyzer: "MockAnalyzer",
     expr_to_alias: Optional[Dict[str, str]],
+    keep_added_columns: bool = False,
 ) -> TableEmulator:
     """Given an input dataframe `result_df` and a list of SortOrder expressions `order_by`, return the sorted dataframe."""
     sort_columns_array = []
@@ -294,7 +299,11 @@ def handle_order_by_clause(
     ):
         comparator = partial(custom_comparator, ascending, null_first)
         result_df = result_df.sort_values(by=column, key=comparator)
-    result_df = result_df.drop(columns=added_columns)
+
+    result_df.sorted_by = sort_columns_array
+    if not keep_added_columns:
+        result_df = result_df.drop(columns=added_columns)
+
     return result_df
 
 
@@ -350,20 +359,13 @@ def handle_function_expression(
     expr_to_alias: Dict[str, str],
     current_row=None,
 ):
-    # Special case for count_distinct
-    if exp.name.lower() == "count" and exp.is_distinct:
-        func_name = "count_distinct"
-    else:
-        func_name = exp.name.lower()
+    func = MockedFunctionRegistry.get_or_create().get_function(exp)
 
-    try:
-        original_func = getattr(
-            importlib.import_module("snowflake.snowpark.functions"), func_name
-        )
-    except AttributeError:
+    if func is None:
         current_schema = analyzer.session.get_current_schema()
         current_database = analyzer.session.get_current_database()
         udf_name = get_fully_qualified_name(exp.name, current_schema, current_database)
+
         # If udf name in the registry then this is a udf, not an actual function
         if udf_name in analyzer.session.udf._registry:
             exp.udf_name = udf_name
@@ -373,25 +375,30 @@ def handle_function_expression(
 
         if exp.api_call_source == "functions.call_udf":
             raise SnowparkLocalTestingException(
-                f"Unknown function {func_name}. UDF by that name does not exist."
+                f"Unknown function {exp.name}. UDF by that name does not exist."
             )
 
+        analyzer.session._conn.log_not_supported_error(
+            external_feature_name=exp.name,
+            error_message=f"Function {exp.name} is not implemented. You can implement and make a patch by "
+            f"using the `snowflake.snowpark.mock.patch` decorator.",
+            raise_error=NotImplementedError,
+        )
+
+    try:
+        original_func = getattr(
+            importlib.import_module("snowflake.snowpark.functions"), func.name
+        )
+    except AttributeError:
         # this is missing function in snowpark-python, need support for both live and local test
         analyzer.session._conn.log_not_supported_error(
-            external_feature_name=func_name,
-            error_message=f"Function {func_name} is not supported in snowpark-python.",
+            external_feature_name=func.name,
+            error_message=f"Function {func.name} is not supported in snowpark-python.",
             raise_error=NotImplementedError,
         )
 
     signatures = inspect.signature(original_func)
     spec = inspect.getfullargspec(original_func)
-    if func_name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
-        analyzer.session._conn.log_not_supported_error(
-            external_feature_name=func_name,
-            error_message=f"Function {func_name} is not implemented. You can implement and make a patch by "
-            f"using the `snowflake.snowpark.mock.patch` decorator.",
-            raise_error=NotImplementedError,
-        )
     to_pass_args = []
     type_hints = typing.get_type_hints(original_func)
     for idx, key in enumerate(signatures.parameters):
@@ -438,42 +445,14 @@ def handle_function_expression(
                 )
             except IndexError:
                 to_pass_args.append(None)
-    if func_name == "array_agg":
-        to_pass_args[-1] = exp.is_distinct
-    if func_name == "sum" and exp.is_distinct:
-        to_pass_args[0] = ColumnEmulator(
-            data=to_pass_args[0].unique(), sf_type=to_pass_args[0].sf_type
-        )
-    # Rank related function specific arguments
-    if func_name == "row_number":
-        # for window functions, input_data is the current window
-        to_pass_args.append(input_data)
-        row_idx = list(input_data.index).index(
-            current_row
-        )  # the row's 0-base index in the window
-        to_pass_args.append(row_idx)
 
     try:
-        result = _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+        result = func(*to_pass_args, row_number=current_row, input_data=input_data)
     except Exception as err:
         SnowparkLocalTestingException.raise_from_error(
             err,
-            error_message=f"Error executing mocked function '{func_name}'. See error traceback for detailed information.",
+            error_message=f"Error executing mocked function '{func.name}'. See error traceback for detailed information.",
         )
-
-    # If none of the args are column emulators and the function result only has one item
-    # assume that the single value should be repeated instead of Null filled. This allows
-    # constant expressions like current_date or current_database to fill a column instead
-    # of just the first row.
-    if (
-        not any(
-            isinstance(arg, (ColumnEmulator, TableEmulator)) for arg in to_pass_args
-        )
-        and len(result) == 1
-    ):
-        resized = result.repeat(len(input_data)).reset_index(drop=True)
-        resized.sf_type = result.sf_type
-        return resized
 
     return result
 
@@ -485,78 +464,11 @@ def handle_udf_expression(
     expr_to_alias: Dict[str, str],
     current_row=None,
 ):
-    udf_registry = analyzer.session.udf._registry
+    udf_registry = analyzer.session.udf
     udf_name = exp.udf_name
+    udf = udf_registry.get_udf(udf_name)
 
-    if udf_name not in udf_registry:
-        raise SnowparkLocalTestingException(f"udf {udf_name} does not exist.")
-
-    # Initialize import directory
-    temporary_import_path = tempfile.TemporaryDirectory()
-    last_import_directory = sys._xoptions.get("snowflake_import_directory")
-    sys._xoptions["snowflake_import_directory"] = temporary_import_path.name
-
-    # Save a copy of module cache
-    frozen_sys_module_keys = set(sys.modules.keys())
-    # Save a copy of sys path
-    frozen_sys_path = list(sys.path)
-
-    def cleanup_imports():
-        added_path = set(sys.path) - set(frozen_sys_path)
-        if udf_name in analyzer.session.udf._udf_level_imports:
-            # Remove UDF level imports
-            for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
-                if module_path in added_path:
-                    sys.path.remove(module_path)
-        else:
-            # Remove session level imports
-            for module_path in analyzer.session.udf._session_level_imports:
-                if module_path in added_path:
-                    sys.path.remove(module_path)
-
-        # Clear added entries in sys.modules cache
-        added_keys = set(sys.modules.keys()) - frozen_sys_module_keys
-        for key in added_keys:
-            del sys.modules[key]
-
-        # Cleanup import directory
-        temporary_import_path.cleanup()
-
-        # Restore snowflake_import_directory
-        if last_import_directory is not None:
-            sys._xoptions["snowflake_import_directory"] = last_import_directory
-        else:
-            del sys._xoptions["snowflake_import_directory"]
-
-    with ExitStack() as stack:
-        stack.callback(cleanup_imports)
-
-        # Process imports
-        if udf_name in analyzer.session.udf._udf_level_imports:
-            # Add UDF level imports
-            for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
-                if module_path not in sys.path:
-                    sys.path.append(module_path)
-                if os.path.isdir(module_path):
-                    shutil.copytree(
-                        module_path, temporary_import_path.name, dirs_exist_ok=True
-                    )
-                else:
-                    shutil.copy2(module_path, temporary_import_path.name)
-        else:
-            # Add session level imports
-            for module_path in analyzer.session.udf._session_level_imports:
-                if module_path not in sys.path:
-                    sys.path.append(module_path)
-                if os.path.isdir(module_path):
-                    shutil.copytree(
-                        module_path, temporary_import_path.name, dirs_exist_ok=True
-                    )
-                else:
-                    shutil.copy2(module_path, temporary_import_path.name)
-
-        udf = udf_registry[udf_name]
-
+    with ImportContext(udf_registry.get_udf_imports(udf_name)):
         # Resolve handler callable
         if type(udf.func) is tuple:
             module_name, handler_name = udf.func
@@ -592,7 +504,12 @@ def handle_udf_expression(
 
             function_input[col_name] = column_data
 
-            if not types_are_compatible(column_data.sf_type.datatype, expected_type):
+            if (
+                get_coerce_result_type(
+                    column_data.sf_type, ColumnType(expected_type, False)
+                )
+                is None
+            ):
                 raise SnowparkLocalTestingException(
                     f"UDF received input type {column_data.sf_type.datatype} for column {child.name}, but expected input type of {expected_type}"
                 )
@@ -824,7 +741,7 @@ def execute_mock_plan(
                 )
         return res_df
     if isinstance(source_plan, MockSelectableEntity):
-        entity_name = source_plan.entity_name
+        entity_name = source_plan.entity.name
         if entity_registry.is_existing_table(entity_name):
             return entity_registry.read_table(entity_name)
         elif entity_registry.is_existing_view(entity_name):
@@ -863,6 +780,16 @@ def execute_mock_plan(
         for i in range(len(intermediate_mapped_column)):
             agg_expr = source_plan.aggregate_expressions[i]
             if isinstance(agg_expr, Alias):
+                # Pop wthin group clause and reorder data if needed
+                if isinstance(agg_expr.child, WithinGroup):
+                    order_by_cols = coerce_order_by_arguments(
+                        agg_expr.child.order_by_cols
+                    )
+                    child_rf = handle_order_by_clause(
+                        order_by_cols, child_rf, analyzer, expr_to_alias, False
+                    )
+                    agg_expr = agg_expr.child
+
                 if isinstance(agg_expr.child, Literal) and isinstance(
                     agg_expr.child.datatype, _NumericType
                 ):
@@ -1189,18 +1116,14 @@ def execute_mock_plan(
     if isinstance(source_plan, MockFileOperation):
         return execute_file_operation(source_plan, analyzer)
     if isinstance(source_plan, SnowflakeCreateTable):
-        if source_plan.column_names is not None:
-            analyzer.session._conn.log_not_supported_error(
-                external_feature_name="Inserting data into table by matching columns",
-                internal_feature_name=type(source_plan).__name__,
-                parameters_info={"source_plan.column_names": "True"},
-                raise_error=NotImplementedError,
-            )
         res_df = execute_mock_plan(source_plan.query, expr_to_alias)
         return entity_registry.write_table(
-            source_plan.table_name, res_df, source_plan.mode
+            source_plan.table_name,
+            res_df,
+            source_plan.mode,
+            column_names=source_plan.column_names,
         )
-    if isinstance(source_plan, UnresolvedRelation):
+    if isinstance(source_plan, SnowflakeTable):
         entity_name = source_plan.name
         if entity_registry.is_existing_table(entity_name):
             return entity_registry.read_table(entity_name)
@@ -1235,9 +1158,11 @@ def execute_mock_plan(
             )
 
         return res_df.sample(
-            n=None
-            if source_plan.row_count is None
-            else min(source_plan.row_count, len(res_df)),
+            n=(
+                None
+                if source_plan.row_count is None
+                else min(source_plan.row_count, len(res_df))
+            ),
             frac=source_plan.probability_fraction,
             random_state=source_plan.seed,
         )
@@ -1457,7 +1382,7 @@ def execute_mock_plan(
 
                 # Calculate rows to insert
                 rows_to_insert = TableEmulator(
-                    [], columns=target.drop(ROW_ID, axis=1).columns
+                    [], columns=target.drop(ROW_ID, axis=1).columns, dtype=object
                 )
                 rows_to_insert.sf_types = target.sf_types
                 if clause.keys:
@@ -1473,7 +1398,13 @@ def execute_mock_plan(
                         new_val = calculate_expression(
                             v, unmatched_rows_in_source, analyzer, expr_to_alias
                         )
-                        rows_to_insert[column_name] = new_val
+                        # pandas could do implicit type conversion, e.g. from datetime to timestamp
+                        # reconstructing ColumnEmulator helps preserve the original date type
+                        rows_to_insert[column_name] = ColumnEmulator(
+                            new_val.values,
+                            dtype=object,
+                            sf_type=rows_to_insert[column_name].sf_type,
+                        )
 
                     # For unspecified columns, use None as default value
                     for unspecified_col in set(rows_to_insert.columns).difference(
@@ -1657,9 +1588,10 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
                 data_type = LongType()
             elif isinstance(data_type, StringType):
                 data_type.length = (
-                    StringType._MAX_LENGTH
-                    if data_type.length is None
-                    else data_type.length
+                    data_type.length or plan.session._conn.max_string_size
+                )
+                data_type._is_max_size = (
+                    data_type.length == plan.session._conn.max_string_size
                 )
 
             ret.append(
@@ -1686,6 +1618,8 @@ def calculate_expression(
     setting keep_literal to false returns a ColumnEmulator wrapping the Python datatype of a Literal
     """
     import numpy as np
+
+    registry = MockedFunctionRegistry.get_or_create()
 
     if isinstance(exp, Attribute):
         try:
@@ -1714,27 +1648,31 @@ def calculate_expression(
     if isinstance(exp, ListAgg):
         lhs = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)
         lhs.sf_type = ColumnType(StringType(), exp.col.nullable)
-        return _MOCK_FUNCTION_IMPLEMENTATION_MAP["listagg"](
+        return registry.get_function("listagg")(
             lhs,
             is_distinct=exp.is_distinct,
             delimiter=exp.delimiter,
         )
+    if isinstance(exp, WithinGroup):
+        order_by_cols = coerce_order_by_arguments(exp.order_by_cols)
+        ordered_data = handle_order_by_clause(
+            order_by_cols, input_data, analyzer, expr_to_alias, False
+        )
+        return calculate_expression(exp.child, ordered_data, analyzer, expr_to_alias)
     if isinstance(exp, IsNull):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
         )
-        return ColumnEmulator(
-            data=[bool(data is None) for data in child_column],
-            sf_type=ColumnType(BooleanType(), True),
-        )
+        res = child_column.apply(lambda x: bool(x is None))
+        res.sf_type = ColumnType(BooleanType(), True)
+        return res
     if isinstance(exp, IsNotNull):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
         )
-        return ColumnEmulator(
-            data=[bool(data is not None) for data in child_column],
-            sf_type=ColumnType(BooleanType(), True),
-        )
+        res = child_column.apply(lambda x: bool(x is not None))
+        res.sf_type = ColumnType(BooleanType(), True)
+        return res
     if isinstance(exp, IsNaN):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
@@ -1778,8 +1716,6 @@ def calculate_expression(
         right = fix_drift_between_column_sf_type_and_dtype(
             calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
         )
-        # TODO: Address mixed type calculation here. For instance Snowflake allows to add a date to a number, but
-        #  pandas doesn't allow. Type coercion will address it.
         if isinstance(exp, Multiply):
             new_column = left * right
         elif isinstance(exp, Divide):
@@ -1801,9 +1737,16 @@ def calculate_expression(
                 new_column[
                     left.apply(lambda x: x is not None and np.isnan(x))
                     & right.apply(lambda x: x is not None and np.isnan(x))
-                ] = True
-                # NaN == NaN evaluates to False in pandas, but True in Snowflake
+                ] = True  # NaN == NaN evaluates to False in pandas, but True in Snowflake
                 new_column[new_column.isna() | new_column.isnull()] = False
+            # Special case when [1,2,3] == (1,2,3) should evaluate to True
+            index = left.combine(
+                right,
+                lambda x, y: isinstance(x, (list, tuple))
+                and isinstance(y, (list, tuple))
+                and tuple(x) == tuple(y),
+            )
+            new_column[index] = True
         elif isinstance(exp, NotEqualTo):
             new_column = left != right
         elif isinstance(exp, GreaterThanOrEqual):
@@ -1850,6 +1793,12 @@ def calculate_expression(
                 raise_error=NotImplementedError,
             )
         return new_column
+    elif isinstance(exp, ColumnSum):
+        cols = [
+            calculate_expression(e, input_data, analyzer, expr_to_alias)
+            for e in exp.exprs
+        ]
+        return reduce(ColumnEmulator.add, cols)
     if isinstance(exp, UnaryMinus):
         res = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
         return -res
@@ -1858,11 +1807,36 @@ def calculate_expression(
         raw_pattern = calculate_expression(
             exp.pattern, input_data, analyzer, expr_to_alias
         )
-        arguments = TableEmulator({"LHS": lhs, "PATTERN": raw_pattern})
+        flags = (
+            None
+            if exp.parameters is None
+            else calculate_expression(
+                exp.parameters, input_data, analyzer, expr_to_alias
+            )
+        )
+        arguments = TableEmulator({"LHS": lhs, "PATTERN": raw_pattern, "FLAGS": flags})
 
         def _match_pattern(row) -> bool:
             input_str = row["LHS"]
             raw_pattern = row["PATTERN"]
+            flag_string = row["FLAGS"]
+            flags = 0
+
+            if flag_string:
+                case = multiline = newline = 0
+                for c in flag_string.lower():
+                    if c == "c":
+                        case = 0
+                    elif c == "i":
+                        case = re.I
+                    elif c == "m":
+                        # Multi-line mode does not appear to work correctly on the server side
+                        # multiline = re.M
+                        pass
+                    elif c == "s":
+                        newline = re.S
+                flags = case | multiline | newline
+
             _pattern = (
                 f"^{raw_pattern}" if not raw_pattern.startswith("^") else raw_pattern
             )
@@ -1875,18 +1849,19 @@ def calculate_expression(
                     f"Invalid regular expression {raw_pattern}"
                 )
 
-            return bool(re.match(_pattern, input_str))
+            return bool(re.match(_pattern, input_str, flags=flags))
 
         result = arguments.apply(_match_pattern, axis=1)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
     if isinstance(exp, Like):
         lhs = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
+
         pattern = convert_wildcard_to_regex(
             str(
-                calculate_expression(exp.pattern, input_data, analyzer, expr_to_alias)[
-                    0
-                ]
+                calculate_expression(
+                    exp.pattern, input_data, analyzer, expr_to_alias
+                ).iloc[0]
             )
         )
         result = lhs.str.match(pattern)
@@ -1926,120 +1901,94 @@ def calculate_expression(
         return res
     if isinstance(exp, Cast):
         column = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
-        if isinstance(exp.to, DateType):
-            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_date"](
-                column, try_cast=exp.try_
-            )
-        elif isinstance(exp.to, TimeType):
-            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_time"](
-                column, try_cast=exp.try_
-            )
-        elif isinstance(exp.to, TimestampType):
-            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_timestamp"](
-                column, try_cast=exp.try_
-            )
-        elif isinstance(exp.to, DecimalType):
-            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_decimal"](
-                column,
-                precision=exp.to.precision,
-                scale=exp.to.scale,
-                try_cast=exp.try_,
-            )
-        elif isinstance(
-            exp.to, _IntegralType
-        ):  # includes ByteType, ShortType, IntegerType, LongType
-            res = _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_decimal"](
-                column, try_cast=exp.try_
-            )
-            res.set_sf_type(ColumnType(exp.to, nullable=column.sf_type.nullable))
-            return res
-        elif isinstance(exp.to, BinaryType):
-            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_binary"](
-                column, try_cast=exp.try_
-            )
-        elif isinstance(exp.to, BooleanType):
-            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_boolean"](
-                column, try_cast=exp.try_
-            )
-        elif isinstance(exp.to, StringType):
-            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_char"](
-                column, try_cast=exp.try_
-            )
-        elif isinstance(exp.to, (DoubleType, FloatType)):
-            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_double"](
-                column, try_cast=exp.try_
-            )
-        elif isinstance(exp.to, MapType):
-            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_object"](column)
-        elif isinstance(exp.to, ArrayType):
-            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_array"](column)
-        elif isinstance(exp.to, VariantType):
-            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_variant"](column)
-        else:
+        res = cast_column_to(column, ColumnType(exp.to, True), exp.try_)
+        if res is None:
             analyzer.session._conn.log_not_supported_error(
                 external_feature_name=f"Cast to {type(exp.to).__name__}",
                 internal_feature_name=type(exp).__name__,
                 parameters_info={"exp.to": type(exp.to).__name__},
                 raise_error=NotImplementedError,
             )
+        return res
     if isinstance(exp, CaseWhen):
         remaining = input_data
-        output_data = ColumnEmulator([None] * len(input_data))
+        output_data = ColumnEmulator([None] * len(input_data), index=input_data.index)
         for case in exp.branches:
-            if len(remaining) == 0:
-                break
             condition = calculate_expression(
                 case[0], input_data, analyzer, expr_to_alias
             ).fillna(value=False)
             value = calculate_expression(case[1], input_data, analyzer, expr_to_alias)
 
+            if output_data.sf_type is None:
+                output_data.sf_type = value.sf_type
+            elif any(condition) and (
+                output_data.sf_type.datatype != value.sf_type.datatype
+            ):
+                coerce_result = get_coerce_result_type(
+                    output_data.sf_type, value.sf_type
+                ) or get_coerce_result_type(output_data.sf_type, value.sf_type)
+                if coerce_result is None:
+                    raise SnowparkLocalTestingException(
+                        f"CaseWhen expressions have conflicting data types: {output_data.sf_type.datatype} != {value.sf_type.datatype}"
+                    )
+                else:
+                    output_data = cast_column_to(output_data, coerce_result)
+                    value = cast_column_to(value, coerce_result)
+
             true_index = remaining[condition].index
             output_data[true_index] = value[true_index]
             remaining = remaining[~remaining.index.isin(true_index)]
 
-            if output_data.sf_type:
-                if (
-                    not isinstance(output_data.sf_type.datatype, NullType)
-                    and output_data.sf_type != value.sf_type
-                ):
-                    raise SnowparkLocalTestingException(
-                        f"CaseWhen expressions have conflicting data types: {output_data.sf_type} != {value.sf_type}"
-                    )
-            else:
-                output_data.sf_type = value.sf_type
+            if len(remaining) == 0:
+                break
 
         if len(remaining) > 0 and exp.else_value:
             value = calculate_expression(
                 exp.else_value, remaining, analyzer, expr_to_alias
             )
-            output_data[remaining.index] = value[remaining.index]
-            if output_data.sf_type:
-                if (
-                    not isinstance(output_data.sf_type.datatype, NullType)
-                    and output_data.sf_type.datatype != value.sf_type.datatype
-                ):
+            if output_data.sf_type is None:
+                output_data.sf_type = value.sf_type
+            elif output_data.sf_type.datatype != value.sf_type.datatype:
+                coerce_result = get_coerce_result_type(
+                    output_data.sf_type, value.sf_type
+                )
+                if coerce_result is None:
                     raise SnowparkLocalTestingException(
                         f"CaseWhen expressions have conflicting data types: {output_data.sf_type.datatype} != {value.sf_type.datatype}"
                     )
-            else:
-                output_data.sf_type = value.sf_type
+                else:
+                    value = cast_column_to(value, coerce_result)
+            output_data[remaining.index] = value[remaining.index]
+
         return output_data
     if isinstance(exp, WindowExpression):
         window_function = exp.window_function
         window_spec = exp.window_spec
 
         # Process order by clause
-        if window_spec.order_spec:
-            res = handle_order_by_clause(
-                window_spec.order_spec, input_data, analyzer, expr_to_alias
+        if window_spec.order_spec or isinstance(window_function, WithinGroup):
+            order_spec = window_spec.order_spec
+            if isinstance(window_function, WithinGroup):
+                order_spec = coerce_order_by_arguments(window_function.order_by_cols)
+                window_function = window_function.child
+
+            # If the window function is a function expression then any intermediate
+            # columns that are used for ordering may be needed later and should be retained.
+            ordered = handle_order_by_clause(
+                order_spec,
+                input_data,
+                analyzer,
+                expr_to_alias,
+                isinstance(window_function, (FunctionExpression)),
             )
         elif is_rank_related_window_function(window_function):
             raise SnowparkLocalTestingException(
                 f"Window function type [{str(window_function)}] requires ORDER BY in window specification"
             )
         else:
-            res = input_data
+            ordered = input_data
 
+        res = ordered
         res_index = res.index  # List of row indexes of the result
 
         # Process partition_by clause
@@ -2070,8 +2019,8 @@ def calculate_expression(
                 )
             else:
                 indexer = EntireWindowIndexer()
-                res = res.rolling(indexer)
-                windows = [input_data.loc[w.index] for w in res]
+                rolling = res.rolling(indexer)
+                windows = [ordered.loc[w.index] for w in rolling]
 
         elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
             indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
@@ -2114,7 +2063,7 @@ def calculate_expression(
                         window_function, w, analyzer, expr_to_alias, current_row
                     )
                 )
-            res_col = pd.concat(res_cols)
+            res_col = pd.concat(res_cols) if res_cols else ColumnEmulator([])
             res_col.index = res_index
             if res_cols:
                 res_col.set_sf_type(res_cols[0].sf_type)
@@ -2214,29 +2163,52 @@ def calculate_expression(
                     delta = 1 if offset > 0 else -1
                     cur_idx = row_idx + delta
                     cur_count = 0
+                    # default calc_expr is None for the case of cur_idx < 0 or cur_idx >= len(w)
+                    # if cur_idx is within the value, it will be overwritten by the following valid value
+                    calc_expr = ColumnEmulator(
+                        [None], sf_type=ColumnType(NullType(), True), dtype=object
+                    )
+                    target_value = calc_expr.iloc[0]
                     while 0 <= cur_idx < len(w):
-                        target_expr = calculate_expression(
+                        calc_expr = calculate_expression(
                             window_function.expr,
                             w.iloc[[cur_idx]],
                             analyzer,
                             expr_to_alias,
-                        ).iloc[0]
-                        if target_expr is not None:
+                        )
+                        target_value = calc_expr.iloc[0]
+                        if target_value is not None:
                             cur_count += 1
                             if cur_count == abs(offset):
                                 break
                         cur_idx += delta
-                    if cur_idx < 0 or cur_idx >= len(w):
-                        res_cols.append(
-                            calculate_expression(
-                                window_function.default,
-                                w,
-                                analyzer,
-                                expr_to_alias,
-                            ).iloc[0]
-                        )
-                    else:
-                        res_cols.append(target_expr)
+                    if not calculated_sf_type:
+                        calculated_sf_type = calc_expr.sf_type
+                    elif calculated_sf_type.datatype != calc_expr.sf_type.datatype:
+                        if isinstance(calculated_sf_type.datatype, NullType):
+                            calculated_sf_type = calc_expr.sf_type
+                        # the result calculated upon a windows can be None, this is still valid and we can keep
+                        # the calculation
+                        elif not isinstance(  # pragma: no cover
+                            calc_expr.sf_type.datatype, NullType
+                        ):
+                            analyzer.session._conn.log_not_supported_error(  # pragma: no cover
+                                external_feature_name=f"Coercion of detected type"
+                                f" {type(calculated_sf_type.datatype).__name__}"
+                                f" and type {type(calc_expr.sf_type.datatype).__name__}",
+                                internal_feature_name=type(exp).__name__,
+                                parameters_info={
+                                    "window_function": type(window_function).__name__,
+                                    "calc_expr.sf_type.datatype": str(
+                                        type(calc_expr.sf_type.datatype).__name__
+                                    ),
+                                    "calculated_sf_type.datatype": str(
+                                        type(calculated_sf_type.datatype).__name__
+                                    ),
+                                },
+                                raise_error=SnowparkLocalTestingException,
+                            )
+                    res_cols.append(target_value)
             res_col = ColumnEmulator(
                 data=res_cols, dtype=object
             )  # dtype=object prevents implicit converting None to Nan
