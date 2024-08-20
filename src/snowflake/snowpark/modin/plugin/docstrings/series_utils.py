@@ -1859,11 +1859,11 @@ class CombinedDatetimelikeProperties:
         DatetimeIndex
 
         >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
-        >>> rng  # doctest: +SKIP
+        >>> rng
         DatetimeIndex(['2018-01-01 11:59:00', '2018-01-01 12:00:00',
                        '2018-01-01 12:01:00'],
                       dtype='datetime64[ns]', freq='min')
-        >>> rng.round('h')  # doctest: +SKIP
+        >>> rng.round('h')
         DatetimeIndex(['2018-01-01 12:00:00', '2018-01-01 12:00:00',
                        '2018-01-01 12:00:00'],
                       dtype='datetime64[ns]', freq=None)
@@ -1929,11 +1929,11 @@ class CombinedDatetimelikeProperties:
         DatetimeIndex
 
         >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
-        >>> rng  # doctest: +SKIP
+        >>> rng
         DatetimeIndex(['2018-01-01 11:59:00', '2018-01-01 12:00:00',
                     '2018-01-01 12:01:00'],
                     dtype='datetime64[ns]', freq='min')
-        >>> rng.floor('h')  # doctest: +SKIP
+        >>> rng.floor('h')
         DatetimeIndex(['2018-01-01 11:00:00', '2018-01-01 12:00:00',
                     '2018-01-01 12:00:00'],
                     dtype='datetime64[ns]', freq=None)
@@ -2000,11 +2000,11 @@ class CombinedDatetimelikeProperties:
         DatetimeIndex
 
         >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
-        >>> rng  # doctest: +SKIP
+        >>> rng
         DatetimeIndex(['2018-01-01 11:59:00', '2018-01-01 12:00:00',
                     '2018-01-01 12:01:00'],
                     dtype='datetime64[ns]', freq='min')
-        >>> rng.ceil('h')  # doctest: +SKIP
+        >>> rng.ceil('h')
         DatetimeIndex(['2018-01-01 12:00:00', '2018-01-01 12:00:00',
                     '2018-01-01 13:00:00'],
                     dtype='datetime64[ns]', freq=None)
