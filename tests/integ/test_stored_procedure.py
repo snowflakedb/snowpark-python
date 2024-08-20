@@ -1914,3 +1914,50 @@ def test_stored_proc_register_with_module(session):
         source_code_display=False,
         packages=packages,
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Requires live XP to run query",
+)
+def test_child_queries_in_multithreading_are_parallelized(session):
+    def are_child_queries_concurrent(expected_concurrent):
+        import concurrent.futures
+        import time
+
+        # Setup takes around 0.7s, so the total serialized duration can't be too small.
+        sleep_dur_ms = 250
+
+        def create_dataframe(i):
+            session.sql(f"select system$wait({sleep_dur_ms}, 'MILLISECONDS')").collect()
+            return [i]
+
+        num_threads = 5
+        futures = []
+        start = time.perf_counter()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            for i in range(num_threads):
+                futures.append(executor.submit(create_dataframe, i))
+
+        for _, future in enumerate(futures):
+            future.result()
+
+        end = time.perf_counter()
+        elapsed_s = end - start
+        expected_s = num_threads * (sleep_dur_ms / 1000)
+        is_concurrent = elapsed_s < expected_s
+
+        assert is_concurrent is expected_concurrent
+        return is_concurrent
+
+    are_child_queries_concurrent_sp = session.sproc.register(
+        are_child_queries_concurrent,
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+
+    for expect_concurrent in (True, False):
+        session._conn._conn._session_parameters[
+            "RUN_ALL_STORED_PROCEDURES_ASYNC_PYTHON"
+        ] = expect_concurrent
+        are_child_queries_concurrent_sp(expect_concurrent)
