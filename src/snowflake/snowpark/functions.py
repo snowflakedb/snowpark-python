@@ -327,6 +327,29 @@ def sql_expr(sql: str) -> Column:
     return Column._expr(sql)
 
 
+def system_reference(
+    object_type: str,
+    object_identifier: str,
+    scope: str = "CALL",
+    privileges: Optional[List[str]] = None,
+):
+    """
+    Returns a reference to an object (a table, view, or function). When you execute SQL actions on a
+    reference to an object, the actions are performed using the role of the user who created the
+    reference.
+
+    Example::
+        >>> df = session.create_dataframe([(1,)], schema=["A"])
+        >>> df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
+        >>> df.select(substr(system_reference("table", "my_table"), 1, 14).alias("identifier")).collect()
+        [Row(IDENTIFIER='ENT_REF_TABLE_')]
+    """
+    privileges = privileges or []
+    return builtin("system$reference")(
+        object_type, object_identifier, scope, *privileges
+    )
+
+
 def current_session() -> Column:
     """
     Returns a unique system identifier for the Snowflake session corresponding to the present connection.
