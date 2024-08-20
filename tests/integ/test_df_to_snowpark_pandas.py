@@ -10,6 +10,14 @@ import pytest
 from snowflake.snowpark._internal.utils import TempObjectType
 from tests.utils import Utils
 
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="This is testing Snowpark pandas installation",
+        run=False,
+    )
+]
+
 
 @pytest.fixture(scope="module")
 def tmp_table_basic(session):
@@ -29,11 +37,14 @@ def tmp_table_basic(session):
 
 def test_to_snowpark_pandas_no_modin(session, tmp_table_basic):
     snowpark_df = session.table(tmp_table_basic)
-    # Check if modin is installed
+    # Check if modin is installed (if so, we're running in Snowpark pandas; if not, we're just in Snowpark Python)
     try:
         import modin  # noqa: F401
 
         snowpark_df.to_snowpark_pandas()  # should have no errors
     except ModuleNotFoundError:
-        with pytest.raises(ModuleNotFoundError, match="Modin is not installed."):
+        with pytest.raises(
+            ModuleNotFoundError,
+            match=r"(Modin is not installed)|(does not match the supported pandas version in Modin)",
+        ):
             snowpark_df.to_snowpark_pandas()
