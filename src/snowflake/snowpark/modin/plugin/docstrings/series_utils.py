@@ -1186,7 +1186,7 @@ class CombinedDatetimelikeProperties:
         >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
         ...                         "2/1/2020 11:00:00+00:00"])
         >>> idx.time
-        array([datetime.time(10, 0), datetime.time(11, 0)], dtype=object)
+        Index([10:00:00, 11:00:00], dtype=object)
         """
 
     @property
@@ -1439,7 +1439,7 @@ class CombinedDatetimelikeProperties:
         2017-01-06    4
         2017-01-07    5
         2017-01-08    6
-        Freq: D, dtype: int32
+        Freq: None, dtype: int16
         """
 
     @property
