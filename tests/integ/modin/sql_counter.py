@@ -14,7 +14,7 @@ import pytest
 from decorator import decorator
 from pandas._typing import Scalar
 
-from snowflake.snowpark import QueryRecord
+from snowflake.snowpark import QueryListener, QueryRecord
 from snowflake.snowpark.session import Session
 from tests.utils import IS_IN_STORED_PROC
 
@@ -86,7 +86,7 @@ FILTER_OUT_QUERIES = [
 sql_count_records = {}
 
 
-class SqlCounter:
+class SqlCounter(QueryListener):
     """
     SqlCounter is an object that counts metrics related to snowpark queries.  This includes things like query counts
     and join counts.  It can be extended to cover other counts as well.

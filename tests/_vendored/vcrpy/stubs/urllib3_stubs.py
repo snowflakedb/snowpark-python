@@ -6,7 +6,6 @@ from urllib3._version import __version__ as urllib3_version
 def urllib3_renamed_version() -> bool:
     """Helper function to patch code."""
     urllib3_maj, urllib3_min, urllib3_micro = tuple([int(part) for part in urllib3_version.split('.')])
-    print(f'urllib3 version: {urllib3_version}')
     return urllib3_maj >= 2 or (urllib3_maj == 1 and urllib3_min == 25 and urllib3_micro >= 9) or (urllib3_maj == 1 and urllib3_min > 25)
 
 
