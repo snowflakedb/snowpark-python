@@ -1563,7 +1563,7 @@ def to_csv(
     self,
     path_or_buf=None,
     sep=",",
-    na_rep=",",
+    na_rep="",
     float_format=None,
     columns=None,
     header=True,
