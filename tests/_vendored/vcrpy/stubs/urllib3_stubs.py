@@ -2,8 +2,13 @@
 
 # Urllib3 1.25.9 renamed VerifiedHTTPSConnection to HTTPSConnection
 from urllib3._version import __version__ as urllib3_version
-urllib3_maj, urllib3_min, urllib3_micro = tuple([int(part) for part in urllib3_version.split('.')])
-if (urllib3_min == 25 and urllib3_micro >= 9) or urllib3_min > 25:
+def urllib3_renamed_version() -> bool:
+    """Helper function to patch code."""
+    urllib3_maj, urllib3_min, urllib3_micro = tuple([int(part) for part in urllib3_version.split('.')])
+    return (urllib3_min == 25 and urllib3_micro >= 9) or urllib3_min > 25
+
+
+if urllib3_renamed_version():
     from urllib3.connectionpool import HTTPConnection
     from urllib3.connectionpool import HTTPSConnection as VerifiedHTTPSConnection
 else:
