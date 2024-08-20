@@ -308,147 +308,255 @@ class Column:
 
     def __eq__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Equal to."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.eq)
-        ast.lhs.CopyFrom(self._ast)
-        build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
-        right = Column._to_expr(other)
-        return Column(EqualTo(self._expression, right), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.eq)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+            right = Column._to_expr(other)
+        return Column(EqualTo(self._expression, right), ast=expr, _emit_ast=_emit_ast)
 
     def __ne__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Not equal to."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.neq)
-        ast.lhs.CopyFrom(self._ast)
-        build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
-        right = Column._to_expr(other)
-        return Column(NotEqualTo(self._expression, right), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.neq)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+            right = Column._to_expr(other)
+        return Column(
+            NotEqualTo(self._expression, right), ast=expr, _emit_ast=_emit_ast
+        )
 
     def __gt__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Greater than."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.gt)
-        ast.lhs.CopyFrom(self._ast)
-        build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
-        return Column(GreaterThan(self._expression, Column._to_expr(other)), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.gt)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            GreaterThan(self._expression, Column._to_expr(other)),
+            ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __lt__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Less than."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.lt)
-        ast.lhs.CopyFrom(self._ast)
-        build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
-        return Column(LessThan(self._expression, Column._to_expr(other)), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.lt)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            LessThan(self._expression, Column._to_expr(other)),
+            ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __ge__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Greater than or equal to."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.geq)
-        ast.lhs.CopyFrom(self._ast)
-        build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.geq)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
-            GreaterThanOrEqual(self._expression, Column._to_expr(other)), ast=expr
+            GreaterThanOrEqual(self._expression, Column._to_expr(other)),
+            ast=expr,
+            _emit_ast=_emit_ast,
         )
 
     def __le__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Less than or equal to."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.leq)
-        ast.lhs.CopyFrom(self._ast)
-        build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.leq)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
-            LessThanOrEqual(self._expression, Column._to_expr(other)), ast=expr
+            LessThanOrEqual(self._expression, Column._to_expr(other)),
+            ast=expr,
+            _emit_ast=_emit_ast,
         )
 
     def __add__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Plus."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.add)
-        ast.lhs.CopyFrom(self._ast)
-        build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
-        return Column(Add(self._expression, Column._to_expr(other)), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.add)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            Add(self._expression, Column._to_expr(other)), ast=expr, _emit_ast=_emit_ast
+        )
 
     def __radd__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        expr = proto.Expr()
-        ast = with_src_position(expr.add)
-        build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
-        ast.rhs.CopyFrom(self._ast)
-        return Column(Add(Column._to_expr(other), self._expression), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.add)
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            Add(Column._to_expr(other), self._expression), ast=expr, _emit_ast=_emit_ast
+        )
 
     def __sub__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Minus."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.sub)
-        ast.lhs.CopyFrom(self._ast)
-        build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
-        return Column(Subtract(self._expression, Column._to_expr(other)), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.sub)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            Subtract(self._expression, Column._to_expr(other)),
+            ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __rsub__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        expr = proto.Expr()
-        ast = with_src_position(expr.sub)
-        build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
-        ast.rhs.CopyFrom(self._ast)
-        return Column(Subtract(Column._to_expr(other), self._expression), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.sub)
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            Subtract(Column._to_expr(other), self._expression),
+            ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __mul__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Multiply."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.mul)
-        ast.lhs.CopyFrom(self._ast)
-        build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
-        return Column(Multiply(self._expression, Column._to_expr(other)), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.mul)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            Multiply(self._expression, Column._to_expr(other)),
+            ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __rmul__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        expr = proto.Expr()
-        ast = with_src_position(expr.mul)
-        build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
-        ast.rhs.CopyFrom(self._ast)
-        return Column(Multiply(Column._to_expr(other), self._expression), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.mul)
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            Multiply(Column._to_expr(other), self._expression),
+            ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __truediv__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Divide."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.div)
-        ast.lhs.CopyFrom(self._ast)
-        build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
-        return Column(Divide(self._expression, Column._to_expr(other)), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.div)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            Divide(self._expression, Column._to_expr(other)),
+            ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __rtruediv__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        expr = proto.Expr()
-        ast = with_src_position(expr.div)
-        build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
-        ast.rhs.CopyFrom(self._ast)
-        return Column(Divide(Column._to_expr(other), self._expression), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.div)
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            Divide(Column._to_expr(other), self._expression),
+            ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __mod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Remainder."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.mod)
-        ast.lhs.CopyFrom(self._ast)
-        build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
-        return Column(Remainder(self._expression, Column._to_expr(other)), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.mod)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            Remainder(self._expression, Column._to_expr(other)),
+            ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __rmod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        expr = proto.Expr()
-        ast = with_src_position(expr.mod)
-        build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
-        ast.rhs.CopyFrom(self._ast)
-        return Column(Remainder(Column._to_expr(other), self._expression), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.mod)
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            Remainder(Column._to_expr(other), self._expression),
+            ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __pow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Power."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.pow)
-        ast.lhs.CopyFrom(self._ast)
-        build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
-        return Column(Pow(self._expression, Column._to_expr(other)), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.pow)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            Pow(self._expression, Column._to_expr(other)), ast=expr, _emit_ast=_emit_ast
+        )
 
     def __rpow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        expr = proto.Expr()
-        ast = with_src_position(expr.pow)
-        build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
-        ast.rhs.CopyFrom(self._ast)
-        return Column(Pow(Column._to_expr(other), self._expression), ast=expr)
+        expr = None
+        _emit_ast = bool(self._ast is not None)
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.pow)
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            Pow(Column._to_expr(other), self._expression), ast=expr, _emit_ast=_emit_ast
+        )
 
     def __bool__(self) -> bool:
         raise TypeError(
@@ -476,6 +584,7 @@ class Column:
             Iterable[LiteralType],
             "snowflake.snowpark.DataFrame",
         ],
+        _emit_ast: bool = True,
     ) -> "Column":
         """Returns a conditional expression that you can pass to the :meth:`DataFrame.filter`
         or where :meth:`DataFrame.where` to perform the equivalent of a WHERE ... IN query
@@ -516,7 +625,13 @@ class Column:
 
         # If cols is an empty list then in_ will always be False
         if not cols:
-            return Column(Literal(False))
+            ast = None
+            if _emit_ast:
+                ast = proto.Expr()
+                proto_ast = ast.sp_column_in__seq
+                proto_ast.col.CopyFrom(self._ast)
+
+            return Column(Literal(False), ast=ast, _emit_ast=_emit_ast)
 
         cols = [_to_col_if_lit(col, "in_") for col in cols]
 
@@ -565,17 +680,23 @@ class Column:
             for ve in value_expressions:
                 validate_value(ve)
 
-        ast = proto.Expr()
-        proto_ast = ast.sp_column_in__seq
-        proto_ast.col.CopyFrom(self._ast)
-        for val in vals:
-            val_ast = proto_ast.values.add()
-            if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
-                val.set_ast_ref(val_ast)
-            else:
-                build_expr_from_python_val(val_ast, val)
+        ast = None
+        if _emit_ast:
+            ast = proto.Expr()
+            proto_ast = ast.sp_column_in__seq
+            proto_ast.col.CopyFrom(self._ast)
+            for val in vals:
+                val_ast = proto_ast.values.add()
+                if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
+                    val.set_ast_ref(val_ast)
+                else:
+                    build_expr_from_python_val(val_ast, val)
 
-        return Column(InExpression(self._expression, value_expressions), ast=ast)
+        return Column(
+            InExpression(self._expression, value_expressions),
+            ast=ast,
+            _emit_ast=_emit_ast,
+        )
 
     def between(
         self,
@@ -700,7 +821,9 @@ class Column:
         if isinstance(to, str):
             to = type_string_to_type_object(to)
         expr = proto.Expr()
-        ast = with_src_position(expr.sp_column_try_cast if try_ else expr.sp_column_cast)
+        ast = with_src_position(
+            expr.sp_column_try_cast if try_ else expr.sp_column_cast
+        )
         ast.col.CopyFrom(self._ast)
         to._fill_ast(ast.to)
         return Column(Cast(self._expression, to, try_), ast=expr)
@@ -800,11 +923,22 @@ class Column:
         :meth:`rlike` is an alias of :meth:`regexp`.
 
         """
+
         expr = proto.Expr()
         ast = with_src_position(expr.sp_column_string_regexp)
         ast.col.CopyFrom(self._ast)
         build_expr_from_snowpark_column_or_python_val(ast.pattern, pattern)
-        return Column(RegExp(self._expression, Column._to_expr(pattern)), ast=expr)
+        if parameters is not None:
+            build_expr_from_snowpark_column_or_python_val(ast.parameters, parameters)
+
+        return Column(
+            RegExp(
+                self._expression,
+                Column._to_expr(pattern),
+                None if parameters is None else Column._to_expr(parameters),
+            ),
+            ast=expr,
+        )
 
     def startswith(self, other: ColumnOrLiteralStr) -> "Column":
         """Returns true if this Column starts with another string.

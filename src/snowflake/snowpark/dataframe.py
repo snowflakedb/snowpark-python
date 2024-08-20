@@ -545,6 +545,7 @@ class DataFrame:
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
+        self._ast_id = None
         if _emit_ast:
             self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
 
@@ -587,7 +588,7 @@ class DataFrame:
         Given a field builder expression of the AST type SpDataframeExpr, points the builder to reference this dataframe.
         """
         # TODO: remove the None guard below once we generate the correct AST.
-        if self._ast_id is None: 
+        if self._ast_id is None:
             if FAIL_ON_MISSING_AST:
                 _logger.debug(self._explain_string())
                 raise NotImplementedError(
@@ -4921,7 +4922,10 @@ class DataFrame:
                 ),
             )
         cached_df = snowflake.snowpark.table.Table(
-            temp_table_name, self._session, is_temp_table_for_cleanup=True, _emit_ast=False
+            temp_table_name,
+            self._session,
+            is_temp_table_for_cleanup=True,
+            _emit_ast=False,
         )
         cached_df.is_cached = True
         cached_df._ast_id = stmt.var_id.bitfield1

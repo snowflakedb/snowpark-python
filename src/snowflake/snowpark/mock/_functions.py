@@ -198,6 +198,121 @@ _DEFAULT_OUTPUT_FORMAT = {
 }
 
 
+class MockedFunction:
+    def __init__(
+        self,
+        name: str,
+        func_implementation: Callable,
+        distinct: Optional["MockedFunction"] = None,
+        pass_column_index: Optional[bool] = None,
+        pass_row_index: Optional[bool] = None,
+        pass_input_data: Optional[bool] = None,
+    ) -> None:
+        self.name = name
+        self.impl = func_implementation
+        self.distinct = distinct or self
+        self._pass_row_index = pass_row_index
+        self._pass_column_index = pass_column_index
+        self._pass_input_data = pass_input_data
+
+    def _check_constant_result(self, input_data, args, result):
+        # This function helps automaticallly fill a column with a constant value in certain
+        # circumstances. Ideally a mocked function would enable pass_index and generate it's own
+        # column filled with constant values, but this works as well as a fallback.
+
+        # If none of the args are column emulators and the function result only has one item
+        # assume that the single value should be repeated instead of Null filled. This allows
+        # constant expressions like current_date or current_database to fill a column instead
+        # of just the first row.
+        if (
+            not any(isinstance(arg, (ColumnEmulator, TableEmulator)) for arg in args)
+            and len(result) == 1
+        ):
+            resized = result.repeat(len(input_data)).reset_index(drop=True)
+            resized.sf_type = result.sf_type
+            return resized
+
+        return result
+
+    def __call__(self, *args, input_data=None, row_number=None, **kwargs):
+
+        if self._pass_input_data:
+            kwargs["raw_input"] = input_data
+        if self._pass_row_index:
+            kwargs["row_index"] = list(input_data.index).index(row_number)
+        if self._pass_column_index:
+            kwargs["column_index"] = input_data.index
+
+        result = self.impl(*args, **kwargs)
+
+        if (
+            input_data is not None
+            and not self._pass_column_index
+            and not self._pass_row_index
+        ):
+            return self._check_constant_result(
+                input_data, args + tuple(kwargs.values()), result
+            )
+
+        return result
+
+
+class MockedFunctionRegistry:
+    _instance = None
+
+    def __init__(self) -> None:
+        self._registry = dict()
+
+    @classmethod
+    def get_or_create(cls) -> "MockedFunctionRegistry":
+        if cls._instance is None:
+            cls._instance = MockedFunctionRegistry()
+        return cls._instance
+
+    def get_function(
+        self, func: Union[FunctionExpression, str]
+    ) -> Optional[MockedFunction]:
+        if isinstance(func, str):
+            func_name = func
+            distinct = False
+        else:
+            func_name = func.name
+            distinct = func.is_distinct
+        func_name = func_name.lower()
+
+        if func_name not in self._registry:
+            return None
+
+        function = self._registry[func_name]
+
+        return function.distinct if distinct else function
+
+    def register(
+        self,
+        snowpark_func: Union[str, Callable],
+        func_implementation: Callable,
+        *args,
+        **kwargs,
+    ) -> MockedFunction:
+        name = (
+            snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
+        )
+        mocked_function = MockedFunction(name, func_implementation, *args, **kwargs)
+        self._registry[name] = mocked_function
+        return mocked_function
+
+    def unregister(
+        self,
+        snowpark_func: Union[str, Callable],
+    ):
+        name = (
+            snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
+        )
+
+        if name in self._registry:
+            del self._registry[name]
+
+
 class LocalTimezone:
     """
     A singleton class that encapsulates conversion to the local timezone.

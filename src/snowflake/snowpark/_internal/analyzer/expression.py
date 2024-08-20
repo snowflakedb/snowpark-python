@@ -665,6 +665,31 @@ class CaseWhen(Expression):
         )
         return complexity
 
+    @property
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.CASE_WHEN
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        complexity = sum_node_complexities(
+            {self.plan_node_category: 1},
+            *(
+                sum_node_complexities(
+                    condition.cumulative_node_complexity,
+                    value.cumulative_node_complexity,
+                )
+                for condition, value in self.branches
+            ),
+        )
+        complexity = (
+            sum_node_complexities(
+                complexity, self.else_value.cumulative_node_complexity
+            )
+            if self.else_value
+            else complexity
+        )
+        return complexity
+
 
 class SnowflakeUDF(Expression):
     def __init__(

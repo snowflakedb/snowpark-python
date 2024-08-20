@@ -7,10 +7,8 @@ from functools import reduce
 from typing import Dict, List, Optional, Union
 
 import snowflake.snowpark
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.ast_utils import (
-    FAIL_ON_MISSING_AST,
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
     with_src_position,
