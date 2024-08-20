@@ -89,12 +89,8 @@ class QueryGenerator(Analyzer):
             plan_queries = get_snowflake_plan_queries(
                 snowflake_plan, self.resolved_with_query_block
             )
-            for query in plan_queries[PlanQueryType.QUERIES]:
-                if query not in queries:
-                    queries.append(query)
-            for action in plan_queries[PlanQueryType.POST_ACTIONS]:
-                if action not in post_actions:
-                    post_actions.append(action)
+            queries.extend(plan_queries[PlanQueryType.QUERIES])
+            post_actions.extend(plan_queries[PlanQueryType.POST_ACTIONS])
 
         return {
             PlanQueryType.QUERIES: queries,
