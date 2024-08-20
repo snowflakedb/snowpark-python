@@ -702,7 +702,7 @@ def test_bug_SNOW_1172448():
     ],
 )
 @sql_count_checker(
-    query_count=18,
+    query_count=13,
     udtf_count=1,
     join_count=3,
     high_count_expected=True,
