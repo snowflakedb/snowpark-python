@@ -5272,11 +5272,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     )
                     for agg_arg in agg_args
                 }
+                pandas_labels = list(agg_col_map.keys())
+                if self.is_multiindex(axis=1):
+                    pandas_labels = [
+                        (label,) * len(self.columns.names) for label in pandas_labels
+                    ]
                 single_agg_func_query_compilers.append(
                     SnowflakeQueryCompiler(
-                        frame.project_columns(
-                            list(agg_col_map.keys()), list(agg_col_map.values())
-                        )
+                        frame.project_columns(pandas_labels, list(agg_col_map.values()))
                     )
                 )
         else:  # axis == 0
@@ -13816,9 +13819,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             new_frame = InternalFrame.create(
                 ordered_dataframe=expanded_ordered_frame,
                 data_column_pandas_labels=sorted_column_labels,
-                data_column_pandas_index_names=[
-                    None
-                ],  # operation removes column index name always.
+                data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
                 data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers
                 + new_identifiers,
                 index_column_pandas_labels=index_column_pandas_labels,
