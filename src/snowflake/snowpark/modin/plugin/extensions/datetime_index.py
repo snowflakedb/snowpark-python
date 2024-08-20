@@ -632,7 +632,7 @@ class DatetimeIndex(Index):
         >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
         ...                         "2/1/2020 11:00:00+00:00"])
         >>> idx.time
-        Index(["10:00:00", "11:00:00"], dtype='object')
+        Index([10:00:00, 11:00:00], dtype='object')
         """
         return self._dt_property("time")
 
