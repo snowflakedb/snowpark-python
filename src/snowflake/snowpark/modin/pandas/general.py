@@ -1858,10 +1858,28 @@ def crosstab(
     if not is_nested_list_like(columns):
         columns = [columns]
 
+    user_passed_rownames = rownames is not None
+    user_passed_colnames = colnames is not None
+
     from pandas.core.reshape.pivot import _build_names_mapper, _get_names
 
-    rownames = _get_names(index, rownames, prefix="row")
-    colnames = _get_names(columns, colnames, prefix="col")
+    def _get_names_wrapper(list_of_objs, names, prefix):
+        """
+        Helper method to expand DataFrame objects containing
+        multiple columns into Series, since `_get_names` expects
+        one column per entry.
+        """
+        expanded_list_of_objs = []
+        for obj in list_of_objs:
+            if isinstance(obj, DataFrame):
+                for col in obj.columns:
+                    expanded_list_of_objs.append(obj[col])
+            else:
+                expanded_list_of_objs.append(obj)
+        return _get_names(expanded_list_of_objs, names, prefix)
+
+    rownames = _get_names_wrapper(index, rownames, prefix="row")
+    colnames = _get_names_wrapper(columns, colnames, prefix="col")
 
     (
         rownames_mapper,
@@ -1870,21 +1888,89 @@ def crosstab(
         unique_colnames,
     ) = _build_names_mapper(rownames, colnames)
 
-    common_idx = None
     pass_objs = [x for x in index + columns if isinstance(x, (Series, DataFrame))]
+    row_idx_names = None
+    col_idx_names = None
     if pass_objs:
-        if len(pass_objs) == 1:
-            common_idx = pass_objs[0]
-        else:
-            common_idx = pass_objs[0].index.intersection(
-                [obj.index for obj in pass_objs[1:]]
-            )
+        # If we have any Snowpark pandas objects in the index or columns, then we
+        # need to find the intersection of their indices, and only pick rows from
+        # the objects that have indices in the intersection of their indices.
+        # After we do that, we then need to append the non Snowpark pandas objects
+        # using the intersection of indices as the final index for the DataFrame object.
+        # First, we separate the objects into Snowpark pandas objects, and non-Snowpark
+        # pandas objects (while renaming them so that they have unique names).
+        rownames_idx = 0
+        row_idx_names = []
+        dfs = []
+        arrays = []
+        for obj in index:
+            if isinstance(obj, Series):
+                row_idx_names.append(obj.name)
+                df = pd.DataFrame(obj)
+                df.columns = [unique_rownames[rownames_idx]]
+                rownames_idx += 1
+                dfs.append(df)
+            elif isinstance(obj, DataFrame):
+                row_idx_names.extend(obj.columns)
+                obj.columns = unique_rownames[
+                    rownames_idx : rownames_idx + len(obj.columns)
+                ]
+                rownames_idx += len(obj.columns)
+                dfs.append(obj)
+            else:
+                row_idx_names.append(None)
+                df = pd.DataFrame(obj)
+                df.columns = unique_rownames[
+                    rownames_idx : rownames_idx + len(df.columns)
+                ]
+                rownames_idx += len(df.columns)
+                arrays.append(df)
 
-    data = {
-        **dict(zip(unique_rownames, index)),
-        **dict(zip(unique_colnames, columns)),
-    }
-    df = DataFrame(data, index=common_idx)
+        colnames_idx = 0
+        col_idx_names = []
+        for obj in columns:
+            if isinstance(obj, Series):
+                col_idx_names.append(obj.name)
+                df = pd.DataFrame(obj)
+                df.columns = [unique_colnames[colnames_idx]]
+                colnames_idx += 1
+                dfs.append(df)
+            elif isinstance(obj, DataFrame):
+                col_idx_names.extend(obj.columns)
+                obj.columns = unique_colnames[
+                    colnames_idx : colnames_idx + len(obj.columns)
+                ]
+                colnames_idx += len(obj.columns)
+                dfs.append(obj)
+            else:
+                col_idx_names.append(None)
+                df = pd.DataFrame(obj)
+                df.columns = unique_colnames[
+                    colnames_idx : colnames_idx + len(df.columns)
+                ]
+                colnames_idx += len(df.columns)
+                arrays.append(df)
+
+        # Now, we have two lists - a list of Snowpark pandas objects, and a list of objects
+        # that were not passed in as Snowpark pandas objects, but that we have converted
+        # to Snowpark pandas objects to give them column names. We can perform inner joins
+        # on the dfs list to get a DataFrame with the final index (that is only an intersection
+        # of indices.)
+        df = dfs[0]
+        for right in dfs[1:]:
+            df = df.merge(right, left_index=True, right_index=True)
+
+        if len(arrays) > 0:
+            index = df.index
+            right_df = pd.concat(arrays, axis=1)
+            right_df.index = index
+            df = df.merge(right_df, left_index=True, right_index=True)
+    else:
+        data = {
+            **dict(zip(unique_rownames, index)),
+            **dict(zip(unique_colnames, columns)),
+        }
+        df = DataFrame(data)
 
     if values is None:
         df["__dummy__"] = 0
@@ -1903,6 +1989,12 @@ def crosstab(
         # observed=dropna,
         **kwargs,  # type: ignore[arg-type]
     )
+
+    if row_idx_names is not None and not user_passed_rownames:
+        table.index = table.index.set_names(row_idx_names)
+
+    if col_idx_names is not None and not user_passed_colnames:
+        table.columns = table.columns.set_names(col_idx_names)
 
     if aggfunc is None:
         # If no aggfunc is provided, we are computing frequencies. Since we use
@@ -1923,7 +2015,7 @@ def crosstab(
         normalizers: dict[bool | str, Callable] = {
             "all": lambda x: x / x.sum(axis=0).sum(),
             "columns": lambda x: x / x.sum(),
-            "index": lambda x: x.div(x.sum(axis=1), axis=0),
+            "index": lambda x: x.div(x.sum(axis=1)),
         }
 
         if margins is False:
