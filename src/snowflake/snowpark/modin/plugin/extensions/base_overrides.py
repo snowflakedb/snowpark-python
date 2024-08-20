@@ -2212,7 +2212,8 @@ def reindex(
 
 
 @register_base_override("all")
-def all(self, axis=0, bool_only=None, skipna=True, **kwargs):
+# Renamed to _all to avoid conflict with builtin python function all (override still has the correct name)
+def _all(self, axis=0, bool_only=None, skipna=True, **kwargs):
     """
     Return whether all elements are True, potentially over an axis.
     """
@@ -2256,7 +2257,8 @@ def all(self, axis=0, bool_only=None, skipna=True, **kwargs):
 
 
 @register_base_override("any")
-def any(self, axis=0, bool_only=None, skipna=True, **kwargs):
+# Renamed to _any to avoid conflict with builtin python function any (override still has the correct name)
+def _any(self, axis=0, bool_only=None, skipna=True, **kwargs):
     """
     Return whether any element is True, potentially over an axis.
     """
