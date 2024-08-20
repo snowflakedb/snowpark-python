@@ -44,7 +44,7 @@ def test_to_snowpark_pandas_no_modin(session, tmp_table_basic):
         snowpark_df.to_snowpark_pandas()  # should have no errors
     except ModuleNotFoundError:
         with pytest.raises(
-            ModuleNotFoundError,
-            match=r"(Modin is not installed)|(does not match the supported pandas version in Modin)",
+            (ModuleNotFoundError, RuntimeError),
+            match=r"(Modin is not installed)|(does not match the supported pandas version in Snowpark pandas)",
         ):
             snowpark_df.to_snowpark_pandas()
