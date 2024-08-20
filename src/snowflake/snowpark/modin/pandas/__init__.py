@@ -148,8 +148,6 @@ from snowflake.snowpark.modin.plugin._internal.session import SnowpandasSessionH
 _PD_EXTENSIONS_: dict = {}
 
 
-import snowflake.snowpark.modin.plugin.extensions.base_overrides  # isort: skip  # noqa: E402,F401
-import snowflake.snowpark.modin.plugin.extensions.base_not_implemented  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.pd_extensions as pd_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.pd_overrides  # isort: skip  # noqa: E402,F401
 from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: skip  # noqa: E402,F401
