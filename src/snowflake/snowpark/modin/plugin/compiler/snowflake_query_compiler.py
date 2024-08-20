@@ -261,6 +261,7 @@ from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     validate_resample_supported_by_snowflake,
 )
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    SnowparkPandasColumn,
     SnowparkPandasType,
     TimedeltaType,
 )
@@ -1485,7 +1486,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         def shift_expression_and_type(
             quoted_identifier: str, dtype: DataType
-        ) -> tuple[SnowparkColumn, Optional[SnowparkPandasType]]:
+        ) -> SnowparkPandasColumn:
             """
             Helper function to generate lag-based shift expression for Snowpark pandas. Performs
             necessary type conversion if datatype of fill_value is not compatible with a column's datatype.
@@ -16685,7 +16686,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         replace_mapping = {
             p.identifier: compute_binary_op_between_snowpark_columns(
                 "equal_null", p.lhs, p.lhs_datatype, p.rhs, p.rhs_datatype
-            )[0]
+            ).snowpark_column
             for p in left_right_pairs
         }
 

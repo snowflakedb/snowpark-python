@@ -2508,6 +2508,11 @@ def test_binary_add_dataframe_sub_series_axis1(df, s):
     query_count=2
 )
 def test_dataframe_sub_series_timestamps_axis1_pandas_bug_59529():
+    """
+    Test subtracting a series of timestamps from a dataframe of timestamps on axis 1.
+
+    pandas behavior is incorrect: https://github.com/pandas-dev/pandas/issues/59529
+    """
     pandas_df = native_pd.DataFrame(
         [
             [pd.Timestamp(1, unit="ms"), pd.Timestamp(2, unit="ms")],
@@ -2547,7 +2552,12 @@ def test_dataframe_sub_series_timestamps_axis1_pandas_bug_59529():
     # query to materialize the result.
     query_count=2
 )
-def test_series_sub_dataframe_timestamps_axis1_pandas_bug_5929():
+def test_series_sub_dataframe_timestamps_axis1_pandas_bug_59529():
+    """
+    Test subtracting a dataframe of timestamps from a series of timestamps.
+
+    pandas behavior is incorrect: https://github.com/pandas-dev/pandas/issues/59529
+    """
     pandas_df = native_pd.DataFrame(
         [
             [pd.Timestamp(1, unit="ms"), pd.Timestamp(2, unit="ms")],

@@ -4,7 +4,7 @@
 import functools
 from collections.abc import Hashable
 from dataclasses import dataclass
-from typing import Optional
+from enum import Enum, auto
 
 import pandas as native_pd
 from pandas._typing import Callable, Scalar
@@ -25,7 +25,7 @@ from snowflake.snowpark.modin.plugin._internal.join_utils import (
     JoinOrAlignInternalFrameResult,
 )
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
-    SnowparkPandasType,
+    SnowparkPandasColumn,
     TimedeltaType,
 )
 from snowflake.snowpark.modin.plugin._internal.type_utils import infer_object_type
@@ -189,13 +189,64 @@ def is_binary_op_supported(op: str) -> bool:
     return op in SUPPORTED_BINARY_OPERATIONS
 
 
+class SubtractionType(Enum):
+    """Type of subtraction, i.e. rsub or sub"""
+
+    # SUB means first_operand - second_operand, e.g. pd.Series(2).sub(pd.Series(1)) is equal to pd.Series(1)
+    SUB = auto()
+    # RSUB means second_operand - first_operand, e.g. pd.Series(2).rsub(pd.Series(1)) is equal to pd.Series(-1)
+    RSUB = auto()
+
+
+def _compute_subtraction_between_snowpark_columns(
+    first_operand: SnowparkColumn,
+    first_datatype: DataType,
+    second_operand: SnowparkColumn,
+    second_datatype: DataType,
+    subtraction_type: SubtractionType,
+) -> SnowparkPandasColumn:
+    """
+    Compute subtraction between two snowpark columns.
+
+    Args:
+        first_operand: SnowparkColumn for lhs
+        first_datatype: Snowpark datatype for lhs
+        second_operand: SnowparkColumn for rhs
+        second_datatype: Snowpark datatype for rhs
+        subtraction_type: Type of subtraction.
+    """
+    if (
+        first_datatype.tz is TimestampTimeZone.NTZ
+        and second_datatype.tz is TimestampTimeZone.TZ
+    ) or (
+        first_datatype.tz is TimestampTimeZone.TZ
+        and second_datatype.tz is TimestampTimeZone.NTZ
+    ):
+        raise TypeError("Cannot subtract tz-naive and tz-aware datetime-like objects.")
+    return SnowparkPandasColumn(
+        iff(
+            is_null(first_operand).__or__(is_null(second_operand)),
+            pandas_lit(native_pd.NaT),
+            datediff(
+                "ns",
+                *(
+                    (first_operand, second_operand)
+                    if subtraction_type is SubtractionType.RSUB
+                    else (second_operand, first_operand)
+                ),
+            ),
+        ),
+        TimedeltaType(),
+    )
+
+
 def compute_binary_op_between_snowpark_columns(
     op: str,
     first_operand: SnowparkColumn,
     first_datatype: Callable[[], DataType],
     second_operand: SnowparkColumn,
     second_datatype: Callable[[], DataType],
-) -> tuple[SnowparkColumn, Optional[SnowparkPandasType]]:
+) -> SnowparkPandasColumn:
     """
     Compute pandas binary operation for two SnowparkColumns
     Args:
@@ -208,11 +259,8 @@ def compute_binary_op_between_snowpark_columns(
         it is not needed.
 
     Returns:
-        Tuple containing
-            1) SnowparkColumn expr for translated pandas operation
-            2) SnowparkPandasType for the result, if there is one, otherwise None.
+        SnowparkPandasColumn for translated pandas operation
     """
-
     binary_op_result_column, snowpark_pandas_result_type = None, None
 
     # some operators and the data types have to be handled specially to align with pandas
@@ -310,55 +358,29 @@ def compute_binary_op_between_snowpark_columns(
         snowpark_pandas_result_type = NullType()
         binary_op_result_column = pandas_lit(None)
     elif (
-        op == "sub"
+        op in ("sub", "rsub")
         and isinstance(first_datatype(), TimestampType)
         and isinstance(second_datatype(), TimestampType)
     ):
-        if (
-            first_datatype().tz is TimestampTimeZone.NTZ
-            and second_datatype().tz is TimestampTimeZone.TZ
-        ) or (
-            first_datatype().tz is TimestampTimeZone.TZ
-            and second_datatype().tz is TimestampTimeZone.NTZ
-        ):
-            raise TypeError(
-                "Cannot subtract tz-naive and tz-aware datetime-like objects."
-            )
-        snowpark_pandas_result_type = TimedeltaType()
-        binary_op_result_column = iff(
-            is_null(first_operand).__or__(is_null(second_operand)),
-            pandas_lit(native_pd.NaT),
-            datediff("ns", second_operand, first_operand),
+        return _compute_subtraction_between_snowpark_columns(
+            first_operand=first_operand,
+            first_datatype=first_datatype(),
+            second_operand=second_operand,
+            second_datatype=second_datatype(),
+            subtraction_type=SubtractionType.SUB
+            if op == "sub"
+            else SubtractionType.RSUB,
         )
-    elif (
-        op == "rsub"
-        and isinstance(first_datatype(), TimestampType)
-        and isinstance(second_datatype(), TimestampType)
-    ):
-        if (
-            first_datatype().tz is TimestampTimeZone.NTZ
-            and second_datatype().tz is TimestampTimeZone.TZ
-        ) or (
-            first_datatype().tz is TimestampTimeZone.TZ
-            and second_datatype().tz is TimestampTimeZone.NTZ
-        ):
-            raise TypeError(
-                "Cannot subtract tz-naive and tz-aware datetime-like objects."
-            )
-        snowpark_pandas_result_type = TimedeltaType()
-        binary_op_result_column = iff(
-            is_null(first_operand).__or__(is_null(second_operand)),
-            pandas_lit(native_pd.NaT),
-            datediff("ns", first_operand, second_operand),
-        )
-
     # If there is no special binary_op_result_column result, it means the operator and
     # the data type of the column don't need special handling. Then we get the overloaded
     # operator from Snowpark Column class, e.g., __add__ to perform binary operations.
     if binary_op_result_column is None:
         binary_op_result_column = getattr(first_operand, f"__{op}__")(second_operand)
 
-    return binary_op_result_column, snowpark_pandas_result_type
+    return SnowparkPandasColumn(
+        snowpark_column=binary_op_result_column,
+        snowpark_pandas_type=snowpark_pandas_result_type,
+    )
 
 
 def are_equal_types(type1: DataType, type2: DataType) -> bool:
@@ -386,7 +408,7 @@ def compute_binary_op_between_snowpark_column_and_scalar(
     first_operand: SnowparkColumn,
     datatype: Callable[[], DataType],
     second_operand: Scalar,
-) -> tuple[SnowparkColumn, Optional[SnowparkPandasType]]:
+) -> SnowparkPandasColumn:
     """
     Compute the binary operation between a Snowpark column and a scalar.
     Args:
@@ -397,9 +419,7 @@ def compute_binary_op_between_snowpark_column_and_scalar(
         second_operand: Scalar value
 
     Returns:
-        Tuple containing
-            1) SnowparkColumn expr for translated pandas operation
-            2) SnowparkPandasType for the result, if there is one, otherwise None.
+        SnowparkPandasColumn for translated pandas operation
     """
 
     def second_datatype() -> DataType:
@@ -415,7 +435,7 @@ def compute_binary_op_between_scalar_and_snowpark_column(
     first_operand: Scalar,
     second_operand: SnowparkColumn,
     datatype: Callable[[], DataType],
-) -> tuple[SnowparkColumn, Optional[SnowparkPandasType]]:
+) -> SnowparkPandasColumn:
     """
     Compute the binary operation between a scalar and a Snowpark column.
     Args:
@@ -426,9 +446,7 @@ def compute_binary_op_between_scalar_and_snowpark_column(
         it is not needed.
 
     Returns:
-        Tuple containing
-            1) SnowparkColumn expr for translated pandas operation
-            2) SnowparkPandasType for the result, if there is one, otherwise None.
+        SnowparkPandasColumn for translated pandas operation
     """
 
     def first_datatype() -> DataType:
@@ -446,7 +464,7 @@ def compute_binary_op_with_fill_value(
     rhs: SnowparkColumn,
     rhs_datatype: Callable[[], DataType],
     fill_value: Scalar,
-) -> tuple[SnowparkColumn, Optional[SnowparkPandasType]]:
+) -> SnowparkPandasColumn:
     """
     Helper method for performing binary operations.
     1. Fills NaN/None values in the lhs and rhs with the given fill_value.
@@ -471,9 +489,7 @@ def compute_binary_op_with_fill_value(
             successful DataFrame alignment, with this value before computation.
 
     Returns:
-        Tuple containing
-            1) SnowparkColumn expr for translated pandas operation
-            2) SnowparkPandasType for the result, if there is one, otherwise None.
+        SnowparkPandasColumn for translated pandas operation
     """
     lhs_cond, rhs_cond = lhs, rhs
     if fill_value is not None:
