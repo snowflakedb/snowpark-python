@@ -13,6 +13,7 @@ import pytest
 import pytz
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     _columns_from_timestamp_parts,
@@ -178,6 +179,7 @@ from snowflake.snowpark.functions import (
     substring,
     sum,
     sum_distinct,
+    system_reference,
     tan,
     tanh,
     time_from_parts,
@@ -247,6 +249,22 @@ def test_col(session):
 def test_lit(session):
     res = TestData.test_data1(session).select(lit(1)).collect()
     assert res == [Row(1), Row(1)]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="system functions not supported by local testing",
+)
+def test_system_reference(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1,)]).to_df(["a"])
+    df.write.save_as_table(table_name)
+
+    try:
+        data = df.select(system_reference("TABLE", table_name)).collect()
+        assert data[0][0].startswith("ENT_REF_TABLE")
+    finally:
+        session.table(table_name).drop_table()
 
 
 def test_avg(session):
@@ -2659,10 +2677,6 @@ def test_array_agg(session, col_amount):
     ) == [200, 400, 800, 2500, 3000, 4500, 5000, 6000, 8000, 9500, 10000, 35000, 90500]
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_array_agg_within_group(session):
     assert json.loads(
         TestData.monthly_sales(session)
@@ -2688,10 +2702,6 @@ def test_array_agg_within_group(session):
     ]
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_array_agg_within_group_order_by_desc(session):
     assert json.loads(
         TestData.monthly_sales(session)
@@ -2717,10 +2727,6 @@ def test_array_agg_within_group_order_by_desc(session):
     ]
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_array_agg_within_group_order_by_multiple_columns(session):
     sort_columns = [col("month").asc(), col("empid").desc(), col("amount")]
     amount_values = (
@@ -2737,10 +2743,6 @@ def test_array_agg_within_group_order_by_multiple_columns(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_window_function_array_agg_within_group(session):
     value1 = "[\n  1,\n  3\n]"
     value2 = "[\n  1,\n  3,\n  10\n]"
@@ -4911,10 +4913,6 @@ def test_row_number(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_listagg(session):
     df = session.create_dataframe([1, 2, 3, 2, 4, 5], schema=["col"])
     Utils.check_answer(
