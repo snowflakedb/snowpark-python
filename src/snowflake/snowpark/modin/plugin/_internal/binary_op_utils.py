@@ -4,7 +4,6 @@
 import functools
 from collections.abc import Hashable
 from dataclasses import dataclass
-from enum import Enum, auto
 from types import MappingProxyType
 
 import pandas as native_pd
@@ -188,15 +187,6 @@ def is_binary_op_supported(op: str) -> bool:
     """
 
     return op in SUPPORTED_BINARY_OPERATIONS
-
-
-class SubtractionType(Enum):
-    """Type of subtraction, i.e. rsub or sub"""
-
-    # SUB means first_operand - second_operand, e.g. pd.Series(2).sub(pd.Series(1)) is equal to pd.Series(1)
-    SUB = auto()
-    # RSUB means second_operand - first_operand, e.g. pd.Series(2).rsub(pd.Series(1)) is equal to pd.Series(-1)
-    RSUB = auto()
 
 
 def _compute_subtraction_between_snowpark_timestamp_columns(
