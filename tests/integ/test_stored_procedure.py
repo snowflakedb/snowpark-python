@@ -1925,7 +1925,8 @@ def test_child_queries_in_multithreading_are_parallelized(session):
         import concurrent.futures
         import time
 
-        # Setup takes around 0.7s, so the total serialized duration can't be too small.
+        # The total serialized duration can't be too small due to network latency, etc that slows
+        # parallelized execution.
         sleep_dur_ms = 250
 
         def create_dataframe(i):
@@ -1957,7 +1958,5 @@ def test_child_queries_in_multithreading_are_parallelized(session):
     )
 
     for expect_concurrent in (True, False):
-        session._conn._conn._session_parameters[
-            "RUN_ALL_STORED_PROCEDURES_ASYNC_PYTHON"
-        ] = expect_concurrent
+        session._conn._async_query_submission_in_stored_procedures = expect_concurrent
         are_child_queries_concurrent_sp(expect_concurrent)
