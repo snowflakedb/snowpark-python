@@ -3,6 +3,7 @@
 #
 import calendar
 import functools
+import inspect
 import itertools
 import json
 import logging
@@ -260,6 +261,9 @@ from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     rule_to_snowflake_width_and_slice_unit,
     validate_resample_supported_by_snowflake,
 )
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    TimedeltaType,
+)
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     VALID_TO_DATETIME_DF_KEYS,
     DateTimeOrigin,
@@ -385,6 +389,60 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # self.snowpark_pandas_api_calls a list of lazy Snowpark pandas telemetry api calls
         # Copying and modifying self.snowpark_pandas_api_calls is taken care of in telemetry decorators
         self.snowpark_pandas_api_calls: list = []
+
+    def _raise_not_implemented_error_for_timedelta(self) -> None:
+        """Raise NotImplementedError for SnowflakeQueryCompiler methods which does not support timedelta yet."""
+        for (
+            val
+        ) in (
+            self._modin_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.values()
+        ):
+            method = "Unknown method"
+            if isinstance(val, TimedeltaType):
+                try:
+                    method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
+                except Exception:
+                    pass
+                finally:
+                    ErrorMessage.not_implemented_for_timedelta(method)
+
+    def snowpark_pandas_type_immutable_check(func: Callable) -> Any:
+        """The decorator to check on SnowflakeQueryCompiler methods which return a new SnowflakeQueryCompiler.
+        It verifies the cached Snowpark pandas types should not be changed.
+        """
+
+        def check_type(input: List, output: List) -> None:
+            assert len(input) == len(
+                output
+            ), "self frame and output frame have different number of columns"
+
+            for lt, rt in zip(input, output):
+                assert (
+                    lt == rt
+                ), f"one column's Snowpark pandas type has been changed from {lt} to {rt}"
+
+        @functools.wraps(func)
+        def wrap(*args, **kwargs):  # type: ignore
+            self_qc = args[0]
+            output_qc = func(*args, **kwargs)
+            assert isinstance(self_qc, SnowflakeQueryCompiler) and isinstance(
+                output_qc, SnowflakeQueryCompiler
+            ), (
+                "immutable_snowpark_pandas_type_check only works with SnowflakeQueryCompiler member methods with "
+                "SnowflakeQueryCompiler as the return result"
+            )
+            check_type(
+                self_qc._modin_frame.cached_index_column_snowpark_pandas_types,
+                output_qc._modin_frame.cached_index_column_snowpark_pandas_types,
+            )
+            check_type(
+                self_qc._modin_frame.cached_data_column_snowpark_pandas_types,
+                output_qc._modin_frame.cached_data_column_snowpark_pandas_types,
+            )
+
+            return output_qc
+
+        return wrap
 
     @property
     def dtypes(self) -> native_pd.Series:
@@ -642,6 +700,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 dt_series = dt_series[dt_series != end]
         return dt_series._query_compiler
 
+    @snowpark_pandas_type_immutable_check
     def copy(self) -> "SnowflakeQueryCompiler":
         """
         Make a copy of this object.
@@ -852,6 +911,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
                 index_column_pandas_labels=index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
+                data_column_types=None,  # from_snowflake won't provide any client side type info
+                index_column_types=None,
             )
         )
 
@@ -1202,6 +1263,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Args:
             **kwargs: to_csv arguments.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         # Raise not implemented error for unsupported parameters.
         unsupported_params = [
             "float_format",
@@ -1257,6 +1320,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         index_label: Optional[IndexLabel] = None,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
     ) -> None:
+        self._raise_not_implemented_error_for_timedelta()
+
         if if_exists not in ("fail", "replace", "append"):
             # Same error message as native pandas.
             raise ValueError(f"'{if_exists}' is not valid for if_exists")
@@ -1300,11 +1365,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         For details, please see comment in _to_snowpark_dataframe_of_pandas_dataframe.
         """
+        self._raise_not_implemented_error_for_timedelta()
 
         return self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
             index, index_label
         )
 
+    @snowpark_pandas_type_immutable_check
     def cache_result(self) -> "SnowflakeQueryCompiler":
         """
         Returns a materialized view of this QueryCompiler.
@@ -1322,6 +1389,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # TODO SNOW-837664: add more tests for df.columns
         return self._modin_frame.data_columns_index
 
+    @snowpark_pandas_type_immutable_check
     def set_columns(self, new_pandas_labels: Axes) -> "SnowflakeQueryCompiler":
         """
         Set pandas column labels with the new column labels
@@ -1368,9 +1436,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_labels=new_pandas_labels.tolist(),
             data_column_pandas_index_names=new_pandas_labels.names,
             data_column_snowflake_quoted_identifiers=new_data_column_snowflake_quoted_identifiers,
-            data_column_types=renamed_frame.cached_data_column_snowpark_pandas_types,
             index_column_pandas_labels=renamed_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=renamed_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=renamed_frame.cached_data_column_snowpark_pandas_types,
             index_column_types=renamed_frame.cached_index_column_snowpark_pandas_types,
         )
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -1679,6 +1747,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             The new SnowflakeQueryCompiler after the set_index operation
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         assert (
             len(key._modin_frame.data_column_pandas_labels) == 1
         ), "need to be a series"
@@ -1725,6 +1795,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ),
             index_column_pandas_labels=new_index_labels,
             index_column_snowflake_quoted_identifiers=new_index_ids,
+            data_column_types=None,
+            index_column_types=None,
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -1798,6 +1870,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         from snowflake.snowpark.modin.pandas.series import Series
 
+        self._raise_not_implemented_error_for_timedelta()
+
         # Step 1: Convert other to a Series and join on the row position with self.
         other_qc = Series(other)._query_compiler
         self_frame = self._modin_frame.ensure_row_position_column()
@@ -1844,6 +1918,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_index_names=new_frame.data_column_pandas_index_names,
             index_column_pandas_labels=new_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=new_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
         )
         return SnowflakeQueryCompiler(new_frame)
 
@@ -1940,6 +2016,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
         from snowflake.snowpark.modin.pandas.series import Series
         from snowflake.snowpark.modin.pandas.utils import is_scalar
+
+        self._raise_not_implemented_error_for_timedelta()
 
         # fail explicitly for unsupported scenarios
         if level is not None:
@@ -2214,6 +2292,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             and the Snowflake quoted identifiers for the monotonically increasing and monotonically
             decreasing columns (in that order).
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         modin_frame = self._modin_frame
         modin_frame = modin_frame.ensure_row_position_column()
         row_position_column = modin_frame.row_position_snowflake_quoted_identifier
@@ -2257,6 +2337,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=modin_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=modin_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
         )
         return (
             SnowflakeQueryCompiler(modin_frame),
@@ -2290,6 +2372,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler
             QueryCompiler with aligned axis.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         new_index_qc = pd.Series(labels)._query_compiler
         new_index_modin_frame = new_index_qc._modin_frame
         modin_frame = self._modin_frame
@@ -2383,6 +2467,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_column_snowflake_quoted_identifiers=result_frame_column_mapper.map_left_quoted_identifiers(
                 new_index_modin_frame.data_column_snowflake_quoted_identifiers
             ),
+            data_column_types=None,
+            index_column_types=None,
         )
         new_qc = SnowflakeQueryCompiler(new_modin_frame)
         if method or fill_value is not np.nan:
@@ -2444,6 +2530,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         data_column_pandas_index_names=new_qc._modin_frame.data_column_pandas_index_names,
                         index_column_pandas_labels=new_qc._modin_frame.index_column_pandas_labels,
                         index_column_snowflake_quoted_identifiers=new_qc._modin_frame.index_column_snowflake_quoted_identifiers,
+                        data_column_types=None,
+                        index_column_types=None,
                     )
                 )
             if fill_value is not np.nan:
@@ -2468,6 +2556,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                             data_column_pandas_index_names=new_qc._modin_frame.data_column_pandas_index_names,
                             index_column_pandas_labels=new_qc._modin_frame.index_column_pandas_labels,
                             index_column_snowflake_quoted_identifiers=new_qc._modin_frame.index_column_snowflake_quoted_identifiers,
+                            data_column_types=None,
+                            index_column_types=None,
                         )
                     )
         if is_index:
@@ -2496,6 +2586,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     data_column_pandas_index_names=modin_frame.data_column_pandas_index_names,
                     index_column_pandas_labels=modin_frame.index_column_pandas_labels,
                     index_column_snowflake_quoted_identifiers=modin_frame.index_column_snowflake_quoted_identifiers,
+                    data_column_types=None,
+                    index_column_types=None,
                 )
             )
             materialized_frame = new_qc._modin_frame.ordered_dataframe.select(
@@ -2560,6 +2652,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler
             QueryCompiler with aligned axis.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         method = kwargs.get("method", None)
         level = kwargs.get("level", None)
         limit = kwargs.get("limit", None)
@@ -2594,6 +2688,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
             index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
         )
         new_qc = SnowflakeQueryCompiler(new_modin_frame)
         ordered_columns = sorted(data_column_pandas_labels)
@@ -2728,8 +2824,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         (
             index_column_pandas_labels_moved,
             index_column_snowflake_quoted_identifiers_moved,
+            index_column_types_moved,
             index_column_pandas_labels_remained,
             index_column_snowflake_quoted_identifiers_remained,
+            index_column_types_remained,
         ) = self._modin_frame.get_snowflake_identifiers_and_pandas_labels_from_levels(
             levels_to_be_reset
         )
@@ -2756,6 +2854,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_column_snowflake_quoted_identifiers_remained = [
                 index_column_snowflake_quoted_identifier
             ]
+            index_column_types_remained = [None]
 
         # Do not drop existing index columns and move them to data columns.
         if not drop:
@@ -2830,10 +2929,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 index_column_snowflake_quoted_identifiers_moved
                 + self._modin_frame.data_column_snowflake_quoted_identifiers
             )
+
+            data_column_types = (
+                index_column_types_moved
+                + self._modin_frame.cached_data_column_snowpark_pandas_types
+            )
+
         else:
             data_column_pandas_labels = self._modin_frame.data_column_pandas_labels
             data_column_snowflake_quoted_identifiers = (
                 self._modin_frame.data_column_snowflake_quoted_identifiers
+            )
+            data_column_types = (
+                self._modin_frame.cached_data_column_snowpark_pandas_types
             )
 
         internal_frame = InternalFrame.create(
@@ -2841,8 +2949,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_labels=data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
+            data_column_types=data_column_types,
             index_column_pandas_labels=index_column_pandas_labels_remained,
             index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers_remained,
+            index_column_types=index_column_types_remained,
         )
 
         return SnowflakeQueryCompiler(internal_frame)
@@ -3079,6 +3189,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers.append(
                 internal_frame.row_position_snowflake_quoted_identifier
             )
+        data_column_types = [
+            internal_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
+                id, None
+            )
+            for id in data_column_snowflake_quoted_identifiers
+        ]
         sorted_frame = InternalFrame.create(
             ordered_dataframe=ordered_dataframe,
             data_column_pandas_labels=data_column_pandas_labels,
@@ -3086,6 +3202,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
             index_column_pandas_labels=internal_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=data_column_types,
+            index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
         )
         sorted_qc = SnowflakeQueryCompiler(sorted_frame)
 
@@ -3113,6 +3231,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             KeyError if a hashable label in by (groupby items) can not be found in the current dataframe
             ValueError if more than one column can be found for the groupby item
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         validate_groupby_columns(self, by, axis, level)
 
     def groupby_ngroups(
@@ -3121,6 +3241,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: int,
         groupby_kwargs: dict[str, Any],
     ) -> int:
+        self._raise_not_implemented_error_for_timedelta()
+
         level = groupby_kwargs.get("level", None)
         dropna = groupby_kwargs.get("dropna", True)
 
@@ -3206,6 +3328,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         level = groupby_kwargs.get("level", None)
 
         if agg_func in ["head", "tail"]:
@@ -3444,6 +3568,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_snowflake_quoted_identifiers=new_data_column_quoted_identifier,
                 index_column_pandas_labels=new_index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=new_index_column_quoted_identifiers,
+                data_column_types=None,
+                index_column_types=None,
             )
         )
 
@@ -3483,6 +3609,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
             A query compiler with the result.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         level = groupby_kwargs.get("level", None)
         if not check_is_groupby_supported_by_snowflake(by, level, axis):
             ErrorMessage.not_implemented(
@@ -3947,6 +4075,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: The result of groupby_first()
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         return self._groupby_first_last(
             "first", by, axis, groupby_kwargs, agg_args, agg_kwargs, drop, **kwargs
         )
@@ -3980,6 +4110,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: The result of groupby_last()
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         return self._groupby_first_last(
             "last", by, axis, groupby_kwargs, agg_args, agg_kwargs, drop, **kwargs
         )
@@ -4054,6 +4186,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         5      1
         6      2
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         level = groupby_kwargs.get("level", None)
         dropna = groupby_kwargs.get("dropna", True)
 
@@ -4226,6 +4360,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         # TODO: handle cases where the fill_value has a different type from
         # the column. SNOW-990325 deals with fillna that has a similar problem.
 
@@ -4340,6 +4476,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
                 index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=None,
+                index_column_types=None,
             )
         )
 
@@ -4371,6 +4509,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: The result of groupby_get_group().
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         level = groupby_kwargs.get("level", None)
         is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
         if not is_supported:  # pragma: no cover
@@ -4438,6 +4578,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: The result of groupby_size()
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         level = groupby_kwargs.get("level", None)
         is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
         if not is_supported:
@@ -4518,6 +4660,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         4    5        2                     4                     5
         0    8        9                     0                     8
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         original_index_names = self.get_index_names()
         frame = self._modin_frame
         index_data_columns = []
@@ -4625,6 +4769,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             dict: a map from group keys to row labels.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         frame = self._modin_frame.ensure_row_position_column()
         return dict(
             # .indices aggregates row position numbers, so we add a row
@@ -4670,6 +4816,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         return SnowflakeQueryCompiler(
             get_groupby_cumagg_frame_axis0(
                 self,
@@ -4705,6 +4853,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         return SnowflakeQueryCompiler(
             get_groupby_cumagg_frame_axis0(
                 self,
@@ -4739,6 +4889,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         return SnowflakeQueryCompiler(
             get_groupby_cumagg_frame_axis0(
                 self,
@@ -4770,6 +4922,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         return SnowflakeQueryCompiler(
             get_groupby_cumagg_frame_axis0(
                 self,
@@ -4792,6 +4946,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         drop: bool = False,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
         # does not have **kwargs.
@@ -4815,6 +4971,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         drop: bool = False,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
         # does not have **kwargs.
@@ -4838,6 +4996,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         drop: bool = False,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
         # does not have **kwargs.
@@ -4857,6 +5017,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         prefix: Hashable,
         prefix_sep: str,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         dummy_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
         # We need to add a column that will help us differentiate between identical
         # rows, so that we do not have aggregations happen on duplicate rows.
@@ -5040,6 +5202,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=frame_data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=query_compiler._modin_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=query_compiler._modin_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
         )
 
         if len(new_col_map) > 0:
@@ -5086,6 +5250,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         1  2       0       1       1       0       0
         2  3       1       0       0       0       1
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         if dummy_na is True or drop_first is True or dtype is not None:
             ErrorMessage.not_implemented(
                 "get_dummies with non-default dummy_na, drop_first, and dtype parameters"
@@ -5154,6 +5320,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             args: the arguments passed for the aggregation
             kwargs: keyword arguments passed for the aggregation function.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         numeric_only = kwargs.get("numeric_only", False)
         # Call fallback if the aggregation function passed in the arg is currently not supported
         # by snowflake engine.
@@ -5375,6 +5543,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     index_column_snowflake_quoted_identifiers=[
                         agg_name_col_quoted_identifier
                     ],
+                    data_column_types=None,
+                    index_column_types=None,
                 )
                 return SnowflakeQueryCompiler(single_agg_dataframe)
 
@@ -5588,6 +5758,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A new SnowflakeQueryCompiler instance with new column.
         """
+        self._raise_not_implemented_error_for_timedelta()
 
         if not isinstance(value, SnowflakeQueryCompiler):
             # Scalar value
@@ -5687,6 +5858,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_index_names=new_internal_frame.data_column_pandas_index_names,
             index_column_pandas_labels=new_internal_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=new_internal_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -5714,6 +5887,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A new QueryCompiler instance with updated index.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         index_column_pandas_labels = keys
         index_column_snowflake_quoted_identifiers = []
         for (
@@ -5782,9 +5957,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
             data_column_pandas_labels=data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
         )
         return SnowflakeQueryCompiler(frame)
 
+    @snowpark_pandas_type_immutable_check
     def rename(
         self,
         *,
@@ -5884,6 +6062,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
                         index_column_pandas_labels=internal_frame.index_column_pandas_labels,
                         index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+                        data_column_types=internal_frame.cached_data_column_snowpark_pandas_types[
+                            :-1
+                        ],
+                        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
                     )
 
         new_qc = SnowflakeQueryCompiler(internal_frame)
@@ -6024,6 +6206,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
                 index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=[None],
+                index_column_types=[None],
             )
         )
 
@@ -6158,6 +6342,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             NOTE: Original column level names are lost and result column index has only
             one level.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         if levels is not None:
             raise NotImplementedError(
                 "Snowpark pandas doesn't support 'levels' argument in concat API"
@@ -6347,6 +6533,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler instance with cumulative sum of Series or DataFrame.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         if axis == 1:
             ErrorMessage.not_implemented("cumsum with axis=1 is not supported yet")
 
@@ -6374,6 +6562,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler instance with cumulative min of Series or DataFrame.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         if axis == 1:
             ErrorMessage.not_implemented("cummin with axis=1 is not supported yet")
 
@@ -6401,6 +6591,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler instance with cumulative max of Series or DataFrame.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         if axis == 1:
             ErrorMessage.not_implemented("cummax with axis=1 is not supported yet")
 
@@ -6440,6 +6632,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Notes:
             melt does not yet handle multiindex or ignore index
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         if col_level is not None:
             raise NotImplementedError(
                 "Snowpark Pandas doesn't support 'col_level' argument in melt API"
@@ -6542,6 +6736,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler instance with merged result.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         if validate:
             ErrorMessage.not_implemented(
                 "Snowpark pandas merge API doesn't yet support 'validate' parameter"
@@ -6899,6 +7095,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler which may be Series or DataFrame representing result of .apply(axis=1)
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         # Process using general approach via UDTF + dynamic pivot to handle column expansion case.
 
         # Overwrite partition-size with kwargs arg
@@ -7148,6 +7346,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=renamed_data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=new_internal_df.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=new_internal_df.index_column_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -7188,6 +7388,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler representing a Series holding the result of apply(func, axis=1).
         """
+        self._raise_not_implemented_error_for_timedelta()
 
         # extract index columns and types, which are passed as first columns to UDF.
         type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
@@ -7265,6 +7466,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=[new_identifier],
             index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
         )
         return SnowflakeQueryCompiler(new_frame)
 
@@ -7303,6 +7506,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         **kwargs : dict
             Keyword arguments to pass to `func`.
         """
+        self._raise_not_implemented_error_for_timedelta()
 
         # axis=0 is not supported, raise error.
         if axis == 0:
@@ -7396,6 +7600,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args : iterable
         **kwargs : dict
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.
         # The fix will not land soon, so we are going to raise not implemented error for now.
@@ -7436,6 +7642,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         na_action: Optional[Literal["ignore"]] = None,
     ) -> "SnowflakeQueryCompiler":
         """This method will only be called from Series."""
+        self._raise_not_implemented_error_for_timedelta()
+
         # TODO SNOW-801847: support series.map when arg is a dict/series
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.
@@ -7466,6 +7674,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         **kwargs : dict
             Keyword arguments to pass to `func`.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         assert self.is_series_like()
 
         # TODO SNOW-856682: support other types (str, list, dict) of func
@@ -7520,6 +7730,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         # Call pivot_table which is a more generalized version of pivot with `min` aggregation
         # Note we differ from pandas by not checking for duplicates and raising a ValueError as that would require an eager query
         return self.pivot_table(
@@ -7548,6 +7760,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         observed: bool,
         sort: bool,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         """
         Create a spreadsheet-style pivot table from underlying data.
 
@@ -7897,6 +8111,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         BaseQueryCompiler
             New masked QueryCompiler.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         # TODO: SNOW-884220 support multiindex
         # index can only be a query compiler or slice object
         assert isinstance(index, (SnowflakeQueryCompiler, slice))
@@ -8051,6 +8267,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
             index_column_pandas_labels=[INDEX_LABEL],
             index_column_snowflake_quoted_identifiers=[new_index_identifier],
+            data_column_types=None,  # no snowpark pandas type for nunique
+            index_column_types=None,  # no snowpark pandas type for nunique
         )
         return SnowflakeQueryCompiler(frame)
 
@@ -8213,6 +8431,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         if self._modin_frame.is_multiindex(axis=0) and (
             is_scalar(index) or isinstance(index, tuple)
         ):
@@ -8319,6 +8539,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler
                 Transposed new QueryCompiler object.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         frame = self._modin_frame
 
         # Handle case where the dataframe has empty columns.
@@ -8475,6 +8697,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # STEP 1) Construct a temporary index column that contains the original index with position.
         # STEP 2) Perform an unpivot which flattens the original data columns into a single name and value rows
         # grouped by the temporary transpose index column.
+        self._raise_not_implemented_error_for_timedelta()
 
         unpivot_result = prepare_and_unpivot_for_transpose(
             frame, self, is_single_row=False
@@ -8983,6 +9206,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=joined_frame.data_column_snowflake_quoted_identifiers[
                 :1
             ],
+            data_column_types=joined_frame.cached_index_column_snowpark_pandas_types[
+                :1
+            ],
+            index_column_types=joined_frame.cached_index_column_snowpark_pandas_types,
         )
         return SnowflakeQueryCompiler(new_frame)
 
@@ -9447,6 +9674,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=new_data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=joined_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=joined_frame.cached_index_column_snowpark_pandas_types,
         )
         return SnowflakeQueryCompiler(new_frame)
 
@@ -9822,6 +10051,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_snowflake_quoted_identifiers=self._modin_frame.data_column_snowflake_quoted_identifiers,
                 index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=self._modin_frame.cached_data_column_snowpark_pandas_types,
+                index_column_types=self._modin_frame.cached_index_column_snowpark_pandas_types,
             )
         )
 
@@ -9856,6 +10087,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_pandas_index_names=frame.data_column_pandas_index_names,
                 index_column_pandas_labels=names,
                 index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=frame.cached_data_column_snowpark_pandas_types,
+                index_column_types=frame.cached_index_column_snowpark_pandas_types,
             )
 
             return SnowflakeQueryCompiler(frame)
@@ -10114,6 +10347,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_pandas_labels=data_column_labels,
                 data_column_snowflake_quoted_identifiers=data_column_identifiers,
                 data_column_pandas_index_names=frame.data_column_pandas_index_names,
+                data_column_types=None,
+                index_column_types=None,
             )
             frame = frame.select_active_columns()
 
@@ -10178,6 +10413,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_labels=frame.data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=frame.data_column_pandas_index_names,
+            data_column_types=frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=frame.cached_index_column_snowpark_pandas_types,
         )
         return SnowflakeQueryCompiler(frame)
 
@@ -10852,6 +11089,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_labels=new_frame.data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=new_frame.data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=new_frame.data_column_pandas_index_names,
+            data_column_types=new_frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=new_frame.cached_index_column_snowpark_pandas_types,
         )
 
         return SnowflakeQueryCompiler(new_frame)
@@ -11223,6 +11462,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             dropna : bool
                 Don't include counts of NaN.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         # validate whether by is valid (e.g., contains duplicates or non-existing labels)
         self.validate_groupby(by=by, axis=0, level=None)
 
@@ -11282,6 +11523,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_pandas_labels=[MODIN_UNNAMED_SERIES_LABEL],
                 data_column_snowflake_quoted_identifiers=[count_identifier],
                 data_column_pandas_index_names=query_compiler._modin_frame.data_column_pandas_index_names,
+                data_column_types=[None],
+                index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
             )
         )
 
@@ -11342,6 +11585,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
             index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=self._modin_frame.cached_data_column_snowpark_pandas_types
+            + [None],
+            index_column_types=self._modin_frame.cached_index_column_snowpark_pandas_types,
         )
 
         row_count_identifier = (
@@ -11526,6 +11772,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 index_column_snowflake_quoted_identifiers=[
                     index_column_snowflake_quoted_identifier
                 ],
+                data_column_types=original_frame.cached_data_column_snowpark_pandas_types,
+                index_column_types=[None],
             )
         )
 
@@ -11609,6 +11857,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         column would allow us to create an accurate row position column, but would require a
         potentially expensive JOIN operator afterwards to apply the correct index labels.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         assert len(self._modin_frame.data_column_pandas_labels) == 1
 
         if index is not None:
@@ -11673,6 +11923,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ],
             index_column_pandas_labels=[None],
             index_column_snowflake_quoted_identifiers=[index_identifier],
+            data_column_types=None,
+            index_column_types=None,
         )
         # We cannot call astype() directly to convert an index column, so we replicate
         # the logic here so we don't have to mess with set_index.
@@ -12015,6 +12267,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     data_column_snowflake_quoted_identifiers=top_freq_identifiers,
                     index_column_pandas_labels=new_index_labels,
                     index_column_snowflake_quoted_identifiers=new_index_identifiers,
+                    data_column_types=[None, None],
+                    index_column_types=[None] * len(new_index_labels),
                 )
             ).transpose()
             query_compilers_to_concat.extend([unique_qc, top_freq_qc])
@@ -12287,6 +12541,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
                 index_column_pandas_labels=frame.index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=frame.cached_data_column_snowpark_pandas_types,
+                index_column_types=frame.cached_index_column_snowpark_pandas_types,
             )
         )
         if ignore_index:
@@ -12351,6 +12607,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         return self._window_agg(
             window_func=WindowFunction.ROLLING,
             agg_func="count",
@@ -12368,6 +12626,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_sum", engine, engine_kwargs
         )
@@ -12388,6 +12648,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_mean", engine, engine_kwargs
         )
@@ -12420,6 +12682,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_var", engine, engine_kwargs
         )
@@ -12441,6 +12705,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_var", engine, engine_kwargs
         )
@@ -12461,6 +12727,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_min", engine, engine_kwargs
         )
@@ -12481,6 +12749,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_max", engine, engine_kwargs
         )
@@ -12576,6 +12846,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         return self._window_agg(
             window_func=WindowFunction.ROLLING,
             agg_func="sem",
@@ -12720,6 +12992,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         expanding_kwargs: dict,
         numeric_only: bool = False,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         return self._window_agg(
             window_func=WindowFunction.EXPANDING,
             agg_func="count",
@@ -12735,6 +13009,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_sum", engine, engine_kwargs
         )
@@ -12753,6 +13029,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_mean", engine, engine_kwargs
         )
@@ -12782,6 +13060,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_var", engine, engine_kwargs
         )
@@ -12801,6 +13081,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_std", engine, engine_kwargs
         )
@@ -12819,6 +13101,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_min", engine, engine_kwargs
         )
@@ -12837,6 +13121,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_max", engine, engine_kwargs
         )
@@ -12925,6 +13211,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ddof: int = 1,
         numeric_only: bool = False,
     ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
         return self._window_agg(
             window_func=WindowFunction.EXPANDING,
             agg_func="sem",
@@ -13114,6 +13402,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(result.frame)
 
+    @snowpark_pandas_type_immutable_check
     def add_substring(
         self,
         substring: str,
@@ -13193,6 +13482,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=frame.cached_index_column_snowpark_pandas_types,
         )
 
         if axis == 0:
@@ -13346,6 +13637,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_column_snowflake_quoted_identifiers=[
                 row_position_post_dedup.row_position_snowflake_quoted_identifier
             ],
+            data_column_types=[None],
+            index_column_types=[None],
         )
 
         joined_ordered_dataframe = join_utils.join(
@@ -13378,6 +13671,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_index_names=frame.data_column_pandas_index_names,
             index_column_pandas_labels=frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=[None],
+            index_column_types=frame.cached_index_column_snowpark_pandas_types,
         )
 
         return SnowflakeQueryCompiler(new_frame)
@@ -13433,6 +13728,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler representing result of binary op operation.
         """
+        self._raise_not_implemented_error_for_timedelta()
 
         assert (
             other.is_series_like()
@@ -13540,6 +13836,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_frame)
 
+    @snowpark_pandas_type_immutable_check
     def round(
         self, decimals: Union[int, Mapping, "pd.Series"] = 0, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
@@ -13610,6 +13907,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         return self._idxmax_idxmin(
             func="idxmax", axis=axis, skipna=skipna, numeric_only=numeric_only
         )
@@ -13634,6 +13933,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         return self._idxmax_idxmin(
             func="idxmin", axis=axis, skipna=skipna, numeric_only=numeric_only
         )
@@ -13775,6 +14076,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=updated_data_identifiers,
             index_column_pandas_labels=new_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=new_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
         )
 
         return SnowflakeQueryCompiler(result_frame)
@@ -13944,6 +14247,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 + new_identifiers,
                 index_column_pandas_labels=index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=None,
+                index_column_types=None,
             )
             # Replace all columns with NULL literals.
             new_frame = new_frame.update_snowflake_quoted_identifiers_with_expressions(
@@ -13988,6 +14293,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=expanded_data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
         )
 
         # For columns that exist in both self and other, update the corresponding identifier with the result
@@ -15098,6 +15405,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
+    @snowpark_pandas_type_immutable_check
     def str_strip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
         """
         Remove leading and trailing characters.
@@ -15117,6 +15425,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             sp_func=trim, pd_func_name="strip", to_strip=to_strip
         )
 
+    @snowpark_pandas_type_immutable_check
     def str_lstrip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
         """
         Remove leading characters.
@@ -15136,6 +15445,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             sp_func=ltrim, pd_func_name="lstrip", to_strip=to_strip
         )
 
+    @snowpark_pandas_type_immutable_check
     def str_rstrip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
         """
         Remove trailing characters.
@@ -15158,6 +15468,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def str_swapcase(self) -> None:
         ErrorMessage.method_not_implemented_error("swapcase", "Series.str")
 
+    @snowpark_pandas_type_immutable_check
     def str_translate(self, table: dict) -> "SnowflakeQueryCompiler":
         """
         Map all characters in the string through the given mapping table.
@@ -15334,6 +15645,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=[new_data_identifier],
             index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=self._modin_frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=self._modin_frame.cached_index_column_snowpark_pandas_types,
         )
 
         return SnowflakeQueryCompiler(new_frame)
@@ -15368,6 +15681,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A SnowflakeQueryCompiler object representing a DataFrame.
         """
+        self._raise_not_implemented_error_for_timedelta()
+
         original_frame = self._modin_frame
         ordered_dataframe = original_frame.ordered_dataframe
 
@@ -15514,6 +15829,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=original_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
         )
 
         return SnowflakeQueryCompiler(new_modin_frame)
@@ -15792,6 +16109,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ],
                 index_column_pandas_labels=internal_frame.index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=internal_frame.cached_data_column_snowpark_pandas_types[
+                    -1:
+                ],
+                index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
             )
         )
 
@@ -15987,6 +16308,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ],
                 index_column_pandas_labels=internal_frame.index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=internal_frame.cached_data_column_snowpark_pandas_types[
+                    -1:
+                ],
+                index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
             )
         )
 
@@ -16003,17 +16328,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.normalize'"
         )
 
-    def dt_month_name(self, locale: Optional[str] = None) -> "SnowflakeQueryCompiler":
+    def dt_month_name(
+        self, locale: Optional[str] = None, include_index: bool = False
+    ) -> "SnowflakeQueryCompiler":
         """
         Args:
             locale: Locale determining the language in which to return the month name.
+            include_index: Whether to include the index columns in the operation.
 
         Returns:
             New QueryCompiler containing month name.
         """
         if locale is not None:
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.dt.month_name' method doesn't yet support 'locale' parameter"
+            class_name = "DatetimeIndex" if include_index else "Series.dt"
+            ErrorMessage.parameter_not_implemented_error(
+                "locale", f"{class_name}.month_name"
             )
         internal_frame = self._modin_frame
 
@@ -16023,40 +16352,41 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             int(i / 2) if i % 2 == 0 else calendar.month_name[int(i / 2)]
             for i in range(2, 26)
         ]
-        snowpark_column = builtin("decode")(
-            builtin("extract")(
-                "month", col(internal_frame.data_column_snowflake_quoted_identifiers[0])
-            ),
-            *mapping_list,
-        )
-        internal_frame = internal_frame.append_column(
-            internal_frame.data_column_snowflake_quoted_identifiers[0], snowpark_column
-        )
 
-        return SnowflakeQueryCompiler(
-            InternalFrame.create(
-                ordered_dataframe=internal_frame.ordered_dataframe,
-                data_column_pandas_labels=[None],
-                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
-                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers[
-                    -1:
-                ],
-                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
-                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+        snowflake_ids = internal_frame.data_column_snowflake_quoted_identifiers[0:1]
+        if include_index:
+            snowflake_ids.extend(
+                internal_frame.index_column_snowflake_quoted_identifiers
+            )
+
+        internal_frame = (
+            internal_frame.update_snowflake_quoted_identifiers_with_expressions(
+                {
+                    col_id: builtin("decode")(
+                        builtin("extract")("month", col(col_id)), *mapping_list
+                    )
+                    for col_id in snowflake_ids
+                }
             )
         )
 
-    def dt_day_name(self, locale: Optional[str] = None) -> "SnowflakeQueryCompiler":
+        return SnowflakeQueryCompiler(internal_frame.frame)
+
+    def dt_day_name(
+        self, locale: Optional[str] = None, include_index: bool = False
+    ) -> "SnowflakeQueryCompiler":
         """
         Args:
             locale: Locale determining the language in which to return the month name.
+            include_index: Whether to include the index columns in the operation.
 
         Returns:
             New QueryCompiler containing day name.
         """
         if locale is not None:
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.dt.day_name' method doesn't yet support 'locale' parameter"
+            class_name = "DatetimeIndex" if include_index else "Series.dt"
+            ErrorMessage.parameter_not_implemented_error(
+                "locale", f"{class_name}.day_name"
             )
         internal_frame = self._modin_frame
 
@@ -16066,29 +16396,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             int(i / 2) + 1 if i % 2 == 0 else calendar.day_name[int(i / 2)]
             for i in range(0, 14)
         ]
-        snowpark_column = builtin("decode")(
-            builtin("dayofweekiso")(
-                col(internal_frame.data_column_snowflake_quoted_identifiers[0])
-            ),
-            *mapping_list,
-        )
 
-        internal_frame = internal_frame.append_column(
-            internal_frame.data_column_pandas_labels[0], snowpark_column
-        )
+        snowflake_ids = internal_frame.data_column_snowflake_quoted_identifiers[0:1]
+        if include_index:
+            snowflake_ids.extend(
+                internal_frame.index_column_snowflake_quoted_identifiers
+            )
 
-        return SnowflakeQueryCompiler(
-            InternalFrame.create(
-                ordered_dataframe=internal_frame.ordered_dataframe,
-                data_column_pandas_labels=[None],
-                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
-                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers[
-                    -1:
-                ],
-                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
-                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+        internal_frame = (
+            internal_frame.update_snowflake_quoted_identifiers_with_expressions(
+                {
+                    col_id: builtin("decode")(
+                        builtin("dayofweekiso")(col(col_id)), *mapping_list
+                    )
+                    for col_id in snowflake_ids
+                }
             )
         )
+
+        return SnowflakeQueryCompiler(internal_frame.frame)
 
     def dt_total_seconds(self) -> None:
         """
@@ -16195,6 +16521,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
                 index_column_pandas_labels=internal_frame.index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+                index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
             )
         )
 
@@ -16380,7 +16708,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         }
 
-        rows = join_result.result_frame.ordered_dataframe.agg(agg_exprs).collect()
+        try:
+            rows = join_result.result_frame.ordered_dataframe.agg(agg_exprs).collect()
+        except SnowparkSQLException:
+            return False
         # In case of empty table/dataframe booland_agg returns None. Add special case
         # handling for that.
         return all(x is None for x in rows[0]) or all(rows[0])
@@ -16424,6 +16755,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_column_pandas_labels=self_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=other_frame.index_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=self_frame.data_column_pandas_index_names,
+            data_column_types=other_frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=other_frame.cached_index_column_snowpark_pandas_types,
         )
 
         # Align (join) both dataframes on index.
@@ -16448,6 +16781,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             updated_result.old_id_to_new_id_mappings[p.identifier]
             for p in left_right_pairs
         ]
+        updated_data_identifiers_types = [
+            updated_result.frame.snowflake_quoted_identifier_to_snowpark_pandas_type[id]
+            for id in updated_data_identifiers
+        ]
         new_frame = updated_result.frame
         result_frame = InternalFrame.create(
             ordered_dataframe=new_frame.ordered_dataframe,
@@ -16456,6 +16793,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=updated_data_identifiers,
             index_column_pandas_labels=new_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=new_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=updated_data_identifiers_types,
+            index_column_types=new_frame.cached_index_column_snowpark_pandas_types,
         )
 
         return SnowflakeQueryCompiler(result_frame)
@@ -16782,6 +17121,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
                 index_column_pandas_labels=[None],
                 index_column_snowflake_quoted_identifiers=[index_quoted_identifier],
+                data_column_types=None,
+                index_column_types=[None],
             )
 
             query_compilers.append(SnowflakeQueryCompiler(new_frame))
@@ -17125,3 +17466,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
 
         return result
+
+    def tz_convert(self, *args: Any, **kwargs: Any) -> None:
+        ErrorMessage.method_not_implemented_error("tz_convert", "BasePandasDataset")
+
+    def tz_localize(self, *args: Any, **kwargs: Any) -> None:
+        ErrorMessage.method_not_implemented_error("tz_convert", "BasePandasDataset")

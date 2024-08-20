@@ -386,6 +386,8 @@ def _create_internal_frame_with_join_or_align_result(
         index_column_pandas_labels=index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
         data_column_pandas_index_names=data_column_pandas_index_names,
+        data_column_types=None,
+        index_column_types=None,
     )
     result_column_mapper = JoinOrAlignResultColumnMapper(
         left_quoted_identifiers_map,
@@ -902,6 +904,8 @@ def _reorder_index_columns(
             data_column_pandas_labels=frame.data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=frame.data_column_pandas_index_names,
+            data_column_types=None,
+            index_column_types=None,
         )
     else:
         return frame

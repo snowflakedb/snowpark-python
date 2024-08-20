@@ -1,11 +1,49 @@
 # Release History
 
-## 1.21.0 (TBD)
+## 1.22.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug in `session.read.csv` that caused an error when setting `PARSE_HEADER = True` in an externally defined file format.
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for type coercion when passing columns as input to udf calls
+- Added support for `Index.identical`.
+
+#### Bug Fixes
+
+- Fixed a bug where the truncate mode in `DataFrameWriter.save_as_table` incorrectly handled DataFrames containing only a subset of columns from the existing table.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added limited support for the `Timedelta` type, including
+  - support `copy`, `cache_result`, `shift`, `sort_index`.
+  - `NotImplementedError` will be raised for the rest of methods that do not support `Timedelta`.
+- Added support for index's arithmetic and comparison operators.
+- Added support for `Series.dt.round`.
+- Added documentation pages for `DatetimeIndex`.
+- Added support for `Index.name`, `Index.names`, `Index.rename`, and `Index.set_names`.
+- Added support for `Index.__repr__`.
+- Added support for `DatetimeIndex.month_name` and `DatetimeIndex.day_name`.
+
+#### Bug Fixes
+
+- Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
+
+## 1.21.0 (2024-08-19)
 
 ### Snowpark Python API Updates
 
 #### New Features
-- Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a util function to check the equality of two Snowpark DataFrames.
+
+- Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a utility function to check the equality of two Snowpark DataFrames.
 
 #### Improvements
 
@@ -16,6 +54,7 @@
 - Added support for passing `parameters` parameter to `Column.rlike` and `Column.regexp`.
 - Added support for automatically cleaning up temporary tables created by `df.cache_result()` in the current session, when the DataFrame is no longer referenced (i.e., gets garbage collected). It is still an experimental feature not enabled by default, and can be enabled by setting `session.auto_clean_up_temp_table_enabled` to `True`.
 - Added support for string literals to the `fmt` parameter of `snowflake.snowpark.functions.to_date`.
+- Added support for system$reference function.
 
 #### Bug Fixes
 
@@ -24,33 +63,36 @@
 - Fixed a bug in `DataFrame.lineage.trace` to split the quoted feature view's name and version correctly.
 - Fixed a bug in `Column.isin` that caused invalid sql generation when passed an empty list.
 - Fixed a bug that fails to raise NotImplementedError while setting cell with list like item.
-- Fixed a bug in `session.read.csv` that caused an error when setting `PARSE_HEADER = True` in an externally defined file format.
 
 ### Snowpark Local Testing Updates
 
 #### New Features
+
 - Added support for the following APIs:
   - snowflake.snowpark.functions
-    - rank
-    - dense_rank
-    - percent_rank
-    - cume_dist
-    - ntile
-    - datediff
-    - array_agg
+    - `rank`
+    - `dense_rank`
+    - `percent_rank`
+    - `cume_dist`
+    - `ntile`
+    - `datediff`
+    - `array_agg`
   - snowflake.snowpark.column.Column.within_group
-- Added support parsing regex flags in REGEX statements for mocked plans. This maintains parity with the `rlike` and `regexp` changes above.
-- Added support for type coercion when passing columns as input to udf calls
+- Added support for parsing flags in regex statements for mocked plans. This maintains parity with the `rlike` and `regexp` changes above.
 
 #### Bug Fixes
-- Fixed a bug that Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
+
+- Fixed a bug where Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
 - Fixed a bug where values were not populated into the result DataFrame during the insertion of table merge operation.
 
 #### Improvements
+
 - Fix pandas FutureWarning about integer indexing.
 
 ### Snowpark pandas API Updates
+
 #### New Features
+
 - Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
 - Added support for `DataFrame.compare` and `Series.compare` with default parameters.
 - Added support for `Series.dt.microsecond` and `Series.dt.nanosecond`.
@@ -84,24 +126,23 @@
 - Added support for `pd.merge_asof`.
 
 #### Improvements
-- Removed the public preview warning message upon importing Snowpark pandas.
+
+- Removed the public preview warning message when importing Snowpark pandas.
 - Removed unnecessary count query from `SnowflakeQueryCompiler.is_series_like` method.
-
-#### Bug Fixes
-- Made passing an unsupported aggregation function to `pivot_table` raise `NotImplementedError` instead of `KeyError`.
-- Removed axis labels and callable names from error messages and telemetry about unsupported aggregations.
-- Fixed AssertionError in `Series.drop_duplicates` and `DataFrame.drop_duplicates` when called after `sort_values`.
-- Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.  
-- Fixed a bug where some Index docstrings are ignored. 
-- Fixed a bug in `Series.reset_index(drop=True)` where the result name may be wrong.
-- Fixed a bug in `Groupby.first/last` ordering by the correct columns in the underlying window expression.
-- Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
-
-### Behavior change
 - `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
 - Refactor and introduce `query_compiler` argument in `Index` constructor to create `Index` from query compiler.
 - `pd.to_datetime` now returns a DatetimeIndex object instead of a Series object.
 - `pd.date_range` now returns a DatetimeIndex object instead of a Series object.
+
+#### Bug Fixes
+
+- Made passing an unsupported aggregation function to `pivot_table` raise `NotImplementedError` instead of `KeyError`.
+- Removed axis labels and callable names from error messages and telemetry about unsupported aggregations.
+- Fixed AssertionError in `Series.drop_duplicates` and `DataFrame.drop_duplicates` when called after `sort_values`.
+- Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.
+- Fixed a bug where some Index docstrings are ignored.
+- Fixed a bug in `Series.reset_index(drop=True)` where the result name may be wrong.
+- Fixed a bug in `Groupby.first/last` ordering by the correct columns in the underlying window expression.
 
 ## 1.20.0 (2024-07-17)
 

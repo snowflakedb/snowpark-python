@@ -40,6 +40,7 @@ from snowflake.snowpark.functions import (
     pow,
     sproc,
     sqrt,
+    system_reference,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
@@ -419,6 +420,38 @@ def test_stored_procedure_with_structured_returns(
     df = structured_type_session.call(sproc_name)
     assert df.schema == expected_schema
     assert df.dtypes == expected_dtypes
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="system functions not supported by local testing",
+)
+def test_sproc_pass_system_reference(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1,)]).to_df(["a"])
+    df.write.save_as_table(table_name)
+
+    def insert_and_return_count(session_: Session, table_name_: str) -> int:
+        session_.sql(f"INSERT INTO {table_name_} VALUES (2)").collect()
+        return session_.table(table_name_).count()
+
+    insert_sproc = sproc(insert_and_return_count, return_type=IntegerType())
+
+    try:
+        assert (
+            insert_sproc(
+                system_reference(
+                    "TABLE",
+                    table_name,
+                    "SESSION",
+                    ["SELECT", "INSERT", "UPDATE", "TRUNCATE"],
+                )
+            )
+            == 2
+        )
+        Utils.check_answer(session.table(table_name), [Row(1), Row(2)])
+    finally:
+        session.table(table_name).drop_table()
 
 
 @pytest.mark.parametrize("anonymous", [True, False])
