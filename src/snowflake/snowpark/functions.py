@@ -3426,7 +3426,9 @@ def to_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
     return builtin("convert_timezone")(tz_c, "UTC", c)
 
 
-def to_date(e: ColumnOrName, fmt: Optional[ColumnOrLiteral] = None) -> Column:
+def to_date(
+    e: ColumnOrName, fmt: Optional[ColumnOrLiteral] = None, _emit_ast: bool = True
+) -> Column:
     """Converts an input expression into a date.
 
     Example::
@@ -3446,10 +3448,20 @@ def to_date(e: ColumnOrName, fmt: Optional[ColumnOrLiteral] = None) -> Column:
     """
     c = _to_col_if_str(e, "to_date")
 
-    if fmt is None:
-        return builtin("to_date")(c)
+    ans = (
+        builtin("to_date")(c)
+        if fmt is None
+        else builtin("to_date")(c, Column._to_expr(fmt))
+    )
+    if _emit_ast:
+        ast = proto.Expr()
+        args = (e, fmt) if fmt is not None else (e,)
+        build_builtin_fn_apply(ast, "to_date", *args)
+        ans._ast = ast
     else:
-        return builtin("to_date")(c, Column._to_expr(fmt))
+        ans._ast = None
+
+    return ans
 
 
 def current_timestamp() -> Column:

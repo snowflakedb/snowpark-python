@@ -12,8 +12,8 @@ from typing import Dict
 import pytest
 from pytest import fail
 
-import _vendored.vcrpy as vcr
 import snowflake.connector
+import tests._vendored.vcrpy as vcr
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection

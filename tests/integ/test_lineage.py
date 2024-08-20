@@ -60,7 +60,6 @@ def remove_created_on_field(df):
     return df
 
 
-@pytest.mark.xfail(reason="SNOW-1437475", strict=False)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_lineage_trace(session):
     """

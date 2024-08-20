@@ -12,8 +12,14 @@ from typing import Generic, List, Optional, Type, TypeVar, Union
 
 import snowflake.snowpark._internal.analyzer.expression as expression
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
-from snowflake.connector.options import installed_pandas, pandas
-from snowflake.snowpark._internal.utils import quote_name
+
+# Use correct version from here:
+from snowflake.snowpark._internal.utils import installed_pandas, pandas, quote_name
+
+# TODO: connector installed_pandas is broken. If pyarrow is not installed, but pandas is this function returns the wrong answer.
+# The core issue is that in the connector detection of both pandas/arrow are mixed, which is wrong.
+# from snowflake.connector.options import installed_pandas, pandas
+
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both

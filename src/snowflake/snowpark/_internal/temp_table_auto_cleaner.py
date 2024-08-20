@@ -101,6 +101,20 @@ class TempTableAutoCleaner:
                     name,
                     str(ex),
                 )
+            logging.debug(f"Cleanup Thread: Successfully dropped {common_log_text}")
+        except Exception as ex:
+            logging.warning(
+                f"Cleanup Thread: Failed to drop {common_log_text}, exception: {ex}"
+            )  # pragma: no cover
+
+    def is_alive(self) -> bool:
+        return self.cleanup_thread is not None and self.cleanup_thread.is_alive()
+
+    def start(self) -> None:
+        self.stop_event.clear()
+        if not self.is_alive():
+            self.cleanup_thread = Thread(target=self.process_cleanup)
+            self.cleanup_thread.start()
 
     def stop(self) -> None:
         """

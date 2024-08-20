@@ -7,6 +7,7 @@ import logging
 from unittest import mock
 
 from .stubs import VCRHTTPConnection, VCRHTTPSConnection
+from .stubs.urllib3_stubs import urllib3_renamed_version
 
 log = logging.getLogger(__name__)
 # Save some of the original types for the purposes of unpatching
@@ -22,7 +23,7 @@ except ImportError:
     except ImportError:  # pragma: no cover
         pass
     else:
-        _Boto3VerifiedHTTPSConnection = cpool.VerifiedHTTPSConnection
+        _Boto3VerifiedHTTPSConnection = cpool.HTTPConnection if urllib3_renamed_version() else cpool.VerifiedHTTPSConnection
         _cpoolBoto3HTTPConnection = cpool.HTTPConnection
         _cpoolBoto3HTTPSConnection = cpool.HTTPSConnection
 else:
@@ -37,7 +38,7 @@ try:
 except ImportError:  # pragma: no cover
     pass
 else:
-    _VerifiedHTTPSConnection = cpool.VerifiedHTTPSConnection
+    _VerifiedHTTPSConnection = cpool.HTTPConnection if urllib3_renamed_version() else cpool.VerifiedHTTPSConnection
     _cpoolHTTPConnection = cpool.HTTPConnection
     _cpoolHTTPSConnection = cpool.HTTPSConnection
 
@@ -58,7 +59,7 @@ try:
 except ImportError:  # pragma: no cover
     pass
 else:
-    _VerifiedHTTPSConnection = cpool.VerifiedHTTPSConnection
+    _VerifiedHTTPSConnection = cpool.HTTPConnection if urllib3_renamed_version() else cpool.VerifiedHTTPSConnection
     _cpoolHTTPConnection = cpool.HTTPConnection
     _cpoolHTTPSConnection = cpool.HTTPSConnection
 
