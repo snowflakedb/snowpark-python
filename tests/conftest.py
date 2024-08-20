@@ -84,7 +84,9 @@ def pytest_collection_modifyitems(items) -> None:
             if item_path == top_doctest_dir:
                 item.add_marker("doctest")
             elif "modin" in str(item_path):
-                if not is_excluded_frontend_file(item.fspath):
+                if not COMPATIBLE_WITH_MODIN:
+                    pass
+                elif not is_excluded_frontend_file(item.fspath):
                     item.add_marker("doctest")
                     item.add_marker(pytest.mark.usefixtures("add_doctest_imports"))
             else:
