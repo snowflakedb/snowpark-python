@@ -1175,7 +1175,7 @@ class CombinedDatetimelikeProperties:
         >>> s
         0   2020-01-01 10:00:00
         1   2020-02-01 11:00:00
-        dtype: datetime64[ns, UTC]
+        dtype: datetime64[ns]
         >>> s.dt.time
         0    10:00:00
         1    11:00:00
