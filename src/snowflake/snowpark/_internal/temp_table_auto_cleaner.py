@@ -14,6 +14,9 @@ if TYPE_CHECKING:
     from snowflake.snowpark.session import Session  # pragma: no cover
 
 
+DROP_TABLE_STATEMENT_PARAM_NAME = "auto_clean_up_temp_table"
+
+
 class TempTableAutoCleaner:
     """
     Automatically cleans up unused temporary tables created in the current session
@@ -76,7 +79,8 @@ class TempTableAutoCleaner:
             # TODO SNOW-1556553: Remove this workaround once multi-threading of Snowpark session is supported
             with self.session._conn._conn.cursor() as cursor:
                 cursor.execute(
-                    f"drop table if exists {name} /* internal query to drop unused temp table */"
+                    f"drop table if exists {name} /* internal query to drop unused temp table */",
+                    _statement_params={DROP_TABLE_STATEMENT_PARAM_NAME: name},
                 )
             logging.debug(f"Cleanup Thread: Successfully dropped {common_log_text}")
         except Exception as ex:

@@ -18,6 +18,7 @@ from snowflake.snowpark.functions import (
     col,
     dateadd,
     datediff,
+    lag,
     lead,
     lit,
     row_number,
@@ -510,6 +511,8 @@ def get_expected_resample_bins_frame(
         index_column_pandas_labels=[RESAMPLE_INDEX_LABEL],
         index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
         data_column_pandas_index_names=[None],
+        data_column_types=None,
+        index_column_types=None,
     )
 
 
@@ -614,12 +617,14 @@ def fill_missing_resample_bins_for_frame(
         index_column_pandas_labels=frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=joined_frame.index_column_snowflake_quoted_identifiers,
         data_column_pandas_index_names=frame.data_column_pandas_index_names,
+        data_column_types=frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=frame.cached_index_column_snowpark_pandas_types,
     )
 
 
 # TODO: SNOW-989398 Migrate function to ASOF join
 def perform_asof_join_on_frame(
-    preserving_frame: InternalFrame, referenced_frame: InternalFrame
+    preserving_frame: InternalFrame, referenced_frame: InternalFrame, fill_method: str
 ) -> InternalFrame:
     """
     Returns a new InternalFrame that performs an ASOF join on the preserving
@@ -638,6 +643,9 @@ def perform_asof_join_on_frame(
 
     referenced_frame: InternalFrame
         The frame to select the closest match from using its DatetimeIndex.
+
+    fill_method: str
+        The method to use for filling values.
 
     Returns
     -------
@@ -667,20 +675,33 @@ def perform_asof_join_on_frame(
     # are the steps to take:
 
     # 1. Construct right_frame using referenced_frame, which has a
-    # temporary column, interval_end_col, that olds the closest
+    # temporary column, interval_end_col, that holds the closest
     # following timestamp to every value in __index__. The last value in
-    # interval_end_col is dummy value that represents the largest
-    # possible date in Snowflake.
+    # interval_end_col is dummy value that represents the smallest or largest
+    # (e.g. bfill or ffill) possible date in Snowflake.
     interval_end_pandas_label = "interval_end_col"
     interval_start_snowflake_quoted_identifier = (
         get_snowflake_quoted_identifier_for_resample_index_col(referenced_frame)
     )
-    interval_end_col = coalesce(
-        lead(col(interval_start_snowflake_quoted_identifier)).over(
-            Window.order_by(col(interval_start_snowflake_quoted_identifier).asc())
-        ),
-        pandas_lit("9999-01-01 00:00:00"),
-    )
+    if fill_method == "bfill":
+        # Snowflake recommends using 1582 as the smallest year for date or timestamp type
+        # due to limits on the Gregorian calendar. See https://docs.snowflake.com/en/sql-reference/data-types-datetime
+        interval_end_col = coalesce(
+            lag(col(interval_start_snowflake_quoted_identifier)).over(
+                Window.order_by(col(interval_start_snowflake_quoted_identifier).asc())
+            ),
+            pandas_lit("1582-01-01 00:00:00"),
+        )
+    else:
+        # Snowflake recommends using 9999 as the largest year for date or timestamp type
+        # due to limits on the Gregorian calendar. See https://docs.snowflake.com/en/sql-reference/data-types-datetime
+        assert fill_method == "ffill", "`fill_method` can only be 'bfill' or 'ffill'"
+        interval_end_col = coalesce(
+            lead(col(interval_start_snowflake_quoted_identifier)).over(
+                Window.order_by(col(interval_start_snowflake_quoted_identifier).asc())
+            ),
+            pandas_lit("9999-12-31 23:59:59"),
+        )
     right_frame = referenced_frame.append_column(
         interval_end_pandas_label, interval_end_col
     )
@@ -715,18 +736,28 @@ def perform_asof_join_on_frame(
 
     # 4. Join left_snowpark_df and right_snowpark_df using the following logic:
     # For each element left_frame's __resample_index__, join it with a single row
-    # in right_frame whose __index__ value is less than or equal to it and is closest in time.
+    # in right_frame whose __index__ value is less/greater than or equal to it and is closest in time.
     # If a row cannot be found, pad the joined columns from right_frame with null.
-    joined_snowpark_df = left_snowpark_df.join(
-        right=right_snowpark_df,
-        on=(
+    if fill_method == "bfill":
+        on_expr = (
+            left_snowpark_df[left_timecol_snowflake_quoted_identifier]
+            <= right_snowpark_df[interval_start_snowflake_quoted_identifier]
+        ) & (
+            left_snowpark_df[left_timecol_snowflake_quoted_identifier]
+            > right_snowpark_df[interval_end_snowflake_quoted_identifier]
+        )
+    else:
+        assert fill_method == "ffill"
+        on_expr = (
             left_snowpark_df[left_timecol_snowflake_quoted_identifier]
             >= right_snowpark_df[interval_start_snowflake_quoted_identifier]
-        )
-        & (
+        ) & (
             left_snowpark_df[left_timecol_snowflake_quoted_identifier]
             < right_snowpark_df[interval_end_snowflake_quoted_identifier]
-        ),
+        )
+    joined_snowpark_df = left_snowpark_df.join(
+        right=right_snowpark_df,
+        on=on_expr,
         how="left",
     )
     # joined_snowpark_df:
@@ -753,4 +784,6 @@ def perform_asof_join_on_frame(
             left_timecol_snowflake_quoted_identifier
         ],
         data_column_pandas_index_names=referenced_frame.data_column_pandas_index_names,
+        data_column_types=referenced_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=referenced_frame.cached_index_column_snowpark_pandas_types,
     )

@@ -1745,6 +1745,26 @@ class Series(BasePandasDataset):
             fill_value=fill_value,
         )
 
+    @series_not_implemented()
+    def reindex_like(
+        self,
+        other,
+        method=None,
+        copy: bool | None = None,
+        limit=None,
+        tolerance=None,
+    ) -> Series:  # pragma: no cover
+        # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+        # docs say "Same as calling .reindex(index=other.index, columns=other.columns,...).":
+        # https://pandas.pydata.org/pandas-docs/version/1.4/reference/api/pandas.Series.reindex_like.html
+        return self.reindex(
+            index=other.index,
+            method=method,
+            copy=copy,
+            limit=limit,
+            tolerance=tolerance,
+        )
+
     def rename_axis(
         self,
         mapper=no_default,
@@ -1833,7 +1853,9 @@ class Series(BasePandasDataset):
         Generate a new Series with the index reset.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        if name is no_default:
+        if drop:
+            name = self.name
+        elif name is no_default:
             # For backwards compatibility, keep columns as [0] instead of
             #  [None] when self.name is None
             name = 0 if self.name is None else self.name

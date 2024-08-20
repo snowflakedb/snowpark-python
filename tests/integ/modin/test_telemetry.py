@@ -355,7 +355,7 @@ def test_telemetry_with_not_implemented_error():
     index = pandas.date_range("1/1/2000", periods=9, freq="min")
     ser = pd.Series(range(9), index=index)
     try:
-        ser.resample("3T").bfill()
+        ser.resample("3T").fillna(method="nearest")
     except NotImplementedError:
         pass
 

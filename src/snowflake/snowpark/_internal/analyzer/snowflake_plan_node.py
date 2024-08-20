@@ -162,6 +162,19 @@ class SaveMode(Enum):
     TRUNCATE = "truncate"
 
 
+class TableCreationSource(Enum):
+    """The enum to indicate the source where SnowflakeCreateTable was created.
+
+    CACHE_RESULT: SnowflakeCreateTable created by DataFrame.cache_result
+    LARGE_QUERY_BREAKDOWN: SnowflakeCreateTable created by large query breakdown optimization
+    OTHERS: SnowflakeCreateTable created by other sources like DataFrame.write.save_as_table
+    """
+
+    CACHE_RESULT = "cache_result"
+    LARGE_QUERY_BREAKDOWN = "large_query_breakdown"
+    OTHERS = "others"
+
+
 class SnowflakeCreateTable(LogicalPlan):
     def __init__(
         self,
@@ -169,10 +182,10 @@ class SnowflakeCreateTable(LogicalPlan):
         column_names: Optional[List[str]],
         mode: SaveMode,
         query: LogicalPlan,
+        creation_source: TableCreationSource,
         table_type: str = "",
         clustering_exprs: Optional[Iterable[Expression]] = None,
         comment: Optional[str] = None,
-        is_generated: bool = False,
     ) -> None:
         super().__init__()
 
@@ -187,7 +200,7 @@ class SnowflakeCreateTable(LogicalPlan):
         self.children.append(query)
         self.clustering_exprs = clustering_exprs or []
         self.comment = comment
-        self.is_generated = is_generated
+        self.creation_source = creation_source
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:

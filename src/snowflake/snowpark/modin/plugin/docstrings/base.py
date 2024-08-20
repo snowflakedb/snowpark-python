@@ -1093,11 +1093,6 @@ class BasePandasDataset:
         Return `BasePandasDataset` with duplicate rows removed.
         """
 
-    def map():
-        """
-        Apply a function to `BasePandasDataset elementwise.
-        """
-
     def mask():
         """
         Replace values where the condition is True.
@@ -1550,9 +1545,8 @@ class BasePandasDataset:
         With a callable, useful in method chains. The `x` passed
         to the ``lambda`` is the DataFrame being sliced. This selects
         the rows whose index labels are even.
-        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
 
-        >>> df.iloc[lambda x: x.index.to_pandas() % 2 == 0]
+        >>> df.iloc[lambda x: x.index % 2 == 0]
               a     b     c     d
         0     1     2     3     4
         2  1000  2000  3000  4000
@@ -2281,11 +2275,6 @@ class BasePandasDataset:
     def reindex():
         """
         Conform `BasePandasDataset` to new index with optional filling logic.
-        """
-
-    def reindex_like():
-        """
-        Return an object with matching indices as `other` object.
         """
 
     def rename_axis():

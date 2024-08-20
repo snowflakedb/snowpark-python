@@ -822,13 +822,18 @@ def batch_insert_into_statement(
 def create_table_as_select_statement(
     table_name: str,
     child: str,
-    column_definition: str,
+    column_definition: Optional[str],
     replace: bool = False,
     error: bool = True,
     table_type: str = EMPTY_STRING,
     clustering_key: Optional[Iterable[str]] = None,
     comment: Optional[str] = None,
 ) -> str:
+    column_definition_sql = (
+        f"{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
+        if column_definition
+        else EMPTY_STRING
+    )
     cluster_by_clause = (
         (CLUSTER_BY + LEFT_PARENTHESIS + COMMA.join(clustering_key) + RIGHT_PARENTHESIS)
         if clustering_key
@@ -837,8 +842,8 @@ def create_table_as_select_statement(
     comment_sql = get_comment_sql(comment)
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"
-        f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING}"
-        f" {table_name}{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
+        f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
+        f"{table_name}{column_definition_sql}"
         f"{cluster_by_clause} {comment_sql} {AS}{project_statement([], child)}"
     )
 
@@ -882,7 +887,10 @@ def create_file_format_statement(
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
 ) -> str:
-    options_str = TYPE + EQUALS + file_type + SPACE + get_options_statement(options)
+    type_str = TYPE + EQUALS + file_type + SPACE
+    options_str = (
+        type_str if "TYPE" not in options else EMPTY_STRING
+    ) + get_options_statement(options)
     return (
         CREATE
         + (
