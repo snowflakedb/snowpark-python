@@ -548,7 +548,9 @@ class ServerConnection:
             if TYPE_CHECKING:
                 assert isinstance(result_set, AsyncJob)
             while not result_set.is_done():
-                time.sleep(self._async_query_submission_polling_interval_ns)
+                time.sleep(
+                    self._async_query_submission_polling_interval_ns / 1000000000
+                )
 
             return result_set.result()
 
