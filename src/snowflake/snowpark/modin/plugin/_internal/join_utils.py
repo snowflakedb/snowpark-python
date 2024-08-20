@@ -101,6 +101,9 @@ def join(
     how: JoinTypeLit,
     left_on: list[str],
     right_on: list[str],
+    left_match_condition: Optional[str] = None,
+    right_match_condition: Optional[str] = None,
+    comparator_match_condition: Optional[str] = None,
     sort: Optional[bool] = False,
     join_key_coalesce_config: Optional[list[JoinKeyCoalesceConfig]] = None,
     inherit_join_index: InheritJoinIndex = InheritJoinIndex.FROM_LEFT,
@@ -111,10 +114,17 @@ def join(
     Args:
         left: An internal frame to use on left side of join.
         right: An internal frame to use on right side of join.
-        how: Type of join. Can be any of {'left', 'right', 'outer', 'inner', 'cross'}
+        how: Type of join. Can be any of {'left', 'right', 'outer', 'inner', 'cross', 'asof'}
         left_on: List of snowflake identifiers to join on from 'left' frame.
         right_on: List of snowflake identifiers to join on from 'right' frame.
             left_on and right_on must be lists of equal length.
+        left_match_condition: Snowflake identifier to match condition on from 'left' frame.
+            Only applicable for 'asof' join.
+        right_match_condition: Snowflake identifier to match condition on from 'right' frame.
+            Only applicable for 'asof' join.
+        comparator_match_condition: {"__ge__", "__gt__", "__le__", "__lt__"}
+            Only applicable for 'asof' join, the operation to compare 'left_match_condition'
+            and 'right_match_condition'.
         sort: If True order merged frame on join keys. If False, ordering behavior
             depends on join type as follows:
             For "right" join use right ordering and then left ordering.
@@ -160,7 +170,13 @@ def join(
     right = right.select_active_columns()
 
     joined_ordered_dataframe = left.ordered_dataframe.join(
-        right.ordered_dataframe, left_on_cols=left_on, right_on_cols=right_on, how=how
+        right=right.ordered_dataframe,
+        left_on_cols=left_on,
+        right_on_cols=right_on,
+        left_match_condition=left_match_condition,
+        right_match_condition=right_match_condition,
+        comparator_match_condition=comparator_match_condition,
+        how=how,
     )
 
     return _create_internal_frame_with_join_or_align_result(
@@ -277,11 +293,11 @@ def _create_internal_frame_with_join_or_align_result(
             right_col = result_helper.map_right_quoted_identifiers([origin_right_col])[
                 0
             ]
-            # Coalescing is only required for 'outer' join or align.
+            # Coalescing is only required for 'outer' or 'asof' joins or align.
             # For 'inner' and 'left' join we use left join keys and for 'right' join we
             # use right join keys.
             # For 'left' and 'coalesce' align we use left join keys.
-            if how == "outer":
+            if how in ("asof", "outer"):
                 # Generate an expression equivalent of
                 # "COALESCE('left_col', 'right_col') as 'left_col'"
                 coalesce_column_identifier = (

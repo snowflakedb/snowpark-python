@@ -6829,121 +6829,46 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         left_frame = self._modin_frame
         right_frame = right._modin_frame
-        # Project to Snowpark DataFrame in order to perform ASOF Join
-        left_snowpark_df = (
-            left_frame.ordered_dataframe.to_projected_snowpark_dataframe()
-        )
-        right_snowpark_df = (
-            right_frame.ordered_dataframe.to_projected_snowpark_dataframe()
-        )
         if on:
-            left_on_quoted_identifier = (
+            left_match_quoted_identifier = (
                 left_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
                     [on]
                 )[0][0]
             )
-            right_on_quoted_identifier = (
+            right_match_quoted_identifier = (
                 right_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
                     [on]
                 )[0][0]
             )
         else:
             assert left_on and right_on
-            left_on_quoted_identifier = (
+            left_match_quoted_identifier = (
                 left_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
                     [left_on]
                 )[0][0]
             )
-            right_on_quoted_identifier = (
+            right_match_quoted_identifier = (
                 right_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
                     [right_on]
                 )[0][0]
             )
 
-        lhs_expr = left_snowpark_df[left_on_quoted_identifier]
-        rhs_expr = right_snowpark_df[right_on_quoted_identifier]
-        order_by_expr = [
-            left_snowpark_df[left_on_quoted_identifier],
-            right_snowpark_df[right_on_quoted_identifier],
-        ]
         if direction == "backward":
-            match_condition = (
-                (lhs_expr >= rhs_expr) if allow_exact_matches else (lhs_expr > rhs_expr)
-            )
+            comparator_match_condition = "__ge__" if allow_exact_matches else "__gt__"
         else:
-            match_condition = (
-                (lhs_expr <= rhs_expr) if allow_exact_matches else (lhs_expr < rhs_expr)
-            )
+            comparator_match_condition = "__le__" if allow_exact_matches else "__lt__"
 
-        joined_snowpark_df = left_snowpark_df.join(
-            right=right_snowpark_df,
-            match_condition=match_condition,
+        joined_frame, _ = join_utils.join(
+            left=left_frame,
+            right=right_frame,
             how="asof",
-        ).order_by(order_by_expr)
-
-        if on:
-            # Output pandas labels consists of all data pandas labels in left_frame and
-            # all data pandas labels except the "on" pandas label in the right frame
-            right_frame_on_index = right_frame.data_column_pandas_labels.index(on)
-            data_column_pandas_labels = (
-                left_frame.data_column_pandas_labels
-                + right_frame.data_column_pandas_labels[0:right_frame_on_index]
-                + right_frame.data_column_pandas_labels[(right_frame_on_index + 1) :]
-            )
-        else:
-            # Output pandas labels consists of all data pandas labels in both frames
-            assert left_on and right_on
-            data_column_pandas_labels = (
-                left_frame.data_column_pandas_labels
-                + right_frame.data_column_pandas_labels
-            )
-
-        left_frame_num_valid_cols = len(left_frame.data_column_pandas_labels)
-        right_frame_num_valid_cols = len(right_frame.data_column_pandas_labels)
-        left_snowpark_df_num_cols = len(left_snowpark_df.columns)
-        # Get the valid indices of data column snowflake quoted identifiers
-        # from the joined_snowpark_df corresponding to the left_snowpark_df.
-        # Use i + 1 since we skip the index column of the left_snowpark_df.
-        valid_data_indices = [i + 1 for i in range(left_frame_num_valid_cols)]
-        if on:
-            # Get the valid data indices of data column snowflake quoted identifiers
-            # from the joined_snowpark_df corresponding to the right_snowpark_df.
-            # Use left_snowpark_df_num_cols + i + 1 to skip the left_snowpark_df columns and the
-            # right_snowpark_df index column. Also skip the index of the 'on' value in the right_snowpark_df.
-            valid_data_indices.extend(
-                [
-                    left_snowpark_df_num_cols + i + 1
-                    for i in range(0, right_frame_on_index)
-                ]
-            )
-            valid_data_indices.extend(
-                [
-                    left_snowpark_df_num_cols + i + 1
-                    for i in range(right_frame_on_index + 1, right_frame_num_valid_cols)
-                ]
-            )
-        else:
-            assert left_on and right_on
-            # Get the valid data indices of data column snowflake quoted identifiers
-            # from the joined_snowpark_df corresponding to the right_snowpark_df.
-            # Similar to the 'on' case, but keep the index of the 'on' value in the right_snowpark_df.
-            valid_data_indices.extend(
-                [
-                    left_snowpark_df_num_cols + i + 1
-                    for i in range(right_frame_num_valid_cols)
-                ]
-            )
-        data_column_snowflake_quoted_identifiers = [
-            joined_snowpark_df.columns[i] for i in valid_data_indices
-        ]
-
-        joined_frame = InternalFrame.create(
-            ordered_dataframe=OrderedDataFrame(DataFrameReference(joined_snowpark_df)),
-            data_column_pandas_labels=data_column_pandas_labels,
-            data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
-            index_column_pandas_labels=left_frame.index_column_pandas_labels,
-            index_column_snowflake_quoted_identifiers=[joined_snowpark_df.columns[0]],
-            data_column_pandas_index_names=left_frame.data_column_pandas_index_names,
+            left_on=[left_match_quoted_identifier],
+            right_on=[right_match_quoted_identifier],
+            left_match_condition=left_match_quoted_identifier,
+            right_match_condition=right_match_quoted_identifier,
+            comparator_match_condition=comparator_match_condition,
+            join_key_coalesce_config=[JoinKeyCoalesceConfig.LEFT] if on else None,
+            sort=True,
         )
         return SnowflakeQueryCompiler(joined_frame)
 
