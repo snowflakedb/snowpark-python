@@ -182,7 +182,7 @@ class SqlCounter:
             self.session._conn.remove_query_listener(self)
         self._mark_as_dead()
 
-    def _add_query(self, query_record: QueryRecord):
+    def _notify(self, query_record: QueryRecord, **kwargs: dict):
         self._queries.append(query_record)
 
     def expects(self, **kwargs):
