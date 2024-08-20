@@ -1142,7 +1142,7 @@ class InternalFrame:
                 existing snowflake quoted identifiers to new Snowpark columns.
                 As keys of a dictionary, all snowflake column identifiers are unique here and
                 must be index columns and data columns in the original internal frame.
-            data_column_snowpark_pandas_types: The optional Snowpark pandas types for the ne
+            data_column_snowpark_pandas_types: The optional Snowpark pandas types for the new
                 expressions, in the order of the keys of quoted_identifier_to_column_map.
 
         Returns:
