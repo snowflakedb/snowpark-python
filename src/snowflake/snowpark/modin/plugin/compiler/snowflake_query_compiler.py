@@ -16580,7 +16580,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         }
 
-        rows = join_result.result_frame.ordered_dataframe.agg(agg_exprs).collect()
+        try:
+            rows = join_result.result_frame.ordered_dataframe.agg(agg_exprs).collect()
+        except SnowparkSQLException:
+            return False
         # In case of empty table/dataframe booland_agg returns None. Add special case
         # handling for that.
         return all(x is None for x in rows[0]) or all(rows[0])
