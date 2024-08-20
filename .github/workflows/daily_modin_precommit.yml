@@ -2,9 +2,10 @@
 
 name: Daily Snowpark pandas API test
 on:
-  schedule:
-    # 9 AM UTC
-    - cron: "0 9 * * *"
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: "**"
   workflow_dispatch:
       inputs:
         logLevel:
