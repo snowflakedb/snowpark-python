@@ -5,6 +5,7 @@ import functools
 from collections.abc import Hashable
 from dataclasses import dataclass
 from enum import Enum, auto
+from types import MappingProxyType
 
 import pandas as native_pd
 from pandas._typing import Callable, Scalar
@@ -203,7 +204,6 @@ def _compute_subtraction_between_snowpark_timestamp_columns(
     first_datatype: DataType,
     second_operand: SnowparkColumn,
     second_datatype: DataType,
-    subtraction_type: SubtractionType,
 ) -> SnowparkPandasColumn:
     """
     Compute subtraction between two snowpark columns.
@@ -227,17 +227,26 @@ def _compute_subtraction_between_snowpark_timestamp_columns(
         iff(
             is_null(first_operand).__or__(is_null(second_operand)),
             pandas_lit(native_pd.NaT),
-            datediff(
-                "ns",
-                *(
-                    (first_operand, second_operand)
-                    if subtraction_type is SubtractionType.RSUB
-                    else (second_operand, first_operand)
-                ),
-            ),
+            datediff("ns", second_operand, first_operand),
         ),
         TimedeltaType(),
     )
+
+
+# This is an immmutable map from right-sided binary operations to the
+# equivalent left-sided binary operations. For example, "rsub" maps to "sub"
+# because rsub(col(a), col(b)) is equivalent to sub(col(b), col(a)).
+_RIGHT_BINARY_OP_TO_LEFT_BINARY_OP: MappingProxyType[str, str] = MappingProxyType(
+    {
+        "rtruediv": "truediv",
+        "rfloordiv": "floordiv",
+        "rpow": "pow",
+        "radd": "add",
+        "rmul": "mul",
+        "rsub": "sub",
+        "rmod": "mod",
+    }
+)
 
 
 def compute_binary_op_between_snowpark_columns(
@@ -261,38 +270,32 @@ def compute_binary_op_between_snowpark_columns(
     Returns:
         SnowparkPandasColumn for translated pandas operation
     """
+    if op in _RIGHT_BINARY_OP_TO_LEFT_BINARY_OP:
+        # Normalize right-sided binary operations to the equivalent left-sided
+        # operations with swapped operands. For example, rsub(col(a), col(b))
+        # becomes sub(col(b), col(a))
+        op, first_operand, first_datatype, second_operand, second_datatype = (
+            _RIGHT_BINARY_OP_TO_LEFT_BINARY_OP[op],
+            second_operand,
+            second_datatype,
+            first_operand,
+            first_datatype,
+        )
+
     binary_op_result_column, snowpark_pandas_result_type = None, None
 
     # some operators and the data types have to be handled specially to align with pandas
     # However, it is difficult to fail early if the arithmetic operator is not compatible
     # with the data type, so we just let the server raise exception (e.g. a string minus a string).
-    if op in ["truediv", "rtruediv", "floordiv", "rfloordiv"]:
-        # rtruediv means b/a, rfloordiv means b//a in Python
-        if op in ["rtruediv", "rfloordiv"]:
-            first_operand, second_operand = (
-                second_operand,
-                first_operand,
-            )
-
+    if op == "truediv":
         binary_op_result_column = first_operand / second_operand
-
-        if op in ["floordiv", "rfloordiv"]:
-            binary_op_result_column = floor(binary_op_result_column)
-    elif op in ["mod", "rmod"]:
-        if op == "rmod":
-            first_operand, second_operand = (
-                second_operand,
-                first_operand,
-            )
+    elif op == "floordiv":
+        binary_op_result_column = floor(first_operand / second_operand)
+    elif op == "mod":
         binary_op_result_column = compute_modulo_between_snowpark_columns(
             first_operand, first_datatype(), second_operand, second_datatype()
         )
-    elif op in ["pow", "rpow"]:
-        if op == "rpow":
-            first_operand, second_operand = (
-                second_operand,
-                first_operand,
-            )
+    elif op == "pow":
         binary_op_result_column = compute_power_between_snowpark_columns(
             first_operand, second_operand
         )
@@ -300,47 +303,43 @@ def compute_binary_op_between_snowpark_columns(
         binary_op_result_column = first_operand | second_operand
     elif op in ["__and__", "__rand__"]:
         binary_op_result_column = first_operand & second_operand
-    elif op in ["add", "radd", "mul", "rmul"]:
+    elif (
+        op == "add"
+        and isinstance(second_datatype(), StringType)
+        and isinstance(first_datatype(), StringType)
+    ):
+        # string/string case (only for add)
+        binary_op_result_column = concat(first_operand, second_operand)
+    elif op == "mul" and (
+        (
+            isinstance(second_datatype(), _IntegralType)
+            and isinstance(first_datatype(), StringType)
+        )
+        or (
+            isinstance(second_datatype(), StringType)
+            and isinstance(first_datatype(), _IntegralType)
+        )
+    ):
+        # string/integer case (only for mul/rmul).
+        # swap first_operand with second_operand because
+        # REPEAT(<input>, <n>) expects <input> to be string
+        if isinstance(first_datatype(), _IntegralType):
+            first_operand, second_operand = second_operand, first_operand
 
-        # string/string case (only for add/radd)
-        if isinstance(second_datatype(), StringType) and isinstance(
-            first_datatype(), StringType
-        ):
-            if "add" == op:
-                binary_op_result_column = concat(first_operand, second_operand)
-            elif "radd" == op:
-                binary_op_result_column = concat(second_operand, first_operand)
-
-        # string/integer case (only for mul/rmul)
-        if op in ["mul", "rmul"] and (
-            (
-                isinstance(second_datatype(), _IntegralType)
-                and isinstance(first_datatype(), StringType)
-            )
-            or (
-                isinstance(second_datatype(), StringType)
-                and isinstance(first_datatype(), _IntegralType)
-            )
-        ):
-            # Snowflake's repeat doesn't support negative number
+        binary_op_result_column = iff(
+            second_operand > pandas_lit(0),
+            repeat(first_operand, second_operand),
+            # Snowflake's repeat doesn't support negative number,
             # but pandas will return an empty string
-
-            # swap first_operand with second_operand because REPEAT(<input>, <n>) expects <input> to be string
-            if isinstance(first_datatype(), _IntegralType):
-                first_operand, second_operand = second_operand, first_operand
-
-            binary_op_result_column = iff(
-                second_operand > pandas_lit(0),
-                repeat(first_operand, second_operand),
-                pandas_lit(""),
-            )
+            pandas_lit(""),
+        )
     elif op == "equal_null":
         if not are_equal_types(first_datatype(), second_datatype()):
             binary_op_result_column = pandas_lit(False)
         else:
             binary_op_result_column = first_operand.equal_null(second_operand)
     elif (
-        op in ("rsub", "sub")
+        op == "sub"
         and isinstance(first_datatype(), TimestampType)
         and isinstance(second_datatype(), NullType)
     ):
@@ -349,7 +348,7 @@ def compute_binary_op_between_snowpark_columns(
         snowpark_pandas_result_type = NullType()
         binary_op_result_column = pandas_lit(None)
     elif (
-        op in ("rsub", "sub")
+        op == "sub"
         and isinstance(first_datatype(), NullType)
         and isinstance(second_datatype(), TimestampType)
     ):
@@ -358,7 +357,7 @@ def compute_binary_op_between_snowpark_columns(
         snowpark_pandas_result_type = NullType()
         binary_op_result_column = pandas_lit(None)
     elif (
-        op in ("sub", "rsub")
+        op == "sub"
         and isinstance(first_datatype(), TimestampType)
         and isinstance(second_datatype(), TimestampType)
     ):
@@ -367,9 +366,6 @@ def compute_binary_op_between_snowpark_columns(
             first_datatype=first_datatype(),
             second_operand=second_operand,
             second_datatype=second_datatype(),
-            subtraction_type=SubtractionType.SUB
-            if op == "sub"
-            else SubtractionType.RSUB,
         )
     # If there is no special binary_op_result_column result, it means the operator and
     # the data type of the column don't need special handling. Then we get the overloaded
