@@ -291,6 +291,9 @@ class MockServerConnection:
         else:
             self._oob_telemetry.log_session_creation(self._connection_uuid)
 
+        self._async_query_submission_in_stored_procedures: bool = False
+        self._async_query_submission_polling_interval_ns: float = 0
+
     def log_not_supported_error(
         self,
         external_feature_name: Optional[str] = None,

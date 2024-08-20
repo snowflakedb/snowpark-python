@@ -21,6 +21,16 @@ _is_execution_environment_sandboxed_for_client: bool = False
 _should_continue_registration: Optional[Callable[..., bool]] = None
 
 
+# If True, submits all queries (i.e. collect() calls) made in stored procedures asynchronously. If
+# the original invocation was intended to be synchronous, we will poll for the result.
+_async_query_submission_in_stored_procedures: bool = True
+
+
+# Amount of time, in nanoseconds, to wait between polls, if
+# _async_query_submission_in_stored_procedures=True.
+_async_query_submission_polling_interval_ns: float = 1
+
+
 def get_active_session() -> "snowflake.snowpark.Session":
     """Returns the current active Snowpark session.
 

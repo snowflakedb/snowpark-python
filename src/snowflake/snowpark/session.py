@@ -108,6 +108,8 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
+    _async_query_submission_in_stored_procedures,
+    _async_query_submission_polling_interval_ns,
     _is_execution_environment_sandboxed_for_client,
     _use_scoped_temp_objects,
 )
@@ -563,6 +565,13 @@ class Session:
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         if self._auto_clean_up_temp_table_enabled:
             self._temp_table_auto_cleaner.start()
+
+        self._conn._async_query_submission_in_stored_procedures = (
+            _async_query_submission_in_stored_procedures
+        )
+        self._conn._async_query_submission_polling_interval_ns = (
+            _async_query_submission_polling_interval_ns
+        )
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
