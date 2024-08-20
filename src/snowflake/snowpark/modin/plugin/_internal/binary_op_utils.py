@@ -198,7 +198,7 @@ class SubtractionType(Enum):
     RSUB = auto()
 
 
-def _compute_subtraction_between_snowpark_columns(
+def _compute_subtraction_between_snowpark_timestamp_columns(
     first_operand: SnowparkColumn,
     first_datatype: DataType,
     second_operand: SnowparkColumn,
@@ -362,7 +362,7 @@ def compute_binary_op_between_snowpark_columns(
         and isinstance(first_datatype(), TimestampType)
         and isinstance(second_datatype(), TimestampType)
     ):
-        return _compute_subtraction_between_snowpark_columns(
+        return _compute_subtraction_between_snowpark_timestamp_columns(
             first_operand=first_operand,
             first_datatype=first_datatype(),
             second_operand=second_operand,
