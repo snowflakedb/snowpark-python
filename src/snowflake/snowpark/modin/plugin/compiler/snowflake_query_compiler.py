@@ -16590,7 +16590,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # return not equal for exception from SQL, e.g., type conversion error while comparing with two
                 # different types.
                 return False
-            raise e
+            raise e  # pragma: no cover
         # In case of empty table/dataframe booland_agg returns None. Add special case
         # handling for that.
         return all(x is None for x in rows[0]) or all(rows[0])
