@@ -1098,10 +1098,6 @@ class OrderedDataFrame:
                    we just select new de-duplicated columns from the right dataframe. The ordering columns
                    and position columns of left dataframe are used for the result ordered dataframe.
 
-            match_condition: Snowpark Column
-                Only applies for ASOF Join, condition matching a single row in the left
-                table with a single row in the right table.
-
         Return:
             An OrderedDataFrame representation of the join result with the following property
                 1) Projected columns in the order of left projected columns + right projected columns
@@ -1143,7 +1139,6 @@ class OrderedDataFrame:
         original_right_quoted_identifiers = (
             right.projected_column_snowflake_quoted_identifiers
         )
-
         # De-duplicate the column identifiers of right against self (left), so that
         # Snowpark doesn't perform any de-duplication on the result dataframe during join.
         right = right._deduplicate_active_column_snowflake_quoted_identifiers(
