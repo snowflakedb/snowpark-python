@@ -476,7 +476,7 @@ def test_non_select_query_composition_unionall(session):
     reason="This is testing query generation",
     run=False,
 )
-def test_non_select_query_composition_self_union(session, sql_simplifier_enabled):
+def test_non_select_query_composition_self_union(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.sql(
@@ -487,7 +487,7 @@ def test_non_select_query_composition_self_union(session, sql_simplifier_enabled
         union = df.union(df).select('"name"').filter(col('"name"') == table_name)
 
         assert len(union.collect()) == 1
-        if sql_simplifier_enabled:
+        if session.sql_simplifier_enabled:
             assert len(union._plan.queries) == 3
         else:
             assert len(union._plan.queries) == 2
@@ -500,7 +500,7 @@ def test_non_select_query_composition_self_union(session, sql_simplifier_enabled
     reason="This is testing query generation",
     run=False,
 )
-def test_non_select_query_composition_self_unionall(session, sql_simplifier_enabled):
+def test_non_select_query_composition_self_unionall(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.sql(
@@ -511,7 +511,7 @@ def test_non_select_query_composition_self_unionall(session, sql_simplifier_enab
         union = df.union_all(df).select('"name"').filter(col('"name"') == table_name)
 
         assert len(union.collect()) == 2
-        if sql_simplifier_enabled:
+        if session.sql_simplifier_enabled:
             assert len(union._plan.queries) == 3
         else:
             assert len(union._plan.queries) == 2
