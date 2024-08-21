@@ -133,11 +133,16 @@ class Series(BasePandasDataset):
 
         # Convert lazy index to Series without pulling the data to client.
         if isinstance(data, Index):
-            # If the data is an Index object, we need to convert it to a DataFrame to make sure
+            # If the data is an Index object, we need to convert it to a Series to make sure
             # that the values are in the correct format -- as a data column, not an index column.
             # Additionally, if an index is provided, converting it to an Index object ensures that
             # its values are an index column.
-            query_compiler = data.to_frame(index=False, name=data.name)._query_compiler
+            query_compiler = (
+                data.to_series(index=None, name=name)
+                .reset_index(drop=True)
+                ._query_compiler
+            )
+
             if index is not None:
                 index = index if isinstance(index, Index) else Index(index)
                 query_compiler = query_compiler.create_qc_with_index_data_and_qc_index(
