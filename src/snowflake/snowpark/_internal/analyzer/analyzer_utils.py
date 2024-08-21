@@ -757,14 +757,6 @@ def get_comment_sql(comment: Optional[str]) -> str:
     )
 
 
-def get_assign_param_sql(param_name: str, param_value: Optional[Any]) -> str:
-    return (
-        f"{param_name}{EQUALS}{param_value}"
-        if param_value is not None
-        else EMPTY_STRING
-    )
-
-
 def create_table_statement(
     table_name: str,
     schema: str,
@@ -788,29 +780,20 @@ def create_table_statement(
         else EMPTY_STRING
     )
     comment_sql = get_comment_sql(comment)
+    options_statement = get_options_statement(
+        {
+            ENABLE_SCHEMA_EVOLUTION: enable_schema_evolution,
+            DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
+            MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
+            CHANGE_TRACKING: change_tracking,
+        }
+    )
     return (
-        CREATE
-        + (OR + REPLACE if replace else EMPTY_STRING)
-        + SPACE
-        + (
-            get_temp_type_for_object(use_scoped_temp_objects, is_generated)
-            if table_type.lower() in TEMPORARY_STRING_SET
-            else table_type
-        ).upper()
-        + SPACE
-        + TABLE
-        + table_name
-        + (IF + NOT + EXISTS if not replace and not error else EMPTY_STRING)
-        + LEFT_PARENTHESIS
-        + schema
-        + RIGHT_PARENTHESIS
-        + cluster_by_clause
-        + get_assign_param_sql(ENABLE_SCHEMA_EVOLUTION, enable_schema_evolution)
-        + get_assign_param_sql(DATA_RETENTION_TIME_IN_DAYS, data_retention_time)
-        + get_assign_param_sql(MAX_DATA_EXTENSION_TIME_IN_DAYS, max_data_extension_time)
-        + get_assign_param_sql(CHANGE_TRACKING, change_tracking)
-        + (COPY_GRANTS if copy_grants else EMPTY_STRING)
-        + comment_sql
+        f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
+        f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
+        f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
+        f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}{cluster_by_clause}"
+        f"{options_statement}{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql}"
     )
 
 
@@ -880,28 +863,19 @@ def create_table_as_select_statement(
         else EMPTY_STRING
     )
     comment_sql = get_comment_sql(comment)
+    options_statement = get_options_statement(
+        {
+            ENABLE_SCHEMA_EVOLUTION: enable_schema_evolution,
+            DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
+            MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
+            CHANGE_TRACKING: change_tracking,
+        }
+    )
     return (
-        CREATE
-        + (OR + REPLACE if replace else EMPTY_STRING)
-        + SPACE
-        + table_type.upper()
-        + SPACE
-        + TABLE
-        + (IF + NOT + EXISTS if not replace and not error else EMPTY_STRING)
-        + SPACE
-        + table_name
-        + column_definition_sql
-        + cluster_by_clause
-        + get_assign_param_sql(ENABLE_SCHEMA_EVOLUTION, enable_schema_evolution)
-        + get_assign_param_sql(DATA_RETENTION_TIME_IN_DAYS, data_retention_time)
-        + get_assign_param_sql(MAX_DATA_EXTENSION_TIME_IN_DAYS, max_data_extension_time)
-        + get_assign_param_sql(CHANGE_TRACKING, change_tracking)
-        + (COPY_GRANTS if copy_grants else EMPTY_STRING)
-        + SPACE
-        + comment_sql
-        + SPACE
-        + AS
-        + project_statement([], child)
+        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"
+        f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
+        f"{table_name}{column_definition_sql}{cluster_by_clause}{options_statement}"
+        f"{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql} {AS}{project_statement([], child)}"
     )
 
 

@@ -614,31 +614,28 @@ class SnowflakePlanBuilder:
         }
         api_calls = [*select_left.api_calls, *select_right.api_calls]
 
+        # Need to do a deduplication to avoid repeated query.
+        merged_queries = select_left.queries[:-1].copy()
+        for query in select_right.queries[:-1]:
+            if query not in merged_queries:
+                merged_queries.append(copy.copy(query))
+
+        post_actions = select_left.post_actions.copy()
+        for post_action in select_right.post_actions:
+            if post_action not in post_actions:
+                post_actions.append(copy.copy(post_action))
+
         referenced_ctes: Set[str] = set()
         if (
             self.session.cte_optimization_enabled
             and self.session._query_compilation_stage_enabled
         ):
-            # When the cte optimization and the new compilation stage is enabled, the
-            # queries, referred cte tables, and post actions propagated from
-            # left and right can have duplicated queries if there is a common CTE block referenced
-            # by both left and right.
-            # Need to do a deduplication to avoid repeated query.
-            merged_queries = select_left.queries[:-1].copy()
-            for query in select_right.queries[:-1]:
-                if query not in merged_queries:
-                    merged_queries.append(copy.copy(query))
-
+            # When the cte optimization and the new compilation stage is enabled,
+            # the referred cte tables are propagated from left and right can have
+            # duplicated queries if there is a common CTE block referenced by
+            # both left and right.
             referenced_ctes.update(select_left.referenced_ctes)
             referenced_ctes.update(select_right.referenced_ctes)
-
-            post_actions = select_left.post_actions.copy()
-            for post_action in select_right.post_actions:
-                if post_action not in post_actions:
-                    post_actions.append(copy.copy(post_action))
-        else:
-            merged_queries = select_left.queries[:-1] + select_right.queries[:-1]
-            post_actions = select_left.post_actions + select_right.post_actions
 
         queries = merged_queries + [
             Query(
