@@ -6,7 +6,7 @@
 
 #### Improvements
 
-- Added support for specifying the following attributes when creating table using `DataFrameWriter.save_as_table`:
+- Added support for specifying the following to `DataFrameWriter.save_as_table`:
   - `enable_schema_evolution`
   - `data_retention_time`
   - `max_data_extension_time`
