@@ -148,6 +148,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added the `vector_cosine_similarity` built-in function.
+
 #### Improvements
 
 - Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
