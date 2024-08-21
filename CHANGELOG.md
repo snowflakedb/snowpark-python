@@ -7,6 +7,8 @@
 #### Bug Fixes
 
 - Fixed a bug in `session.read.csv` that caused an error when setting `PARSE_HEADER = True` in an externally defined file format.
+- Fixed a bug in query generation from set operations that allowed generation of duplicate queries when children have common subqueries.
+- Fixed a bug in `session.get_session_stage` that referenced a non-existing stage after switching database or schema.
 
 ### Snowpark Local Testing Updates
 
@@ -32,11 +34,14 @@
 - Added support for `Index.name`, `Index.names`, `Index.rename`, and `Index.set_names`.
 - Added support for `Index.__repr__`.
 - Added support for `DatetimeIndex.month_name` and `DatetimeIndex.day_name`.
+- Added support for `Series.dt.weekday`, `Series.dt.time`, and `DatetimeIndex.time`.
+- Added support for subtracting two timestamps to get a Timedelta.
 - Added support for `pd.crosstab`.
 
 #### Bug Fixes
 
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
+- Fixed AssertionError in tree of binary operations.
 
 ## 1.21.0 (2024-08-19)
 

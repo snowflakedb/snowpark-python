@@ -6,11 +6,12 @@ import datetime
 import inspect
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, NamedTuple, Optional, Union
 
 import numpy as np
 import pandas as native_pd
 
+from snowflake.snowpark.column import Column
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.types import LongType
 
@@ -97,6 +98,15 @@ class SnowparkPandasType(metaclass=SnowparkPandasTypeMetaclass):
         Get the corresponding Snowpark pandas type, if it exists, for a given pandas type.
         """
         return _pandas_type_to_snowpark_pandas_type.get(pandas_type, None)
+
+
+class SnowparkPandasColumn(NamedTuple):
+    """A Snowpark Column that has an optional SnowparkPandasType."""
+
+    # The Snowpark Column.
+    snowpark_column: Column
+    # The SnowparkPandasType for the column, if the type of the column is a SnowparkPandasType.
+    snowpark_pandas_type: Optional[SnowparkPandasType]
 
 
 class TimedeltaType(SnowparkPandasType, LongType):
