@@ -625,7 +625,6 @@ S5 = _gen_random_float_list_with_nones(18)
 S6 = _gen_random_float_list_with_nones(18, scale=0.002)
 ALL_SNOWFLAKE_COMPATIBLE_NUMERIC_TEST_SERIES = [S3, S4, S5, S6]
 
-
 all_supported_binary_ops = pytest.mark.parametrize(
     "op",
     [
@@ -2245,6 +2244,7 @@ def test_binary_add_dataframe_and_series_axis0_with_fill_value_negative():
     ],
 )
 def test_binary_add_dataframe_sub_series_axis1(df, s):
+
     # Use sub (-) here as it is not commutative.
     # Other operators are tested exhausitvely in the CI test test_binary_op_between_dataframe_and_series_axis0 above,
     # as one case for axis=0 actually invokes axis=1.
