@@ -97,7 +97,7 @@ def test_generate_scoped_temp_objects():
             use_scoped_temp_objects=True,
             is_generated=True,
         )
-        == f" CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}({temp_schema_name})"
+        == f" CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}({temp_schema_name})  "
     )
 
     assert (
@@ -108,7 +108,7 @@ def test_generate_scoped_temp_objects():
             use_scoped_temp_objects=True,
             is_generated=True,
         )
-        == f" CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}({temp_schema_name})"
+        == f" CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}({temp_schema_name})  "
     )
 
     assert (
@@ -119,7 +119,7 @@ def test_generate_scoped_temp_objects():
             use_scoped_temp_objects=False,
             is_generated=True,
         )
-        == f" CREATE  TEMPORARY  TABLE {temp_table_name}({temp_schema_name})"
+        == f" CREATE  TEMPORARY  TABLE {temp_table_name}({temp_schema_name})  "
     )
 
     assert (
@@ -130,7 +130,7 @@ def test_generate_scoped_temp_objects():
             use_scoped_temp_objects=True,
             is_generated=False,
         )
-        == f" CREATE  TEMPORARY  TABLE {temp_table_name}({temp_schema_name})"
+        == f" CREATE  TEMPORARY  TABLE {temp_table_name}({temp_schema_name})  "
     )
 
     assert (
@@ -141,7 +141,7 @@ def test_generate_scoped_temp_objects():
             use_scoped_temp_objects=False,
             is_generated=False,
         )
-        == f" CREATE  TEMPORARY  TABLE {temp_table_name}({temp_schema_name})"
+        == f" CREATE  TEMPORARY  TABLE {temp_table_name}({temp_schema_name})  "
     )
 
     assert (
@@ -152,7 +152,7 @@ def test_generate_scoped_temp_objects():
             use_scoped_temp_objects=True,
             is_generated=True,
         )
-        == f" CREATE  TRANSIENT  TABLE {temp_table_name}({temp_schema_name})"
+        == f" CREATE  TRANSIENT  TABLE {temp_table_name}({temp_schema_name})  "
     )
 
     assert (
@@ -163,7 +163,7 @@ def test_generate_scoped_temp_objects():
             use_scoped_temp_objects=True,
             is_generated=True,
         )
-        == f" CREATE    TABLE {temp_table_name}({temp_schema_name})"
+        == f" CREATE    TABLE {temp_table_name}({temp_schema_name})  "
     )
 
 
