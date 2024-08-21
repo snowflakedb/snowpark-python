@@ -924,7 +924,10 @@ class InternalFrame:
         )
 
     def append_column(
-        self, pandas_label: Hashable, value: SnowparkColumn
+        self,
+        pandas_label: Hashable,
+        value: SnowparkColumn,
+        value_type: Optional[SnowparkPandasType] = None,
     ) -> "InternalFrame":
         """
         Append a column to this frame. The column is added at the end. For a frame with multiindex column, it
@@ -935,6 +938,7 @@ class InternalFrame:
         Args:
             pandas_label: pandas label for column to be inserted.
             value: SnowparkColumn.
+            value_type: The optional SnowparkPandasType for the new column.
 
         Returns:
             A new InternalFrame with new column.
@@ -975,7 +979,8 @@ class InternalFrame:
             data_column_pandas_index_names=self.data_column_pandas_index_names,
             index_column_pandas_labels=self.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=self.index_column_snowflake_quoted_identifiers,
-            data_column_types=self.cached_data_column_snowpark_pandas_types + [None],
+            data_column_types=self.cached_data_column_snowpark_pandas_types
+            + [value_type],
             index_column_types=self.cached_index_column_snowpark_pandas_types,
         )
 
@@ -1109,6 +1114,9 @@ class InternalFrame:
     def update_snowflake_quoted_identifiers_with_expressions(
         self,
         quoted_identifier_to_column_map: dict[str, SnowparkColumn],
+        data_column_snowpark_pandas_types: Optional[
+            list[Optional[SnowparkPandasType]]
+        ] = None,
     ) -> UpdatedInternalFrameResult:
         """
         Points Snowflake quoted identifiers to column expression given by `quoted_identifier_to_column_map`.
@@ -1134,6 +1142,8 @@ class InternalFrame:
                 existing snowflake quoted identifiers to new Snowpark columns.
                 As keys of a dictionary, all snowflake column identifiers are unique here and
                 must be index columns and data columns in the original internal frame.
+            data_column_snowpark_pandas_types: The optional Snowpark pandas types for the new
+                expressions, in the order of the keys of quoted_identifier_to_column_map.
 
         Returns:
             UpdatedInternalFrameResult: A tuple contaning the new InternalFrame with updated column references, and a mapping
@@ -1168,10 +1178,16 @@ class InternalFrame:
 
         existing_id_to_new_id_mapping = {}
         new_columns = []
-        for (
-            existing_identifier,
-            column_expression,
-        ) in quoted_identifier_to_column_map.items():
+        new_type_mapping = dict(
+            self.snowflake_quoted_identifier_to_snowpark_pandas_type
+        )
+        if data_column_snowpark_pandas_types is None:
+            data_column_snowpark_pandas_types = [None] * len(
+                quoted_identifier_to_column_map
+            )
+        for ((existing_identifier, column_expression,), data_column_type) in zip(
+            quoted_identifier_to_column_map.items(), data_column_snowpark_pandas_types
+        ):
             new_identifier = (
                 self.ordered_dataframe.generate_snowflake_quoted_identifiers(
                     pandas_labels=[
@@ -1183,6 +1199,7 @@ class InternalFrame:
             )
             existing_id_to_new_id_mapping[existing_identifier] = new_identifier
             new_columns.append(column_expression)
+            new_type_mapping[new_identifier] = data_column_type
         new_ordered_dataframe = append_columns(
             self.ordered_dataframe,
             list(existing_id_to_new_id_mapping.values()),
@@ -1206,10 +1223,16 @@ class InternalFrame:
                 data_column_pandas_labels=self.data_column_pandas_labels,
                 data_column_snowflake_quoted_identifiers=new_data_column_snowflake_quoted_identifiers,
                 data_column_pandas_index_names=self.data_column_pandas_index_names,
-                data_column_types=self.cached_data_column_snowpark_pandas_types,
                 index_column_pandas_labels=self.index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=new_index_column_snowflake_quoted_identifiers,
-                index_column_types=self.cached_index_column_snowpark_pandas_types,
+                data_column_types=[
+                    new_type_mapping[k]
+                    for k in new_data_column_snowflake_quoted_identifiers
+                ],
+                index_column_types=[
+                    new_type_mapping[k]
+                    for k in new_index_column_snowflake_quoted_identifiers
+                ],
             ),
             existing_id_to_new_id_mapping,
         )

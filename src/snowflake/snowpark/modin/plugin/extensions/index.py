@@ -29,6 +29,7 @@ from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 import modin
 import numpy as np
 import pandas as native_pd
+from pandas import get_option
 from pandas._libs import lib
 from pandas._libs.lib import is_list_like, is_scalar
 from pandas._typing import ArrayLike, DateTimeErrorChoices, DtypeObj, NaPosition
@@ -64,6 +65,8 @@ class Index(metaclass=TelemetryMeta):
 
     # Equivalent index type in native pandas
     _NATIVE_INDEX_TYPE = native_pd.Index
+
+    _comparables: list[str] = ["name"]
 
     def __new__(
         cls,
@@ -1203,18 +1206,37 @@ class Index(metaclass=TelemetryMeta):
 
         return self._query_compiler.index_equals(other._query_compiler)
 
-    @index_not_implemented()
-    def identical(self) -> None:
+    def identical(self, other: Any) -> bool:
         """
         Similar to equals, but checks that object attributes and types are also equal.
 
         Returns
         -------
         bool
-            If two Index objects have equal elements and the same type True,
+            If two Index objects have equal elements and same type True,
             otherwise False.
+
+        Examples
+        --------
+        >>> idx1 = pd.Index(['1', '2', '3'])
+        >>> idx2 = pd.Index(['1', '2', '3'])
+        >>> idx2.identical(idx1)
+        True
+
+        >>> idx1 = pd.Index(['1', '2', '3'], name="A")
+        >>> idx2 = pd.Index(['1', '2', '3'], name="B")
+        >>> idx2.identical(idx1)
+        False
         """
-        # TODO: SNOW-1458148 implement identical
+        return (
+            all(
+                getattr(self, c, None) == getattr(other, c, None)
+                for c in self._comparables
+            )
+            and type(self) == type(other)
+            and self.dtype == other.dtype
+            and self.equals(other)
+        )
 
     @index_not_implemented()
     def insert(self) -> None:
@@ -2446,8 +2468,54 @@ class Index(metaclass=TelemetryMeta):
         """
         Return a string representation for this object.
         """
-        WarningMessage.index_to_pandas_warning("__repr__")
-        return self.to_pandas().__repr__()
+        # Create the representation for each field in the index and then join them.
+        # First, create the data representation.
+        # When the number of elements in the Index is greater than the number of
+        # elements to display, display only the first and last 10 elements.
+        max_seq_items = get_option("display.max_seq_items") or 100
+        length_of_index, _, temp_df = self.to_series()._query_compiler.build_repr_df(
+            max_seq_items, 1
+        )
+        if isinstance(temp_df, native_pd.DataFrame) and not temp_df.empty:
+            local_index = temp_df.iloc[:, 0].to_list()
+        else:
+            local_index = []
+        too_many_elem = max_seq_items < length_of_index
+
+        # The representation begins with class name followed by parentheses; the data representation is enclosed in
+        # square brackets. For example, "DatetimeIndex([" or "Index([".
+        class_name = self.__class__.__name__
+
+        # In the case of DatetimeIndex, if the data is timezone-aware, the timezone is displayed
+        # within the dtype field. This is not directly supported in Snowpark pandas.
+        native_pd_idx = native_pd.Index(local_index)
+        dtype = native_pd_idx.dtype if "DatetimeIndex" in class_name else self.dtype
+
+        # _format_data() correctly indents the data and places newlines where necessary.
+        # It also accounts for the comma, newline, and indentation for the next field (dtype).
+        data_repr = native_pd_idx._format_data()
+
+        # Next, creating the representation for each field with their respective labels.
+        # The index always displays the data and datatype, and optionally the name, length, and freq.
+        dtype_repr = f"dtype='{dtype}'"
+        name_repr = f", name='{self.name}'" if self.name else ""
+        # Length is displayed only when the number of elements is greater than the number of elements to display.
+        length_repr = f", length={length_of_index}" if too_many_elem else ""
+        # The frequency is displayed only for DatetimeIndex.
+        # TODO: SNOW-1625233 update freq_repr; replace None with the correct value.
+        freq_repr = ", freq=None" if "DatetimeIndex" in class_name else ""
+
+        repr = (
+            class_name
+            + "("
+            + data_repr
+            + dtype_repr
+            + name_repr
+            + length_repr
+            + freq_repr
+            + ")"
+        )
+        return repr
 
     def __iter__(self) -> Iterator:
         """
