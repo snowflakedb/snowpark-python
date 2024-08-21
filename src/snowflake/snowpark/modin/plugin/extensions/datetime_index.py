@@ -787,7 +787,6 @@ class DatetimeIndex(Index):
         array([0, 1])
         """
 
-    @datetime_index_not_implemented()
     def normalize(self) -> DatetimeIndex:
         """
         Convert times to midnight.
@@ -814,18 +813,21 @@ class DatetimeIndex(Index):
         Examples
         --------
         >>> idx = pd.date_range(start='2014-08-01 10:00', freq='h',
-        ...                     periods=3, tz='Asia/Calcutta')  # doctest: +SKIP
-        >>> idx  # doctest: +SKIP
+        ...                     periods=3, tz='Asia/Calcutta')
+        >>> idx
         DatetimeIndex(['2014-08-01 10:00:00+05:30',
                        '2014-08-01 11:00:00+05:30',
                        '2014-08-01 12:00:00+05:30'],
                         dtype='datetime64[ns, Asia/Calcutta]', freq=None)
-        >>> idx.normalize()  # doctest: +SKIP
+        >>> idx.normalize()
         DatetimeIndex(['2014-08-01 00:00:00+05:30',
                        '2014-08-01 00:00:00+05:30',
                        '2014-08-01 00:00:00+05:30'],
                        dtype='datetime64[ns, Asia/Calcutta]', freq=None)
         """
+        return DatetimeIndex(
+            query_compiler=self._query_compiler.dt_normalize(include_index=True)
+        )
 
     @datetime_index_not_implemented()
     def strftime(self, date_format: str) -> np.ndarray[np.object_]:
