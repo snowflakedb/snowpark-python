@@ -156,7 +156,7 @@ class DataFrame(BasePandasDataset):
 
         self._siblings = []
 
-        if isinstance(index, DataFrame):
+        if isinstance(index, DataFrame):  # pandas raises the same error
             raise ValueError("Index data must be 1-dimensional")
 
         # Engine.subscribe(_update_engine)
