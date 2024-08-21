@@ -13673,7 +13673,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         assert len(right_result_data_identifiers) == 1, "other must be a Series"
         right = right_result_data_identifiers[0]
         right_datatype = right_datatypes[0]
-
         # now replace in result frame identifiers with binary op result
         update_result = joined_frame.result_frame.update_snowflake_quoted_identifiers_with_expressions(
             {
@@ -13691,6 +13690,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         identifiers_to_keep = set(
             new_frame.index_column_snowflake_quoted_identifiers
         ) | set(update_result.old_id_to_new_id_mappings.values())
+        self_is_column_mi = len(self._modin_frame.data_column_pandas_index_names)
         label_to_snowflake_quoted_identifier = tuple(
             filter(
                 lambda pair: pair.snowflake_quoted_identifier in identifiers_to_keep,
@@ -13698,11 +13698,37 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
+        first_column_label = label_to_snowflake_quoted_identifier[
+            new_frame.num_index_columns
+        ].label
+
+        if (
+            self_is_column_mi
+            and isinstance(first_column_label, tuple)
+            and isinstance(first_column_label[0], tuple)
+        ):
+            from snowflake.snowpark.modin.plugin._internal.frame import (
+                LabelIdentifierPair,
+            )
+
+            new_label_to_snowflake_quoted_identifier = list(
+                label_to_snowflake_quoted_identifier[: new_frame.num_index_columns]
+            )
+            for pair in label_to_snowflake_quoted_identifier[
+                new_frame.num_index_columns :
+            ]:
+                new_label_to_snowflake_quoted_identifier.append(
+                    LabelIdentifierPair(pair.label[0], pair.snowflake_quoted_identifier)
+                )
+            label_to_snowflake_quoted_identifier = tuple(
+                new_label_to_snowflake_quoted_identifier
+            )
+
         new_frame = InternalFrame(
             ordered_dataframe=new_frame.ordered_dataframe,
             label_to_snowflake_quoted_identifier=label_to_snowflake_quoted_identifier,
             num_index_columns=new_frame.num_index_columns,
-            data_column_index_names=new_frame.data_column_index_names,
+            data_column_index_names=self._modin_frame.data_column_index_names,
             snowflake_quoted_identifier_to_snowpark_pandas_type={
                 pair.snowflake_quoted_identifier: None
                 for pair in label_to_snowflake_quoted_identifier

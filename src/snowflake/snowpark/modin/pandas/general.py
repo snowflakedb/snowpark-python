@@ -2015,7 +2015,7 @@ def crosstab(
         normalizers: dict[bool | str, Callable] = {
             "all": lambda x: x / x.sum(axis=0).sum(),
             "columns": lambda x: x / x.sum(),
-            "index": lambda x: x.div(x.sum(axis=1)),
+            "index": lambda x: x.div(x.sum(axis=1), axis="index"),
         }
 
         if margins is False:
