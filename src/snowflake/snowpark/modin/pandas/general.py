@@ -1986,7 +1986,6 @@ def crosstab(
         margins=margins,
         margins_name=margins_name,
         dropna=dropna,
-        # observed=dropna,
         **kwargs,  # type: ignore[arg-type]
     )
 
@@ -2031,36 +2030,37 @@ def crosstab(
             table_columns = table.columns
 
             column_margin = table.iloc[:-1, -1]
-            index_margin = table.iloc[-1, :-1]
 
-            # keep the core table
-            table = table.iloc[:-1, :-1]
-
-            # Normalize core
-            f = normalizers[normalize]
-
-            table = f(table)
-            table = table.fillna(0)
-
-            # Fix Margins
             if normalize == "columns":
+                # keep the core table
+                table = table.iloc[:-1, :-1]
+
+                # Normalize core
+                f = normalizers[normalize]
+                table = f(table)
+                table = table.fillna(0)
+                # Fix Margins
                 column_margin = column_margin / column_margin.sum()
                 table = pd.concat([table, column_margin], axis=1)
                 table = table.fillna(0)
                 table.columns = table_columns
 
             elif normalize == "index":
-                index_margin = pd.DataFrame(index_margin / index_margin.sum()).T
-                table = pd.concat([table, index_margin]).reset_index(drop=True)
-                table = table.fillna(0)
-                table.index = table_index
+                table = table.iloc[:, :-1]
+
+                # Normalize core
+                f = normalizers[normalize]
+                table = f(table)
+                table = table.fillna(0).reindex(index=table_index)
 
             elif normalize == "all":
+                # Normalize core
+                f = normalizers[normalize]
+                table = f(table.iloc[:, :-1]) * 2.0
+
                 column_margin = column_margin / column_margin.sum()
-                index_margin = index_margin / index_margin.sum()
-                index_margin.loc[margins_name] = 1
                 table = pd.concat([table, column_margin], axis=1)
-                table = table.append(index_margin, ignore_index=True)
+                table.iloc[-1, -1] = 1
 
                 table = table.fillna(0)
                 table.index = table_index
