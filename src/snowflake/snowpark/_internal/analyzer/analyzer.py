@@ -1126,22 +1126,22 @@ class Analyzer:
 
         if isinstance(logical_plan, CreateDynamicTableCommand):
             return self.plan_builder.create_or_replace_dynamic_table(
-                logical_plan.name,
-                logical_plan.warehouse,
-                logical_plan.lag,
-                logical_plan.comment,
-                logical_plan.create_mode,
-                logical_plan.refresh_mode,
-                logical_plan.initialize,
-                [
+                name=logical_plan.name,
+                warehouse=logical_plan.warehouse,
+                lag=logical_plan.lag,
+                comment=logical_plan.comment,
+                create_mode=logical_plan.create_mode,
+                refresh_mode=logical_plan.refresh_mode,
+                initialize=logical_plan.initialize,
+                clustering_keys=[
                     self.analyze(x, df_aliased_col_name_to_real_col_name)
                     for x in logical_plan.clustering_exprs
                 ],
-                logical_plan.is_transient,
-                logical_plan.data_retention_time,
-                logical_plan.max_data_extension_time,
-                resolved_children[logical_plan.child],
-                logical_plan,
+                is_transient=logical_plan.is_transient,
+                data_retention_time=logical_plan.data_retention_time,
+                max_data_extension_time=logical_plan.max_data_extension_time,
+                child=resolved_children[logical_plan.child],
+                source_plan=logical_plan,
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):

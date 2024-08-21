@@ -757,14 +757,6 @@ def get_comment_sql(comment: Optional[str]) -> str:
     )
 
 
-def get_assign_param_sql(param_name: str, param_value: Optional[Any]) -> str:
-    return (
-        f"{param_name}{EQUALS}{param_value}"
-        if param_value is not None
-        else EMPTY_STRING
-    )
-
-
 def create_table_statement(
     table_name: str,
     schema: str,
@@ -1104,33 +1096,32 @@ def create_or_replace_dynamic_table_statement(
     max_data_extension_time: Optional[int],
     child: str,
 ) -> str:
-    clustery_by_sql = (
+    cluster_by_sql = (
         f"{CLUSTER_BY}{LEFT_PARENTHESIS}{COMMA.join(clustering_keys)}{RIGHT_PARENTHESIS}"
         if clustering_keys
         else EMPTY_STRING
     )
     comment_sql = get_comment_sql(comment)
-    replace_sql = OR + REPLACE if replace else EMPTY_STRING
-    if_not_exists_sql = IF + NOT + EXISTS if if_not_exists else EMPTY_STRING
+    dynamic_table_options = get_options_statement(
+        {
+            LAG: lag,
+            WAREHOUSE: warehouse,
+            REFRESH_MODE: refresh_mode,
+            INITIALIZE: initialize,
+        }
+    )
+    data_retention_options = get_options_statement(
+        {
+            DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
+            MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
+        }
+    )
 
     return (
-        CREATE
-        + replace_sql
-        + (TRANSIENT if is_transient else EMPTY_STRING)
-        + DYNAMIC
-        + TABLE
-        + if_not_exists_sql
-        + name
-        + f"{LAG + EQUALS + convert_value_to_sql_option(lag)}"
-        + f"{WAREHOUSE + EQUALS + warehouse}"
-        + get_assign_param_sql(REFRESH_MODE, refresh_mode)
-        + get_assign_param_sql(INITIALIZE, initialize)
-        + clustery_by_sql
-        + get_assign_param_sql(DATA_RETENTION_TIME_IN_DAYS, data_retention_time)
-        + get_assign_param_sql(MAX_DATA_EXTENSION_TIME_IN_DAYS, max_data_extension_time)
-        + comment_sql
-        + AS
-        + project_statement([], child)
+        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}{TRANSIENT if is_transient else EMPTY_STRING}"
+        f"{DYNAMIC}{TABLE}{IF + NOT + EXISTS if if_not_exists else EMPTY_STRING}{name}"
+        f"{dynamic_table_options}{cluster_by_sql}{data_retention_options}"
+        f"{comment_sql}{AS}{project_statement([], child)}"
     )
 
 
