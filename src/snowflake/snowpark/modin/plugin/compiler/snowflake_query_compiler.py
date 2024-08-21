@@ -130,6 +130,7 @@ from snowflake.snowpark.functions import (
     sum_distinct,
     timestamp_ntz_from_parts,
     to_date,
+    to_time,
     to_variant,
     translate,
     trim,
@@ -10486,6 +10487,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # mapping from the property name to the corresponding snowpark function
         dt_property_to_function_map = {
             "date": to_date,
+            "time": to_time,
             "hour": hour,
             "minute": minute,
             "second": second,
@@ -10501,6 +10503,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # depend on the Snowflake session's WEEK_START parameter. Subtract
             # 1 to match pandas semantics.
             "dayofweek": (lambda column: builtin("dayofweekiso")(col(column)) - 1),
+            "weekday": (lambda column: builtin("dayofweekiso")(col(column)) - 1),
             "microsecond": (lambda column: floor(date_part("ns", col(column)) / 1000)),
             "nanosecond": (lambda column: date_part("ns", col(column)) % 1000),
             "is_month_start": (
@@ -16623,7 +16626,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         }
 
-        rows = join_result.result_frame.ordered_dataframe.agg(agg_exprs).collect()
+        try:
+            rows = join_result.result_frame.ordered_dataframe.agg(agg_exprs).collect()
+        except SnowparkSQLException:
+            return False
         # In case of empty table/dataframe booland_agg returns None. Add special case
         # handling for that.
         return all(x is None for x in rows[0]) or all(rows[0])
