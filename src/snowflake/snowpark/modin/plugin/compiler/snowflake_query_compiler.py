@@ -238,6 +238,7 @@ from snowflake.snowpark.modin.plugin._internal.isin_utils import (
 from snowflake.snowpark.modin.plugin._internal.join_utils import (
     InheritJoinIndex,
     JoinKeyCoalesceConfig,
+    MatchComparator,
 )
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     DataFrameReference,
@@ -7004,6 +7005,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler
         """
+        # TODO: SNOW-1634547: Implement remaining parameters by leveraging `merge` implementation
         if (
             by
             or left_by
@@ -7025,44 +7027,48 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         left_frame = self._modin_frame
         right_frame = right._modin_frame
-        if on:
-            left_match_quoted_identifier = (
-                left_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-                    [on]
-                )[0][0]
-            )
-            right_match_quoted_identifier = (
-                right_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-                    [on]
-                )[0][0]
-            )
-        else:
-            assert left_on and right_on
-            left_match_quoted_identifier = (
-                left_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-                    [left_on]
-                )[0][0]
-            )
-            right_match_quoted_identifier = (
-                right_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-                    [right_on]
-                )[0][0]
-            )
+        left_keys, right_keys = join_utils.get_join_keys(
+            left=left_frame,
+            right=right_frame,
+            on=on,
+            left_on=left_on,
+            right_on=right_on,
+            left_index=left_index,
+            right_index=right_index,
+        )
+        left_match_col = (
+            left_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                left_keys
+            )[0][0]
+        )
+        right_match_col = (
+            right_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                right_keys
+            )[0][0]
+        )
 
         if direction == "backward":
-            comparator_match_condition = "__ge__" if allow_exact_matches else "__gt__"
+            match_comparator = (
+                MatchComparator.GREATER_THAN_OR_EQUAL_TO
+                if allow_exact_matches
+                else MatchComparator.GREATER_THAN
+            )
         else:
-            comparator_match_condition = "__le__" if allow_exact_matches else "__lt__"
+            match_comparator = (
+                MatchComparator.LESS_THAN_OR_EQUAL_TO
+                if allow_exact_matches
+                else MatchComparator.LESS_THAN
+            )
 
         joined_frame, _ = join_utils.join(
             left=left_frame,
             right=right_frame,
             how="asof",
-            left_on=[left_match_quoted_identifier],
-            right_on=[right_match_quoted_identifier],
-            left_match_condition=left_match_quoted_identifier,
-            right_match_condition=right_match_quoted_identifier,
-            comparator_match_condition=comparator_match_condition,
+            left_on=[left_match_col],
+            right_on=[right_match_col],
+            left_match_col=left_match_col,
+            right_match_col=right_match_col,
+            match_comparator=match_comparator,
             join_key_coalesce_config=[JoinKeyCoalesceConfig.LEFT] if on else None,
             sort=True,
         )

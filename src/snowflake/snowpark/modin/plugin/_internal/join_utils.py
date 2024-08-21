@@ -37,6 +37,14 @@ class JoinKeyCoalesceConfig(Enum):
     NONE = "none"
 
 
+class MatchComparator(Enum):
+    # Comparator for match condition in ASOF Join
+    GREATER_THAN_OR_EQUAL_TO = "__ge__"
+    GREATER_THAN = "__gt__"
+    LESS_THAN_OR_EQUAL_TO = "__le__"
+    LESS_THAN = "__lt__"
+
+
 class InheritJoinIndex(IntFlag):
     FROM_LEFT = auto()
     FROM_RIGHT = auto()
@@ -101,9 +109,9 @@ def join(
     how: JoinTypeLit,
     left_on: list[str],
     right_on: list[str],
-    left_match_condition: Optional[str] = None,
-    right_match_condition: Optional[str] = None,
-    comparator_match_condition: Optional[str] = None,
+    left_match_col: Optional[str] = None,
+    right_match_col: Optional[str] = None,
+    match_comparator: Optional[MatchComparator] = None,
     sort: Optional[bool] = False,
     join_key_coalesce_config: Optional[list[JoinKeyCoalesceConfig]] = None,
     inherit_join_index: InheritJoinIndex = InheritJoinIndex.FROM_LEFT,
@@ -118,11 +126,11 @@ def join(
         left_on: List of snowflake identifiers to join on from 'left' frame.
         right_on: List of snowflake identifiers to join on from 'right' frame.
             left_on and right_on must be lists of equal length.
-        left_match_condition: Snowflake identifier to match condition on from 'left' frame.
+        left_match_col: Snowflake identifier to match condition on from 'left' frame.
             Only applicable for 'asof' join.
-        right_match_condition: Snowflake identifier to match condition on from 'right' frame.
+        right_match_col: Snowflake identifier to match condition on from 'right' frame.
             Only applicable for 'asof' join.
-        comparator_match_condition: {"__ge__", "__gt__", "__le__", "__lt__"}
+        match_comparator: MatchComparator {"__ge__", "__gt__", "__le__", "__lt__"}
             Only applicable for 'asof' join, the operation to compare 'left_match_condition'
             and 'right_match_condition'.
         sort: If True order merged frame on join keys. If False, ordering behavior
@@ -173,9 +181,9 @@ def join(
         right=right.ordered_dataframe,
         left_on_cols=left_on,
         right_on_cols=right_on,
-        left_match_condition=left_match_condition,
-        right_match_condition=right_match_condition,
-        comparator_match_condition=comparator_match_condition,
+        left_match_col=left_match_col,
+        right_match_col=right_match_col,
+        match_comparator=match_comparator,
         how=how,
     )
 

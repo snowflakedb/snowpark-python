@@ -55,6 +55,7 @@ from pandas.core.tools.datetimes import (
     DatetimeScalarOrArrayConvertible,
     DictConvertible,
 )
+from pandas.errors import MergeError
 from pandas.util._validators import validate_inclusive
 
 # add this line to make doctests runnable
@@ -410,7 +411,7 @@ def merge_asof(
     tolerance: int | Timedelta | None = None,
     allow_exact_matches: bool = True,
     direction: str = "backward",
-):  # noqa: PR01, RT01, D200
+) -> snowflake.snowpark.modin.pandas.DataFrame:
     """
     Perform a merge by key distance.
 
@@ -565,6 +566,8 @@ def merge_asof(
     if on is not None:
         if left_on is not None or right_on is not None:
             raise ValueError("If 'on' is set, 'left_on' and 'right_on' can't be set.")
+        if is_list_like(on) and len(on) > 1:
+            raise MergeError("can only asof on a key for left")
         left_on = on
         right_on = on
 
@@ -578,6 +581,14 @@ def merge_asof(
 
     if right_on is None and not right_index:
         raise ValueError("Must pass on, right_on, or right_index=True")
+
+    if not left_index and not right_index:
+        left_on_length = len(left_on) if is_list_like(left_on) else 1
+        right_on_length = len(right_on) if is_list_like(right_on) else 1
+        if left_on_length != right_on_length:
+            raise ValueError("len(right_on) must equal len(left_on)")
+        if left_on_length > 1:
+            raise MergeError("can only asof on a key for left")
 
     return DataFrame(
         query_compiler=left._query_compiler.merge_asof(

@@ -6,6 +6,7 @@ import sys
 import uuid
 from collections.abc import Hashable
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Optional, Union
 
 import pandas
@@ -1052,9 +1053,9 @@ class OrderedDataFrame:
         right: "OrderedDataFrame",
         left_on_cols: Optional[list[str]] = None,
         right_on_cols: Optional[list[str]] = None,
-        left_match_condition: Optional[str] = None,
-        right_match_condition: Optional[str] = None,
-        comparator_match_condition: Optional[str] = None,
+        left_match_col: Optional[str] = None,
+        right_match_col: Optional[str] = None,
+        match_comparator: Optional[Enum] = None,
         how: JoinTypeLit = "inner",
     ) -> "OrderedDataFrame":
         """
@@ -1071,11 +1072,11 @@ class OrderedDataFrame:
             right: The other OrderedDataFrame to join.
             left_on_cols: A list of column names from self OrderedDataFrame to be used for the join.
             right_on_cols: A list of column names from right OrderedDataFrame to be used for the join.
-            left_match_condition: Snowflake identifier to match condition on from 'left' frame.
+            left_match_col: Snowflake identifier to match condition on from 'left' frame.
                 Only applicable for 'asof' join.
-            right_match_condition: Snowflake identifier to match condition on from 'right' frame.
+            right_match_col: Snowflake identifier to match condition on from 'right' frame.
                 Only applicable for 'asof' join.
-            comparator_match_condition: {"__ge__", "__gt__", "__le__", "__lt__"}
+            match_comparator: MatchComparator {"__ge__", "__gt__", "__le__", "__lt__"}
                 Only applicable for 'asof' join, the operation to compare 'left_match_condition'
                 and 'right_match_condition'.
             how: We support the following join types:
@@ -1122,6 +1123,21 @@ class OrderedDataFrame:
             "join right_on_cols",
         )
 
+        if how == "asof":
+            assert left_match_col, "left_match_col was not provided to ASOF Join"
+            assert right_match_col, "right_match_col was not provided to ASOF Join"
+            assert match_comparator, "match_comparator was not provided to ASOF Join"
+            _raise_if_identifier_not_exists(
+                [left_match_col],
+                self.projected_column_snowflake_quoted_identifiers,
+                "join left_match_col",
+            )
+            _raise_if_identifier_not_exists(
+                [right_match_col],
+                right.projected_column_snowflake_quoted_identifiers,
+                "join right_match_col",
+            )
+
         is_join_needed = True
         # join is not needed for `left`, `right`, `inner` and `outer` join for self join
         # on row position column since row position column is a unique column.
@@ -1130,7 +1146,6 @@ class OrderedDataFrame:
             "right",
             "inner",
             "outer",
-            "asof",
         ] and self._is_self_join_on_row_position_column(
             left_on_cols, right, right_on_cols
         ):
@@ -1189,18 +1204,16 @@ class OrderedDataFrame:
             on = eq if on is None else on & eq
 
         if how == "asof":
-            left_match_condition = Column(left_match_condition)
+            left_match_col = Column(left_match_col)
             # Get the new mapped right match condition identifier
-            right_match_condition = Column(
-                right_identifiers_rename_map[right_match_condition]  # type: ignore
-            )
+            right_match_col = Column(right_identifiers_rename_map[right_match_col])  # type: ignore
             # ASOF Join requires the use of match_condition
             snowpark_dataframe = left_snowpark_dataframe_ref.snowpark_dataframe.join(
                 right=right_snowpark_dataframe_ref.snowpark_dataframe,
                 how=how,
-                match_condition=getattr(
-                    left_match_condition, comparator_match_condition  # type: ignore
-                )(right_match_condition),
+                match_condition=getattr(left_match_col, match_comparator.value)(  # type: ignore
+                    right_match_col
+                ),
             )
         elif how == "cross":
             # If we are doing a cross join, `on` cannot be specified
