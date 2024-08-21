@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import re
+
 import modin.pandas as pd
 import pandas as native_pd
 import pytest
@@ -501,6 +503,16 @@ def test_create_df_with_empty_df_as_data_and_index_as_index(native_df, native_in
             native_pd.Index([10, 20, 30, 40], name="none"),
             ["A", "X", "D", "R"],
         ),  # no index values match
+        (
+            native_pd.DataFrame([]),
+            native_pd.Index([], name="empty index", dtype="int64"),
+            [],
+        ),  # empty data, index, and columns
+        (
+            native_pd.DataFrame([]),
+            native_pd.Index(["A", "V"], name="non-empty index"),
+            ["A", "V"],
+        ),  # empty data, non-empty index and columns
     ],
 )
 @pytest.mark.parametrize("column_type", ["list", "index"])
@@ -523,3 +535,14 @@ def test_create_df_with_df_as_data_and_index_as_index_and_different_columns(
             native_pd.DataFrame(native_df, index=native_index, columns=snow_columns),
             check_dtype=False,
         )
+
+
+@sql_count_checker(query_count=0)
+def test_create_df_with_df_index_negative():
+    with pytest.raises(ValueError, match="Index data must be 1-dimensional"):
+        pd.DataFrame([1, 2, 3], index=pd.DataFrame([[1, 2], [3, 4], [5, 6]]))
+    with pytest.raises(
+        ValueError,
+        match=re.escape("Shape of passed values is (3, 1), indices imply (2, 1)"),
+    ):
+        pd.DataFrame([1, 2, 3], index=[[1, 2], [3, 4], [5, 6]])
