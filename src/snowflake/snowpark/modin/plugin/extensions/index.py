@@ -32,14 +32,7 @@ import pandas as native_pd
 from pandas import get_option
 from pandas._libs import lib
 from pandas._libs.lib import is_list_like, is_scalar
-from pandas._typing import (
-    ArrayLike,
-    Axis,
-    DateTimeErrorChoices,
-    DtypeObj,
-    NaPosition,
-    Scalar,
-)
+from pandas._typing import ArrayLike, DateTimeErrorChoices, DtypeObj, NaPosition, Scalar
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_datetime64_any_dtype, pandas_dtype
@@ -1413,7 +1406,7 @@ class Index(metaclass=TelemetryMeta):
         # TODO: SNOW-1458123 implement is_object
 
     def min(
-        self, axis: Axis | None = None, skipna: bool = True, *args: Any, **kwargs: Any
+        self, axis: int | None = None, skipna: bool = True, *args: Any, **kwargs: Any
     ) -> Scalar:
         """
         Return the minimum value of the Index.
@@ -1448,10 +1441,12 @@ class Index(metaclass=TelemetryMeta):
         >>> idx.min()
         'a'
         """
+        if axis:
+            raise ValueError("Axis must be None or 0 for Index objects")
         return self.to_series().min(skipna=skipna, **kwargs)
 
     def max(
-        self, axis: Axis | None = None, skipna: bool = True, *args: Any, **kwargs: Any
+        self, axis: int | None = None, skipna: bool = True, *args: Any, **kwargs: Any
     ) -> Scalar:
         """
         Return the maximum value of the Index.
@@ -1486,6 +1481,8 @@ class Index(metaclass=TelemetryMeta):
         >>> idx.max()
         'c'
         """
+        if axis:
+            raise ValueError("Axis must be None or 0 for Index objects")
         return self.to_series().max(skipna=skipna, **kwargs)
 
     def reindex(

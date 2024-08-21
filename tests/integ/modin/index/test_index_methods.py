@@ -433,3 +433,12 @@ def test_index_min_max(native_index, func):
     # Snowpark pandas treats np.nan as None.
     native_res = None if native_res is np.nan else native_res
     assert snow_res == native_res
+
+
+@pytest.mark.parametrize("func", ["min", "max"])
+@pytest.mark.parametrize("axis", [1, "axis", 0.6, -1])
+@sql_count_checker(query_count=0)
+def test_index_min_max_wrong_axis_negative(func, axis):
+    idx = pd.Index([1, 2, 3])
+    with pytest.raises(ValueError, match="Axis must be None or 0 for Index objects"):
+        getattr(idx, func)(axis=axis)
