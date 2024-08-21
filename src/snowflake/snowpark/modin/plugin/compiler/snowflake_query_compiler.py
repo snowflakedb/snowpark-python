@@ -195,7 +195,10 @@ from snowflake.snowpark.modin.plugin._internal.cut_utils import (
     compute_bin_indices,
     preprocess_bins_for_cut,
 )
-from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
+from snowflake.snowpark.modin.plugin._internal.frame import (
+    InternalFrame,
+    LabelIdentifierPair,
+)
 from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
     check_is_groupby_supported_by_snowflake,
     extract_groupby_column_pandas_labels,
@@ -13737,7 +13740,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     and isinstance(pair.label, tuple)
                     and isinstance(pair.label[0], tuple)
                 ):
-                    pair.label = pair.label[0]
+                    pair = LabelIdentifierPair(
+                        pair.label[0], pair.snowflake_quoted_identifier
+                    )
                 label_to_snowflake_quoted_identifier.append(pair)
                 snowflake_quoted_identifier_to_snowpark_pandas_type[
                     pair.snowflake_quoted_identifier
