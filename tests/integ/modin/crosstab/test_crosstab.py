@@ -10,14 +10,14 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     eval_snowpark_pandas_result,
 )
 
 
-@sql_count_checker(query_count=4, join_count=1)
+@sql_count_checker(query_count=3)
 def test_basic_crosstab():
     a = np.array(
         ["foo", "foo", "foo", "foo", "bar", "bar", "bar", "bar", "foo", "foo", "foo"],
@@ -48,7 +48,7 @@ def test_basic_crosstab():
     assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
 
 
-@sql_count_checker(query_count=6, join_count=14)
+@sql_count_checker(query_count=5, join_count=13)
 def test_basic_crosstab_with_series_objs_full_overlap():
     a = np.array(
         ["foo", "foo", "foo", "foo", "bar", "bar", "bar", "bar", "foo", "foo", "foo"],
@@ -79,7 +79,7 @@ def test_basic_crosstab_with_series_objs_full_overlap():
     assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
 
 
-@sql_count_checker(query_count=6, join_count=14)
+@sql_count_checker(query_count=5, join_count=13)
 def test_basic_crosstab_with_series_objs_some_overlap():
     a = np.array(
         ["foo", "foo", "foo", "foo", "bar", "bar", "bar", "bar", "foo", "foo", "foo"],
@@ -232,7 +232,7 @@ def test_basic_crosstab_with_series_objs_no_overlap_error():
     )
 
 
-@sql_count_checker(query_count=7, join_count=4)
+@sql_count_checker(query_count=6, join_count=3)
 def test_basic_crosstab_with_df_and_series_objs_pandas_errors():
     a = native_pd.Series(
         ["foo", "foo", "foo", "foo", "bar", "bar", "bar", "bar", "foo", "foo", "foo"],
@@ -293,7 +293,7 @@ def test_basic_crosstab_with_df_and_series_objs_pandas_errors():
     )
 
 
-@sql_count_checker(query_count=4, join_count=4, union_count=3)
+@sql_count_checker(query_count=3, join_count=3, union_count=3)
 def test_margins():
     a = np.array(
         ["foo", "foo", "foo", "foo", "bar", "bar", "bar", "bar", "foo", "foo", "foo"],
@@ -338,9 +338,10 @@ def test_margins():
     assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
 
 
-@sql_count_checker(query_count=5, join_count=1)
 @pytest.mark.parametrize("normalize", [0, 1, True, "all", "index", "columns"])
 def test_normalize(normalize):
+    query_count = 4 if normalize not in (0, "index") else 3
+    join_count = 0 if normalize not in (0, "index") else 3
     a = np.array(
         ["foo", "foo", "foo", "foo", "bar", "bar", "bar", "bar", "foo", "foo", "foo"],
         dtype=object,
@@ -365,16 +366,17 @@ def test_normalize(normalize):
         ],
         dtype=object,
     )
-    native_df = native_pd.crosstab(
-        a, [b, c], rownames=["a"], colnames=["b", "c"], normalize=normalize
-    )
-    snow_df = pd.crosstab(
-        a, [b, c], rownames=["a"], colnames=["b", "c"], normalize=normalize
-    )
-    assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
+    with SqlCounter(query_count=query_count, join_count=join_count):
+        native_df = native_pd.crosstab(
+            a, [b, c], rownames=["a"], colnames=["b", "c"], normalize=normalize
+        )
+        snow_df = pd.crosstab(
+            a, [b, c], rownames=["a"], colnames=["b", "c"], normalize=normalize
+        )
+        assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
 
 
-@sql_count_checker(query_count=6, join_count=12, union_count=8)
+@sql_count_checker(query_count=5, join_count=11, union_count=8)
 @pytest.mark.parametrize("normalize", [0, 1, True, "all", "index", "columns"])
 def test_normalize_and_margins(normalize):
     a = np.array(
@@ -420,7 +422,7 @@ def test_normalize_and_margins(normalize):
     assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
 
 
-@sql_count_checker(query_count=4, join_count=7)
+@sql_count_checker(query_count=3, join_count=6)
 @pytest.mark.parametrize("aggfunc", ["mean", "sum"])
 def test_values(aggfunc):
     native_df = native_pd.DataFrame(
@@ -455,10 +457,8 @@ def test_values(aggfunc):
 
 
 @sql_count_checker(
-    query_count=11,
-    join_count=14,
-    high_count_expected=True,
-    high_count_reason="Need to perform multiple joins followed by a pivot_table, which itself includes multiple joins.",
+    query_count=9,
+    join_count=10,
 )
 @pytest.mark.parametrize("aggfunc", ["mean", "sum"])
 def test_values_series_like(aggfunc):
