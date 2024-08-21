@@ -2525,7 +2525,6 @@ def set_frame_2d_labels(
         Returns:
             The new SnowparkPandasColumn
         """
-        col_obj_type = None
         if item_is_scalar:
             new_column = pandas_lit(item)
             col_obj_type = SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(
@@ -2552,7 +2551,7 @@ def set_frame_2d_labels(
             )
             col_obj_type = result_frame.cached_data_column_snowpark_pandas_types[offset]
         else:
-            return SnowparkPandasColumn(pandas_lit(None))
+            return SnowparkPandasColumn(pandas_lit(None), None)
         if index_is_scalar:
             new_column = iff(
                 result_frame_index_col.equal_null(pandas_lit(index)),
