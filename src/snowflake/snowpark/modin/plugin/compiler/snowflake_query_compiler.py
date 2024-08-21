@@ -1495,9 +1495,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 dtype: datatype of column identified by quoted_identifier
 
             Returns:
-                Tuple containing
-                    1) SnowparkColumn columnar expression
-                    2) SnowparkPandasType, if the resulting type is a SnowparkPandasType.
+                SnowparkPandasColumn representing the result.
             """
             window_expr = Window.orderBy(col(row_position_quoted_identifier))
 
@@ -1514,6 +1512,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     quoted_identifier, offset=periods, default_value=fill_value
                 ).over(window_expr)
                 expression_type = dtype
+            # TODO(https://snowflakecomputing.atlassian.net/browse/SNOW-1634393):
+            # Prevent ourselves from using types that are DataType but not
+            # SnowparkPandasType. In this particular case, the type should
+            # indeed be Optional[SnowparkPandasType]
             return (
                 shift_expression,
                 expression_type

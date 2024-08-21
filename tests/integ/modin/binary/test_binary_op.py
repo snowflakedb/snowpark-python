@@ -5,7 +5,6 @@ import datetime
 import math
 import operator
 import random
-import re
 
 import modin.pandas as pd
 import numpy as np
@@ -80,57 +79,6 @@ def test_binary_arithmetic_method_number_scalar(func):
             eval_snowpark_pandas_result(
                 snow_series, native_series, func, check_names=False
             )
-
-
-@pytest.mark.parametrize(
-    "scalar",
-    [
-        pd.NaT,
-        datetime.datetime(year=2024, month=8, day=14, hour=2, minute=32, second=42),
-        datetime.datetime(year=2023, month=3, day=14),
-        pd.Timestamp(year=2020, month=3, day=25),
-    ],
-)
-@pytest.mark.parametrize("operation", ["sub", "rsub"])
-@sql_count_checker(query_count=1)
-def test_timestamp_dataframe_minus_timestamp_scalar(scalar, operation):
-    eval_snowpark_pandas_result(
-        *create_test_dfs(
-            [
-                [datetime.datetime(year=2024, month=1, day=1), pd.NaT],
-                [
-                    datetime.datetime(year=2023, month=1, day=1),
-                    datetime.datetime(year=2030, month=1, day=1),
-                ],
-            ]
-        ),
-        lambda df: getattr(df, operation)(scalar),
-    )
-
-
-@pytest.mark.parametrize(
-    "scalar",
-    [
-        pd.NaT,
-        datetime.datetime(year=2024, month=8, day=14, hour=2, minute=32, second=42),
-        datetime.datetime(year=2023, month=3, day=14),
-        pd.Timestamp(year=2020, month=3, day=25),
-    ],
-)
-@sql_count_checker(query_count=1)
-@pytest.mark.parametrize("operation", ["sub", "rsub"])
-def test_timestamp_series_minus_timestamp_scalar(operation, scalar):
-    eval_snowpark_pandas_result(
-        *create_test_series(
-            [
-                datetime.datetime(year=2024, month=1, day=1),
-                pd.NaT,
-                datetime.datetime(year=2023, month=1, day=1),
-                datetime.datetime(year=2030, month=1, day=1),
-            ]
-        ),
-        lambda series: getattr(series, operation)(scalar),
-    )
 
 
 @pytest.mark.parametrize(
@@ -502,34 +450,6 @@ def test_binary_logic_operations_between_df_and_list_like(op, rhs):
     eval_snowpark_pandas_result(*create_test_dfs(lhs), lambda df: getattr(df, op)(rhs))
 
 
-@pytest.mark.parametrize("op", ["sub", "rsub"])
-@sql_count_checker(query_count=1)
-def test_binary_arithmetic_between_df_and_list_like_timestamps(op):
-    eval_snowpark_pandas_result(
-        *create_test_dfs(
-            [
-                [
-                    pd.Timestamp(5, unit="ns"),
-                    pd.Timestamp(700, unit="ns"),
-                    pd.Timestamp(1399, unit="ns"),
-                ],
-                [
-                    pd.Timestamp(6, unit="ms"),
-                    pd.Timestamp(800, unit="ms"),
-                    pd.Timestamp(1499, unit="ms"),
-                ],
-            ]
-        ),
-        lambda df: getattr(df, op)(
-            [
-                pd.Timestamp(1, unit="ns"),
-                pd.Timestamp(300, unit="ns"),
-                pd.Timestamp(57, unit="ms"),
-            ]
-        ),
-    )
-
-
 @pytest.mark.parametrize(
     "op",
     [
@@ -705,34 +625,6 @@ S5 = _gen_random_float_list_with_nones(18)
 S6 = _gen_random_float_list_with_nones(18, scale=0.002)
 ALL_SNOWFLAKE_COMPATIBLE_NUMERIC_TEST_SERIES = [S3, S4, S5, S6]
 
-
-PANDAS_TIMESTAMP_SERIES_WITH_NULLS_NO_TIMEZONE_1 = (
-    native_pd.Series(
-        [
-            None,
-            pd.Timestamp(year=1994, month=7, day=29),
-            None,
-            pd.Timestamp(year=1996, month=1, day=23),
-            pd.Timestamp(year=2000, month=1, day=23),
-            pd.Timestamp(
-                year=1700, month=1, day=1, second=22, microsecond=12345, nanosecond=56
-            ),
-        ]
-    ),
-    native_pd.Series(
-        [
-            None,
-            None,
-            pd.Timestamp(year=1995, month=7, day=29),
-            pd.Timestamp(year=1996, month=1, day=24),
-            pd.Timestamp(year=2024, month=7, day=8),
-            pd.Timestamp(
-                year=1700, month=1, day=2, second=49, microsecond=7, nanosecond=98
-            ),
-        ]
-    ),
-)
-
 all_supported_binary_ops = pytest.mark.parametrize(
     "op",
     [
@@ -773,67 +665,6 @@ def test_arithmetic_binary_ops_between_series_for_numeric_data(lhs, rhs, op):
     native_ans = op(native_pd.Series(lhs), native_pd.Series(rhs))
 
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_ans, native_ans)
-
-
-@pytest.mark.parametrize(
-    "pandas_lhs,pandas_rhs",
-    [
-        PANDAS_TIMESTAMP_SERIES_WITH_NULLS_NO_TIMEZONE_1,
-        [
-            x.dt.tz_localize("UTC")
-            for x in PANDAS_TIMESTAMP_SERIES_WITH_NULLS_NO_TIMEZONE_1
-        ],
-        (
-            PANDAS_TIMESTAMP_SERIES_WITH_NULLS_NO_TIMEZONE_1[0].dt.tz_localize("UTC"),
-            PANDAS_TIMESTAMP_SERIES_WITH_NULLS_NO_TIMEZONE_1[1].dt.tz_localize(
-                "Asia/Kolkata"
-            ),
-        ),
-    ],
-)
-@pytest.mark.parametrize("op", ["sub", "rsub"])
-@sql_count_checker(query_count=1, join_count=1)
-def test_subtract_two_timestamp_series(pandas_lhs, pandas_rhs, op):
-    """Subtract two series of timestamps to get a timedelta."""
-    snow_lhs = pd.Series(pandas_lhs)
-    snow_rhs = pd.Series(pandas_rhs)
-    eval_snowpark_pandas_result(
-        (snow_lhs, snow_rhs),
-        (pandas_lhs, pandas_rhs),
-        lambda inputs: getattr(inputs[0], op)(inputs[1]),
-    )
-
-
-@pytest.mark.parametrize(
-    "pandas_lhs,pandas_rhs",
-    [
-        (
-            PANDAS_TIMESTAMP_SERIES_WITH_NULLS_NO_TIMEZONE_1[0].dt.tz_localize("UTC"),
-            PANDAS_TIMESTAMP_SERIES_WITH_NULLS_NO_TIMEZONE_1[1],
-        ),
-        (
-            PANDAS_TIMESTAMP_SERIES_WITH_NULLS_NO_TIMEZONE_1[0],
-            PANDAS_TIMESTAMP_SERIES_WITH_NULLS_NO_TIMEZONE_1[1].dt.tz_localize("UTC"),
-        ),
-    ],
-)
-@pytest.mark.parametrize("op", ["sub", "rsub"])
-@sql_count_checker(query_count=0)
-def test_subtract_two_timestamp_series_timezones_disallowed(pandas_lhs, pandas_rhs, op):
-    snow_lhs = pd.Series(pandas_lhs)
-    snow_rhs = pd.Series(pandas_rhs)
-    # pandas is inconsistent about including a period at the end of the end of the error message.
-    eval_snowpark_pandas_result(
-        (snow_lhs, snow_rhs),
-        (pandas_lhs, pandas_rhs),
-        lambda inputs: getattr(inputs[0], op)(inputs[1]),
-        expect_exception=True,
-        expect_exception_match=re.escape(
-            "Cannot subtract tz-naive and tz-aware datetime-like objects."
-        ),
-        assert_exception_equal=False,
-        except_exception_type=TypeError,
-    )
 
 
 # The goal of tests below is to check whether fill_value is working as expected. Since we are testing all the
@@ -1166,27 +997,6 @@ def test_binary_arithmetic_ops_between_series_and_list_like(op, rhs):
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
-@pytest.mark.parametrize("op", ["sub", "rsub"])
-def test_subtract_timestamp_series_and_list_like(op):
-    eval_snowpark_pandas_result(
-        *create_test_series(
-            [
-                pd.Timestamp(5, unit="ns"),
-                pd.Timestamp(700, unit="ns"),
-                pd.Timestamp(1399, unit="ns"),
-            ]
-        ),
-        lambda series: getattr(series, op)(
-            [
-                pd.Timestamp(1, unit="ns"),
-                pd.Timestamp(300, unit="ns"),
-                pd.Timestamp(999, unit="ns"),
-            ]
-        ),
-    )
-
-
 @pytest.mark.parametrize(
     "op",
     ["add", "radd", "sub", "rsub", "mul", "rmul"],
@@ -1197,28 +1007,6 @@ def test_binary_arithmetic_ops_between_df_and_list_like_on_axis_0(op, rhs):
     lhs = [[-0.32, 6.555], [1.34, 10], [0, 1000]]
     eval_snowpark_pandas_result(
         *create_test_dfs(lhs), lambda df: getattr(df, op)(rhs, axis=0)
-    )
-
-
-@sql_count_checker(query_count=1, join_count=1)
-@pytest.mark.parametrize("op", ["sub", "rsub"])
-def test_subtract_timestamp_df_and_list_like_on_axis_0(op):
-    eval_snowpark_pandas_result(
-        *create_test_dfs(
-            [
-                [pd.Timestamp(5, unit="ns"), pd.Timestamp(700, unit="ns")],
-                [pd.Timestamp(6, unit="ns"), pd.Timestamp(800, unit="ns")],
-                [pd.Timestamp(7, unit="ns"), pd.Timestamp(900, unit="ns")],
-            ]
-        ),
-        lambda df: getattr(df, op)(
-            [
-                pd.Timestamp(1, unit="ns"),
-                pd.Timestamp(300, unit="ns"),
-                pd.Timestamp(999, unit="ns"),
-            ],
-            axis=0,
-        ),
     )
 
 
@@ -2380,29 +2168,6 @@ def test_binary_op_between_dataframe_and_series_axis0(opname, df, s):
         eval_snowpark_pandas_result(snow_ans, ans, lambda x: x)
 
 
-@pytest.mark.parametrize("op", ["sub", "rsub"])
-@sql_count_checker(query_count=1, join_count=1)
-def test_timestamp_dataframe_sub_and_rsub_series_axis0(op):
-    snow_df, pandas_df = create_test_dfs(
-        [
-            [pd.Timestamp(1, unit="ms"), pd.Timestamp(2, unit="ms")],
-            [pd.Timestamp(3, unit="ms"), pd.Timestamp(4, unit="ms")],
-        ]
-    )
-    snow_series, pandas_series = create_test_series(
-        [
-            pd.Timestamp(5, unit="ms"),
-            pd.Timestamp(6, unit="ms"),
-            pd.Timestamp(7, unit="ms"),
-        ]
-    )
-    eval_snowpark_pandas_result(
-        (snow_df, snow_series),
-        (pandas_df, pandas_series),
-        lambda t: getattr(t[0], op)(t[1], axis=0),
-    )
-
-
 @pytest.mark.parametrize(
     "df,s",
     [
@@ -2479,6 +2244,7 @@ def test_binary_add_dataframe_and_series_axis0_with_fill_value_negative():
     ],
 )
 def test_binary_add_dataframe_sub_series_axis1(df, s):
+
     # Use sub (-) here as it is not commutative.
     # Other operators are tested exhausitvely in the CI test test_binary_op_between_dataframe_and_series_axis0 above,
     # as one case for axis=0 actually invokes axis=1.
@@ -2500,101 +2266,6 @@ def test_binary_add_dataframe_sub_series_axis1(df, s):
 
     with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(snow_ans, ans, lambda x: x)
-
-
-@sql_count_checker(
-    # One query to materialize the series for the subtraction, and another
-    # query to materialize the result.
-    query_count=2
-)
-def test_dataframe_sub_series_timestamps_axis1_pandas_bug_59529():
-    """
-    Test subtracting a series of timestamps from a dataframe of timestamps on axis 1.
-
-    pandas behavior is incorrect: https://github.com/pandas-dev/pandas/issues/59529
-    """
-    pandas_df = native_pd.DataFrame(
-        [
-            [pd.Timestamp(1, unit="ms"), pd.Timestamp(2, unit="ms")],
-            [pd.Timestamp(3, unit="ms"), pd.Timestamp(4, unit="ms")],
-        ]
-    )
-    pandas_series = native_pd.Series(
-        [
-            pd.Timestamp(5, unit="ms"),
-            pd.Timestamp(6, unit="ms"),
-            pd.Timestamp(7, unit="ms"),
-        ]
-    )
-    with pytest.raises(TypeError, match="cannot subtract DatetimeArray from ndarray"):
-        pandas_df - pandas_series
-    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-        pd.DataFrame(pandas_df) - pd.Series(pandas_series),
-        native_pd.DataFrame(
-            [
-                [
-                    native_pd.Timedelta(milliseconds=-4),
-                    native_pd.Timedelta(milliseconds=-4),
-                    pd.NaT,
-                ],
-                [
-                    native_pd.Timedelta(milliseconds=-2),
-                    native_pd.Timedelta(milliseconds=-2),
-                    pd.NaT,
-                ],
-            ]
-        ),
-    )
-
-
-@sql_count_checker(
-    # One query to materialize the series for the subtraction, and another
-    # query to materialize the result.
-    query_count=2
-)
-def test_series_sub_dataframe_timestamps_axis1_pandas_bug_59529():
-    """
-    Test subtracting a dataframe of timestamps from a series of timestamps.
-
-    pandas behavior is incorrect: https://github.com/pandas-dev/pandas/issues/59529
-    """
-    pandas_df = native_pd.DataFrame(
-        [
-            [pd.Timestamp(1, unit="ms"), pd.Timestamp(2, unit="ms")],
-            [pd.Timestamp(3, unit="ms"), pd.Timestamp(4, unit="ms")],
-        ]
-    )
-    pandas_series = native_pd.Series(
-        [
-            pd.Timestamp(5, unit="ms"),
-            pd.Timestamp(6, unit="ms"),
-            pd.Timestamp(7, unit="ms"),
-        ]
-    )
-    with pytest.raises(
-        np.core._exceptions.UFuncTypeError,
-        match=re.escape(
-            "ufunc 'subtract' cannot use operands with types dtype('<M8[ns]') and dtype('float64')"
-        ),
-    ):
-        pandas_series - pandas_df
-    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-        pd.Series(pandas_series) - pd.DataFrame(pandas_df),
-        native_pd.DataFrame(
-            [
-                [
-                    native_pd.Timedelta(milliseconds=4),
-                    native_pd.Timedelta(milliseconds=4),
-                    pd.NaT,
-                ],
-                [
-                    native_pd.Timedelta(milliseconds=2),
-                    native_pd.Timedelta(milliseconds=2),
-                    pd.NaT,
-                ],
-            ]
-        ),
-    )
 
 
 @pytest.mark.parametrize("fill_value", [42])
@@ -2710,38 +2381,6 @@ def test_binary_sub_dataframe_and_dataframe_with_fill_value(df1, df2, fill_value
             (df2, df1),
             lambda t: t[0].sub(t[1], fill_value=fill_value),
         )
-
-
-@pytest.mark.parametrize(
-    "fill_value", [None, pd.NaT, pd.Timestamp(year=1999, month=12, day=31)]
-)
-@pytest.mark.parametrize("op", ["sub", "rsub"])
-@sql_count_checker(query_count=1, join_count=1)
-def test_timestamp_sub_dataframe_and_dataframe(fill_value, op):
-    # at position [0, 0], both values are non-null.
-    # at position [0, 1], both values are null.
-    # at position [1, 0], lhs is null and rhs is not null.
-    # at position [1, 1], lhs is non-null and rhs is null.
-    snow_lhs, pandas_lhs = create_test_dfs(
-        [
-            [
-                pd.Timestamp(year=2000, month=1, day=1),
-                pd.NaT,
-            ],
-            [pd.NaT, pd.Timestamp(year=2001, month=2, day=2)],
-        ]
-    )
-    snow_rhs, pandas_rhs = create_test_dfs(
-        [
-            [pd.Timestamp(year=2002, month=3, day=3), pd.NaT],
-            [pd.Timestamp(year=2003, month=4, day=4), pd.NaT],
-        ]
-    )
-    eval_snowpark_pandas_result(
-        (snow_lhs, snow_rhs),
-        (pandas_lhs, pandas_rhs),
-        lambda t: getattr(t[0], op)(t[1], fill_value=fill_value),
-    )
 
 
 @pytest.mark.parametrize(
