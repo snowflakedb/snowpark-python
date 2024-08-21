@@ -6,14 +6,14 @@ import datetime
 import inspect
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Callable, NamedTuple, Optional, Union
+from typing import Any, Callable, NamedTuple, Optional, Tuple, Type, Union
 
 import numpy as np
 import pandas as native_pd
 
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-from snowflake.snowpark.types import LongType
+from snowflake.snowpark.types import DataType, LongType
 
 TIMEDELTA_WARNING_MESSAGE = (
     "Snowpark pandas support for Timedelta is not currently available."
@@ -21,7 +21,9 @@ TIMEDELTA_WARNING_MESSAGE = (
 
 
 _python_type_to_from_pandas: dict[type, Callable[[Any], Any]] = {}
-_pandas_type_to_snowpark_pandas_type: dict[type, "SnowparkPandasType"] = {}
+"""Map Python type to its from_pandas method"""
+_type_to_snowpark_pandas_type: dict[Union[type, np.dtype], type] = {}
+"""Map Python type and pandas dtype to Snowpark pandas type"""
 
 
 class SnowparkPandasTypeMetaclass(
@@ -48,25 +50,23 @@ class SnowparkPandasTypeMetaclass(
         if inspect.isabstract(new_snowpark_python_type):
             return new_snowpark_python_type
 
-        for cls in new_snowpark_python_type.types_to_convert_with_from_pandas:
-            for existing_cls in _python_type_to_from_pandas:
+        for type in new_snowpark_python_type.types_to_convert_with_from_pandas:
+            assert inspect.isclass(type)
+            for existing_type in _python_type_to_from_pandas:
                 # we don't want any class in _python_type_to_from_pandas to be
                 # a subclass of another type in _python_type_to_from_pandas.
                 # Otherwise, the rewriting rules for the two types may
                 # conflict.
                 assert not issubclass(
-                    cls, existing_cls
-                ), f"Already registered from_pandas for class {cls} with {existing_cls}"
-            _python_type_to_from_pandas[cls] = new_snowpark_python_type.from_pandas
+                    type, existing_type
+                ), f"Already registered from_pandas for class {type} with {existing_type}"
+            _python_type_to_from_pandas[type] = new_snowpark_python_type.from_pandas
+            _type_to_snowpark_pandas_type[type] = new_snowpark_python_type
 
-        for existing_cls in _pandas_type_to_snowpark_pandas_type:
-            # we don't want any class in _pandas_type_to_snowpark_pandas_type to be
-            # a subclass of another type in _pandas_type_to_snowpark_pandas_type.
-            # Otherwise, the conversions rules for the two types may conflict.
-            assert not issubclass(
-                new_snowpark_python_type.pandas_type, existing_cls
-            ), f"Already registered Snowpark pandas type for class {cls} with {existing_cls}"
-        _pandas_type_to_snowpark_pandas_type[
+        assert (
+            new_snowpark_python_type.pandas_type not in _type_to_snowpark_pandas_type
+        ), f"Already registered Snowpark pandas type for pandas type {new_snowpark_python_type.pandas_type}"
+        _type_to_snowpark_pandas_type[
             new_snowpark_python_type.pandas_type
         ] = new_snowpark_python_type
 
@@ -92,12 +92,14 @@ class SnowparkPandasType(metaclass=SnowparkPandasTypeMetaclass):
 
     @staticmethod
     def get_snowpark_pandas_type_for_pandas_type(
-        pandas_type: type,
+        pandas_type: Union[type, np.dtype],
     ) -> Optional["SnowparkPandasType"]:
         """
         Get the corresponding Snowpark pandas type, if it exists, for a given pandas type.
         """
-        return _pandas_type_to_snowpark_pandas_type.get(pandas_type, None)
+        if pandas_type in _type_to_snowpark_pandas_type:
+            return _type_to_snowpark_pandas_type[pandas_type]()
+        return None
 
 
 class SnowparkPandasColumn(NamedTuple):
@@ -117,9 +119,13 @@ class TimedeltaType(SnowparkPandasType, LongType):
     two times.
     """
 
-    snowpark_type = LongType()
-    pandas_type = np.dtype("timedelta64[ns]")
-    types_to_convert_with_from_pandas = [native_pd.Timedelta, datetime.timedelta]
+    snowpark_type: DataType = LongType()
+    pandas_type: np.dtype = np.dtype("timedelta64[ns]")
+    types_to_convert_with_from_pandas: Tuple[Type] = (  # type: ignore[assignment]
+        native_pd.Timedelta,
+        datetime.timedelta,
+        np.timedelta64,
+    )
 
     def __init__(self) -> None:
         # TODO(SNOW-1620452): Remove this warning message before releasing
@@ -135,7 +141,9 @@ class TimedeltaType(SnowparkPandasType, LongType):
         return native_pd.Timedelta(value, unit="nanosecond")
 
     @staticmethod
-    def from_pandas(value: Union[native_pd.Timedelta, datetime.timedelta]) -> int:
+    def from_pandas(
+        value: Union[native_pd.Timedelta, datetime.timedelta, np.timedelta64]
+    ) -> int:
         """
         Convert a pandas representation of a Timedelta to its nanoseconds.
         """
