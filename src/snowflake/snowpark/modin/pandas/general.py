@@ -2050,8 +2050,8 @@ def crosstab(
                 table.columns = table_columns
 
             elif normalize == "index":
-                index_margin = index_margin / index_margin.sum()
-                table = table.append(index_margin, ignore_index=True)
+                index_margin = pd.DataFrame(index_margin / index_margin.sum()).T
+                table = pd.concat([table, index_margin]).reset_index(drop=True)
                 table = table.fillna(0)
                 table.index = table_index
 
