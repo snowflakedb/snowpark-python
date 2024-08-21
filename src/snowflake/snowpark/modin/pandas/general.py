@@ -1831,7 +1831,6 @@ def melt(
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
-@_inherit_docstrings(pandas.crosstab, apilink="pandas.crosstab")
 def crosstab(
     index,
     columns,
@@ -1846,6 +1845,60 @@ def crosstab(
 ) -> DataFrame:  # noqa: PR01, RT01, D200
     """
     Compute a simple cross tabulation of two (or more) factors.
+
+    By default, computes a frequency table of the factors unless an array
+    of values and an aggregation function are passed.
+
+    Parameters
+    ----------
+    index : array-like, Series, or list of arrays/Series
+        Values to group by in the rows.
+    columns : array-like, Series, or list of arrays/Series
+        Values to group by in the columns.
+    values : array-like, optional
+        Array of values to aggregate according to the factors.
+        Requires aggfunc be specified.
+    rownames : sequence, default None
+        If passed, must match number of row arrays passed.
+    colnames : sequence, default None
+        If passed, must match number of column arrays passed.
+    aggfunc : function, optional
+        If specified, requires values be specified as well.
+    margins : bool, default False
+        Add row/column margins (subtotals).
+    margins_name : str, default 'All'
+        Name of the row/column that will contain the totals when margins is True.
+    dropna : bool, default True
+        Do not include columns whose entries are all NaN.
+
+    normalize : bool, {'all', 'index', 'columns'}, or {0,1}, default False
+        Normalize by dividing all values by the sum of values.
+
+        * If passed 'all' or True, will normalize over all values.
+        * If passed 'index' will normalize over each row.
+        * If passed 'columns' will normalize over each column.
+        * If margins is True, will also normalize margin values.
+
+    Returns
+    -------
+    DataFrame
+        Cross tabulation of the data.
+
+    Examples
+    --------
+    >>> a = np.array(["foo", "foo", "foo", "foo", "bar", "bar",
+    ...               "bar", "bar", "foo", "foo", "foo"], dtype=object)
+    >>> b = np.array(["one", "one", "one", "two", "one", "one",
+    ...               "one", "two", "two", "two", "one"], dtype=object)
+    >>> c = np.array(["dull", "dull", "shiny", "dull", "dull", "shiny",
+    ...               "shiny", "dull", "shiny", "shiny", "shiny"],
+    ...              dtype=object)
+    >>> pd.crosstab(a, [b, c], rownames=['a'], colnames=['b', 'c']) # doctest: +NORMALIZE_WHITESPACE
+    b    one        two
+    c   dull shiny dull shiny
+    a
+    bar    1     2    1     0
+    foo    2     2    1     2
     """
     if values is None and aggfunc is not None:
         raise ValueError("aggfunc cannot be used without values.")
