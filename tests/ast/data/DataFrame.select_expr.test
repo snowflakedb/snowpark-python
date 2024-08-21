@@ -1,0 +1,24 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.select_expr("$1")
+
+df = df.select_expr(["$1"])
+
+df = df.select_expr("COUNT $1", "SUM $2", "AVG $3", "MIN $4", "MAX $5", "COUNT DISTINCT $6")
+
+df = df.select_expr(["COUNT $1", "SUM $2", "AVG $3", "MIN $4", "MAX $5", "COUNT DISTINCT $6"])
+
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.select_expr("$1")
+
+df = df.select_expr(["$1"])
+
+df = df.select_expr("COUNT $1", "SUM $2", "AVG $3", "MIN $4", "MAX $5", "COUNT DISTINCT $6")
+
+df = df.select_expr(["COUNT $1", "SUM $2", "AVG $3", "MIN $4", "MAX $5", "COUNT DISTINCT $6"])

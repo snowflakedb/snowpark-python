@@ -23,17 +23,22 @@ from typing import (
 )
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Cross,
     Except,
+    FullOuter,
+    Inner,
     Intersect,
     Join,
     JoinType,
     LeftAnti,
+    LeftOuter,
     LeftSemi,
     NaturalJoin,
+    RightOuter,
     Union as UnionPlan,
     UsingJoin,
     create_join_type,
@@ -88,6 +93,20 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
+from snowflake.snowpark._internal.ast import (
+    check_response,
+    decode_ast_response_from_snowpark,
+)
+from snowflake.snowpark._internal.ast_utils import (
+    FAIL_ON_MISSING_AST,
+    build_expr_from_python_val,
+    build_expr_from_snowpark_column,
+    build_expr_from_snowpark_column_or_col_name,
+    build_expr_from_snowpark_column_or_sql_str,
+    build_expr_from_snowpark_column_or_table_fn,
+    fill_ast_for_column,
+    with_src_position,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -119,6 +138,7 @@ from snowflake.snowpark._internal.utils import (
     is_snowflake_unquoted_suffix_case_insensitive,
     is_sql_select_statement,
     parse_positional_args_to_list,
+    parse_positional_args_to_list_variadic,
     parse_table_name,
     prepare_pivot_arguments,
     quote_name,
@@ -261,14 +281,16 @@ def _disambiguate(
                 [] if isinstance(join_type, (LeftSemi, LeftAnti)) else common_col_names,
             )
             for name in lhs_names
-        ]
+        ],
+        _emit_ast=False,
     )
 
     rhs_remapped = rhs.select(
         [
             _alias_if_needed(rhs, name, rhs_prefix, rsuffix, common_col_names)
             for name in rhs_names
-        ]
+        ],
+        _emit_ast=False,
     )
     return lhs_remapped, rhs_remapped
 
@@ -511,9 +533,24 @@ class DataFrame:
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
+        ast_stmt: Optional[proto.Assign] = None,
+        _emit_ast: bool = True,
     ) -> None:
+        """
+        :param int ast_stmt: The AST Assign atom corresponding to this dataframe value. We track its assigned ID in the
+                             slot self._ast_id. This allows this value to be referred to symbolically when it's
+                             referenced in subsequent dataframe expressions.
+        """
         self._session = session
-        self._plan = self._session._analyzer.resolve(plan)
+        self._ast_id = None
+        if _emit_ast:
+            self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
+
+        if plan is not None:
+            self._plan = self._session._analyzer.resolve(plan)
+        else:
+            self._plan = None
+
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
             plan.expr_to_alias.update(self._plan.expr_to_alias)
@@ -542,6 +579,20 @@ class DataFrame:
         self.replace = self._na.replace
 
         self._alias: Optional[str] = None
+
+    def set_ast_ref(self, sp_dataframe_expr_builder: Any) -> None:
+        """
+        Given a field builder expression of the AST type SpDataframeExpr, points the builder to reference this dataframe.
+        """
+        # TODO: remove the None guard below once we generate the correct AST.
+        if self._ast_id is None:
+            if FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+        else:
+            sp_dataframe_expr_builder.sp_dataframe_ref.id.bitfield1 = self._ast_id
 
     @property
     def stat(self) -> DataFrameStatFunctions:
@@ -581,6 +632,7 @@ class DataFrame:
         block: bool = True,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
+        _emit_ast: bool = True,
     ) -> Union[List[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
@@ -596,12 +648,50 @@ class DataFrame:
         See also:
             :meth:`collect_nowait()`
         """
+
+        if _emit_ast:
+            # Add an Assign node that applies SpDataframeCollect() to the input, followed by its Eval.
+            repr = self._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_dataframe_collect)
+
+            if self._ast_id is None and FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_id
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = expr.statement_params.add()
+                    t._1 = k
+                    t._2 = v
+            expr.block = block
+            expr.case_sensitive = case_sensitive
+            expr.log_on_exception = log_on_exception
+            expr.no_wait = False
+
+            self._session._ast_batch.eval(repr)
+
+        if self._session._conn.is_phase1_enabled():
+            # TODO: Logic here should be
+            # ast = self._session._ast_batch.flush()
+            # res = self._session._conn.ast_query(ast)
+            raise NotImplementedError(
+                "TODO: Implement collect() with EvalResult in Phase1."
+            )
+
+        # Phase 0 flushes AST and encodes it as part of the query.
+        kwargs = {}
+        _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+
         with open_telemetry_context_manager(self.collect, self):
             return self._internal_collect_with_tag_no_telemetry(
                 statement_params=statement_params,
                 block=block,
                 log_on_exception=log_on_exception,
                 case_sensitive=case_sensitive,
+                **kwargs,
             )
 
     @df_collect_api_telemetry
@@ -611,6 +701,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
+        _emit_ast: bool = True,
     ) -> AsyncJob:
         """Executes the query representing this DataFrame asynchronously and returns: class:`AsyncJob`.
         It is equivalent to ``collect(block=False)``.
@@ -624,6 +715,41 @@ class DataFrame:
         See also:
             :meth:`collect()`
         """
+        if _emit_ast:
+            # Add an Assign node that applies SpDataframeCollect() to the input, followed by its Eval.
+            repr = self._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_dataframe_collect)
+
+            if self._ast_id is None and FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_id
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = expr.statement_params.add()
+                    t._1 = k
+                    t._2 = v
+            expr.case_sensitive = case_sensitive
+            expr.log_on_exception = log_on_exception
+            expr.no_wait = True
+
+            self._session._ast_batch.eval(repr)
+
+        if self._session._conn.is_phase1_enabled():
+            # TODO: Logic here should be
+            # ast = self._session._ast_batch.flush()
+            # res = self._session._conn.ast_query(ast)
+            raise NotImplementedError(
+                "TODO: Implement collect() with EvalResult in Phase1."
+            )
+
+        # Phase 0 flushes AST and encodes it as part of the query.
+        kwargs = {}
+        _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+
         with open_telemetry_context_manager(self.collect_nowait, self):
             return self._internal_collect_with_tag_no_telemetry(
                 statement_params=statement_params,
@@ -631,6 +757,7 @@ class DataFrame:
                 data_type=_AsyncResultType.ROW,
                 log_on_exception=log_on_exception,
                 case_sensitive=case_sensitive,
+                **kwargs,
             )
 
     def _internal_collect_with_tag_no_telemetry(
@@ -641,6 +768,7 @@ class DataFrame:
         data_type: _AsyncResultType = _AsyncResultType.ROW,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
+        **kwargs: Any,
     ) -> Union[List[Row], AsyncJob]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
@@ -656,6 +784,7 @@ class DataFrame:
             ),
             log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
+            **kwargs,
         )
 
     _internal_collect_with_tag = df_collect_api_telemetry(
@@ -897,7 +1026,9 @@ class DataFrame:
         )
 
     @df_api_usage
-    def to_df(self, *names: Union[str, Iterable[str]]) -> "DataFrame":
+    def to_df(
+        self, *names: Union[str, Iterable[str]], _emit_ast: bool = True
+    ) -> "DataFrame":
         """
         Creates a new DataFrame containing columns with the specified names.
 
@@ -912,7 +1043,7 @@ class DataFrame:
         Args:
             names: list of new column names
         """
-        col_names = parse_positional_args_to_list(*names)
+        col_names, is_variadic = parse_positional_args_to_list_variadic(*names)
         if not all(isinstance(n, str) for n in col_names):
             raise TypeError(
                 "Invalid input type in to_df(), expected str or a list of strs."
@@ -926,10 +1057,19 @@ class DataFrame:
                 f"New column names ({len(col_names)}): {','.join(col_names)}."
             )
 
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_to_df, stmt)
+            self.set_ast_ref(ast.df)
+            ast.col_names.extend(col_names)
+            ast.variadic = is_variadic
+
         new_cols = []
         for attr, name in zip(self._output, col_names):
             new_cols.append(Column(attr).alias(name))
-        return self.select(new_cols)
+        return self.select(new_cols, _ast_stmt=stmt, _emit_ast=_emit_ast)
 
     @df_collect_api_telemetry
     def to_snowpark_pandas(
@@ -1059,12 +1199,18 @@ class DataFrame:
         """
         return self.schema.names
 
-    def col(self, col_name: str) -> Column:
+    def col(self, col_name: str, _emit_ast: bool = True) -> Column:
         """Returns a reference to a column in the DataFrame."""
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            col_expr_ast = with_src_position(expr.sp_dataframe_col)
+            self.set_ast_ref(col_expr_ast.df)
+            col_expr_ast.col_name = col_name
         if col_name == "*":
-            return Column(Star(self._output))
+            return Column(Star(self._output), ast=expr)
         else:
-            return Column(self._resolve(col_name))
+            return Column(self._resolve(col_name), ast=expr)
 
     @df_api_usage
     def select(
@@ -1073,6 +1219,8 @@ class DataFrame:
             Union[ColumnOrName, TableFunctionCall],
             Iterable[Union[ColumnOrName, TableFunctionCall]],
         ],
+        _ast_stmt: Optional[proto.Assign] = None,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -1117,10 +1265,22 @@ class DataFrame:
         Args:
             *cols: A :class:`Column`, :class:`str`, :class:`table_function.TableFunctionCall`, or a list of those. Note that at most one
                    :class:`table_function.TableFunctionCall` object is supported within a select call.
+            _ast_stmt: when invoked internally, supplies the AST to use for the resulting dataframe.
+            _emit_ast: Whether to emit AST statements.
         """
-        exprs = parse_positional_args_to_list(*cols)
+        exprs, is_variadic = parse_positional_args_to_list_variadic(*cols)
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
+
+        # AST.
+        stmt = _ast_stmt
+        ast = None
+
+        if _emit_ast and _ast_stmt is None:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
+            self.set_ast_ref(ast.df)
+            ast.variadic = is_variadic
 
         names = []
         table_func = None
@@ -1129,8 +1289,18 @@ class DataFrame:
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
+                if _emit_ast and ast:
+                    ast.cols.append(e._ast)
+
             elif isinstance(e, str):
-                names.append(Column(e)._named())
+                col_expr_ast = None
+                if ast:
+                    col_expr_ast = ast.cols.add() if ast else proto.Expr()
+                    fill_ast_for_column(col_expr_ast, e, None)
+
+                col = Column(e, ast=col_expr_ast)
+                names.append(col._named())
+
             elif isinstance(e, TableFunctionCall):
                 if table_func:
                     raise ValueError(
@@ -1194,12 +1364,16 @@ class DataFrame:
                         analyzer=self._session._analyzer,
                     ).select(names)
                 )
-            return self._with_plan(self._select_statement.select(names))
+            return self._with_plan(self._select_statement.select(names), ast_stmt=stmt)
 
-        return self._with_plan(Project(names, join_plan or self._plan))
+        return self._with_plan(Project(names, join_plan or self._plan), ast_stmt=stmt)
 
     @df_api_usage
-    def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
+    def select_expr(
+        self,
+        *exprs: Union[str, Iterable[str]],
+        _ast_stmt: proto.Assign = None,
+    ) -> "DataFrame":
         """
         Projects a set of SQL expressions and returns a new :class:`DataFrame`.
         This method is equivalent to ``select(sql_expr(...))`` with :func:`select`
@@ -1224,8 +1398,26 @@ class DataFrame:
             <BLANKLINE>
 
         """
+        exprs, is_variadic = parse_positional_args_to_list_variadic(*exprs)
+        if not exprs:
+            raise ValueError("The input of select_expr() cannot be empty")
+
+        # AST.
+        if _ast_stmt is None:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_select__exprs, stmt)
+            self.set_ast_ref(ast.df)
+            ast.variadic = is_variadic
+            ast.exprs.extend(exprs)
+        else:
+            stmt = _ast_stmt
+
         return self.select(
-            [sql_expr(expr) for expr in parse_positional_args_to_list(*exprs)]
+            [
+                sql_expr(expr, _emit_ast=False)
+                for expr in parse_positional_args_to_list(*exprs)
+            ],
+            _ast_stmt=stmt,
         )
 
     selectExpr = select_expr
@@ -1264,7 +1456,15 @@ class DataFrame:
         # An empty list of columns should be accepted as dropping nothing
         if not cols:
             raise ValueError("The input of drop() cannot be empty")
-        exprs = parse_positional_args_to_list(*cols)
+        exprs, is_variadic = parse_positional_args_to_list_variadic(*cols)
+
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_drop, stmt)
+        self.set_ast_ref(ast.df)
+        for c in exprs:
+            build_expr_from_snowpark_column_or_col_name(ast.cols.args.add(), c)
+        ast.cols.variadic = is_variadic
 
         names = []
         for c in exprs:
@@ -1302,10 +1502,15 @@ class DataFrame:
         if not keep_col_names:
             raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
         else:
-            return self.select(list(keep_col_names))
+            return self.select(list(keep_col_names), _ast_stmt=stmt)
 
     @df_api_usage
-    def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
+    def filter(
+        self,
+        expr: ColumnOrSqlExpr,
+        _ast_stmt: proto.Assign = None,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
 
@@ -1322,20 +1527,34 @@ class DataFrame:
 
         Args:
             expr: a :class:`Column` expression or SQL text.
+            _ast_stmt: when invoked internally, supplies the AST to use for the resulting dataframe.
 
         :meth:`where` is an alias of :meth:`filter`.
         """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.sp_dataframe_filter, stmt)
+                self.set_ast_ref(ast.df)
+                build_expr_from_snowpark_column_or_sql_str(ast.condition, expr)
+            else:
+                stmt = _ast_stmt
+
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.filter(
                     _to_col_if_sql_expr(expr, "filter/where")._expression
-                )
+                ),
+                ast_stmt=stmt,
             )
         return self._with_plan(
             Filter(
                 _to_col_if_sql_expr(expr, "filter/where")._expression,
                 self._plan,
-            )
+            ),
+            ast_stmt=stmt,
         )
 
     @df_api_usage
@@ -1395,17 +1614,46 @@ class DataFrame:
         exprs = self._convert_cols_to_exprs("sort()", *cols)
         if not exprs:
             raise ValueError("sort() needs at least one sort expression.")
+
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        # Parsing args separately since the original column expr or string
+        # needs to be recorded.
+        _cols, is_variadic = parse_positional_args_to_list_variadic(*cols)
+        ast = with_src_position(stmt.expr.sp_dataframe_sort, stmt)
+        self.set_ast_ref(ast.df)
+        for c in _cols:
+            build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
+        ast.cols_variadic = is_variadic
+
         orders = []
+        # `ascending` is represented by Expr in the AST.
+        # Therefore, construct the required bool, int, or list and copy from that.
+        asc_expr_ast = proto.Expr()
         if ascending is not None:
             if isinstance(ascending, (list, tuple)):
                 orders = [Ascending() if asc else Descending() for asc in ascending]
+                # Here asc_expr_ast is a list of bools and ints.
+                for asc in ascending:
+                    asc_ast = proto.Expr()
+                    if isinstance(asc, bool):
+                        asc_ast.bool_val.v = asc
+                    else:
+                        asc_ast.int64_val.v = asc
+                    asc_expr_ast.list_val.vs.append(asc_ast)
             elif isinstance(ascending, (bool, int)):
                 orders = [Ascending() if ascending else Descending()]
+                # Here asc_expr_ast is either a bool or an int.
+                if isinstance(ascending, bool):
+                    asc_expr_ast.bool_val.v = ascending
+                else:
+                    asc_expr_ast.int64_val.v = ascending
             else:
                 raise TypeError(
                     "ascending can only be boolean or list,"
                     " but got {}".format(str(type(ascending)))
                 )
+            ast.ascending.CopyFrom(asc_expr_ast)
             if len(exprs) != len(orders):
                 raise ValueError(
                     "The length of col ({}) should be same with"
@@ -1428,8 +1676,10 @@ class DataFrame:
                 )
 
         if self._select_statement:
-            return self._with_plan(self._select_statement.sort(sort_exprs))
-        return self._with_plan(Sort(sort_exprs, self._plan))
+            return self._with_plan(
+                self._select_statement.sort(sort_exprs), ast_stmt=stmt
+            )
+        return self._with_plan(Sort(sort_exprs, self._plan), ast_stmt=stmt)
 
     @experimental(version="1.5.0")
     def alias(self, name: str):
@@ -1464,6 +1714,15 @@ class DataFrame:
         Args:
             name: The alias as :class:`str`.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_alias, stmt)
+        self.set_ast_ref(ast.df)
+        ast.name = name
+
+        if self._session._conn._suppress_not_implemented_error:
+            return None
+
         _copy = copy.copy(self)
         _copy._alias = name
         for attr in self._plan.attributes:
@@ -1480,6 +1739,7 @@ class DataFrame:
     def agg(
         self,
         *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]],
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Aggregate the data in the DataFrame. Use this method if you don't need to
         group the data (:func:`group_by`).
@@ -1538,7 +1798,20 @@ class DataFrame:
             - :meth:`RelationalGroupedDataFrame.agg`
             - :meth:`DataFrame.group_by`
         """
-        return self.group_by().agg(*exprs)
+
+        # AST.
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_agg, stmt)
+            self.set_ast_ref(expr.df)
+            exprs, is_variadic = parse_positional_args_to_list_variadic(*exprs)
+            for e in exprs:
+                build_expr_from_python_val(expr.exprs.args.add(), e)
+            expr.exprs.variadic = is_variadic
+
+        df = self.group_by(_emit_ast=False).agg(*exprs, _emit_ast=False)
+
+        return df
 
     @df_to_relational_group_df_api_usage
     def rollup(
@@ -1552,17 +1825,27 @@ class DataFrame:
         Args:
             cols: The columns to group by rollup.
         """
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_rollup, stmt)
+        self.set_ast_ref(expr.df)
+        col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
+        for c in col_list:
+            build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+
         rollup_exprs = self._convert_cols_to_exprs("rollup()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             rollup_exprs,
             snowflake.snowpark.relational_grouped_dataframe._RollupType(),
+            ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
     def group_by(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+        _ast_stmt: Optional[proto.Assign] = None,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
         SQL).
@@ -1598,11 +1881,26 @@ class DataFrame:
             >>> df.group_by("a").function("avg")("b").collect()
             [Row(A=1, AVG(B)=Decimal('1.500000')), Row(A=2, AVG(B)=Decimal('1.500000')), Row(A=3, AVG(B)=Decimal('1.500000'))]
         """
+        stmt = None
+        if _emit_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.assign()
+                expr = with_src_position(stmt.expr.sp_dataframe_group_by, stmt)
+                self.set_ast_ref(expr.df)
+                col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(
+                    *cols
+                )
+                for c in col_list:
+                    build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+            else:
+                stmt = _ast_stmt
+
         grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             grouping_exprs,
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
+            ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
@@ -1642,10 +1940,20 @@ class DataFrame:
         Args:
             grouping_sets: The list of :class:`GroupingSets` to group by.
         """
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_group_by_grouping_sets, stmt)
+        self.set_ast_ref(expr.df)
+        grouping_set_list, expr.variadic = parse_positional_args_to_list_variadic(
+            *grouping_sets
+        )
+        for gs in grouping_set_list:
+            expr.grouping_sets.append(gs._ast)
+
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             [gs._to_expression for gs in parse_positional_args_to_list(*grouping_sets)],
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
+            ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
@@ -1660,25 +1968,57 @@ class DataFrame:
         Args:
             cols: The columns to group by cube.
         """
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_cube, stmt)
+        self.set_ast_ref(expr.df)
+        col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
+        for c in col_list:
+            build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+
         cube_exprs = self._convert_cols_to_exprs("cube()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             cube_exprs,
             snowflake.snowpark.relational_grouped_dataframe._CubeType(),
+            ast_stmt=stmt,
         )
 
     @df_api_usage
-    def distinct(self) -> "DataFrame":
+    def distinct(
+        self, _ast_stmt: proto.Assign = None, _emit_ast: bool = True
+    ) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
 
         This is equivalent to performing a SELECT DISTINCT in SQL.
         """
-        return self.group_by(
-            [self.col(quote_name(f.name)) for f in self.schema.fields]
-        ).agg()
 
-    def drop_duplicates(self, *subset: Union[str, Iterable[str]]) -> "DataFrame":
+        # AST.
+        if _emit_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.sp_dataframe_distinct, stmt)
+                self.set_ast_ref(ast.df)
+            else:
+                stmt = _ast_stmt
+                ast = None
+
+        df = self.group_by(
+            [self.col(quote_name(f.name), _emit_ast=False) for f in self.schema.fields],
+            _emit_ast=False,
+        ).agg(_emit_ast=False)
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
+
+        return df
+
+    def drop_duplicates(
+        self,
+        *subset: Union[str, Iterable[str]],
+        _ast_stmt: proto.Assign = None,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
 
         If no subset of columns is specified, this function is the same as the :meth:`distinct` function.
@@ -1695,8 +2035,26 @@ class DataFrame:
 
         :meth:`dropDuplicates` is an alias of :meth:`drop_duplicates`.
         """
+
+        # AST.
+        stmt = None
+        if _emit_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.sp_dataframe_drop_duplicates, stmt)
+                for arg in subset:
+                    if isinstance(arg, str):
+                        ast.cols.append(arg)
+                        ast.variadic = True
+                    else:
+                        ast.cols.extend(arg)
+                        ast.variadic = False
+                self.set_ast_ref(ast.df)
+            else:
+                stmt = _ast_stmt
+
         if not subset:
-            df = self.distinct()
+            df = self.distinct(_emit_ast=False)
             adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=1)
             return df
         subset = parse_positional_args_to_list(*subset)
@@ -1708,12 +2066,16 @@ class DataFrame:
         )
         rownum_name = generate_random_alphanumeric()
         df = (
-            self.select(*output_cols, rownum.as_(rownum_name))
-            .where(col(rownum_name) == 1)
-            .select(output_cols)
+            self.select(*output_cols, rownum.as_(rownum_name), _emit_ast=False)
+            .where(col(rownum_name) == 1, _emit_ast=False)
+            .select(output_cols, _emit_ast=False)
         )
         # Reformat the extra API calls
         adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=3)
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
+
         return df
 
     @df_to_relational_group_df_api_usage
@@ -1724,6 +2086,7 @@ class DataFrame:
             Union[Iterable[LiteralType], "snowflake.snowpark.DataFrame"]
         ] = None,
         default_on_null: Optional[LiteralType] = None,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Rotates this DataFrame by turning the unique values from one column in the input
         expression into multiple columns and aggregating results where required on any
@@ -1780,6 +2143,10 @@ class DataFrame:
                 or None (default) will use all values of the pivot column.
             default_on_null: Expression to replace empty result values.
         """
+
+        if _emit_ast:
+            raise NotImplementedError("TODO SNOW-1491297, add coverage for pivot.")
+
         target_df, pc, pivot_values, default_on_null = prepare_pivot_arguments(
             self, "DataFrame.pivot", pivot_col, values, default_on_null
         )
@@ -1838,7 +2205,13 @@ class DataFrame:
         return self._with_plan(unpivot_plan)
 
     @df_api_usage
-    def limit(self, n: int, offset: int = 0) -> "DataFrame":
+    def limit(
+        self,
+        n: int,
+        offset: int = 0,
+        _ast_stmt: proto.Assign = None,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
 
@@ -1847,6 +2220,8 @@ class DataFrame:
         Args:
             n: Number of rows to return.
             offset: Number of rows to skip before the start of the result set. The default value is 0.
+            _ast_stmt: Overridding AST statement. Used in cases where this function is invoked internally.
+            _emit_ast: Whether to emit AST statements.
 
         Example::
 
@@ -1866,12 +2241,30 @@ class DataFrame:
             -------------
             <BLANKLINE>
         """
+        # AST.
+        if _emit_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.sp_dataframe_limit, stmt)
+                self.set_ast_ref(ast.df)
+                ast.n = n
+                ast.offset = offset
+            else:
+                stmt = _ast_stmt
+                ast = None
+        else:
+            stmt = None
+
         if self._select_statement:
-            return self._with_plan(self._select_statement.limit(n, offset=offset))
-        return self._with_plan(Limit(Literal(n), Literal(offset), self._plan))
+            return self._with_plan(
+                self._select_statement.limit(n, offset=offset), ast_stmt=stmt
+            )
+        return self._with_plan(
+            Limit(Literal(n), Literal(offset), self._plan), ast_stmt=stmt
+        )
 
     @df_api_usage
-    def union(self, other: "DataFrame") -> "DataFrame":
+    def union(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), excluding any duplicate rows. Both input
         DataFrames must contain the same number of columns.
@@ -1892,6 +2285,13 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+        # AST.
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_union, stmt)
+            self.set_ast_ref(ast.df)
+            other.set_ast_ref(ast.other)
+
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
@@ -1905,7 +2305,7 @@ class DataFrame:
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
 
     @df_api_usage
-    def union_all(self, other: "DataFrame") -> "DataFrame":
+    def union_all(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows. Both input
         DataFrames must contain the same number of columns.
@@ -1928,6 +2328,14 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+
+        # AST.
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_union_all, stmt)
+            self.set_ast_ref(ast.df)
+            other.set_ast_ref(ast.other)
+
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
@@ -1964,7 +2372,13 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
-        return self._union_by_name_internal(other, is_all=False)
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_union_by_name, stmt)
+        self.set_ast_ref(ast.df)
+        other.set_ast_ref(ast.other)
+
+        return self._union_by_name_internal(other, is_all=False, ast_stmt=stmt)
 
     @df_api_usage
     def union_all_by_name(self, other: "DataFrame") -> "DataFrame":
@@ -1991,10 +2405,16 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
-        return self._union_by_name_internal(other, is_all=True)
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_union_all_by_name, stmt)
+        self.set_ast_ref(ast.df)
+        other.set_ast_ref(ast.other)
+
+        return self._union_by_name_internal(other, is_all=True, ast_stmt=stmt)
 
     def _union_by_name_internal(
-        self, other: "DataFrame", is_all: bool = False
+        self, other: "DataFrame", is_all: bool = False, ast_stmt: proto.Assign = None
     ) -> "DataFrame":
         left_output_attrs = self._output
         right_output_attrs = other._output
@@ -2033,10 +2453,13 @@ class DataFrame:
                         right_child._plan, analyzer=self._session._analyzer
                     ),
                     operator=SET_UNION_ALL if is_all else SET_UNION,
-                )
+                ),
+                ast_stmt=ast_stmt,
             )
         else:
-            df = self._with_plan(UnionPlan(self._plan, right_child._plan, is_all))
+            df = self._with_plan(
+                UnionPlan(self._plan, right_child._plan, is_all), ast_stmt=ast_stmt
+            )
         return df
 
     @df_api_usage
@@ -2061,6 +2484,12 @@ class DataFrame:
             other: the other :class:`DataFrame` that contains the rows to use for the
                 intersection.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_intersect, stmt)
+        self.set_ast_ref(ast.df)
+        other.set_ast_ref(ast.other)
+
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
@@ -2095,6 +2524,12 @@ class DataFrame:
         Args:
             other: The :class:`DataFrame` that contains the rows to exclude.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_except, stmt)
+        self.set_ast_ref(ast.df)
+        other.set_ast_ref(ast.other)
+
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
@@ -2151,14 +2586,30 @@ class DataFrame:
             --------------------
             <BLANKLINE>
         """
-        join_type = kwargs.get("join_type") or how
+        join_type = create_join_type(kwargs.get("join_type") or how or "inner")
         join_plan = Join(
             self._plan,
             right._plan,
-            NaturalJoin(create_join_type(join_type or "inner")),
+            NaturalJoin(join_type),
             None,
             None,
         )
+
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_natural_join, stmt)
+        self.set_ast_ref(ast.lhs)
+        right.set_ast_ref(ast.rhs)
+        if isinstance(join_type, Inner):
+            ast.join_type.sp_join_type__inner = True
+        elif isinstance(join_type, LeftOuter):
+            ast.join_type.sp_join_type__left_outer = True
+        elif isinstance(join_type, RightOuter):
+            ast.join_type.sp_join_type__right_outer = True
+        elif isinstance(join_type, FullOuter):
+            ast.join_type.sp_join_type__full_outer = True
+        else:
+            raise ValueError(f"Unsupported join type {join_type}")
+
         if self._select_statement:
             select_plan = self._session._analyzer.create_select_statement(
                 from_=self._session._analyzer.create_select_snowflake_plan(
@@ -2167,8 +2618,8 @@ class DataFrame:
                 ),
                 analyzer=self._session._analyzer,
             )
-            return self._with_plan(select_plan)
-        return self._with_plan(join_plan)
+            return self._with_plan(select_plan, ast_stmt=stmt)
+        return self._with_plan(join_plan, ast_stmt=stmt)
 
     @df_api_usage
     def join(
@@ -2440,7 +2891,7 @@ class DataFrame:
             <BLANKLINE>
         """
         using_columns = kwargs.get("using_columns") or on
-        join_type = kwargs.get("join_type") or how
+        join_type = create_join_type(kwargs.get("join_type") or how or "inner")
         if isinstance(right, DataFrame):
             if self is right or self._plan is right._plan:
                 raise SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
@@ -2493,13 +2944,58 @@ class DataFrame:
                     f"Invalid input type for join column: {type(using_columns)}"
                 )
 
+            # AST.
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_join, stmt)
+            self.set_ast_ref(ast.lhs)
+            right.set_ast_ref(ast.rhs)
+            if isinstance(join_type, Inner):
+                ast.join_type.sp_join_type__inner = True
+            elif isinstance(join_type, LeftOuter):
+                ast.join_type.sp_join_type__left_outer = True
+            elif isinstance(join_type, RightOuter):
+                ast.join_type.sp_join_type__right_outer = True
+            elif isinstance(join_type, FullOuter):
+                ast.join_type.sp_join_type__full_outer = True
+            elif isinstance(join_type, Cross):
+                ast.join_type.sp_join_type__cross = True
+            elif isinstance(join_type, LeftSemi):
+                ast.join_type.sp_join_type__left_semi = True
+            elif isinstance(join_type, LeftAnti):
+                ast.join_type.sp_join_type__left_anti = True
+            else:
+                raise ValueError(f"Unsupported join type {join_type}")
+
+            join_cols = kwargs.get("using_columns", on)
+            if join_cols is not None:
+                if isinstance(join_cols, (Column, str)):
+                    build_expr_from_snowpark_column_or_col_name(
+                        ast.join_expr, join_cols
+                    )
+                elif isinstance(join_cols, Iterable):
+                    for c in join_cols:
+                        build_expr_from_snowpark_column_or_col_name(
+                            ast.join_expr.list_val.vs.add(), c
+                        )
+                else:
+                    raise TypeError(
+                        f"Invalid input type for join column: {type(join_cols)}"
+                    )
+            if match_condition is not None:
+                build_expr_from_snowpark_column(ast.match_condition, match_condition)
+            if lsuffix:
+                ast.lsuffix.value = lsuffix
+            if rsuffix:
+                ast.rsuffix.value = rsuffix
+
             return self._join_dataframes(
                 right,
                 using_columns,
-                create_join_type(join_type or "inner"),
+                join_type,
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
                 match_condition=match_condition,
+                ast_stmt=stmt,
             )
 
         raise TypeError("Invalid type for join. Must be Dataframe")
@@ -2700,12 +3196,21 @@ class DataFrame:
             If both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the result DataFrame.
             If either one is not empty, the overlapping columns won't have random names.
         """
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_cross_join, stmt)
+        self.set_ast_ref(ast.lhs)
+        right.set_ast_ref(ast.rhs)
+        if lsuffix:
+            ast.lsuffix.value = lsuffix
+        if rsuffix:
+            ast.rsuffix.value = rsuffix
         return self._join_dataframes_internal(
             right,
             create_join_type("cross"),
             None,
             lsuffix=lsuffix,
             rsuffix=rsuffix,
+            ast_stmt=stmt,
         )
 
     def _join_dataframes(
@@ -2717,6 +3222,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
+        ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         if isinstance(using_columns, Column):
             return self._join_dataframes_internal(
@@ -2726,6 +3232,7 @@ class DataFrame:
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
                 match_condition=match_condition,
+                ast_stmt=ast_stmt,
             )
 
         if isinstance(join_type, (LeftSemi, LeftAnti)):
@@ -2740,6 +3247,7 @@ class DataFrame:
                 join_cond,
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
+                ast_stmt=ast_stmt,
             )
         else:
             lhs, rhs = _disambiguate(
@@ -2768,9 +3276,10 @@ class DataFrame:
                             join_logical_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
-                    )
+                    ),
+                    ast_stmt=ast_stmt,
                 )
-            return self._with_plan(join_logical_plan)
+            return self._with_plan(join_logical_plan, ast_stmt=ast_stmt)
 
     def _join_dataframes_internal(
         self,
@@ -2781,6 +3290,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
+        ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         (lhs, rhs) = _disambiguate(
             self, right, join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
@@ -2804,13 +3314,18 @@ class DataFrame:
                         analyzer=self._session._analyzer,
                     ),
                     analyzer=self._session._analyzer,
-                )
+                ),
+                ast_stmt=ast_stmt,
             )
-        return self._with_plan(join_logical_plan)
+        return self._with_plan(join_logical_plan, ast_stmt=ast_stmt)
 
     @df_api_usage
     def with_column(
-        self, col_name: str, col: Union[Column, TableFunctionCall]
+        self,
+        col_name: str,
+        col: Union[Column, TableFunctionCall],
+        ast_stmt: proto.Expr = None,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
@@ -2852,11 +3367,22 @@ class DataFrame:
             col_name: The name of the column to add or replace.
             col: The :class:`Column` or :class:`table_function.TableFunctionCall` with single column output to add or replace.
         """
-        return self.with_columns([col_name], [col])
+        if ast_stmt is None and _emit_ast:
+            ast_stmt = self._session._ast_batch.assign()
+            expr = with_src_position(ast_stmt.expr.sp_dataframe_with_column, ast_stmt)
+            self.set_ast_ref(expr.df)
+            expr.col_name = col_name
+            build_expr_from_snowpark_column_or_table_fn(expr.col, col)
+
+        return self.with_columns([col_name], [col], ast_stmt=ast_stmt, _emit_ast=False)
 
     @df_api_usage
     def with_columns(
-        self, col_names: List[str], values: List[Union[Column, TableFunctionCall]]
+        self,
+        col_names: List[str],
+        values: List[Union[Column, TableFunctionCall]],
+        ast_stmt: proto.Expr = None,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
@@ -2948,8 +3474,18 @@ class DataFrame:
             if field.name not in new_column_names
         ]
 
+        # AST.
+        if ast_stmt is None and _emit_ast:
+            ast_stmt = self._session._ast_batch.assign()
+            expr = with_src_position(ast_stmt.expr.sp_dataframe_with_columns, ast_stmt)
+            self.set_ast_ref(expr.df)
+            for col_name in col_names:
+                expr.col_names.append(col_name)
+            for value in values:
+                build_expr_from_snowpark_column_or_table_fn(expr.values.add(), value)
+
         # Put it all together
-        return self.select([*old_cols, *new_cols])
+        return self.select([*old_cols, *new_cols], _ast_stmt=ast_stmt, _emit_ast=False)
 
     @overload
     def count(
@@ -2964,7 +3500,11 @@ class DataFrame:
         ...  # pragma: no cover
 
     def count(
-        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        _emit_ast: bool = True,
     ) -> Union[int, AsyncJob]:
         """Executes the query representing this DataFrame and returns the number of
         rows in the result (similar to the COUNT function in SQL).
@@ -2975,18 +3515,53 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
+
+        if _emit_ast:
+            # Add an Assign node that applies SpDataframeCount() to the input, followed by its Eval.
+            repr = self._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_dataframe_count)
+
+            if self._ast_id is None and FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_id
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = expr.statement_params.add()
+                    t._1 = k
+                    t._2 = v
+            expr.block = block
+
+            self._session._ast_batch.eval(repr)
+
+        if self._session._conn.is_phase1_enabled():
+            # TODO: Logic here should be
+            # ast = self._session._ast_batch.flush()
+            # res = self._session._conn.ast_query(ast)
+            raise NotImplementedError(
+                "TODO: Implement collect() with EvalResult in Phase1."
+            )
+
+        # Phase 0 flushes AST and encodes it as part of the query.
+        kwargs = {}
+        _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+
         with open_telemetry_context_manager(self.count, self):
-            df = self.agg(("*", "count"))
+            df = self.agg(("*", "count"), _emit_ast=False)
             add_api_call(df, "DataFrame.count")
             result = df._internal_collect_with_tag(
                 statement_params=statement_params,
                 block=block,
                 data_type=_AsyncResultType.COUNT,
+                **kwargs,
             )
             return result[0][0] if block else result
 
     @property
-    def write(self) -> DataFrameWriter:
+    def write(self, _emit_ast: bool = True) -> DataFrameWriter:
         """Returns a new :class:`DataFrameWriter` object that you can use to write the data in the :class:`DataFrame` to
         a Snowflake database or a stage location
 
@@ -3005,6 +3580,13 @@ class DataFrame:
             >>> df.write.copy_into_location("@test_stage/copied_from_dataframe")  # default CSV
             [Row(rows_unloaded=2, input_bytes=8, output_bytes=28)]
         """
+
+        # AST.
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_write, stmt)
+            self.set_ast_ref(expr.df)
+            self._writer._ast_stmt = stmt
 
         return self._writer
 
@@ -3075,6 +3657,44 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_copy_into_table, stmt)
+        self.set_ast_ref(expr.df)
+        if isinstance(table_name, str):
+            expr.table_name.append(table_name)
+        else:
+            expr.table_name.extend(table_name)
+        if files is not None:
+            expr.files.extend(files)
+        if pattern is not None:
+            expr.pattern.value = pattern
+        if validation_mode is not None:
+            expr.validation_mode.value = validation_mode
+        if target_columns is not None:
+            expr.target_columns.extend(target_columns)
+        if transformations is not None:
+            for t in transformations:
+                build_expr_from_python_val(expr.transformations.add(), t)
+        if format_type_options is not None:
+            for k in format_type_options:
+                entry = expr.format_type_options.add()
+                entry._1 = k
+                build_expr_from_python_val(entry._2, format_type_options[k])
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.statement_params.add()
+                entry._1 = k
+                entry._2 = statement_params[k]
+        if copy_options is not None:
+            for k in copy_options:
+                entry = expr.copy_options.add()
+                entry._1 = k
+                build_expr_from_python_val(entry._2, copy_options[k])
+
+        if self._session._conn._suppress_not_implemented_error:
+            return None
+
         if not self._reader or not self._reader._file_path:
             raise SnowparkDataframeException(
                 "To copy into a table, the DataFrame must be created from a DataFrameReader and specify a file path."
@@ -3155,6 +3775,7 @@ class DataFrame:
                 cur_options=self._reader._cur_options,
                 create_table_from_infer_schema=create_table_from_infer_schema,
             ),
+            ast_stmt=stmt,
         )._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
 
     @df_collect_api_telemetry
@@ -3256,17 +3877,42 @@ class DataFrame:
         See Also:
             - :meth:`Session.flatten`, which creates a new :class:`DataFrame` by flattening compound values into multiple rows.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_flatten, stmt)
+        self.set_ast_ref(expr.df)
+        build_expr_from_python_val(expr.input, input)
+        if path is not None:
+            expr.path.value = path
+        expr.outer = outer
+        expr.recursive = recursive
+
         mode = mode.upper()
-        if mode not in ("OBJECT", "ARRAY", "BOTH"):
+        if mode == "OBJECT":
+            expr.mode.sp_flatten_mode_object = True
+        elif mode == "ARRAY":
+            expr.mode.sp_flatten_mode_array = True
+        elif mode == "BOTH":
+            expr.mode.sp_flatten_mode_both = True
+        else:
             raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
         if isinstance(input, str):
             input = self.col(input)
+
         return self._lateral(
-            FlattenFunction(input._expression, path, outer, recursive, mode)
+            FlattenFunction(input._expression, path, outer, recursive, mode),
+            _ast_stmt=stmt,
         )
 
-    def _lateral(self, table_function: TableFunctionExpression) -> "DataFrame":
+    def _lateral(
+        self, table_function: TableFunctionExpression, _ast_stmt: proto.Assign = None
+    ) -> "DataFrame":
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
+        if isinstance(self._session._conn, MockServerConnection):
+            return DataFrame(self._session, ast_stmt=_ast_stmt)
+
         result_columns = [
             attr.name
             for attr in self._session._analyzer.resolve(
@@ -3275,7 +3921,9 @@ class DataFrame:
         ]
         common_col_names = [k for k, v in Counter(result_columns).items() if v > 1]
         if len(common_col_names) == 0:
-            return DataFrame(self._session, Lateral(self._plan, table_function))
+            return DataFrame(
+                self._session, Lateral(self._plan, table_function), ast_stmt=_ast_stmt
+            )
         prefix = _generate_prefix("a")
         child = self.select(
             [
@@ -3287,85 +3935,124 @@ class DataFrame:
                     common_col_names=common_col_names,
                 )
                 for attr in self._output
-            ]
+            ],
+            ast_stmt=False,  # Suppress AST generation for this SELECT.
         )
-        return DataFrame(self._session, Lateral(child._plan, table_function))
+        return DataFrame(
+            self._session, Lateral(child._plan, table_function), ast_stmt=_ast_stmt
+        )
 
     def _show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self._plan.queries[-1].sql.strip().lower()
 
-        if is_sql_select_statement(query):
-            result, meta = self._session._conn.get_result_and_metadata(
-                self.limit(n)._plan, **kwargs
+        # Add an Assign node that applies SpDataframeShow() to the input, followed by its Eval.
+        repr = self._session._ast_batch.assign()
+        if self._ast_id is None and FAIL_ON_MISSING_AST:
+            _logger.debug(self._explain_string())
+            raise NotImplementedError(
+                f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
             )
+        elif self._ast_id is not None:
+            repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
+        self._session._ast_batch.eval(repr)
+
+        if self._session._conn.is_phase1_enabled():
+            ast = self._session._ast_batch.flush()
+            res = self._session._conn.ast_query(ast)
+
+            _logger.debug(f"AST response: {res}")
+
+            # In Phase 1, the code to format the result set to a string
+            # is run on the server, retrieve simply the result here.
+            response = decode_ast_response_from_snowpark(
+                res, self._session._conn._conn._session_parameters
+            )
+
+            check_response(response)
+
+            return response.body[0].eval_ok.data.string_val.v
         else:
-            res, meta = self._session._conn.get_result_and_metadata(
-                self._plan, **kwargs
-            )
-            result = res[:n]
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
-        # The query has been executed
-        col_count = len(meta)
-        col_width = []
-        header = []
-        for field in meta:
-            name = field.name
-            col_width.append(len(name))
-            header.append(name)
-
-        body = []
-        for row in result:
-            lines = []
-            for i, v in enumerate(row):
-                texts = str(v).split("\n") if v is not None else ["NULL"]
-                for t in texts:
-                    col_width[i] = max(len(t), col_width[i])
-                    col_width[i] = min(max_width, col_width[i])
-                lines.append(texts)
-
-            # max line number in this row
-            line_count = max(len(li) for li in lines)
-            res = []
-            for line_number in range(line_count):
-                new_line = []
-                for colIndex in range(len(lines)):
-                    n = (
-                        lines[colIndex][line_number]
-                        if len(lines[colIndex]) > line_number
-                        else ""
-                    )
-                    new_line.append(n)
-                res.append(new_line)
-            body.extend(res)
-
-        # Add 2 more spaces in each column
-        col_width = [w + 2 for w in col_width]
-
-        total_width = sum(col_width) + col_count + 1
-        line = "-" * total_width + "\n"
-
-        def row_to_string(row: List[str]) -> str:
-            tokens = []
-            if row:
-                for segment, size in zip(row, col_width):
-                    if len(segment) > max_width:
-                        # if truncated, add ... to the end
-                        formatted = (segment[: max_width - 3] + "...").ljust(size, " ")
-                    else:
-                        formatted = segment.ljust(size, " ")
-                    tokens.append(formatted)
+            # Phase 0 code where string gets formatted.
+            if is_sql_select_statement(query):
+                result, meta = self._session._conn.get_result_and_metadata(
+                    self.limit(n)._plan, **kwargs
+                )
             else:
-                tokens = [" " * size for size in col_width]
-            return f"|{'|'.join(tok for tok in tokens)}|\n"
+                res, meta = self._session._conn.get_result_and_metadata(
+                    self._plan, **kwargs
+                )
+                result = res[:n]
 
-        return (
-            line
-            + row_to_string(header)
-            + line
-            # `body` of an empty df is empty
-            + ("".join(row_to_string(b) for b in body) if body else row_to_string([]))
-            + line
-        )
+            # The query has been executed
+            col_count = len(meta)
+            col_width = []
+            header = []
+            for field in meta:
+                name = field.name
+                col_width.append(len(name))
+                header.append(name)
+
+            body = []
+            for row in result:
+                lines = []
+                for i, v in enumerate(row):
+                    texts = str(v).split("\n") if v is not None else ["NULL"]
+                    for t in texts:
+                        col_width[i] = max(len(t), col_width[i])
+                        col_width[i] = min(max_width, col_width[i])
+                    lines.append(texts)
+
+                # max line number in this row
+                line_count = max(len(li) for li in lines)
+                res = []
+                for line_number in range(line_count):
+                    new_line = []
+                    for colIndex in range(len(lines)):
+                        n = (
+                            lines[colIndex][line_number]
+                            if len(lines[colIndex]) > line_number
+                            else ""
+                        )
+                        new_line.append(n)
+                    res.append(new_line)
+                body.extend(res)
+
+            # Add 2 more spaces in each column
+            col_width = [w + 2 for w in col_width]
+
+            total_width = sum(col_width) + col_count + 1
+            line = "-" * total_width + "\n"
+
+            def row_to_string(row: List[str]) -> str:
+                tokens = []
+                if row:
+                    for segment, size in zip(row, col_width):
+                        if len(segment) > max_width:
+                            # if truncated, add ... to the end
+                            formatted = (segment[: max_width - 3] + "...").ljust(
+                                size, " "
+                            )
+                        else:
+                            formatted = segment.ljust(size, " ")
+                        tokens.append(formatted)
+                else:
+                    tokens = [" " * size for size in col_width]
+                return f"|{'|'.join(tok for tok in tokens)}|\n"
+
+            return (
+                line
+                + row_to_string(header)
+                + line
+                # `body` of an empty df is empty
+                + (
+                    "".join(row_to_string(b) for b in body)
+                    if body
+                    else row_to_string([])
+                )
+                + line
+            )
 
     @df_collect_api_telemetry
     def create_or_replace_view(
@@ -3390,6 +4077,23 @@ class DataFrame:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_view, stmt)
+        expr.is_temp = False
+        self.set_ast_ref(expr.df)
+        if isinstance(name, str):
+            expr.name.append(name)
+        else:
+            expr.name.extend(name)
+        if comment is not None:
+            expr.comment.value = comment
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.statement_params.add()
+                entry._1 = k
+                entry._2 = statement_params[k]
+
         if isinstance(name, str):
             formatted_name = name
         elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
@@ -3408,6 +4112,7 @@ class DataFrame:
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
             ),
+            _ast_stmt=stmt,
         )
 
     @df_collect_api_telemetry
@@ -3437,6 +4142,29 @@ class DataFrame:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(
+            stmt.expr.sp_dataframe_create_or_replace_dynamic_table, stmt
+        )
+        self.set_ast_ref(expr.df)
+        if isinstance(name, str):
+            expr.name.append(name)
+        else:
+            expr.name.extend(name)
+        expr.warehouse = warehouse
+        expr.lag = lag
+        if comment is not None:
+            expr.comment.value = comment
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.statement_params.add()
+                entry._1 = k
+                entry._2 = statement_params[k]
+
+        if self._session._conn._suppress_not_implemented_error:
+            return None
+
         if isinstance(name, str):
             formatted_name = name
         elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
@@ -3493,6 +4221,23 @@ class DataFrame:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_view, stmt)
+        expr.is_temp = True
+        self.set_ast_ref(expr.df)
+        if isinstance(name, str):
+            expr.name.append(name)
+        else:
+            expr.name.extend(name)
+        if comment is not None:
+            expr.comment.value = comment
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.statement_params.add()
+                entry._1 = k
+                entry._2 = statement_params[k]
+
         if isinstance(name, str):
             formatted_name = name
         elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
@@ -3511,10 +4256,16 @@ class DataFrame:
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
             ),
+            _ast_stmt=stmt,
         )
 
     def _do_create_or_replace_view(
-        self, view_name: str, view_type: ViewType, comment: Optional[str], **kwargs
+        self,
+        view_name: str,
+        view_type: ViewType,
+        comment: Optional[str],
+        _ast_stmt: Optional[proto.Assign] = None,
+        **kwargs,
     ):
         validate_object_name(view_name)
         cmd = CreateViewCommand(
@@ -3587,8 +4338,16 @@ class DataFrame:
              results. ``n`` is ``None``, it returns the first :class:`Row` of
              results, or ``None`` if it does not exist.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_first, stmt)
+        if statement_params is not None:
+            ast.statement_params.append((k, v) for k, v in statement_params)
+        self.set_ast_ref(ast.df)
+        ast.block = block
         if n is None:
-            df = self.limit(1)
+            ast.num = 1
+            df = self.limit(1, _emit_ast=False)
             add_api_call(df, "DataFrame.first")
             result = df._internal_collect_with_tag(
                 statement_params=statement_params, block=block
@@ -3599,11 +4358,13 @@ class DataFrame:
         elif not isinstance(n, int):
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
+            ast.num = n
             return self._internal_collect_with_tag(
                 statement_params=statement_params, block=block
             )
         else:
-            df = self.limit(n)
+            ast.num = n
+            df = self.limit(n, _emit_ast=False)
             add_api_call(df, "DataFrame.first")
             return df._internal_collect_with_tag(
                 statement_params=statement_params, block=block
@@ -3613,7 +4374,10 @@ class DataFrame:
 
     @df_api_usage
     def sample(
-        self, frac: Optional[float] = None, n: Optional[int] = None
+        self,
+        frac: Optional[float] = None,
+        n: Optional[int] = None,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Samples rows based on either the number of rows to be returned or a
         percentage of rows to be returned.
@@ -3625,6 +4389,18 @@ class DataFrame:
             a :class:`DataFrame` containing the sample of rows.
         """
         DataFrame._validate_sample_input(frac, n)
+
+        stmt = None
+        if _emit_ast:
+            # AST.
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_sample, stmt)
+            if frac:
+                ast.probability_fraction.value = frac
+            if n:
+                ast.num.value = n
+            self.set_ast_ref(ast.df)
+
         sample_plan = Sample(self._plan, probability_fraction=frac, row_count=n)
         if self._select_statement:
             return self._with_plan(
@@ -3633,9 +4409,10 @@ class DataFrame:
                         sample_plan, analyzer=self._session._analyzer
                     ),
                     analyzer=self._session._analyzer,
-                )
+                ),
+                ast_stmt=stmt,
             )
-        return self._with_plan(sample_plan)
+        return self._with_plan(sample_plan, ast_stmt=stmt)
 
     @staticmethod
     def _validate_sample_input(frac: Optional[float] = None, n: Optional[int] = None):
@@ -3667,7 +4444,9 @@ class DataFrame:
         """
         return self._session
 
-    def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
+    def describe(
+        self, *cols: Union[str, List[str]], _emit_ast: bool = True
+    ) -> "DataFrame":
         """
         Computes basic statistics for numeric columns, which includes
         ``count``, ``mean``, ``stddev``, ``min``, and ``max``. If no columns
@@ -3692,8 +4471,16 @@ class DataFrame:
         Args:
             cols: The names of columns whose basic statistics are computed.
         """
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_describe, stmt)
+            self.set_ast_ref(expr.df)
+            col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
+            for c in col_list:
+                build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+
         cols = parse_positional_args_to_list(*cols)
-        df = self.select(cols) if len(cols) > 0 else self
+        df = self.select(cols, _emit_ast=False) if len(cols) > 0 else self
 
         # ignore non-numeric and non-string columns
         numerical_string_col_type_dict = {
@@ -3713,7 +4500,7 @@ class DataFrame:
         # if no columns should be selected, just return stat names
         if len(numerical_string_col_type_dict) == 0:
             df = self._session.create_dataframe(
-                list(stat_func_dict.keys()), schema=["summary"]
+                list(stat_func_dict.keys()), schema=["summary"], _emit_ast=False
             )
             # We need to set the API calls for this to same API calls for describe
             # Also add the new API calls for creating this DataFrame to the describe subcalls
@@ -3723,6 +4510,10 @@ class DataFrame:
                 precalls=self._plan.api_calls,
                 subcalls=df._plan.api_calls,
             )
+
+            if _emit_ast:
+                df._ast_id = stmt.var_id.bitfield1
+
             return df
 
         # otherwise, calculate stats
@@ -3740,13 +4531,17 @@ class DataFrame:
                 else:
                     agg_cols.append(func(c))
             agg_stat_df = (
-                self.agg(agg_cols)
-                .to_df(list(numerical_string_col_type_dict.keys()))
+                self.agg(agg_cols, _emit_ast=False)
+                .to_df(list(numerical_string_col_type_dict.keys()), _emit_ast=False)
                 .select(
-                    lit(name).as_("summary"), *numerical_string_col_type_dict.keys()
+                    lit(name).as_("summary"),
+                    *numerical_string_col_type_dict.keys(),
+                    _emit_ast=False,
                 )
             )
-            res_df = res_df.union(agg_stat_df) if res_df else agg_stat_df
+            res_df = (
+                res_df.union(agg_stat_df, _emit_ast=False) if res_df else agg_stat_df
+            )
 
         adjust_api_subcalls(
             res_df,
@@ -3754,6 +4549,10 @@ class DataFrame:
             precalls=self._plan.api_calls,
             subcalls=res_df._plan.api_calls.copy(),
         )
+
+        if _emit_ast:
+            res_df._ast_id = stmt.var_id.bitfield1
+
         return res_df
 
     @df_api_usage
@@ -3792,8 +4591,19 @@ class DataFrame:
             col_or_mapper: The old column instance or column name to be renamed, or the dictionary mapping from column instances or columns names to their new names (string)
             new_column: The new column name (string value), if a single old column is given
         """
+        # AST.
+        _ast_stmt = self._session._ast_batch.assign()
+        expr = with_src_position(_ast_stmt.expr.sp_dataframe_rename, _ast_stmt)
+        self.set_ast_ref(expr.df)
+
         if new_column is not None:
-            return self.with_column_renamed(col_or_mapper, new_column)
+            expr.new_column.value = new_column
+            build_expr_from_snowpark_column_or_col_name(
+                expr.col_or_mapper, col_or_mapper
+            )
+            return self.with_column_renamed(
+                col_or_mapper, new_column, _ast_stmt=_ast_stmt, _emit_ast=False
+            )
 
         if not isinstance(col_or_mapper, dict):
             raise ValueError(
@@ -3817,6 +4627,12 @@ class DataFrame:
         rename_map = {k: v for k, v in zip(normalized_name_list, rename_list)}
         rename_plan = Rename(rename_map, self._plan)
 
+        # AST.
+        for col, new_name in col_or_mapper.items():
+            kv_tuple_ast = expr.col_or_mapper.seq_map_val.kvs.add()
+            build_expr_from_snowpark_column_or_col_name(kv_tuple_ast.vs.add(), col)
+            build_expr_from_python_val(kv_tuple_ast.vs.add(), new_name)
+
         if self._select_statement:
             select_plan = self._session._analyzer.create_select_statement(
                 from_=self._session._analyzer.create_select_snowflake_plan(
@@ -3824,12 +4640,18 @@ class DataFrame:
                 ),
                 analyzer=self._session._analyzer,
             )
-            return self._with_plan(select_plan)
+            return self._with_plan(select_plan, ast_stmt=_ast_stmt)
 
-        return self._with_plan(rename_plan)
+        return self._with_plan(rename_plan, ast_stmt=_ast_stmt)
 
     @df_api_usage
-    def with_column_renamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
+    def with_column_renamed(
+        self,
+        existing: ColumnOrName,
+        new: str,
+        _ast_stmt: Optional[proto.Assign] = None,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
 
         Example::
@@ -3890,7 +4712,17 @@ class DataFrame:
             Column(att).as_(new_quoted_name) if old_name == att.name else Column(att)
             for att in self._output
         ]
-        return self.select(new_columns)
+
+        # AST.
+        if _ast_stmt is None and _emit_ast:
+            _ast_stmt = self._session._ast_batch.assign()
+            expr = with_src_position(
+                _ast_stmt.expr.sp_dataframe_with_column_renamed, _ast_stmt
+            )
+            self.set_ast_ref(expr.df)
+            expr.new_name = new
+            build_expr_from_snowpark_column_or_col_name(expr.col, existing)
+        return self.select(new_columns, _ast_stmt=_ast_stmt, _emit_ast=False)
 
     @df_collect_api_telemetry
     def cache_result(
@@ -3955,12 +4787,26 @@ class DataFrame:
         """
         from snowflake.snowpark.mock._connection import MockServerConnection
 
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_cache_result, stmt)
+        self.set_ast_ref(expr.df)
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.statement_params.add()
+                entry._1 = k
+                entry._2 = statement_params[k]
+
         temp_table_name = self._session.get_fully_qualified_name_if_possible(
             f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
         )
 
+        # TODO: Clarify whether cache_result() is an Eval or not. Currently, treat as Assign.
+
         if isinstance(self._session._conn, MockServerConnection):
-            self.write.save_as_table(temp_table_name, create_temp_table=True)
+            self._writer.save_as_table(
+                temp_table_name, create_temp_table=True, _emit_ast=False
+            )
         else:
             df = self._with_plan(
                 SnowflakeCreateTable(
@@ -3981,9 +4827,13 @@ class DataFrame:
                 ),
             )
         cached_df = snowflake.snowpark.table.Table(
-            temp_table_name, self._session, is_temp_table_for_cleanup=True
+            temp_table_name,
+            self._session,
+            is_temp_table_for_cleanup=True,
+            _emit_ast=False,
         )
         cached_df.is_cached = True
+        cached_df._ast_id = stmt.var_id.bitfield1
         return cached_df
 
     @df_collect_api_telemetry
@@ -4022,20 +4872,32 @@ class DataFrame:
             2. When a weight or a normailized weight is less than ``1e-6``, the
             corresponding split dataframe will be empty.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_random_split, stmt)
+        self.set_ast_ref(ast.df)
         if not weights:
             raise ValueError(
                 "weights can't be None or empty and must be positive numbers"
             )
-        elif len(weights) == 1:
+        for w in weights:
+            ast.weights.append(w)
+        if seed:
+            ast.seed.value = seed
+        if statement_params:
+            ast.statement_params = statement_params
+        if len(weights) == 1:
             return [self]
         else:
             for w in weights:
                 if w <= 0:
                     raise ValueError("weights must be positive numbers")
+            if self._session._conn._suppress_not_implemented_error:
+                return None
 
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
-                temp_column_name, abs_(random(seed)) % _ONE_MILLION
+                temp_column_name, abs_(random(seed)) % _ONE_MILLION, ast_stmt=stmt
             ).cache_result(statement_params=statement_params)
             sum_weights = sum(weights)
             normalized_cum_weights = [0] + [
@@ -4132,8 +4994,11 @@ Query List:
         ]
         return dtypes
 
-    def _with_plan(self, plan) -> "DataFrame":
-        df = DataFrame(self._session, plan)
+    def _with_plan(self, plan, ast_stmt=None) -> "DataFrame":
+        """
+        :param proto.Assign ast_stmt: The AST statement protobuf corresponding to this value.
+        """
+        df = DataFrame(self._session, plan, ast_stmt=ast_stmt)
         df._statement_params = self._statement_params
         return df
 

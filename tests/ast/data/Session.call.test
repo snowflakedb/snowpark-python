@@ -1,0 +1,11 @@
+## TEST CASE
+
+df = session.call("my_sproc", 1, "two", {"param1": 10, "param2": "twenty"}, True)
+
+df2 = session.call("my_sproc")
+
+## EXPECTED OUTPUT
+
+df = session.call("my_sproc", 1, "two", {"param1": 10, "param2": "twenty"}, True)
+
+df2 = session.call("my_sproc")

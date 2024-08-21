@@ -1,0 +1,64 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.select(col("A") == col("B"))
+
+df = df.select(col("A") != col("B"))
+
+df = df.select(col("A") > col("B"))
+
+df = df.select(col("A") < col("B"))
+
+df = df.select(col("A") >= col("B"))
+
+df = df.select(col("A") <= col("B"))
+
+df = df.select(col("A") + col("B"))
+
+df = df.select(col("A") - col("B"))
+
+df = df.select(col("A") * col("B"))
+
+df = df.select(col("A") / col("B"))
+
+df = df.select(col("A") % col("B"))
+
+df = df.select(col("A") ** col("B"))
+
+df = df.select(col("A") & col("B"))
+
+df = df.select(col("A") | col("B"))
+
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.select(col("A") == col("B"))
+
+df = df.select(col("A") != col("B"))
+
+df = df.select(col("A") > col("B"))
+
+df = df.select(col("A") < col("B"))
+
+df = df.select(col("A") >= col("B"))
+
+df = df.select(col("A") <= col("B"))
+
+df = df.select(col("A") + col("B"))
+
+df = df.select(col("A") - col("B"))
+
+df = df.select(col("A") * col("B"))
+
+df = df.select(col("A") / col("B"))
+
+df = df.select(col("A") % col("B"))
+
+df = df.select(col("A") ** col("B"))
+
+df = df.select(col("A") & col("B"))
+
+df = df.select(col("A") | col("B"))

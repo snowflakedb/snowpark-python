@@ -19,11 +19,23 @@ from functools import reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
-from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
 
 import cloudpickle
 import pkg_resources
 
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
@@ -48,6 +60,15 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionRelation,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Cast
+from snowflake.snowpark._internal.ast import AstBatch
+from snowflake.snowpark._internal.ast_utils import (
+    build_expr_from_python_val,
+    build_proto_from_struct_type,
+    build_session_table_fn_apply,
+    build_sp_table_name,
+    build_table_fn_apply,
+    with_src_position,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
@@ -96,6 +117,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
+    parse_positional_args_to_list_variadic,
     quote_name,
     random_name_for_temp_object,
     strip_double_quotes_in_like_statement_in_table_name,
@@ -147,7 +169,7 @@ from snowflake.snowpark.mock._pandas_util import (
 from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.mock._stored_procedure import MockStoredProcedureRegistration
 from snowflake.snowpark.mock._udf import MockUDFRegistration
-from snowflake.snowpark.query_history import QueryHistory
+from snowflake.snowpark.query_history import AstListener, QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.table import Table
@@ -563,6 +585,12 @@ class Session:
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         if self._auto_clean_up_temp_table_enabled:
             self._temp_table_auto_cleaner.start()
+
+        # Initialize the server-side session.
+        if self._conn.is_phase1_enabled():
+            self._conn.create_coprocessor()
+
+        self._ast_batch = AstBatch(self)
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -1939,13 +1967,15 @@ class Session:
                     f"Expected query tag to be valid json. Current query tag: {tag_str}"
                 )
 
-    def table(self, name: Union[str, Iterable[str]]) -> Table:
+    def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
         """
         Returns a Table that points the specified table.
 
         Args:
             name: A string or list of strings that specify the table name or
                 fully-qualified object identifier (database name, schema name, and table name).
+
+            _emit_ast: Whether to emit AST statements.
 
             Note:
                 If your table name contains special characters, use double quotes to mark it like this, ``session.table('"my table"')``.
@@ -1963,18 +1993,28 @@ class Session:
             >>> session.table([current_db, current_schema, "my_table"]).collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
+        if _emit_ast:
+            stmt = self._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_table, stmt)
+            if isinstance(name, str):
+                ast.name.sp_table_name_flat.name = name
+            elif isinstance(name, Iterable):
+                ast.name.sp_table_name_structured.name.extend(name)
+            ast.variant.sp_session_table = True
+        else:
+            stmt = None
 
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(name, self)
+        t = Table(name, self, stmt, ast_stmt=stmt, _emit_ast=_emit_ast)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t
 
     def table_function(
         self,
-        func_name: Union[str, List[str], TableFunctionCall],
+        func_name: Union[str, List[str], Callable[..., Any], TableFunctionCall],
         *func_arguments: ColumnOrName,
         **func_named_arguments: ColumnOrName,
     ) -> DataFrame:
@@ -2023,11 +2063,53 @@ class Session:
             - :meth:`Session.generator`, which is used to instantiate a :class:`DataFrame` using Generator table function.
                 Generator functions are not supported with :meth:`Session.table_function`.
         """
-        if isinstance(self._conn, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.table_function",
-                raise_error=NotImplementedError,
+        # AST.
+        stmt = self._ast_batch.assign()
+        expr = stmt.expr
+
+        # Session.table_function is a two-in-one:
+        # - Can call functions directly. Use build_session_table_fn_apply
+        # - Can use Callable or TableFunctionCall objects. Use build_table_fn_apply
+        if isinstance(func_name, TableFunctionCall):
+            expr.apply_expr.fn.table_fn.call_type.table_fn_call_type__session_table_fn = (
+                True
             )
+            build_table_fn_apply(
+                expr,
+                None,  # The callee is a TableFunctionCall object that carries its own name.
+                func_name,
+                *func_arguments,
+                **func_named_arguments,
+            )
+        elif isinstance(func_name, Callable):
+            expr.apply_expr.fn.table_fn.call_type.table_fn_call_type__session_table_fn = (
+                True
+            )
+            build_table_fn_apply(
+                expr,
+                None,  # The callee is a Callable object that carries its own name.
+                func_name._ast,  # Inline the AST expression of the callee.
+                *func_arguments,
+                **func_named_arguments,
+            )
+        elif isinstance(func_name, str):
+            build_session_table_fn_apply(
+                expr, func_name, *func_arguments, **func_named_arguments
+            )
+        elif isinstance(func_name, list):
+            build_session_table_fn_apply(
+                expr, func_name, *func_arguments, **func_named_arguments
+            )
+
+        if isinstance(self._conn, MockServerConnection):
+            if not self._conn._suppress_not_implemented_error:
+                self._conn.log_not_supported_error(
+                    external_feature_name="Session.table_function",
+                    raise_error=NotImplementedError,
+                )
+            else:
+                return None
+
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
@@ -2039,11 +2121,13 @@ class Session:
                     from_=SelectTableFunction(func_expr, analyzer=self._analyzer),
                     analyzer=self._analyzer,
                 ),
+                ast_stmt=stmt,
             )
         else:
             d = DataFrame(
                 self,
                 TableFunctionRelation(func_expr),
+                ast_stmt=stmt,
             )
         set_api_call_source(d, "Session.table_function")
         return d
@@ -2096,6 +2180,19 @@ class Session:
         Returns:
             A new :class:`DataFrame` with data from calling the generator table function.
         """
+        # AST.
+        stmt = self._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_generator, stmt)
+        col_names, is_variadic = parse_positional_args_to_list_variadic(*columns)
+        for col_name in col_names:
+            ast.columns.append(col_name._ast)
+        ast.row_count = rowcount
+        ast.time_limit_seconds = timelimit
+        ast.variadic = is_variadic
+
+        if self._conn._suppress_not_implemented_error:
+            return None
+
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
                 external_feature_name="DataFrame.generator",
@@ -2130,7 +2227,12 @@ class Session:
         set_api_call_source(d, "Session.generator")
         return d
 
-    def sql(self, query: str, params: Optional[Sequence[Any]] = None) -> DataFrame:
+    def sql(
+        self,
+        query: str,
+        params: Optional[Sequence[Any]] = None,
+        _ast_stmt: proto.Assign = None,
+    ) -> DataFrame:
         """
         Returns a new DataFrame representing the results of a SQL query.
 
@@ -2144,6 +2246,7 @@ class Session:
             query: The SQL statement to execute.
             params: binding parameters. We only support qmark bind variables. For more information, check
                 https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-example#qmark-or-numeric-binding
+            _ast_stmt: when invoked internally, supplies the AST to use for the resulting dataframe.
 
         Example::
 
@@ -2157,7 +2260,21 @@ class Session:
             >>> session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]).sort("column1").collect()
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
-        if isinstance(self._conn, MockServerConnection):
+        # AST.
+        if _ast_stmt is None:
+            stmt = self._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_sql, stmt)
+            expr.query = query
+            if params is not None:
+                for p in params:
+                    build_expr_from_python_val(expr.params.add(), p)
+        else:
+            stmt = _ast_stmt
+
+        if (
+            isinstance(self._conn, MockServerConnection)
+            and not self._conn._suppress_not_implemented_error
+        ):
             if self._conn.is_closed():
                 raise SnowparkSessionException(
                     "Cannot perform this operation because the session has been closed.",
@@ -2175,6 +2292,7 @@ class Session:
                     from_=SelectSQL(query, analyzer=self._analyzer, params=params),
                     analyzer=self._analyzer,
                 ),
+                ast_stmt=stmt,
             )
         else:
             d = DataFrame(
@@ -2182,6 +2300,7 @@ class Session:
                 self._analyzer.plan_builder.query(
                     query, source_plan=None, params=params
                 ),
+                ast_stmt=stmt,
             )
         set_api_call_source(d, "Session.sql")
         return d
@@ -2337,6 +2456,7 @@ class Session:
         create_temp_table: bool = False,
         overwrite: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
+        _emit_ast: bool = True,
         **kwargs: Dict[str, Any],
     ) -> Table:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
@@ -2416,6 +2536,7 @@ class Session:
             or :func:`modin.pandas.Series.to_snowflake <snowflake.snowpark.modin.pandas.Series.to_snowflake>`
             internally to write a Snowpark pandas DataFrame into a Snowflake table.
         """
+
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
                 external_feature_name="Session.write_pandas",
@@ -2481,22 +2602,26 @@ class Session:
                 )
                 success, ci_output = True, ""
             else:
-                success, _, _, ci_output = write_pandas(
-                    self._conn._conn,
-                    df,
-                    table_name,
-                    database=database,
-                    schema=schema,
-                    chunk_size=chunk_size,
-                    compression=compression,
-                    on_error=on_error,
-                    parallel=parallel,
-                    quote_identifiers=quote_identifiers,
-                    auto_create_table=auto_create_table,
-                    overwrite=overwrite,
-                    table_type=table_type,
-                    **kwargs,
-                )
+                if isinstance(self._conn, MockServerConnection):
+                    # TODO: Implement here write_pandas correctly.
+                    success, ci_output = True, []
+                else:
+                    success, _, _, ci_output = write_pandas(
+                        self._conn._conn,
+                        df,
+                        table_name,
+                        database=database,
+                        schema=schema,
+                        chunk_size=chunk_size,
+                        compression=compression,
+                        on_error=on_error,
+                        parallel=parallel,
+                        quote_identifiers=quote_identifiers,
+                        auto_create_table=auto_create_table,
+                        overwrite=overwrite,
+                        table_type=table_type,
+                        **kwargs,
+                    )
         except ProgrammingError as pe:
             if pe.msg.endswith("does not exist"):
                 raise SnowparkClientExceptionMessages.DF_PANDAS_TABLE_DOES_NOT_EXIST_EXCEPTION(
@@ -2506,9 +2631,54 @@ class Session:
                 raise pe
 
         if success:
-            t = self.table(location)
-            set_api_call_source(t, "Session.write_pandas")
-            return t
+            table = self.table(location, _emit_ast=False)
+            set_api_call_source(table, "Session.write_pandas")
+
+            # AST.
+            if _emit_ast:
+                # Create AST statement.
+                stmt = self._ast_batch.assign()
+                ast = with_src_position(stmt.expr.sp_write_pandas, stmt)  # noqa: F841
+
+                ast.auto_create_table = auto_create_table
+                if chunk_size is not None and chunk_size != WRITE_PANDAS_CHUNK_SIZE:
+                    ast.chunk_size.value = chunk_size
+                ast.compression = compression
+                ast.create_temp_table = create_temp_table
+                if isinstance(df, pandas.DataFrame):
+                    ast.df.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (
+                        table.table_name
+                    )
+                else:
+                    raise NotImplementedError(
+                        f"Only pandas DataFrame supported, but not {type(df)}"
+                    )
+                if kwargs:
+                    for k, v in kwargs.items():
+                        t = ast.kwargs.add()
+                        t._1 = k
+                        build_expr_from_python_val(t._2, v)
+                ast.on_error = on_error
+                ast.overwrite = overwrite
+                ast.parallel = parallel
+                ast.quote_identifiers = quote_identifiers
+
+                # Convert to [...] location.
+                table_location = table_name
+                if schema is not None:
+                    table_location = [schema, table_location]
+                if database is not None:
+                    if schema is None:
+                        # TODO: unify API with other APIs using [...] syntax. Default schema is PUBLIC
+                        raise ValueError("Need to set schema when using database.")
+                    table_location = [database] + table_location
+
+                build_sp_table_name(ast.table_name, table_location)
+                ast.table_type = table_type
+
+                table._ast_id = stmt.var_id.bitfield1
+
+            return table
         else:
             raise SnowparkClientExceptionMessages.DF_PANDAS_GENERAL_EXCEPTION(
                 str(ci_output)
@@ -2518,6 +2688,7 @@ class Session:
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
         schema: Optional[Union[StructType, Iterable[str]]] = None,
+        _emit_ast: bool = True,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
@@ -2585,6 +2756,19 @@ class Session:
                 "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
             )
 
+        # If data is a pandas dataframe, the schema will be detected from the dataframe itself and schema ignored.
+        # Warn user to acknowledge this.
+        if (
+            installed_pandas
+            and isinstance(data, pandas.DataFrame)
+            and schema is not None
+        ):
+            warnings.warn(
+                "data is a pandas DataFrame, parameter schema is ignored. To silence this warning pass schema=None.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         # check to see if it is a pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
         origin_data = data
@@ -2612,6 +2796,12 @@ class Session:
                     use_logical_type=self._use_logical_type_for_create_df,
                 )
                 set_api_call_source(t, "Session.create_dataframe[pandas]")
+
+                if _emit_ast:
+                    raise NotImplementedError(
+                        "TODO SNOW-1554591: Support pandas.DataFrame ServerConnection."
+                    )
+
                 return t
 
         # infer the schema based on the data
@@ -2804,6 +2994,9 @@ class Session:
             else:
                 project_columns.append(column(name))
 
+        # Create AST statement.
+        stmt = self._ast_batch.assign() if _emit_ast else None
+
         if self.sql_simplifier_enabled:
             df = DataFrame(
                 self,
@@ -2814,11 +3007,14 @@ class Session:
                     ),
                     analyzer=self._analyzer,
                 ),
-            ).select(project_columns)
+                ast_stmt=stmt,
+            ).select(project_columns, _emit_ast=False)
         else:
             df = DataFrame(
-                self, SnowflakeValues(attrs, converted, schema_query=schema_query)
-            ).select(project_columns)
+                self,
+                SnowflakeValues(attrs, converted, schema_query=schema_query),
+                ast_stmt=stmt,
+            ).select(project_columns, _emit_ast=False)
         set_api_call_source(df, "Session.create_dataframe[values]")
 
         if (
@@ -2826,7 +3022,58 @@ class Session:
             and isinstance(origin_data, pandas.DataFrame)
             and isinstance(self._conn, MockServerConnection)
         ):
-            return _convert_dataframe_to_table(df, temp_table_name, self)
+            # MockServerConnection internally creates a table, and returns Table object (which inherits from Dataframe).
+            table = _convert_dataframe_to_table(
+                df, temp_table_name, self, _emit_ast=False
+            )
+
+            # AST.
+            if _emit_ast:
+                ast = with_src_position(stmt.expr.sp_create_dataframe)
+
+                # Save temp table and schema of it in AST (dataframe).
+                ast.data.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (
+                    temp_table_name
+                )
+
+                build_proto_from_struct_type(
+                    table.schema, ast.schema.sp_dataframe_schema__struct.v
+                )
+
+                table._ast_id = stmt.var_id.bitfield1
+
+            return table
+
+        # AST.
+        if _emit_ast:
+            ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
+
+            if isinstance(origin_data, tuple):
+                for row in origin_data:
+                    build_expr_from_python_val(
+                        ast.data.sp_dataframe_data__tuple.vs.add(), row
+                    )
+            elif isinstance(origin_data, list):
+                for row in origin_data:
+                    build_expr_from_python_val(
+                        ast.data.sp_dataframe_data__list.vs.add(), row
+                    )
+            # Note: pandas.DataFrame handled above.
+            else:
+                raise TypeError(
+                    f"Unsupported type {type(origin_data)} in create_dataframe."
+                )
+
+            if schema is not None:
+                if isinstance(schema, list):
+                    for name in schema:
+                        ast.schema.sp_dataframe_schema__list.vs.append(name)
+                elif isinstance(schema, StructType):
+                    build_proto_from_struct_type(
+                        schema, ast.schema.sp_dataframe_schema__struct.v
+                    )
+
+            df._ast_id = stmt.var_id.bitfield1
 
         return df
 
@@ -2852,6 +3099,14 @@ class Session:
             [Row(ID=1), Row(ID=3), Row(ID=5), Row(ID=7), Row(ID=9)]
         """
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
+
+        # AST.
+        stmt = self._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_range, stmt)
+        ast.start = start
+        if end:
+            ast.end.value = end
+        ast.step.value = step
 
         if self.sql_simplifier_enabled:
             df = DataFrame(
@@ -3212,6 +3467,19 @@ class Session:
             is_return_table: When set to a non-null value, it signifies whether the return type of sproc_name
                 is a table return type. This skips infer check and returns a dataframe with appropriate sql call.
         """
+        # AST.
+        stmt = self._ast_batch.assign()
+        expr = with_src_position(stmt.expr.apply_expr, stmt)
+        expr.fn.stored_procedure.name.fn_name_flat.name = sproc_name
+        for arg in args:
+            build_expr_from_python_val(expr.pos_args.add(), arg)
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.named_args.list.add()
+                entry._1 = k
+                build_expr_from_python_val(entry._2, statement_params[k])
+        expr.fn.stored_procedure.log_on_exception.value = log_on_exception
+
         if isinstance(self._sp_registration, MockStoredProcedureRegistration):
             return self._sp_registration.call(
                 sproc_name, *args, session=self, statement_params=statement_params
@@ -3228,11 +3496,11 @@ class Session:
             qid = self._conn.execute_and_get_sfqid(
                 query, statement_params=statement_params
             )
-            df = self.sql(result_scan_statement(qid))
+            df = self.sql(result_scan_statement(qid), _ast_stmt=stmt)
             set_api_call_source(df, "Session.call")
             return df
 
-        df = self.sql(query)
+        df = self.sql(query, _ast_stmt=stmt)
         set_api_call_source(df, "Session.call")
         return df.collect(statement_params=statement_params)[0][0]
 
@@ -3304,13 +3572,33 @@ class Session:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
-        if isinstance(self._conn, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.flatten", raise_error=NotImplementedError
-            )
+        # AST.
+        stmt = self._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_flatten, stmt)
+        build_expr_from_python_val(expr.input, input)
+        if path is not None:
+            expr.path.value = path
+        expr.outer = outer
+        expr.recursive = recursive
+
         mode = mode.upper()
-        if mode not in ("OBJECT", "ARRAY", "BOTH"):
+        if mode == "OBJECT":
+            expr.mode.sp_flatten_mode_object = True
+        elif mode == "ARRAY":
+            expr.mode.sp_flatten_mode_array = True
+        elif mode == "BOTH":
+            expr.mode.sp_flatten_mode_both = True
+        else:
             raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+
+        if isinstance(self._conn, MockServerConnection):
+            if self._conn._suppress_not_implemented_error:
+                return None
+            else:
+                self._conn.log_not_supported_error(
+                    external_feature_name="Session.flatten",
+                    raise_error=NotImplementedError,
+                )
         if isinstance(input, str):
             input = col(input)
         df = DataFrame(
@@ -3318,6 +3606,7 @@ class Session:
             TableFunctionRelation(
                 FlattenFunction(input._expression, path, outer, recursive, mode)
             ),
+            ast_stmt=stmt,
         )
         set_api_call_source(df, "Session.flatten")
         return df
@@ -3334,6 +3623,16 @@ class Session:
         query_listener = QueryHistory(self)
         self._conn.add_query_listener(query_listener)
         return query_listener
+
+    def ast_listener(self) -> AstListener:
+        """
+        Creates an instance of :class:`AstListener` as a context manager to capture ast batches flushed.
+        Returns: AstListener instance holding base64 encoded batches.
+
+        """
+        al = AstListener(self)
+        self._conn.add_query_listener(al)
+        return al
 
     def _table_exists(self, raw_table_name: Iterable[str]):
         """ """

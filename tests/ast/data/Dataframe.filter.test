@@ -1,0 +1,23 @@
+## TEST CASE
+
+df1 = session.table("test_table")
+
+df2 = df1.filter((col("A") > 1) & (col("B") < 100))
+
+df3 = df1.filter(col("a") > 1)
+
+df4 = df1.filter("a > 1 and b < 100")
+
+df5 = df1.filter("a > 1")
+
+## EXPECTED OUTPUT
+
+df1 = session.table("test_table")
+
+df2 = df1.filter((col("A") > 1) & (col("B") < 100))
+
+df3 = df1.filter(col("a") > 1)
+
+df4 = df1.filter("a > 1 and b < 100")
+
+df5 = df1.filter("a > 1")

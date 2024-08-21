@@ -1,0 +1,15 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.sample(n=3)
+
+df = df.sample(frac=0.5)
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.sample(None, 3)
+
+df = df.sample(0.5, None)

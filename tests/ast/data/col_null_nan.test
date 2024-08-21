@@ -1,0 +1,24 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.select(col("A").equal_null(col("B")))
+
+df = df.select(col("A").equal_nan())
+
+df = df.select(col("A").is_null())
+
+df = df.select(col("A").is_not_null())
+
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.select(col("A").equal_null(col("B")))
+
+df = df.select(col("A").equal_nan())
+
+df = df.select(col("A").is_null())
+
+df = df.select(col("A").is_not_null())

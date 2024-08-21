@@ -1,0 +1,21 @@
+## TEST CASE
+
+df = session.table("test_table").drop(col("NUM"))
+
+def foo(p):
+  df = p.distinct()
+  return df
+
+df3 = foo(df)
+
+df4 = df.flatten("STR", "path", True, False)
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df_res1 = df.drop(col("NUM"))
+
+df = df_res1.distinct()
+
+df4 = df_res1.flatten("STR", Some("path"), True, False, "BOTH")
