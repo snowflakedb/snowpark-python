@@ -32,9 +32,7 @@ def mock_query_compiler_for_dt_series() -> SnowflakeQueryCompiler:
 @pytest.mark.parametrize(
     "func, func_name",
     [
-        (lambda s: s.dt.time, "time"),
         (lambda s: s.dt.timetz, "timetz"),
-        (lambda s: s.dt.weekday, "weekday"),
         (lambda s: s.dt.daysinmonth, "daysinmonth"),
         (lambda s: s.dt.days_in_month, "days_in_month"),
         (lambda s: s.dt.to_period(), "to_period"),

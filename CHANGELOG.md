@@ -7,6 +7,7 @@
 #### Bug Fixes
 
 - Fixed a bug in `session.read.csv` that caused an error when setting `PARSE_HEADER = True` in an externally defined file format.
+- Fixed a bug in query generation from set operations that allowed generation of duplicate queries when children have common subqueries.
 
 ### Snowpark Local Testing Updates
 
@@ -32,6 +33,8 @@
 - Added support for `Index.name`, `Index.names`, `Index.rename`, and `Index.set_names`.
 - Added support for `Index.__repr__`.
 - Added support for `DatetimeIndex.month_name` and `DatetimeIndex.day_name`.
+- Added support for `Series.dt.weekday`, `Series.dt.time`, and `DatetimeIndex.time`.
+- Added support for subtracting two timestamps to get a Timedelta.
 - Added support for `pd.merge_asof`.
 
 #### Bug Fixes
