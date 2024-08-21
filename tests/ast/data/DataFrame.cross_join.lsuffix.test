@@ -1,0 +1,15 @@
+## TEST CASE
+
+df1 = session.table("test_table")
+
+df2 = session.table("test_table")
+
+df1.cross_join(df2, lsuffix="_t1").select('*')
+
+## EXPECTED OUTPUT
+
+df1 = session.table("test_table")
+
+df2 = session.table("test_table")
+
+res2 = df1.cross_join(df2, lsuffix="_t1").select("*")

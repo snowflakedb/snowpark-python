@@ -1,0 +1,16 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.select(-col("A"))
+
+df = df.select(~col("A"))
+
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.select(-col("A"))
+
+df = df.select(~col("A"))

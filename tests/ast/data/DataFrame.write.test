@@ -1,0 +1,59 @@
+## TEST CASE
+
+from snowflake.snowpark.functions import col
+
+df = session.table("test_table")
+
+df.write.save_as_table("saved_table")
+
+df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
+
+df.write.mode("truncate").save_as_table("test_destination", column_order="name", create_temp_table=False, table_type="transient", clustering_keys=['STR', col('num1')], comment="test", block=True, statement_params={"k":"v"})
+
+stage_created_result = session.sql("create temp stage if not exists test_stage").collect()
+
+df.write.copy_into_location("@test_stage/copied_from_dataframe")
+
+remote_file_path = "@test_stage/copied_from_dataframe"
+
+df.write.copy_into_location(remote_file_path, file_format_type="parquet", header=True, overwrite=True, single=True)
+
+df.write.copy_into_location(remote_file_path, file_format_name="csv", format_type_options={"compression":"bzip2"}, block=False, INCLUDE_QUERY_ID=True, DETAILED_OUTPUT=False)
+
+remote_file_path = "@test_stage/test.csv"
+
+df.write.csv(remote_file_path, header=True, format_type_options={"compression":"bzip2"}, overwrite=True, single=True)
+
+remote_file_path = "@test_stage/test.json"
+
+df.write.json(remote_file_path, overwrite=True, single=True, format_type_options={"compression":"bzip2"},)
+
+remote_file_path = "@test_stage/test.parquet"
+
+df.write.parquet(remote_file_path, format_type_options={"compression":"bzip2"}, header=False, overwrite=True, single=True)
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df.write.save_as_table("saved_table")
+
+df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
+
+df.write.mode("truncate").save_as_table("test_destination", statement_params={"k": "v"}, column_order="name", table_type="transient", clustering_keys=["STR", col("num1")], comment="test")
+
+stage_created_result = session.sql("create temp stage if not exists test_stage")
+
+stage_created_result.collect()
+
+df.write.copy_into_location("@test_stage/copied_from_dataframe")
+
+df.write.copy_into_location("@test_stage/copied_from_dataframe", file_format_type="parquet", header=True, overwrite=True, single=True)
+
+df.write.copy_into_location("@test_stage/copied_from_dataframe", file_format_name="csv", format_type_options={"compression": "bzip2"}, block=False, INCLUDE_QUERY_ID=True, DETAILED_OUTPUT=False)
+
+df.write.csv("@test_stage/test.csv", format_type_options={"compression": "bzip2"}, header=True, overwrite=True, single=True)
+
+df.write.json("@test_stage/test.json", format_type_options={"compression": "bzip2"}, overwrite=True, single=True)
+
+df.write.parquet("@test_stage/test.parquet", format_type_options={"compression": "bzip2"}, overwrite=True, single=True)

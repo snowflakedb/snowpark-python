@@ -17,6 +17,7 @@ import platform
 import random
 import re
 import string
+import sys
 import traceback
 import zipfile
 from enum import Enum
@@ -42,11 +43,7 @@ from typing import (
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
-from snowflake.connector.options import (
-    MissingOptionalDependency,
-    ModuleLikeObject,
-    pandas,
-)
+from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.row import Row
@@ -57,6 +54,8 @@ if TYPE_CHECKING:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
         ResultMetadataV2 = ResultMetadata
+
+logger = logging.getLogger("snowflake.snowpark")
 
 STAGE_PREFIX = "@"
 SNOWURL_PREFIX = "snow://"
@@ -197,6 +196,24 @@ PIVOT_DEFAULT_ON_NULL_WARNING = (
     "Calling pivot() with a non-None value for `default_on_null` is in "
     + "private preview since v1.15.0. Do not use this feature in production."
 )
+
+# TODO: merge fixed pandas importer changes to connector.
+def _pandas_importer():  # noqa: E302
+    """Helper function to lazily import pandas and return MissingPandas if not installed."""
+    from snowflake.connector.options import MissingPandas
+
+    pandas = MissingPandas()
+    try:
+        pandas = importlib.import_module("pandas")
+        # since we enable relative imports without dots this import gives us an issues when ran from test directory
+        from pandas import DataFrame  # NOQA
+    except ImportError as e:
+        logger.error(f"pandas is not installed {e}")
+    return pandas
+
+
+pandas = _pandas_importer()
+installed_pandas = not isinstance(pandas, MissingOptionalDependency)
 
 
 class TempObjectType(Enum):
@@ -412,6 +429,14 @@ def parse_positional_args_to_list(*inputs: Any) -> List:
         )
     else:
         return [*inputs]
+
+
+def parse_positional_args_to_list_variadic(*inputs: Any) -> Tuple[List, bool]:
+    """Convert the positional arguments to a list, indicating whether to treat the argument list as a variadic list."""
+    if len(inputs) == 1 and isinstance(inputs[0], (list, tuple, set)):
+        return ([*inputs[0]], False)
+    else:
+        return ([*inputs], True)
 
 
 def _hash_file(
@@ -649,9 +674,6 @@ class PythonObjJSONEncoder(JSONEncoder):
             return value.tolist()
         else:
             return super().default(value)
-
-
-logger = logging.getLogger("snowflake.snowpark")
 
 
 class WarningHelper:
@@ -978,3 +1000,7 @@ def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
         return modin, True
     except ImportError:
         return MissingModin(), False
+
+
+# Modin breaks Python 3.8 compatibility, do not test when running under 3.8.
+COMPATIBLE_WITH_MODIN = sys.version_info.minor > 8

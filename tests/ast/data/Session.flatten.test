@@ -1,0 +1,11 @@
+## TEST CASE
+
+df1 = session.flatten(parse_json(lit('{"a": [1,2]}')), "a", False, False, "BOTH")
+
+df2 = session.flatten(col("NUM"), recursive=True, mode="ARRAY")
+
+## EXPECTED OUTPUT
+
+df1 = session.flatten(parse_json(lit("{\"a\": [1,2]}")), Some("a"), False, False, "BOTH")
+
+df2 = session.flatten(col("NUM"), None, False, True, "ARRAY")

@@ -1,0 +1,12 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.drop(col("A"))
+
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.drop(col("A"))

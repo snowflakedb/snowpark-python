@@ -1,0 +1,19 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df1 = df.first(-5)
+
+df2 = df.first(2)
+
+df3 = df.first()
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df1 = df.first(-5, True)
+
+df2 = df.first(2, True)
+
+df3 = df.first(1, True)

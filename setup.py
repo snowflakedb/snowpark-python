@@ -13,13 +13,17 @@ SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
 MODIN_DEPENDENCY_VERSION = (
     "==0.28.1"  # Snowpark pandas requires modin 0.28.1, which depends on pandas 2.2.1
 )
-CONNECTOR_DEPENDENCY_VERSION = ">=3.10.0, <4.0.0"
+# Use HEAD of main branch in connector. This doesn't work with [pandas] extra.
+# CONNECTOR_DEPENDENCY = "snowflake-connector-python @ git+https://github.com/snowflakedb/snowflake-connector-python@main#egg=snowflake-connector-python"
+CONNECTOR_DEPENDENCY_VERSION = ">=3.12.0, <4.0.0"
+CONNECTOR_DEPENDENCY = f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}"
 INSTALL_REQ_LIST = [
     "setuptools>=40.6.0",
     "wheel",
-    f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}",
+    CONNECTOR_DEPENDENCY,
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
     "typing-extensions>=4.1.0, <5.0.0",
+    "protobuf",
     "pyyaml",
     "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
     "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
@@ -31,6 +35,8 @@ if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
 
 PANDAS_REQUIREMENTS = [
     f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
+    # When using HEAD of connector.
+    # f"{CONNECTOR_DEPENDENCY}[pandas]",
 ]
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
@@ -39,6 +45,7 @@ MODIN_REQUIREMENTS = [
 DEVELOPMENT_REQUIREMENTS = [
     "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
     "pytest-cov",
+    "wrapt",
     "coverage",
     "sphinx==5.0.2",
     "cachetools",  # used in UDF doctest
@@ -47,6 +54,12 @@ DEVELOPMENT_REQUIREMENTS = [
     "openpyxl",  # used in read_excel test, not a requirement for distribution
     "matplotlib",  # used in plot tests
     "pre-commit",
+    "protoc-wheel-0",
+    "aiohttp",  # vcrpy requirements.
+    "boto",  # vcrpy requirements.
+    "httplib2",  # vcrpy requirements.
+    "httpx",  # vcrpy requirements.
+    "tornado",  # vcrpy requirements.
 ]
 
 # read the version
@@ -88,6 +101,7 @@ setup(
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
         "snowflake.snowpark._internal.compiler",
+        "snowflake.snowpark._internal.proto",
         "snowflake.snowpark.mock",
         "snowflake.snowpark.modin",
         "snowflake.snowpark.modin.config",
@@ -115,6 +129,8 @@ setup(
         "modin": MODIN_REQUIREMENTS,
         "secure-local-storage": [
             f"snowflake-connector-python[secure-local-storage]{CONNECTOR_DEPENDENCY_VERSION}",
+            # When using HEAD, use this.
+            # f"{CONNECTOR_DEPENDENCY}[secure-local-storage]",
         ],
         "development": DEVELOPMENT_REQUIREMENTS,
         "modin-development": [

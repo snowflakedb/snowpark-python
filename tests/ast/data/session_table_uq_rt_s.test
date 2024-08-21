@@ -1,0 +1,10 @@
+## TEST CASE
+
+df = session.table("test_table")
+df = df.select("num")
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.select(col("num"))
