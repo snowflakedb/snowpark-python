@@ -284,6 +284,8 @@ def clean_up_transpose_result_index_and_labels(
         data_column_snowflake_quoted_identifiers=new_data_column_snowflake_quoted_identifiers,
         index_column_pandas_labels=new_index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=new_index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
     # Rename the data column snowflake quoted identifiers to be closer to pandas labels, normalizing names

@@ -358,6 +358,29 @@ def sql_expr(sql: str, _emit_ast: bool = True) -> Column:
     return Column._expr(sql, ast=ast)
 
 
+def system_reference(
+    object_type: str,
+    object_identifier: str,
+    scope: str = "CALL",
+    privileges: Optional[List[str]] = None,
+):
+    """
+    Returns a reference to an object (a table, view, or function). When you execute SQL actions on a
+    reference to an object, the actions are performed using the role of the user who created the
+    reference.
+
+    Example::
+        >>> df = session.create_dataframe([(1,)], schema=["A"])
+        >>> df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
+        >>> df.select(substr(system_reference("table", "my_table"), 1, 14).alias("identifier")).collect()
+        [Row(IDENTIFIER='ENT_REF_TABLE_')]
+    """
+    privileges = privileges or []
+    return builtin("system$reference")(
+        object_type, object_identifier, scope, *privileges
+    )
+
+
 def current_session() -> Column:
     """
     Returns a unique system identifier for the Snowflake session corresponding to the present connection.
@@ -3411,6 +3434,10 @@ def to_date(
 
         >>> df = session.create_dataframe(['2013-05-17', '2013-05-17'], schema=['a'])
         >>> df.select(to_date(col('a')).as_('ans')).collect()
+        [Row(ANS=datetime.date(2013, 5, 17)), Row(ANS=datetime.date(2013, 5, 17))]
+
+        >>> df = session.create_dataframe(['2013-05-17', '2013-05-17'], schema=['a'])
+        >>> df.select(to_date(col('a'), 'YYYY-MM-DD').as_('ans')).collect()
         [Row(ANS=datetime.date(2013, 5, 17)), Row(ANS=datetime.date(2013, 5, 17))]
 
         >>> df = session.create_dataframe(['2013-05-17', '2013-05-17'], schema=['a'])

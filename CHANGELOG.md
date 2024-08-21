@@ -1,5 +1,42 @@
 # Release History
 
+## 1.22.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug in `session.read.csv` that caused an error when setting `PARSE_HEADER = True` in an externally defined file format.
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for type coercion when passing columns as input to udf calls
+- Added support for `Index.identical`.
+
+#### Bug Fixes
+
+- Fixed a bug where the truncate mode in `DataFrameWriter.save_as_table` incorrectly handled DataFrames containing only a subset of columns from the existing table.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added limited support for the `Timedelta` type, including
+  - support `copy`, `cache_result`, `shift`, `sort_index`.
+  - `NotImplementedError` will be raised for the rest of methods that do not support `Timedelta`.
+- Added support for index's arithmetic and comparison operators.
+- Added support for `Series.dt.round`.
+- Added documentation pages for `DatetimeIndex`.
+- Added support for `Index.name`, `Index.names`, `Index.rename`, and `Index.set_names`.
+- Added support for `Index.__repr__`.
+- Added support for `DatetimeIndex.month_name` and `DatetimeIndex.day_name`.
+
+#### Bug Fixes
+
+- Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
+
 ## 1.21.0 (2024-08-19)
 
 ### Snowpark Python API Updates
@@ -17,6 +54,7 @@
 - Added support for passing `parameters` parameter to `Column.rlike` and `Column.regexp`.
 - Added support for automatically cleaning up temporary tables created by `df.cache_result()` in the current session, when the DataFrame is no longer referenced (i.e., gets garbage collected). It is still an experimental feature not enabled by default, and can be enabled by setting `session.auto_clean_up_temp_table_enabled` to `True`.
 - Added support for string literals to the `fmt` parameter of `snowflake.snowpark.functions.to_date`.
+- Added support for system$reference function.
 
 #### Bug Fixes
 
