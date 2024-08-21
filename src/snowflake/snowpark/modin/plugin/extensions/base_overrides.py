@@ -579,7 +579,7 @@ def _binary_op(
     self,
     op: str,
     other: BasePandasDataset,
-    axis: Axis,
+    axis: Axis = None,
     level: Level | None = None,
     fill_value: float | None = None,
     **kwargs: Any,
@@ -609,6 +609,14 @@ def _binary_op(
     modin.pandas.BasePandasDataset
         Result of binary operation.
     """
+    # In upstream modin, _axis indicates the operator will use the default axis
+    if kwargs.pop("_axis", None) is None:
+        if axis is not None:
+            axis = self._get_axis_number(axis)
+        else:
+            axis = 1
+    else:
+        axis = 0
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
     raise_if_native_pandas_objects(other)
     axis = self._get_axis_number(axis)
@@ -896,28 +904,6 @@ def _to_series_list(self, index: pd.Index) -> list[pd.Series]:
         return [pd.Series(index)]
     else:
         raise Exception("invalid index: " + str(index))
-
-
-@register_base_override("_set_index")
-def _set_index(self, new_index: Axes) -> None:
-    """
-    Set the index for this DataFrame.
-
-    Parameters
-    ----------
-    new_index : pandas.Index
-        The new index to set this.
-    """
-    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    self._update_inplace(
-        new_query_compiler=self._query_compiler.set_index(
-            [s._query_compiler for s in self._to_series_list(ensure_index(new_index))]
-        )
-    )
-
-
-index = property(lambda self: self._query_compiler.index, _set_index)
-register_base_override("index")(index)
 
 
 @register_base_override("shift")
@@ -2297,3 +2283,44 @@ def _any(self, axis=0, bool_only=None, skipna=True, **kwargs):
         if isinstance(result, BasePandasDataset):
             return result.any(axis=axis, bool_only=bool_only, skipna=skipna, **kwargs)
     return False if result is None else result
+
+
+def _get_index(self):
+    """
+    Get the index for this DataFrame.
+
+    Returns
+    -------
+    pandas.Index
+        The union of all indexes across the partitions.
+    """
+    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+    from snowflake.snowpark.modin.plugin.extensions.index import Index
+
+    if self._query_compiler.is_multiindex():
+        # Lazy multiindex is not supported
+        return self._query_compiler.index
+
+    idx = Index(query_compiler=self._query_compiler)
+    idx._set_parent(self)
+    return idx
+
+
+def _set_index(self, new_index: Axes) -> None:
+    """
+    Set the index for this DataFrame.
+
+    Parameters
+    ----------
+    new_index : pandas.Index
+        The new index to set this.
+    """
+    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+    self._update_inplace(
+        new_query_compiler=self._query_compiler.set_index(
+            [s._query_compiler for s in self._to_series_list(ensure_index(new_index))]
+        )
+    )
+
+
+register_base_override("index")(property(_get_index, _set_index))
