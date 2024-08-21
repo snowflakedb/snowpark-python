@@ -537,6 +537,20 @@ def test_create_df_with_df_as_data_and_index_as_index_and_different_columns(
         )
 
 
+@sql_count_checker(query_count=1)
+def test_create_df_with_new_columns():
+    """
+    Creating a DataFrame with columns that don't exist in `data`.
+    """
+    native_df = native_pd.DataFrame(list(range(100)))
+    snow_df = pd.DataFrame(native_df)
+    assert_frame_equal(
+        pd.DataFrame(snow_df, columns=["new column"]),
+        native_pd.DataFrame(native_df, columns=["new column"]),
+        check_dtype=False,
+    )
+
+
 @sql_count_checker(query_count=0)
 def test_create_df_with_df_index_negative():
     with pytest.raises(ValueError, match="Index data must be 1-dimensional"):

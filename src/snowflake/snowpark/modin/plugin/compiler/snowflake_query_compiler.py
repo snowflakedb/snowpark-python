@@ -17491,7 +17491,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         if index_qc is None:
-            new_internal_frame = self._modin_frame
+            new_internal_frame = self_frame
         else:
             # Join the index and data internal frames.
             other_frame = index_qc._modin_frame
