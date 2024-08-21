@@ -1093,11 +1093,6 @@ class BasePandasDataset:
         Return `BasePandasDataset` with duplicate rows removed.
         """
 
-    def map():
-        """
-        Apply a function to `BasePandasDataset elementwise.
-        """
-
     def mask():
         """
         Replace values where the condition is True.
@@ -2280,11 +2275,6 @@ class BasePandasDataset:
     def reindex():
         """
         Conform `BasePandasDataset` to new index with optional filling logic.
-        """
-
-    def reindex_like():
-        """
-        Return an object with matching indices as `other` object.
         """
 
     def rename_axis():

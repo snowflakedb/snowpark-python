@@ -16,6 +16,7 @@ dt_properties = pytest.mark.parametrize(
     "property_name",
     [
         "date",
+        "time",
         "hour",
         "minute",
         "second",
@@ -179,12 +180,12 @@ def test_isocalendar():
 def test_day_of_year(property, day_of_week_or_year_data):
     eval_snowpark_pandas_result(
         *create_test_series(day_of_week_or_year_data),
-        lambda df: getattr(df.dt, property),
+        lambda s: getattr(s.dt, property),
     )
 
 
 @sql_count_checker(query_count=1)
-@pytest.mark.parametrize("property", ["dayofweek", "day_of_week"])
+@pytest.mark.parametrize("property", ["dayofweek", "day_of_week", "weekday"])
 @pytest.mark.parametrize(
     "set_week_start",
     # Test different WEEK_START values because WEEK_START changes the DAYOFWEEK
@@ -195,7 +196,7 @@ def test_day_of_year(property, day_of_week_or_year_data):
 def test_day_of_week(property, day_of_week_or_year_data, set_week_start):
     eval_snowpark_pandas_result(
         *create_test_series(day_of_week_or_year_data),
-        lambda df: getattr(df.dt, property),
+        lambda s: getattr(s.dt, property),
     )
 
 
