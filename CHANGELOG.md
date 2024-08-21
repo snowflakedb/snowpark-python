@@ -34,6 +34,7 @@
 - Added support for `Index.__repr__`.
 - Added support for `DatetimeIndex.month_name` and `DatetimeIndex.day_name`.
 - Added support for `Series.dt.weekday`, `Series.dt.time`, and `DatetimeIndex.time`.
+- Added support for subtracting two timestamps to get a Timedelta.
 
 #### Bug Fixes
 
