@@ -1862,7 +1862,7 @@ class CombinedDatetimelikeProperties:
         >>> rng
         DatetimeIndex(['2018-01-01 11:59:00', '2018-01-01 12:00:00',
                        '2018-01-01 12:01:00'],
-                      dtype='datetime64[ns]', freq='min')
+                      dtype='datetime64[ns]', freq=None)
         >>> rng.round('h')
         DatetimeIndex(['2018-01-01 12:00:00', '2018-01-01 12:00:00',
                        '2018-01-01 12:00:00'],
@@ -1931,12 +1931,12 @@ class CombinedDatetimelikeProperties:
         >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
         >>> rng
         DatetimeIndex(['2018-01-01 11:59:00', '2018-01-01 12:00:00',
-                    '2018-01-01 12:01:00'],
-                    dtype='datetime64[ns]', freq='min')
+                       '2018-01-01 12:01:00'],
+                      dtype='datetime64[ns]', freq=None)
         >>> rng.floor('h')
         DatetimeIndex(['2018-01-01 11:00:00', '2018-01-01 12:00:00',
-                    '2018-01-01 12:00:00'],
-                    dtype='datetime64[ns]', freq=None)
+                       '2018-01-01 12:00:00'],
+                      dtype='datetime64[ns]', freq=None)
 
         Series
 
@@ -1958,7 +1958,6 @@ class CombinedDatetimelikeProperties:
         DatetimeIndex(['2021-10-31 02:00:00+02:00'],
                     dtype='datetime64[ns, Europe/Amsterdam]', freq=None)
         """
-        # TODO(SNOW-1486910): Unskip when date_range returns DatetimeIndex.
 
     def ceil():
         """
@@ -2002,12 +2001,12 @@ class CombinedDatetimelikeProperties:
         >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
         >>> rng
         DatetimeIndex(['2018-01-01 11:59:00', '2018-01-01 12:00:00',
-                    '2018-01-01 12:01:00'],
-                    dtype='datetime64[ns]', freq='min')
+                       '2018-01-01 12:01:00'],
+                      dtype='datetime64[ns]', freq=None)
         >>> rng.ceil('h')
         DatetimeIndex(['2018-01-01 12:00:00', '2018-01-01 12:00:00',
-                    '2018-01-01 13:00:00'],
-                    dtype='datetime64[ns]', freq=None)
+                       '2018-01-01 13:00:00'],
+                      dtype='datetime64[ns]', freq=None)
 
         Series
 
@@ -2029,7 +2028,6 @@ class CombinedDatetimelikeProperties:
         DatetimeIndex(['2021-10-31 02:00:00+02:00'],
                     dtype='datetime64[ns, Europe/Amsterdam]', freq=None)
         """
-        # TODO(SNOW-1486910): Unskip when date_range returns DatetimeIndex.
 
     def month_name():
         """
