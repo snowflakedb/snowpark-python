@@ -1102,10 +1102,8 @@ def create_or_replace_dynamic_table_statement(
         else EMPTY_STRING
     )
     comment_sql = get_comment_sql(comment)
-    dynamic_table_options = get_options_statement(
+    refresh_and_initialize_options = get_options_statement(
         {
-            LAG: lag,
-            WAREHOUSE: warehouse,
             REFRESH_MODE: refresh_mode,
             INITIALIZE: initialize,
         }
@@ -1119,8 +1117,9 @@ def create_or_replace_dynamic_table_statement(
 
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}{TRANSIENT if is_transient else EMPTY_STRING}"
-        f"{DYNAMIC}{TABLE}{IF + NOT + EXISTS if if_not_exists else EMPTY_STRING}{name}"
-        f"{dynamic_table_options}{cluster_by_sql}{data_retention_options}"
+        f"{DYNAMIC}{TABLE}{IF + NOT + EXISTS if if_not_exists else EMPTY_STRING}{name}{LAG}{EQUALS}"
+        f"{convert_value_to_sql_option(lag)}{WAREHOUSE}{EQUALS}{warehouse}"
+        f"{refresh_and_initialize_options}{cluster_by_sql}{data_retention_options}"
         f"{comment_sql}{AS}{project_statement([], child)}"
     )
 

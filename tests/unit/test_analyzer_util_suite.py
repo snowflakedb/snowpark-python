@@ -178,7 +178,7 @@ def test_create_or_replace_dynamic_table_statement():
         max_data_extension_time=None,
         child="select * from foo",
     ) == (
-        f" CREATE  OR  REPLACE  DYNAMIC  TABLE {dt_name}  LAG  = '1 minute'  WAREHOUSE  = '{warehouse}'    "
+        f" CREATE  OR  REPLACE  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse}     "
         "AS  SELECT  *  FROM (select * from foo)"
     )
     assert create_or_replace_dynamic_table_statement(
@@ -196,7 +196,7 @@ def test_create_or_replace_dynamic_table_statement():
         max_data_extension_time=None,
         child="select * from foo",
     ) == (
-        f" CREATE  DYNAMIC  TABLE {dt_name}  LAG  = '1 minute'  WAREHOUSE  = '{warehouse}'    "
+        f" CREATE  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse}     "
         "AS  SELECT  *  FROM (select * from foo)"
     )
     assert create_or_replace_dynamic_table_statement(
@@ -214,7 +214,7 @@ def test_create_or_replace_dynamic_table_statement():
         max_data_extension_time=None,
         child="select * from foo",
     ) == (
-        f" CREATE  DYNAMIC  TABLE  If  NOT  EXISTS {dt_name}  LAG  = '1 minute'  WAREHOUSE  = '{warehouse}'    "
+        f" CREATE  DYNAMIC  TABLE  If  NOT  EXISTS {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse}     "
         "AS  SELECT  *  FROM (select * from foo)"
     )
     assert create_or_replace_dynamic_table_statement(
@@ -232,7 +232,7 @@ def test_create_or_replace_dynamic_table_statement():
         max_data_extension_time=max_data_extension_time,
         child="select * from foo",
     ) == (
-        f" CREATE  OR  REPLACE  TRANSIENT  DYNAMIC  TABLE {dt_name}  LAG  = '1 minute'  WAREHOUSE  = '{warehouse}'  "
+        f" CREATE  OR  REPLACE  TRANSIENT  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse}  "
         f"REFRESH_MODE  = '{refresh_mode}'  INITIALIZE  = '{initialize}'  CLUSTER BY ({cluster_by[0]})  "
         f"DATA_RETENTION_TIME_IN_DAYS  = '{data_retention_time}'  MAX_DATA_EXTENSION_TIME_IN_DAYS  = "
         f"'{max_data_extension_time}'  COMMENT  = '{comment}' AS  SELECT  *  FROM (select * from foo)"
