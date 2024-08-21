@@ -35,7 +35,15 @@ from pandas._libs.lib import is_list_like, is_scalar
 from pandas._typing import ArrayLike, DateTimeErrorChoices, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
-from pandas.core.dtypes.common import is_datetime64_any_dtype, pandas_dtype
+from pandas.core.dtypes.common import (
+    is_bool_dtype,
+    is_datetime64_any_dtype,
+    is_float_dtype,
+    is_integer_dtype,
+    is_numeric_dtype,
+    is_object_dtype,
+    pandas_dtype,
+)
 from pandas.core.dtypes.inference import is_hashable
 
 from snowflake.snowpark.modin.pandas import DataFrame, Series
@@ -1256,8 +1264,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458138 implement insert
 
-    @index_not_implemented()
-    def is_boolean(self) -> None:
+    def is_boolean(self) -> bool:
         """
         Check if the Index only consists of booleans.
 
@@ -1277,11 +1284,24 @@ class Index(metaclass=TelemetryMeta):
         is_object : Check if the Index is of the object dtype (deprecated).
         is_categorical : Check if the Index holds categorical data.
         is_interval : Check if the Index holds Interval objects (deprecated).
-        """
-        # TODO: SNOW-1458123 implement is_boolean
 
-    @index_not_implemented()
-    def is_floating(self) -> None:
+        Examples
+        --------
+        >>> idx = pd.Index([True, False, True])
+        >>> idx.is_boolean()
+        True
+
+        >>> idx = pd.Index(["True", "False", "True"])
+        >>> idx.is_boolean()
+        False
+
+        >>> idx = pd.Index([True, False, "True"])
+        >>> idx.is_boolean()
+        False
+        """
+        return is_bool_dtype(self.dtype)
+
+    def is_floating(self) -> bool:
         """
         Check if the Index is a floating type.
 
@@ -1294,7 +1314,7 @@ class Index(metaclass=TelemetryMeta):
         Returns
         -------
         bool
-            Whether or not the Index only consists of only consists of floats, NaNs, or
+            Whether the Index only consists of only consists of floats, NaNs, or
             a mix of floats, integers, or NaNs.
 
         See Also
@@ -1305,11 +1325,28 @@ class Index(metaclass=TelemetryMeta):
         is_object : Check if the Index is of the object dtype. (deprecated).
         is_categorical : Check if the Index holds categorical data (deprecated).
         is_interval : Check if the Index holds Interval objects (deprecated).
-        """
-        # TODO: SNOW-1458123 implement is_floating
 
-    @index_not_implemented()
-    def is_integer(self) -> None:
+        Examples
+        --------
+        >>> idx = pd.Index([1.0, 2.0, 3.0, 4.0])
+        >>> idx.is_floating()
+        True
+
+        >>> idx = pd.Index([1.0, 2.0, np.nan, 4.0])
+        >>> idx.is_floating()
+        True
+
+        >>> idx = pd.Index([1, 2, 3, 4, np.nan])
+        >>> idx.is_floating()
+        True
+
+        >>> idx = pd.Index([1, 2, 3, 4])
+        >>> idx.is_floating()
+        False
+        """
+        return is_float_dtype(self.dtype)
+
+    def is_integer(self) -> bool:
         """
         Check if the Index only consists of integers.
 
@@ -1319,7 +1356,7 @@ class Index(metaclass=TelemetryMeta):
         Returns
         -------
         bool
-            Whether or not the Index only consists of integers.
+            Whether the Index only consists of integers.
 
         See Also
         --------
@@ -1329,36 +1366,24 @@ class Index(metaclass=TelemetryMeta):
         is_object : Check if the Index is of the object dtype. (deprecated).
         is_categorical : Check if the Index holds categorical data (deprecated).
         is_interval : Check if the Index holds Interval objects (deprecated).
-        """
-        # TODO: SNOW-1458123 implement is_integer
 
-    @index_not_implemented()
-    def is_interval(self) -> None:
-        """
-        Check if the Index holds Interval objects.
-
-        .. deprecated:: 2.0.0
-            Use `isinstance(index.dtype, pd.IntervalDtype)` instead.
-
-        Returns
-        -------
-        bool
-            Whether or not the Index holds Interval objects.
-
-        See Also
+        Examples
         --------
-        IntervalIndex : Index for Interval objects.
-        is_boolean : Check if the Index only consists of booleans (deprecated).
-        is_integer : Check if the Index only consists of integers (deprecated).
-        is_floating : Check if the Index is a floating type (deprecated).
-        is_numeric : Check if the Index only consists of numeric data (deprecated).
-        is_object : Check if the Index is of the object dtype. (deprecated).
-        is_categorical : Check if the Index holds categorical data (deprecated).
-        """
-        # TODO: SNOW-1458123 implement is_interval
+        >>> idx = pd.Index([1, 2, 3, 4])
+        >>> idx.is_integer()
+        True
 
-    @index_not_implemented()
-    def is_numeric(self) -> None:
+        >>> idx = pd.Index([1.0, 2.0, 3.0, 4.0])
+        >>> idx.is_integer()
+        False
+
+        >>> idx = pd.Index(["Apple", "Mango", "Watermelon"])
+        >>> idx.is_integer()
+        False
+        """
+        return is_integer_dtype(self.dtype)
+
+    def is_numeric(self) -> bool:
         """
         Check if the Index only consists of numeric data.
 
@@ -1368,7 +1393,7 @@ class Index(metaclass=TelemetryMeta):
         Returns
         -------
         bool
-            Whether or not the Index only consists of numeric data.
+            Whether the Index only consists of numeric data.
 
         See Also
         --------
@@ -1378,11 +1403,32 @@ class Index(metaclass=TelemetryMeta):
         is_object : Check if the Index is of the object dtype. (deprecated).
         is_categorical : Check if the Index holds categorical data (deprecated).
         is_interval : Check if the Index holds Interval objects (deprecated).
-        """
-        # TODO: SNOW-1458123 implement is_numeric
 
-    @index_not_implemented()
-    def is_object(self) -> None:
+        Examples
+        --------
+        >>> idx = pd.Index([1.0, 2.0, 3.0, 4.0])
+        >>> idx.is_numeric()
+        True
+
+        >>> idx = pd.Index([1, 2, 3, 4.0])
+        >>> idx.is_numeric()
+        True
+
+        >>> idx = pd.Index([1, 2, 3, 4])
+        >>> idx.is_numeric()
+        True
+
+        >>> idx = pd.Index([1, 2, 3, 4.0, np.nan])
+        >>> idx.is_numeric()
+        True
+
+        >>> idx = pd.Index([1, 2, 3, 4.0, np.nan, "Apple"])
+        >>> idx.is_numeric()
+        False
+        """
+        return is_numeric_dtype(self.dtype) and not is_bool_dtype(self.dtype)
+
+    def is_object(self) -> bool:
         """
         Check if the Index is of the object dtype.
 
@@ -1392,7 +1438,7 @@ class Index(metaclass=TelemetryMeta):
         Returns
         -------
         bool
-            Whether or not the Index is of the object dtype.
+            Whether the Index is of the object dtype.
 
         See Also
         --------
@@ -1402,8 +1448,27 @@ class Index(metaclass=TelemetryMeta):
         is_numeric : Check if the Index only consists of numeric data (deprecated).
         is_categorical : Check if the Index holds categorical data (deprecated).
         is_interval : Check if the Index holds Interval objects (deprecated).
+
+        Examples
+        --------
+        >>> idx = pd.Index(["Apple", "Mango", "Watermelon"])
+        >>> idx.is_object()
+        True
+
+        >>> idx = pd.Index(["Apple", "Mango", 2.0])
+        >>> idx.is_object()
+        True
+
+        >>> idx = pd.Index(["Watermelon", "Orange", "Apple",
+        ...                 "Watermelon"]).astype("category")
+        >>> idx.is_object()
+        False
+
+        >>> idx = pd.Index([1.0, 2.0, 3.0, 4.0])
+        >>> idx.is_object()
+        False
         """
-        # TODO: SNOW-1458123 implement is_object
+        return is_object_dtype(self.dtype)
 
     @index_not_implemented()
     def min(self) -> None:
