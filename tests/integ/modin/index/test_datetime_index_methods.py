@@ -109,6 +109,7 @@ dt_properties = pytest.mark.parametrize(
         "microsecond",
         "nanosecond",
         "date",
+        "time",
         "dayofyear",
         "day_of_year",
         "dayofweek",
@@ -176,12 +177,31 @@ def test_dt_properties(property_name, freq):
     )
 
 
-@pytest.mark.parametrize(
-    "property", ["time", "timetz", "tz", "freqstr", "freq", "inferred_freq"]
-)
+@pytest.mark.parametrize("property", ["timetz", "tz", "freqstr", "inferred_freq"])
 @sql_count_checker(query_count=0)
 def test_dt_property_not_implemented(property):
     snow_index = pd.DatetimeIndex(["2021-01-01", "2021-01-02", "2021-01-03"])
     msg = f"Snowpark pandas does not yet support the property DatetimeIndex.{property}"
     with pytest.raises(NotImplementedError, match=msg):
         getattr(snow_index, property)
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("method", ["day_name", "month_name"])
+def test_day_month_name(method):
+    native_index = native_pd.date_range("2020-05-01", periods=5, freq="17D")
+    snow_index = pd.date_range("2020-05-01", periods=5, freq="17D")
+    eval_snowpark_pandas_result(
+        snow_index,
+        native_index,
+        lambda s: getattr(s, method)(),
+    )
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize("method", ["day_name", "month_name"])
+def test_day_month_name_negative(method):
+    snow_index = pd.date_range("2020-05-01", periods=5, freq="17D")
+    msg = f"Snowpark pandas method DatetimeIndex.{method} does not yet support the 'locale' parameter"
+    with pytest.raises(NotImplementedError, match=msg):
+        getattr(snow_index, method)(locale="pt_BR.utf8")

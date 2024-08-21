@@ -185,6 +185,7 @@ class DatetimeIndex(Index):
         """
         if property_name in (
             "date",
+            "time",
             "is_month_start",
             "is_month_end",
             "is_quarter_start",
@@ -617,7 +618,6 @@ class DatetimeIndex(Index):
         """
         return self._dt_property("is_leap_year")
 
-    @datetime_index_not_implemented()
     @property
     def time(self) -> Index:
         """
@@ -631,9 +631,10 @@ class DatetimeIndex(Index):
         --------
         >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
         ...                         "2/1/2020 11:00:00+00:00"])
-        >>> idx.time  # doctest: +SKIP
-        Index(["10:00:00", "11:00:00"], dtype='object')
+        >>> idx.time
+        Index([10:00:00, 11:00:00], dtype='object')
         """
+        return self._dt_property("time")
 
     @datetime_index_not_implemented()
     @property
@@ -1260,7 +1261,6 @@ default 'raise'
 
         """
 
-    @datetime_index_not_implemented()
     def month_name(self, locale: str = None) -> Index:
         """
         Return the month names with specified locale.
@@ -1282,7 +1282,7 @@ default 'raise'
         >>> idx = pd.date_range(start='2018-01', freq='ME', periods=3)
         >>> idx
         DatetimeIndex(['2018-01-31', '2018-02-28', '2018-03-31'], dtype='datetime64[ns]', freq=None)
-        >>> idx.month_name()  # doctest: +SKIP
+        >>> idx.month_name()
         Index(['January', 'February', 'March'], dtype='object')
 
         Using the ``locale`` parameter you can set a different locale language,
@@ -1295,8 +1295,12 @@ default 'raise'
         >>> idx.month_name(locale='pt_BR.utf8')  # doctest: +SKIP
         Index(['Janeiro', 'Fevereiro', 'Março'], dtype='object')
         """
+        return Index(
+            query_compiler=self._query_compiler.dt_month_name(
+                locale=locale, include_index=True
+            )
+        )
 
-    @datetime_index_not_implemented()
     def day_name(self, locale: str = None) -> Index:
         """
         Return the day names with specified locale.
@@ -1318,7 +1322,7 @@ default 'raise'
         >>> idx = pd.date_range(start='2018-01-01', freq='D', periods=3)
         >>> idx
         DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03'], dtype='datetime64[ns]', freq=None)
-        >>> idx.day_name()  # doctest: +SKIP
+        >>> idx.day_name()
         Index(['Monday', 'Tuesday', 'Wednesday'], dtype='object')
 
         Using the ``locale`` parameter you can set a different locale language,
@@ -1331,6 +1335,11 @@ default 'raise'
         >>> idx.day_name(locale='pt_BR.utf8')  # doctest: +SKIP
         Index(['Segunda', 'Terça', 'Quarta'], dtype='object')
         """
+        return Index(
+            query_compiler=self._query_compiler.dt_day_name(
+                locale=locale, include_index=True
+            )
+        )
 
     @datetime_index_not_implemented()
     def as_unit(self, unit: str) -> DatetimeIndex:

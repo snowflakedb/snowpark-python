@@ -91,9 +91,6 @@ from snowflake.snowpark.modin.pandas.utils import (
     replace_external_data_keys_with_empty_pandas_series,
     replace_external_data_keys_with_query_compiler,
 )
-from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
-    is_snowflake_agg_func,
-)
 from snowflake.snowpark.modin.plugin._internal.utils import is_repr_truncated
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
@@ -444,6 +441,16 @@ class DataFrame(BasePandasDataset):
             )
         )
 
+    @dataframe_not_implemented()
+    def map(
+        self, func, na_action: str | None = None, **kwargs
+    ) -> DataFrame:  # pragma: no cover
+        if not callable(func):
+            raise ValueError(f"'{type(func)}' object is not callable")
+        return self.__constructor__(
+            query_compiler=self._query_compiler.map(func, na_action=na_action, **kwargs)
+        )
+
     def applymap(self, func: PythonFuncType, na_action: str | None = None, **kwargs):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         if not callable(func):
@@ -606,27 +613,6 @@ class DataFrame(BasePandasDataset):
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         return self.columns
-
-    def transform(
-        self, func: PythonFuncType, axis: Axis = 0, *args: Any, **kwargs: Any
-    ) -> DataFrame:  # noqa: PR01, RT01, D200
-        # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        if is_list_like(func) or is_dict_like(func):
-            ErrorMessage.not_implemented(
-                "dict and list parameters are not supported for transform"
-            )
-        # throw the same error as pandas for cases where the function type is
-        # invalid.
-        if not isinstance(func, str) and not callable(func):
-            raise TypeError(f"{type(func)} object is not callable")
-
-        # if the function is an aggregation function, we'll produce
-        # some bogus results while pandas will throw the error the
-        # code below is throwing. So we do the same.
-        if is_snowflake_agg_func(func):
-            raise ValueError("Function did not transform")
-
-        return self.apply(func, axis, False, args=args, **kwargs)
 
     def transpose(self, copy=False, *args):  # noqa: PR01, RT01, D200
         """
@@ -2100,6 +2086,29 @@ class DataFrame(BasePandasDataset):
             copy=copy,
             level=level,
             fill_value=fill_value,
+            limit=limit,
+            tolerance=tolerance,
+        )
+
+    @dataframe_not_implemented()
+    def reindex_like(
+        self,
+        other,
+        method=None,
+        copy: bool | None = None,
+        limit=None,
+        tolerance=None,
+    ) -> DataFrame:  # pragma: no cover
+        # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
+        if copy is None:
+            copy = True
+        # docs say "Same as calling .reindex(index=other.index, columns=other.columns,...).":
+        # https://pandas.pydata.org/pandas-docs/version/1.4/reference/api/pandas.DataFrame.reindex_like.html
+        return self.reindex(
+            index=other.index,
+            columns=other.columns,
+            method=method,
+            copy=copy,
             limit=limit,
             tolerance=tolerance,
         )
