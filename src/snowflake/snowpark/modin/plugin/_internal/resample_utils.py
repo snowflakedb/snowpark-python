@@ -511,6 +511,8 @@ def get_expected_resample_bins_frame(
         index_column_pandas_labels=[RESAMPLE_INDEX_LABEL],
         index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
         data_column_pandas_index_names=[None],
+        data_column_types=None,
+        index_column_types=None,
     )
 
 
@@ -615,6 +617,8 @@ def fill_missing_resample_bins_for_frame(
         index_column_pandas_labels=frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=joined_frame.index_column_snowflake_quoted_identifiers,
         data_column_pandas_index_names=frame.data_column_pandas_index_names,
+        data_column_types=frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -780,4 +784,6 @@ def perform_asof_join_on_frame(
             left_timecol_snowflake_quoted_identifier
         ],
         data_column_pandas_index_names=referenced_frame.data_column_pandas_index_names,
+        data_column_types=referenced_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=referenced_frame.cached_index_column_snowpark_pandas_types,
     )

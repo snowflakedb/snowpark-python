@@ -1052,13 +1052,13 @@ def test_df_iloc_get_key_int_series_with_1k_shape(key, native_df_1k_1k):
         )
 
     high_count_reason = """
-        11 queries includes 5 queries to prepare the temp table for df, including create, insert,
-        drop the temp table (3.). and alter session to set and unset query_tag (2) and one select query.
+        6 queries includes queries to create, insert, and drop the temp table (3), alter session
+        to set and unset query_tag (2) and one select query.
         Another 5 query to prepare the temp table for df again due to the fact it is used in another
         join even though it is in the same query.
-        16 queries add extra 5 queries to prepare the temp table for key
+        11 queries add extra 5 queries to prepare the temp table for key
     """
-    query_count = 11 if len(key) < 300 else 16
+    query_count = 6 if len(key) < 300 else 11
     _test_df_iloc_with_1k_shape(
         native_df_1k_1k, iloc_helper, query_count, 2, high_count_reason
     )

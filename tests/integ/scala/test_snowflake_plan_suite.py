@@ -128,7 +128,7 @@ def test_multiple_queries(session):
         Utils.drop_table(session, table_name2)
 
 
-def test_execution_queries_and_queries(session):
+def test_execution_queries_and_post_actions(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     df1 = df.select("a", "b")
     # create a df where cte optimization can be applied

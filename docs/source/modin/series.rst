@@ -242,6 +242,7 @@ Series
     :template: autosummary/modin_accessor_attribute.rst
 
     Series.dt.date
+    Series.dt.time
     Series.dt.year
     Series.dt.month
     Series.dt.day
@@ -252,6 +253,7 @@ Series
     Series.dt.nanosecond
     Series.dt.dayofweek
     Series.dt.day_of_week
+    Series.dt.weekday
     Series.dt.dayofyear
     Series.dt.day_of_year
     Series.dt.quarter
@@ -267,6 +269,7 @@ Series
     Series.dt.is_leap_year
     Series.dt.floor
     Series.dt.ceil
+    Series.dt.round
 
 
 .. rubric:: String accessor methods

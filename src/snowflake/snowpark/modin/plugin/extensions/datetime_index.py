@@ -32,7 +32,15 @@ import modin
 import numpy as np
 import pandas as native_pd
 from pandas._libs import lib
-from pandas._typing import ArrayLike, Dtype, Frequency, Hashable, TimeAmbiguous
+from pandas._typing import (
+    ArrayLike,
+    AxisInt,
+    Dtype,
+    Frequency,
+    Hashable,
+    TimeAmbiguous,
+    TimeNonexistent,
+)
 
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
@@ -177,6 +185,7 @@ class DatetimeIndex(Index):
         """
         if property_name in (
             "date",
+            "time",
             "is_month_start",
             "is_month_end",
             "is_quarter_start",
@@ -209,7 +218,7 @@ class DatetimeIndex(Index):
         >>> idx
         DatetimeIndex(['2000-12-31', '2001-12-31', '2002-12-31'], dtype='datetime64[ns]', freq=None)
         >>> idx.year
-        Index([2000, 2001, 2002], dtype='int16')
+        Index([2000, 2001, 2002], dtype='int64')
         """
         return self._dt_property("year")
 
@@ -228,7 +237,7 @@ class DatetimeIndex(Index):
         >>> idx
         DatetimeIndex(['2000-01-31', '2000-02-29', '2000-03-31'], dtype='datetime64[ns]', freq=None)
         >>> idx.month
-        Index([1, 2, 3], dtype='int8')
+        Index([1, 2, 3], dtype='int64')
         """
         return self._dt_property("month")
 
@@ -247,7 +256,7 @@ class DatetimeIndex(Index):
         >>> idx
         DatetimeIndex(['2000-01-01', '2000-01-02', '2000-01-03'], dtype='datetime64[ns]', freq=None)
         >>> idx.day
-        Index([1, 2, 3], dtype='int8')
+        Index([1, 2, 3], dtype='int64')
         """
         return self._dt_property("day")
 
@@ -268,7 +277,7 @@ class DatetimeIndex(Index):
                        '2000-01-01 02:00:00'],
                       dtype='datetime64[ns]', freq=None)
         >>> idx.hour
-        Index([0, 1, 2], dtype='int8')
+        Index([0, 1, 2], dtype='int64')
         """
         return self._dt_property("hour")
 
@@ -289,7 +298,7 @@ class DatetimeIndex(Index):
                        '2000-01-01 00:02:00'],
                       dtype='datetime64[ns]', freq=None)
         >>> idx.minute
-        Index([0, 1, 2], dtype='int8')
+        Index([0, 1, 2], dtype='int64')
         """
         return self._dt_property("minute")
 
@@ -310,7 +319,7 @@ class DatetimeIndex(Index):
                        '2000-01-01 00:00:02'],
                       dtype='datetime64[ns]', freq=None)
         >>> idx.second
-        Index([0, 1, 2], dtype='int8')
+        Index([0, 1, 2], dtype='int64')
         """
         return self._dt_property("second")
 
@@ -353,7 +362,7 @@ class DatetimeIndex(Index):
                        '2000-01-01 00:00:00.000000002'],
                       dtype='datetime64[ns]', freq=None)
         >>> idx.nanosecond
-        Index([0, 1, 2], dtype='int32')
+        Index([0, 1, 2], dtype='int64')
         """
         return self._dt_property("nanosecond")
 
@@ -394,7 +403,7 @@ class DatetimeIndex(Index):
         --------
         >>> idx = pd.date_range('2016-12-31', '2017-01-08', freq='D')
         >>> idx.dayofweek
-        Index([5, 6, 0, 1, 2, 3, 4, 5, 6], dtype='int16')
+        Index([5, 6, 0, 1, 2, 3, 4, 5, 6], dtype='int64')
         """
         return self._dt_property("dayofweek")
 
@@ -415,7 +424,7 @@ class DatetimeIndex(Index):
         >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
         ...                         "2/1/2020 11:00:00+00:00"])
         >>> idx.dayofyear
-        Index([1, 32], dtype='int16')
+        Index([1, 32], dtype='int64')
         """
         return self._dt_property("dayofyear")
 
@@ -435,7 +444,7 @@ class DatetimeIndex(Index):
         >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
         ...                         "2/1/2020 11:00:00+00:00"])
         >>> idx.quarter
-        Index([1, 1], dtype='int8')
+        Index([1, 1], dtype='int64')
         """
         return self._dt_property("quarter")
 
@@ -609,7 +618,6 @@ class DatetimeIndex(Index):
         """
         return self._dt_property("is_leap_year")
 
-    @datetime_index_not_implemented()
     @property
     def time(self) -> Index:
         """
@@ -623,9 +631,10 @@ class DatetimeIndex(Index):
         --------
         >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
         ...                         "2/1/2020 11:00:00+00:00"])
-        >>> idx.time  # doctest: +SKIP
-        Index(["10:00:00", "11:00:00"], dtype='object')
+        >>> idx.time
+        Index([10:00:00, 11:00:00], dtype='object')
         """
+        return self._dt_property("time")
 
     @datetime_index_not_implemented()
     @property
@@ -666,6 +675,19 @@ class DatetimeIndex(Index):
 
     @datetime_index_not_implemented()
     @property
+    def freq(self) -> str | None:
+        """
+        Return the frequency object if it's set, otherwise None.
+
+        Examples
+        --------
+        >>> idx = pd.date_range("2000-01-01", periods=3, freq="YE")
+        >>> idx.freq  # doctest: +SKIP
+        <YearEnd: month=12>
+        """
+
+    @datetime_index_not_implemented()
+    @property
     def freqstr(self) -> str | None:
         """
         Return the frequency object as a string if it's set, otherwise None.
@@ -697,4 +719,792 @@ class DatetimeIndex(Index):
         >>> idx = pd.DatetimeIndex(["2018-01-01", "2018-01-03", "2018-01-05"])
         >>> idx.inferred_freq  # doctest: +SKIP
         '2D'
+        """
+
+    @datetime_index_not_implemented()
+    def indexer_at_time(self, time, asof: bool = False) -> np.ndarray[np.intp]:
+        """
+        Return index locations of values at particular time of day.
+
+        Parameters
+        ----------
+        time : datetime.time or str
+            Time passed in either as object (datetime.time) or as string in
+            appropriate format ("%H:%M", "%H%M", "%I:%M%p", "%I%M%p",
+            "%H:%M:%S", "%H%M%S", "%I:%M:%S%p", "%I%M%S%p").
+
+        Returns
+        -------
+        np.ndarray[np.intp]
+
+        See Also
+        --------
+        indexer_between_time : Get index locations of values between particular
+            times of day.
+        DataFrame.at_time : Select values at particular time of day.
+
+        Examples
+        --------
+        >>> idx = pd.DatetimeIndex(["1/1/2020 10:00", "2/1/2020 11:00",
+        ...                         "3/1/2020 10:00"])
+        >>> idx.indexer_at_time("10:00")  # doctest: +SKIP
+        array([0, 2])
+        """
+
+    @datetime_index_not_implemented()
+    def indexer_between_time(
+        self, start_time, end_time, include_start: bool = True, include_end: bool = True
+    ) -> np.ndarray[np.intp]:
+        """
+        Return index locations of values between particular times of day.
+
+        Parameters
+        ----------
+        start_time, end_time : datetime.time, str
+            Time passed either as object (datetime.time) or as string in
+            appropriate format ("%H:%M", "%H%M", "%I:%M%p", "%I%M%p",
+            "%H:%M:%S", "%H%M%S", "%I:%M:%S%p","%I%M%S%p").
+        include_start : bool, default True
+        include_end : bool, default True
+
+        Returns
+        -------
+        np.ndarray[np.intp]
+
+        See Also
+        --------
+        indexer_at_time : Get index locations of values at particular time of day.
+        DataFrame.between_time : Select values between particular times of day.
+
+        Examples
+        --------
+        >>> idx = pd.date_range("2023-01-01", periods=4, freq="h")
+        >>> idx
+        DatetimeIndex(['2023-01-01 00:00:00', '2023-01-01 01:00:00',
+                       '2023-01-01 02:00:00', '2023-01-01 03:00:00'],
+                      dtype='datetime64[ns]', freq=None)
+        >>> idx.indexer_between_time("00:00", "2:00", include_end=False)  # doctest: +SKIP
+        array([0, 1])
+        """
+
+    @datetime_index_not_implemented()
+    def normalize(self) -> DatetimeIndex:
+        """
+        Convert times to midnight.
+
+        The time component of the date-time is converted to midnight i.e.
+        00:00:00. This is useful in cases, when the time does not matter.
+        Length is unaltered. The timezones are unaffected.
+
+        This method is available on Series with datetime values under
+        the ``.dt`` accessor, and directly on Datetime Array/Index.
+
+        Returns
+        -------
+        DatetimeArray, DatetimeIndex or Series
+            The same type as the original data. Series will have the same
+            name and index. DatetimeIndex will have the same name.
+
+        See Also
+        --------
+        floor : Floor the datetimes to the specified freq.
+        ceil : Ceil the datetimes to the specified freq.
+        round : Round the datetimes to the specified freq.
+
+        Examples
+        --------
+        >>> idx = pd.date_range(start='2014-08-01 10:00', freq='h',
+        ...                     periods=3, tz='Asia/Calcutta')  # doctest: +SKIP
+        >>> idx  # doctest: +SKIP
+        DatetimeIndex(['2014-08-01 10:00:00+05:30',
+                       '2014-08-01 11:00:00+05:30',
+                       '2014-08-01 12:00:00+05:30'],
+                        dtype='datetime64[ns, Asia/Calcutta]', freq=None)
+        >>> idx.normalize()  # doctest: +SKIP
+        DatetimeIndex(['2014-08-01 00:00:00+05:30',
+                       '2014-08-01 00:00:00+05:30',
+                       '2014-08-01 00:00:00+05:30'],
+                       dtype='datetime64[ns, Asia/Calcutta]', freq=None)
+        """
+
+    @datetime_index_not_implemented()
+    def strftime(self, date_format: str) -> np.ndarray[np.object_]:
+        """
+        Convert to Index using specified date_format.
+
+        Return an Index of formatted strings specified by date_format, which
+        supports the same string format as the python standard library. Details
+        of the string format can be found in `python string format
+        doc <%(URL)s>`__.
+
+        Formats supported by the C `strftime` API but not by the python string format
+        doc (such as `"%%R"`, `"%%r"`) are not officially supported and should be
+        preferably replaced with their supported equivalents (such as `"%%H:%%M"`,
+        `"%%I:%%M:%%S %%p"`).
+
+        Note that `PeriodIndex` support additional directives, detailed in
+        `Period.strftime`.
+
+        Parameters
+        ----------
+        date_format : str
+            Date format string (e.g. "%%Y-%%m-%%d").
+
+        Returns
+        -------
+        ndarray[object]
+            NumPy ndarray of formatted strings.
+
+        See Also
+        --------
+        to_datetime : Convert the given argument to datetime.
+        DatetimeIndex.normalize : Return DatetimeIndex with times to midnight.
+        DatetimeIndex.round : Round the DatetimeIndex to the specified freq.
+        DatetimeIndex.floor : Floor the DatetimeIndex to the specified freq.
+        Timestamp.strftime : Format a single Timestamp.
+        Period.strftime : Format a single Period.
+
+        Examples
+        --------
+        >>> rng = pd.date_range(pd.Timestamp("2018-03-10 09:00"),
+        ...                     periods=3, freq=None)
+        >>> rng.strftime('%%B %%d, %%Y, %%r')  # doctest: +SKIP
+        Index(['March 10, 2018, 09:00:00 AM', 'March 10, 2018, 09:00:01 AM',
+               'March 10, 2018, 09:00:02 AM'],
+              dtype='object')
+        """
+
+    @datetime_index_not_implemented()
+    def snap(self, freq: Frequency = "S") -> DatetimeIndex:
+        """
+        Snap time stamps to nearest occurring frequency.
+
+        Returns
+        -------
+        DatetimeIndex
+
+        Examples
+        --------
+        >>> idx = pd.DatetimeIndex(['2023-01-01', '2023-01-02',
+        ...                        '2023-02-01', '2023-02-02'])
+        >>> idx
+        DatetimeIndex(['2023-01-01', '2023-01-02', '2023-02-01', '2023-02-02'], dtype='datetime64[ns]', freq=None)
+        >>> idx.snap('MS')  # doctest: +SKIP
+        DatetimeIndex(['2023-01-01', '2023-01-01', '2023-02-01', '2023-02-01'], dtype='datetime64[ns]', freq=None)
+        """
+
+    @datetime_index_not_implemented()
+    def tz_convert(self, tz) -> DatetimeIndex:
+        """
+        Convert tz-aware Datetime Array/Index from one time zone to another.
+
+        Parameters
+        ----------
+        tz : str, pytz.timezone, dateutil.tz.tzfile, datetime.tzinfo or None
+            Time zone for time. Corresponding timestamps would be converted
+            to this time zone of the Datetime Array/Index. A `tz` of None will
+            convert to UTC and remove the timezone information.
+
+        Returns
+        -------
+        Array or Index
+
+        Raises
+        ------
+        TypeError
+            If Datetime Array/Index is tz-naive.
+
+        See Also
+        --------
+        DatetimeIndex.tz : A timezone that has a variable offset from UTC.
+        DatetimeIndex.tz_localize : Localize tz-naive DatetimeIndex to a
+            given time zone, or remove timezone from a tz-aware DatetimeIndex.
+
+        Examples
+        --------
+        With the `tz` parameter, we can change the DatetimeIndex
+        to other time zones:
+
+        >>> dti = pd.date_range(start='2014-08-01 09:00',
+        ...                     freq='h', periods=3, tz='Europe/Berlin')  # doctest: +SKIP
+
+        >>> dti  # doctest: +SKIP
+        DatetimeIndex(['2014-08-01 09:00:00+02:00',
+                       '2014-08-01 10:00:00+02:00',
+                       '2014-08-01 11:00:00+02:00'],
+                      dtype='datetime64[ns, Europe/Berlin]', freq=None)
+
+        >>> dti.tz_convert('US/Central')  # doctest: +SKIP
+        DatetimeIndex(['2014-08-01 02:00:00-05:00',
+                       '2014-08-01 03:00:00-05:00',
+                       '2014-08-01 04:00:00-05:00'],
+                      dtype='datetime64[ns, US/Central]', freq='h')
+
+        With the ``tz=None``, we can remove the timezone (after converting
+        to UTC if necessary):
+
+        >>> dti = pd.date_range(start='2014-08-01 09:00', freq='h',
+        ...                     periods=3, tz='Europe/Berlin')  # doctest: +SKIP
+
+        >>> dti  # doctest: +SKIP
+        DatetimeIndex(['2014-08-01 09:00:00+02:00',
+                       '2014-08-01 10:00:00+02:00',
+                       '2014-08-01 11:00:00+02:00'],
+                        dtype='datetime64[ns, Europe/Berlin]', freq=None)
+
+        >>> dti.tz_convert(None)  # doctest: +SKIP
+        DatetimeIndex(['2014-08-01 07:00:00',
+                       '2014-08-01 08:00:00',
+                       '2014-08-01 09:00:00'],
+                        dtype='datetime64[ns]', freq='h')
+        """
+
+    @datetime_index_not_implemented()
+    def tz_localize(
+        self,
+        tz,
+        ambiguous: TimeAmbiguous = "raise",
+        nonexistent: TimeNonexistent = "raise",
+    ) -> DatetimeIndex:
+        """
+        Localize tz-naive Datetime Array/Index to tz-aware Datetime Array/Index.
+
+        This method takes a time zone (tz) naive Datetime Array/Index object
+        and makes this time zone aware. It does not move the time to another
+        time zone.
+
+        This method can also be used to do the inverse -- to create a time
+        zone unaware object from an aware object. To that end, pass `tz=None`.
+
+        Parameters
+        ----------
+        tz : str, pytz.timezone, dateutil.tz.tzfile, datetime.tzinfo or None
+            Time zone to convert timestamps to. Passing ``None`` will
+            remove the time zone information preserving local time.
+        ambiguous : 'infer', 'NaT', bool array, default 'raise'
+            When clocks moved backward due to DST, ambiguous times may arise.
+            For example in Central European Time (UTC+01), when going from
+            03:00 DST to 02:00 non-DST, 02:30:00 local time occurs both at
+            00:30:00 UTC and at 01:30:00 UTC. In such a situation, the
+            `ambiguous` parameter dictates how ambiguous times should be
+            handled.
+
+            - 'infer' will attempt to infer fall dst-transition hours based on
+              order
+            - bool-ndarray where True signifies a DST time, False signifies a
+              non-DST time (note that this flag is only applicable for
+              ambiguous times)
+            - 'NaT' will return NaT where there are ambiguous times
+            - 'raise' will raise an AmbiguousTimeError if there are ambiguous
+              times.
+
+        nonexistent : 'shift_forward', 'shift_backward, 'NaT', timedelta, \
+default 'raise'
+            A nonexistent time does not exist in a particular timezone
+            where clocks moved forward due to DST.
+
+            - 'shift_forward' will shift the nonexistent time forward to the
+              closest existing time
+            - 'shift_backward' will shift the nonexistent time backward to the
+              closest existing time
+            - 'NaT' will return NaT where there are nonexistent times
+            - timedelta objects will shift nonexistent times by the timedelta
+            - 'raise' will raise an NonExistentTimeError if there are
+              nonexistent times.
+
+        Returns
+        -------
+        Same type as self
+            Array/Index converted to the specified time zone.
+
+        Raises
+        ------
+        TypeError
+            If the Datetime Array/Index is tz-aware and tz is not None.
+
+        See Also
+        --------
+        DatetimeIndex.tz_convert : Convert tz-aware DatetimeIndex from
+            one time zone to another.
+
+        Examples
+        --------
+        >>> tz_naive = pd.date_range('2018-03-01 09:00', periods=3)
+        >>> tz_naive
+        DatetimeIndex(['2018-03-01 09:00:00', '2018-03-02 09:00:00',
+                       '2018-03-03 09:00:00'],
+                      dtype='datetime64[ns]', freq=None)
+
+        Localize DatetimeIndex in US/Eastern time zone:
+
+        >>> tz_aware = tz_naive.tz_localize(tz='US/Eastern')  # doctest: +SKIP
+        >>> tz_aware  # doctest: +SKIP
+        DatetimeIndex(['2018-03-01 09:00:00-05:00',
+                       '2018-03-02 09:00:00-05:00',
+                       '2018-03-03 09:00:00-05:00'],
+                      dtype='datetime64[ns, US/Eastern]', freq=None)
+
+        With the ``tz=None``, we can remove the time zone information
+        while keeping the local time (not converted to UTC):
+
+        >>> tz_aware.tz_localize(None)  # doctest: +SKIP
+        DatetimeIndex(['2018-03-01 09:00:00', '2018-03-02 09:00:00',
+                       '2018-03-03 09:00:00'],
+                      dtype='datetime64[ns]', freq=None)
+        """
+
+    @datetime_index_not_implemented()
+    def round(self, *args, **kwargs) -> DatetimeIndex:
+        """
+        Perform round operation on the data to the specified `freq`.
+
+        Parameters
+        ----------
+        freq : str or Offset
+            The frequency level to {op} the index to. Must be a fixed
+            frequency like 'S' (second) not 'ME' (month end). See
+            frequency aliases for a list of possible `freq` values.
+        ambiguous : 'infer', bool-ndarray, 'NaT', default 'raise'
+            Only relevant for DatetimeIndex:
+
+            - 'infer' will attempt to infer fall dst-transition hours based on
+              order
+            - bool-ndarray where True signifies a DST time, False designates
+              a non-DST time (note that this flag is only applicable for
+              ambiguous times)
+            - 'NaT' will return NaT where there are ambiguous times
+            - 'raise' will raise an AmbiguousTimeError if there are ambiguous
+              times.
+
+        nonexistent : 'shift_forward', 'shift_backward', 'NaT', timedelta, default 'raise'
+            A nonexistent time does not exist in a particular timezone
+            where clocks moved forward due to DST.
+
+            - 'shift_forward' will shift the nonexistent time forward to the
+              closest existing time
+            - 'shift_backward' will shift the nonexistent time backward to the
+              closest existing time
+            - 'NaT' will return NaT where there are nonexistent times
+            - timedelta objects will shift nonexistent times by the timedelta
+            - 'raise' will raise an NonExistentTimeError if there are
+              nonexistent times.
+
+        Returns
+        -------
+        DatetimeIndex, TimedeltaIndex, or Series
+            Index of the same type for a DatetimeIndex or TimedeltaIndex,
+            or a Series with the same index for a Series.
+
+        Raises
+        ------
+        ValueError if the `freq` cannot be converted.
+
+        Notes
+        -----
+        If the timestamps have a timezone, {op}ing will take place relative to the
+        local ("wall") time and re-localized to the same timezone. When {op}ing
+        near daylight savings time, use ``nonexistent`` and ``ambiguous`` to
+        control the re-localization behavior.
+
+        Examples
+        --------
+        **DatetimeIndex**
+
+        >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
+        >>> rng
+        DatetimeIndex(['2018-01-01 11:59:00', '2018-01-01 12:00:00',
+                       '2018-01-01 12:01:00'],
+                      dtype='datetime64[ns]', freq=None)
+
+        >>> rng.round('h')  # doctest: +SKIP
+        DatetimeIndex(['2018-01-01 12:00:00', '2018-01-01 12:00:00',
+                       '2018-01-01 12:00:00'],
+                      dtype='datetime64[ns]', freq=None)
+        """
+
+    @datetime_index_not_implemented()
+    def floor(self, *args, **kwargs) -> DatetimeIndex:
+        """
+        Perform floor operation on the data to the specified `freq`.
+
+        Parameters
+        ----------
+        freq : str or Offset
+            The frequency level to {op} the index to. Must be a fixed
+            frequency like 'S' (second) not 'ME' (month end). See
+            frequency aliases for a list of possible `freq` values.
+        ambiguous : 'infer', bool-ndarray, 'NaT', default 'raise'
+            Only relevant for DatetimeIndex:
+
+            - 'infer' will attempt to infer fall dst-transition hours based on
+              order
+            - bool-ndarray where True signifies a DST time, False designates
+              a non-DST time (note that this flag is only applicable for
+              ambiguous times)
+            - 'NaT' will return NaT where there are ambiguous times
+            - 'raise' will raise an AmbiguousTimeError if there are ambiguous
+              times.
+
+        nonexistent : 'shift_forward', 'shift_backward', 'NaT', timedelta, default 'raise'
+            A nonexistent time does not exist in a particular timezone
+            where clocks moved forward due to DST.
+
+            - 'shift_forward' will shift the nonexistent time forward to the
+              closest existing time
+            - 'shift_backward' will shift the nonexistent time backward to the
+              closest existing time
+            - 'NaT' will return NaT where there are nonexistent times
+            - timedelta objects will shift nonexistent times by the timedelta
+            - 'raise' will raise an NonExistentTimeError if there are
+              nonexistent times.
+
+        Returns
+        -------
+        DatetimeIndex, TimedeltaIndex, or Series
+            Index of the same type for a DatetimeIndex or TimedeltaIndex,
+            or a Series with the same index for a Series.
+
+        Raises
+        ------
+        ValueError if the `freq` cannot be converted.
+
+        Notes
+        -----
+        If the timestamps have a timezone, {op}ing will take place relative to the
+        local ("wall") time and re-localized to the same timezone. When {op}ing
+        near daylight savings time, use ``nonexistent`` and ``ambiguous`` to
+        control the re-localization behavior.
+
+        Examples
+        --------
+        **DatetimeIndex**
+
+        >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
+        >>> rng
+        DatetimeIndex(['2018-01-01 11:59:00', '2018-01-01 12:00:00',
+                       '2018-01-01 12:01:00'],
+                      dtype='datetime64[ns]', freq=None)
+
+        >>> rng.floor('h')  # doctest: +SKIP
+        DatetimeIndex(['2018-01-01 11:00:00', '2018-01-01 12:00:00',
+                       '2018-01-01 12:00:00'],
+                      dtype='datetime64[ns]', freq=None)
+        """
+
+    @datetime_index_not_implemented()
+    def ceil(self, *args, **kwargs) -> DatetimeIndex:
+        """
+        Perform ceil operation on the data to the specified `freq`.
+
+        Parameters
+        ----------
+        freq : str or Offset
+            The frequency level to {op} the index to. Must be a fixed
+            frequency like 'S' (second) not 'ME' (month end). See
+            frequency aliases for a list of possible `freq` values.
+        ambiguous : 'infer', bool-ndarray, 'NaT', default 'raise'
+            Only relevant for DatetimeIndex:
+
+            - 'infer' will attempt to infer fall dst-transition hours based on
+              order
+            - bool-ndarray where True signifies a DST time, False designates
+              a non-DST time (note that this flag is only applicable for
+              ambiguous times)
+            - 'NaT' will return NaT where there are ambiguous times
+            - 'raise' will raise an AmbiguousTimeError if there are ambiguous
+              times.
+
+        nonexistent : 'shift_forward', 'shift_backward', 'NaT', timedelta, default 'raise'
+            A nonexistent time does not exist in a particular timezone
+            where clocks moved forward due to DST.
+
+            - 'shift_forward' will shift the nonexistent time forward to the
+              closest existing time
+            - 'shift_backward' will shift the nonexistent time backward to the
+              closest existing time
+            - 'NaT' will return NaT where there are nonexistent times
+            - timedelta objects will shift nonexistent times by the timedelta
+            - 'raise' will raise an NonExistentTimeError if there are
+              nonexistent times.
+
+        Returns
+        -------
+        DatetimeIndex, TimedeltaIndex, or Series
+            Index of the same type for a DatetimeIndex or TimedeltaIndex,
+            or a Series with the same index for a Series.
+
+        Raises
+        ------
+        ValueError if the `freq` cannot be converted.
+
+        Notes
+        -----
+        If the timestamps have a timezone, {op}ing will take place relative to the
+        local ("wall") time and re-localized to the same timezone. When {op}ing
+        near daylight savings time, use ``nonexistent`` and ``ambiguous`` to
+        control the re-localization behavior.
+
+        Examples
+        --------
+        **DatetimeIndex**
+
+        >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
+        >>> rng
+        DatetimeIndex(['2018-01-01 11:59:00', '2018-01-01 12:00:00',
+                       '2018-01-01 12:01:00'],
+                      dtype='datetime64[ns]', freq=None)
+
+        >>> rng.ceil('h')  # doctest: +SKIP
+        DatetimeIndex(['2018-01-01 12:00:00', '2018-01-01 12:00:00',
+                       '2018-01-01 13:00:00'],
+                      dtype='datetime64[ns]', freq=None)
+
+        """
+
+    def month_name(self, locale: str = None) -> Index:
+        """
+        Return the month names with specified locale.
+
+        Parameters
+        ----------
+        locale : str, optional
+            Locale determining the language in which to return the month name.
+            Default is English locale (``'en_US.utf8'``). Use the command
+            ``locale -a`` on your terminal on Unix systems to find your locale
+            language code.
+
+        Returns
+        -------
+            Index of month names.
+
+        Examples
+        --------
+        >>> idx = pd.date_range(start='2018-01', freq='ME', periods=3)
+        >>> idx
+        DatetimeIndex(['2018-01-31', '2018-02-28', '2018-03-31'], dtype='datetime64[ns]', freq=None)
+        >>> idx.month_name()
+        Index(['January', 'February', 'March'], dtype='object')
+
+        Using the ``locale`` parameter you can set a different locale language,
+        for example: ``idx.month_name(locale='pt_BR.utf8')`` will return month
+        names in Brazilian Portuguese language.
+
+        >>> idx = pd.date_range(start='2018-01', freq='ME', periods=3)
+        >>> idx
+        DatetimeIndex(['2018-01-31', '2018-02-28', '2018-03-31'], dtype='datetime64[ns]', freq=None)
+        >>> idx.month_name(locale='pt_BR.utf8')  # doctest: +SKIP
+        Index(['Janeiro', 'Fevereiro', 'Março'], dtype='object')
+        """
+        return Index(
+            query_compiler=self._query_compiler.dt_month_name(
+                locale=locale, include_index=True
+            )
+        )
+
+    def day_name(self, locale: str = None) -> Index:
+        """
+        Return the day names with specified locale.
+
+        Parameters
+        ----------
+        locale : str, optional
+            Locale determining the language in which to return the day name.
+            Default is English locale (``'en_US.utf8'``). Use the command
+            ``locale -a`` on your terminal on Unix systems to find your locale
+            language code.
+
+        Returns
+        -------
+            Index of day names.
+
+        Examples
+        --------
+        >>> idx = pd.date_range(start='2018-01-01', freq='D', periods=3)
+        >>> idx
+        DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03'], dtype='datetime64[ns]', freq=None)
+        >>> idx.day_name()
+        Index(['Monday', 'Tuesday', 'Wednesday'], dtype='object')
+
+        Using the ``locale`` parameter you can set a different locale language,
+        for example: ``idx.day_name(locale='pt_BR.utf8')`` will return day
+        names in Brazilian Portuguese language.
+
+        >>> idx = pd.date_range(start='2018-01-01', freq='D', periods=3)
+        >>> idx
+        DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03'], dtype='datetime64[ns]', freq=None)
+        >>> idx.day_name(locale='pt_BR.utf8')  # doctest: +SKIP
+        Index(['Segunda', 'Terça', 'Quarta'], dtype='object')
+        """
+        return Index(
+            query_compiler=self._query_compiler.dt_day_name(
+                locale=locale, include_index=True
+            )
+        )
+
+    @datetime_index_not_implemented()
+    def as_unit(self, unit: str) -> DatetimeIndex:
+        """
+        Convert to a dtype with the given unit resolution.
+
+        Parameters
+        ----------
+        unit : {'s', 'ms', 'us', 'ns'}
+
+        Returns
+        -------
+        same type as self
+
+        Examples
+        --------
+        >>> idx = pd.DatetimeIndex(['2020-01-02 01:02:03.004005006'])
+        >>> idx
+        DatetimeIndex(['2020-01-02 01:02:03.004005006'], dtype='datetime64[ns]', freq=None)
+        >>> idx.as_unit('s')  # doctest: +SKIP
+        DatetimeIndex(['2020-01-02 01:02:03'], dtype='datetime64[s]', freq=None)
+        """
+
+    @datetime_index_not_implemented()
+    def to_period(self, freq=None) -> Index:
+        """
+        Cast to PeriodArray/PeriodIndex at a particular frequency.
+
+        Converts DatetimeArray/Index to PeriodArray/PeriodIndex.
+
+        Parameters
+        ----------
+        freq : str or Period, optional
+            One of pandas' period aliases or a Period object.
+            Will be inferred by default.
+
+        Returns
+        -------
+        PeriodArray/PeriodIndex
+
+        Raises
+        ------
+        ValueError
+            When converting a DatetimeArray/Index with non-regular values,
+            so that a frequency cannot be inferred.
+
+        See Also
+        --------
+        PeriodIndex: Immutable ndarray holding ordinal values.
+        DatetimeIndex.to_pydatetime: Return DatetimeIndex as object.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({"y": [1, 2, 3]},
+        ...                   index=pd.to_datetime(["2000-03-31 00:00:00",
+        ...                                         "2000-05-31 00:00:00",
+        ...                                         "2000-08-31 00:00:00"]))
+        >>> df.index.to_period("M")  # doctest: +SKIP
+        PeriodIndex(['2000-03', '2000-05', '2000-08'],
+                    dtype='period[M]')
+
+        Infer the daily frequency
+
+        >>> idx = pd.date_range("2017-01-01", periods=2)
+        >>> idx.to_period()  # doctest: +SKIP
+        PeriodIndex(['2017-01-01', '2017-01-02'], dtype='period[D]')
+        """
+
+    @datetime_index_not_implemented()
+    def to_pydatetime(self) -> np.ndarray:
+        """
+        Return a ndarray of ``datetime.datetime`` objects.
+
+        Returns
+        -------
+        numpy.ndarray
+
+        Examples
+        --------
+        >>> idx = pd.date_range('2018-02-27', periods=3)
+        >>> idx.to_pydatetime()  # doctest: +SKIP
+        array([datetime.datetime(2018, 2, 27, 0, 0),
+               datetime.datetime(2018, 2, 28, 0, 0),
+               datetime.datetime(2018, 3, 1, 0, 0)], dtype=object)
+        """
+
+    @datetime_index_not_implemented()
+    def mean(
+        self, *, skipna: bool = True, axis: AxisInt | None = 0
+    ) -> native_pd.Timestamp:
+        """
+        Return the mean value of the Array.
+
+        Parameters
+        ----------
+        skipna : bool, default True
+            Whether to ignore any NaT elements.
+        axis : int, optional, default 0
+
+        Returns
+        -------
+            scalar Timestamp
+
+        See Also
+        --------
+        numpy.ndarray.mean : Returns the average of array elements along a given axis.
+        Series.mean : Return the mean value in a Series.
+
+        Notes
+        -----
+        mean is only defined for Datetime and Timedelta dtypes, not for Period.
+
+        Examples
+        --------
+        >>> idx = pd.date_range('2001-01-01 00:00', periods=3)
+        >>> idx
+        DatetimeIndex(['2001-01-01', '2001-01-02', '2001-01-03'], dtype='datetime64[ns]', freq=None)
+        >>> idx.mean()  # doctest: +SKIP
+        Timestamp('2001-01-02 00:00:00')
+        """
+
+    @datetime_index_not_implemented()
+    def std(
+        self,
+        axis=None,
+        dtype=None,
+        out=None,
+        ddof: int = 1,
+        keepdims: bool = False,
+        skipna: bool = True,
+    ):
+        """
+        Return sample standard deviation over requested axis.
+
+        Normalized by `N-1` by default. This can be changed using ``ddof``.
+
+        Parameters
+        ----------
+        axis : int, optional
+            Axis for the function to be applied on. For :class:`pandas.Series`
+            this parameter is unused and defaults to ``None``.
+        ddof : int, default 1
+            Degrees of Freedom. The divisor used in calculations is `N - ddof`,
+            where `N` represents the number of elements.
+        skipna : bool, default True
+            Exclude NA/null values. If an entire row/column is ``NA``, the result
+            will be ``NA``.
+
+        Returns
+        -------
+        Timedelta
+
+        See Also
+        --------
+        numpy.ndarray.std : Returns the standard deviation of the array elements
+            along given axis.
+        Series.std : Return sample standard deviation over requested axis.
+
+        Examples
+        --------
+        For :class:`pandas.DatetimeIndex`:
+
+        >>> idx = pd.date_range('2001-01-01 00:00', periods=3)
+        >>> idx
+        DatetimeIndex(['2001-01-01', '2001-01-02', '2001-01-03'], dtype='datetime64[ns]', freq=None)
+        >>> idx.std()  # doctest: +SKIP
+        Timedelta('1 days 00:00:00')
         """

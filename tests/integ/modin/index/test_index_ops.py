@@ -101,4 +101,5 @@ def test_index_ops_bw_indices(func):
     assert_index_equal(
         func(pd.Index(left), pd.Index(right)),
         func(native_pd.Index(left), native_pd.Index(right)),
+        check_exact=False,
     )

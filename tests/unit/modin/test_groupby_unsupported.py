@@ -48,7 +48,7 @@ import pytest
 def test_series_groupby_unsupported_methods_raises(
     mock_series, func, func_name
 ) -> None:
-    msg = f"{func_name} is not yet implemented for GroupBy"
+    msg = f"Snowpark pandas does not yet support the method GroupBy.{func_name}"
     with pytest.raises(NotImplementedError, match=msg):
         func(mock_series)
 
@@ -92,6 +92,6 @@ def test_series_groupby_unsupported_methods_raises(
 def test_dataframe_groupby_unsupported_methods_raises(
     mock_dataframe, func, func_name
 ) -> None:
-    msg = f"{func_name} is not yet implemented for GroupBy"
+    msg = f"Snowpark pandas does not yet support the method GroupBy.{func_name}"
     with pytest.raises(NotImplementedError, match=msg):
         func(mock_dataframe)

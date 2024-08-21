@@ -1161,7 +1161,33 @@ class CombinedDatetimelikeProperties:
 
     @property
     def time():
-        pass
+        """
+        Returns numpy array of datetime.time objects.
+
+        The time part of the Timestamps.
+
+        Examples
+        --------
+        For Series:
+
+        >>> s = pd.Series(["1/1/2020 10:00:00", "2/1/2020 11:00:00"])
+        >>> s = pd.to_datetime(s)
+        >>> s
+        0   2020-01-01 10:00:00
+        1   2020-02-01 11:00:00
+        dtype: datetime64[ns]
+        >>> s.dt.time
+        0    10:00:00
+        1    11:00:00
+        dtype: object
+
+        For DatetimeIndex:
+
+        >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
+        ...                         "2/1/2020 11:00:00+00:00"])
+        >>> idx.time
+        Index([10:00:00, 11:00:00], dtype='object')
+        """
 
     @property
     def timetz():
@@ -1381,7 +1407,40 @@ class CombinedDatetimelikeProperties:
 
     @property
     def weekday():
-        pass
+        """
+        The day of the week with Monday=0, Sunday=6.
+
+        Return the day of the week. It is assumed the week starts on Monday, which is denoted by 0 and ends on Sunday which is denoted by 6. This method is available on both Series with datetime values (using the dt accessor) or DatetimeIndex.
+
+        Returns
+        -------
+        Series or Index
+            Containing integers indicating the day number.
+
+        See also
+        --------
+        Series.dt.dayofweek
+            Alias.
+        Series.dt.weekday
+            Alias.
+        Series.dt.day_name
+            Returns the name of the day of the week.
+
+        Examples
+        --------
+        >>> s = pd.date_range('2016-12-31', '2017-01-08', freq='D').to_series()
+        >>> s.dt.weekday
+        2016-12-31    5
+        2017-01-01    6
+        2017-01-02    0
+        2017-01-03    1
+        2017-01-04    2
+        2017-01-05    3
+        2017-01-06    4
+        2017-01-07    5
+        2017-01-08    6
+        Freq: None, dtype: int16
+        """
 
     @property
     def dayofyear():
@@ -1723,7 +1782,74 @@ class CombinedDatetimelikeProperties:
         pass
 
     def round():
-        pass
+        """
+        Perform round operation on the data to the specified freq.
+
+        Parameters
+        ----------
+        freq : str or Offset
+            The frequency level to round the index to. Must be a fixed frequency like ‘S’ (second) not ‘ME’ (month end). See frequency aliases for a list of possible freq values.
+        ambiguous : ‘infer’, bool-ndarray, ‘NaT’, default ‘raise’
+            Only relevant for DatetimeIndex:
+            - ‘infer’ will attempt to infer fall dst-transition hours based on order
+            - bool-ndarray where True signifies a DST time, False designates a non-DST time (note that this flag is only applicable for ambiguous times)
+            - ‘NaT’ will return NaT where there are ambiguous times
+            - ‘raise’ will raise an AmbiguousTimeError if there are ambiguous times.
+        nonexistent : ‘shift_forward’, ‘shift_backward’, ‘NaT’, timedelta, default ‘raise’
+            A nonexistent time does not exist in a particular timezone where clocks moved forward due to DST.
+            - ‘shift_forward’ will shift the nonexistent time forward to the closest existing time
+            - ‘shift_backward’ will shift the nonexistent time backward to the closest existing time
+            - ‘NaT’ will return NaT where there are nonexistent times
+            - timedelta objects will shift nonexistent times by the timedelta
+            - ‘raise’ will raise an NonExistentTimeError if there are nonexistent times.
+
+        Returns
+        -------
+        DatetimeIndex, TimedeltaIndex, or Series
+            Index of the same type for a DatetimeIndex or TimedeltaIndex, or a Series with the same index for a Series.
+
+        Raises
+        ------
+        ValueError if the freq cannot be converted.
+
+        Notes
+        -----
+        If the timestamps have a timezone, rounding will take place relative to the local (“wall”) time and re-localized to the same timezone. When rounding near daylight savings time, use nonexistent and ambiguous to control the re-localization behavior.
+
+        Examples
+        ----------
+        DatetimeIndex
+
+        >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
+        >>> rng  # doctest: +SKIP
+        DatetimeIndex(['2018-01-01 11:59:00', '2018-01-01 12:00:00',
+                       '2018-01-01 12:01:00'],
+                      dtype='datetime64[ns]', freq='min')
+        >>> rng.round('h')  # doctest: +SKIP
+        DatetimeIndex(['2018-01-01 12:00:00', '2018-01-01 12:00:00',
+                       '2018-01-01 12:00:00'],
+                      dtype='datetime64[ns]', freq=None)
+
+        Series
+
+        >>> pd.Series(rng).dt.round("h")
+        0   2018-01-01 12:00:00
+        1   2018-01-01 12:00:00
+        2   2018-01-01 12:00:00
+        dtype: datetime64[ns]
+
+        When rounding near a daylight savings time transition, use ambiguous or nonexistent to control how the timestamp should be re-localized.
+
+        >>> rng_tz = pd.DatetimeIndex(["2021-10-31 03:30:00"], tz="Europe/Amsterdam")
+
+        >>> rng_tz.floor("2h", ambiguous=False)  # doctest: +SKIP
+        DatetimeIndex(['2021-10-31 02:00:00+01:00'],
+                      dtype='datetime64[ns, Europe/Amsterdam]', freq=None)
+
+        >>> rng_tz.floor("2h", ambiguous=True)  # doctest: +SKIP
+        DatetimeIndex(['2021-10-31 02:00:00+02:00'],
+                      dtype='datetime64[ns, Europe/Amsterdam]', freq=None)
+        """
 
     def floor():
         """

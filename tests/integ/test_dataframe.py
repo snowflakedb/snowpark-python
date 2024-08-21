@@ -4097,7 +4097,10 @@ def test_create_empty_dataframe(session):
     assert not session.create_dataframe(data=[], schema=schema).collect()
 
 
-@pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
+@pytest.mark.skipif(
+    not is_pandas_available or IS_IN_STORED_PROC_LOCALFS,
+    reason="pandas is not available, or in stored procedure local fs it's expected to fail when the result set is large",
+)
 def test_dataframe_to_local_iterator_with_to_pandas_isolation(
     session, local_testing_mode
 ):
