@@ -19,11 +19,11 @@ TIMEDELTA_WARNING_MESSAGE = (
     "Snowpark pandas support for Timedelta is not currently available."
 )
 
-
-_python_type_to_from_pandas: dict[type, Callable[[Any], Any]] = {}
 """Map Python type to its from_pandas method"""
-_type_to_snowpark_pandas_type: dict[Union[type, np.dtype], type] = {}
+_python_type_to_from_pandas: dict[type, Callable[[Any], Any]] = {}
+
 """Map Python type and pandas dtype to Snowpark pandas type"""
+_type_to_snowpark_pandas_type: dict[Union[type, np.dtype], type] = {}
 
 
 class SnowparkPandasTypeMetaclass(
@@ -73,7 +73,7 @@ class SnowparkPandasTypeMetaclass(
         return new_snowpark_python_type
 
 
-class SnowparkPandasType(metaclass=SnowparkPandasTypeMetaclass):
+class SnowparkPandasType(DataType, metaclass=SnowparkPandasTypeMetaclass):
     """Abstract class for Snowpark pandas types."""
 
     @staticmethod

@@ -224,7 +224,7 @@ class TypeMapper:
     @classmethod
     def to_snowflake(
         cls, p: Union[np.dtype, ExtensionDtype, native_pd.Timestamp]
-    ) -> Union[DataType, SnowparkPandasType]:
+    ) -> DataType:
         """
         map a pandas or numpy type to snowpark data type.
         """
