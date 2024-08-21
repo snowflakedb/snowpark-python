@@ -129,19 +129,36 @@ class Series(BasePandasDataset):
 
         # modified:
         # Engine.subscribe(_update_engine)
+        from snowflake.snowpark.modin.plugin.extensions.index import Index
 
         # Convert lazy index to Series without pulling the data to client.
-        if isinstance(data, pd.Index):
-            query_compiler = data.to_series(index=index, name=name)._query_compiler
-            query_compiler = query_compiler.reset_index(drop=True)
+        if isinstance(data, Index):
+            # If the data is an Index object, we need to convert it to a DataFrame to make sure
+            # that the values are in the correct format -- as a data column, not an index column.
+            # Additionally, if an index is provided, converting it to an Index object ensures that
+            # its values are an index column.
+            query_compiler = data.to_frame(index=False, name=data.name)._query_compiler
+            if index is not None:
+                index = index if isinstance(index, Index) else Index(index)
+                query_compiler = query_compiler.create_qc_with_index_data_and_qc_index(
+                    index._query_compiler
+                )
         elif isinstance(data, type(self)):
             query_compiler = data._query_compiler.copy()
             if index is not None:
-                if any(i not in data.index for i in index):
-                    ErrorMessage.not_implemented(
-                        "Passing non-existent columns or index values to constructor "
-                        + "not yet implemented."
-                    )  # pragma: no cover
+                # The `index` parameter is used to select the rows from `data` that will be in the resultant Series.
+                # If a value in `index` is not present in `data`'s index, it will be filled with a NaN value.
+                # 1. The `index` is converted to an Index object so that the index values are in an index column.
+                index = index if isinstance(index, Index) else Index(index)
+                # 2. A right outer join is performed between `data` and `index` to create a Series object where any
+                #    index values in `data`'s index that are not in `index` are filled with NaN.
+                data = Series(
+                    query_compiler=data._query_compiler.create_qc_with_data_and_index_joined_on_index(
+                        index._query_compiler
+                    ),
+                    name=data.name,
+                )
+                # 3. Perform .loc[] on `data` to select the rows that are in `index`.
                 query_compiler = data.loc[index]._query_compiler
         if query_compiler is None:
             # Defaulting to pandas
