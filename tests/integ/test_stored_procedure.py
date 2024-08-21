@@ -1952,7 +1952,18 @@ def test_stored_proc_register_with_module(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="use schema is not allowed in stored proc (owner mode)"
 )
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="running sql query is not supported in local testing",
+)
 def test_register_sproc_after_switch_schema(session):
+    add_sp = session.sproc.register(
+        lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[0][0],
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+    assert add_sp(1, 2) == 3
+
     current_schema = session.get_current_schema()
     current_database = session.get_current_database()
 

@@ -745,6 +745,10 @@ def test_create_session_from_default_config_file(monkeypatch, db_parameters):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="use schema is not allowed in stored proc (owner mode)"
 )
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="running sql query is not supported in local testing",
+)
 def test_get_session_stage(session):
     with session.query_history() as history:
         session_stage = session.get_session_stage()
