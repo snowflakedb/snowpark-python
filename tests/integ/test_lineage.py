@@ -10,6 +10,7 @@ import uuid
 import pytest
 
 from snowflake.snowpark.lineage import LineageDirection
+from tests.utils import IS_NOT_ON_GITHUB
 
 try:
     import pandas as pd
@@ -61,6 +62,7 @@ def remove_created_on_field(df):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="SNOW-1633773")
 def test_lineage_trace(session):
     """
     Tests lineage.trace API on multiple cases.
@@ -155,7 +157,7 @@ def test_lineage_trace(session):
     # CASE 4 : trace with masked object
     test_role = "lineage_test_role"
     session.sql(f"USE ROLE {primary_role}").collect()
-    session.sql(f"GRANT USAGE ON database {db} TO ROLE {test_role}")
+    session.sql(f"GRANT USAGE ON database {db} TO ROLE {test_role}").collect()
     session.sql(f"GRANT USAGE ON schema {db}.{schema} TO ROLE {test_role}").collect()
     session.sql(f"GRANT select on VIEW {db}.{schema}.V5 TO ROLE {test_role}").collect()
     session.sql(f"GRANT CREATE VIEW ON schema {schema} TO ROLE {test_role}").collect()
