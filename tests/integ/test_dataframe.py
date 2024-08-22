@@ -3017,6 +3017,31 @@ def test_create_dynamic_table(session, table_name_1, is_transient):
     reason="Dynamic table is a SQL feature",
     run=False,
 )
+def test_create_dynamic_table_with_explode(session):
+    dt_name = Utils.random_name_for_temp_object(TempObjectType.DYNAMIC_TABLE)
+    temp_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        df = session.create_dataframe(
+            [[1, [1, 2, 3]], [2, [11, 22]]], schema=["idx", "lists"]
+        )
+        df.write.mode("overwrite").save_as_table(temp_table)
+        df = session.table(temp_table)
+        df1 = df.select(df.idx, explode(df.lists))
+        df1.create_or_replace_dynamic_table(
+            dt_name, warehouse=session.get_current_warehouse(), lag="1 min"
+        )
+        session.sql(f"alter dynamic table {dt_name} refresh").collect()
+        res = session.sql(f"show dynamic tables like '{dt_name}'").collect()
+        assert len(res) == 1
+    finally:
+        Utils.drop_table(session, temp_table)
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Dynamic table is a SQL feature",
+    run=False,
+)
 def test_create_dynamic_table_mode(session, table_name_1):
     """We test create dynamic table modes in using the following sequence of
     commands:

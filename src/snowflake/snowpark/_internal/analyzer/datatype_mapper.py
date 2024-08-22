@@ -112,6 +112,10 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         return f"{value} :: INT"
 
     if isinstance(datatype, BooleanType):
+        if isinstance(value, bool):
+            # we do not do cast for bool in that some function may not accept input param type casting,
+            # e.g. SNOW-1619272 FLATTEN_CONSTRUCT doesn't accept `False::BOOLEAN` but accept `False`
+            return str(value).upper()
         return f"{value} :: BOOLEAN"
 
     if isinstance(value, float) and isinstance(datatype, _FractionalType):
