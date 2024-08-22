@@ -1562,6 +1562,7 @@ class DataFrame:
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
         ascending: Optional[Union[bool, int, List[Union[bool, int]]]] = None,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
 
@@ -1616,44 +1617,50 @@ class DataFrame:
             raise ValueError("sort() needs at least one sort expression.")
 
         # AST.
-        stmt = self._session._ast_batch.assign()
-        # Parsing args separately since the original column expr or string
-        # needs to be recorded.
-        _cols, is_variadic = parse_positional_args_to_list_variadic(*cols)
-        ast = with_src_position(stmt.expr.sp_dataframe_sort, stmt)
-        self.set_ast_ref(ast.df)
-        for c in _cols:
-            build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
-        ast.cols_variadic = is_variadic
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            # Parsing args separately since the original column expr or string
+            # needs to be recorded.
+            _cols, is_variadic = parse_positional_args_to_list_variadic(*cols)
+            ast = with_src_position(stmt.expr.sp_dataframe_sort, stmt)
+            for c in _cols:
+                build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
+            ast.cols_variadic = is_variadic
 
         orders = []
         # `ascending` is represented by Expr in the AST.
         # Therefore, construct the required bool, int, or list and copy from that.
-        asc_expr_ast = proto.Expr()
+        asc_expr_ast = None
+        if _emit_ast:
+            asc_expr_ast = proto.Expr()
         if ascending is not None:
             if isinstance(ascending, (list, tuple)):
                 orders = [Ascending() if asc else Descending() for asc in ascending]
-                # Here asc_expr_ast is a list of bools and ints.
-                for asc in ascending:
-                    asc_ast = proto.Expr()
-                    if isinstance(asc, bool):
-                        asc_ast.bool_val.v = asc
-                    else:
-                        asc_ast.int64_val.v = asc
-                    asc_expr_ast.list_val.vs.append(asc_ast)
+                if _emit_ast:
+                    # Here asc_expr_ast is a list of bools and ints.
+                    for asc in ascending:
+                        asc_ast = proto.Expr()
+                        if isinstance(asc, bool):
+                            asc_ast.bool_val.v = asc
+                        else:
+                            asc_ast.int64_val.v = asc
+                        asc_expr_ast.list_val.vs.append(asc_ast)
             elif isinstance(ascending, (bool, int)):
                 orders = [Ascending() if ascending else Descending()]
-                # Here asc_expr_ast is either a bool or an int.
-                if isinstance(ascending, bool):
-                    asc_expr_ast.bool_val.v = ascending
-                else:
-                    asc_expr_ast.int64_val.v = ascending
+                if _emit_ast:
+                    # Here asc_expr_ast is either a bool or an int.
+                    if isinstance(ascending, bool):
+                        asc_expr_ast.bool_val.v = ascending
+                    else:
+                        asc_expr_ast.int64_val.v = ascending
             else:
                 raise TypeError(
                     "ascending can only be boolean or list,"
                     " but got {}".format(str(type(ascending)))
                 )
-            ast.ascending.CopyFrom(asc_expr_ast)
+            if _emit_ast:
+                ast.ascending.CopyFrom(asc_expr_ast)
             if len(exprs) != len(orders):
                 raise ValueError(
                     "The length of col ({}) should be same with"
