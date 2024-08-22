@@ -22,6 +22,8 @@ import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import FunctionExpression
 from snowflake.snowpark.mock._options import numpy, pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
+    _TIMESTAMP_TYPE_MAPPING,
+    _TIMESTAMP_TYPE_TIMEZONE_MAPPING,
     ColumnEmulator,
     ColumnType,
     TableEmulator,
@@ -943,7 +945,11 @@ def mock_to_timestamp(
     try_cast: bool = False,
 ):
     result = mock_to_timestamp_ntz(column, fmt, try_cast)
-    result.sf_type = ColumnType(TimestampType(), column.sf_type.nullable)
+
+    result.sf_type = ColumnType(
+        TimestampType(_TIMESTAMP_TYPE_TIMEZONE_MAPPING[_TIMESTAMP_TYPE_MAPPING]),
+        column.sf_type.nullable,
+    )
     return result
 
 
