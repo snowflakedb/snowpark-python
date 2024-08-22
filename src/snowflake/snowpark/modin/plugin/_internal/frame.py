@@ -89,6 +89,10 @@ def _create_snowflake_quoted_identifier_to_snowpark_pandas_type(
             f"The length of data_column_types {data_column_types} is different from the length of "
             f"data_column_snowflake_quoted_identifiers {data_column_snowflake_quoted_identifiers}"
         )
+        for t in data_column_types:
+            assert t is None or isinstance(
+                t, SnowparkPandasType
+            ), f"wrong data_column_types value {t}"
     if index_column_types is not None:
         assert len(index_column_types) == len(
             index_column_snowflake_quoted_identifiers
@@ -96,6 +100,10 @@ def _create_snowflake_quoted_identifier_to_snowpark_pandas_type(
             f"The length of index_column_types {index_column_types} is different from the length of "
             f"index_column_snowflake_quoted_identifiers {index_column_snowflake_quoted_identifiers}"
         )
+        for t in index_column_types:
+            assert t is None or isinstance(
+                t, SnowparkPandasType
+            ), f"wrong index_column_types value {t}"
 
     return MappingProxyType(
         {
@@ -988,6 +996,7 @@ class InternalFrame:
         self,
         pandas_labels: list[Hashable],
         column_objects: list[SnowparkColumn],
+        column_types: Optional[list[Optional[SnowparkPandasType]]] = None,
     ) -> "InternalFrame":
         """
         Project new columns with column_objects as the new data columns for the new Internal Frame.
@@ -1001,10 +1010,15 @@ class InternalFrame:
         Args:
             pandas_labels: The pandas labels for the newly projected data columns
             column_objects: the Snowpark columns used to project the new data columns
+            column_types: The optional SnowparkPandasType for the new column.
 
         Returns:
             A new InternalFrame with the newly projected columns as data column
         """
+        if column_types is None:
+            column_types = [None] * len(pandas_labels)
+        else:
+            assert len(column_types) == len(pandas_labels)
         new_column_identifiers = (
             self.ordered_dataframe.generate_snowflake_quoted_identifiers(
                 pandas_labels=pandas_labels,
@@ -1020,7 +1034,7 @@ class InternalFrame:
             data_column_pandas_index_names=self.data_column_pandas_index_names,
             index_column_pandas_labels=self.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=self.index_column_snowflake_quoted_identifiers,
-            data_column_types=None,
+            data_column_types=column_types,
             index_column_types=self.cached_index_column_snowpark_pandas_types,
         )
 
