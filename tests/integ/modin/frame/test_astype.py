@@ -114,7 +114,7 @@ def test_astype_from_timestamp_ltz(session, to_dtype):
     ],
 )
 @sql_count_checker(query_count=1)
-def test_astype_numeric_and_boolean_to_timedelta(dtype):
+def test_astype_to_timedelta(dtype):
     native_df = native_pd.DataFrame(
         {
             "int_col": [5678, 9],

@@ -410,7 +410,7 @@ def test_python_datetime_astype_DatetimeTZDtype(seed):
     [[12345678, 9], [12345678, 2.6], [True, False], [1, "2"], ["1", "2"]],
     ids=["int", "float", "boolean", "object", "string"],
 )
-def test_astype_numeric_to_timedelta(data):
+def test_astype_to_timedelta(data):
     native_series = native_pd.Series(data)
     snow_series = pd.Series(native_series)
     eval_snowpark_pandas_result(
