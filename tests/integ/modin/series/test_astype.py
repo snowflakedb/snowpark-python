@@ -405,26 +405,13 @@ def test_python_datetime_astype_DatetimeTZDtype(seed):
 
 
 @sql_count_checker(query_count=1)
-def test_astype_numeric_to_timedelta():
-    native_series = native_pd.Series(data=[12345678, 2.6])
-    snow_series = pd.Series(native_series)
-    eval_snowpark_pandas_result(
-        snow_series, native_series, lambda series: series.astype("timedelta64[ns]")
-    )
-
-
-@sql_count_checker(query_count=1)
-def test_astype_boolean_to_timedelta():
-    native_series = native_pd.Series(data=[True, False])
-    snow_series = pd.Series(native_series)
-    eval_snowpark_pandas_result(
-        snow_series, native_series, lambda series: series.astype("timedelta64[ns]")
-    )
-
-
-@sql_count_checker(query_count=1)
-def test_astype_non_numeric_to_timedelta():
-    native_series = native_pd.Series([1, "2"])
+@pytest.mark.parametrize(
+    "data",
+    [[12345678, 9], [12345678, 2.6], [True, False], [1, "2"], ["1", "2"]],
+    ids=["int", "float", "boolean", "object", "string"],
+)
+def test_astype_numeric_to_timedelta(data):
+    native_series = native_pd.Series(data)
     snow_series = pd.Series(native_series)
     eval_snowpark_pandas_result(
         snow_series, native_series, lambda series: series.astype("timedelta64[ns]")

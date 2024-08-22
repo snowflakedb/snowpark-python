@@ -104,25 +104,28 @@ def test_astype_from_timestamp_ltz(session, to_dtype):
     "dtype",
     [
         "timedelta64[ns]",
-        {"col1": int, "col2": "timedelta64[ns]"},
+        {
+            "int_col": int,
+            "float_col": "timedelta64[ns]",
+            "boolean_col": bool,
+            "object_col": "timedelta64[ns]",
+            "string_col": str,
+        },
     ],
 )
 @sql_count_checker(query_count=1)
 def test_astype_numeric_and_boolean_to_timedelta(dtype):
     native_df = native_pd.DataFrame(
-        data={"col1": [12345678, 2.3], "col2": [True, False]}
+        {
+            "int_col": [5678, 9],
+            "float_col": [12345678, 2.3],
+            "boolean_col": [True, False],
+            "object_col": [1, "2"],
+            "string_col": ["6", "8"],
+        },
     )
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.astype(dtype))
-
-
-@sql_count_checker(query_count=1)
-def test_astype_non_numeric_to_timedelta():
-    native_df = native_pd.DataFrame(data={"col1": [1, "2"], "col2": ["6", "8"]})
-    snow_df = pd.DataFrame(native_df)
-    eval_snowpark_pandas_result(
-        snow_df, native_df, lambda df: df.astype("timedelta64[ns]")
-    )
 
 
 @sql_count_checker(query_count=2)
