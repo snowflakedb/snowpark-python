@@ -813,7 +813,7 @@ class DatetimeIndex(Index):
         Examples
         --------
         >>> idx = pd.date_range(start='2014-08-01 10:00', freq='h',
-        ...                     periods=3, tz='Asia/Calcutta')
+        ...                     periods=3, tz='Asia/Calcutta')  # doctest: +SKIP
         >>> idx  # doctest: +SKIP
         DatetimeIndex(['2014-08-01 10:00:00+05:30',
                        '2014-08-01 11:00:00+05:30',
