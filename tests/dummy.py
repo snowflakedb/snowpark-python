@@ -2,13 +2,12 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-#
-# # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
-#
-#
 # #
 # # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 # #
+#
+# # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+#
 #
 # from snowflake.snowpark import Session
 #
@@ -17,8 +16,11 @@
 # from snowflake.snowpark.functions import *
 # from snowflake.snowpark.functions import seq1, seq8, uniform
 #
-# df = session.sql("select 1, 'a'")
-# df.filter(in_([col("col1"), col("col2")], df)).show()
+# df = session.create_dataframe([1, 2, 3, 2, 4, 5], schema=["col"])
+# df.select(listagg("col", ",").within_group(df["col"].asc()).as_("result")).collect()
+#
+# # df = session.sql("select 1, 'a'")
+# # df.filter(in_([col("col1"), col("col2")], df)).show()
 #
 # # # df = session.generator(seq1(1).as_("sequence one"), uniform(1, 10, 2).as_("uniform"), rowcount=3)
 # # # df.show()
