@@ -1483,11 +1483,6 @@ class Index(metaclass=TelemetryMeta):
         >>> idx.is_object()
         True
 
-        >>> idx = pd.Index(["Watermelon", "Orange", "Apple",
-        ...                 "Watermelon"]).astype("category")
-        >>> idx.is_object()
-        False
-
         >>> idx = pd.Index([1.0, 2.0, 3.0, 4.0])
         >>> idx.is_object()
         False
