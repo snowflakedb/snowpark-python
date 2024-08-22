@@ -442,3 +442,30 @@ def test_index_min_max_wrong_axis_negative(func, axis):
     idx = pd.Index([1, 2, 3])
     with pytest.raises(ValueError, match="Axis must be None or 0 for Index objects"):
         getattr(idx, func)(axis=axis)
+
+
+@pytest.mark.parametrize(
+    "native_index",
+    [
+        native_pd.Index(["Apple", "Mango", "Watermelon"]),
+        native_pd.Index(["Apple", "Mango", 2.0]),
+        native_pd.Index([1, 2, 3, 4]),
+        native_pd.Index([1.0, 2.0, 3.0, 4.0]),
+        native_pd.Index([1.0, 2.0, np.nan, 4.0]),
+        native_pd.Index([1, 2, 3, 4.0, np.nan]),
+        native_pd.Index([1, 2, 3, 4.0, np.nan, "Apple"]),
+        native_pd.Index([1, 2, 3, 4.0]),
+        native_pd.Index([True, False, True]),
+        native_pd.Index(["True", "False", "True"]),
+        native_pd.Index([True, False, "True"]),
+    ],
+)
+@pytest.mark.parametrize(
+    "func", ["is_integer", "is_boolean", "is_floating", "is_numeric", "is_object"]
+)
+@sql_count_checker(query_count=0)
+def test_index_is_type(native_index, func):
+    snow_index = pd.Index(native_index)
+    snow_res = getattr(snow_index, func)()
+    native_res = getattr(native_index, func)()
+    assert snow_res == native_res
