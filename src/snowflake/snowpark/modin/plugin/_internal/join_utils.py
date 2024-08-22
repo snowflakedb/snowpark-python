@@ -405,6 +405,58 @@ def _create_internal_frame_with_join_or_align_result(
     return JoinOrAlignInternalFrameResult(result_internal_frame, result_column_mapper)
 
 
+def get_coalesce_config(
+    left_keys: Sequence[
+        Union[Hashable, "snowflake_query_compiler.SnowflakeQueryCompiler"]
+    ],
+    right_keys: Sequence[
+        Union[Hashable, "snowflake_query_compiler.SnowflakeQueryCompiler"]
+    ],
+    external_join_keys: list[str],
+) -> list[JoinKeyCoalesceConfig]:
+    """
+    When joining underlying Snowpark dataframes we pass join condition as
+    col(left.a) == col(right.a). This will keep both the columns from left and
+    right frame. But pandas expects only one column to be present in joined frame
+    if join key pair has same name in both the frames. We remove the unnecessary
+    columns to match pandas behavior. When coalesce_config is LEFT corresponding
+    join columns from both the frames are coalesces into one.
+    Consider following examples
+    Columns in left frame: ["a", "b", "c"]
+    Columns in right frame: ["b", "d", "e"]
+    Operation performed: left.merge(right, left_on=["a", "b"], right_on=["b", "d"])
+    Columns in merged frame: ["a", "b_x", "c", "b_y", "d", "e"]
+    Here we have two join key pairs ("a", "b") and ("b", "d") for both the pairs
+    left key is not same is right key so no coalescing is needed.
+    'coalesce_config' should evaluate to [NONE, NONE] in this case.
+
+    But if Operation is: left.merge(right, left_on=["a", "b"], right_on=["d", "b"])
+    Columns in merged frame: ["a", "b", "c", "d", "e"]
+    Here we have two join key pairs ("a", "d") and ("b", "b") here first pair has
+    different name so no coalescing is needed for this pair but second pair has
+    same name on both the sides so column "b" from both the frames is coalesced
+    into one.
+    'coalesce_config' should evaluate to [NONE, LEFT] in this case.
+
+    Args:
+        left_keys: the keys of the left internal frame we are joining on
+        right_keys: the keys of the right internal frame we are joining on
+        external_join_keys: list of external data join keys as columns
+
+    Returns:
+        The configuration to use when coalescing columns after merge.
+    """
+    coalesce_config = []
+    for lkey, rkey in zip(left_keys, right_keys):
+        if lkey == rkey or rkey in external_join_keys:
+            coalesce_config.append(JoinKeyCoalesceConfig.LEFT)
+        elif lkey in external_join_keys:
+            coalesce_config.append(JoinKeyCoalesceConfig.RIGHT)
+        else:
+            coalesce_config.append(JoinKeyCoalesceConfig.NONE)
+    return coalesce_config
+
+
 def is_column_index_compatible(left: InternalFrame, right: InternalFrame) -> bool:
     """
     Return true if column index of 'right' frame is compatible with column index of

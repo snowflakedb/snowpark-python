@@ -9,7 +9,7 @@ import pytest
 from pandas.errors import MergeError
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 
 
@@ -130,27 +130,45 @@ direction = pytest.mark.parametrize("direction", ["backward", "forward"])
 @pytest.mark.parametrize("on", ["a", ["a"]])
 @allow_exact_matches
 @direction
-@sql_count_checker(query_count=1, join_count=1)
 def test_merge_asof_on(left_right_native_df, on, allow_exact_matches, direction):
     left_native_df, right_native_df = left_right_native_df
     left_snow_df, right_snow_df = pd.DataFrame(left_native_df), pd.DataFrame(
         right_native_df
     )
-    native_output = native_pd.merge_asof(
-        left_native_df,
-        right_native_df,
-        on=on,
-        allow_exact_matches=allow_exact_matches,
-        direction=direction,
-    )
-    snow_output = pd.merge_asof(
-        left_snow_df,
-        right_snow_df,
-        on=on,
-        allow_exact_matches=allow_exact_matches,
-        direction=direction,
-    )
-    assert_snowpark_pandas_equal_to_pandas(snow_output, native_output)
+    with SqlCounter(query_count=1, join_count=1):
+        native_output = native_pd.merge_asof(
+            left_native_df,
+            right_native_df,
+            on=on,
+            allow_exact_matches=allow_exact_matches,
+            direction=direction,
+        )
+        snow_output = pd.merge_asof(
+            left_snow_df,
+            right_snow_df,
+            on=on,
+            allow_exact_matches=allow_exact_matches,
+            direction=direction,
+        )
+        assert_snowpark_pandas_equal_to_pandas(snow_output, native_output)
+    with SqlCounter(query_count=1, join_count=1):
+        native_output = native_pd.merge_asof(
+            left_native_df,
+            right_native_df,
+            left_on=on,
+            right_on=on,
+            allow_exact_matches=allow_exact_matches,
+            direction=direction,
+        )
+        snow_output = pd.merge_asof(
+            left_snow_df,
+            right_snow_df,
+            left_on=on,
+            right_on=on,
+            allow_exact_matches=allow_exact_matches,
+            direction=direction,
+        )
+        assert_snowpark_pandas_equal_to_pandas(snow_output, native_output)
 
 
 @allow_exact_matches

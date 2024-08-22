@@ -6,7 +6,6 @@ import sys
 import uuid
 from collections.abc import Hashable
 from dataclasses import dataclass
-from enum import Enum
 from typing import Any, Optional, Union
 
 import pandas
@@ -1055,7 +1054,9 @@ class OrderedDataFrame:
         right_on_cols: Optional[list[str]] = None,
         left_match_col: Optional[str] = None,
         right_match_col: Optional[str] = None,
-        match_comparator: Optional[Enum] = None,
+        match_comparator: Optional[  # type: ignore[name-defined]
+            "MatchComparator"  # noqa: F821
+        ] = None,
         how: JoinTypeLit = "inner",
     ) -> "OrderedDataFrame":
         """
@@ -1126,7 +1127,6 @@ class OrderedDataFrame:
         if how == "asof":
             assert left_match_col, "left_match_col was not provided to ASOF Join"
             assert right_match_col, "right_match_col was not provided to ASOF Join"
-            assert match_comparator, "match_comparator was not provided to ASOF Join"
             _raise_if_identifier_not_exists(
                 [left_match_col],
                 self.projected_column_snowflake_quoted_identifiers,
@@ -1204,10 +1204,13 @@ class OrderedDataFrame:
             on = eq if on is None else on & eq
 
         if how == "asof":
+            assert left_match_col, "left_match_col was not provided to ASOF Join"
             left_match_col = Column(left_match_col)
             # Get the new mapped right match condition identifier
-            right_match_col = Column(right_identifiers_rename_map[right_match_col])  # type: ignore
+            assert right_match_col, "right_match_col was not provided to ASOF Join"
+            right_match_col = Column(right_identifiers_rename_map[right_match_col])
             # ASOF Join requires the use of match_condition
+            assert match_comparator, "match_comparator was not provided to ASOF Join"
             snowpark_dataframe = left_snowpark_dataframe_ref.snowpark_dataframe.join(
                 right=right_snowpark_dataframe_ref.snowpark_dataframe,
                 how=how,

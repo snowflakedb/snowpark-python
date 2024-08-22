@@ -6852,37 +6852,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
             return SnowflakeQueryCompiler(merged_frame)
 
-        # When joining underlying Snowpark dataframes we pass join condition as
-        # col(left.a) == col(right.a). This will keep both the columns from left and
-        # right frame. But pandas expects only one column to be present in joined frame
-        # if join key pair has same name in both the frames. We remove the unnecessary
-        # columns to match pandas behavior. When coalesce_config is LEFT corresponding
-        # join columns from both the frames are coalesces into one.
-        # Consider following examples
-        # Columns in left frame: ["a", "b", "c"]
-        # Columns in right frame: ["b", "d", "e"]
-        # Operation performed: left.merge(right, left_on=["a", "b"], right_on=["b", "d"])
-        # Columns in merged frame: ["a", "b_x", "c", "b_y", "d", "e"]
-        # Here we have two join key pairs ("a", "b") and ("b", "d") for both the pairs
-        # left key is not same is right key so no coalescing is needed.
-        # 'coalesce_config' should evaluate to [NONE, NONE] in this case.
-        #
-        # But if Operation is: left.merge(right, left_on=["a", "b"], right_on=["d", "b"])
-        # Columns in merged frame: ["a", "b", "c", "d", "e"]
-        # Here we have two join key pairs ("a", "d") and ("b", "b") here first pair has
-        # different name so no coalescing is needed for this pair but second pair has
-        # same name on both the sides so column "b" from both the frames is coalesced
-        # into one.
-        # 'coalesce_config' should evaluate to [NONE, LEFT] in this case.
-
-        coalesce_config = []
-        for lkey, rkey in zip(left_keys, right_keys):
-            if lkey == rkey or rkey in external_join_keys:
-                coalesce_config.append(join_utils.JoinKeyCoalesceConfig.LEFT)
-            elif lkey in external_join_keys:
-                coalesce_config.append(join_utils.JoinKeyCoalesceConfig.RIGHT)
-            else:
-                coalesce_config.append(join_utils.JoinKeyCoalesceConfig.NONE)
+        coalesce_config = join_utils.get_coalesce_config(
+            left_keys=left_keys,
+            right_keys=right_keys,
+            external_join_keys=external_join_keys,
+        )
 
         # Update given join keys to labels from renamed frame.
         left_keys = join_utils.map_labels_to_renamed_frame(
@@ -7091,6 +7065,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 else MatchComparator.LESS_THAN
             )
 
+        coalesce_config = join_utils.get_coalesce_config(
+            left_keys=left_keys, right_keys=right_keys, external_join_keys=[]
+        )
+
         joined_frame, _ = join_utils.join(
             left=left_frame,
             right=right_frame,
@@ -7100,7 +7078,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             left_match_col=left_match_col,
             right_match_col=right_match_col,
             match_comparator=match_comparator,
-            join_key_coalesce_config=[JoinKeyCoalesceConfig.LEFT] if on else None,
+            join_key_coalesce_config=coalesce_config,
             sort=True,
         )
         return SnowflakeQueryCompiler(joined_frame)
