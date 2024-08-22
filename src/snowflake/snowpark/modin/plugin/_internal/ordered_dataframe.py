@@ -1214,7 +1214,7 @@ class OrderedDataFrame:
             snowpark_dataframe = left_snowpark_dataframe_ref.snowpark_dataframe.join(
                 right=right_snowpark_dataframe_ref.snowpark_dataframe,
                 how=how,
-                match_condition=getattr(left_match_col, match_comparator.value)(  # type: ignore
+                match_condition=getattr(left_match_col, match_comparator.value)(
                     right_match_col
                 ),
             )
