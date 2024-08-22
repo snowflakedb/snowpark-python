@@ -102,25 +102,40 @@ def test_astype_from_timestamp_ltz(session, to_dtype):
     "dtype",
     [
         "timedelta64[ns]",
-        {"col1": str, "col2": "timedelta64[ns]"},
+        {"col1": int, "col2": "timedelta64[ns]"},
     ],
 )
 @sql_count_checker(query_count=1)
-def test_astype_int_to_timedelta(dtype):
-    native_df = native_pd.DataFrame(data={"col1": [12345678, 2], "col2": [3, 4]})
+def test_astype_numeric_to_timedelta(dtype):
+    native_df = native_pd.DataFrame(
+        data={"col1": [12345678, 2.3], "col2": [True, False]}
+    )
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.astype(dtype))
 
 
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
+def test_astype_non_numeric_to_timedelta():
+    native_df = native_pd.DataFrame(data={"col1": [1, "2"], "col2": ["6", "8"]})
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df.astype("timedelta64[ns]")
+    )
+
+
+@sql_count_checker(query_count=2)
 def test_astype_to_timedelta_negative():
-    snow_df = pd.DataFrame(data={"col1": ["1", "2"], "col2": [3, 4]})
-    with pytest.raises(
-        TypeError, match=r"dtype object cannot be converted to timedelta64\[ns\]"
-    ):
-        snow_df.astype("timedelta64[ns]")
-    snow_df2 = pd.DataFrame(data={"col1": [1.25, 3], "col2": [3, 4]})
-    with pytest.raises(
-        TypeError, match=r"dtype float64 cannot be converted to timedelta64\[ns\]"
-    ):
-        snow_df2.astype("timedelta64[ns]")
+    native_df = native_pd.DataFrame(
+        data={"col1": [pd.to_datetime("2000-01-01"), pd.to_datetime("2001-01-01")]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    with SqlCounter(query_count=0):
+        with pytest.raises(
+            TypeError, match=r"Cannot cast DatetimeArray to dtype timedelta64\[ns\]"
+        ):
+            native_df.astype("timedelta64[ns]")
+        with pytest.raises(
+            TypeError,
+            match=r"dtype datetime64\[ns\] cannot be converted to timedelta64\[ns\]",
+        ):
+            snow_df.astype("timedelta64[ns]")

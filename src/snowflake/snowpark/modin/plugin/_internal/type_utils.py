@@ -36,6 +36,7 @@ from snowflake.snowpark.functions import (
     cast,
     col,
     date_part,
+    floor,
     iff,
     length,
     to_varchar,
@@ -296,7 +297,7 @@ def column_astype(
     if to_dtype == np.object_:
         return to_variant(curr_col)
 
-    if from_sf_type == to_sf_type:
+    if from_sf_type == to_sf_type and not isinstance(to_sf_type, TimedeltaType):
         return curr_col
 
     if isinstance(to_sf_type, _IntegralType) and "int64" not in str(to_dtype).lower():
@@ -367,6 +368,12 @@ def column_astype(
     ):
         # e.g., pd.Series([date(year=1, month=1, day=1)]*3).astype(bool) returns all true values
         new_col = cast(pandas_lit(True), to_sf_type)
+    elif isinstance(to_sf_type, TimedeltaType):
+        if isinstance(from_sf_type, _NumericType):
+            # pandas always rounds down for Fractional type conversion to timedelta
+            new_col = cast(floor(curr_col), LongType())
+        else:
+            new_col = cast(curr_col, LongType())
     else:
         new_col = cast(curr_col, to_sf_type)
     # astype should not have any effect on NULL values
@@ -406,8 +413,8 @@ def is_astype_type_error(
         return True
     elif isinstance(from_sf_type, DateType) and isinstance(to_sf_type, _NumericType):
         return True
-    elif isinstance(to_sf_type, TimedeltaType) and not isinstance(
-        from_sf_type, LongType
+    elif isinstance(from_sf_type, TimestampType) and isinstance(
+        to_sf_type, TimedeltaType
     ):
         return True
     else:
