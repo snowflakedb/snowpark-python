@@ -154,6 +154,12 @@ class SnowflakeValues(LeafNode):
         }
 
 
+class DynamicTableCreateMode(Enum):
+    OVERWRITE = "overwrite"
+    ERROR_IF_EXISTS = "errorifexists"
+    IGNORE = "ignore"
+
+
 class SaveMode(Enum):
     APPEND = "append"
     OVERWRITE = "overwrite"

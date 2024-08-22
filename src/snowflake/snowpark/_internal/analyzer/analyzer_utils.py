@@ -70,6 +70,10 @@ GROUP_BY = " GROUP BY "
 PARTITION_BY = " PARTITION BY "
 ORDER_BY = " ORDER BY "
 CLUSTER_BY = " CLUSTER BY "
+REFRESH_MODE = " REFRESH_MODE "
+INITIALIZE = " INITIALIZE "
+DATA_RETENTION_TIME_IN_DAYS = " DATA_RETENTION_TIME_IN_DAYS "
+MAX_DATA_EXTENSION_TIME_IN_DAYS = " MAX_DATA_EXTENSION_TIME_IN_DAYS "
 OVER = " OVER "
 SELECT = " SELECT "
 FROM = " FROM "
@@ -94,6 +98,7 @@ DYNAMIC = " DYNAMIC "
 LAG = " LAG "
 WAREHOUSE = " WAREHOUSE "
 TEMPORARY = " TEMPORARY "
+TRANSIENT = " TRANSIENT "
 IF = " If "
 INSERT = " INSERT "
 OVERWRITE = " OVERWRITE "
@@ -1077,21 +1082,45 @@ def create_or_replace_view_statement(
 
 
 def create_or_replace_dynamic_table_statement(
-    name: str, warehouse: str, lag: str, comment: Optional[str], child: str
+    name: str,
+    warehouse: str,
+    lag: str,
+    comment: Optional[str],
+    replace: bool,
+    if_not_exists: bool,
+    refresh_mode: Optional[str],
+    initialize: Optional[str],
+    clustering_keys: Iterable[str],
+    is_transient: bool,
+    data_retention_time: Optional[int],
+    max_data_extension_time: Optional[int],
+    child: str,
 ) -> str:
+    cluster_by_sql = (
+        f"{CLUSTER_BY}{LEFT_PARENTHESIS}{COMMA.join(clustering_keys)}{RIGHT_PARENTHESIS}"
+        if clustering_keys
+        else EMPTY_STRING
+    )
     comment_sql = get_comment_sql(comment)
+    refresh_and_initialize_options = get_options_statement(
+        {
+            REFRESH_MODE: refresh_mode,
+            INITIALIZE: initialize,
+        }
+    )
+    data_retention_options = get_options_statement(
+        {
+            DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
+            MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
+        }
+    )
+
     return (
-        CREATE
-        + OR
-        + REPLACE
-        + DYNAMIC
-        + TABLE
-        + name
-        + f"{LAG + EQUALS + convert_value_to_sql_option(lag)}"
-        + f"{WAREHOUSE + EQUALS + warehouse}"
-        + comment_sql
-        + AS
-        + project_statement([], child)
+        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}{TRANSIENT if is_transient else EMPTY_STRING}"
+        f"{DYNAMIC}{TABLE}{IF + NOT + EXISTS if if_not_exists else EMPTY_STRING}{name}{LAG}{EQUALS}"
+        f"{convert_value_to_sql_option(lag)}{WAREHOUSE}{EQUALS}{warehouse}"
+        f"{refresh_and_initialize_options}{cluster_by_sql}{data_retention_options}"
+        f"{comment_sql}{AS}{project_statement([], child)}"
     )
 
 
