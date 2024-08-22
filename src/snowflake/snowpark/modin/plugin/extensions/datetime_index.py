@@ -787,7 +787,6 @@ class DatetimeIndex(Index):
         array([0, 1])
         """
 
-    @datetime_index_not_implemented()
     def normalize(self) -> DatetimeIndex:
         """
         Convert times to midnight.
@@ -826,6 +825,9 @@ class DatetimeIndex(Index):
                        '2014-08-01 00:00:00+05:30'],
                        dtype='datetime64[ns, Asia/Calcutta]', freq=None)
         """
+        return DatetimeIndex(
+            query_compiler=self._query_compiler.dt_normalize(include_index=True)
+        )
 
     @datetime_index_not_implemented()
     def strftime(self, date_format: str) -> np.ndarray[np.object_]:

@@ -16339,17 +16339,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
-    def dt_normalize(self) -> None:
+    def dt_normalize(self, include_index: bool = False) -> "SnowflakeQueryCompiler":
         """
         Set the time component of each date-time value to midnight.
+
+        Args:
+            include_index: Whether to include the index columns in the operation.
 
         Returns
         -------
         BaseQueryCompiler
             New QueryCompiler containing date-time values with midnight time.
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.normalize'"
+        internal_frame = self._modin_frame
+
+        def normalize_column(col_id: str) -> SnowparkColumn:
+            return builtin("date_trunc")("d", col(col_id))
+
+        snowflake_ids = internal_frame.data_column_snowflake_quoted_identifiers[0:1]
+        if include_index:
+            snowflake_ids.extend(
+                internal_frame.index_column_snowflake_quoted_identifiers
+            )
+        return SnowflakeQueryCompiler(
+            internal_frame.update_snowflake_quoted_identifiers_with_expressions(
+                {col_id: normalize_column(col_id) for col_id in snowflake_ids}
+            ).frame
         )
 
     def dt_month_name(

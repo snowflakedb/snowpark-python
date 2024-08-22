@@ -56,6 +56,7 @@
 - Added support for `Series.dt.weekday`, `Series.dt.time`, and `DatetimeIndex.time`.
 - Added support for `Index.min` and `Index.max`.
 - Added support for `pd.merge_asof`.
+- Added support for `Series.dt.normalize` and `DatetimeIndex.normalize`.
 
 #### Bug Fixes
 
