@@ -15,6 +15,8 @@ from snowflake.snowpark.modin.plugin.docstrings.shared_docs import (
 )
 from snowflake.snowpark.modin.utils import _create_operator_docstring
 
+from .base import BasePandasDataset
+
 _shared_doc_kwargs = {
     "axes": "index",
     "klass": "Series",
@@ -35,7 +37,7 @@ axis : int or str, optional
 }
 
 
-class Series:
+class Series(BasePandasDataset):
     """
     Snowpark pandas representation of `pandas.Series` with a lazily-evaluated relational dataset.
 
