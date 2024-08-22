@@ -8807,6 +8807,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 labels, include_index=False
             )
         )
+
+        data_column_snowpark_pandas_types = [
+            SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(t)
+            for t in col_dtypes_map.values()
+        ]
+
         for ids, label in zip(col_ids, labels):
             for id in ids:
                 to_dtype = col_dtypes_map[label]
@@ -8826,7 +8832,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
-                astype_mapping
+                quoted_identifier_to_column_map=astype_mapping,
+                data_column_snowpark_pandas_types=data_column_snowpark_pandas_types,
             ).frame
         )
 
