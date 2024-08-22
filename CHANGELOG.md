@@ -45,6 +45,8 @@
 - Added limited support for the `Timedelta` type, including
   - support `copy`, `cache_result`, `shift`, `sort_index`.
   - `NotImplementedError` will be raised for the rest of methods that do not support `Timedelta`.
+  - support for subtracting two timestamps to get a Timedelta.
+  - support indexing with Timedelta data columns. 
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
@@ -52,7 +54,6 @@
 - Added support for `Index.__repr__`.
 - Added support for `DatetimeIndex.month_name` and `DatetimeIndex.day_name`.
 - Added support for `Series.dt.weekday`, `Series.dt.time`, and `DatetimeIndex.time`.
-- Added support for subtracting two timestamps to get a Timedelta.
 - Added support for `Index.min` and `Index.max`.
 
 #### Bug Fixes

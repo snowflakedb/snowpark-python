@@ -8014,8 +8014,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         BaseQueryCompiler
             New masked QueryCompiler.
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         # TODO: SNOW-884220 support multiindex
         # index can only be a query compiler or slice object
         assert isinstance(index, (SnowflakeQueryCompiler, slice))
@@ -8334,8 +8332,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         if self._modin_frame.is_multiindex(axis=0) and (
             is_scalar(index) or isinstance(index, tuple)
         ):
@@ -8600,8 +8596,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # STEP 1) Construct a temporary index column that contains the original index with position.
         # STEP 2) Perform an unpivot which flattens the original data columns into a single name and value rows
         # grouped by the temporary transpose index column.
-        self._raise_not_implemented_error_for_timedelta()
-
         unpivot_result = prepare_and_unpivot_for_transpose(
             frame, self, is_single_row=False
         )
