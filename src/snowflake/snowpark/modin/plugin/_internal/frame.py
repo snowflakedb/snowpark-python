@@ -1160,7 +1160,7 @@ class InternalFrame:
                 expressions, in the order of the keys of quoted_identifier_to_column_map.
 
         Returns:
-            UpdatedInternalFrameResult: A tuple contaning the new InternalFrame with updated column references, and a mapping
+            UpdatedInternalFrameResult: A tuple containing the new InternalFrame with updated column references, and a mapping
                                         of the old column ids to the new column ids.
 
         Raises:
