@@ -44,7 +44,8 @@
 #### New Features
 
 - Added limited support for the `Timedelta` type, including
-  - support `copy`, `cache_result`, `shift`, `sort_index`.
+  - supporting tracking the Timedelta type through `copy`, `cache_result`, `shift`, `sort_index`.
+  - converting non-timedelta to timedelta via `astype`. 
   - `NotImplementedError` will be raised for the rest of methods that do not support `Timedelta`.
   - support for subtracting two timestamps to get a Timedelta.
   - support indexing with Timedelta data columns. 
