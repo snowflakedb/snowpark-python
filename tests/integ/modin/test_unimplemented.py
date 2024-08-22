@@ -196,8 +196,6 @@ UNSUPPORTED_INDEX_METHODS = [
     lambda idx: idx.is_interval(),
     lambda idx: idx.is_numeric(),
     lambda idx: idx.is_object(),
-    lambda idx: idx.min(),
-    lambda idx: idx.max(),
     lambda idx: idx.repeat(),
     lambda idx: idx.where(),
     lambda idx: idx.take(),
