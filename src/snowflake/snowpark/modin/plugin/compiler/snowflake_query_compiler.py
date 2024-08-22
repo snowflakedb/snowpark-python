@@ -410,6 +410,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 finally:
                     ErrorMessage.not_implemented_for_timedelta(method)
 
+    def _warn_lost_snowpark_pandas_type(self) -> None:
+        """Warn Snowpark pandas type can be lost in current operation."""
+        try:
+            method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
+            snowpark_pandas_types = [
+                type(t).__name__
+                for t in set(
+                    self._modin_frame.cached_data_column_snowpark_pandas_types
+                    + self._modin_frame.cached_index_column_snowpark_pandas_types
+                )
+                if t is not None
+            ]
+            if snowpark_pandas_types:
+                WarningMessage.lost_type_warning(
+                    method,
+                    ", ".join(snowpark_pandas_types),
+                )
+        except Exception:
+            pass
+
     def snowpark_pandas_type_immutable_check(func: Callable) -> Any:
         """The decorator to check on SnowflakeQueryCompiler methods which return a new SnowflakeQueryCompiler.
         It verifies the cached Snowpark pandas types should not be changed.
@@ -1324,7 +1344,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         index_label: Optional[IndexLabel] = None,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
     ) -> None:
-        self._raise_not_implemented_error_for_timedelta()
+        self._warn_lost_snowpark_pandas_type()
 
         if if_exists not in ("fail", "replace", "append"):
             # Same error message as native pandas.
@@ -1369,7 +1389,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         For details, please see comment in _to_snowpark_dataframe_of_pandas_dataframe.
         """
-        self._raise_not_implemented_error_for_timedelta()
+        self._warn_lost_snowpark_pandas_type()
 
         return self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
             index, index_label

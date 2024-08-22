@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 import re
 
 import modin.pandas as pd
@@ -202,3 +203,19 @@ def test_to_snowpark_with_none_data_label_raises(native_pandas_df_basic) -> None
     )
     with pytest.raises(ValueError, match=message):
         snow_dataframe.to_snowpark()
+
+
+@sql_count_checker(query_count=0)
+def test_timedelta_to_snowpark(test_table_name, caplog):
+    with caplog.at_level(logging.WARNING):
+        df = pd.DataFrame(
+            {
+                "a": [1, 2, 3],
+                "b": [4, 5, 6],
+                "t": native_pd.timedelta_range("1 days", periods=3),
+            }
+        )
+        sp = df.to_snowpark(index=False)
+        assert sp.dtypes[-1] == ('"t"', "bigint")
+        print(sp.dtypes)
+        assert "`TimedeltaType` may be lost in `to_snowpark`'s result" in caplog.text
