@@ -493,8 +493,7 @@ class Session:
 "python.connector.session.id" : {self._session_id},
 "os.name" : {get_os_name()}
 """
-        self._session_stage = random_name_for_temp_object(TempObjectType.STAGE)
-        self._stage_created = False
+        self._session_stage = None
 
         if isinstance(conn, MockServerConnection):
             self._udf_registration = MockUDFRegistration(self)
@@ -2229,17 +2228,25 @@ class Session:
         for uploading and storing temporary artifacts for this session.
         These artifacts include libraries and packages for UDFs that you define
         in this session via :func:`add_import`.
+
+        Note:
+            This temporary stage is created once under the current database and schema of a Snowpark session.
+            Therefore, if you switch database or schema during the session, the stage will not be re-created
+            in the new database or schema, and still references the stage in the old database or schema.
         """
-        stage_name = self.get_fully_qualified_name_if_possible(self._session_stage)
-        if not self._stage_created:
+        if not self._session_stage:
+            full_qualified_stage_name = self.get_fully_qualified_name_if_possible(
+                random_name_for_temp_object(TempObjectType.STAGE)
+            )
             self._run_query(
                 f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
-                stage if not exists {stage_name}",
+                stage if not exists {full_qualified_stage_name}",
                 is_ddl_on_temp_object=True,
                 statement_params=statement_params,
             )
-            self._stage_created = True
-        return f"{STAGE_PREFIX}{stage_name}"
+            # set the value after running the query to ensure atomicity
+            self._session_stage = full_qualified_stage_name
+        return f"{STAGE_PREFIX}{self._session_stage}"
 
     def _write_modin_pandas_helper(
         self,
