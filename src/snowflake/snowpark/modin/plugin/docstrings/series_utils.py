@@ -1787,11 +1787,61 @@ class CombinedDatetimelikeProperties:
 
     @property
     def daysinmonth():
-        pass
+        """
+        The number of days in the month.
+
+        Examples
+        --------
+        For Series:
+
+        period = pd.period_range('2020-1-1 00:00', '2020-3-1 00:00', freq='M')  # doctest: +SKIP
+        s = pd.Series(period)  # doctest: +SKIP
+        s
+        0   2020-01
+        1   2020-02
+        2   2020-03
+        dtype: period[M]
+        s.dt.days_in_month  # doctest: +SKIP
+        0    31
+        1    29
+        2    31
+        dtype: int64
+
+        For PeriodIndex:
+
+        idx = pd.PeriodIndex(["2023-01", "2023-02", "2023-03"], freq="M")  # doctest: +SKIP
+        idx.days_in_month   # It can be also entered as `daysinmonth`  # doctest: +SKIP
+        Index([31, 28, 31], dtype='int64')
+        """
 
     @property
     def days_in_month():
-        pass
+        """
+        The number of days in the month.
+
+        Examples
+        --------
+        For Series:
+
+        period = pd.period_range('2020-1-1 00:00', '2020-3-1 00:00', freq='M')  # doctest: +SKIP
+        s = pd.Series(period)  # doctest: +SKIP
+        s
+        0   2020-01
+        1   2020-02
+        2   2020-03
+        dtype: period[M]
+        s.dt.days_in_month  # doctest: +SKIP
+        0    31
+        1    29
+        2    31
+        dtype: int64
+
+        For PeriodIndex:
+
+        idx = pd.PeriodIndex(["2023-01", "2023-02", "2023-03"], freq="M")  # doctest: +SKIP
+        idx.days_in_month   # It can be also entered as `daysinmonth`  # doctest: +SKIP
+        Index([31, 28, 31], dtype='int64')
+        """
 
     @property
     def tz():
