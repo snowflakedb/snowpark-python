@@ -248,7 +248,7 @@ class TypeMapper:
             SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(p)
         )
         if snowpark_pandas_type is not None:
-            return snowpark_pandas_type()
+            return snowpark_pandas_type
 
         try:
             return PANDAS_TO_SNOWFLAKE_MAP[p]

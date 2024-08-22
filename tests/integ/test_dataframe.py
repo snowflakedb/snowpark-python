@@ -2838,6 +2838,63 @@ def test_write_table_with_clustering_keys_and_comment(
         Utils.drop_table(session, table_name3)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Clustering is a SQL feature",
+    run=False,
+)
+def test_write_table_with_all_options(session):
+    try:
+        table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        df = session.create_dataframe(
+            [],
+            schema=StructType(
+                [
+                    StructField("c1", DateType()),
+                    StructField("c2", StringType()),
+                    StructField("c3", IntegerType()),
+                ]
+            ),
+        )
+        comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+
+        with session.query_history() as history:
+            df.write.save_as_table(
+                table_name,
+                mode="overwrite",
+                clustering_keys=["c1", "c2"],
+                comment=comment,
+                enable_schema_evolution=True,
+                data_retention_time=1,
+                max_data_extension_time=4,
+                change_tracking=True,
+                copy_grants=True,
+            )
+        ddl = session._run_query(f"select get_ddl('table', '{table_name}')")[0][0]
+        assert 'cluster by ("C1", "C2")' in ddl
+        assert comment in ddl
+
+        # data retention and max data extension time cannot be queried from get_ddl
+        # we run a show parameters query to get the values for these parameters
+        show_params_sql = f"show parameters like '%TIME_IN_DAYS%' in table {table_name}"
+        show_params_result = session._run_query(show_params_sql)
+        for row in show_params_result:
+            if row[0] == "DATA_RETENTION_TIME_IN_DAYS":
+                assert row[1] == "1"
+            elif row[0] == "MAX_DATA_EXTENSION_TIME_IN_DAYS":
+                assert row[1] == "4"
+
+        for query in history.queries:
+            # for the create table query, check we set the following options
+            # because it does not show up in ddl, or table parameters
+            if f"CREATE  OR  REPLACE    TABLE  {table_name}" in query.sql_text:
+                assert "ENABLE_SCHEMA_EVOLUTION  = True" in query.sql_text
+                assert "CHANGE_TRACKING  = True" in query.sql_text
+                assert "COPY GRANTS" in query.sql_text
+    finally:
+        Utils.drop_table(session, table_name)
+
+
 @pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
@@ -2898,16 +2955,31 @@ def test_append_existing_table(session, local_testing_mode):
     reason="Dynamic table is a SQL feature",
     run=False,
 )
-def test_create_dynamic_table(session, table_name_1):
+@pytest.mark.parametrize("is_transient", [True, False])
+def test_create_dynamic_table(session, table_name_1, is_transient):
     try:
         df = session.table(table_name_1)
         dt_name = Utils.random_name_for_temp_object(TempObjectType.DYNAMIC_TABLE)
         comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+        if is_transient:
+            # for transient dynamic tables, we cannot set data retention time
+            # and max data extension time
+            data_retention_time = None
+            max_data_extension_time = None
+        else:
+            data_retention_time = 1
+            max_data_extension_time = 4
         df.create_or_replace_dynamic_table(
             dt_name,
             warehouse=session.get_current_warehouse(),
             lag="1000 minutes",
             comment=comment,
+            refresh_mode="FULL",
+            initialize="ON_SCHEDULE",
+            clustering_keys=["num"],
+            is_transient=is_transient,
+            data_retention_time=data_retention_time,
+            max_data_extension_time=max_data_extension_time,
         )
         # scheduled refresh is not deterministic which leads to flakiness that dynamic table is not initialized
         # here we manually refresh the dynamic table
@@ -2916,8 +2988,106 @@ def test_create_dynamic_table(session, table_name_1):
         assert len(res) == 1
 
         ddl_sql = f"select get_ddl('TABLE', '{dt_name}')"
+        ddl_result = session.sql(ddl_sql).collect()[0][0]
+        assert comment in ddl_result, ddl_result
+        assert "refresh_mode = FULL" in ddl_result, ddl_result
+        assert "initialize = ON_SCHEDULE" in ddl_result, ddl_result
+        assert 'cluster by ("NUM")' in ddl_result, ddl_result
+        if is_transient:
+            assert "create or replace transient" in ddl_result, ddl_result
+        else:
+            # data retention and max data extension time cannot be queried from get_ddl
+            # we run a show parameters query to get the values for these parameters
+            show_params_sql = (
+                f"show parameters like '%TIME_IN_DAYS%' in table {dt_name}"
+            )
+            show_params_result = session.sql(show_params_sql).collect()
+            for row in show_params_result:
+                if row[0] == "DATA_RETENTION_TIME_IN_DAYS":
+                    assert row[1] == "1"
+                elif row[0] == "MAX_DATA_EXTENSION_TIME_IN_DAYS":
+                    assert row[1] == "4"
+
+    finally:
+        Utils.drop_dynamic_table(session, dt_name)
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Dynamic table is a SQL feature",
+    run=False,
+)
+def test_create_dynamic_table_mode(session, table_name_1):
+    """We test create dynamic table modes in using the following sequence of
+    commands:
+    0. Drop dynamic table t1 if it exists
+    1. Create a dynamic table t1 with mode "errorifexists" (expect to succeed)
+    2. Create dynamic table t1 again with mode "errorifexists" (expect to fail)
+    3. Create dynamic table t1 again with mode "overwrite" and comment c1 (expect to succeed)
+    4a. Create dynamic table t1 again with mode "ignore" and no comment (expect to succeed)
+    4b. Check ddl for table t1 to ensure that the comment is still c1.
+    5a. Drop dynamic table t1.
+    5b. Create dynamic table t1 with mode "ignore" (expect to succeed)
+    5c. Check ddl for table t1 to ensure that comment is empty.
+
+    Args:
+        session: _description_
+        table_name_1: _description_
+    """
+    try:
+        df = session.table(table_name_1)
+        dt_name = Utils.random_name_for_temp_object(TempObjectType.DYNAMIC_TABLE)
+        comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+        ddl_sql = f"select get_ddl('TABLE', '{dt_name}')"
+
+        # step 0
+        Utils.drop_dynamic_table(session, dt_name)
+
+        # step 1
+        df.create_or_replace_dynamic_table(
+            dt_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+            mode="errorifexists",
+        )
+
+        # step 2
+        with pytest.raises(SnowparkSQLException, match=f"'{dt_name}' already exists."):
+            df.create_or_replace_dynamic_table(
+                dt_name,
+                warehouse=session.get_current_warehouse(),
+                lag="1000 minutes",
+                mode="errorifexists",
+            )
+
+        # step 3
+        df.create_or_replace_dynamic_table(
+            dt_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+            mode="overwrite",
+            comment=comment,
+        )
         assert comment in session.sql(ddl_sql).collect()[0][0]
 
+        # step 4
+        df.create_or_replace_dynamic_table(
+            dt_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+            mode="ignore",
+        )
+        assert comment in session.sql(ddl_sql).collect()[0][0]
+
+        # step 5
+        Utils.drop_dynamic_table(session, dt_name)
+        df.create_or_replace_dynamic_table(
+            dt_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+            mode="ignore",
+        )
+        assert comment not in session.sql(ddl_sql).collect()[0][0]
     finally:
         Utils.drop_dynamic_table(session, dt_name)
 
