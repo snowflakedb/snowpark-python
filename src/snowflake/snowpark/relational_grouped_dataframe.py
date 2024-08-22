@@ -4,6 +4,7 @@
 #
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector.options import pandas
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -24,11 +25,16 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate, Pivot
+from snowflake.snowpark._internal.ast_utils import (
+    build_expr_from_python_val,
+    with_src_position,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import relational_group_df_api_usage
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
+    parse_positional_args_to_list_variadic,
     prepare_pivot_arguments,
 )
 from snowflake.snowpark.column import Column
@@ -108,6 +114,13 @@ class GroupingSets:
     """
 
     def __init__(self, *sets: Union[Column, List[Column]]) -> None:
+        self._ast = with_src_position(proto.SpGroupingSets())
+        set_list, self._ast.sets.variadic = parse_positional_args_to_list_variadic(
+            *sets
+        )
+        for s in set_list:
+            build_expr_from_python_val(self._ast.sets.args.add(), s)
+
         prepared_sets = parse_positional_args_to_list(*sets)
         prepared_sets = (
             prepared_sets if isinstance(prepared_sets[0], list) else [prepared_sets]
@@ -126,14 +139,21 @@ class RelationalGroupedDataFrame:
     """
 
     def __init__(
-        self, df: DataFrame, grouping_exprs: List[Expression], group_type: _GroupType
+        self,
+        df: DataFrame,
+        grouping_exprs: List[Expression],
+        group_type: _GroupType,
+        ast_stmt: Optional[proto.Assign] = None,
     ) -> None:
         self._df = df
         self._grouping_exprs = grouping_exprs
         self._group_type = group_type
         self._df_api_call = None
+        self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
 
-    def _to_df(self, agg_exprs: List[Expression]) -> DataFrame:
+    def _to_df(
+        self, agg_exprs: List[Expression], _ast_stmt: Optional[proto.Assign] = None
+    ) -> DataFrame:
         aliased_agg = []
         for grouping_expr in self._grouping_exprs:
             if isinstance(grouping_expr, GroupingSetsExpression):
@@ -197,11 +217,14 @@ class RelationalGroupedDataFrame:
                 analyzer=self._df._session._analyzer,
             )
 
-        return DataFrame(self._df._session, group_plan)
+        return DataFrame(self._df._session, group_plan, ast_stmt=_ast_stmt)
 
     @relational_group_df_api_usage
     def agg(
-        self, *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]]
+        self,
+        *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]],
+        _ast_stmt: Optional[proto.Assign] = None,
+        _emit_ast: bool = True,
     ) -> DataFrame:
         """Returns a :class:`DataFrame` with computed aggregates. See examples in :meth:`DataFrame.group_by`.
 
@@ -230,10 +253,25 @@ class RelationalGroupedDataFrame:
                 and isinstance(e[1], str)
             )
 
-        exprs = parse_positional_args_to_list(*exprs)
+        exprs, is_variadic = parse_positional_args_to_list_variadic(*exprs)
         # special case for single list or tuple
         if is_valid_tuple_for_agg(exprs):
             exprs = [exprs]
+
+        # AST.
+        stmt = None
+        if _emit_ast:
+            if _ast_stmt is None:
+                stmt = self._df._session._ast_batch.assign()
+                ast = with_src_position(
+                    stmt.expr.sp_relational_grouped_dataframe_agg, stmt
+                )
+                self._set_ast_ref(ast.grouped_df)
+                ast.exprs.variadic = is_variadic
+                for e in exprs:
+                    build_expr_from_python_val(ast.exprs.args.add(), e)
+            else:
+                stmt = _ast_stmt
 
         agg_exprs = []
         if len(exprs) > 0 and isinstance(exprs[0], dict):
@@ -261,7 +299,7 @@ class RelationalGroupedDataFrame:
                         "contain only Column objects, or pairs of Column object (or column name) and strings."
                     )
 
-        return self._to_df(agg_exprs)
+        return self._to_df(agg_exprs, _ast_stmt=stmt)
 
     def apply_in_pandas(
         self,
@@ -526,3 +564,13 @@ class RelationalGroupedDataFrame:
             )
         else:
             return self.builtin(func_name)(*cols)
+
+    def _set_ast_ref(
+        self, expr_builder: proto.SpRelationalGroupedDataframeExpr
+    ) -> None:
+        """
+        Given a field builder expression of the AST type SpRelationalGroupedDataframeExpr, points the builder to reference this RelationalGroupedDataFrame.
+        """
+        # TODO: remove the None guard below once we generate the correct AST.
+        if self._ast_id is not None:
+            expr_builder.sp_relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id

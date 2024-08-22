@@ -1,0 +1,36 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.select(col("A").like("test"))
+
+df = df.select(col("A").regexp("test"))
+
+df = df.select(col("A").startswith("test"))
+
+df = df.select(col("A").endswith("test"))
+
+df = df.select(col("A").substr(col("B"), col("C")))
+
+df = df.select(col("A").collate("test"))
+
+df = df.select(col("A").contains("test"))
+
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.select(col("A").like("test"))
+
+df = df.select(col("A").regexp("test"))
+
+df = df.select(col("A").startswith("test"))
+
+df = df.select(col("A").endswith("test"))
+
+df = df.select(col("A").substr(col("B"), col("C")))
+
+df = df.select(col("A").collate("test"))
+
+df = df.select(col("A").contains("test"))

@@ -1,0 +1,12 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.select(col("A")[2], col("B")["test"])
+
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.select(col("A")[2], col("B")["test"])

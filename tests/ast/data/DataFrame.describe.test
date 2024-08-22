@@ -1,0 +1,19 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df1 = df.describe()
+
+df2 = df.describe("num")
+
+df3 = df.describe("STR", "num")
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df1 = df.describe()
+
+df2 = df.describe("num")
+
+df3 = df.describe("STR", "num")

@@ -1,0 +1,11 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df1 = df.distinct()
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df1 = df.distinct()

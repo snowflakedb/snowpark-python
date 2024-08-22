@@ -1,0 +1,73 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df2 = df.stat.approx_quantile("NUM", [0.5])
+
+df3 = df.stat.approx_quantile(["NUM", "NUM"], [0, 0.2, 0.4], statement_params={'a':'b'})
+
+df = session.create_dataframe([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
+
+df4 = df.stat.cov("a", "b")
+
+df5 = df.stat.cov("a", "b", statement_params={'a':'b'})
+
+df4 = df.stat.corr("a", "b")
+
+df5 = df.stat.corr("a", "b", statement_params={'a':'b'})
+
+df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 1), (2, 3), (3, 2), (3, 3)], schema=["key", "value"])
+
+ct = df.stat.crosstab("key", "value")
+
+ct2 = df.stat.crosstab("key", "value", statement_params={'a':'b'})
+
+df = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=["name", "age"])
+
+fractions = {"Bob": 0.5, "Nico": 1.0}
+
+sample_df = df.stat.sample_by("name", fractions)
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df2 = df.stat.approx_quantile(["NUM"], [0.5])
+
+df2
+
+df3 = df.stat.approx_quantile(["NUM", "NUM"], [0.0, 0.2, 0.4], statement_params={"a": "b"})
+
+df3
+
+df = session.create_dataframe([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
+
+df4 = df.stat.cov("a", "b")
+
+df4
+
+df5 = df.stat.cov("a", "b", statement_params={"a": "b"})
+
+df5
+
+df4 = df.stat.corr("a", "b")
+
+df4
+
+df5 = df.stat.corr("a", "b", statement_params={"a": "b"})
+
+df5
+
+df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 1), (2, 3), (3, 2), (3, 3)], schema=["key", "value"])
+
+ct = df.stat.crosstab("key", "value")
+
+ct
+
+ct2 = df.stat.crosstab("key", "value", statement_params={"a": "b"})
+
+ct2
+
+df = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=["name", "age"])
+
+sample_df = df.stat.sample_by("name", {"Bob": 0.5}{"Nico": 1.0})

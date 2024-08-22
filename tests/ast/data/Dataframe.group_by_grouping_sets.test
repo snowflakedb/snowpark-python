@@ -1,0 +1,49 @@
+## TEST CASE
+
+from snowflake.snowpark.relational_grouped_dataframe import GroupingSets
+
+df1 = session.table("test_table")
+
+df2 = df1.group_by_grouping_sets(GroupingSets(col("a")))
+
+df3 = df1.group_by_grouping_sets(GroupingSets([col("a")]))
+
+df4 = df1.group_by_grouping_sets(GroupingSets([col("a")], [col("b")]))
+
+df5 = df1.group_by_grouping_sets(GroupingSets([col("a"), col("b")], [col("c")]))
+
+g1 = GroupingSets([col("a")], [col("b")])
+
+df6 = df1.group_by_grouping_sets(g1)
+
+g2 = GroupingSets([col("a") , col("b")], [col("c"), col("d")])
+
+df7 = df1.group_by_grouping_sets(g2)
+
+g3 = GroupingSets([col("a"), col("b")])
+
+df8 = df1.group_by_grouping_sets(g3)
+
+g4 = GroupingSets(col("a"), col("b"))
+
+df9 = df1.group_by_grouping_sets(g4)
+
+## EXPECTED OUTPUT
+
+df1 = session.table("test_table")
+
+df2 = df1.group_by_grouping_sets(GroupingSets(col("a")))
+
+df3 = df1.group_by_grouping_sets(GroupingSets([col("a")]))
+
+df4 = df1.group_by_grouping_sets(GroupingSets([col("a")], [col("b")]))
+
+df5 = df1.group_by_grouping_sets(GroupingSets([col("a"), col("b")], [col("c")]))
+
+df6 = df1.group_by_grouping_sets(GroupingSets([col("a")], [col("b")]))
+
+df7 = df1.group_by_grouping_sets(GroupingSets([col("a"), col("b")], [col("c"), col("d")]))
+
+df8 = df1.group_by_grouping_sets(GroupingSets([col("a"), col("b")]))
+
+df9 = df1.group_by_grouping_sets(GroupingSets(col("a"), col("b")))

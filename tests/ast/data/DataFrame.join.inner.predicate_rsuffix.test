@@ -1,0 +1,17 @@
+## TEST CASE
+
+df1 = session.table("test_table")
+
+df2 = session.table("test_table")
+
+df3 = df1.join(df2, (df1["num"] < df2["num"]) & (df1["str"] == df2["str"]), rsuffix="_2").select('*')
+
+## EXPECTED OUTPUT
+
+df1 = session.table("test_table")
+
+df2 = session.table("test_table")
+
+df3 = df1.join(df2, on=(df1["num"] < df2["num"]) & (df1["str"] == df2["str"]), how="inner")
+
+df3 = df3.select("*")

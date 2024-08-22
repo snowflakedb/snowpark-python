@@ -1,0 +1,12 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.select(col("A").between(col("B"), 42))
+
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.select(col("A").between(col("B"), 42))

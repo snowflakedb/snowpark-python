@@ -1,0 +1,35 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df.collect()
+
+df.collect(block=False)
+
+df.collect(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+df.collect(block=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"}, log_on_exception=True, case_sensitive=False)
+
+df.collect_nowait()
+
+df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, log_on_exception=True, case_sensitive=False)
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df.collect()
+
+df.collect(block=False)
+
+df.collect(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+df.collect(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False, log_on_exception=True, case_sensitive=False)
+
+df.collect_nowait()
+
+df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, log_on_exception=True, case_sensitive=False)

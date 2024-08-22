@@ -325,6 +325,74 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
     return ColumnEmulator(data=[res], sf_type=ColumnType(res_type, False))
 
 
+@patch("stddev")
+def mock_stddev(column: ColumnEmulator) -> ColumnEmulator:
+    if not isinstance(column.sf_type.datatype, (_NumericType, NullType)):
+        raise SnowparkLocalTestingException(
+            f"Cannot compute stddev on a column of type {column.sf_type.datatype}"
+        )
+
+    if isinstance(column.sf_type.datatype, NullType) or column.isna().all():
+        return ColumnEmulator(data=[None], sf_type=ColumnType(NullType(), True))
+    elif isinstance(column.sf_type.datatype, _IntegralType):
+        res_type = DecimalType(38, 6)
+    elif isinstance(column.sf_type.datatype, DecimalType):
+        precision, scale = (
+            column.sf_type.datatype.precision,
+            column.sf_type.datatype.scale,
+        )
+        precision = max(38, column.sf_type.datatype.precision + 12)
+        if scale <= 6:
+            scale = scale + 6
+        elif scale < 12:
+            scale = 12
+        res_type = DecimalType(precision, scale)
+    else:
+        assert isinstance(column.sf_type.datatype, _FractionalType)
+        res_type = FloatType()
+
+    notna = column[~column.isna()]
+    res = notna.std()
+    if isinstance(res_type, Decimal):
+        res = round(res, scale)
+    return ColumnEmulator(data=[res], sf_type=ColumnType(res_type, False))
+
+
+@patch("approx_percentile_accumulate")
+def mock_approx_percentile_accumulate(
+    column: Union[TableEmulator, ColumnEmulator]
+) -> ColumnEmulator:
+    # TODO: Fix, returns dummy of 42 for now.
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
+
+
+@patch("approx_percentile_estimate")
+def mock_approx_percentile_estimate(
+    column1: Union[TableEmulator, ColumnEmulator],
+    column2: Union[TableEmulator, ColumnEmulator],
+) -> ColumnEmulator:
+    # TODO: Fix, returns dummy of 42 for now.
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
+
+
+@patch("covar_samp")
+def mock_covar_samp(
+    column1: Union[TableEmulator, ColumnEmulator],
+    column2: Union[TableEmulator, ColumnEmulator],
+) -> ColumnEmulator:
+    # TODO: Fix, returns dummy of 42 for now.
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
+
+
+@patch("corr")
+def mock_corr_samp(
+    column1: Union[TableEmulator, ColumnEmulator],
+    column2: Union[TableEmulator, ColumnEmulator],
+) -> ColumnEmulator:
+    # TODO: Fix, returns dummy of 42 for now.
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
+
+
 @patch("count_distinct")
 def mock_count_distinct(*cols: ColumnEmulator) -> ColumnEmulator:
     """
@@ -1259,6 +1327,10 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
                 return x != 0
 
         new_col = column.apply(lambda x: try_convert(convert_num_to_bool, try_cast, x))
+        new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
+        return new_col
+    elif isinstance(column.sf_type.datatype, VariantType):
+        new_col = column.apply(lambda x: try_convert(bool, try_cast, x))
         new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
         return new_col
     elif isinstance(column.sf_type.datatype, VariantType):

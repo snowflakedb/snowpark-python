@@ -1,0 +1,116 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.select(col("A").cast("null"))
+
+df = df.select(col("A").cast("binary"))
+
+df = df.select(col("A").cast("boolean"))
+
+df = df.select(col("A").cast("date"))
+
+df = df.select(col("A").cast("string"))
+
+df = df.select(col("A").cast("byte"))
+
+df = df.select(col("A").cast("short"))
+
+df = df.select(col("A").cast("integer"))
+
+df = df.select(col("A").cast("long"))
+
+df = df.select(col("A").cast("float"))
+
+df = df.select(col("A").cast("double"))
+
+df = df.select(col("A").cast("timestamp"))
+
+df = df.select(col("A").cast("time"))
+
+df = df.select(col("A").cast("array"))
+
+df = df.select(col("A").cast("map"))
+
+df = df.select(col("A").cast(VectorType(float, 42)))
+
+df = df.select(col("A").cast("struct"))
+
+df = df.select(col("A").cast("variant"))
+
+df = df.select(col("A").cast("geography"))
+
+df = df.select(col("A").cast("geometry"))
+
+df = df.select(col("A").cast("int"))
+
+df = df.select(col("A").cast("smallint"))
+
+df = df.select(col("A").cast("byteint"))
+
+df = df.select(col("A").cast("bigint"))
+
+df = df.select(col("A").cast("number"))
+
+df = df.select(col("A").cast("numeric"))
+
+df = df.select(col("A").cast("object"))
+
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.select(col("A").cast(NullType()))
+
+df = df.select(col("A").cast(BinaryType()))
+
+df = df.select(col("A").cast(BooleanType()))
+
+df = df.select(col("A").cast(DateType()))
+
+df = df.select(col("A").cast(StringType()))
+
+df = df.select(col("A").cast(ByteType()))
+
+df = df.select(col("A").cast(ShortType()))
+
+df = df.select(col("A").cast(IntegerType()))
+
+df = df.select(col("A").cast(LongType()))
+
+df = df.select(col("A").cast(FloatType()))
+
+df = df.select(col("A").cast(DoubleType()))
+
+df = df.select(col("A").cast(TimestampType()))
+
+df = df.select(col("A").cast(TimeType()))
+
+df = df.select(col("A").cast(ArrayType(StringType(), structured=False)))
+
+df = df.select(col("A").cast(MapType(StringType(), StringType(), structured=False)))
+
+df = df.select(col("A").cast(VectorType(FloatType(), 42)))
+
+df = df.select(col("A").cast(StructType([], structured=False)))
+
+df = df.select(col("A").cast(VariantType()))
+
+df = df.select(col("A").cast(GeographyType()))
+
+df = df.select(col("A").cast(GeometryType()))
+
+df = df.select(col("A").cast(IntegerType()))
+
+df = df.select(col("A").cast(ShortType()))
+
+df = df.select(col("A").cast(ByteType()))
+
+df = df.select(col("A").cast(LongType()))
+
+df = df.select(col("A").cast(DecimalType(38, 0)))
+
+df = df.select(col("A").cast(DecimalType(38, 0)))
+
+df = df.select(col("A").cast(MapType(StringType(), StringType(), structured=False)))

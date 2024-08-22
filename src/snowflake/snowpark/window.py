@@ -5,9 +5,11 @@
 
 """Window frames in Snowpark."""
 import sys
-from typing import List, Tuple, Union
+from enum import IntEnum
+from typing import List, Optional, Tuple, Union
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.expression import Expression, Literal
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.window_expression import (
@@ -21,6 +23,10 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     WindowExpression,
     WindowFrame,
     WindowSpecDefinition,
+)
+from snowflake.snowpark._internal.ast_utils import (
+    build_expr_from_snowpark_column_or_python_val,
+    with_src_position,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import parse_positional_args_to_list
@@ -52,6 +58,12 @@ def _convert_boundary_to_expr(start: int, end: int) -> Tuple[Expression, Express
     return boundary_start, boundary_end
 
 
+class WindowRelativePosition(IntEnum):
+    UNBOUNDED_PRECEDING = -sys.maxsize
+    UNBOUNDED_FOLLOWING = sys.maxsize
+    CURRENT_ROW = 0
+
+
 class Window:
     """
     Contains functions to form :class:`WindowSpec`. See
@@ -68,15 +80,15 @@ class Window:
     """
 
     #: Returns a value representing unbounded preceding.
-    UNBOUNDED_PRECEDING: int = -sys.maxsize
+    UNBOUNDED_PRECEDING: int = WindowRelativePosition.UNBOUNDED_PRECEDING
     unboundedPreceding: int = UNBOUNDED_PRECEDING
 
     #: Returns a value representing unbounded following.
-    UNBOUNDED_FOLLOWING: int = sys.maxsize
+    UNBOUNDED_FOLLOWING: int = WindowRelativePosition.UNBOUNDED_FOLLOWING
     unboundedFollowing: int = UNBOUNDED_FOLLOWING
 
     #: Returns a value representing current row.
-    CURRENT_ROW: int = 0
+    CURRENT_ROW: int = WindowRelativePosition.CURRENT_ROW
     currentRow: int = CURRENT_ROW
 
     @staticmethod
@@ -112,7 +124,10 @@ class Window:
         return Window._spec().order_by(*cols)
 
     @staticmethod
-    def rows_between(start: int, end: int) -> "WindowSpec":
+    def rows_between(
+        start: Union[int, WindowRelativePosition],
+        end: Union[int, WindowRelativePosition],
+    ) -> "WindowSpec":
         """
         Returns a :class:`WindowSpec` object with the row frame clause.
 
@@ -132,7 +147,10 @@ class Window:
         return Window._spec().rows_between(start, end)
 
     @staticmethod
-    def range_between(start: int, end: int) -> "WindowSpec":
+    def range_between(
+        start: Union[int, WindowRelativePosition],
+        end: Union[int, WindowRelativePosition],
+    ) -> "WindowSpec":
         """
         Returns a :class:`WindowSpec` object with the range frame clause.
 
@@ -161,6 +179,41 @@ class Window:
     rowsBetween = rows_between
 
 
+def _fill_window_spec_ast_with_relative_positions(
+    ast: proto.SpWindowSpecExpr,
+    start: Union[int, WindowRelativePosition],
+    end: Union[int, WindowRelativePosition],
+) -> None:
+    """
+    Helper function for AST generation to fill relative positions for window spec range-between, and rows-between. If value passed in for start/end is
+    of type WindowRelativePosition encoding will preserve for e.g. Window.CURRENT_ROW the syntax.
+
+    Args:
+        ast: AST where to fill start/end.
+        start: relative start position, integer or special enum value.
+        end: relative end position, integer or special enum value.
+    """
+    if isinstance(start, WindowRelativePosition):
+        if start == WindowRelativePosition.CURRENT_ROW:
+            ast.start.sp_window_relative_position__current_row = True
+        if start == WindowRelativePosition.UNBOUNDED_FOLLOWING:
+            ast.start.sp_window_relative_position__unbounded_following = True
+        if start == WindowRelativePosition.UNBOUNDED_PRECEDING:
+            ast.start.sp_window_relative_position__unbounded_preceding = True
+    else:
+        ast.start.sp_window_relative_position__position.n = start
+
+    if isinstance(end, WindowRelativePosition):
+        if end == WindowRelativePosition.CURRENT_ROW:
+            ast.end.sp_window_relative_position__current_row = True
+        if end == WindowRelativePosition.UNBOUNDED_FOLLOWING:
+            ast.end.sp_window_relative_position__unbounded_following = True
+        if end == WindowRelativePosition.UNBOUNDED_PRECEDING:
+            ast.end.sp_window_relative_position__unbounded_preceding = True
+    else:
+        ast.end.sp_window_relative_position__position.n = end
+
+
 class WindowSpec:
     """Represents a window frame clause."""
 
@@ -169,10 +222,17 @@ class WindowSpec:
         partition_spec: List[Expression],
         order_spec: List[SortOrder],
         frame: WindowFrame,
+        ast: Optional[proto.SpWindowSpecExpr] = None,
     ) -> None:
         self.partition_spec = partition_spec
         self.order_spec = order_spec
         self.frame = frame
+
+        if ast is None:
+            ast = proto.SpWindowSpecExpr()
+            window_ast = with_src_position(ast.sp_window_spec_empty)  # noqa: F841
+
+        self._ast = ast
 
     def partition_by(
         self,
@@ -195,7 +255,19 @@ class WindowSpec:
             for e in exprs
         ]
 
-        return WindowSpec(partition_spec, self.order_spec, self.frame)
+        ast = proto.SpWindowSpecExpr()
+        window_ast = with_src_position(ast.sp_window_spec_partition_by)
+        window_ast.wnd.CopyFrom(self._ast)
+        for e in exprs:
+            col_ast = window_ast.cols.add()
+            col = (
+                e
+                if isinstance(e, snowflake.snowpark.column.Column)
+                else snowflake.snowpark.column.Column(e)
+            )
+            build_expr_from_snowpark_column_or_python_val(col_ast, col)
+
+        return WindowSpec(partition_spec, self.order_spec, self.frame, ast=ast)
 
     def order_by(
         self,
@@ -225,41 +297,77 @@ class WindowSpec:
                 elif isinstance(e._expression, Expression):
                     order_spec.append(SortOrder(e._expression, Ascending()))
 
-        return WindowSpec(self.partition_spec, order_spec, self.frame)
+        ast = proto.SpWindowSpecExpr()
+        window_ast = with_src_position(ast.sp_window_spec_order_by)
+        window_ast.wnd.CopyFrom(self._ast)
+        for e in exprs:
+            col_ast = window_ast.cols.add()
+            col = (
+                e
+                if isinstance(e, snowflake.snowpark.column.Column)
+                else snowflake.snowpark.column.Column(e)
+            )
+            build_expr_from_snowpark_column_or_python_val(col_ast, col)
 
-    def rows_between(self, start: int, end: int) -> "WindowSpec":
+        return WindowSpec(self.partition_spec, order_spec, self.frame, ast=ast)
+
+    def rows_between(
+        self,
+        start: Union[int, WindowRelativePosition],
+        end: Union[int, WindowRelativePosition],
+    ) -> "WindowSpec":
         """
         Returns a new :class:`WindowSpec` object with the new row frame clause.
 
         See Also:
             - :func:`Window.rows_between`
         """
-        boundary_start, boundary_end = _convert_boundary_to_expr(start, end)
+        boundary_start, boundary_end = _convert_boundary_to_expr(int(start), int(end))
+
+        ast = proto.SpWindowSpecExpr()
+        window_ast = with_src_position(ast.sp_window_spec_rows_between)
+        _fill_window_spec_ast_with_relative_positions(window_ast, start, end)
+        window_ast.wnd.CopyFrom(self._ast)
+
         return WindowSpec(
             self.partition_spec,
             self.order_spec,
             SpecifiedWindowFrame(RowFrame(), boundary_start, boundary_end),
+            ast=ast,
         )
 
-    def range_between(self, start: int, end: int) -> "WindowSpec":
+    def range_between(
+        self,
+        start: Union[int, WindowRelativePosition],
+        end: Union[int, WindowRelativePosition],
+    ) -> "WindowSpec":
         """
         Returns a new :class:`WindowSpec` object with the new range frame clause.
 
         See Also:
             - :func:`Window.range_between`
         """
-        boundary_start, boundary_end = _convert_boundary_to_expr(start, end)
+        boundary_start, boundary_end = _convert_boundary_to_expr(int(start), int(end))
+
+        ast = proto.SpWindowSpecExpr()
+        window_ast = with_src_position(ast.sp_window_spec_range_between)
+        _fill_window_spec_ast_with_relative_positions(window_ast, start, end)
+        window_ast.wnd.CopyFrom(self._ast)
+
         return WindowSpec(
             self.partition_spec,
             self.order_spec,
             SpecifiedWindowFrame(RangeFrame(), boundary_start, boundary_end),
+            ast=ast,
         )
 
     def _with_aggregate(
-        self, aggregate: Expression
+        self, aggregate: Expression, ast: Optional[proto.Expr] = None
     ) -> "snowflake.snowpark.column.Column":
         spec = WindowSpecDefinition(self.partition_spec, self.order_spec, self.frame)
-        return snowflake.snowpark.column.Column(WindowExpression(aggregate, spec))
+        return snowflake.snowpark.column.Column(
+            WindowExpression(aggregate, spec), ast=ast
+        )
 
     orderBy = order_by
     partitionBy = partition_by

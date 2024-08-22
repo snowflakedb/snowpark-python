@@ -9,13 +9,38 @@ from pathlib import Path
 
 import pytest
 
-from snowflake.snowpark._internal.utils import warning_dict
+from snowflake.snowpark._internal.utils import COMPATIBLE_WITH_MODIN, warning_dict
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
 excluded_frontend_files = [
     "accessor.py",
 ]
+
+# the fixture only works when opentelemetry is installed
+try:
+    from opentelemetry import trace
+    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    @pytest.fixture(scope="session")
+    def dict_exporter():
+        resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
+        trace_provider = TracerProvider(resource=resource)
+        dict_exporter = InMemorySpanExporter()
+        processor = SimpleSpanProcessor(dict_exporter)
+        trace_provider.add_span_processor(processor)
+        trace.set_tracer_provider(trace_provider)
+        yield dict_exporter
+
+    opentelemetry_installed = True
+
+except ModuleNotFoundError:
+    opentelemetry_installed = False
 
 
 def is_excluded_frontend_file(path):
@@ -29,6 +54,16 @@ def pytest_addoption(parser):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
     parser.addoption("--local_testing_mode", action="store_true", default=False)
     parser.addoption("--enable_cte_optimization", action="store_true", default=False)
+
+
+def pytest_ignore_collect(collection_path, path, config):
+    # Need to check if opentelemetry is installed.
+    if not opentelemetry_installed and "open_telemetry" in str(path):
+        return True
+
+    # Python 3.8 is incompatible with Modin.
+    if not COMPATIBLE_WITH_MODIN and "modin" in str(path):
+        return True
 
 
 def pytest_collection_modifyitems(items) -> None:
@@ -49,7 +84,9 @@ def pytest_collection_modifyitems(items) -> None:
             if item_path == top_doctest_dir:
                 item.add_marker("doctest")
             elif "modin" in str(item_path):
-                if not is_excluded_frontend_file(item.fspath):
+                if not COMPATIBLE_WITH_MODIN:
+                    pass
+                elif not is_excluded_frontend_file(item.fspath):
                     item.add_marker("doctest")
                     item.add_marker(pytest.mark.usefixtures("add_doctest_imports"))
             else:
@@ -95,29 +132,3 @@ def clear_warning_dict():
     # clear the warning dict so that warnings from one test don't affect
     # warnings from other tests.
     warning_dict.clear()
-
-
-# the fixture only works when opentelemetry is installed
-try:
-    from opentelemetry import trace
-    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
-        InMemorySpanExporter,
-    )
-
-    @pytest.fixture(scope="session")
-    def dict_exporter():
-        resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
-        trace_provider = TracerProvider(resource=resource)
-        dict_exporter = InMemorySpanExporter()
-        processor = SimpleSpanProcessor(dict_exporter)
-        trace_provider.add_span_processor(processor)
-        trace.set_tracer_provider(trace_provider)
-        yield dict_exporter
-
-    opentelemetry_installed = True
-
-except ModuleNotFoundError:
-    opentelemetry_installed = False

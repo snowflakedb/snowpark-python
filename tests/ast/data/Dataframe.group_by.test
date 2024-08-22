@@ -1,0 +1,39 @@
+## TEST CASE
+
+df1 = session.table("test_table")
+
+df2 = df1.group_by()
+
+df3 = df1.group_by("num")
+
+df4 = df1.group_by(["num"])
+
+df5 = df1.group_by(["num", "str"])
+
+df6 = df1.group_by(col("num"))
+
+df7 = df1.group_by([col("num")])
+
+df8 = df1.group_by(col("num"), "str")
+
+df9 = df1.group_by([col("num"), "str"])
+
+## EXPECTED OUTPUT
+
+df1 = session.table("test_table")
+
+df2 = df1.group_by()
+
+df3 = df1.group_by("num")
+
+df4 = df1.group_by(["num"])
+
+df5 = df1.group_by(["num", "str"])
+
+df6 = df1.group_by(col("num"))
+
+df7 = df1.group_by([col("num")])
+
+df8 = df1.group_by(col("num"), "str")
+
+df9 = df1.group_by([col("num"), "str"])

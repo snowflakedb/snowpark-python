@@ -1,0 +1,19 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.select(col("NUM").in_(1, 2, 3))
+
+df = df.select(col("NUM").in_(df))
+
+df = df.select(col("NUM").in_([1, 2, 3]))
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.select(col("NUM").in_(1, 2, 3))
+
+df = df.select(col("NUM").in_(df))
+
+df = df.select(col("NUM").in_([1, 2, 3]))

@@ -1,0 +1,20 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.select(col("A").bitand(col("B")))
+
+df = df.select(col("A").bitor(col("B")))
+
+df = df.select(col("A").bitxor(col("B")))
+
+
+## EXPECTED OUTPUT
+
+df = session.table("test_table")
+
+df = df.select(col("A").bitand(col("B")))
+
+df = df.select(col("A").bitor(col("B")))
+
+df = df.select(col("A").bitxor(col("B")))

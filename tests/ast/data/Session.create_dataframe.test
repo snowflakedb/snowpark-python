@@ -1,0 +1,45 @@
+## TEST CASE
+
+from snowflake.snowpark import Row
+
+from snowflake.snowpark.types import IntegerType, StringType, StructField
+
+df = session.create_dataframe([Row(a=1, b=2, c=3), Row(c=4, a=2)])
+
+df2 = session.create_dataframe([Row(1, 3, 2), Row(1, 2, 3), Row(3, 2, 1)])
+
+df3 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+
+schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
+
+df4 = session.create_dataframe([[1, "snow"], [3, "flake"]], schema)
+
+df5 = session.create_dataframe([1, 2, 3, 4], schema=["a"])
+
+df6 = session.create_dataframe([[1, 2, 3, 4]], schema=["a", "b", "c", "d"])
+
+df7 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+
+df8 = session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
+
+df9 = session.create_dataframe([{"a": 1}, {"b": 2}])
+
+## EXPECTED OUTPUT
+
+df = session.create_dataframe([Row(a=1, b=2, c=3), Row(c=4, a=2)])
+
+df2 = session.create_dataframe([Row(1, 3, 2), Row(1, 2, 3), Row(3, 2, 1)])
+
+df3 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+
+df4 = session.create_dataframe([[1, "snow"], [3, "flake"]], schema=StructType([StructField("a", IntegerType(), nullable=True), StructField("b", StringType(16777216), nullable=True)], structured=False))
+
+df5 = session.create_dataframe([1, 2, 3, 4], schema=["a"])
+
+df6 = session.create_dataframe([[1, 2, 3, 4]], schema=["a", "b", "c", "d"])
+
+df7 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+
+df8 = session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
+
+df9 = session.create_dataframe([{"a": 1}, {"b": 2}])

@@ -6,11 +6,19 @@ import sys
 from typing import Any, Dict, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     SaveMode,
     SnowflakeCreateTable,
     TableCreationSource,
+)
+from snowflake.snowpark._internal.ast_utils import (
+    FAIL_ON_MISSING_AST,
+    build_expr_from_snowpark_column_or_col_name,
+    fill_sp_save_mode,
+    fill_sp_write_file,
+    with_src_position,
 )
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -39,6 +47,10 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+from logging import getLogger
+
+_logger = getLogger(__name__)
+
 
 class DataFrameWriter:
     """Provides methods for writing data from a :class:`DataFrame` to supported output destinations.
@@ -53,9 +65,14 @@ class DataFrameWriter:
        specified destination.
     """
 
-    def __init__(self, dataframe: "snowflake.snowpark.dataframe.DataFrame") -> None:
+    def __init__(
+        self,
+        dataframe: "snowflake.snowpark.dataframe.DataFrame",
+        _ast_stmt: Optional[proto.Assign] = None,
+    ) -> None:
         self._dataframe = dataframe
         self._save_mode = SaveMode.ERROR_IF_EXISTS
+        self._ast_stmt = _ast_stmt
 
     def mode(self, save_mode: str) -> "DataFrameWriter":
         """Set the save mode of this :class:`DataFrameWriter`.
@@ -78,7 +95,16 @@ class DataFrameWriter:
         Returns:
             The :class:`DataFrameWriter` itself.
         """
-        self._save_mode = str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")
+        self._save_mode: SaveMode = str_to_enum(
+            save_mode.lower(), SaveMode, "`save_mode`"
+        )
+
+        # Update AST if it exists.
+        if self._ast_stmt is not None:
+            fill_sp_save_mode(
+                self._ast_stmt.expr.sp_dataframe_write.save_mode, self._save_mode
+            )
+
         return self
 
     @overload
@@ -124,6 +150,7 @@ class DataFrameWriter:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         comment: Optional[str] = None,
+        _emit_ast: bool = True,
     ) -> Optional[AsyncJob]:
         """Writes the data to the specified table in a Snowflake database.
 
@@ -177,6 +204,75 @@ class DataFrameWriter:
             >>> session.table("my_transient_table").collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
+
+        if _emit_ast:
+            # Add an Assign node that applies SpWriteTable() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_write_table)
+
+            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+
+            # Function signature:
+            # table_name: Union[str, Iterable[str]],
+            # *,
+            # mode: Optional[str] = None,
+            # column_order: str = "index",
+            # create_temp_table: bool = False,
+            # table_type: Literal["", "temp", "temporary", "transient"] = "",
+            # clustering_keys: Optional[Iterable[ColumnOrName]] = None,
+            # statement_params: Optional[Dict[str, str]] = None,
+            # block: bool = True,
+            # comment: Optional[str] = None,
+
+            if isinstance(table_name, str):
+                expr.table_name.sp_table_name_flat.name = table_name
+            elif isinstance(table_name, Iterable):
+                expr.table_name.sp_table_name_structured.name.extend(table_name)
+
+            if mode is not None:
+                fill_sp_save_mode(expr.mode, mode)
+
+            expr.column_order = column_order
+            expr.create_temp_table = create_temp_table
+            expr.table_type = table_type
+
+            if clustering_keys is not None:
+                for col_or_name in clustering_keys:
+                    build_expr_from_snowpark_column_or_col_name(
+                        expr.clustering_keys.list.add(), col_or_name
+                    )
+
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = expr.statement_params.add()
+                    t._1 = k
+                    t._2 = v
+
+            expr.block = block
+
+            if comment is not None:
+                expr.comment.value = comment
+
+            self._dataframe._session._ast_batch.eval(repr)
+
+        if self._dataframe._session._conn.is_phase1_enabled():
+            # TODO: Logic here should be
+            # ast = self._dataframe._session._ast_batch.flush()
+            # res = self._dataframe._session._conn.ast_query(ast)
+            raise NotImplementedError(
+                "TODO: Implement save_as_table() with EvalResult in Phase1."
+            )
+
+        # Phase 0 flushes AST and encodes it as part of the query.
+        kwargs = {}
+        _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+
         with open_telemetry_context_manager(self.save_as_table, self._dataframe):
             save_mode = (
                 str_to_enum(mode.lower(), SaveMode, "'mode'")
@@ -236,6 +332,7 @@ class DataFrameWriter:
                 _statement_params=statement_params or self._dataframe._statement_params,
                 block=block,
                 data_type=_AsyncResultType.NO_RESULT,
+                **kwargs,
             )
             return result if not block else None
 
@@ -282,6 +379,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
         **copy_options: Optional[Dict[str, Any]],
     ) -> Union[List[Row], AsyncJob]:
         """Executes a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more files in a stage or external stage.
@@ -325,6 +423,51 @@ class DataFrameWriter:
             FIRST_NAME: [["John","Rick","Anthony"]]
             LAST_NAME: [["Berry","Berry","Davis"]]
         """
+
+        if _emit_ast:
+            # Add an Assign node that applies SpWriteCopyIntoLocation() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_write_copy_into_location)
+
+            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+
+            fill_sp_write_file(
+                expr,
+                location,
+                partition_by=partition_by,
+                format_type_options=format_type_options,
+                header=header,
+                statement_params=statement_params,
+                block=block,
+                **copy_options,
+            )
+
+            if file_format_name is not None:
+                expr.file_format_name.value = file_format_name
+
+            if file_format_type is not None:
+                expr.file_format_type.value = file_format_type
+
+            self._dataframe._session._ast_batch.eval(repr)
+
+        if self._dataframe._session._conn.is_phase1_enabled():
+            # TODO: Logic here should be
+            # ast = self._dataframe._session._ast_batch.flush()
+            # res = self._dataframe._session._conn.ast_query(ast)
+            raise NotImplementedError(
+                "TODO: Implement copy_inyo_location() with EvalResult in Phase1."
+            )
+
+        # Phase 0 flushes AST and encodes it as part of the query.
+        kwargs = {}
+        _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+
         stage_location = normalize_remote_file_or_dir(location)
         if isinstance(partition_by, str):
             partition_by = sql_expr(partition_by)._expression
@@ -350,6 +493,7 @@ class DataFrameWriter:
         return df._internal_collect_with_tag(
             statement_params=statement_params or self._dataframe._statement_params,
             block=block,
+            **kwargs,
         )
 
     def csv(
@@ -361,6 +505,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
         **copy_options: Optional[str],
     ) -> Union[List[Row], AsyncJob]:
         """Executes internally a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more CSV files in a stage or external stage.
@@ -387,6 +532,34 @@ class DataFrameWriter:
             >>> copy_result[0].rows_unloaded
             3
         """
+        # AST.
+        if _emit_ast:
+            # Add an Assign node that applies SpWriteCsv() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_write_csv)
+
+            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+
+            fill_sp_write_file(
+                expr,
+                location,
+                partition_by=partition_by,
+                format_type_options=format_type_options,
+                header=header,
+                statement_params=statement_params,
+                block=block,
+                **copy_options,
+            )
+
+            self._dataframe._session._ast_batch.eval(repr)
+
+        # copy_into_location will flush AST.
         return self.copy_into_location(
             location,
             file_format_type="CSV",
@@ -395,6 +568,7 @@ class DataFrameWriter:
             header=header,
             statement_params=statement_params,
             block=block,
+            _emit_ast=False,
             **copy_options,
         )
 
@@ -407,6 +581,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
         **copy_options: Optional[str],
     ) -> Union[List[Row], AsyncJob]:
         """Executes internally a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into a JSON file in a stage or external stage.
@@ -434,6 +609,34 @@ class DataFrameWriter:
             >>> copy_result[0].rows_unloaded
             1
         """
+        # AST.
+        if _emit_ast:
+            # Add an Assign node that applies SpWriteJson() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_write_json)
+
+            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+
+            fill_sp_write_file(
+                expr,
+                location,
+                partition_by=partition_by,
+                format_type_options=format_type_options,
+                header=header,
+                statement_params=statement_params,
+                block=block,
+                **copy_options,
+            )
+
+            self._dataframe._session._ast_batch.eval(repr)
+
+        # copy_into_location will flush AST.
         return self.copy_into_location(
             location,
             file_format_type="JSON",
@@ -442,6 +645,7 @@ class DataFrameWriter:
             header=header,
             statement_params=statement_params,
             block=block,
+            _emit_ast=False,
             **copy_options,
         )
 
@@ -454,6 +658,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
         **copy_options: Optional[str],
     ) -> Union[List[Row], AsyncJob]:
         """Executes internally a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into a PARQUET file in a stage or external stage.
@@ -481,6 +686,34 @@ class DataFrameWriter:
             >>> copy_result[0].rows_unloaded
             3
         """
+        # AST.
+        if _emit_ast:
+            # Add an Assign node that applies SpWriteParquet() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_write_parquet)
+
+            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+
+            fill_sp_write_file(
+                expr,
+                location,
+                partition_by=partition_by,
+                format_type_options=format_type_options,
+                header=header,
+                statement_params=statement_params,
+                block=block,
+                **copy_options,
+            )
+
+            self._dataframe._session._ast_batch.eval(repr)
+
+        # copy_into_location will flush AST.
         return self.copy_into_location(
             location,
             file_format_type="PARQUET",
@@ -489,6 +722,7 @@ class DataFrameWriter:
             header=header,
             statement_params=statement_params,
             block=block,
+            _emit_ast=False,
             **copy_options,
         )
 

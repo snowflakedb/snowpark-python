@@ -764,19 +764,8 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, CopyIntoLocationNode):
-            return self.plan_builder.copy_into_location(
-                query=resolved_children[logical_plan.child],
-                stage_location=logical_plan.stage_location,
-                source_plan=logical_plan,
-                partition_by=self.analyze(logical_plan.partition_by, expr_to_alias)
-                if logical_plan.partition_by
-                else None,
-                file_format_name=logical_plan.file_format_name,
-                file_format_type=logical_plan.file_format_type,
-                format_type_options=logical_plan.format_type_options,
-                header=logical_plan.header,
-                **logical_plan.copy_options,
-            )
+            # TODO: Fix local test mode.
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, TableUpdate):
             return MockExecutionPlan(logical_plan, self.session)
