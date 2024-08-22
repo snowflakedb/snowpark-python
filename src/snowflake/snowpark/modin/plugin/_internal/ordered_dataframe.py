@@ -795,7 +795,7 @@ class OrderedDataFrame:
 
         return OrderedDataFrame(
             self._to_projected_snowpark_dataframe_reference(
-                include_row_count_column=True
+                include_row_count_column=True, include_ordering_columns=True
             ),
             projected_column_snowflake_quoted_identifiers=self.projected_column_snowflake_quoted_identifiers,
             ordering_columns=ordering_columns,
