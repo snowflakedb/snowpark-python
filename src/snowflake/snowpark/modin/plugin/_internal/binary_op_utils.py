@@ -272,7 +272,7 @@ def compute_binary_op_between_snowpark_columns(
             first_datatype,
         )
 
-    binary_op_result_column, snowpark_pandas_result_type = None, None
+    binary_op_result_column = None
 
     # some operators and the data types have to be handled specially to align with pandas
     # However, it is difficult to fail early if the arithmetic operator is not compatible
@@ -335,7 +335,6 @@ def compute_binary_op_between_snowpark_columns(
     ):
         # Timestamp - NULL or NULL - Timestamp raises SQL compilation error,
         # but it's valid in pandas and returns NULL.
-        snowpark_pandas_result_type = NullType()
         binary_op_result_column = pandas_lit(None)
     elif (
         op == "sub"
@@ -344,7 +343,6 @@ def compute_binary_op_between_snowpark_columns(
     ):
         # Timestamp - NULL or NULL - Timestamp raises SQL compilation error,
         # but it's valid in pandas and returns NULL.
-        snowpark_pandas_result_type = NullType()
         binary_op_result_column = pandas_lit(None)
     elif (
         op == "sub"
@@ -365,7 +363,7 @@ def compute_binary_op_between_snowpark_columns(
 
     return SnowparkPandasColumn(
         snowpark_column=binary_op_result_column,
-        snowpark_pandas_type=snowpark_pandas_result_type,
+        snowpark_pandas_type=None,
     )
 
 
