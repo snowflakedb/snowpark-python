@@ -162,7 +162,10 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
         ast = with_src_position(expr_builder.tuple_val)
         for v in obj:
             build_expr_from_python_val(ast.vs.add(), v)
-
+    elif isinstance(obj, snowflake.snowpark.dataframe.DataFrame):
+        ast = with_src_position(expr_builder.sp_dataframe_ref)
+        assert obj._ast_id is not None, "Dataframe must have valid id"
+        ast.id.bitfield1 = obj._ast_id
     else:
         raise NotImplementedError("not supported type: %s" % type(obj))
 
