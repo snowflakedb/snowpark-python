@@ -43,6 +43,19 @@ else:
 logger = getLogger(__name__)
 
 LOCAL_TESTING_SUPPORTED_FILE_FORMAT = ("JSON",)
+READER_OPTIONS_ALIAS_MAP = {
+    "DELIMITER": "FIELD_DELIMITER",
+    "HEADER": "PARSE_HEADER",
+    "PATHGLOBFILTER": "PATTERN",
+    "FILENAMEPATTERN": "PATTERN",
+    "INFERSCHEMA": "INFER_SCHEMA",
+    "SEP": "FIELD_DELIMITER",
+    "LINESEP": "RECORD_DELIMITER",
+    "QUOTE": "FIELD_OPTIONALLY_ENCLOSED_BY",
+    "NULLVALUE": "NULL_IF",
+    "DATEFORMAT": "DATE_FORMAT",
+    "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
+}
 
 
 class DataFrameReader:
@@ -569,7 +582,14 @@ class DataFrameReader:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
         """
-        self._cur_options[key.upper()] = value
+        upper_key = key.upper()
+        alias_mapped_key = READER_OPTIONS_ALIAS_MAP.get(upper_key, upper_key)
+        if alias_mapped_key != upper_key:
+            logger.warning(
+                f"Option '{key}' is aliased to '{alias_mapped_key}'. You may see unexpected behavior. "
+                "Please refer to the format specific options for more information."
+            )
+        self._cur_options[alias_mapped_key] = value
         return self
 
     def options(self, configs: Dict) -> "DataFrameReader":
