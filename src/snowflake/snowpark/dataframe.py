@@ -1720,7 +1720,7 @@ class DataFrame:
         self.set_ast_ref(ast.df)
         ast.name = name
 
-        # TODO: Support alias in MockServerConnection
+        # TODO: Support alias in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
 
         if (
@@ -3699,7 +3699,7 @@ class DataFrame:
                 entry._1 = k
                 build_expr_from_python_val(entry._2, copy_options[k])
 
-        # TODO: Support copy_into_table in MockServerConnection
+        # TODO: Support copy_into_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
 
         if (
@@ -4176,7 +4176,7 @@ class DataFrame:
                 entry._1 = k
                 entry._2 = statement_params[k]
 
-        # TODO: Support create_or_replace_dynamic_table in MockServerConnection
+        # TODO: Support create_or_replace_dynamic_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
 
         if (
@@ -4914,7 +4914,7 @@ class DataFrame:
                 if w <= 0:
                     raise ValueError("weights must be positive numbers")
 
-            # TODO: Support random_split in MockServerConnection
+            # TODO: Support random_split in MockServerConnection.
             from snowflake.snowpark.mock._connection import MockServerConnection
 
             if (
