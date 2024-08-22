@@ -14,7 +14,11 @@ from tests.integ.modin.series.test_astype import (
     get_expected_to_pandas_dtype,
 )
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import assert_frame_equal, assert_series_equal
+from tests.integ.modin.utils import (
+    assert_frame_equal,
+    assert_series_equal,
+    eval_snowpark_pandas_result,
+)
 from tests.utils import Utils
 
 
@@ -92,3 +96,31 @@ def test_astype_from_timestamp_ltz(session, to_dtype):
                 check_datetimelike_compat=True,
                 check_index_type=False,
             )
+
+
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        "timedelta64[ns]",
+        {"col1": str, "col2": "timedelta64[ns]"},
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_astype_int_to_timedelta(dtype):
+    native_df = native_pd.DataFrame(data={"col1": [12345678, 2], "col2": [3, 4]})
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.astype(dtype))
+
+
+@sql_count_checker(query_count=0)
+def test_astype_to_timedelta_negative():
+    snow_df = pd.DataFrame(data={"col1": ["1", "2"], "col2": [3, 4]})
+    with pytest.raises(
+        TypeError, match=r"dtype object cannot be converted to timedelta64\[ns\]"
+    ):
+        snow_df.astype("timedelta64[ns]")
+    snow_df2 = pd.DataFrame(data={"col1": [1.25, 3], "col2": [3, 4]})
+    with pytest.raises(
+        TypeError, match=r"dtype float64 cannot be converted to timedelta64\[ns\]"
+    ):
+        snow_df2.astype("timedelta64[ns]")

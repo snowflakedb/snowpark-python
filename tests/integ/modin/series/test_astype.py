@@ -37,6 +37,7 @@ from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    eval_snowpark_pandas_result,
 )
 
 
@@ -400,6 +401,29 @@ def test_python_datetime_astype_DatetimeTZDtype(seed):
                 expected_to_pandas,
                 check_datetimelike_compat=True,
             )
+
+
+@sql_count_checker(query_count=1)
+def test_astype_int_to_timedelta():
+    native_series = native_pd.DataFrame(data=[12345678, 2])
+    snow_series = pd.DataFrame(native_series)
+    eval_snowpark_pandas_result(
+        snow_series, native_series, lambda series: series.astype("timedelta64[ns]")
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_astype_to_timedelta_negative():
+    snow_series = pd.Series(data=["1", "2"])
+    with pytest.raises(
+        TypeError, match=r"dtype object cannot be converted to timedelta64\[ns\]"
+    ):
+        snow_series.astype("timedelta64[ns]")
+    snow_series = pd.Series(data=[1.25, 3])
+    with pytest.raises(
+        TypeError, match=r"dtype float64 cannot be converted to timedelta64\[ns\]"
+    ):
+        snow_series.astype("timedelta64[ns]")
 
 
 @sql_count_checker(query_count=0)

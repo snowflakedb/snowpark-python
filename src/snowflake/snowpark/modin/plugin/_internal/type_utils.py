@@ -43,6 +43,7 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
     SnowparkPandasType,
+    TimedeltaType,
 )
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     generate_timestamp_col,
@@ -404,6 +405,10 @@ def is_astype_type_error(
     ):
         return True
     elif isinstance(from_sf_type, DateType) and isinstance(to_sf_type, _NumericType):
+        return True
+    elif isinstance(to_sf_type, TimedeltaType) and not isinstance(
+        from_sf_type, LongType
+    ):
         return True
     else:
         return False
