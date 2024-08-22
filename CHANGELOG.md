@@ -35,7 +35,7 @@
 - Added support for `DatetimeIndex.month_name` and `DatetimeIndex.day_name`.
 - Added support for `Series.dt.weekday`, `Series.dt.time`, and `DatetimeIndex.time`.
 - Added support for subtracting two timestamps to get a Timedelta.
-- Added support for creating `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` parameters.
+- Added support for constructing `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` arguments.
 
 #### Bug Fixes
 
