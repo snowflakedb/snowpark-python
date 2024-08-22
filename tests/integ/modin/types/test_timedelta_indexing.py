@@ -111,7 +111,7 @@ def test_df_indexing_get_timedelta(
             if is_scalar(key[0]) and is_scalar(key[1]):
                 assert api(snow_td) == api(td)
             else:
-                native_td = td if type_preserved else td.astype(int)
+                native_td = td if type_preserved else td.astype("int64")
                 eval_snowpark_pandas_result(snow_td, native_td, api)
             if type_preserved:
                 assert expected_warning_msg not in caplog.text
@@ -257,7 +257,7 @@ def test_df_indexing_set_timedelta():
         # single value
         key = (1, 1)
         td_int = td.copy()
-        td_int["b"] = td_int["b"].astype(int)
+        td_int["b"] = td_int["b"].astype("int64")
         # timedelta type is not preserved in this case
         run_test(key, item, natvie_df=td_int)
 
@@ -322,7 +322,7 @@ def test_df_indexing_set_timedelta():
         # single value
         key = (1, "b")
         td_int = td.copy()
-        td_int["b"] = td_int["b"].astype(int)
+        td_int["b"] = td_int["b"].astype("int64")
         # timedelta type is not preserved in this case
         run_test(key, item, natvie_df=td_int, api=loc_set)
 
