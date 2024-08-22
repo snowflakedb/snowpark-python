@@ -67,12 +67,14 @@ def test_create_with_index_as_data(native_idx, obj_type):
     ],
 )
 @pytest.mark.parametrize("obj_type", ["series", "df"])
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=2)
 def test_create_with_index_as_index(data, native_idx, obj_type):
     """
     Creating a Series/DataFrame where the index is an Index.
     """
-    # A join is performed to set the index columns of the generated Series/DataFrame.
+    # Two queries are issued: one when creating the Series/DataFrame (the index is
+    # converted to a native pandas object), one when materializing the Series/DataFrame
+    # for comparison.
     snow_idx = pd.Index(native_idx)
     assert_equal_func, snow_obj, native_obj, kwargs = obj_type_helper(obj_type)
     assert_equal_func(
