@@ -1383,6 +1383,30 @@ class Index(metaclass=TelemetryMeta):
         """
         return is_integer_dtype(self.dtype)
 
+    @index_not_implemented()
+    def is_interval(self) -> None:
+        """
+        Check if the Index holds Interval objects.
+
+        .. deprecated:: 2.0.0
+            Use `isinstance(index.dtype, pd.IntervalDtype)` instead.
+
+        Returns
+        -------
+        bool
+            Whether the Index holds Interval objects.
+
+        See Also
+        --------
+        IntervalIndex : Index for Interval objects.
+        is_boolean : Check if the Index only consists of booleans (deprecated).
+        is_integer : Check if the Index only consists of integers (deprecated).
+        is_floating : Check if the Index is a floating type (deprecated).
+        is_numeric : Check if the Index only consists of numeric data (deprecated).
+        is_object : Check if the Index is of the object dtype. (deprecated).
+        is_categorical : Check if the Index holds categorical data (deprecated).
+        """
+
     def is_numeric(self) -> bool:
         """
         Check if the Index only consists of numeric data.

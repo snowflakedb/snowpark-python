@@ -62,6 +62,7 @@ Index
     Index.is_boolean
     Index.is_floating
     Index.is_integer
+    Index.is_interval
     Index.is_numeric
     Index.is_object
     Index.item

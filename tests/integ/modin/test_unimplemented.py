@@ -190,6 +190,7 @@ UNSUPPORTED_INDEX_METHODS = [
     lambda idx: idx.insert(),
     lambda idx: idx.is_(),
     lambda idx: idx.is_categorical(),
+    lambda idx: idx.is_interval(),
     lambda idx: idx.repeat(),
     lambda idx: idx.where(),
     lambda idx: idx.take(),
