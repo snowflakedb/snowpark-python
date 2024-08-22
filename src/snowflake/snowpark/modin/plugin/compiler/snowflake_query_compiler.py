@@ -8808,14 +8808,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
-        data_column_snowpark_pandas_types = []
-        for t in col_dtypes_map.values():
-            snowpark_pandas_type = (
-                SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(t)
-            )
-            data_column_snowpark_pandas_types.append(
-                snowpark_pandas_type() if snowpark_pandas_type else None
-            )
+        data_column_snowpark_pandas_types = [
+            SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(t)
+            for t in col_dtypes_map.values()
+        ]
 
         for ids, label in zip(col_ids, labels):
             for id in ids:
