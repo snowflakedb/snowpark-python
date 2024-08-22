@@ -3,6 +3,7 @@
 #
 
 import sys
+from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints
@@ -38,6 +39,17 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+logger = getLogger(__name__)
+
+WRITER_OPTIONS_ALIAS_MAP = {
+    "SEP": "FIELD_DELIMITER",
+    "LINESEP": "RECORD_DELIMITER",
+    "QUOTE": "FIELD_OPTIONALLY_ENCLOSED_BY",
+    "NULLVALUE": "NULL_IF",
+    "DATEFORMAT": "DATE_FORMAT",
+    "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
+}
 
 
 class DataFrameWriter:
@@ -334,6 +346,19 @@ class DataFrameWriter:
             raise TypeError(  # pragma: no cover
                 f"'partition_by' is expected to be a column name, a Column object, or a sql expression. Got type {type(partition_by)}"
             )
+
+        # apply writer option alias mapping
+        for key, value in enumerate(format_type_options or {}):
+            upper_key = key.upper().strip()
+            if upper_key in WRITER_OPTIONS_ALIAS_MAP:
+                aliased_key = WRITER_OPTIONS_ALIAS_MAP[upper_key]
+                format_type_options.pop(key)
+                format_type_options[aliased_key] = value
+                logger.warning(
+                    f"Option '{key}' is not aliased to '{aliased_key}'. You may see unexpected behavior. "
+                    "Please refer to the format specific options for more information."
+                )
+
         df = self._dataframe._with_plan(
             CopyIntoLocationNode(
                 self._dataframe._plan,
