@@ -12,11 +12,20 @@
   - `max_data_extension_time`
   - `change_tracking`
   - `copy_grants`
+- Added support for specifying the following parameters to `DataFrame.create_or_replace_dynamic_table`:
+  - `mode`
+  - `refresh_mode`
+  - `initialize`
+  - `clustering_keys`
+  - `is_transient`
+  - `data_retention_time`
+  - `max_data_extension_time`
 
 #### Bug Fixes
 
 - Fixed a bug in `session.read.csv` that caused an error when setting `PARSE_HEADER = True` in an externally defined file format.
 - Fixed a bug in query generation from set operations that allowed generation of duplicate queries when children have common subqueries.
+- Fixed a bug in `session.get_session_stage` that referenced a non-existing stage after switching database or schema.
 
 ### Snowpark Local Testing Updates
 
@@ -44,10 +53,12 @@
 - Added support for `DatetimeIndex.month_name` and `DatetimeIndex.day_name`.
 - Added support for `Series.dt.weekday`, `Series.dt.time`, and `DatetimeIndex.time`.
 - Added support for subtracting two timestamps to get a Timedelta.
+- Added support for `Index.min` and `Index.max`.
 
 #### Bug Fixes
 
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
+- Fixed AssertionError in tree of binary operations.
 
 ## 1.21.0 (2024-08-19)
 

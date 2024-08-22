@@ -32,7 +32,7 @@ import pandas as native_pd
 from pandas import get_option
 from pandas._libs import lib
 from pandas._libs.lib import is_list_like, is_scalar
-from pandas._typing import ArrayLike, DateTimeErrorChoices, DtypeObj, NaPosition
+from pandas._typing import ArrayLike, DateTimeErrorChoices, DtypeObj, NaPosition, Scalar
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_datetime64_any_dtype, pandas_dtype
@@ -1405,8 +1405,9 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458123 implement is_object
 
-    @index_not_implemented()
-    def min(self) -> None:
+    def min(
+        self, axis: int | None = None, skipna: bool = True, *args: Any, **kwargs: Any
+    ) -> Scalar:
         """
         Return the minimum value of the Index.
 
@@ -1429,11 +1430,24 @@ class Index(metaclass=TelemetryMeta):
         Index.max : Return the maximum value of the object.
         Series.min : Return the minimum value in a Series.
         DataFrame.min : Return the minimum values in a DataFrame.
-        """
-        # TODO: SNOW-1458127 implement min
 
-    @index_not_implemented()
-    def max(self) -> None:
+        Examples
+        --------
+        >>> idx = pd.Index([3, 2, 1])
+        >>> idx.min()
+        1
+
+        >>> idx = pd.Index(['c', 'b', 'a'])
+        >>> idx.min()
+        'a'
+        """
+        if axis:
+            raise ValueError("Axis must be None or 0 for Index objects")
+        return self.to_series().min(skipna=skipna, **kwargs)
+
+    def max(
+        self, axis: int | None = None, skipna: bool = True, *args: Any, **kwargs: Any
+    ) -> Scalar:
         """
         Return the maximum value of the Index.
 
@@ -1456,8 +1470,20 @@ class Index(metaclass=TelemetryMeta):
         Index.min : Return the minimum value in an Index.
         Series.max : Return the maximum value in a Series.
         DataFrame.max : Return the maximum values in a DataFrame.
+
+        Examples
+        --------
+        >>> idx = pd.Index([3, 2, 1])
+        >>> idx.max()
+        3
+
+        >>> idx = pd.Index(['c', 'b', 'a'])
+        >>> idx.max()
+        'c'
         """
-        # TODO: SNOW-1458127 implement max
+        if axis:
+            raise ValueError("Axis must be None or 0 for Index objects")
+        return self.to_series().max(skipna=skipna, **kwargs)
 
     def reindex(
         self,
