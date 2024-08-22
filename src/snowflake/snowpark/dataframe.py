@@ -1720,7 +1720,14 @@ class DataFrame:
         self.set_ast_ref(ast.df)
         ast.name = name
 
-        if self._session._conn._suppress_not_implemented_error:
+        # TODO: Support alias in MockServerConnection
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
+        if (
+            isinstance(self._session._conn, MockServerConnection)
+            and self._session._conn._suppress_not_implemented_error
+        ):
+            # Allow AST tests to pass.
             return None
 
         _copy = copy.copy(self)
@@ -3692,8 +3699,15 @@ class DataFrame:
                 entry._1 = k
                 build_expr_from_python_val(entry._2, copy_options[k])
 
-        if self._session._conn._suppress_not_implemented_error:
-            return None
+        # TODO: Support copy_into_table in MockServerConnection
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
+        if (
+            isinstance(self._session._conn, MockServerConnection)
+            and self._session._conn._suppress_not_implemented_error
+        ):
+            # Allow AST tests to pass.
+            return []
 
         if not self._reader or not self._reader._file_path:
             raise SnowparkDataframeException(
@@ -4162,8 +4176,15 @@ class DataFrame:
                 entry._1 = k
                 entry._2 = statement_params[k]
 
-        if self._session._conn._suppress_not_implemented_error:
-            return None
+        # TODO: Support create_or_replace_dynamic_table in MockServerConnection
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
+        if (
+            isinstance(self._session._conn, MockServerConnection)
+            and self._session._conn._suppress_not_implemented_error
+        ):
+            # Allow AST tests to pass.
+            return []
 
         if isinstance(name, str):
             formatted_name = name
@@ -4892,8 +4913,16 @@ class DataFrame:
             for w in weights:
                 if w <= 0:
                     raise ValueError("weights must be positive numbers")
-            if self._session._conn._suppress_not_implemented_error:
-                return None
+
+            # TODO: Support random_split in MockServerConnection
+            from snowflake.snowpark.mock._connection import MockServerConnection
+
+            if (
+                isinstance(self._session._conn, MockServerConnection)
+                and self._session._conn._suppress_not_implemented_error
+            ):
+                # Allow AST tests to pass.
+                return []
 
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
