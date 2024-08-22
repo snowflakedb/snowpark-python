@@ -37,6 +37,14 @@ class JoinKeyCoalesceConfig(Enum):
     NONE = "none"
 
 
+class MatchComparator(Enum):
+    # Comparator for match condition in ASOF Join
+    GREATER_THAN_OR_EQUAL_TO = "__ge__"
+    GREATER_THAN = "__gt__"
+    LESS_THAN_OR_EQUAL_TO = "__le__"
+    LESS_THAN = "__lt__"
+
+
 class InheritJoinIndex(IntFlag):
     FROM_LEFT = auto()
     FROM_RIGHT = auto()
@@ -101,6 +109,9 @@ def join(
     how: JoinTypeLit,
     left_on: list[str],
     right_on: list[str],
+    left_match_col: Optional[str] = None,
+    right_match_col: Optional[str] = None,
+    match_comparator: Optional[MatchComparator] = None,
     sort: Optional[bool] = False,
     join_key_coalesce_config: Optional[list[JoinKeyCoalesceConfig]] = None,
     inherit_join_index: InheritJoinIndex = InheritJoinIndex.FROM_LEFT,
@@ -111,10 +122,17 @@ def join(
     Args:
         left: An internal frame to use on left side of join.
         right: An internal frame to use on right side of join.
-        how: Type of join. Can be any of {'left', 'right', 'outer', 'inner', 'cross'}
+        how: Type of join. Can be any of {'left', 'right', 'outer', 'inner', 'cross', 'asof'}
         left_on: List of snowflake identifiers to join on from 'left' frame.
         right_on: List of snowflake identifiers to join on from 'right' frame.
             left_on and right_on must be lists of equal length.
+        left_match_col: Snowflake identifier to match condition on from 'left' frame.
+            Only applicable for 'asof' join.
+        right_match_col: Snowflake identifier to match condition on from 'right' frame.
+            Only applicable for 'asof' join.
+        match_comparator: MatchComparator {"__ge__", "__gt__", "__le__", "__lt__"}
+            Only applicable for 'asof' join, the operation to compare 'left_match_condition'
+            and 'right_match_condition'.
         sort: If True order merged frame on join keys. If False, ordering behavior
             depends on join type as follows:
             For "right" join use right ordering and then left ordering.
@@ -160,7 +178,13 @@ def join(
     right = right.select_active_columns()
 
     joined_ordered_dataframe = left.ordered_dataframe.join(
-        right.ordered_dataframe, left_on_cols=left_on, right_on_cols=right_on, how=how
+        right=right.ordered_dataframe,
+        left_on_cols=left_on,
+        right_on_cols=right_on,
+        left_match_col=left_match_col,
+        right_match_col=right_match_col,
+        match_comparator=match_comparator,
+        how=how,
     )
 
     return _create_internal_frame_with_join_or_align_result(
@@ -295,11 +319,11 @@ def _create_internal_frame_with_join_or_align_result(
             right_col = result_helper.map_right_quoted_identifiers([origin_right_col])[
                 0
             ]
-            # Coalescing is only required for 'outer' join or align.
+            # Coalescing is only required for 'outer' or 'asof' joins or align.
             # For 'inner' and 'left' join we use left join keys and for 'right' join we
             # use right join keys.
             # For 'left' and 'coalesce' align we use left join keys.
-            if how == "outer":
+            if how in ("asof", "outer"):
                 # Generate an expression equivalent of
                 # "COALESCE('left_col', 'right_col') as 'left_col'"
                 coalesce_column_identifier = (
@@ -409,6 +433,58 @@ def _create_internal_frame_with_join_or_align_result(
     )
 
     return JoinOrAlignInternalFrameResult(result_internal_frame, result_column_mapper)
+
+
+def get_coalesce_config(
+    left_keys: Sequence[
+        Union[Hashable, "snowflake_query_compiler.SnowflakeQueryCompiler"]
+    ],
+    right_keys: Sequence[
+        Union[Hashable, "snowflake_query_compiler.SnowflakeQueryCompiler"]
+    ],
+    external_join_keys: list[str],
+) -> list[JoinKeyCoalesceConfig]:
+    """
+    When joining underlying Snowpark dataframes we pass join condition as
+    col(left.a) == col(right.a). This will keep both the columns from left and
+    right frame. But pandas expects only one column to be present in joined frame
+    if join key pair has same name in both the frames. We remove the unnecessary
+    columns to match pandas behavior. When coalesce_config is LEFT corresponding
+    join columns from both the frames are coalesces into one.
+    Consider following examples
+    Columns in left frame: ["a", "b", "c"]
+    Columns in right frame: ["b", "d", "e"]
+    Operation performed: left.merge(right, left_on=["a", "b"], right_on=["b", "d"])
+    Columns in merged frame: ["a", "b_x", "c", "b_y", "d", "e"]
+    Here we have two join key pairs ("a", "b") and ("b", "d") for both the pairs
+    left key is not same is right key so no coalescing is needed.
+    'coalesce_config' should evaluate to [NONE, NONE] in this case.
+
+    But if Operation is: left.merge(right, left_on=["a", "b"], right_on=["d", "b"])
+    Columns in merged frame: ["a", "b", "c", "d", "e"]
+    Here we have two join key pairs ("a", "d") and ("b", "b") here first pair has
+    different name so no coalescing is needed for this pair but second pair has
+    same name on both the sides so column "b" from both the frames is coalesced
+    into one.
+    'coalesce_config' should evaluate to [NONE, LEFT] in this case.
+
+    Args:
+        left_keys: the keys of the left internal frame we are joining on
+        right_keys: the keys of the right internal frame we are joining on
+        external_join_keys: list of external data join keys as columns
+
+    Returns:
+        The configuration to use when coalescing columns after merge.
+    """
+    coalesce_config = []
+    for lkey, rkey in zip(left_keys, right_keys):
+        if lkey == rkey or rkey in external_join_keys:
+            coalesce_config.append(JoinKeyCoalesceConfig.LEFT)
+        elif lkey in external_join_keys:
+            coalesce_config.append(JoinKeyCoalesceConfig.RIGHT)
+        else:
+            coalesce_config.append(JoinKeyCoalesceConfig.NONE)
+    return coalesce_config
 
 
 def is_column_index_compatible(left: InternalFrame, right: InternalFrame) -> bool:
