@@ -979,20 +979,25 @@ class Analyzer:
         if isinstance(logical_plan, SnowflakeCreateTable):
             resolved_child = resolved_children[logical_plan.children[0]]
             return self.plan_builder.save_as_table(
-                logical_plan.table_name,
-                logical_plan.column_names,
-                logical_plan.mode,
-                logical_plan.table_type,
-                [
+                table_name=logical_plan.table_name,
+                column_names=logical_plan.column_names,
+                mode=logical_plan.mode,
+                table_type=logical_plan.table_type,
+                clustering_keys=[
                     self.analyze(x, df_aliased_col_name_to_real_col_name)
                     for x in logical_plan.clustering_exprs
                 ],
-                logical_plan.comment,
-                resolved_child,
-                logical_plan,
-                self.session._use_scoped_temp_objects,
-                logical_plan.creation_source,
-                resolved_child.attributes,
+                comment=logical_plan.comment,
+                enable_schema_evolution=logical_plan.enable_schema_evolution,
+                data_retention_time=logical_plan.data_retention_time,
+                max_data_extension_time=logical_plan.max_data_extension_time,
+                change_tracking=logical_plan.change_tracking,
+                copy_grants=logical_plan.copy_grants,
+                child=resolved_child,
+                source_plan=logical_plan,
+                use_scoped_temp_objects=self.session._use_scoped_temp_objects,
+                creation_source=logical_plan.creation_source,
+                child_attributes=resolved_child.attributes,
             )
 
         if isinstance(logical_plan, Limit):

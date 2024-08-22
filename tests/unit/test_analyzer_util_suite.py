@@ -5,9 +5,22 @@
 import pytest
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    CHANGE_TRACKING,
+    COPY_GRANTS,
+    CREATE,
+    DATA_RETENTION_TIME_IN_DAYS,
+    ENABLE_SCHEMA_EVOLUTION,
+    EQUALS,
+    EXISTS,
+    IF,
+    MAX_DATA_EXTENSION_TIME_IN_DAYS,
+    NOT,
+    OR,
+    REPLACE,
     convert_value_to_sql_option,
     create_file_format_statement,
     create_or_replace_dynamic_table_statement,
+    create_table_as_select_statement,
     create_table_statement,
     file_operation_statement,
     join_statement,
@@ -17,6 +30,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     LeftAnti,
     UsingJoin,
 )
+from snowflake.snowpark._internal.utils import EMPTY_STRING
 
 
 def test_generate_scoped_temp_objects():
@@ -83,7 +97,7 @@ def test_generate_scoped_temp_objects():
             use_scoped_temp_objects=True,
             is_generated=True,
         )
-        == f" CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}({temp_schema_name})"
+        == f" CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}({temp_schema_name})  "
     )
 
     assert (
@@ -94,7 +108,7 @@ def test_generate_scoped_temp_objects():
             use_scoped_temp_objects=True,
             is_generated=True,
         )
-        == f" CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}({temp_schema_name})"
+        == f" CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}({temp_schema_name})  "
     )
 
     assert (
@@ -105,7 +119,7 @@ def test_generate_scoped_temp_objects():
             use_scoped_temp_objects=False,
             is_generated=True,
         )
-        == f" CREATE  TEMPORARY  TABLE {temp_table_name}({temp_schema_name})"
+        == f" CREATE  TEMPORARY  TABLE {temp_table_name}({temp_schema_name})  "
     )
 
     assert (
@@ -116,7 +130,7 @@ def test_generate_scoped_temp_objects():
             use_scoped_temp_objects=True,
             is_generated=False,
         )
-        == f" CREATE  TEMPORARY  TABLE {temp_table_name}({temp_schema_name})"
+        == f" CREATE  TEMPORARY  TABLE {temp_table_name}({temp_schema_name})  "
     )
 
     assert (
@@ -127,7 +141,7 @@ def test_generate_scoped_temp_objects():
             use_scoped_temp_objects=False,
             is_generated=False,
         )
-        == f" CREATE  TEMPORARY  TABLE {temp_table_name}({temp_schema_name})"
+        == f" CREATE  TEMPORARY  TABLE {temp_table_name}({temp_schema_name})  "
     )
 
     assert (
@@ -138,7 +152,7 @@ def test_generate_scoped_temp_objects():
             use_scoped_temp_objects=True,
             is_generated=True,
         )
-        == f" CREATE  TRANSIENT  TABLE {temp_table_name}({temp_schema_name})"
+        == f" CREATE  TRANSIENT  TABLE {temp_table_name}({temp_schema_name})  "
     )
 
     assert (
@@ -149,8 +163,79 @@ def test_generate_scoped_temp_objects():
             use_scoped_temp_objects=True,
             is_generated=True,
         )
-        == f" CREATE    TABLE {temp_table_name}({temp_schema_name})"
+        == f" CREATE    TABLE {temp_table_name}({temp_schema_name})  "
     )
+
+
+@pytest.mark.parametrize(
+    "create_table_stmt_function",
+    [
+        lambda kwargs: create_table_statement("table", "schema", **kwargs),
+        lambda kwargs: create_table_as_select_statement(
+            "table", "select * from foo", None, **kwargs
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "replace,error", [(True, False), (False, True), (False, False)]
+)
+@pytest.mark.parametrize("enable_schema_evolution", [True, False, None])
+@pytest.mark.parametrize("data_retention_time", [None, 1])
+@pytest.mark.parametrize("max_data_extension_time", [None, 3])
+@pytest.mark.parametrize("change_tracking", [None, True, False])
+@pytest.mark.parametrize("copy_grants", [True, False])
+def test_create_table_statement(
+    create_table_stmt_function,
+    replace,
+    error,
+    enable_schema_evolution,
+    data_retention_time,
+    max_data_extension_time,
+    change_tracking,
+    copy_grants,
+):
+    replace_sql = (CREATE + OR + REPLACE) if replace else EMPTY_STRING
+    if_not_exists_sql = (
+        (IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING
+    )
+    enable_schema_evolution_sql = EMPTY_STRING
+    data_retention_time_sql = EMPTY_STRING
+    max_data_extension_time_sql = EMPTY_STRING
+    change_tracking_sql = EMPTY_STRING
+    copy_grants_sql = COPY_GRANTS if copy_grants else EMPTY_STRING
+
+    if enable_schema_evolution is not None:
+        enable_schema_evolution_sql = (
+            f"{ENABLE_SCHEMA_EVOLUTION}{EQUALS}{enable_schema_evolution}"
+        )
+    if data_retention_time is not None:
+        data_retention_time_sql = (
+            f"{DATA_RETENTION_TIME_IN_DAYS}{EQUALS}{data_retention_time}"
+        )
+    if max_data_extension_time is not None:
+        max_data_extension_time_sql = (
+            f"{MAX_DATA_EXTENSION_TIME_IN_DAYS}{EQUALS}{max_data_extension_time}"
+        )
+    if change_tracking is not None:
+        change_tracking_sql = f"{CHANGE_TRACKING}{EQUALS}{change_tracking}"
+
+    kwargs = {
+        "replace": replace,
+        "error": error,
+        "copy_grants": copy_grants,
+        "enable_schema_evolution": enable_schema_evolution,
+        "data_retention_time": data_retention_time,
+        "max_data_extension_time": max_data_extension_time,
+        "change_tracking": change_tracking,
+    }
+    create_table_stmt = create_table_stmt_function(kwargs)
+    assert enable_schema_evolution_sql in create_table_stmt
+    assert data_retention_time_sql in create_table_stmt
+    assert max_data_extension_time_sql in create_table_stmt
+    assert change_tracking_sql in create_table_stmt
+    assert copy_grants_sql in create_table_stmt
+    assert replace_sql in create_table_stmt
+    assert if_not_exists_sql in create_table_stmt
 
 
 def test_create_or_replace_dynamic_table_statement():
