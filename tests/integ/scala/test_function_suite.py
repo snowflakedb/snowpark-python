@@ -3857,6 +3857,35 @@ def test_convert_timezone(session, local_testing_mode):
             ],
         )
 
+        df = TestData.datetime_primitives1(session).select("timestamp", "timestamp_ntz")
+
+        Utils.check_answer(
+            df.select(
+                *[
+                    convert_timezone(lit("UTC"), col, lit("Asia/Shanghai"))
+                    for col in df.columns
+                ]
+            ),
+            [
+                Row(
+                    datetime(2024, 2, 1, 4, 0),
+                    datetime(2017, 2, 24, 4, 0, 0, 456000),
+                )
+            ],
+        )
+
+        df = TestData.datetime_primitives1(session).select(
+            "timestamp_ltz", "timestamp_tz"
+        )
+        with pytest.raises(SnowparkSQLException):
+            # convert_timezone function does not accept non-TimestampTimeZone.NTZ datetime
+            df.select(
+                *[
+                    convert_timezone(lit("UTC"), col, lit("Asia/Shanghai"))
+                    for col in df.columns
+                ]
+            ).collect()
+
         LocalTimezone.set_local_timezone()
 
 

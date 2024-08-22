@@ -37,6 +37,7 @@
 #### Bug Fixes
 
 - Fixed a bug where the truncate mode in `DataFrameWriter.save_as_table` incorrectly handled DataFrames containing only a subset of columns from the existing table.
+- Fixed a bug where function `to_timestamp` does not set the default timezone of the column datatype.
 
 ### Snowpark pandas API Updates
 
@@ -57,6 +58,7 @@
 - Added support for `Index.min` and `Index.max`.
 - Added support for `pd.merge_asof`.
 - Added support for `Series.dt.normalize` and `DatetimeIndex.normalize`.
+- Added support for `Index.is_boolean`, `Index.is_integer`, `Index.is_floating`, `Index.is_numeric`, and `Index.is_object`.
 
 #### Bug Fixes
 
