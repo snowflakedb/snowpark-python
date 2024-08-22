@@ -114,22 +114,20 @@ def test_td_case3_negative():
 
 
 @sql_count_checker(query_count=1)
-def test_td_case4_negative():
+def test_td_case4():
     data = {
         "bl_start_ts": [Timestamp("2017-03-01T12")],
         "green_light_ts": [Timestamp("2017-01-07T12")],
     }
     snow_df = pd.DataFrame(data)
     native_df = native_pd.DataFrame(data)
-    # TODO SNOW-1635620: remove Exception raised when TimeDelta is implemented
-    with pytest.raises(AssertionError):
-        eval_snowpark_pandas_result(
-            snow_df,
-            native_df,
-            lambda df: df.assign(
-                green_light_response_time=(df["bl_start_ts"] - df["green_light_ts"])
-            ),
-        )
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.assign(
+            green_light_response_time=(df["bl_start_ts"] - df["green_light_ts"])
+        ),
+    )
 
 
 @sql_count_checker(query_count=0)
