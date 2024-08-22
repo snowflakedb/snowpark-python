@@ -1393,11 +1393,11 @@ def __getitem__(self, key):
     # If the object is a boolean list-like object, use .loc[key] to filter index.
     # The if statement is structured this way to avoid calling dtype and reduce query count.
     if isinstance(key, pd.Series):
-        if key.dtype == bool:
+        if pandas.api.types.is_bool_dtype(key.dtype):
             return self.loc[key]
     elif is_list_like(key):
         if hasattr(key, "dtype"):
-            if key.dtype == bool:
+            if pandas.api.types.is_bool_dtype(key.dtype):
                 return self.loc[key]
         if (all(is_bool(k) for k in key)) and len(key) > 0:
             return self.loc[key]
