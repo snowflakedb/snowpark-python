@@ -422,7 +422,7 @@ def test_astype_non_numeric_to_timedelta():
 
 
 @sql_count_checker(query_count=2)
-def test_astype_non_numeric_to_timedelta_negative():
+def test_astype_datetime_to_timedelta_negative():
     native_series = native_pd.Series(
         data=[pd.to_datetime("2000-01-01"), pd.to_datetime("2001-01-01")]
     )
