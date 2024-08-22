@@ -296,8 +296,7 @@ def column_astype(
 
     if to_dtype == np.object_:
         return to_variant(curr_col)
-
-    if from_sf_type == to_sf_type and not isinstance(to_sf_type, TimedeltaType):
+    if from_sf_type == to_sf_type:
         return curr_col
 
     if isinstance(to_sf_type, _IntegralType) and "int64" not in str(to_dtype).lower():

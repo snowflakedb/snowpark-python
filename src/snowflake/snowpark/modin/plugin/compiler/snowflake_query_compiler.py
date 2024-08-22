@@ -59,12 +59,7 @@ from pandas.api.types import (
     is_string_dtype,
 )
 from pandas.core.dtypes.base import ExtensionDtype
-from pandas.core.dtypes.common import (
-    is_dict_like,
-    is_list_like,
-    is_timedelta64_dtype,
-    pandas_dtype,
-)
+from pandas.core.dtypes.common import is_dict_like, is_list_like, pandas_dtype
 from pandas.core.indexes.base import ensure_index
 from pandas.io.formats.format import format_percentiles
 from pandas.io.formats.printing import PrettyDict
@@ -8812,10 +8807,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 labels, include_index=False
             )
         )
-        data_column_snowpark_pandas_types = [
-            TimedeltaType() if is_timedelta64_dtype(type) else None
-            for type in col_dtypes_map.values()
-        ]
+
+        data_column_snowpark_pandas_types = []
+        for t in col_dtypes_map.values():
+            snowpark_pandas_type = (
+                SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(t)
+            )
+            data_column_snowpark_pandas_types.append(
+                snowpark_pandas_type() if snowpark_pandas_type else None
+            )
+
         for ids, label in zip(col_ids, labels):
             for id in ids:
                 to_dtype = col_dtypes_map[label]

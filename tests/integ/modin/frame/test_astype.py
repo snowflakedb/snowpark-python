@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import re
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -106,7 +108,7 @@ def test_astype_from_timestamp_ltz(session, to_dtype):
     ],
 )
 @sql_count_checker(query_count=1)
-def test_astype_numeric_to_timedelta(dtype):
+def test_astype_numeric_and_boolean_to_timedelta(dtype):
     native_df = native_pd.DataFrame(
         data={"col1": [12345678, 2.3], "col2": [True, False]}
     )
@@ -131,11 +133,14 @@ def test_astype_datetime_to_timedelta_negative():
     snow_df = pd.DataFrame(native_df)
     with SqlCounter(query_count=0):
         with pytest.raises(
-            TypeError, match=r"Cannot cast DatetimeArray to dtype timedelta64\[ns\]"
+            TypeError,
+            match=re.escape("Cannot cast DatetimeArray to dtype timedelta64[ns]"),
         ):
             native_df.astype("timedelta64[ns]")
         with pytest.raises(
             TypeError,
-            match=r"dtype datetime64\[ns\] cannot be converted to timedelta64\[ns\]",
+            match=re.escape(
+                "dtype datetime64[ns] cannot be converted to timedelta64[ns]"
+            ),
         ):
             snow_df.astype("timedelta64[ns]")

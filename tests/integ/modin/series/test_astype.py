@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import logging
+import re
 from datetime import date, time
 from itertools import product
 
@@ -413,6 +414,15 @@ def test_astype_numeric_to_timedelta():
 
 
 @sql_count_checker(query_count=1)
+def test_astype_boolean_to_timedelta():
+    native_series = native_pd.Series(data=[True, False])
+    snow_series = pd.Series(native_series)
+    eval_snowpark_pandas_result(
+        snow_series, native_series, lambda series: series.astype("timedelta64[ns]")
+    )
+
+
+@sql_count_checker(query_count=1)
 def test_astype_non_numeric_to_timedelta():
     native_series = native_pd.Series([1, "2"])
     snow_series = pd.Series(native_series)
@@ -429,12 +439,15 @@ def test_astype_datetime_to_timedelta_negative():
     snow_series = pd.Series(native_series)
     with SqlCounter(query_count=0):
         with pytest.raises(
-            TypeError, match=r"Cannot cast DatetimeArray to dtype timedelta64\[ns\]"
+            TypeError,
+            match=re.escape("Cannot cast DatetimeArray to dtype timedelta64[ns]"),
         ):
             native_series.astype("timedelta64[ns]")
         with pytest.raises(
             TypeError,
-            match=r"dtype datetime64\[ns\] cannot be converted to timedelta64\[ns\]",
+            match=re.escape(
+                "dtype datetime64[ns] cannot be converted to timedelta64[ns]"
+            ),
         ):
             snow_series.astype("timedelta64[ns]")
 
