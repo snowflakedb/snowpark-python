@@ -67,8 +67,7 @@ def setup(session, resources_path, local_testing_mode):
 
 @pytest.fixture(autouse=True)
 def clean_up(session):
-    session._session_stage = Utils.random_stage_name()
-    session._stage_created = False
+    session._session_stage = None
     session.clear_packages()
     session.clear_imports()
     session.custom_package_usage_config = {}
@@ -263,7 +262,7 @@ def test_add_packages(session, local_testing_mode):
     # add module objects
     # but we can't register a udf with these versions
     # because the server might not have them
-    resolved_packages = session._resolve_packages(
+    resolved_packages, _ = session._resolve_packages(
         [numpy, pandas, dateutil], validate_package=False
     )
     assert f"numpy=={numpy.__version__}" in resolved_packages
