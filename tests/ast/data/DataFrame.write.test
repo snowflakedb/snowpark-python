@@ -8,6 +8,8 @@ df.write.save_as_table("saved_table")
 
 df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
 
+df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary", mode="ignore")
+
 df.write.mode("truncate").save_as_table("test_destination", column_order="name", create_temp_table=False, table_type="transient", clustering_keys=['STR', col('num1')], comment="test", block=True, statement_params={"k":"v"})
 
 stage_created_result = session.sql("create temp stage if not exists test_stage").collect()
@@ -40,7 +42,9 @@ df.write.save_as_table("saved_table")
 
 df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
 
-df.write.mode("truncate").save_as_table("test_destination", statement_params={"k": "v"}, column_order="name", table_type="transient", clustering_keys=["STR", col("num1")], comment="test")
+df.write.mode("overwrite").save_as_table("saved_table", mode="ignore", table_type="temporary")
+
+df.write.mode("truncate").save_as_table("test_destination", column_order="name", table_type="transient", clustering_keys=["STR", col("num1")], statement_params={"k": "v"}, comment="test")
 
 stage_created_result = session.sql("create temp stage if not exists test_stage")
 
