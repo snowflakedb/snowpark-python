@@ -2134,7 +2134,11 @@ class Session:
         return d
 
     def generator(
-        self, *columns: Column, rowcount: int = 0, timelimit: int = 0
+        self,
+        *columns: Column,
+        rowcount: int = 0,
+        timelimit: int = 0,
+        _emit_ast: bool = True,
     ) -> DataFrame:
         """Creates a new DataFrame using the Generator table function.
 
@@ -2182,14 +2186,16 @@ class Session:
             A new :class:`DataFrame` with data from calling the generator table function.
         """
         # AST.
-        stmt = self._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_generator, stmt)
-        col_names, is_variadic = parse_positional_args_to_list_variadic(*columns)
-        for col_name in col_names:
-            ast.columns.append(col_name._ast)
-        ast.row_count = rowcount
-        ast.time_limit_seconds = timelimit
-        ast.variadic = is_variadic
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_generator, stmt)
+            col_names, is_variadic = parse_positional_args_to_list_variadic(*columns)
+            for col_name in col_names:
+                ast.columns.append(col_name._ast)
+            ast.row_count = rowcount
+            ast.time_limit_seconds = timelimit
+            ast.variadic = is_variadic
 
         # TODO: Support generator in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -2225,11 +2231,15 @@ class Session:
                     ),
                     analyzer=self._analyzer,
                 ),
+                ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
             d = DataFrame(
                 self,
                 TableFunctionRelation(func_expr),
+                ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         set_api_call_source(d, "Session.generator")
         return d
