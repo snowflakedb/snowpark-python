@@ -245,6 +245,33 @@ def test_resolve_package_terms_not_accepted():
         )
 
 
+def test_resolve_packages_no_side_effect():
+    def mock_get_information_schema_packages(table_name: str):
+        result = MagicMock()
+        result.filter().group_by().agg()._internal_collect_with_tag.return_value = [
+            ("random_package_name", json.dumps(["1.0.0"]))
+        ]
+        return result
+
+    fake_connection = mock.create_autospec(ServerConnection)
+    fake_connection._conn = mock.Mock()
+    session = Session(fake_connection)
+    session.table = MagicMock(name="session.table")
+    session.table.side_effect = mock_get_information_schema_packages
+
+    existing_packages = {}
+
+    resolved_packages, _ = session._resolve_packages(
+        ["random_package_name"],
+        existing_packages_dict=existing_packages,
+        validate_package=True,
+        include_pandas=False,
+    )
+
+    assert len(resolved_packages) == 2  # random_package_name and cloudpickle
+    assert len(existing_packages) == 0
+
+
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
 def test_write_pandas_wrong_table_type():
     fake_connection = mock.create_autospec(ServerConnection)

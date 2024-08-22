@@ -1062,7 +1062,7 @@ def resolve_imports_and_packages(
                 packages,
                 include_pandas=is_pandas_udf,
                 statement_params=statement_params,
-            )
+            )[0]
             if packages is not None
             else session._resolve_packages(
                 [],
@@ -1070,7 +1070,7 @@ def resolve_imports_and_packages(
                 validate_package=False,
                 include_pandas=is_pandas_udf,
                 statement_params=statement_params,
-            )
+            )[0]
         )
 
     if session is not None:
