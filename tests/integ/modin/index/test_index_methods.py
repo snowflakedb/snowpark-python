@@ -3,6 +3,7 @@
 #
 
 import modin.pandas as pd
+import numpy as np
 import pandas as native_pd
 import pytest
 from numpy.testing import assert_equal
@@ -10,6 +11,7 @@ from pandas._libs import lib
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.index.conftest import (
+    NATIVE_INDEX_SCALAR_TEST_DATA,
     NATIVE_INDEX_TEST_DATA,
     NATIVE_INDEX_UNIQUE_TEST_DATA,
     TEST_DFS,
@@ -419,3 +421,24 @@ def test_index_identical():
     i3 = pd.Index([("a", "a"), ("a", "b"), ("b", "a")])
     i4 = pd.Index([("a", "a"), ("a", "b"), ("b", "a")], tupleize_cols=False)
     assert not i3.identical(i4)
+
+
+@pytest.mark.parametrize("native_index", NATIVE_INDEX_SCALAR_TEST_DATA)
+@pytest.mark.parametrize("func", ["min", "max"])
+@sql_count_checker(query_count=1)
+def test_index_min_max(native_index, func):
+    snow_index = pd.Index(native_index)
+    snow_res = getattr(snow_index, func)()
+    native_res = getattr(native_index, func)()
+    # Snowpark pandas treats np.nan as None.
+    native_res = None if native_res is np.nan else native_res
+    assert snow_res == native_res
+
+
+@pytest.mark.parametrize("func", ["min", "max"])
+@pytest.mark.parametrize("axis", [1, "axis", 0.6, -1])
+@sql_count_checker(query_count=0)
+def test_index_min_max_wrong_axis_negative(func, axis):
+    idx = pd.Index([1, 2, 3])
+    with pytest.raises(ValueError, match="Axis must be None or 0 for Index objects"):
+        getattr(idx, func)(axis=axis)
