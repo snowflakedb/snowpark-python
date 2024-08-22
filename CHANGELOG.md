@@ -57,6 +57,7 @@
 - Added support for `Index.min` and `Index.max`.
 - Added support for `pd.merge_asof`.
 - Added support for `Series.dt.normalize` and `DatetimeIndex.normalize`.
+- Added support for `Series.dt.days_in_month` and `Series.dt.daysinmonth`.
 
 #### Bug Fixes
 
