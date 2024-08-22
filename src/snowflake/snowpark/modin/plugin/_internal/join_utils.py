@@ -236,9 +236,14 @@ def _create_internal_frame_with_join_or_align_result(
             right.data_column_snowflake_quoted_identifiers
         )
     )
+    data_column_types = (
+        left.cached_data_column_snowpark_pandas_types
+        + right.cached_data_column_snowpark_pandas_types
+    )
 
     index_column_pandas_labels = []
     index_column_snowflake_quoted_identifiers = []
+    index_column_types = []
 
     left_quoted_identifiers_map = (
         result_helper.result_column_mapper.left_quoted_identifiers_map.copy()
@@ -257,6 +262,7 @@ def _create_internal_frame_with_join_or_align_result(
                 left.index_column_snowflake_quoted_identifiers,
             )
         )
+        index_column_types.extend(left.cached_index_column_snowpark_pandas_types)
     if InheritJoinIndex.FROM_RIGHT in inherit_index:
         index_column_pandas_labels.extend(right.index_column_pandas_labels)
         index_column_snowflake_quoted_identifiers.extend(
@@ -264,6 +270,7 @@ def _create_internal_frame_with_join_or_align_result(
                 right.index_column_snowflake_quoted_identifiers,
             )
         )
+        index_column_types.extend(right.cached_index_column_snowpark_pandas_types)
 
     if key_coalesce_config:
         coalesce_column_identifiers = []
@@ -271,6 +278,17 @@ def _create_internal_frame_with_join_or_align_result(
         for origin_left_col, origin_right_col, coalesce_config in zip(
             left_on, right_on, key_coalesce_config
         ):
+            coalesce_col_type = None
+            origin_left_col_type = (
+                left.snowflake_quoted_identifier_to_snowpark_pandas_type[
+                    origin_left_col
+                ]
+            )
+            origin_right_col_type = (
+                right.snowflake_quoted_identifier_to_snowpark_pandas_type[
+                    origin_right_col
+                ]
+            )
             if coalesce_config == JoinKeyCoalesceConfig.NONE:
                 continue
             left_col = result_helper.map_left_quoted_identifiers([origin_left_col])[0]
@@ -295,14 +313,18 @@ def _create_internal_frame_with_join_or_align_result(
                 )
                 coalesce_column_identifiers.append(coalesce_column_identifier)
                 coalesce_column_values.append(coalesce(left_col, right_col))
+                if origin_left_col_type == origin_right_col_type:
+                    coalesce_col_type = origin_left_col_type
             elif how == "right":
                 # No coalescing required for 'right' join. Simply use right join key
                 # as output column.
                 coalesce_column_identifier = right_col
+                coalesce_col_type = origin_right_col_type
             elif how in ("inner", "left", "coalesce"):
                 # No coalescing required for 'left' or 'inner' join and for 'left' or
                 # 'coalesce' align. Simply use left join key as output column.
                 coalesce_column_identifier = left_col
+                coalesce_col_type = origin_left_col_type
             else:
                 raise AssertionError(f"Unsupported join/align type {how}")
 
@@ -316,17 +338,25 @@ def _create_internal_frame_with_join_or_align_result(
                 index = data_column_snowflake_quoted_identifiers.index(right_col)
                 data_column_snowflake_quoted_identifiers.pop(index)
                 data_column_pandas_labels.pop(index)
+                data_column_types.pop(index)
             elif right_col in index_column_snowflake_quoted_identifiers:
                 # Remove duplicate index column if present.
                 index = index_column_snowflake_quoted_identifiers.index(right_col)
                 index_column_snowflake_quoted_identifiers.pop(index)
                 index_column_pandas_labels.pop(index)
+                index_column_types.pop(index)
 
-            # Update data/index column identifier
+            # Update data/index column identifiers and types
+            for i, x in enumerate(data_column_snowflake_quoted_identifiers):
+                if x == left_col:
+                    data_column_types[i] = coalesce_col_type
             data_column_snowflake_quoted_identifiers = [
                 coalesce_column_identifier if x == left_col else x
                 for x in data_column_snowflake_quoted_identifiers
             ]
+            for i, x in enumerate(index_column_snowflake_quoted_identifiers):
+                if x == left_col:
+                    index_column_types[i] = coalesce_col_type
             index_column_snowflake_quoted_identifiers = [
                 coalesce_column_identifier if x == left_col else x
                 for x in index_column_snowflake_quoted_identifiers
@@ -370,8 +400,8 @@ def _create_internal_frame_with_join_or_align_result(
         index_column_pandas_labels=index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
         data_column_pandas_index_names=data_column_pandas_index_names,
-        data_column_types=None,
-        index_column_types=None,
+        data_column_types=data_column_types,
+        index_column_types=index_column_types,
     )
     result_column_mapper = JoinOrAlignResultColumnMapper(
         left_quoted_identifiers_map,

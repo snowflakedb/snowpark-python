@@ -111,3 +111,9 @@ class WarningMessage:
                 "engine_kwargs",
                 engine_parameter_ignored_message,
             )
+
+    @classmethod
+    def lost_type_warning(cls, operation: str, type: str) -> None:
+        cls.single_warning(
+            f"`{type}` may be lost in `{operation}`'s result, please use `astype` to convert the result type back."
+        )
