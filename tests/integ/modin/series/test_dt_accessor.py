@@ -159,6 +159,19 @@ def test_floor_ceil_round_negative(func, freq, ambiguous, nonexistent):
         )
 
 
+@sql_count_checker(query_count=1)
+def test_normalize():
+    date_range = native_pd.date_range(start="2021-01-01", periods=5, freq="7h")
+    native_ser = native_pd.Series(date_range)
+    native_ser.iloc[2] = native_pd.NaT
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda s: s.dt.normalize(),
+    )
+
+
 def test_isocalendar():
     with SqlCounter(query_count=1):
         date_range = native_pd.date_range("2020-05-01", periods=5, freq="4D")

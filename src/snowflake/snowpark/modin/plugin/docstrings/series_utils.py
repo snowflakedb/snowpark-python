@@ -957,7 +957,45 @@ class StringMethods:
         pass
 
     def normalize():
-        pass
+        """
+        Convert times to midnight.
+
+
+        The time component of the date-time is converted to midnight i.e. 00:00:00. This is useful in cases, when the time does not matter. Length is unaltered. The timezones are unaffected.
+
+
+        This method is available on Series with datetime values under the .dt accessor, and directly on Datetime Array/Index.
+
+
+        Returns
+        -------
+        DatetimeArray, DatetimeIndex or Series
+            The same type as the original data. Series will have the same name and index. DatetimeIndex will have the same name.
+
+        See also
+        --------
+        floor
+            Floor the datetimes to the specified freq.
+        ceil
+            Ceil the datetimes to the specified freq.
+        round
+            Round the datetimes to the specified freq.
+
+        Examples
+        --------
+        >>> idx = pd.date_range(start='2014-08-01 10:00', freq='h',
+        ...                    periods=3, tz='Asia/Calcutta')  # doctest: +SKIP
+        >>> idx  # doctest: +SKIP
+        DatetimeIndex(['2014-08-01 10:00:00+05:30',
+                    '2014-08-01 11:00:00+05:30',
+                    '2014-08-01 12:00:00+05:30'],
+                        dtype='datetime64[ns, Asia/Calcutta]', freq=None)
+        >>> idx.normalize()  # doctest: +SKIP
+        DatetimeIndex(['2014-08-01 00:00:00+05:30',
+                    '2014-08-01 00:00:00+05:30',
+                    '2014-08-01 00:00:00+05:30'],
+                    dtype='datetime64[ns, Asia/Calcutta]', freq=None)
+        """
 
     def translate():
         """
