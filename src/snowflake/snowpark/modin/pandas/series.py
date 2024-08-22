@@ -175,11 +175,16 @@ class Series(BasePandasDataset):
                 ):
                     name = data.name
 
+            new_index = index
+            if isinstance(index, Index):
+                # Skip turning this into a native pandas object here since this issues an extra query.
+                # Instead, first get the query compiler from native pandas and then add the index column.
+                new_index = None
             query_compiler = from_pandas(
                 pandas.DataFrame(
                     pandas.Series(
                         data=try_convert_index_to_native(data),
-                        index=try_convert_index_to_native(index),
+                        index=try_convert_index_to_native(new_index),
                         dtype=dtype,
                         name=name,
                         copy=copy,
@@ -187,6 +192,10 @@ class Series(BasePandasDataset):
                     )
                 )
             )._query_compiler
+            if isinstance(index, Index):
+                query_compiler = query_compiler.create_qc_with_index_data_and_qc_index(
+                    index._query_compiler
+                )
         self._query_compiler = query_compiler.columnarize()
         if name is not None:
             self.name = name
