@@ -37,7 +37,7 @@
 - Added support for `Series.dt.weekday`, `Series.dt.time`, and `DatetimeIndex.time`.
 - Added support for subtracting two timestamps to get a Timedelta.
 - Added support for `Index.min` and `Index.max`.
-- Added support for `Series.dt.normalize`, and `DatetimeIndex.normalize`.
+- Added support for `Series.dt.normalize` and `DatetimeIndex.normalize`.
 
 #### Bug Fixes
 
