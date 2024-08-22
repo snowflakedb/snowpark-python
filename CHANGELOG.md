@@ -6,6 +6,12 @@
 
 #### Improvements
 
+- Added support for specifying the following to `DataFrameWriter.save_as_table`:
+  - `enable_schema_evolution`
+  - `data_retention_time`
+  - `max_data_extension_time`
+  - `change_tracking`
+  - `copy_grants`
 - Added support for specifying the following parameters to `DataFrame.create_or_replace_dynamic_table`:
   - `mode`
   - `refresh_mode`
