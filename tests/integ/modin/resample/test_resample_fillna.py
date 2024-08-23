@@ -44,7 +44,7 @@ def test_resample_fill(interval, agg_func):
 
 @interval
 @agg_func
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=2, join_count=3)
 def test_resample_fill_ser(interval, agg_func):
     datecol = native_pd.to_datetime(
         [
@@ -59,8 +59,9 @@ def test_resample_fill_ser(interval, agg_func):
         ],
         format="mixed",
     )
+    # TODO: SNOW-1638397 See if it's possible to use data={"a": range(len(datecol))} instead.
     eval_snowpark_pandas_result(
-        *create_test_series({"a": range(len(datecol))}, index=datecol),
+        *create_test_series({"2024-01-02": list(range(len(datecol)))}, index=datecol),
         lambda df: getattr(df.resample(rule=f"{interval}D"), agg_func)(),
         check_freq=False,
     )
@@ -138,7 +139,7 @@ def test_resample_ffill_missing_in_middle(interval, agg_func):
 
 @interval
 @agg_func
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=2, join_count=3)
 def test_resample_ffill_ser_missing_in_middle(interval, agg_func):
     datecol = native_pd.to_datetime(
         [
@@ -152,8 +153,9 @@ def test_resample_ffill_ser_missing_in_middle(interval, agg_func):
         ],
         format="mixed",
     )
+    # TODO: SNOW-1638397 See if it's possible to use data={"a": range(len(datecol))} instead.
     eval_snowpark_pandas_result(
-        *create_test_series({"a": range(len(datecol))}, index=datecol),
+        *create_test_series({"2024-01-01": list(range(len(datecol)))}, index=datecol),
         lambda df: getattr(df.resample(rule=f"{interval}D"), agg_func)(),
         check_freq=False,
     )

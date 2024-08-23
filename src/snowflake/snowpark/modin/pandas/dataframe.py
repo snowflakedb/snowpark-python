@@ -297,7 +297,10 @@ class DataFrame(BasePandasDataset):
                     for k, v in data.items()
                 }
 
-                if all(len(v) == 1 for v in data.values()) and index is not None:
+                if (
+                    all(not is_scalar(v) and len(v) == 1 for v in data.values())
+                    and index is not None
+                ):
                     # Special case when creating:
                     # >>> DataFrame({"A": [1], "V": [2]}, native_pd.Index(["A", "B", "C"]), name="none")
                     #       A  V

@@ -500,7 +500,7 @@ def test_dataframe_mask_with_callable_other():
     )
 
 
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=2, join_count=2)
 def test_dataframe_mask_other_is_array():
     data = [[1, 3], [2, 4]]
     other = np.array([[99, -99], [101, -101]])
@@ -543,7 +543,7 @@ def test_dataframe_mask_sizes_do_not_match_negative_test(test_data, test_cond):
         snow_df.mask(snow_cond_df)
 
 
-@sql_count_checker(query_count=3, join_count=2)
+@sql_count_checker(query_count=2, join_count=3)
 def test_dataframe_mask_with_np_array_cond():
     data = [1, 2, 3]
     cond = np.array([[False, True, False]]).T
@@ -570,8 +570,7 @@ def test_dataframe_mask_with_np_array_cond():
     )
 
 
-# One extra query to convert to native index for dataframe constructor when creating snow_other_df
-@sql_count_checker(query_count=4, join_count=2)
+@sql_count_checker(query_count=2, join_count=4)
 def test_dataframe_mask_with_np_array_cond_mismatched_labels():
     data = [1, 2, 3]
     cond = np.array([[False, True, False]]).T
@@ -596,8 +595,7 @@ def test_dataframe_mask_with_np_array_cond_mismatched_labels():
     )
 
 
-# One extra query to convert to native index for dataframe constructor when creating snow_other_df
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=3)
 def test_dataframe_mask_with_dataframe_cond_single_index_different_names():
     data = [1, 2, 3]
     cond = [False, True, False]
@@ -624,8 +622,7 @@ def test_dataframe_mask_with_dataframe_cond_single_index_different_names():
     )
 
 
-# One extra query to convert to native index for dataframe constructor when creating snow_other_df
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=3)
 def test_dataframe_mask_with_dataframe_cond_single_index_different_names_2():
     data = [1, 2, 3]
     cond = [False, True, False]
