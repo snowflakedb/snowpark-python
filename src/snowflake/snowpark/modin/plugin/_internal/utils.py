@@ -1524,6 +1524,12 @@ def pandas_lit(value: Any, datatype: Optional[DataType] = None) -> Column:
             Column(Literal(str(value)))
         )
 
+    snowpark_pandas_type = SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(
+        type(value)
+    )
+    if snowpark_pandas_type:
+        return Column(Literal(type(snowpark_pandas_type).from_pandas(value)))
+
     value = (
         convert_numpy_pandas_scalar_to_snowpark_literal(value)
         if is_scalar(value)

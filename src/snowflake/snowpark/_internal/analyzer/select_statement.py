@@ -1224,11 +1224,15 @@ class SetStatement(Selectable):
             if operand.selectable.pre_actions:
                 if not self.pre_actions:
                     self.pre_actions = []
-                self.pre_actions.extend(operand.selectable.pre_actions)
+                for action in operand.selectable.pre_actions:
+                    if action not in self.pre_actions:
+                        self.pre_actions.append(copy(action))
             if operand.selectable.post_actions:
                 if not self.post_actions:
                     self.post_actions = []
-                self.post_actions.extend(operand.selectable.post_actions)
+                for action in operand.selectable.post_actions:
+                    if action not in self.post_actions:
+                        self.post_actions.append(copy(action))
             self._nodes.append(operand.selectable)
 
     def __deepcopy__(self, memodict={}) -> "SetStatement":  # noqa: B006

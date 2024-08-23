@@ -4,35 +4,67 @@
 
 ### Snowpark Python API Updates
 
+#### Improvements
+
+- Added support for specifying the following to `DataFrameWriter.save_as_table`:
+  - `enable_schema_evolution`
+  - `data_retention_time`
+  - `max_data_extension_time`
+  - `change_tracking`
+  - `copy_grants`
+- Added support for specifying the following parameters to `DataFrame.create_or_replace_dynamic_table`:
+  - `mode`
+  - `refresh_mode`
+  - `initialize`
+  - `clustering_keys`
+  - `is_transient`
+  - `data_retention_time`
+  - `max_data_extension_time`
+
 #### Bug Fixes
 
 - Fixed a bug in `session.read.csv` that caused an error when setting `PARSE_HEADER = True` in an externally defined file format.
+- Fixed a bug in query generation from set operations that allowed generation of duplicate queries when children have common subqueries.
+- Fixed a bug in `session.get_session_stage` that referenced a non-existing stage after switching database or schema.
 
 ### Snowpark Local Testing Updates
 
 #### New Features
 
 - Added support for type coercion when passing columns as input to udf calls
+- Added support for `Index.identical`.
 
 #### Bug Fixes
 
 - Fixed a bug where the truncate mode in `DataFrameWriter.save_as_table` incorrectly handled DataFrames containing only a subset of columns from the existing table.
+- Fixed a bug where function `to_timestamp` does not set the default timezone of the column datatype.
 
 ### Snowpark pandas API Updates
 
 #### New Features
 
 - Added limited support for the `Timedelta` type, including
-  - support `copy`, `cache_result`, `shift`, `sort_index`.
+  - supporting tracking the Timedelta type through `copy`, `cache_result`, `shift`, `sort_index`.
+  - converting non-timedelta to timedelta via `astype`. 
   - `NotImplementedError` will be raised for the rest of methods that do not support `Timedelta`.
+  - support for subtracting two timestamps to get a Timedelta.
+  - support indexing with Timedelta data columns. 
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
 - Added support for `Index.name`, `Index.names`, `Index.rename`, and `Index.set_names`.
+- Added support for `Index.__repr__`.
+- Added support for `DatetimeIndex.month_name` and `DatetimeIndex.day_name`.
+- Added support for `Series.dt.weekday`, `Series.dt.time`, and `DatetimeIndex.time`.
+- Added support for `Index.min` and `Index.max`.
+- Added support for `pd.merge_asof`.
+- Added support for `Series.dt.normalize` and `DatetimeIndex.normalize`.
+- Added support for `Index.is_boolean`, `Index.is_integer`, `Index.is_floating`, `Index.is_numeric`, and `Index.is_object`.
 
 #### Bug Fixes
 
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
+- Fixed AssertionError in tree of binary operations.
 
 ## 1.21.0 (2024-08-19)
 
@@ -51,6 +83,7 @@
 - Added support for passing `parameters` parameter to `Column.rlike` and `Column.regexp`.
 - Added support for automatically cleaning up temporary tables created by `df.cache_result()` in the current session, when the DataFrame is no longer referenced (i.e., gets garbage collected). It is still an experimental feature not enabled by default, and can be enabled by setting `session.auto_clean_up_temp_table_enabled` to `True`.
 - Added support for string literals to the `fmt` parameter of `snowflake.snowpark.functions.to_date`.
+- Added support for system$reference function.
 
 #### Bug Fixes
 

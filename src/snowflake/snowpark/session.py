@@ -496,8 +496,7 @@ class Session:
 "python.connector.session.id" : {self._session_id},
 "os.name" : {get_os_name()}
 """
-        self._session_stage = random_name_for_temp_object(TempObjectType.STAGE)
-        self._stage_created = False
+        self._session_stage = None
 
         if isinstance(conn, MockServerConnection):
             self._udf_registration = MockUDFRegistration(self)
@@ -1145,10 +1144,11 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        self._resolve_packages(
+        _, resolved_result_dict = self._resolve_packages(
             parse_positional_args_to_list(*packages),
             self._packages,
         )
+        self._packages.update(resolved_result_dict)
 
     def remove_package(self, package: str) -> None:
         """
@@ -1509,30 +1509,43 @@ class Session:
         validate_package: bool = True,
         include_pandas: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> List[str]:
+    ) -> Tuple[List[str], Dict[str, str]]:
+        """
+        Given a list of packages to add, this method will
+        1. Check if the packages are supported by Snowflake
+        2. Check if the package version if provided is supported by Snowflake
+        3. Check if the package is already added
+
+        When auto package upload is enabled, this method will also try to upload the packages
+        unavailable in Snowflake to the stage.
+
+        This function will raise error if any of the above conditions are not met.
+
+        Returns:
+            List[str]: List of package specifiers
+            Dict[str, str]: Dictionary of package name -> package specifier
+        """
         # Extract package names, whether they are local, and their associated Requirement objects
         package_dict = self._parse_packages(packages)
         if isinstance(self._conn, MockServerConnection):
             # in local testing we don't resolve the packages, we just return what is added
             errors = []
+            result_dict = self._packages.copy()
             for pkg_name, _, pkg_req in package_dict.values():
-                if (
-                    pkg_name in self._packages
-                    and str(pkg_req) != self._packages[pkg_name]
-                ):
+                if pkg_name in result_dict and str(pkg_req) != result_dict[pkg_name]:
                     errors.append(
                         ValueError(
-                            f"Cannot add package '{str(pkg_req)}' because {self._packages[pkg_name]} "
+                            f"Cannot add package '{str(pkg_req)}' because {result_dict[pkg_name]} "
                             "is already added."
                         )
                     )
                 else:
-                    self._packages[pkg_name] = str(pkg_req)
+                    result_dict[pkg_name] = str(pkg_req)
             if len(errors) == 1:
                 raise errors[0]
             elif len(errors) > 0:
                 raise RuntimeError(errors)
-            return list(self._packages.values())
+            return list(result_dict.values()), result_dict
 
         package_table = "information_schema.packages"
         if not self.get_current_database():
@@ -1544,9 +1557,10 @@ class Session:
         #  'numpy': 'numpy',
         #  'scikit-learn': 'scikit-learn==1.2.2',
         #  'python-dateutil': 'python-dateutil==2.8.2'}
-        # Add to packages dictionary
+        # Add to packages dictionary. Make a copy of existing packages
+        # dictionary to avoid modifying it.
         result_dict = (
-            existing_packages_dict if existing_packages_dict is not None else {}
+            existing_packages_dict.copy() if existing_packages_dict is not None else {}
         )
 
         # Retrieve list of dependencies that need to be added
@@ -1580,8 +1594,10 @@ class Session:
         if include_pandas:
             extra_modules.append("pandas")
 
-        return list(result_dict.values()) + self._get_req_identifiers_list(
-            extra_modules, result_dict
+        return (
+            list(result_dict.values())
+            + self._get_req_identifiers_list(extra_modules, result_dict),
+            result_dict,
         )
 
     def _upload_unsupported_packages(
@@ -2256,17 +2272,25 @@ class Session:
         for uploading and storing temporary artifacts for this session.
         These artifacts include libraries and packages for UDFs that you define
         in this session via :func:`add_import`.
+
+        Note:
+            This temporary stage is created once under the current database and schema of a Snowpark session.
+            Therefore, if you switch database or schema during the session, the stage will not be re-created
+            in the new database or schema, and still references the stage in the old database or schema.
         """
-        stage_name = self.get_fully_qualified_name_if_possible(self._session_stage)
-        if not self._stage_created:
+        if not self._session_stage:
+            full_qualified_stage_name = self.get_fully_qualified_name_if_possible(
+                random_name_for_temp_object(TempObjectType.STAGE)
+            )
             self._run_query(
                 f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
-                stage if not exists {stage_name}",
+                stage if not exists {full_qualified_stage_name}",
                 is_ddl_on_temp_object=True,
                 statement_params=statement_params,
             )
-            self._stage_created = True
-        return f"{STAGE_PREFIX}{stage_name}"
+            # set the value after running the query to ensure atomicity
+            self._session_stage = full_qualified_stage_name
+        return f"{STAGE_PREFIX}{self._session_stage}"
 
     def _write_modin_pandas_helper(
         self,

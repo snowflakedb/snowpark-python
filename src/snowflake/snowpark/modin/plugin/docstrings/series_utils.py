@@ -957,7 +957,45 @@ class StringMethods:
         pass
 
     def normalize():
-        pass
+        """
+        Convert times to midnight.
+
+
+        The time component of the date-time is converted to midnight i.e. 00:00:00. This is useful in cases, when the time does not matter. Length is unaltered. The timezones are unaffected.
+
+
+        This method is available on Series with datetime values under the .dt accessor, and directly on Datetime Array/Index.
+
+
+        Returns
+        -------
+        DatetimeArray, DatetimeIndex or Series
+            The same type as the original data. Series will have the same name and index. DatetimeIndex will have the same name.
+
+        See also
+        --------
+        floor
+            Floor the datetimes to the specified freq.
+        ceil
+            Ceil the datetimes to the specified freq.
+        round
+            Round the datetimes to the specified freq.
+
+        Examples
+        --------
+        >>> idx = pd.date_range(start='2014-08-01 10:00', freq='h',
+        ...                    periods=3, tz='Asia/Calcutta')  # doctest: +SKIP
+        >>> idx  # doctest: +SKIP
+        DatetimeIndex(['2014-08-01 10:00:00+05:30',
+                    '2014-08-01 11:00:00+05:30',
+                    '2014-08-01 12:00:00+05:30'],
+                        dtype='datetime64[ns, Asia/Calcutta]', freq=None)
+        >>> idx.normalize()  # doctest: +SKIP
+        DatetimeIndex(['2014-08-01 00:00:00+05:30',
+                    '2014-08-01 00:00:00+05:30',
+                    '2014-08-01 00:00:00+05:30'],
+                    dtype='datetime64[ns, Asia/Calcutta]', freq=None)
+        """
 
     def translate():
         """
@@ -1161,7 +1199,33 @@ class CombinedDatetimelikeProperties:
 
     @property
     def time():
-        pass
+        """
+        Returns numpy array of datetime.time objects.
+
+        The time part of the Timestamps.
+
+        Examples
+        --------
+        For Series:
+
+        >>> s = pd.Series(["1/1/2020 10:00:00", "2/1/2020 11:00:00"])
+        >>> s = pd.to_datetime(s)
+        >>> s
+        0   2020-01-01 10:00:00
+        1   2020-02-01 11:00:00
+        dtype: datetime64[ns]
+        >>> s.dt.time
+        0    10:00:00
+        1    11:00:00
+        dtype: object
+
+        For DatetimeIndex:
+
+        >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
+        ...                         "2/1/2020 11:00:00+00:00"])
+        >>> idx.time
+        Index([10:00:00, 11:00:00], dtype='object')
+        """
 
     @property
     def timetz():
@@ -1381,7 +1445,40 @@ class CombinedDatetimelikeProperties:
 
     @property
     def weekday():
-        pass
+        """
+        The day of the week with Monday=0, Sunday=6.
+
+        Return the day of the week. It is assumed the week starts on Monday, which is denoted by 0 and ends on Sunday which is denoted by 6. This method is available on both Series with datetime values (using the dt accessor) or DatetimeIndex.
+
+        Returns
+        -------
+        Series or Index
+            Containing integers indicating the day number.
+
+        See also
+        --------
+        Series.dt.dayofweek
+            Alias.
+        Series.dt.weekday
+            Alias.
+        Series.dt.day_name
+            Returns the name of the day of the week.
+
+        Examples
+        --------
+        >>> s = pd.date_range('2016-12-31', '2017-01-08', freq='D').to_series()
+        >>> s.dt.weekday
+        2016-12-31    5
+        2017-01-01    6
+        2017-01-02    0
+        2017-01-03    1
+        2017-01-04    2
+        2017-01-05    3
+        2017-01-06    4
+        2017-01-07    5
+        2017-01-08    6
+        Freq: None, dtype: int16
+        """
 
     @property
     def dayofyear():

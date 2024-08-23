@@ -178,7 +178,7 @@ class ErrorMessage:
         class_: str
             The class of Snowpark pandas function associated with the method.
         """
-        message = f"{name} is not yet implemented for {class_}"
+        message = f"Snowpark pandas does not yet support the method {class_}.{name}"
         ErrorMessage.not_implemented(message)
 
     @staticmethod

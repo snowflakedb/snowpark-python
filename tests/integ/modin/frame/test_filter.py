@@ -3,7 +3,6 @@
 #
 
 import random
-import re
 
 import modin.pandas as pd
 import numpy as np
@@ -89,7 +88,7 @@ def test_filtering_with_self_not_implemented(
     snow_df = pd.DataFrame(data)
     with pytest.raises(
         NotImplementedError,
-        match=re.escape("casefold is not yet implemented for Series.str"),
+        match="Snowpark pandas does not yet support the method Series.str.casefold",
     ):
         func(snow_df)
 

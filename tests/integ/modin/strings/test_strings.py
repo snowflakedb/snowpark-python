@@ -356,7 +356,7 @@ def test_index_not_found_raises():
 @sql_count_checker(query_count=0)
 def test_index_raises_not_implemented_error(method):
     obj = pd.Series([], dtype=object)
-    msg = f"{method} is not yet implemented for Series.str"
+    msg = f"Snowpark pandas does not yet support the method Series.str.{method}"
 
     with pytest.raises(NotImplementedError, match=msg):
         getattr(obj.str, method)("sub")

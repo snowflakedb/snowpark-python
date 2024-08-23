@@ -16,6 +16,7 @@ dt_properties = pytest.mark.parametrize(
     "property_name",
     [
         "date",
+        "time",
         "hour",
         "minute",
         "second",
@@ -158,6 +159,19 @@ def test_floor_ceil_round_negative(func, freq, ambiguous, nonexistent):
         )
 
 
+@sql_count_checker(query_count=1)
+def test_normalize():
+    date_range = native_pd.date_range(start="2021-01-01", periods=5, freq="7h")
+    native_ser = native_pd.Series(date_range)
+    native_ser.iloc[2] = native_pd.NaT
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda s: s.dt.normalize(),
+    )
+
+
 def test_isocalendar():
     with SqlCounter(query_count=1):
         date_range = native_pd.date_range("2020-05-01", periods=5, freq="4D")
@@ -179,12 +193,12 @@ def test_isocalendar():
 def test_day_of_year(property, day_of_week_or_year_data):
     eval_snowpark_pandas_result(
         *create_test_series(day_of_week_or_year_data),
-        lambda df: getattr(df.dt, property),
+        lambda s: getattr(s.dt, property),
     )
 
 
 @sql_count_checker(query_count=1)
-@pytest.mark.parametrize("property", ["dayofweek", "day_of_week"])
+@pytest.mark.parametrize("property", ["dayofweek", "day_of_week", "weekday"])
 @pytest.mark.parametrize(
     "set_week_start",
     # Test different WEEK_START values because WEEK_START changes the DAYOFWEEK
@@ -195,7 +209,7 @@ def test_day_of_year(property, day_of_week_or_year_data):
 def test_day_of_week(property, day_of_week_or_year_data, set_week_start):
     eval_snowpark_pandas_result(
         *create_test_series(day_of_week_or_year_data),
-        lambda df: getattr(df.dt, property),
+        lambda s: getattr(s.dt, property),
     )
 
 
