@@ -211,10 +211,10 @@ class LargeQueryBreakdown:
         """This method traverses the plan tree and partitions the plan based if a valid partition node
         if found. The steps involved are:
 
-        1. Traverse the plan tree and find the valid nodes for partitioning.
-        2. If no valid node is found, return None.
-        3. Keep valid nodes in a sorted list based on the complexity score.
-        4. Return the node with the highest complexity score.
+            1. Traverse the plan tree and find the valid nodes for partitioning.
+            2. If no valid node is found, return None.
+            3. Keep valid nodes in a sorted list based on the complexity score.
+            4. Return the node with the highest complexity score.
         """
         current_level = [root]
         pipeline_breaker_list = SortedList(key=lambda x: x[0])

@@ -265,10 +265,23 @@ def update_resolvable_node(
                     if action not in node.post_actions:
                         node.post_actions.append(action)
 
-    elif isinstance(node, (SelectSnowflakePlan, SelectTableFunction)):
+    elif isinstance(node, SelectSnowflakePlan):
         assert node.snowflake_plan is not None
         update_resolvable_node(node.snowflake_plan, query_generator)
+        node.pre_actions = node.snowflake_plan.queries[:-1]
+        node.post_actions = node.snowflake_plan.post_actions
+        node._api_calls = node.snowflake_plan.api_calls
+        node._query_params = []
+        for query in node._snowflake_plan.queries:
+            if query.params:
+                node._query_params.extend(query.params)
+
         node.analyzer = query_generator
+
+    elif isinstance(node, SelectTableFunction):
+        node.pre_actions = node.snowflake_plan.queries[:-1]
+        node.post_actions = node.snowflake_plan.post_actions
+        node._api_calls = node.snowflake_plan.api_calls
 
     elif isinstance(node, Selectable):
         node.analyzer = query_generator
@@ -312,9 +325,7 @@ def plot_plan_if_enabled(root: TreeNode, path: str) -> None:
     import os
 
     if (
-        not os.environ.get(
-            "ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING", "false"
-        ).lower()
+        os.environ.get("ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING", "false").lower()
         != "true"
     ):
         return
@@ -343,8 +354,9 @@ def plot_plan_if_enabled(root: TreeNode, path: str) -> None:
         )
         sql_size = len(sql_text)
         sql_preview = sql_text[:50]
+        num_post_actions = len(node.post_actions) if node.post_actions else 0
 
-        return f"{name=}\n{score=}, {sql_size=}\n{sql_preview=}"
+        return f"{name=}\n{score=}, {sql_size=}, {num_post_actions=}\n{sql_preview=}"
 
     g = graphviz.Graph(format="png")
 
