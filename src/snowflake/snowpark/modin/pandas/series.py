@@ -193,8 +193,10 @@ class Series(BasePandasDataset):
                 )
             )._query_compiler
             if isinstance(index, Index):
-                query_compiler = query_compiler.create_qc_with_index_data_and_qc_index(
-                    index._query_compiler
+                query_compiler = (
+                    query_compiler.create_qc_with_data_and_index_joined_on_index(
+                        index._query_compiler
+                    )
                 )
         self._query_compiler = query_compiler.columnarize()
         if name is not None:

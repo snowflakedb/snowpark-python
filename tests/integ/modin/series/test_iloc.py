@@ -823,6 +823,7 @@ def test_df_iloc_set_with_multi_index(
         native_items.index = pd.MultiIndex.from_tuples(item_index)
 
     if row_key_index:
+        expected_join_count += 1
         snow_row_key = pd.Series(row_key, index=pd.Index(row_key_index))
         native_row_key = native_pd.Series(row_key, index=pd.Index(row_key_index))
     else:
