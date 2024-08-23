@@ -998,6 +998,12 @@ class Analyzer:
                 use_scoped_temp_objects=self.session._use_scoped_temp_objects,
                 creation_source=logical_plan.creation_source,
                 child_attributes=resolved_child.attributes,
+                is_iceberg=logical_plan.is_iceberg,
+                external_volume=logical_plan.external_volume,
+                catalog=logical_plan.catalog,
+                base_location=logical_plan.base_location,
+                catalog_sync=logical_plan.catalog_sync,
+                storage_serialization_policy=logical_plan.storage_serialization_policy,
             )
 
         if isinstance(logical_plan, Limit):

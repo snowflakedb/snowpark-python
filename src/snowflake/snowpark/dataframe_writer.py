@@ -129,6 +129,12 @@ class DataFrameWriter:
         max_data_extension_time: Optional[int] = None,
         change_tracking: Optional[bool] = None,
         copy_grants: bool = False,
+        is_iceberg: bool = False,
+        external_volume: Optional[str] = None,
+        catalog: Optional[str] = None,
+        base_location: Optional[str] = None,
+        catalog_sync: Optional[str] = None,
+        storage_serialization_policy: Optional[str] = None,
     ) -> Optional[AsyncJob]:
         """Writes the data to the specified table in a Snowflake database.
 
@@ -176,6 +182,22 @@ class DataFrameWriter:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
+            is_iceberg: Specifies that this table should be saved as an Iceberg table.
+            external_volume: (iceberg only) Specifies the identifier (name) for the external volume
+                where the Iceberg table stores its metadata files and data in Parquet format. Iceberg
+                metadata and manifest files store the table schema, partitions, snapshots, and
+                other metadata.
+            catalog: (iceberg only) Specifies either Snowflake as the catalog or the identifier
+                (name) of the catalog integration for this table.
+            base_location: (iceberg only) The path to a directory where Snowflake can write data and
+                metadata files for the table. Specify a relative path from the table’s
+                ``external_volume`` location.
+            catalog_sync: (iceberg only) Optionally specifies the name of a catalog integration
+                configured for Polaris Catalog.
+            storage_serialization_policy: (iceberg only) Specifies the storage serialization policy
+                for the table. If not specified at table creation, the table inherits the value set
+                at the schema, database, or account level. If the value isn’t specified at any
+                level, the table uses the default value.
 
         Examples::
 
@@ -246,6 +268,12 @@ class DataFrameWriter:
                 max_data_extension_time,
                 change_tracking,
                 copy_grants,
+                is_iceberg,
+                external_volume,
+                catalog,
+                base_location,
+                catalog_sync,
+                storage_serialization_policy,
             )
             session = self._dataframe._session
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)

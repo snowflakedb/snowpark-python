@@ -846,6 +846,12 @@ class SnowflakePlanBuilder:
         use_scoped_temp_objects: bool,
         creation_source: TableCreationSource,
         child_attributes: Optional[List[Attribute]],
+        is_iceberg: bool = False,
+        external_volume: Optional[str] = None,
+        catalog: Optional[str] = None,
+        base_location: Optional[str] = None,
+        catalog_sync: Optional[str] = None,
+        storage_serialization_policy: Optional[str] = None,
     ) -> SnowflakePlan:
         """Returns a SnowflakePlan to materialize the child plan into a table.
 
@@ -872,6 +878,13 @@ class SnowflakePlanBuilder:
             child_attributes: child attributes will be none in the case of large query breakdown
                 where we use ctas query to create the table which does not need to know the column
                 metadata.
+            is_iceberg: writes the table out as an iceberg table
+            external_volume: (iceberg only) specifies the identifier for the external volume where
+                the Iceberg table stores its metadata files and data in Parquet format
+            catalog: (iceberg only) specifies either Snowflake or a catalog integration to use for this table
+            base_location: (iceberg only) the base directory that snowflake can write iceberg metadata and files to
+            catalog_sync: (iceberg only) optionally sets the catalog integration configured for Polaris Catalog
+            storage_serialization_policy: (iceberg only) specifies the storage serialization policy for the table
         """
         is_generated = creation_source in (
             TableCreationSource.CACHE_RESULT,
@@ -929,6 +942,12 @@ class SnowflakePlanBuilder:
                     max_data_extension_time=max_data_extension_time,
                     change_tracking=change_tracking,
                     copy_grants=copy_grants,
+                    is_iceberg=is_iceberg,
+                    external_volume=external_volume,
+                    catalog=catalog,
+                    base_location=base_location,
+                    catalog_sync=catalog_sync,
+                    storage_serialization_policy=storage_serialization_policy,
                 ),
                 child,
                 source_plan,
@@ -955,6 +974,12 @@ class SnowflakePlanBuilder:
                 copy_grants=copy_grants,
                 use_scoped_temp_objects=use_scoped_temp_objects,
                 is_generated=is_generated,
+                is_iceberg=is_iceberg,
+                external_volume=external_volume,
+                catalog=catalog,
+                base_location=base_location,
+                catalog_sync=catalog_sync,
+                storage_serialization_policy=storage_serialization_policy,
             )
 
             # so that dataframes created from non-select statements,
