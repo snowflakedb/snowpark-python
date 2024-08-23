@@ -4,19 +4,24 @@
 
 import logging
 from collections import defaultdict
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from sortedcontainers import SortedList
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_table_if_exists_statement,
 )
-from snowflake.snowpark._internal.analyzer.binary_plan_node import Union
+from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    Except,
+    Intersect,
+    Union,
+)
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
-    SET_UNION,
+    SET_INTERSECT,
+    SET_UNION_ALL,
     Selectable,
     SelectSnowflakePlan,
     SelectStatement,
@@ -141,7 +146,7 @@ class LargeQueryBreakdown:
     def _try_to_breakdown_plan(
         self, plan_index: int, root: TreeNode
     ) -> List[LogicalPlan]:
-        """Method to breakdown a single TreeNode into smaller partitions based on
+        """Method to breakdown a single plan into smaller partitions based on
         cumulative complexity score and node type.
 
         This method tried to breakdown the root plan into smaller partitions until the root complexity
@@ -153,6 +158,9 @@ class LargeQueryBreakdown:
         3. For each valid node, cut the node out from the root and create a temp table plan for the partition.
         4. Update the ancestors snowflake plans to generate the correct queries.
         """
+        _logger.debug(
+            f"Applying large query breakdown optimization for root[{plan_index}] of type {type(root)}"
+        )
         if (
             isinstance(root, SnowflakePlan)
             and root.source_plan is not None
@@ -205,15 +213,14 @@ class LargeQueryBreakdown:
         while current_level:
             next_level = []
             for node in current_level:
-                children = (
-                    node.children_plan_nodes
-                    if isinstance(node, (SnowflakePlan, Selectable))
-                    else node.children
-                )
-                for child in children:
+                assert isinstance(node, (Selectable, SnowflakePlan))
+                for child in node.children_plan_nodes:
                     self._parent_map[child].add(node)
-                    score = get_complexity_score(child.cumulative_node_complexity)
-                    if self._is_node_valid_to_breakdown(score, child):
+                    valid_to_breakdown, score = self._is_node_valid_to_breakdown(child)
+                    if valid_to_breakdown:
+                        _logger.debug(
+                            f"Added node of type {type(child)} with score {score} to pipeline breaker list."
+                        )
                         # Append score and child to the pipeline breaker sorted list
                         # so that the valid child with the highest complexity score
                         # is at the end of the list.
@@ -262,11 +269,16 @@ class LargeQueryBreakdown:
 
         return temp_table_plan
 
-    def _is_node_valid_to_breakdown(self, score: int, node: LogicalPlan) -> bool:
-        """Method to check if a node is valid to breakdown based on complexity score and node type."""
+    def _is_node_valid_to_breakdown(self, node: LogicalPlan) -> Tuple[bool, int]:
+        """Method to check if a node is valid to breakdown based on complexity score and node type.
+
+        Returns:
+            A tuple of boolean indicating if the node is valid for partitioning and the complexity score.
+        """
+        score = get_complexity_score(node.cumulative_node_complexity)
         return (
             COMPLEXITY_SCORE_LOWER_BOUND < score < COMPLEXITY_SCORE_UPPER_BOUND
-        ) and self._is_node_pipeline_breaker(node)
+        ) and self._is_node_pipeline_breaker(node), score
 
     def _is_node_pipeline_breaker(self, node: LogicalPlan) -> bool:
         """Method to check if a node is a pipeline breaker based on the node type.
@@ -282,8 +294,12 @@ class LargeQueryBreakdown:
             return node.row_count is not None
 
         if isinstance(node, Union):
-            # Union is a pipeline breaker since it is a UNION ALL + group by aggregation
+            # Union is a pipeline breaker since it is a UNION ALL + distinct
             return not node.is_all
+
+        if isinstance(node, (Except, Intersect)):
+            # Except and Intersect are pipeline breakers since they are join + distinct
+            return True
 
         if isinstance(node, SelectStatement):
             # SelectStatement is a pipeline breaker if it contains an order by clause since sorting
@@ -291,8 +307,21 @@ class LargeQueryBreakdown:
             return node.order_by is not None
 
         if isinstance(node, SetStatement):
-            # SetStatement is a pipeline breaker if it has a UNION operator.
-            return any(operand.operator == SET_UNION for operand in node.set_operands)
+            # If the last operator applied in the SetStatement is a pipeline breaker, then the
+            # SetStatement is a pipeline breaker.
+
+            # operands[0] is ignored in generating the query
+            operators = [operand.operator for operand in node.set_operands[1:]]
+
+            # INTERSECT has the highest precedence. EXCEPT, UNION, UNION ALL have the same precedence.
+            non_intersect_operators = list(
+                filter(lambda x: x != SET_INTERSECT, operators)
+            )
+            if len(non_intersect_operators) == 0:
+                # If all operators are INTERSECT, then the SetStatement is a pipeline breaker.
+                return True
+
+            return non_intersect_operators[-1] != SET_UNION_ALL
 
         if isinstance(node, SnowflakePlan):
             return node.source_plan is not None and self._is_node_pipeline_breaker(
