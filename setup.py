@@ -47,6 +47,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "openpyxl",  # used in read_excel test, not a requirement for distribution
     "matplotlib",  # used in plot tests
     "pre-commit",
+    "graphviz",  # used to visualize the plans
 ]
 
 # read the version
