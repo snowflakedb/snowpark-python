@@ -405,6 +405,8 @@ class RelationalGroupedDataFrame:
         )
         partition_by = [functions.col(expr) for expr in self._grouping_exprs]
 
+        raise NotImplementedError("TODO SNOW-1514712: support UDxFs")
+
         return self._df.select(
             _apply_in_pandas_udtf(*self._df.columns).over(partition_by=partition_by)
         )

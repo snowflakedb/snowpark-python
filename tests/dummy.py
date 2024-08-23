@@ -2,11 +2,16 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import pandas as pd
+
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import to_timestamp
 
 session = Session.builder.getOrCreate()
 
+session.create_dataframe(
+    pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"])
+).collect()
 
 # src/snowflake/snowpark/dataframe.py::snowpark.dataframe.DataFrame.group_by
 
