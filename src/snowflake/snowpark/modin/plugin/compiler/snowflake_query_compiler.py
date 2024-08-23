@@ -1899,8 +1899,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         from snowflake.snowpark.modin.pandas.series import Series
 
-        self._raise_not_implemented_error_for_timedelta()
-
         # Step 1: Convert other to a Series and join on the row position with self.
         other_qc = Series(other)._query_compiler
         self_frame = self._modin_frame.ensure_row_position_column()
@@ -2050,8 +2048,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
         from snowflake.snowpark.modin.pandas.series import Series
         from snowflake.snowpark.modin.pandas.utils import is_scalar
-
-        self._raise_not_implemented_error_for_timedelta()
 
         # fail explicitly for unsupported scenarios
         if level is not None:
@@ -13750,8 +13746,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler representing result of binary op operation.
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         assert (
             other.is_series_like()
         ), "other must be a Snowflake Query Compiler representing a Series"
@@ -14323,7 +14317,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=expanded_data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
-            data_column_types=None,
+            data_column_types=[
+                frame.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
+                    identifier
+                )
+                for identifier in expanded_data_column_snowflake_quoted_identifiers
+            ],
             index_column_types=None,
         )
 
