@@ -259,9 +259,9 @@ def test_reindex_index_fill_method_with_old_na_values_pandas_negative(limit, met
     )
 
 
-# @sql_count_checker(query_count=2, join_count=1)
-@pytest.mark.parametrize("limit", [None])  # , 1, 2, 100])
-@pytest.mark.parametrize("method", ["bfill"])  # , "backfill", "pad", "ffill"])
+@sql_count_checker(query_count=1, join_count=2)
+@pytest.mark.parametrize("limit", [None, 1, 2, 100])
+@pytest.mark.parametrize("method", ["bfill", "backfill", "pad", "ffill"])
 def test_reindex_index_datetime_with_fill(limit, method):
     date_index = native_pd.date_range("1/1/2010", periods=6, freq="D")
     native_series = native_pd.Series(

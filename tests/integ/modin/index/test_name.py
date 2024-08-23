@@ -95,7 +95,7 @@ def test_index_rename_copy(new_name):
 
 
 @pytest.mark.parametrize("new_name", [None, "grade", ("grade",), ("A", "B")])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_df_index_rename_inplace(new_name):
     # 1 query to create the DataFrame.
     # Create the DataFrame and the new index.
@@ -117,7 +117,7 @@ def test_df_index_rename_inplace(new_name):
 
 
 @pytest.mark.parametrize("new_name", [None, "grade", ("grade",), ("A", "B")])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_df_index_rename_copy(new_name):
     # 1 query to create the DataFrame.
     # Create the DataFrame and the new index.
@@ -183,7 +183,7 @@ def test_index_set_names_copy(new_name):
 
 
 @pytest.mark.parametrize("new_name", [None, "grade", ["grade"], ("grade",)])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_df_index_set_names_inplace(new_name):
     # 1 query to create the DataFrame.
     # Create the DataFrame and the new index.
@@ -213,7 +213,7 @@ def test_df_index_set_names_inplace(new_name):
 
 
 @pytest.mark.parametrize("new_name", [None, "grade", ["grade"], ("grade",)])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_df_index_set_names_copy(new_name):
     # 1 query to create the DataFrame.
     # Create the DataFrame and the new index.

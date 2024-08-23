@@ -297,6 +297,22 @@ class DataFrame(BasePandasDataset):
                     for k, v in data.items()
                 }
 
+                if all(len(v) == 1 for v in data.values()) and index is not None:
+                    # Special case when creating:
+                    # >>> DataFrame({"A": [1], "V": [2]}, native_pd.Index(["A", "B", "C"]), name="none")
+                    #       A  V
+                    # none
+                    # A     1  2
+                    # B     1  2  <--- the first row is copied into the rest of the rows.
+                    # C     1  2
+                    # Recreate a 2-d array with the first row copied into the rest of the rows.
+                    self._query_compiler = DataFrame(
+                        data=[[v[0] for v in data.values()]] * len(index),
+                        index=index,
+                        columns=list(data.keys()),
+                    )._query_compiler
+                    return
+
             new_index = index
             if isinstance(index, Index):
                 # Skip turning this into a native pandas object here since this issues an extra query.

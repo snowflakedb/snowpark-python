@@ -322,6 +322,7 @@ def test_create_df_with_df_as_data_and_index_as_index(native_df, native_index):
             native_pd.DataFrame([]),
             native_pd.Index(["A", "V"], name="non-empty index"),
         ),  # empty df and index
+        ({}, native_pd.Index([10, 0, 1], name="non-empty index")),
     ],
 )
 @sql_count_checker(query_count=1, join_count=2)
@@ -407,6 +408,14 @@ def test_create_df_with_empty_df_as_data_and_index_as_index(native_df, native_in
             native_pd.Index(["A", "V"], name="non-empty index"),
             ["A", "V"],
         ),  # empty data, non-empty index and columns
+        (
+            {
+                "A": [1, 2, 3],
+                "B": [4, 5, 6],
+            },  # dict data should behave similar to DataFrame data
+            native_pd.Index([10, 0, 1], name="non-empty index"),
+            ["A", "C"],
+        ),
     ],
 )
 @pytest.mark.parametrize("column_type", ["list", "index"])
@@ -421,9 +430,16 @@ def test_create_df_with_df_as_data_and_index_as_index_and_different_columns(
     # One extra query is required to create the columns if it is an Index (column_type is "index").
     native_columns = columns if column_type == "list" else native_pd.Index(columns)
     snow_columns = columns if column_type == "list" else pd.Index(columns)
-    snow_df = pd.DataFrame(native_df)
+    snow_df = (
+        pd.DataFrame(native_df)
+        if isinstance(native_df, native_pd.DataFrame)
+        else native_df
+    )
     snow_index = pd.Index(native_index)
-    with SqlCounter(query_count=1 if column_type == "list" else 2, join_count=2):
+    qc = 1 if column_type == "list" else 2
+    qc += 1 if (isinstance(native_df, dict) and column_type == "index") else 0
+    jc = 2 if isinstance(native_df, native_pd.DataFrame) else 1
+    with SqlCounter(query_count=qc, join_count=jc):
         assert_frame_equal(
             pd.DataFrame(snow_df, index=snow_index, columns=native_columns),
             native_pd.DataFrame(native_df, index=native_index, columns=snow_columns),
@@ -454,3 +470,22 @@ def test_create_df_with_df_index_negative():
         match=re.escape("Shape of passed values is (3, 1), indices imply (2, 1)"),
     ):
         pd.DataFrame([1, 2, 3], index=[[1, 2], [3, 4], [5, 6]])
+
+
+@sql_count_checker(query_count=2, join_count=1)
+def test_create_df_with_dict_as_data_and_index_as_index():
+    """
+    Special case when creating:
+    >>> DataFrame({"A": [1], "V": [2]}, native_pd.Index(["A", "B", "C"]), name="none")   # doctest: +SKIP
+          A  V
+    none
+    A     1  2
+    B     1  2  <--- the first row is copied into the rest of the rows.
+    C     1  2
+    """
+    data = {"A": [1], "V": [2]}
+    native_index = native_pd.Index(["A", "B", "C"])
+    snow_index = pd.Index(native_index)
+    native_df = native_pd.DataFrame(data, index=native_index)
+    snow_df = pd.DataFrame(data, index=snow_index)
+    assert_frame_equal(snow_df, native_df)

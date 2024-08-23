@@ -165,6 +165,26 @@ class Series(BasePandasDataset):
                 )
                 # 3. Perform .loc[] on `data` to select the rows that are in `index`.
                 query_compiler = data.loc[index]._query_compiler
+
+        elif is_dict_like(data) and not isinstance(data, (pandas.Series, Series)):
+            if name is None:
+                name = MODIN_UNNAMED_SERIES_LABEL
+            # If the data is a dictionary, we need to convert it to a query compiler and set the index.
+            query_compiler = from_pandas(
+                pandas.DataFrame(
+                    pandas.Series(
+                        data=data, dtype=dtype, name=name, copy=copy, fastpath=fastpath
+                    )
+                )
+            )._query_compiler
+            if index is not None:
+                index = index if isinstance(index, Index) else Index(index)
+                query_compiler = (
+                    query_compiler.create_qc_with_data_and_index_joined_on_index(
+                        index._query_compiler
+                    )
+                )
+
         if query_compiler is None:
             # Defaulting to pandas
             if name is None:
@@ -184,7 +204,7 @@ class Series(BasePandasDataset):
                 pandas.DataFrame(
                     pandas.Series(
                         data=try_convert_index_to_native(data),
-                        index=try_convert_index_to_native(new_index),
+                        index=new_index,
                         dtype=dtype,
                         name=name,
                         copy=copy,
@@ -193,10 +213,9 @@ class Series(BasePandasDataset):
                 )
             )._query_compiler
             if isinstance(index, Index):
-                query_compiler = (
-                    query_compiler.create_qc_with_data_and_index_joined_on_index(
-                        index._query_compiler
-                    )
+                # Performing set index to directly set the index column (joining on row-position instead of index).
+                query_compiler = query_compiler.set_index_from_series(
+                    index.to_series()._query_compiler
                 )
         self._query_compiler = query_compiler.columnarize()
         if name is not None:
