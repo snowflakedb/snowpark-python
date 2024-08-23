@@ -605,16 +605,9 @@ class Analyzer:
             sql = named_arguments_function(
                 expr.func_name,
                 {
-                    key: self.analyze(
+                    key: self.to_sql_try_avoid_cast(
                         value, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
-                    if not (
-                        expr.func_name.lower() == "flatten"
-                        and key.lower() == "outer"
-                        and isinstance(value, Literal)
-                        and isinstance(value.datatype, BooleanType)
-                    )
-                    else str(value.value).upper()
                     for key, value in expr.args.items()
                 },
             )
@@ -752,6 +745,12 @@ class Analyzer:
         # otherwise process as normal
         if isinstance(expr, Literal) and isinstance(expr.datatype, _NumericType):
             return numeric_to_sql_without_cast(expr.value, expr.datatype)
+        elif (
+            isinstance(expr, Literal)
+            and isinstance(expr.datatype, BooleanType)
+            and isinstance(expr.value, bool)
+        ):
+            return str(expr.value).upper()
         else:
             return self.analyze(
                 expr, df_aliased_col_name_to_real_col_name, parse_local_name
