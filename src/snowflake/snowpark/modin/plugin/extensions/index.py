@@ -42,6 +42,7 @@ from pandas.core.dtypes.common import (
     is_integer_dtype,
     is_numeric_dtype,
     is_object_dtype,
+    is_timedelta64_dtype,
     pandas_dtype,
 )
 from pandas.core.dtypes.inference import is_hashable
@@ -112,21 +113,30 @@ class Index(metaclass=TelemetryMeta):
         from snowflake.snowpark.modin.plugin.extensions.datetime_index import (
             DatetimeIndex,
         )
+        from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (
+            TimedeltaIndex,
+        )
 
         if query_compiler:
             dtype = query_compiler.index_dtypes[0]
-            if dtype == np.dtype("datetime64[ns]"):
+            if is_datetime64_any_dtype(dtype):
                 return DatetimeIndex(query_compiler=query_compiler)
+            if is_timedelta64_dtype(dtype):
+                return TimedeltaIndex(query_compiler=query_compiler)
         elif isinstance(data, BasePandasDataset):
             if data.ndim != 1:
                 raise ValueError("Index data must be 1 - dimensional")
             dtype = data.dtype
-            if dtype == np.dtype("datetime64[ns]"):
-                return DatetimeIndex(data, dtype, copy, name, tupleize_cols)
+            if is_datetime64_any_dtype(dtype):
+                return DatetimeIndex(data, dtype=dtype, copy=copy, name=name)
+            if is_timedelta64_dtype(dtype):
+                return TimedeltaIndex(data, dtype=dtype, copy=copy, name=name)
         else:
             index = native_pd.Index(data, dtype, copy, name, tupleize_cols)
             if isinstance(index, native_pd.DatetimeIndex):
                 return DatetimeIndex(data)
+            if isinstance(index, native_pd.TimedeltaIndex):
+                return TimedeltaIndex(data)
         return object.__new__(cls)
 
     def __init__(

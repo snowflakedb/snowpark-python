@@ -143,6 +143,10 @@ datetime_index_not_implemented = _make_not_implemented_decorator(
     decorating_functions=False, attribute_prefix="DatetimeIndex"
 )
 
+timedelta_index_not_implemented = _make_not_implemented_decorator(
+    decorating_functions=False, attribute_prefix="TimedeltaIndex"
+)
+
 pandas_module_level_function_not_implemented = _make_not_implemented_decorator(
     decorating_functions=True, attribute_prefix="pd"
 )
