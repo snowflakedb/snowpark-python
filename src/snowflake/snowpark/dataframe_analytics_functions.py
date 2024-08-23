@@ -706,8 +706,14 @@ class DataFrameAnalyticsFunctions:
                     )
                     ast.formatted_col_names.append(agg_column_name)
 
-        if self._df._session._conn._suppress_not_implemented_error:
-            return None
+        # TODO: Support time_series_agg in MockServerConnection.
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
+        if (
+            isinstance(self._df._session._conn, MockServerConnection)
+            and self._df._session._conn._suppress_not_implemented_error
+        ):
+            return self._df._session.createDataFrame([])
 
         slide_duration, slide_unit = self._validate_and_extract_time_unit(
             sliding_interval, "sliding_interval", allow_negative=False

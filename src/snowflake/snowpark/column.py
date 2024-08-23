@@ -289,6 +289,8 @@ class Column:
         else:  # pragma: no cover
             raise TypeError("Column constructor only accepts str or expression.")
 
+        assert self._expression is not None
+
     def __getitem__(self, field: Union[str, int]) -> "Column":
         """Accesses an element of ARRAY column by ordinal position, or an element of OBJECT column by key."""
         if isinstance(field, str):
@@ -1147,7 +1149,13 @@ class Column:
                     f"'WITHIN_GROUP' expected Column or str, got: {type(col)}"
                 )
 
-        return Column(WithinGroup(self._expression, order_by_cols), ast=expr)
+        return Column(
+            WithinGroup(
+                self._expression,
+                [order_by_col._expression for order_by_col in order_by_cols],
+            ),
+            ast=expr,
+        )
 
     def _named(self) -> NamedExpression:
         if isinstance(self._expression, NamedExpression):
