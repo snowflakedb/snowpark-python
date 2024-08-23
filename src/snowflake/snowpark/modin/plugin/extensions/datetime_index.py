@@ -1055,8 +1055,9 @@ default 'raise'
                       dtype='datetime64[ns]', freq=None)
         """
 
-    @datetime_index_not_implemented()
-    def round(self, *args, **kwargs) -> DatetimeIndex:
+    def round(
+        self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
+    ) -> DatetimeIndex:
         """
         Perform round operation on the data to the specified `freq`.
 
@@ -1093,20 +1094,11 @@ default 'raise'
 
         Returns
         -------
-        DatetimeIndex, TimedeltaIndex, or Series
-            Index of the same type for a DatetimeIndex or TimedeltaIndex,
-            or a Series with the same index for a Series.
+        DatetimeIndex with round values.
 
         Raises
         ------
         ValueError if the `freq` cannot be converted.
-
-        Notes
-        -----
-        If the timestamps have a timezone, {op}ing will take place relative to the
-        local ("wall") time and re-localized to the same timezone. When {op}ing
-        near daylight savings time, use ``nonexistent`` and ``ambiguous`` to
-        control the re-localization behavior.
 
         Examples
         --------
@@ -1118,14 +1110,20 @@ default 'raise'
                        '2018-01-01 12:01:00'],
                       dtype='datetime64[ns]', freq=None)
 
-        >>> rng.round('h')  # doctest: +SKIP
+        >>> rng.round('h')
         DatetimeIndex(['2018-01-01 12:00:00', '2018-01-01 12:00:00',
                        '2018-01-01 12:00:00'],
                       dtype='datetime64[ns]', freq=None)
         """
+        return DatetimeIndex(
+            query_compiler=self._query_compiler.dt_round(
+                freq, ambiguous, nonexistent, include_index=True
+            )
+        )
 
-    @datetime_index_not_implemented()
-    def floor(self, *args, **kwargs) -> DatetimeIndex:
+    def floor(
+        self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
+    ) -> DatetimeIndex:
         """
         Perform floor operation on the data to the specified `freq`.
 
@@ -1162,20 +1160,11 @@ default 'raise'
 
         Returns
         -------
-        DatetimeIndex, TimedeltaIndex, or Series
-            Index of the same type for a DatetimeIndex or TimedeltaIndex,
-            or a Series with the same index for a Series.
+        DatetimeIndex with floor values.
 
         Raises
         ------
         ValueError if the `freq` cannot be converted.
-
-        Notes
-        -----
-        If the timestamps have a timezone, {op}ing will take place relative to the
-        local ("wall") time and re-localized to the same timezone. When {op}ing
-        near daylight savings time, use ``nonexistent`` and ``ambiguous`` to
-        control the re-localization behavior.
 
         Examples
         --------
@@ -1187,14 +1176,20 @@ default 'raise'
                        '2018-01-01 12:01:00'],
                       dtype='datetime64[ns]', freq=None)
 
-        >>> rng.floor('h')  # doctest: +SKIP
+        >>> rng.floor('h')
         DatetimeIndex(['2018-01-01 11:00:00', '2018-01-01 12:00:00',
                        '2018-01-01 12:00:00'],
                       dtype='datetime64[ns]', freq=None)
         """
+        return DatetimeIndex(
+            query_compiler=self._query_compiler.dt_floor(
+                freq, ambiguous, nonexistent, include_index=True
+            )
+        )
 
-    @datetime_index_not_implemented()
-    def ceil(self, *args, **kwargs) -> DatetimeIndex:
+    def ceil(
+        self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
+    ) -> DatetimeIndex:
         """
         Perform ceil operation on the data to the specified `freq`.
 
@@ -1231,20 +1226,11 @@ default 'raise'
 
         Returns
         -------
-        DatetimeIndex, TimedeltaIndex, or Series
-            Index of the same type for a DatetimeIndex or TimedeltaIndex,
-            or a Series with the same index for a Series.
+        DatetimeIndex with ceil values.
 
         Raises
         ------
         ValueError if the `freq` cannot be converted.
-
-        Notes
-        -----
-        If the timestamps have a timezone, {op}ing will take place relative to the
-        local ("wall") time and re-localized to the same timezone. When {op}ing
-        near daylight savings time, use ``nonexistent`` and ``ambiguous`` to
-        control the re-localization behavior.
 
         Examples
         --------
@@ -1256,12 +1242,16 @@ default 'raise'
                        '2018-01-01 12:01:00'],
                       dtype='datetime64[ns]', freq=None)
 
-        >>> rng.ceil('h')  # doctest: +SKIP
+        >>> rng.ceil('h')
         DatetimeIndex(['2018-01-01 12:00:00', '2018-01-01 12:00:00',
                        '2018-01-01 13:00:00'],
                       dtype='datetime64[ns]', freq=None)
-
         """
+        return DatetimeIndex(
+            query_compiler=self._query_compiler.dt_ceil(
+                freq, ambiguous, nonexistent, include_index=True
+            )
+        )
 
     def month_name(self, locale: str = None) -> Index:
         """
