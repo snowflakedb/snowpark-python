@@ -303,8 +303,8 @@ def compute_binary_op_between_snowpark_columns(
         binary_op_result_column = concat(first_operand, second_operand)
     elif (
         op == "add"
-        and isinstance(first_datatype(), TimestampType)
         and isinstance(second_datatype(), TimedeltaType)
+        and isinstance(first_datatype(), TimestampType)
     ):
         binary_op_result_column = dateadd("ns", second_operand, first_operand)
     elif (
@@ -319,8 +319,8 @@ def compute_binary_op_between_snowpark_columns(
             and isinstance(second_datatype(), NullType)
         )
         or (
-            isinstance(first_datatype(), NullType)
-            and isinstance(second_datatype(), TimedeltaType)
+            isinstance(second_datatype(), TimedeltaType)
+            and isinstance(first_datatype(), NullType)
         )
     ):
         return SnowparkPandasColumn(pandas_lit(None), TimedeltaType())
@@ -381,8 +381,8 @@ def compute_binary_op_between_snowpark_columns(
         )
     elif (
         op == "sub"
-        and isinstance(first_datatype(), TimestampType)
         and isinstance(second_datatype(), TimedeltaType)
+        and isinstance(first_datatype(), TimestampType)
     ):
         binary_op_result_column = dateadd("ns", -1 * second_operand, first_operand)
     elif (

@@ -201,6 +201,9 @@ class TestDataFrameAndScalar:
             lambda df: pd.Timedelta(1) - df,
             expect_exception=True,
             expect_exception_type=TypeError,
+            expect_exception_match=re.escape(
+                "bad operand type for unary -: 'DatetimeArray"
+            ),
         )
 
     @sql_count_checker(query_count=1)
