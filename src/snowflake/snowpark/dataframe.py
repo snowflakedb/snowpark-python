@@ -4981,6 +4981,11 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
+
+            raise NotImplementedError(
+                "TODO SNOW-1638290: implement __getitem__ for dataframe and support this."
+            )
+
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_random_split, stmt)
             for w in weights:
