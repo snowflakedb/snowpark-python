@@ -437,7 +437,7 @@ def test_dataframe_mask_not_implemented(test_data, test_cond, test_others):
         snow_dfs[0].mask(snow_dfs[1], snow_dfs[2], axis=1)
 
 
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=2, join_count=2)
 def test_dataframe_mask_cond_is_array(caplog):
     data = [[1, 2], [3, 4]]
     cond = np.array([[True, False], [False, True]])
@@ -686,7 +686,7 @@ def test_dataframe_mask_with_duplicated_index_aligned(cond_frame, other):
         native_other = other
         snow_other = other
 
-    expected_join_count = 1 if isinstance(other, int) else 2
+    expected_join_count = 2 if isinstance(other, int) else 3
     with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             snow_df,
@@ -697,8 +697,9 @@ def test_dataframe_mask_with_duplicated_index_aligned(cond_frame, other):
         )
 
 
-# Three extra queries to convert to native index for dataframe constructor when creating the 3 snowpark pandas dataframes
-@sql_count_checker(query_count=4, join_count=2)
+# Three extra joins when creating the 3 snowpark pandas dataframes with non-Snowpark pandas
+# data and Snowpark pandas Index.
+@sql_count_checker(query_count=1, join_count=5)
 def test_dataframe_mask_with_duplicated_index_unaligned():
     data = [3, 4, 5, 2]
     df_index = pd.Index([2, 1, 2, 3], name="index")
@@ -866,7 +867,7 @@ def test_mask_series_other_axis_not_specified():
     )
 
 
-@sql_count_checker(query_count=3, join_count=2)
+@sql_count_checker(query_count=2, join_count=3)
 @pytest.mark.parametrize(
     "data",
     [[10], [10, 11, 12], [10, 11, 12, 13]],
@@ -911,7 +912,7 @@ def test_mask_series_other_axis_0(index, data):
     )
 
 
-@sql_count_checker(query_count=3, join_count=2, union_count=1)
+@sql_count_checker(query_count=2, join_count=3, union_count=1)
 @pytest.mark.parametrize(
     "data",
     [[10], [10, 11, 12], [10, 11, 12, 13]],

@@ -103,7 +103,7 @@ def test_series_mask_index_no_names():
     )
 
 
-@sql_count_checker(query_count=4, join_count=1)
+@sql_count_checker(query_count=3, join_count=2)
 def test_series_mask_with_np_array_cond():
     data = [1, 2]
     cond = np.array([True, False])
@@ -114,7 +114,7 @@ def test_series_mask_with_np_array_cond():
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda df: df.mask(cond))
 
 
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=1, join_count=3)
 def test_series_mask_with_series_cond_single_index_different_names():
     data = [1, 2, 3]
     cond = [False, True, False]
@@ -138,7 +138,7 @@ def test_series_mask_with_series_cond_single_index_different_names():
     )
 
 
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=1, join_count=3)
 def test_series_mask_with_duplicated_index_aligned():
     data = [1, 2, 3]
     cond = [False, True, False]
@@ -160,7 +160,7 @@ def test_series_mask_with_duplicated_index_aligned():
     )
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2, join_count=1)
 def test_series_mask_with_lambda_cond():
     data = [1, 6, 7, 4]
     index = pd.Index(["a", "b", "c", "d"])
@@ -175,7 +175,7 @@ def test_series_mask_with_lambda_cond():
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_series_mask_with_lambda_returns_singleton_should_fail():
     data = [1, 6, 7, 4]
     index = pd.Index(["a", "b", "c", "d"])
@@ -196,9 +196,11 @@ def test_series_mask_with_lambda_returns_singleton_should_fail():
 
 @pytest.mark.parametrize(
     "other, sql_count, join_count",
-    [(lambda x: -x.iloc[0], 5, 3), (lambda x: x**2, 4, 2)],
+    [(lambda x: -x.iloc[0], 4, 10), (lambda x: x**2, 3, 8)],
 )
 def test_series_mask_with_lambda_other(other, sql_count, join_count):
+    # Multiple joins since multiple Series are created with non-Snowpark pandas data
+    # and a Snowpark pandas Index.
     data = [1, 6, 7, 4]
     index = pd.Index(["a", "b", "c", "d"])
 

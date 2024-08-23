@@ -109,7 +109,6 @@ def axis(request):
     return request.param
 
 
-# TODO: redefine df1, df2, and _concat_operation
 def _concat_operation(snow_objs, native_objs, **kwargs):
     return (
         lambda x: pd.concat(snow_objs, **kwargs)

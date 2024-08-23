@@ -164,7 +164,7 @@ def test_groupby_min_max_invalid_non_numeric_column(
         agg_func(df).to_pandas()
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_groupby_series_numeric_only_true(series_str):
     message = "SeriesGroupBy does not implement numeric_only"
     eval_snowpark_pandas_result(
@@ -177,7 +177,7 @@ def test_groupby_series_numeric_only_true(series_str):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_groupby_as_index_raises(series_str):
     eval_snowpark_pandas_result(
         series_str,
@@ -254,7 +254,7 @@ def test_groupby_as_index_false_axis_1_raises(df_multi):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_groupby_series_agg_dict_like_input_raise(series_str):
     eval_snowpark_pandas_result(
         series_str,

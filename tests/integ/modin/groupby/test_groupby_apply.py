@@ -537,7 +537,7 @@ class TestFuncReturnsDataFrame:
                 if group_keys
                 else QUERY_COUNT_WITH_TRANSFORM_CHECK
             ),
-            join_count=JOIN_COUNT,
+            join_count=2,
             udtf_count=UDTF_COUNT,
         ):
             snow_result = operation(mdf)
@@ -719,7 +719,7 @@ class TestFuncReturnsDataFrame:
         with SqlCounter(
             query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
             udtf_count=UDTF_COUNT,
-            join_count=JOIN_COUNT,
+            join_count=2,
         ):
             assert_snowpark_pandas_equal_to_pandas(
                 groupby_apply_without_sort(snow_df).sort_values(),
@@ -967,9 +967,9 @@ class TestFuncReturnsSeries:
     @pytest.mark.parametrize("dropna", [True, False])
     @sql_count_checker(
         # One extra query to convert index to native pandas in dataframe constructor to create test dataframes
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK + 1,
+        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
-        join_count=JOIN_COUNT,
+        join_count=2,
     )
     @pytest.mark.parametrize("index", [[2.0, np.nan, 2.0, 1.0], [np.nan] * 4])
     def test_dropna(self, dropna, index):
@@ -1082,19 +1082,9 @@ class TestSeriesGroupBy:
             # (pd.NA, k1) that we cannot serialize.
             pytest.xfail(reason="SNOW-1229760")
         with SqlCounter(
-            # one additional query for converting index to native pandas in dataframe constructor
-            query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK + 1
-            if not group_keys
-            and func
-            in (
-                get_dataframe_from_numeric_series,
-                get_series_from_numeric_series,
-                series_transform_returns_frame,
-                series_transform_returns_series,
-            )
-            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK + 1,
+            query_count=6 if group_keys is False else 5,
             udtf_count=UDTF_COUNT,
-            join_count=JOIN_COUNT,
+            join_count=2,
         ):
             eval_snowpark_pandas_result(
                 *create_test_dfs(
