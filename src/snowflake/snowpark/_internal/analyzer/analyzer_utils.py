@@ -133,6 +133,11 @@ ENABLE_SCHEMA_EVOLUTION = " ENABLE_SCHEMA_EVOLUTION "
 DATA_RETENTION_TIME_IN_DAYS = " DATA_RETENTION_TIME_IN_DAYS "
 MAX_DATA_EXTENSION_TIME_IN_DAYS = " MAX_DATA_EXTENSION_TIME_IN_DAYS "
 CHANGE_TRACKING = " CHANGE_TRACKING "
+EXTERNAL_VOLUME = " EXTERNAL_VOLUME "
+CATALOG = " CATALOG "
+BASE_LOCATION = " BASE_LOCATION "
+CATALOG_SYNC = " CATALOG_SYNC "
+STORAGE_SERIALIZATION_POLICY = " STORAGE_SERIALIZATION_POLICY "
 REG_EXP = " REGEXP "
 COLLATE = " COLLATE "
 RESULT_SCAN = " RESULT_SCAN"
@@ -178,6 +183,7 @@ NOT_NULL = " NOT NULL "
 WITH = "WITH "
 DEFAULT_ON_NULL = " DEFAULT ON NULL "
 ANY = " ANY "
+ICEBERG = " ICEBERG "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -778,6 +784,12 @@ def create_table_statement(
     *,
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
+    is_iceberg: bool = False,
+    external_volume: Optional[str] = None,
+    catalog: Optional[str] = None,
+    base_location: Optional[str] = None,
+    catalog_sync: Optional[str] = None,
+    storage_serialization_policy: Optional[str] = None,
 ) -> str:
     cluster_by_clause = (
         (CLUSTER_BY + LEFT_PARENTHESIS + COMMA.join(clustering_key) + RIGHT_PARENTHESIS)
@@ -791,12 +803,17 @@ def create_table_statement(
             DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
             MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
             CHANGE_TRACKING: change_tracking,
+            EXTERNAL_VOLUME: external_volume,
+            CATALOG: catalog,
+            BASE_LOCATION: base_location,
+            CATALOG_SYNC: catalog_sync,
+            STORAGE_SERIALIZATION_POLICY: storage_serialization_policy,
         }
     )
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
-        f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
+        f"{ICEBERG if is_iceberg else EMPTY_STRING}{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}{cluster_by_clause}"
         f"{options_statement}{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql}"
     )
@@ -856,6 +873,12 @@ def create_table_as_select_statement(
     max_data_extension_time: Optional[int] = None,
     change_tracking: Optional[bool] = None,
     copy_grants: bool = False,
+    is_iceberg: bool = False,
+    external_volume: Optional[str] = None,
+    catalog: Optional[str] = None,
+    base_location: Optional[str] = None,
+    catalog_sync: Optional[str] = None,
+    storage_serialization_policy: Optional[str] = None,
 ) -> str:
     column_definition_sql = (
         f"{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
@@ -874,10 +897,16 @@ def create_table_as_select_statement(
             DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
             MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
             CHANGE_TRACKING: change_tracking,
+            EXTERNAL_VOLUME: external_volume,
+            CATALOG: catalog,
+            BASE_LOCATION: base_location,
+            CATALOG_SYNC: catalog_sync,
+            STORAGE_SERIALIZATION_POLICY: storage_serialization_policy,
         }
     )
     return (
-        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"
+        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} "
+        f"{ICEBERG if is_iceberg else EMPTY_STRING}{TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
         f"{table_name}{column_definition_sql}{cluster_by_clause}{options_statement}"
         f"{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql} {AS}{project_statement([], child)}"

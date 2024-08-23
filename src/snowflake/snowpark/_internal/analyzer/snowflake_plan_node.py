@@ -197,6 +197,12 @@ class SnowflakeCreateTable(LogicalPlan):
         max_data_extension_time: Optional[int] = None,
         change_tracking: Optional[bool] = None,
         copy_grants: bool = False,
+        is_iceberg: bool = False,
+        external_volume: Optional[str] = None,
+        catalog: Optional[str] = None,
+        base_location: Optional[str] = None,
+        catalog_sync: Optional[str] = None,
+        storage_serialization_policy: Optional[str] = None,
     ) -> None:
         super().__init__()
 
@@ -217,6 +223,12 @@ class SnowflakeCreateTable(LogicalPlan):
         self.max_data_extension_time = max_data_extension_time
         self.change_tracking = change_tracking
         self.copy_grants = copy_grants
+        self.is_iceberg = is_iceberg
+        self.external_volume = external_volume
+        self.catalog = catalog
+        self.base_location = base_location
+        self.catalog_sync = catalog_sync
+        self.storage_serialization_policy = storage_serialization_policy
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
