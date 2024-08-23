@@ -239,7 +239,8 @@ def test_floor_ceil_round(datetime_index_value, func, freq):
     snow_index = pd.DatetimeIndex(native_index)
     if func == "round" and "s" in freq:
         with SqlCounter(query_count=0):
-            with pytest.raises(NotImplementedError):
+            msg = f"Snowpark pandas method DatetimeIndex.round does not yet support the 'freq={freq}' parameter"
+            with pytest.raises(NotImplementedError, match=msg):
                 snow_index.round(freq=freq)
     else:
         with SqlCounter(query_count=1):

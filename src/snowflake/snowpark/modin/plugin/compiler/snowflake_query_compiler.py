@@ -16175,7 +16175,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS or slice_unit == "second":
-            ErrorMessage.parameter_not_implemented_error(f"freq='{freq}'", method_name)
+            ErrorMessage.parameter_not_implemented_error(f"freq={freq}", method_name)
 
         # We need to implement the algorithm for rounding half to even whenever
         # the date value is at half point of the slice:
