@@ -230,6 +230,12 @@ class TypeMapper:
         """
         map a pandas or numpy type to snowpark data type.
         """
+        snowpark_pandas_type = (
+            SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(p)
+        )
+        if snowpark_pandas_type is not None:
+            return snowpark_pandas_type
+
         if isinstance(p, DatetimeTZDtype):
             return TimestampType(TimestampTimeZone.TZ)
         if p is native_pd.Timestamp or is_datetime64_any_dtype(p):
@@ -245,12 +251,6 @@ class TypeMapper:
             return LongType()
         if is_float_dtype(p):
             return DoubleType()
-
-        snowpark_pandas_type = (
-            SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(p)
-        )
-        if snowpark_pandas_type is not None:
-            return snowpark_pandas_type
 
         try:
             return PANDAS_TO_SNOWFLAKE_MAP[p]
