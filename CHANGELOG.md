@@ -12,6 +12,12 @@
   - `max_data_extension_time`
   - `change_tracking`
   - `copy_grants`
+  - `is_iceberg`
+  - `external_volume`
+  - `catalog`
+  - `base_location`
+  - `catalog_sync`
+  - `storage_serialization_policy`
 - Added support for specifying the following parameters to `DataFrame.create_or_replace_dynamic_table`:
   - `mode`
   - `refresh_mode`
