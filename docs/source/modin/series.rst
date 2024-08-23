@@ -270,6 +270,7 @@ Series
     Series.dt.floor
     Series.dt.ceil
     Series.dt.round
+    Series.dt.normalize
 
 
 .. rubric:: String accessor methods
