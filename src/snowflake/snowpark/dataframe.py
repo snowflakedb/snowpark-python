@@ -1562,6 +1562,7 @@ class DataFrame:
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
         ascending: Optional[Union[bool, int, List[Union[bool, int]]]] = None,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
 
@@ -1616,44 +1617,50 @@ class DataFrame:
             raise ValueError("sort() needs at least one sort expression.")
 
         # AST.
-        stmt = self._session._ast_batch.assign()
-        # Parsing args separately since the original column expr or string
-        # needs to be recorded.
-        _cols, is_variadic = parse_positional_args_to_list_variadic(*cols)
-        ast = with_src_position(stmt.expr.sp_dataframe_sort, stmt)
-        self.set_ast_ref(ast.df)
-        for c in _cols:
-            build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
-        ast.cols_variadic = is_variadic
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            # Parsing args separately since the original column expr or string
+            # needs to be recorded.
+            _cols, is_variadic = parse_positional_args_to_list_variadic(*cols)
+            ast = with_src_position(stmt.expr.sp_dataframe_sort, stmt)
+            for c in _cols:
+                build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
+            ast.cols_variadic = is_variadic
 
         orders = []
         # `ascending` is represented by Expr in the AST.
         # Therefore, construct the required bool, int, or list and copy from that.
-        asc_expr_ast = proto.Expr()
+        asc_expr_ast = None
+        if _emit_ast:
+            asc_expr_ast = proto.Expr()
         if ascending is not None:
             if isinstance(ascending, (list, tuple)):
                 orders = [Ascending() if asc else Descending() for asc in ascending]
-                # Here asc_expr_ast is a list of bools and ints.
-                for asc in ascending:
-                    asc_ast = proto.Expr()
-                    if isinstance(asc, bool):
-                        asc_ast.bool_val.v = asc
-                    else:
-                        asc_ast.int64_val.v = asc
-                    asc_expr_ast.list_val.vs.append(asc_ast)
+                if _emit_ast:
+                    # Here asc_expr_ast is a list of bools and ints.
+                    for asc in ascending:
+                        asc_ast = proto.Expr()
+                        if isinstance(asc, bool):
+                            asc_ast.bool_val.v = asc
+                        else:
+                            asc_ast.int64_val.v = asc
+                        asc_expr_ast.list_val.vs.append(asc_ast)
             elif isinstance(ascending, (bool, int)):
                 orders = [Ascending() if ascending else Descending()]
-                # Here asc_expr_ast is either a bool or an int.
-                if isinstance(ascending, bool):
-                    asc_expr_ast.bool_val.v = ascending
-                else:
-                    asc_expr_ast.int64_val.v = ascending
+                if _emit_ast:
+                    # Here asc_expr_ast is either a bool or an int.
+                    if isinstance(ascending, bool):
+                        asc_expr_ast.bool_val.v = ascending
+                    else:
+                        asc_expr_ast.int64_val.v = ascending
             else:
                 raise TypeError(
                     "ascending can only be boolean or list,"
                     " but got {}".format(str(type(ascending)))
                 )
-            ast.ascending.CopyFrom(asc_expr_ast)
+            if _emit_ast:
+                ast.ascending.CopyFrom(asc_expr_ast)
             if len(exprs) != len(orders):
                 raise ValueError(
                     "The length of col ({}) should be same with"
@@ -1682,7 +1689,7 @@ class DataFrame:
         return self._with_plan(Sort(sort_exprs, self._plan), ast_stmt=stmt)
 
     @experimental(version="1.5.0")
-    def alias(self, name: str):
+    def alias(self, name: str, _emit_ast: bool = True):
         """Returns an aliased dataframe in which the columns can now be referenced to using `col(<df alias>, <column name>)`.
 
         Examples::
@@ -1715,12 +1722,20 @@ class DataFrame:
             name: The alias as :class:`str`.
         """
         # AST.
-        stmt = self._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_alias, stmt)
-        self.set_ast_ref(ast.df)
-        ast.name = name
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_alias, stmt)
+            ast.name = name
 
-        if self._session._conn._suppress_not_implemented_error:
+        # TODO: Support alias in MockServerConnection.
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
+        if (
+            isinstance(self._session._conn, MockServerConnection)
+            and self._session._conn._suppress_not_implemented_error
+        ):
+            # Allow AST tests to pass.
             return None
 
         _copy = copy.copy(self)
@@ -1733,6 +1748,9 @@ class DataFrame:
             _copy._plan.df_aliased_col_name_to_real_col_name[name][
                 attr.name
             ] = attr.name
+
+        if _emit_ast:
+            _copy._ast_id = stmt.var_id.bitfield1
         return _copy
 
     @df_api_usage
@@ -1800,16 +1818,19 @@ class DataFrame:
         """
 
         # AST.
+        stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             expr = with_src_position(stmt.expr.sp_dataframe_agg, stmt)
-            self.set_ast_ref(expr.df)
             exprs, is_variadic = parse_positional_args_to_list_variadic(*exprs)
             for e in exprs:
                 build_expr_from_python_val(expr.exprs.args.add(), e)
             expr.exprs.variadic = is_variadic
 
         df = self.group_by(_emit_ast=False).agg(*exprs, _emit_ast=False)
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
 
         return df
 
@@ -1886,7 +1907,6 @@ class DataFrame:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
                 expr = with_src_position(stmt.expr.sp_dataframe_group_by, stmt)
-                self.set_ast_ref(expr.df)
                 col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(
                     *cols
                 )
@@ -1896,12 +1916,17 @@ class DataFrame:
                 stmt = _ast_stmt
 
         grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
-        return snowflake.snowpark.RelationalGroupedDataFrame(
+        df = snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             grouping_exprs,
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
             ast_stmt=stmt,
         )
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
+
+        return df
 
     @df_to_relational_group_df_api_usage
     def group_by_grouping_sets(
@@ -2503,7 +2528,7 @@ class DataFrame:
         return self._with_plan(Intersect(self._plan, other._plan))
 
     @df_api_usage
-    def except_(self, other: "DataFrame") -> "DataFrame":
+    def except_(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
         """Returns a new DataFrame that contains all the rows from the current DataFrame
         except for the rows that also appear in the ``other`` DataFrame. Duplicate rows are eliminated.
 
@@ -2525,13 +2550,14 @@ class DataFrame:
             other: The :class:`DataFrame` that contains the rows to exclude.
         """
         # AST.
-        stmt = self._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_except, stmt)
-        self.set_ast_ref(ast.df)
-        other.set_ast_ref(ast.other)
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_except, stmt)
+            other.set_ast_ref(ast.other)
 
         if self._select_statement:
-            return self._with_plan(
+            df = self._with_plan(
                 self._select_statement.set_operator(
                     other._select_statement
                     or SelectSnowflakePlan(
@@ -2540,7 +2566,13 @@ class DataFrame:
                     operator=SET_EXCEPT,
                 )
             )
-        return self._with_plan(Except(self._plan, other._plan))
+        else:
+            df = self._with_plan(Except(self._plan, other._plan))
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
+
+        return df
 
     @df_api_usage
     def natural_join(
@@ -3602,6 +3634,7 @@ class DataFrame:
         transformations: Optional[Iterable[ColumnOrName]] = None,
         format_type_options: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
         **copy_options: Any,
     ) -> List[Row]:
         """Executes a `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html>`__ command to load data from files in a stage location into a specified table.
@@ -3658,42 +3691,51 @@ class DataFrame:
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
         # AST.
-        stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_copy_into_table, stmt)
-        self.set_ast_ref(expr.df)
-        if isinstance(table_name, str):
-            expr.table_name.append(table_name)
-        else:
-            expr.table_name.extend(table_name)
-        if files is not None:
-            expr.files.extend(files)
-        if pattern is not None:
-            expr.pattern.value = pattern
-        if validation_mode is not None:
-            expr.validation_mode.value = validation_mode
-        if target_columns is not None:
-            expr.target_columns.extend(target_columns)
-        if transformations is not None:
-            for t in transformations:
-                build_expr_from_python_val(expr.transformations.add(), t)
-        if format_type_options is not None:
-            for k in format_type_options:
-                entry = expr.format_type_options.add()
-                entry._1 = k
-                build_expr_from_python_val(entry._2, format_type_options[k])
-        if statement_params is not None:
-            for k in statement_params:
-                entry = expr.statement_params.add()
-                entry._1 = k
-                entry._2 = statement_params[k]
-        if copy_options is not None:
-            for k in copy_options:
-                entry = expr.copy_options.add()
-                entry._1 = k
-                build_expr_from_python_val(entry._2, copy_options[k])
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_copy_into_table, stmt)
 
-        if self._session._conn._suppress_not_implemented_error:
-            return None
+            if isinstance(table_name, str):
+                expr.table_name.append(table_name)
+            else:
+                expr.table_name.extend(table_name)
+            if files is not None:
+                expr.files.extend(files)
+            if pattern is not None:
+                expr.pattern.value = pattern
+            if validation_mode is not None:
+                expr.validation_mode.value = validation_mode
+            if target_columns is not None:
+                expr.target_columns.extend(target_columns)
+            if transformations is not None:
+                for t in transformations:
+                    build_expr_from_python_val(expr.transformations.add(), t)
+            if format_type_options is not None:
+                for k in format_type_options:
+                    entry = expr.format_type_options.add()
+                    entry._1 = k
+                    build_expr_from_python_val(entry._2, format_type_options[k])
+            if statement_params is not None:
+                for k in statement_params:
+                    entry = expr.statement_params.add()
+                    entry._1 = k
+                    entry._2 = statement_params[k]
+            if copy_options is not None:
+                for k in copy_options:
+                    entry = expr.copy_options.add()
+                    entry._1 = k
+                    build_expr_from_python_val(entry._2, copy_options[k])
+
+        # TODO: Support copy_into_table in MockServerConnection.
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
+        if (
+            isinstance(self._session._conn, MockServerConnection)
+            and self._session._conn._suppress_not_implemented_error
+        ):
+            # Allow AST tests to pass.
+            return []
 
         if not self._reader or not self._reader._file_path:
             raise SnowparkDataframeException(
@@ -3758,7 +3800,7 @@ class DataFrame:
             if transformations
             else None
         )
-        return DataFrame(
+        df = DataFrame(
             self._session,
             CopyIntoTableNode(
                 table_name,
@@ -3776,7 +3818,9 @@ class DataFrame:
                 create_table_from_infer_schema=create_table_from_infer_schema,
             ),
             ast_stmt=stmt,
-        )._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
+        )
+
+        df._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
 
     @df_collect_api_telemetry
     def show(
@@ -4162,8 +4206,15 @@ class DataFrame:
                 entry._1 = k
                 entry._2 = statement_params[k]
 
-        if self._session._conn._suppress_not_implemented_error:
-            return None
+        # TODO: Support create_or_replace_dynamic_table in MockServerConnection.
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
+        if (
+            isinstance(self._session._conn, MockServerConnection)
+            and self._session._conn._suppress_not_implemented_error
+        ):
+            # Allow AST tests to pass.
+            return []
 
         if isinstance(name, str):
             formatted_name = name
@@ -4892,8 +4943,16 @@ class DataFrame:
             for w in weights:
                 if w <= 0:
                     raise ValueError("weights must be positive numbers")
-            if self._session._conn._suppress_not_implemented_error:
-                return None
+
+            # TODO: Support random_split in MockServerConnection.
+            from snowflake.snowpark.mock._connection import MockServerConnection
+
+            if (
+                isinstance(self._session._conn, MockServerConnection)
+                and self._session._conn._suppress_not_implemented_error
+            ):
+                # Allow AST tests to pass.
+                return []
 
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
