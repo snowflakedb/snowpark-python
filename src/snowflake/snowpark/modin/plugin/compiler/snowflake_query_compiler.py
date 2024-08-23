@@ -401,34 +401,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ) in (
             self._modin_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.values()
         ):
-            method = "Unknown method"
             if isinstance(val, TimedeltaType):
-                try:
-                    method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
-                except Exception:
-                    pass
-                finally:
-                    ErrorMessage.not_implemented_for_timedelta(method)
+                method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
+                ErrorMessage.not_implemented_for_timedelta(method)
 
     def _warn_lost_snowpark_pandas_type(self) -> None:
         """Warn Snowpark pandas type can be lost in current operation."""
-        try:
-            method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
-            snowpark_pandas_types = [
-                type(t).__name__
-                for t in set(
-                    self._modin_frame.cached_data_column_snowpark_pandas_types
-                    + self._modin_frame.cached_index_column_snowpark_pandas_types
-                )
-                if t is not None
-            ]
-            if snowpark_pandas_types:
-                WarningMessage.lost_type_warning(
-                    method,
-                    ", ".join(snowpark_pandas_types),
-                )
-        except Exception:  # pragma: no cover
-            pass  # pragma: no cover
+        method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
+        snowpark_pandas_types = [
+            type(t).__name__
+            for t in set(
+                self._modin_frame.cached_data_column_snowpark_pandas_types
+                + self._modin_frame.cached_index_column_snowpark_pandas_types
+            )
+            if t is not None
+        ]
+        if snowpark_pandas_types:
+            WarningMessage.lost_type_warning(
+                method,
+                ", ".join(snowpark_pandas_types),
+            )
 
     def snowpark_pandas_type_immutable_check(func: Callable) -> Any:
         """The decorator to check on SnowflakeQueryCompiler methods which return a new SnowflakeQueryCompiler.
