@@ -251,7 +251,7 @@ def test_series_loc_get_key_bool_series_with_aligned_indices(key, use_default_in
         [random.choice([True, False]) for _ in range(5)],
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_series_loc_get_key_bool_series_with_unaligned_and_distinct_indices(
     key, use_default_index
 ):
@@ -343,7 +343,7 @@ def test_df_loc_get_callable_key(row):
     )
 
 
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_series_loc_get_key_bool_series_with_unaligned_and_duplicate_indices():
     # index can have null values and duplicates
     key = [True] * 5
