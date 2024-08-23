@@ -151,7 +151,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.utils import quote_name
-from snowflake.snowpark.types import _NumericType
+from snowflake.snowpark.types import BooleanType, _NumericType
 
 ARRAY_BIND_THRESHOLD = 512
 
@@ -608,6 +608,13 @@ class Analyzer:
                     key: self.analyze(
                         value, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
+                    if not (
+                        expr.func_name.lower() == "flatten"
+                        and key.lower() == "outer"
+                        and isinstance(value, Literal)
+                        and isinstance(value.datatype, BooleanType)
+                    )
+                    else str(value.value).upper()
                     for key, value in expr.args.items()
                 },
             )
