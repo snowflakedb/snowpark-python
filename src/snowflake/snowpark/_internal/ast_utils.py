@@ -164,7 +164,9 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
             build_expr_from_python_val(ast.vs.add(), v)
     elif isinstance(obj, snowflake.snowpark.dataframe.DataFrame):
         ast = with_src_position(expr_builder.sp_dataframe_ref)
-        assert obj._ast_id is not None, "Dataframe must have valid id"
+        assert (
+            obj._ast_id is not None
+        ), "Dataframe object to encode as part of AST does not have an id assigned. Missing AST for object or previous operation?"
         ast.id.bitfield1 = obj._ast_id
     else:
         raise NotImplementedError("not supported type: %s" % type(obj))
