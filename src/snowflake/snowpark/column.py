@@ -291,11 +291,6 @@ class Column:
 
         assert self._expression is not None
 
-    # # TODO: Fix for pytest src/snowflake/snowpark/functions.py::snowpark.functions.listagg
-    # def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-    #     # TODO: consider adding it to __init__ or use cached_property.
-    #     return COLUMN_DEPENDENCY_EMPTY
-
     def __getitem__(self, field: Union[str, int]) -> "Column":
         """Accesses an element of ARRAY column by ordinal position, or an element of OBJECT column by key."""
         if isinstance(field, str):
