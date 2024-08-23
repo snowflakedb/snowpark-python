@@ -185,6 +185,7 @@ class DatetimeIndex(Index):
         """
         if property_name in (
             "date",
+            "time",
             "is_month_start",
             "is_month_end",
             "is_quarter_start",
@@ -217,7 +218,7 @@ class DatetimeIndex(Index):
         >>> idx
         DatetimeIndex(['2000-12-31', '2001-12-31', '2002-12-31'], dtype='datetime64[ns]', freq=None)
         >>> idx.year
-        Index([2000, 2001, 2002], dtype='int16')
+        Index([2000, 2001, 2002], dtype='int64')
         """
         return self._dt_property("year")
 
@@ -236,7 +237,7 @@ class DatetimeIndex(Index):
         >>> idx
         DatetimeIndex(['2000-01-31', '2000-02-29', '2000-03-31'], dtype='datetime64[ns]', freq=None)
         >>> idx.month
-        Index([1, 2, 3], dtype='int8')
+        Index([1, 2, 3], dtype='int64')
         """
         return self._dt_property("month")
 
@@ -255,7 +256,7 @@ class DatetimeIndex(Index):
         >>> idx
         DatetimeIndex(['2000-01-01', '2000-01-02', '2000-01-03'], dtype='datetime64[ns]', freq=None)
         >>> idx.day
-        Index([1, 2, 3], dtype='int8')
+        Index([1, 2, 3], dtype='int64')
         """
         return self._dt_property("day")
 
@@ -276,7 +277,7 @@ class DatetimeIndex(Index):
                        '2000-01-01 02:00:00'],
                       dtype='datetime64[ns]', freq=None)
         >>> idx.hour
-        Index([0, 1, 2], dtype='int8')
+        Index([0, 1, 2], dtype='int64')
         """
         return self._dt_property("hour")
 
@@ -297,7 +298,7 @@ class DatetimeIndex(Index):
                        '2000-01-01 00:02:00'],
                       dtype='datetime64[ns]', freq=None)
         >>> idx.minute
-        Index([0, 1, 2], dtype='int8')
+        Index([0, 1, 2], dtype='int64')
         """
         return self._dt_property("minute")
 
@@ -318,7 +319,7 @@ class DatetimeIndex(Index):
                        '2000-01-01 00:00:02'],
                       dtype='datetime64[ns]', freq=None)
         >>> idx.second
-        Index([0, 1, 2], dtype='int8')
+        Index([0, 1, 2], dtype='int64')
         """
         return self._dt_property("second")
 
@@ -361,7 +362,7 @@ class DatetimeIndex(Index):
                        '2000-01-01 00:00:00.000000002'],
                       dtype='datetime64[ns]', freq=None)
         >>> idx.nanosecond
-        Index([0, 1, 2], dtype='int32')
+        Index([0, 1, 2], dtype='int64')
         """
         return self._dt_property("nanosecond")
 
@@ -402,7 +403,7 @@ class DatetimeIndex(Index):
         --------
         >>> idx = pd.date_range('2016-12-31', '2017-01-08', freq='D')
         >>> idx.dayofweek
-        Index([5, 6, 0, 1, 2, 3, 4, 5, 6], dtype='int16')
+        Index([5, 6, 0, 1, 2, 3, 4, 5, 6], dtype='int64')
         """
         return self._dt_property("dayofweek")
 
@@ -423,7 +424,7 @@ class DatetimeIndex(Index):
         >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
         ...                         "2/1/2020 11:00:00+00:00"])
         >>> idx.dayofyear
-        Index([1, 32], dtype='int16')
+        Index([1, 32], dtype='int64')
         """
         return self._dt_property("dayofyear")
 
@@ -443,7 +444,7 @@ class DatetimeIndex(Index):
         >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
         ...                         "2/1/2020 11:00:00+00:00"])
         >>> idx.quarter
-        Index([1, 1], dtype='int8')
+        Index([1, 1], dtype='int64')
         """
         return self._dt_property("quarter")
 
@@ -617,7 +618,6 @@ class DatetimeIndex(Index):
         """
         return self._dt_property("is_leap_year")
 
-    @datetime_index_not_implemented()
     @property
     def time(self) -> Index:
         """
@@ -631,9 +631,10 @@ class DatetimeIndex(Index):
         --------
         >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00",
         ...                         "2/1/2020 11:00:00+00:00"])
-        >>> idx.time  # doctest: +SKIP
-        Index(["10:00:00", "11:00:00"], dtype='object')
+        >>> idx.time
+        Index([10:00:00, 11:00:00], dtype='object')
         """
+        return self._dt_property("time")
 
     @datetime_index_not_implemented()
     @property
@@ -786,7 +787,6 @@ class DatetimeIndex(Index):
         array([0, 1])
         """
 
-    @datetime_index_not_implemented()
     def normalize(self) -> DatetimeIndex:
         """
         Convert times to midnight.
@@ -825,6 +825,9 @@ class DatetimeIndex(Index):
                        '2014-08-01 00:00:00+05:30'],
                        dtype='datetime64[ns, Asia/Calcutta]', freq=None)
         """
+        return DatetimeIndex(
+            query_compiler=self._query_compiler.dt_normalize(include_index=True)
+        )
 
     @datetime_index_not_implemented()
     def strftime(self, date_format: str) -> np.ndarray[np.object_]:
@@ -1260,7 +1263,6 @@ default 'raise'
 
         """
 
-    @datetime_index_not_implemented()
     def month_name(self, locale: str = None) -> Index:
         """
         Return the month names with specified locale.
@@ -1282,7 +1284,7 @@ default 'raise'
         >>> idx = pd.date_range(start='2018-01', freq='ME', periods=3)
         >>> idx
         DatetimeIndex(['2018-01-31', '2018-02-28', '2018-03-31'], dtype='datetime64[ns]', freq=None)
-        >>> idx.month_name()  # doctest: +SKIP
+        >>> idx.month_name()
         Index(['January', 'February', 'March'], dtype='object')
 
         Using the ``locale`` parameter you can set a different locale language,
@@ -1295,8 +1297,12 @@ default 'raise'
         >>> idx.month_name(locale='pt_BR.utf8')  # doctest: +SKIP
         Index(['Janeiro', 'Fevereiro', 'Março'], dtype='object')
         """
+        return Index(
+            query_compiler=self._query_compiler.dt_month_name(
+                locale=locale, include_index=True
+            )
+        )
 
-    @datetime_index_not_implemented()
     def day_name(self, locale: str = None) -> Index:
         """
         Return the day names with specified locale.
@@ -1318,7 +1324,7 @@ default 'raise'
         >>> idx = pd.date_range(start='2018-01-01', freq='D', periods=3)
         >>> idx
         DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03'], dtype='datetime64[ns]', freq=None)
-        >>> idx.day_name()  # doctest: +SKIP
+        >>> idx.day_name()
         Index(['Monday', 'Tuesday', 'Wednesday'], dtype='object')
 
         Using the ``locale`` parameter you can set a different locale language,
@@ -1331,6 +1337,11 @@ default 'raise'
         >>> idx.day_name(locale='pt_BR.utf8')  # doctest: +SKIP
         Index(['Segunda', 'Terça', 'Quarta'], dtype='object')
         """
+        return Index(
+            query_compiler=self._query_compiler.dt_day_name(
+                locale=locale, include_index=True
+            )
+        )
 
     @datetime_index_not_implemented()
     def as_unit(self, unit: str) -> DatetimeIndex:

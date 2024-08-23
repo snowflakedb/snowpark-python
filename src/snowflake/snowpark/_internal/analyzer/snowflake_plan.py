@@ -93,6 +93,7 @@ from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     CopyIntoTableNode,
+    DynamicTableCreateMode,
     LogicalPlan,
     SaveMode,
     SnowflakeCreateTable,
@@ -614,31 +615,28 @@ class SnowflakePlanBuilder:
         }
         api_calls = [*select_left.api_calls, *select_right.api_calls]
 
+        # Need to do a deduplication to avoid repeated query.
+        merged_queries = select_left.queries[:-1].copy()
+        for query in select_right.queries[:-1]:
+            if query not in merged_queries:
+                merged_queries.append(copy.copy(query))
+
+        post_actions = select_left.post_actions.copy()
+        for post_action in select_right.post_actions:
+            if post_action not in post_actions:
+                post_actions.append(copy.copy(post_action))
+
         referenced_ctes: Set[str] = set()
         if (
             self.session.cte_optimization_enabled
             and self.session._query_compilation_stage_enabled
         ):
-            # When the cte optimization and the new compilation stage is enabled, the
-            # queries, referred cte tables, and post actions propagated from
-            # left and right can have duplicated queries if there is a common CTE block referenced
-            # by both left and right.
-            # Need to do a deduplication to avoid repeated query.
-            merged_queries = select_left.queries[:-1].copy()
-            for query in select_right.queries[:-1]:
-                if query not in merged_queries:
-                    merged_queries.append(copy.copy(query))
-
+            # When the cte optimization and the new compilation stage is enabled,
+            # the referred cte tables are propagated from left and right can have
+            # duplicated queries if there is a common CTE block referenced by
+            # both left and right.
             referenced_ctes.update(select_left.referenced_ctes)
             referenced_ctes.update(select_right.referenced_ctes)
-
-            post_actions = select_left.post_actions.copy()
-            for post_action in select_right.post_actions:
-                if post_action not in post_actions:
-                    post_actions.append(copy.copy(post_action))
-        else:
-            merged_queries = select_left.queries[:-1] + select_right.queries[:-1]
-            post_actions = select_left.post_actions + select_right.post_actions
 
         queries = merged_queries + [
             Query(
@@ -838,6 +836,11 @@ class SnowflakePlanBuilder:
         table_type: str,
         clustering_keys: Iterable[str],
         comment: Optional[str],
+        enable_schema_evolution: Optional[bool],
+        data_retention_time: Optional[int],
+        max_data_extension_time: Optional[int],
+        change_tracking: Optional[bool],
+        copy_grants: bool,
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         use_scoped_temp_objects: bool,
@@ -853,6 +856,11 @@ class SnowflakePlanBuilder:
             table_type: temporary, transient, or permanent
             clustering_keys: list of clustering columns
             comment: comment associated with the table
+            enable_schema_evolution: whether to enable schema evolution
+            data_retention_time: data retention time in days
+            max_data_extension_time: max data extension time in days
+            change_tracking: whether to enable change tracking
+            copy_grants: whether to copy grants
             child: the SnowflakePlan that is being materialized into a table
             source_plan: the source plan of the child
             use_scoped_temp_objects: should we use scoped temp objects
@@ -916,6 +924,11 @@ class SnowflakePlanBuilder:
                     table_type=table_type,
                     clustering_key=clustering_keys,
                     comment=comment,
+                    enable_schema_evolution=enable_schema_evolution,
+                    data_retention_time=data_retention_time,
+                    max_data_extension_time=max_data_extension_time,
+                    change_tracking=change_tracking,
+                    copy_grants=copy_grants,
                 ),
                 child,
                 source_plan,
@@ -935,6 +948,11 @@ class SnowflakePlanBuilder:
                 table_type=table_type,
                 clustering_key=clustering_keys,
                 comment=comment,
+                enable_schema_evolution=enable_schema_evolution,
+                data_retention_time=data_retention_time,
+                max_data_extension_time=max_data_extension_time,
+                change_tracking=change_tracking,
+                copy_grants=copy_grants,
                 use_scoped_temp_objects=use_scoped_temp_objects,
                 is_generated=is_generated,
             )
@@ -1091,6 +1109,13 @@ class SnowflakePlanBuilder:
         warehouse: str,
         lag: str,
         comment: Optional[str],
+        create_mode: DynamicTableCreateMode,
+        refresh_mode: Optional[str],
+        initialize: Optional[str],
+        clustering_keys: Iterable[str],
+        is_transient: bool,
+        data_retention_time: Optional[int],
+        max_data_extension_time: Optional[int],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
@@ -1100,10 +1125,35 @@ class SnowflakePlanBuilder:
         if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_SELECT_ONLY()
 
+        if create_mode == DynamicTableCreateMode.OVERWRITE:
+            replace = True
+            if_not_exists = False
+        elif create_mode == DynamicTableCreateMode.ERROR_IF_EXISTS:
+            replace = False
+            if_not_exists = False
+        elif create_mode == DynamicTableCreateMode.IGNORE:
+            replace = False
+            if_not_exists = True
+        else:
+            # should never reach here
+            raise ValueError(f"Unknown create mode: {create_mode}")  # pragma: no cover
+
         child = child.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: create_or_replace_dynamic_table_statement(
-                name, warehouse, lag, comment, x
+                name=name,
+                warehouse=warehouse,
+                lag=lag,
+                comment=comment,
+                replace=replace,
+                if_not_exists=if_not_exists,
+                refresh_mode=refresh_mode,
+                initialize=initialize,
+                clustering_keys=clustering_keys,
+                is_transient=is_transient,
+                data_retention_time=data_retention_time,
+                max_data_extension_time=max_data_extension_time,
+                child=x,
             ),
             child,
             source_plan,
