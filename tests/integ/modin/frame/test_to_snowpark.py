@@ -217,5 +217,4 @@ def test_timedelta_to_snowpark(test_table_name, caplog):
         )
         sp = df.to_snowpark(index=False)
         assert sp.dtypes[-1] == ('"t"', "bigint")
-        print(sp.dtypes)
         assert "`TimedeltaType` may be lost in `to_snowpark`'s result" in caplog.text

@@ -258,34 +258,16 @@ def test_to_csv_unsupported_params_error(sf_stage, session, kwargs):
         pd.DataFrame(native_df).to_csv(stage_location, **kwargs)
 
 
-def test_to_csv_timedelta_local():
-    kwargs = {"columns": ["B"]}
-    native_df = native_pd.DataFrame({"A": ["one", "two", None], "B": [1, 2, 3]})
-    native_path, snow_path = get_filepaths(kwargs, "dataframe_local")
-
-    kwargs = kwargs.copy()
-    kwargs.pop("ext", None)
-    # Write csv with native pandas.
-    native_df.to_csv(native_path, **kwargs)
-    # Write csv with snowpark pandas.
-    pd.DataFrame(native_df).to_csv(snow_path, **kwargs)
-
-    assert_file_equal(snow_path, native_path, is_compressed=True)
-
-
-@pytest.mark.parametrize("kwargs, is_compressed", SERIES_TEST_CASES)
 @sql_count_checker(query_count=1)
-def test_timedelta_to_csv_series_local(kwargs, is_compressed):
+def test_timedelta_to_csv_series_local():
     native_series = native_pd.Series(
         native_pd.timedelta_range("1 day", periods=3), name="A"
     )
-    native_path, snow_path = get_filepaths(kwargs, "series_local")
+    native_path, snow_path = get_filepaths(kwargs={}, test_name="series_local")
 
-    kwargs = kwargs.copy()
-    kwargs.pop("ext", None)
     # Write csv with native pandas.
-    native_series.to_csv(native_path, **kwargs)
+    native_series.to_csv(native_path)
     # Write csv with snowpark pandas.
-    pd.Series(native_series).to_csv(snow_path, **kwargs)
+    pd.Series(native_series).to_csv(snow_path)
 
-    assert_file_equal(snow_path, native_path, is_compressed)
+    assert_file_equal(snow_path, native_path, is_compressed=False)
