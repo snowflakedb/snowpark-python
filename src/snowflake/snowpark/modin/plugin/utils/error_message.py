@@ -135,6 +135,14 @@ series_not_implemented = _make_not_implemented_decorator(
     decorating_functions=False, attribute_prefix="Series"
 )
 
+index_not_implemented = _make_not_implemented_decorator(
+    decorating_functions=False, attribute_prefix="Index"
+)
+
+datetime_index_not_implemented = _make_not_implemented_decorator(
+    decorating_functions=False, attribute_prefix="DatetimeIndex"
+)
+
 pandas_module_level_function_not_implemented = _make_not_implemented_decorator(
     decorating_functions=True, attribute_prefix="pd"
 )
@@ -150,6 +158,12 @@ class ErrorMessage:
         logger.debug(f"NotImplementedError: {message}")
         raise NotImplementedError(message)
 
+    @classmethod
+    def not_implemented_for_timedelta(cls, method: str) -> NoReturn:
+        ErrorMessage.not_implemented(
+            f"SnowflakeQueryCompiler::{method} is not yet implemented for Timedelta Type"
+        )
+
     @staticmethod
     def method_not_implemented_error(
         name: str, class_: str
@@ -164,8 +178,20 @@ class ErrorMessage:
         class_: str
             The class of Snowpark pandas function associated with the method.
         """
-        message = f"{name} is not yet implemented for {class_}"
+        message = f"Snowpark pandas does not yet support the method {class_}.{name}"
         ErrorMessage.not_implemented(message)
+
+    @staticmethod
+    def parameter_not_implemented_error(parameter_name: str, method_name: str) -> None:
+        """
+        Raises not implemented error for specified param and method.
+        Args:
+            parameter_name: Name of the parameter.
+            method_name: Name of the method.
+        """
+        ErrorMessage.not_implemented(
+            f"Snowpark pandas method {method_name} does not yet support the '{parameter_name}' parameter"
+        )
 
     # TODO SNOW-840704: using Snowpark pandas exception class for the internal error
     @classmethod

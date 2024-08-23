@@ -18,6 +18,8 @@ from snowflake.snowpark.exceptions import (
     SnowparkSessionException,
 )
 from snowflake.snowpark.session import (
+    _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED,
+    _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING,
     _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING,
     _active_sessions,
     _get_active_session,
@@ -112,27 +114,23 @@ def test_sql_select_with_params(session):
     assert res == [Row(1)]
 
 
-@pytest.mark.localtest
 def test_active_session(session):
     assert session == _get_active_session()
     assert not session._conn._conn.expired
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_multiple_active_sessions(session, db_parameters):
     with Session.builder.configs(db_parameters).create() as session2:
         assert {session, session2} == _get_active_sessions()
 
 
-@pytest.mark.localtest
 def test_get_or_create(session):
     # because there is already a session it should report the same
     new_session = Session.builder.getOrCreate()
     assert session == new_session
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_get_or_create_no_previous(db_parameters, session):
     # Test getOrCreate error. In this case we want to make sure that
@@ -163,7 +161,6 @@ def test_get_or_create_no_previous(db_parameters, session):
             new_session2.close()
 
 
-@pytest.mark.localtest
 def test_session_builder(session):
     builder1 = session.builder
     builder2 = session.builder
@@ -186,7 +183,6 @@ def test_session_cancel_all(session):
     assert "cancelled" in session._conn._cursor.fetchall()[0][0]
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_multiple_sessions(session, db_parameters):
     with Session.builder.configs(db_parameters).create():
@@ -195,7 +191,6 @@ def test_multiple_sessions(session, db_parameters):
         assert exec_info.value.error_code == "1409"
 
 
-@pytest.mark.localtest
 def test_no_default_session():
     sessions_backup = list(_active_sessions)
     _active_sessions.clear()
@@ -211,7 +206,6 @@ def test_no_default_session():
         _active_sessions.update(sessions_backup)
 
 
-@pytest.mark.localtest
 def test_create_session_in_sp(session):
     import snowflake.snowpark._internal.utils as internal_utils
 
@@ -313,7 +307,6 @@ def test_list_files_in_stage(session, resources_path):
         Utils.drop_stage(session, single_quoted_name)
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_create_session_from_parameters(db_parameters, sql_simplifier_enabled):
     session_builder = Session.builder.configs(db_parameters)
@@ -329,7 +322,6 @@ def test_create_session_from_parameters(db_parameters, sql_simplifier_enabled):
         new_session.close()
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_create_session_from_connection(
     db_parameters, sql_simplifier_enabled, local_testing_mode
@@ -382,14 +374,24 @@ def test_create_session_from_connection_with_noise_parameters(
     reason="Query tag is a SQL feature",
     run=False,
 )
-@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_session_builder_app_name(session, db_parameters):
+@pytest.mark.parametrize(
+    "app_name,format_json,expected_query_tag",
+    [
+        ("my_app_name", False, "APPNAME=my_app_name"),
+        ("my_app_name", True, '{"APPNAME": "my_app_name"}'),
+    ],
+)
+def test_session_builder_app_name(
+    session, db_parameters, app_name, format_json, expected_query_tag
+):
     builder = session.builder
-    app_name = "my_app"
-    expected_query_tag = f"APPNAME={app_name}"
-    same_session = builder.app_name(app_name).getOrCreate()
-    new_session = builder.app_name(app_name).configs(db_parameters).create()
+    same_session = builder.app_name(app_name, format_json=format_json).getOrCreate()
+    new_session = (
+        builder.app_name(app_name, format_json=format_json)
+        .configs(db_parameters)
+        .create()
+    )
     try:
         assert session == same_session
         assert same_session.query_tag is None
@@ -506,7 +508,6 @@ def test_table_exists(session):
         Utils.drop_schema(session, double_quoted_schema)
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_database(db_parameters, sql_simplifier_enabled):
     parameters = db_parameters.copy()
@@ -520,7 +521,6 @@ def test_use_database(db_parameters, sql_simplifier_enabled):
         assert session.get_current_database() == f'"{db_name.upper()}"'
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_schema(db_parameters, sql_simplifier_enabled, local_testing_mode):
     parameters = db_parameters.copy()
@@ -543,7 +543,6 @@ def test_use_schema(db_parameters, sql_simplifier_enabled, local_testing_mode):
                 session.sql(f"DROP SCHEMA IF EXISTS {quoted_schema_name}").collect()
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_warehouse(db_parameters, sql_simplifier_enabled):
     parameters = db_parameters.copy()
@@ -557,7 +556,6 @@ def test_use_warehouse(db_parameters, sql_simplifier_enabled):
         assert session.get_current_warehouse() == f'"{warehouse_name.upper()}"'
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_role(db_parameters, sql_simplifier_enabled):
     role_name = "PUBLIC"
@@ -567,7 +565,6 @@ def test_use_role(db_parameters, sql_simplifier_enabled):
         assert session.get_current_role() == f'"{role_name}"'
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("obj", [None, "'object'", "obje\\ct", "obj\nect", r"\uobject"])
 def test_use_negative_tests(session, obj):
     if obj:
@@ -655,9 +652,9 @@ def test_close_session_twice(db_parameters):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
-@pytest.mark.skip(
-    reason="This test passed with a local dev Snowflake env. "
-    "Will be enabled soon once Snowflake publicize the sql simplifier parameter."
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="reading server side parameter is not supported in local testing",
 )
 def test_sql_simplifier_disabled_on_session(db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:
@@ -675,7 +672,53 @@ def test_sql_simplifier_disabled_on_session(db_parameters):
         assert new_session2.sql_simplifier_enabled is False
 
 
-@pytest.mark.localtest
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="reading server side parameter is not supported in local testing",
+)
+def test_cte_optimization_enabled_on_session(db_parameters):
+    with Session.builder.configs(db_parameters).create() as new_session:
+        assert new_session.cte_optimization_enabled is False
+        new_session.cte_optimization_enabled = True
+        assert new_session.cte_optimization_enabled is True
+        new_session.cte_optimization_enabled = False
+        assert new_session.cte_optimization_enabled is False
+
+    parameters = db_parameters.copy()
+    parameters["session_parameters"] = {
+        _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING: True
+    }
+    with Session.builder.configs(parameters).create() as new_session2:
+        assert new_session2.cte_optimization_enabled is True
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="reading server side parameter is not supported in local testing",
+)
+@pytest.mark.parametrize("server_parameter_enabled", [True, False])
+def test_eliminate_numeric_sql_value_cast_optimization_enabled_on_session(
+    db_parameters, server_parameter_enabled
+):
+    parameters = db_parameters.copy()
+    parameters["session_parameters"] = {
+        _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED: server_parameter_enabled
+    }
+    with Session.builder.configs(parameters).create() as new_session:
+        assert (
+            new_session.eliminate_numeric_sql_value_cast_enabled
+            is server_parameter_enabled
+        )
+        new_session.eliminate_numeric_sql_value_cast_enabled = True
+        assert new_session.eliminate_numeric_sql_value_cast_enabled is True
+        new_session.eliminate_numeric_sql_value_cast_enabled = False
+        assert new_session.eliminate_numeric_sql_value_cast_enabled is False
+        with pytest.raises(ValueError):
+            new_session.eliminate_numeric_sql_value_cast_enabled = None
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_create_session_from_default_config_file(monkeypatch, db_parameters):
     import tomlkit

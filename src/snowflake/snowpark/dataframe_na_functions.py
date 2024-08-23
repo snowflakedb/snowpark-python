@@ -10,6 +10,7 @@ from logging import getLogger
 from typing import Dict, Optional, Union
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.analyzer.expression import ColumnSum
 from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_python_val,
     with_src_position,
@@ -22,6 +23,7 @@ from snowflake.snowpark._internal.type_utils import (
     python_type_to_snow_type,
 )
 from snowflake.snowpark._internal.utils import quote_name
+from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import iff, lit, when
 from snowflake.snowpark.types import (
     DataType,
@@ -72,6 +74,7 @@ class DataFrameNaFunctions:
         how: str = "any",
         thresh: Optional[int] = None,
         subset: Optional[Union[str, Iterable[str]]] = None,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         """
         Returns a new DataFrame that excludes all rows containing fewer than
@@ -165,16 +168,18 @@ class DataFrameNaFunctions:
             raise ValueError(f"how ('{how}') should be 'any' or 'all'")
 
         # AST.
-        stmt = self._df._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_na_drop__python, stmt)
-        self._df.set_ast_ref(ast.df)
-        ast.how = how
-        if thresh is not None:
-            ast.thresh.value = thresh
-        if isinstance(subset, str):
-            ast.subset.list.append(subset)
-        elif isinstance(subset, Iterable):
-            ast.subset.list.extend(subset)
+        stmt = None
+        if _emit_ast:
+            stmt = self._df._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_na_drop__python, stmt)
+            self._df.set_ast_ref(ast.df)
+            ast.how = how
+            if thresh is not None:
+                ast.thresh.value = thresh
+            if isinstance(subset, str):
+                ast.subset.list.append(subset)
+            elif isinstance(subset, Iterable):
+                ast.subset.list.extend(subset)
 
         # if subset is not provided, drop will be applied to all columns
         if subset is None:
@@ -195,12 +200,13 @@ class DataFrameNaFunctions:
         if thresh < 1 or len(subset) == 0:
             new_df = copy.copy(self._df)
             add_api_call(new_df, "DataFrameNaFunctions.drop")
-            self._df._ast_id = stmt.var_id.bitfield1
+            if _emit_ast:
+                self._df._ast_id = stmt.var_id.bitfield1
             return self._df
         # if thresh is greater than the number of columns,
         # drop a row only if all its values are null
         elif thresh > len(subset):
-            new_df = self._df.limit(0, _ast_stmt=stmt)
+            new_df = self._df.limit(0, _ast_stmt=stmt, _emit_ast=_emit_ast)
             adjust_api_subcalls(new_df, "DataFrameNaFunctions.drop", len_subcalls=1)
             return new_df
         else:
@@ -209,13 +215,13 @@ class DataFrameNaFunctions:
                 for field in self._df.schema.fields
             }
             normalized_col_name_set = {quote_name(col_name) for col_name in subset}
-            col_counter = None
+            is_na_columns = []
             for normalized_col_name in normalized_col_name_set:
                 if normalized_col_name not in df_col_type_dict:
                     raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
                         normalized_col_name
                     )
-                col = self._df.col(normalized_col_name)
+                col = self._df.col(normalized_col_name, _emit_ast=False)
                 if isinstance(
                     df_col_type_dict[normalized_col_name], (FloatType, DoubleType)
                 ):
@@ -224,11 +230,11 @@ class DataFrameNaFunctions:
                 else:
                     # iff(col is null, 0, 1)
                     is_na = iff(col.is_null(), 0, 1)
-                if col_counter is not None:
-                    col_counter += is_na
-                else:
-                    col_counter = is_na
-            new_df = self._df.where(col_counter >= thresh, _ast_stmt=stmt)
+                is_na_columns.append(is_na)
+            col_counter = Column(
+                ColumnSum([c._expression for c in is_na_columns]), _emit_ast=False
+            )
+            new_df = self._df.where(col_counter >= thresh, _emit_ast=False)
             adjust_api_subcalls(new_df, "DataFrameNaFunctions.drop", len_subcalls=1)
             return new_df
 

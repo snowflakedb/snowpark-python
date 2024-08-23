@@ -3,13 +3,22 @@
 #
 
 import sys
+from typing import Dict, List
 
 import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import schema_value_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    PlanQueryType,
+    Query,
+    SnowflakePlan,
+)
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    SaveMode,
+    TableCreationSource,
+)
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.functions import col, lit, table_function
 from snowflake.snowpark.session import Session
@@ -53,7 +62,7 @@ def test_single_query(session):
 
         # build plan
         plans = session._plan_builder
-        table_plan = plans.table(table_name)
+        table_plan = plans.table(table_name, df._plan.source_plan)
         project = plans.project(["num"], table_plan, None)
 
         assert len(project.queries) == 1
@@ -119,6 +128,63 @@ def test_multiple_queries(session):
         Utils.drop_table(session, table_name2)
 
 
+def test_execution_queries_and_post_actions(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df1 = df.select("a", "b")
+    # create a df where cte optimization can be applied
+    df2 = df1.union(df1)
+    original_cte_enabled_value = session.cte_optimization_enabled
+
+    plan_queries = {
+        PlanQueryType.QUERIES: df2._plan.queries,
+        PlanQueryType.POST_ACTIONS: df2._plan.post_actions,
+    }
+
+    def check_plan_queries(
+        cte_applied: bool, exec_queries: Dict[PlanQueryType, List["Query"]]
+    ) -> None:
+        assert (
+            exec_queries[PlanQueryType.POST_ACTIONS]
+            == plan_queries[PlanQueryType.POST_ACTIONS]
+            == []
+        )
+        if cte_applied:
+            assert (
+                exec_queries[PlanQueryType.QUERIES][-1].sql
+                != plan_queries[PlanQueryType.QUERIES][-1].sql
+            )
+            assert exec_queries[PlanQueryType.QUERIES][-1].sql.startswith("WITH")
+            assert not plan_queries[PlanQueryType.QUERIES][-1].sql.startswith("WITH")
+        else:
+            assert (
+                exec_queries[PlanQueryType.QUERIES]
+                == plan_queries[PlanQueryType.QUERIES]
+            )
+            assert not (exec_queries[PlanQueryType.QUERIES][-1].sql.startswith("WITH"))
+
+    try:
+        # when cte is disabled, verify that the execution query got is the same as
+        # the plan queries and post actions
+        session.cte_optimization_enabled = False
+        check_plan_queries(cte_applied=False, exec_queries=df2._plan.execution_queries)
+
+        # when cte is enabled, verify that the execution query got is different
+        # from the original plan queries
+        session.cte_optimization_enabled = True
+        check_plan_queries(
+            # the cte optimization is not kicking in when sql simplifier disabled, because
+            # the cte_optimization_enabled is set to False when constructing the plan for df2,
+            # and place_holder is not propogated.
+            # TODO (SNOW-1541096): revisit this test once the cte optimization is switched to the
+            #   new compilation infra.
+            cte_applied=session.sql_simplifier_enabled,
+            exec_queries=df2._plan.execution_queries,
+        )
+
+    finally:
+        session.cte_optimization_enabled = original_cte_enabled_value
+
+
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Unable to detect sql_simplifier_enabled fixture in SP"
 )
@@ -166,6 +232,16 @@ def test_plan_height(session, temp_table, sql_simplifier_enabled):
         assert union1._plan.plan_height == 9
 
 
+def test_plan_num_duplicate_nodes_describe_query(session, temp_table):
+    df1 = session.sql(f"describe table {temp_table}")
+    with session.query_history() as query_history:
+        assert df1._plan.num_duplicate_nodes == 0
+    assert len(query_history.queries) == 0
+    with session.query_history() as query_history:
+        df1.collect()
+    assert len(query_history.queries) == 1
+
+
 def test_create_scoped_temp_table(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -176,37 +252,112 @@ def test_create_scoped_temp_table(session):
         df = session.table(table_name)
         temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         assert (
-            session._plan_builder.create_temp_table(
-                temp_table_name,
+            session._plan_builder.save_as_table(
+                [temp_table_name],
+                None,
+                SaveMode.ERROR_IF_EXISTS,
+                "temp",
+                None,
+                None,
                 df._plan,
+                None,
                 use_scoped_temp_objects=True,
-                is_generated=True,
+                creation_source=TableCreationSource.CACHE_RESULT,
+                child_attributes=df._plan.attributes,
             )
             .queries[0]
             .sql
             == f' CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         )
         assert (
-            session._plan_builder.create_temp_table(
-                temp_table_name,
+            session._plan_builder.save_as_table(
+                [temp_table_name],
+                None,
+                SaveMode.ERROR_IF_EXISTS,
+                "temp",
+                None,
+                None,
                 df._plan,
+                None,
                 use_scoped_temp_objects=False,
-                is_generated=True,
+                creation_source=TableCreationSource.CACHE_RESULT,
+                child_attributes=df._plan.attributes,
             )
             .queries[0]
             .sql
             == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         )
         assert (
-            session._plan_builder.create_temp_table(
-                temp_table_name,
+            session._plan_builder.save_as_table(
+                [temp_table_name],
+                None,
+                SaveMode.ERROR_IF_EXISTS,
+                "temp",
+                None,
+                None,
                 df._plan,
-                use_scoped_temp_objects=True,
-                is_generated=False,
+                None,
+                use_scoped_temp_objects=False,
+                creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
+                child_attributes=None,
             )
             .queries[0]
             .sql
-            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+            == f" CREATE  TEMP  TABLE  {temp_table_name}   AS  SELECT  *  FROM ( SELECT  *  FROM ({table_name}))"
         )
+        expected_sql = f' CREATE  TEMPORARY  TABLE  {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+        assert expected_sql in (
+            session._plan_builder.save_as_table(
+                [temp_table_name],
+                None,
+                SaveMode.ERROR_IF_EXISTS,
+                "temporary",
+                None,
+                None,
+                df._plan,
+                None,
+                use_scoped_temp_objects=True,
+                creation_source=TableCreationSource.OTHERS,
+                child_attributes=df._plan.attributes,
+            )
+            .queries[0]
+            .sql
+        )
+        with pytest.raises(
+            ValueError,
+            match="Internally generated tables must be called with mode ERROR_IF_EXISTS",
+        ):
+            session._plan_builder.save_as_table(
+                [temp_table_name],
+                None,
+                SaveMode.APPEND,
+                "temporary",
+                None,
+                None,
+                df._plan,
+                None,
+                use_scoped_temp_objects=True,
+                creation_source=TableCreationSource.CACHE_RESULT,
+                child_attributes=df._plan.attributes,
+            )
+
+        with pytest.raises(
+            ValueError,
+            match="child attribute must be provided when table creation source is not large query breakdown",
+        ):
+            session._plan_builder.save_as_table(
+                [temp_table_name],
+                None,
+                SaveMode.ERROR_IF_EXISTS,
+                "temporary",
+                None,
+                None,
+                df._plan,
+                None,
+                use_scoped_temp_objects=True,
+                creation_source=TableCreationSource.OTHERS,
+                child_attributes=None,
+            )
+
     finally:
         Utils.drop_table(session, table_name)

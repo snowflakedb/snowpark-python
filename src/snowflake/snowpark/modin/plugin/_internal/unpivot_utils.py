@@ -4,6 +4,7 @@
 import json
 import typing
 from collections.abc import Hashable
+from enum import Enum
 from typing import Optional
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -56,6 +57,11 @@ UNPIVOT_SINGLE_INDEX_PREFIX = "UNPIVOT_SINGLE_INDEX"
 # Default column names for pandas melt
 DEFAULT_PANDAS_UNPIVOT_VARIABLE_NAME = "variable"
 DEFAULT_PANDAS_UNPIVOT_VALUE_NAME = "value"
+
+
+class StackOperation(Enum):
+    STACK = "stack"
+    UNSTACK = "unstack"
 
 
 class UnpivotResultInfo(typing.NamedTuple):
@@ -233,7 +239,7 @@ def _prepare_unpivot_internal(
     # dataframe is used to show the intermediate results of the dataframe at each step
     # using the melt operation (unpivot).
     #
-    # data = {"abc": ["A", "B", np.NaN], "123": [1, np.NaN, 3], "state": ["CA", "WA", "NY"]}
+    # data = {"abc": ["A", "B", np.nan], "123": [1, np.nan, 3], "state": ["CA", "WA", "NY"]}
     # index = npd.MultiIndex.from_tuples([("one", "there"), ("two", "be"), ("two", "dragons")],
     #                                     names=["L1", "L2"])
     # df = npd.DataFrame(data, index=index)
@@ -654,6 +660,8 @@ def clean_up_unpivot(
         data_column_snowflake_quoted_identifiers=final_snowflake_qouted_identfiers,
         index_column_pandas_labels=index_column_pandas_names,
         index_column_snowflake_quoted_identifiers=index_column_quoted_names,
+        data_column_types=None,
+        index_column_types=None,
     )
 
     # Rename the data column snowflake quoted identifiers to be closer to pandas labels, normalizing names
@@ -873,6 +881,8 @@ def _simple_unpivot(
         index_column_snowflake_quoted_identifiers=[
             ordered_dataframe.row_position_snowflake_quoted_identifier
         ],
+        data_column_types=None,
+        index_column_types=None,
     )
 
 

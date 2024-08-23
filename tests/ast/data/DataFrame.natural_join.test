@@ -8,10 +8,8 @@ df1.natural_join(df2).select('*')
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df1 = session.table("test_table")
 
-res2 = session.table("test_table")
+df2 = session.table("test_table")
 
-res3 = res1.natural_join(res2, "inner")
-
-res4 = res3.select("*")
+res2 = df1.natural_join(df2, "inner").select("*")

@@ -13,6 +13,9 @@ import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.open_telemetry import (
+    open_telemetry_udf_context_manager,
+)
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
@@ -95,9 +98,10 @@ class StoredProcedure:
         else:
             session = session or snowflake.snowpark.session._get_active_session()
 
-        if len(self._input_types) != len(args):
+        if len(self._input_types) < len(args):
             raise ValueError(
-                f"Incorrect number of arguments passed to the stored procedure. Expected: {len(self._input_types)}, Found: {len(args)}"
+                f"Incorrect number of arguments passed to the stored procedure. "
+                f"Expected: <={len(self._input_types)}, Found: {len(args)}"
             )
 
         return args, session
@@ -545,46 +549,47 @@ class StoredProcedureRegistration:
             - :func:`~snowflake.snowpark.functions.sproc`
             - :meth:`register_from_file`
         """
-        if not callable(func):
-            raise TypeError(
-                "Invalid function: not a function or callable "
-                f"(__call__ is not defined): {type(func)}"
+        with open_telemetry_udf_context_manager(self.register, func=func, name=name):
+            if not callable(func):
+                raise TypeError(
+                    "Invalid function: not a function or callable "
+                    f"(__call__ is not defined): {type(func)}"
+                )
+
+            check_execute_as_arg(execute_as)
+            check_register_args(
+                TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
             )
+            native_app_params = kwargs.get("native_app_params", None)
 
-        check_execute_as_arg(execute_as)
-        check_register_args(
-            TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
-        )
-        native_app_params = kwargs.get("native_app_params", None)
-
-        # register stored procedure
-        return self._do_register_sp(
-            func,
-            return_type,
-            input_types,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            strict,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            comment=comment,
-            statement_params=statement_params,
-            execute_as=execute_as,
-            api_call_source="StoredProcedureRegistration.register",
-            source_code_display=source_code_display,
-            anonymous=kwargs.get("anonymous", False),
-            is_permanent=is_permanent,
-            # force_inline_code avoids uploading python file
-            # when we know the code is not too large. This is useful
-            # in pandas API to create stored procedures not registered by users.
-            force_inline_code=kwargs.get("force_inline_code", False),
-            native_app_params=native_app_params,
-        )
+            # register stored procedure
+            return self._do_register_sp(
+                func,
+                return_type,
+                input_types,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                strict,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                comment=comment,
+                statement_params=statement_params,
+                execute_as=execute_as,
+                api_call_source="StoredProcedureRegistration.register",
+                source_code_display=source_code_display,
+                anonymous=kwargs.get("anonymous", False),
+                is_permanent=is_permanent,
+                # force_inline_code avoids uploading python file
+                # when we know the code is not too large. This is useful
+                # in pandas API to create stored procedures not registered by users.
+                force_inline_code=kwargs.get("force_inline_code", False),
+                native_app_params=native_app_params,
+            )
 
     def register_from_file(
         self,
@@ -700,35 +705,38 @@ class StoredProcedureRegistration:
             - :func:`~snowflake.snowpark.functions.sproc`
             - :meth:`register`
         """
-        file_path = process_file_path(file_path)
-        check_register_args(
-            TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
-        )
-        check_execute_as_arg(execute_as)
+        with open_telemetry_udf_context_manager(
+            self.register_from_file, file_path=file_path, func_name=func_name, name=name
+        ):
+            file_path = process_file_path(file_path)
+            check_register_args(
+                TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
+            )
+            check_execute_as_arg(execute_as)
 
-        # register stored procedure
-        return self._do_register_sp(
-            (file_path, func_name),
-            return_type,
-            input_types,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            strict,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            comment=comment,
-            statement_params=statement_params,
-            execute_as=execute_as,
-            api_call_source="StoredProcedureRegistration.register_from_file",
-            source_code_display=source_code_display,
-            skip_upload_on_content_match=skip_upload_on_content_match,
-            is_permanent=is_permanent,
-        )
+            # register stored procedure
+            return self._do_register_sp(
+                (file_path, func_name),
+                return_type,
+                input_types,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                strict,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                comment=comment,
+                statement_params=statement_params,
+                execute_as=execute_as,
+                api_call_source="StoredProcedureRegistration.register_from_file",
+                source_code_display=source_code_display,
+                skip_upload_on_content_match=skip_upload_on_content_match,
+                is_permanent=is_permanent,
+            )
 
     def _do_register_sp(
         self,
@@ -763,6 +771,7 @@ class StoredProcedureRegistration:
             is_dataframe_input,
             return_type,
             input_types,
+            opt_arg_defaults,
         ) = process_registration_inputs(
             self._session,
             TempObjectType.PROCEDURE,
@@ -842,6 +851,7 @@ class StoredProcedureRegistration:
                     func=func,
                     return_type=return_type,
                     input_args=input_args,
+                    opt_arg_defaults=opt_arg_defaults,
                     handler=handler,
                     object_type=TempObjectType.PROCEDURE,
                     object_name=udf_name,

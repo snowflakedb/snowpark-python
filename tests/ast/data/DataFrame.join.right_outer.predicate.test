@@ -8,10 +8,10 @@ df3 = df1.join(df2, df1["num"] > df2["num"], "right").select('*')
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df1 = session.table("test_table")
 
-res2 = session.table("test_table")
+df2 = session.table("test_table")
 
-res3 = res1.join(res2, on=(res1["num"] > res2["num"]), how="right_outer")
+df3 = df1.join(df2, on=df1["num"] > df2["num"], how="right_outer")
 
-res4 = res3.select("*")
+df3 = df3.select("*")

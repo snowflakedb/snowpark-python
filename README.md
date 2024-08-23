@@ -167,8 +167,8 @@ Please refer to [CONTRIBUTING.md][contributing].
 
 [Snowpark Python developer guide]: https://docs.snowflake.com/en/developer-guide/snowpark/python/index.html
 [Snowpark Python api references]: https://docs.snowflake.com/en/developer-guide/snowpark/reference/python/index.html
-[Snowpark pandas developer guide]: https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas
-[Snowpark pandas api references]: https://docs.snowflake.com/en/LIMITEDACCESS/snowpark-pandas-api/reference/index.html
+[Snowpark pandas developer guide]: https://docs.snowflake.com/developer-guide/snowpark/python/snowpark-pandas
+[Snowpark pandas api references]: https://docs.snowflake.com/developer-guide/snowpark/reference/python/latest/modin/index
 [snowpark]: https://www.snowflake.com/snowpark
 [sign up trial]: https://signup.snowflake.com
 [source code]: https://github.com/snowflakedb/snowpark-python

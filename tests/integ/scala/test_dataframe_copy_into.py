@@ -488,7 +488,7 @@ def test_csv_read_format_name(session, tmp_stage_name1):
     temp_file_fmt_name = Utils.random_name_for_temp_object(TempObjectType.FILE_FORMAT)
     session.sql(
         f"create temporary file format {temp_file_fmt_name} type = csv skip_header=1 "
-        "null_if = 'none';"
+        "null_if = ('none','NA');"
     ).collect()
     df = (
         session.read.schema(
@@ -564,7 +564,9 @@ def test_json_read_format_name(session, tmp_stage_name1):
     )
 
     assert any(
-        f"FILE_FORMAT  => '{file_fmt_name}'" in q for q in sf_df.queries["queries"]
+        "CREATE SCOPED TEMPORARY FILE  FORMAT" in q
+        and "TYPE = 'json' NULL_IF = '' COMPRESSION = 'gzip'" in q
+        for q in sf_df.queries["queries"]
     )
 
     df = sf_df.collect()
@@ -662,7 +664,6 @@ def test_transormation_as_clause_no_effect(session, tmp_stage_name1):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.localtest
 def test_copy_with_wrong_dataframe(session):
     with pytest.raises(SnowparkDataframeException) as exec_info:
         session.table("a_table_name").copy_into_table("a_table_name")

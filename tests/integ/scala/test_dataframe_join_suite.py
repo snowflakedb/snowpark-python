@@ -28,7 +28,6 @@ from snowflake.snowpark.types import (
 from tests.utils import Utils
 
 
-@pytest.mark.localtest
 def test_join_using(session):
     df = session.create_dataframe([[i, str(i)] for i in range(1, 4)]).to_df(
         ["int", "str"]
@@ -43,7 +42,6 @@ def test_join_using(session):
     ]
 
 
-@pytest.mark.localtest
 def test_join_using_multiple_columns(session):
     df = session.create_dataframe([[i, i + 1, str(i)] for i in range(1, 4)]).to_df(
         ["int", "int2", "str"]
@@ -60,7 +58,6 @@ def test_join_using_multiple_columns(session):
     ]
 
 
-@pytest.mark.localtest
 def test_full_outer_join_followed_by_inner_join(session):
     a = session.create_dataframe([[1, 2], [2, 3]]).to_df(["a", "b"])
     b = session.create_dataframe([[2, 5], [3, 4]]).to_df(["a", "c"])
@@ -71,7 +68,6 @@ def test_full_outer_join_followed_by_inner_join(session):
     assert abc.collect() == [Row(3, None, 4, 1)]
 
 
-@pytest.mark.localtest
 def test_limit_with_join(session):
     df = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
         ["int", "int2", "str"]
@@ -89,7 +85,6 @@ def test_limit_with_join(session):
     assert inner.collect() == [Row(1)]
 
 
-@pytest.mark.localtest
 def test_default_inner_join(session):
     df = session.create_dataframe([1, 2]).to_df(["a"])
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
@@ -106,7 +101,6 @@ def test_default_inner_join(session):
     ]
 
 
-@pytest.mark.localtest
 def test_default_inner_join_using_column(session):
     df = session.create_dataframe([1, 2]).to_df(["a"])
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
@@ -117,7 +111,6 @@ def test_default_inner_join_using_column(session):
     assert df.join(df2, "a").filter(col("a") > 1).collect() == [Row(2, "test2")]
 
 
-@pytest.mark.localtest
 def test_3_way_joins(session):
     df1 = session.create_dataframe([1, 2]).to_df(["a"])
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
@@ -132,7 +125,6 @@ def test_3_way_joins(session):
     assert res == [Row("test1", 1, "hello1"), Row("test2", 2, "hello2")]
 
 
-@pytest.mark.localtest
 def test_default_inner_join_with_join_conditions(session):
     df1 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
@@ -148,7 +140,6 @@ def test_default_inner_join_with_join_conditions(session):
     ]
 
 
-@pytest.mark.localtest
 def test_join_with_multiple_conditions(session):
     df1 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
@@ -176,7 +167,6 @@ def test_join_with_ambiguous_column_in_condition(session):
     assert "The reference to the column 'A' is ambiguous." in ex_info.value.message
 
 
-@pytest.mark.localtest
 def test_join_using_multiple_columns_and_specifying_join_type(
     session, local_testing_mode
 ):
@@ -240,7 +230,6 @@ def test_join_using_multiple_columns_and_specifying_join_type(
         )
 
 
-@pytest.mark.localtest
 def test_join_using_conditions_and_specifying_join_type(session):
 
     df1 = session.create_dataframe(
@@ -258,7 +247,6 @@ def test_join_using_conditions_and_specifying_join_type(session):
     Utils.check_answer(df1.join(df2, join_cond, "anti"), [Row(3, 4, "3")])
 
 
-@pytest.mark.localtest
 def test_natural_join(session):
     df = session.create_dataframe([1, 2]).to_df("a")
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
@@ -267,7 +255,6 @@ def test_natural_join(session):
     Utils.check_answer(df.natural_join(df2), [Row(1, "test1"), Row(2, "test2")])
 
 
-@pytest.mark.localtest
 def test_natural_outer_join(session):
     df1 = session.create_dataframe([[1, "1"], [3, "3"]]).to_df("a", "b")
     df2 = session.create_dataframe([[1, "1"], [4, "4"]]).to_df("a", "c")
@@ -283,7 +270,6 @@ def test_natural_outer_join(session):
     )
 
 
-@pytest.mark.localtest
 def test_cross_join(session):
     df1 = session.create_dataframe([[1, "1"], [3, "3"]]).to_df(["int", "str"])
     df2 = session.create_dataframe([[2, "2"], [4, "4"]]).to_df(["int", "str"])
@@ -533,7 +519,6 @@ def test_asof_join_negative(session):
         ).collect()
 
 
-@pytest.mark.localtest
 def test_join_ambiguous_columns_with_specified_sources(
     session,
 ):
@@ -591,7 +576,6 @@ def test_join_ambiguous_columns_without_specified_sources(session):
         )
 
 
-@pytest.mark.localtest
 def test_join_expression_ambiguous_columns(
     session,
 ):
@@ -638,7 +622,6 @@ def test_semi_join_expression_ambiguous_columns(session):
     assert "not present" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_semi_join_with_columns_from_LHS(
     session,
 ):
@@ -700,7 +683,6 @@ def test_semi_join_with_columns_from_LHS(
     assert sorted(res, key=operator.itemgetter(0)) == [Row(1), Row(2)]
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "join_type", ["inner", "leftouter", "rightouter", "fullouter", "asof"]
 )
@@ -797,7 +779,6 @@ def test_columns_with_and_without_quotes(session, local_testing_mode):
         assert "reference to the column 'INTCOL' is ambiguous." in ex_info.value.message
 
 
-@pytest.mark.localtest
 def test_aliases_multiple_levels_deep(
     session,
 ):
@@ -905,7 +886,6 @@ def test_negative_test_for_self_join_with_conditions(session):
         Utils.drop_table(session, table_name1)
 
 
-@pytest.mark.localtest
 def test_clone_can_help_these_self_joins(session):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = StructType(
@@ -942,7 +922,6 @@ def test_clone_can_help_these_self_joins(session):
     ]
 
 
-@pytest.mark.localtest
 def test_natural_cross_joins(session):
     df1 = session.create_dataframe([[1, 2], [2, 3]], schema=["c1", "c2"])
     df2 = df1  # Another reference of "df"
@@ -972,7 +951,6 @@ def test_natural_cross_joins(session):
     ]
 
 
-@pytest.mark.localtest
 def test_clone_with_join_dataframe(session):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.create_dataframe([[1, 2], [2, 3]], schema=["c1", "c2"]).write.save_as_table(
@@ -994,7 +972,6 @@ def test_clone_with_join_dataframe(session):
     assert cloned_join_df.collect() == [Row(2, 3, 1, 2)]
 
 
-@pytest.mark.localtest
 def test_join_of_join(session):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.create_dataframe([[1, 1], [2, 2]], schema=["c1", "c2"]).write.save_as_table(
@@ -1092,7 +1069,6 @@ def test_with_column_on_join(session):
     )
 
 
-@pytest.mark.localtest
 def test_process_outer_join_results_using_the_non_nullable_columns_in_the_join_output(
     session,
 ):
@@ -1119,7 +1095,6 @@ def test_process_outer_join_results_using_the_non_nullable_columns_in_the_join_o
     )
 
 
-@pytest.mark.localtest
 def test_outer_join_conversion(session):
     df = session.create_dataframe([(1, 2, "1"), (3, 4, "3")]).to_df(
         ["int", "int2", "str"]
@@ -1161,7 +1136,6 @@ def test_outer_join_conversion(session):
     assert left_join_2_inner == [Row(1, 2, "1", 1, 3, "1")]
 
 
-@pytest.mark.localtest
 def test_dont_throw_analysis_exception_in_check_cartesian(
     session,
 ):
@@ -1176,7 +1150,6 @@ def test_dont_throw_analysis_exception_in_check_cartesian(
     dfOne.join(dfTwo, col("a") == col("b"), "left").collect()
 
 
-@pytest.mark.localtest
 def test_name_alias_on_multiple_join(session):
     table_trips = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_stations = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -1299,7 +1272,6 @@ def test_report_error_when_refer_common_col(session):
     assert "The reference to the column 'C' is ambiguous." in ex_info.value.message
 
 
-@pytest.mark.localtest
 def test_select_all_on_join_result(session):
     df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df_right = session.create_dataframe([[3, 4]]).to_df("c", "d")
@@ -1345,7 +1317,6 @@ def test_select_all_on_join_result(session):
     )
 
 
-@pytest.mark.localtest
 def test_select_left_right_on_join_result(session):
     df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df_right = session.create_dataframe([[3, 4]]).to_df("c", "d")
@@ -1372,7 +1343,6 @@ def test_select_left_right_on_join_result(session):
     )
 
 
-@pytest.mark.localtest
 def test_select_left_right_combination_on_join_result(session):
     df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df_right = session.create_dataframe([[3, 4]]).to_df("c", "d")
@@ -1430,7 +1400,6 @@ def test_select_left_right_combination_on_join_result(session):
     )
 
 
-@pytest.mark.localtest
 def test_select_columns_on_join_result_with_conflict_name(
     session,
 ):
@@ -1496,7 +1465,6 @@ def test_nested_join_diamond_shape_error(
         df5.collect()
 
 
-@pytest.mark.localtest
 def test_nested_join_diamond_shape_workaround(session):
     df1 = session.create_dataframe([[1]], schema=["a"])
     df2 = session.create_dataframe([[1]], schema=["a"])

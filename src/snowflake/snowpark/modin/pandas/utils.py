@@ -41,7 +41,6 @@ from pandas._typing import (
 )
 from pandas.core.dtypes.common import is_array_like, is_dict_like, is_list_like
 from pandas.errors import SpecificationError
-from pandas.util._decorators import doc
 
 import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
@@ -53,19 +52,6 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.utils import hashable
-
-_doc_binary_operation = """
-Return {operation} of {left} and `{right}` (binary operator `{bin_op}`).
-
-Parameters
-----------
-{right} : {right_type}
-    The second operand to perform computation.
-
-Returns
--------
-{returns}
-"""
 
 
 def from_non_pandas(df, index, columns, dtype):
@@ -747,50 +733,6 @@ def validate_and_try_convert_agg_func_arg_func_to_str(
     return result_agg_func
 
 
-def _doc_binary_op(operation, bin_op, left="Series", right="right", returns="Series"):
-    """
-    Return callable documenting `Series` or `DataFrame` binary operator.
-
-    Parameters
-    ----------
-    operation : str
-        Operation name.
-    bin_op : str
-        Binary operation name.
-    left : str, default: 'Series'
-        The left object to document.
-    right : str, default: 'right'
-        The right operand name.
-    returns : str, default: 'Series'
-        Type of returns.
-
-    Returns
-    -------
-    callable
-    """
-    if left == "Series":
-        right_type = "Series or scalar value"
-    elif left == "DataFrame":
-        right_type = "DataFrame, Series or scalar value"
-    elif left == "BasePandasDataset":
-        right_type = "BasePandasDataset or scalar value"
-    else:
-        ErrorMessage.not_implemented(
-            f"Only 'BasePandasDataset', `DataFrame` and 'Series' `left` are allowed, actually passed: {left}"
-        )  # pragma: no cover
-    doc_op = doc(
-        _doc_binary_operation,
-        operation=operation,
-        right=right,
-        right_type=right_type,
-        bin_op=bin_op,
-        returns=returns,
-        left=left,
-    )
-
-    return doc_op
-
-
 def get_as_shape_compatible_dataframe_or_series(
     other: pd.DataFrame | pd.Series | Callable | AnyArrayLike | Scalar,
     reference_df: pd.DataFrame,
@@ -854,14 +796,23 @@ def ensure_index(
     >>> ensure_index(['a', 'b'])
     Index(['a', 'b'], dtype='object')
 
+    # Snowpark pandas converts these tuples to lists
     >>> ensure_index([('a', 'a'),  ('b', 'c')])
-    Index([('a', 'a'), ('b', 'c')], dtype='object')
+    Index([['a', 'a'], ['b', 'c']], dtype='object')
+
+    >>> ensure_index([['a', 'a'], ['b', 'c']])
+    MultiIndex([('a', 'b'),
+                ('a', 'c')],
+               )
     """
     # if we have an index object already, simply copy it if required and return
     if isinstance(index_like, (pandas.MultiIndex, pd.Index)):
         if copy:
             index_like = index_like.copy()
         return index_like
+
+    if isinstance(index_like, pd.Series):
+        return pd.Index(index_like.values)
 
     if isinstance(index_like, list):
         # if we have a non-empty list that is multi dimensional, convert this to a multi-index and return
@@ -888,7 +839,7 @@ def try_convert_index_to_native(index_like: Any) -> Any:
     ----------
         A pandas Index if index_like is a Snowpark pandas Index, otherwise return index_like
     """
-    from snowflake.snowpark.modin.plugin._internal.index import Index
+    from snowflake.snowpark.modin.plugin.extensions.index import Index
 
     if isinstance(index_like, Index):
         index_like = index_like.to_pandas()
