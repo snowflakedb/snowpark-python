@@ -278,30 +278,7 @@ def compute_binary_op_between_snowpark_columns(
     # some operators and the data types have to be handled specially to align with pandas
     # However, it is difficult to fail early if the arithmetic operator is not compatible
     # with the data type, so we just let the server raise exception (e.g. a string minus a string).
-    if op == "truediv":
-        binary_op_result_column = first_operand / second_operand
-    elif op == "floordiv":
-        binary_op_result_column = floor(first_operand / second_operand)
-    elif op == "mod":
-        binary_op_result_column = compute_modulo_between_snowpark_columns(
-            first_operand, first_datatype(), second_operand, second_datatype()
-        )
-    elif op == "pow":
-        binary_op_result_column = compute_power_between_snowpark_columns(
-            first_operand, second_operand
-        )
-    elif op in ["__or__", "__ror__"]:
-        binary_op_result_column = first_operand | second_operand
-    elif op in ["__and__", "__rand__"]:
-        binary_op_result_column = first_operand & second_operand
-    elif (
-        op == "add"
-        and isinstance(second_datatype(), StringType)
-        and isinstance(first_datatype(), StringType)
-    ):
-        # string/string case (only for add)
-        binary_op_result_column = concat(first_operand, second_operand)
-    elif (
+    if (
         op == "add"
         and isinstance(second_datatype(), TimedeltaType)
         and isinstance(first_datatype(), TimestampType)
@@ -324,6 +301,51 @@ def compute_binary_op_between_snowpark_columns(
         )
     ):
         return SnowparkPandasColumn(pandas_lit(None), TimedeltaType())
+    elif (
+        op == "sub"
+        and isinstance(second_datatype(), TimedeltaType)
+        and isinstance(first_datatype(), TimestampType)
+    ):
+        binary_op_result_column = dateadd("ns", -1 * second_operand, first_operand)
+    elif (
+        op == "sub"
+        and isinstance(first_datatype(), TimedeltaType)
+        and isinstance(second_datatype(), TimestampType)
+    ):
+        # Timedelta - Timestamp doesn't make sense. Raise the same error
+        # message as pandas.
+        raise TypeError("bad operand type for unary -: 'DatetimeArray'")
+    elif isinstance(first_datatype(), TimedeltaType) or isinstance(
+        second_datatype(), TimedeltaType
+    ):
+        # We don't support these cases yet.
+        # TODO(SNOW-1637101, SNOW-1637102): Support these cases.
+        ErrorMessage.not_implemented(
+            f"Snowpark pandas does not yet support the binary operation {op} with timedelta types."
+        )
+    elif op == "truediv":
+        binary_op_result_column = first_operand / second_operand
+    elif op == "floordiv":
+        binary_op_result_column = floor(first_operand / second_operand)
+    elif op == "mod":
+        binary_op_result_column = compute_modulo_between_snowpark_columns(
+            first_operand, first_datatype(), second_operand, second_datatype()
+        )
+    elif op == "pow":
+        binary_op_result_column = compute_power_between_snowpark_columns(
+            first_operand, second_operand
+        )
+    elif op in ["__or__", "__ror__"]:
+        binary_op_result_column = first_operand | second_operand
+    elif op in ["__and__", "__rand__"]:
+        binary_op_result_column = first_operand & second_operand
+    elif (
+        op == "add"
+        and isinstance(second_datatype(), StringType)
+        and isinstance(first_datatype(), StringType)
+    ):
+        # string/string case (only for add)
+        binary_op_result_column = concat(first_operand, second_operand)
     elif op == "mul" and (
         (
             isinstance(second_datatype(), _IntegralType)
@@ -378,28 +400,6 @@ def compute_binary_op_between_snowpark_columns(
             first_datatype=first_datatype(),
             second_operand=second_operand,
             second_datatype=second_datatype(),
-        )
-    elif (
-        op == "sub"
-        and isinstance(second_datatype(), TimedeltaType)
-        and isinstance(first_datatype(), TimestampType)
-    ):
-        binary_op_result_column = dateadd("ns", -1 * second_operand, first_operand)
-    elif (
-        op == "sub"
-        and isinstance(first_datatype(), TimedeltaType)
-        and isinstance(second_datatype(), TimestampType)
-    ):
-        # Timedelta - Timestamp doesn't make sense. Raise the same error
-        # message as pandas.
-        raise TypeError("bad operand type for unary -: 'DatetimeArray'")
-    elif isinstance(first_datatype(), TimedeltaType) or isinstance(
-        second_datatype(), TimedeltaType
-    ):
-        # We don't support these cases yet.
-        # TODO(SNOW-1637101, SNOW-1637102): Support these cases.
-        ErrorMessage.not_implemented(
-            f"Snowpark pandas does not yet support the binary operation {op} with timedelta types."
         )
     # If there is no special binary_op_result_column result, it means the operator and
     # the data type of the column don't need special handling. Then we get the overloaded
