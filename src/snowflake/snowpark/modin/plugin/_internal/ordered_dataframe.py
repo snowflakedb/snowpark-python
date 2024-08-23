@@ -1052,6 +1052,11 @@ class OrderedDataFrame:
         right: "OrderedDataFrame",
         left_on_cols: Optional[list[str]] = None,
         right_on_cols: Optional[list[str]] = None,
+        left_match_col: Optional[str] = None,
+        right_match_col: Optional[str] = None,
+        match_comparator: Optional[  # type: ignore[name-defined]
+            "MatchComparator"  # noqa: F821
+        ] = None,
         how: JoinTypeLit = "inner",
     ) -> "OrderedDataFrame":
         """
@@ -1068,17 +1073,25 @@ class OrderedDataFrame:
             right: The other OrderedDataFrame to join.
             left_on_cols: A list of column names from self OrderedDataFrame to be used for the join.
             right_on_cols: A list of column names from right OrderedDataFrame to be used for the join.
+            left_match_col: Snowflake identifier to match condition on from 'left' frame.
+                Only applicable for 'asof' join.
+            right_match_col: Snowflake identifier to match condition on from 'right' frame.
+                Only applicable for 'asof' join.
+            match_comparator: MatchComparator {"__ge__", "__gt__", "__le__", "__lt__"}
+                Only applicable for 'asof' join, the operation to compare 'left_match_condition'
+                and 'right_match_condition'.
             how: We support the following join types:
                 - Inner join: "inner" (the default value)
                 - Left outer join: "left"
                 - Right outer join: "right"
                 - Full outer join: "outer"
                 - Cross join: "cross"
+                - ASOF join: "asof"
 
             ** NOTE:
                 1) the length of left_on_cols and right_on_cols are required to be the same. If no left_on_cols
                    and right_on_columns is provided, the join is performed with no join on expression, should be only
-                   used by cross join.
+                   used by cross join or asof join.
                 2) This interface is not the same as the interface provided by Snowpark dataframe, which allow arbitrary
                    on expression. We restrict the support to only equvi join in ordered dataframe is because eqvi join
                    is more efficient and which is the only required usage for now. Consider to support general join on
@@ -1110,6 +1123,20 @@ class OrderedDataFrame:
             right.projected_column_snowflake_quoted_identifiers,
             "join right_on_cols",
         )
+
+        if how == "asof":
+            assert left_match_col, "left_match_col was not provided to ASOF Join"
+            assert right_match_col, "right_match_col was not provided to ASOF Join"
+            _raise_if_identifier_not_exists(
+                [left_match_col],
+                self.projected_column_snowflake_quoted_identifiers,
+                "join left_match_col",
+            )
+            _raise_if_identifier_not_exists(
+                [right_match_col],
+                right.projected_column_snowflake_quoted_identifiers,
+                "join right_match_col",
+            )
 
         is_join_needed = True
         # join is not needed for `left`, `right`, `inner` and `outer` join for self join
@@ -1176,14 +1203,29 @@ class OrderedDataFrame:
             eq = Column(left_col).equal_null(Column(right_col))
             on = eq if on is None else on & eq
 
-        # If we are doing a cross join, `on` cannot be specified.
-        if how != "cross":
+        if how == "asof":
+            assert left_match_col, "left_match_col was not provided to ASOF Join"
+            left_match_col = Column(left_match_col)
+            # Get the new mapped right match condition identifier
+            assert right_match_col, "right_match_col was not provided to ASOF Join"
+            right_match_col = Column(right_identifiers_rename_map[right_match_col])
+            # ASOF Join requires the use of match_condition
+            assert match_comparator, "match_comparator was not provided to ASOF Join"
             snowpark_dataframe = left_snowpark_dataframe_ref.snowpark_dataframe.join(
-                right_snowpark_dataframe_ref.snowpark_dataframe, on, how
+                right=right_snowpark_dataframe_ref.snowpark_dataframe,
+                how=how,
+                match_condition=getattr(left_match_col, match_comparator.value)(
+                    right_match_col
+                ),
+            )
+        elif how == "cross":
+            # If we are doing a cross join, `on` cannot be specified
+            snowpark_dataframe = left_snowpark_dataframe_ref.snowpark_dataframe.join(
+                right_snowpark_dataframe_ref.snowpark_dataframe, how=how
             )
         else:
             snowpark_dataframe = left_snowpark_dataframe_ref.snowpark_dataframe.join(
-                right_snowpark_dataframe_ref.snowpark_dataframe, how=how
+                right_snowpark_dataframe_ref.snowpark_dataframe, on, how
             )
 
         # for right join, we preserve the right order first, then left order.
