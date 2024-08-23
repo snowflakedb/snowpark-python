@@ -7,7 +7,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_index_equal,
@@ -217,3 +217,61 @@ def test_normalize():
         native_index,
         lambda i: i.normalize(),
     )
+
+
+@pytest.mark.parametrize(
+    "datetime_index_value",
+    [
+        ["2014-04-04 23:56:20", "2014-07-18 21:24:30", "2015-11-22 22:14:40"],
+        ["04/04/2014", "07/18/2013", "11/22/2015"],
+        ["2014-04-04 23:56", pd.NaT, "2014-07-18 21:24", "2015-11-22 22:14", pd.NaT],
+        [
+            pd.Timestamp(2017, 1, 1, 12),
+            pd.Timestamp(2018, 2, 1, 10),
+            pd.Timestamp(2000, 2, 1, 10),
+        ],
+    ],
+)
+@pytest.mark.parametrize("func", ["round", "floor", "ceil"])
+@pytest.mark.parametrize("freq", ["1d", "2d", "1h", "2h", "1min", "2min", "1s", "2s"])
+def test_floor_ceil_round(datetime_index_value, func, freq):
+    native_index = native_pd.DatetimeIndex(datetime_index_value)
+    snow_index = pd.DatetimeIndex(native_index)
+    if func == "round" and "s" in freq:
+        with SqlCounter(query_count=0):
+            msg = f"Snowpark pandas method DatetimeIndex.round does not yet support the 'freq={freq}' parameter"
+            with pytest.raises(NotImplementedError, match=msg):
+                snow_index.round(freq=freq)
+    else:
+        with SqlCounter(query_count=1):
+            eval_snowpark_pandas_result(
+                snow_index, native_index, lambda i: getattr(i, func)(freq)
+            )
+
+
+@pytest.mark.parametrize("func", ["floor", "ceil", "round"])
+@pytest.mark.parametrize(
+    "freq, ambiguous, nonexistent",
+    [
+        ("1w", "raise", "raise"),
+        ("1h", "infer", "raise"),
+        ("1h", "raise", "shift_forward"),
+        ("1w", "infer", "shift_forward"),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_floor_ceil_round_negative(func, freq, ambiguous, nonexistent):
+    datetime_index_value = [
+        "2014-04-04 23:56",
+        pd.NaT,
+        "2014-07-18 21:24",
+        "2015-11-22 22:14",
+        pd.NaT,
+    ]
+    native_index = native_pd.DatetimeIndex(datetime_index_value)
+    snow_index = pd.DatetimeIndex(native_index)
+    msg = f"Snowpark pandas method DatetimeIndex.{func} does not yet support"
+    with pytest.raises(NotImplementedError, match=msg):
+        getattr(snow_index, func)(
+            freq=freq, ambiguous=ambiguous, nonexistent=nonexistent
+        )

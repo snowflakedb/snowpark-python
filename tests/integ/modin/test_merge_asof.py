@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import re
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -259,8 +261,10 @@ def test_merge_asof_negative_non_numeric_on(left_right_native_df_non_numeric_on)
     )
     # pandas raises a ValueError with incompatible merge dtype
     with pytest.raises(
-        ValueError,
-        match="Incompatible merge dtype, dtype\\('O'\\) and dtype\\('O'\\), both sides must have numeric dtype",
+        MergeError,
+        match=re.escape(
+            "Incompatible merge dtype, dtype('O') and dtype('O'), both sides must have numeric dtype"
+        ),
     ):
         native_pd.merge_asof(left_native_df, right_native_df, on="a")
     # Snowpark pandas raises a SnowparkSQLException
@@ -268,7 +272,7 @@ def test_merge_asof_negative_non_numeric_on(left_right_native_df_non_numeric_on)
     with pytest.raises(
         SnowparkSQLException,
     ):
-        pd.merge_asof(left_snow_df, right_snow_df, on="a")
+        pd.merge_asof(left_snow_df, right_snow_df, on="a").to_pandas()
 
 
 @sql_count_checker(query_count=0)
@@ -301,14 +305,18 @@ def test_merge_asof_negative_multiple_on(left_right_native_df):
             right_on=["a", "another_col_right"],
         )
     # ValueError is raised when left_on and right_on are lists not of the same length
-    with pytest.raises(ValueError, match=r"len\(right_on\) must equal len\(left_on\)"):
+    with pytest.raises(
+        ValueError, match=re.escape("len(right_on) must equal len(left_on)")
+    ):
         native_pd.merge_asof(
             left_native_df,
             right_native_df,
             left_on=["a"],
             right_on=["a", "another_col_right"],
         )
-    with pytest.raises(ValueError, match=r"len\(right_on\) must equal len\(left_on\)"):
+    with pytest.raises(
+        ValueError, match=re.escape("len(right_on) must equal len(left_on)")
+    ):
         pd.merge_asof(
             left_snow_df,
             right_snow_df,
@@ -316,11 +324,15 @@ def test_merge_asof_negative_multiple_on(left_right_native_df):
             right_on=["a", "another_col_right"],
         )
     # ValueError is raised when left_on is a list of length > 1 and right_on is a scalar
-    with pytest.raises(ValueError, match=r"len\(right_on\) must equal len\(left_on\)"):
+    with pytest.raises(
+        ValueError, match=re.escape("len(right_on) must equal len(left_on)")
+    ):
         native_pd.merge_asof(
             left_native_df, right_native_df, left_on=["a", "another_col"], right_on="a"
         )
-    with pytest.raises(ValueError, match=r"len\(right_on\) must equal len\(left_on\)"):
+    with pytest.raises(
+        ValueError, match=re.escape("len(right_on) must equal len(left_on)")
+    ):
         pd.merge_asof(
             left_snow_df, right_snow_df, left_on=["a", "another_col"], right_on="a"
         )
