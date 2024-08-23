@@ -49,6 +49,7 @@
   - `NotImplementedError` will be raised for the rest of methods that do not support `Timedelta`.
   - support for subtracting two timestamps to get a Timedelta.
   - support indexing with Timedelta data columns. 
+  - support for adding or subtracting timestamps and `Timedelta`.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
