@@ -12,10 +12,17 @@ from unittest import mock
 import pytest
 
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
-from snowflake.snowpark._internal.analyzer.binary_plan_node import Union
+from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    Except,
+    Intersect,
+    Union,
+)
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.select_statement import (
+    SET_EXCEPT,
+    SET_INTERSECT,
     SET_UNION,
+    SET_UNION_ALL,
     SelectSnowflakePlan,
     SelectSQL,
     SelectStatement,
@@ -41,21 +48,64 @@ empty_selectable = SelectSQL("dummy_query", analyzer=mock.create_autospec(Analyz
 
 
 @pytest.mark.parametrize(
-    "node_generator",
+    "node_generator,expected",
     [
-        lambda _: Pivot([], empty_expression, [], [], None, empty_logical_plan),
-        lambda _: Unpivot("value_col", "name_col", [], empty_logical_plan),
-        lambda _: Sort([], empty_logical_plan),
-        lambda _: Aggregate([], [], empty_logical_plan),
-        lambda _: Sample(empty_logical_plan, None, 2, None),
-        lambda _: Union(empty_logical_plan, empty_logical_plan, is_all=False),
-        lambda x: SelectStatement(
-            from_=empty_selectable, order_by=[empty_expression], analyzer=x
+        (lambda _: Pivot([], empty_expression, [], [], None, empty_logical_plan), True),
+        (lambda _: Unpivot("value_col", "name_col", [], empty_logical_plan), True),
+        (lambda _: Sort([], empty_logical_plan), True),
+        (lambda _: Aggregate([], [], empty_logical_plan), True),
+        (lambda _: Sample(empty_logical_plan, None, 2, None), True),
+        (lambda _: Union(empty_logical_plan, empty_logical_plan, is_all=False), True),
+        (lambda _: Union(empty_logical_plan, empty_logical_plan, is_all=True), False),
+        (lambda _: Except(empty_logical_plan, empty_logical_plan), True),
+        (lambda _: Intersect(empty_logical_plan, empty_logical_plan), True),
+        (
+            lambda x: SelectStatement(
+                from_=empty_selectable, order_by=[empty_expression], analyzer=x
+            ),
+            True,
         ),
-        lambda x: SetStatement(
-            SetOperand(empty_selectable),
-            SetOperand(empty_selectable, SET_UNION),
-            analyzer=x,
+        (
+            lambda x: SetStatement(
+                SetOperand(empty_selectable),
+                SetOperand(empty_selectable, SET_UNION),
+                analyzer=x,
+            ),
+            True,
+        ),
+        (
+            lambda x: SetStatement(
+                SetOperand(empty_selectable),
+                SetOperand(empty_selectable, SET_INTERSECT),
+                analyzer=x,
+            ),
+            True,
+        ),
+        (
+            lambda x: SetStatement(
+                SetOperand(empty_selectable),
+                SetOperand(empty_selectable, SET_EXCEPT),
+                analyzer=x,
+            ),
+            True,
+        ),
+        (
+            lambda x: SetStatement(
+                SetOperand(empty_selectable),
+                SetOperand(empty_selectable, SET_UNION_ALL),
+                SetOperand(empty_selectable, SET_UNION),
+                analyzer=x,
+            ),
+            True,
+        ),
+        (
+            lambda x: SetStatement(
+                SetOperand(empty_selectable),
+                SetOperand(empty_selectable, SET_UNION_ALL),
+                SetOperand(empty_selectable, SET_INTERSECT),
+                analyzer=x,
+            ),
+            False,
         ),
     ],
 )
