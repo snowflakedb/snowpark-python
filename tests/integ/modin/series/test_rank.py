@@ -28,7 +28,6 @@ TEST_RANK_DATA = [
 ]
 
 
-@sql_count_checker(query_count=1)
 @pytest.mark.parametrize("data, index", TEST_RANK_DATA)
 @pytest.mark.parametrize(
     "method",

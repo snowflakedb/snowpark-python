@@ -166,7 +166,11 @@ class Series(BasePandasDataset):
                 # 3. Perform .loc[] on `data` to select the rows that are in `index`.
                 query_compiler = data.loc[index]._query_compiler
 
-        elif is_dict_like(data) and not isinstance(data, (pandas.Series, Series)):
+        elif (
+            is_dict_like(data)
+            and not is_list_like(data)
+            and not isinstance(data, (pandas.Series, Series))
+        ):
             if name is None:
                 name = MODIN_UNNAMED_SERIES_LABEL
             # If the data is a dictionary, we need to convert it to a query compiler and set the index.

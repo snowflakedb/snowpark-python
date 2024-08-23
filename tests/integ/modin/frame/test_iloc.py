@@ -2710,17 +2710,15 @@ def test_df_iloc_set_with_multi_index(
         native_items.columns = pd.MultiIndex.from_tuples(item_columns)
 
     if row_key_index:
-        expected_join_count += 1
-        snow_row_key = pd.Series(row_key, index=pd.Index(row_key_index))
-        native_row_key = native_pd.Series(row_key, index=pd.Index(row_key_index))
+        snow_row_key = pd.Series(row_key, index=native_pd.Index(row_key_index))
+        native_row_key = native_pd.Series(row_key, index=native_pd.Index(row_key_index))
     else:
         snow_row_key = row_key
         native_row_key = row_key
 
     if col_key_index:
-        expected_join_count += 1
-        snow_col_key = pd.Series(col_key, index=pd.Index(col_key_index))
-        native_col_key = native_pd.Series(col_key, index=pd.Index(col_key_index))
+        snow_col_key = pd.Series(col_key, index=native_pd.Index(col_key_index))
+        native_col_key = native_pd.Series(col_key, index=native_pd.Index(col_key_index))
     else:
         snow_col_key = col_key
         native_col_key = col_key

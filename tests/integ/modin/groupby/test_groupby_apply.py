@@ -1073,6 +1073,11 @@ class TestSeriesGroupBy:
     @pytest.mark.parametrize("by", ["string_col_1", ["index", "string_col_1"], "index"])
     def test_dataframe_groupby_getitem(self, by, func, dropna, group_keys, sort):
         """Test apply() on a SeriesGroupBy that we get by DataFrameGroupBy.__getitem__"""
+        qc = (
+            6
+            if group_keys is False and not func == get_scalar_from_numeric_series
+            else 5
+        )
         if (
             func in (get_dataframe_from_numeric_series, get_series_from_numeric_series)
             and not dropna
@@ -1082,7 +1087,7 @@ class TestSeriesGroupBy:
             # (pd.NA, k1) that we cannot serialize.
             pytest.xfail(reason="SNOW-1229760")
         with SqlCounter(
-            query_count=6 if group_keys is False else 5,
+            query_count=qc,
             udtf_count=UDTF_COUNT,
             join_count=2,
         ):
