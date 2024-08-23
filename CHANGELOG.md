@@ -61,6 +61,7 @@
 - Added support for `pd.merge_asof`.
 - Added support for `Series.dt.normalize` and `DatetimeIndex.normalize`.
 - Added support for `Index.is_boolean`, `Index.is_integer`, `Index.is_floating`, `Index.is_numeric`, and `Index.is_object`.
+- Added support for `DatetimeIndex.round`, `DatetimeIndex.floor` and `DatetimeIndex.ceil`.
 
 #### Bug Fixes
 

@@ -401,14 +401,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ) in (
             self._modin_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.values()
         ):
-            method = "Unknown method"
             if isinstance(val, TimedeltaType):
-                try:
-                    method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
-                except Exception:
-                    pass
-                finally:
-                    ErrorMessage.not_implemented_for_timedelta(method)
+                method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
+                ErrorMessage.not_implemented_for_timedelta(method)
+
+    def _warn_lost_snowpark_pandas_type(self) -> None:
+        """Warn Snowpark pandas type can be lost in current operation."""
+        method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
+        snowpark_pandas_types = [
+            type(t).__name__
+            for t in set(
+                self._modin_frame.cached_data_column_snowpark_pandas_types
+                + self._modin_frame.cached_index_column_snowpark_pandas_types
+            )
+            if t is not None
+        ]
+        if snowpark_pandas_types:
+            WarningMessage.lost_type_warning(
+                method,
+                ", ".join(snowpark_pandas_types),
+            )
 
     def snowpark_pandas_type_immutable_check(func: Callable) -> Any:
         """The decorator to check on SnowflakeQueryCompiler methods which return a new SnowflakeQueryCompiler.
@@ -1324,7 +1336,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         index_label: Optional[IndexLabel] = None,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
     ) -> None:
-        self._raise_not_implemented_error_for_timedelta()
+        self._warn_lost_snowpark_pandas_type()
 
         if if_exists not in ("fail", "replace", "append"):
             # Same error message as native pandas.
@@ -1369,7 +1381,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         For details, please see comment in _to_snowpark_dataframe_of_pandas_dataframe.
         """
-        self._raise_not_implemented_error_for_timedelta()
+        self._warn_lost_snowpark_pandas_type()
 
         return self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
             index, index_label
@@ -16074,7 +16086,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def dt_ceil(
-        self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
+        self,
+        freq: Frequency,
+        ambiguous: str = "raise",
+        nonexistent: str = "raise",
+        include_index: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Args:
@@ -16092,62 +16108,51 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 - 'NaT' will return NaT where there are nonexistent times
                 - timedelta objects will shift nonexistent times by the timedelta
                 - 'raise' will raise an NonExistentTimeError if there are nonexistent times.
+            include_index: Whether to include the index columns in the operation.
         Returns:
             A new QueryCompiler with ceil values.
 
         """
+        method_name = "DatetimeIndex.ceil" if include_index else "Series.dt.ceil"
         if ambiguous != "raise":
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.dt.ceil' method doesn't yet support 'ambiguous' parameter"
-            )
+            ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
         if nonexistent != "raise":
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.dt.ceil' method doesn't yet support 'nonexistent' parameter"
-            )
-        internal_frame = self._modin_frame
+            ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
 
         slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(
             rule=freq  # type:  ignore[arg-type]
         )
 
         if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS:
-            ErrorMessage.not_implemented(
-                f"Snowpark pandas 'Series.dt.ceil' method doesn't support setting 'freq' parameter to '{freq}'"
-            )
-        base_column = col(internal_frame.data_column_snowflake_quoted_identifiers[0])
-        floor_column = builtin("time_slice")(
-            base_column, slice_length, slice_unit, "START"
-        )
-        ceil_column = builtin("time_slice")(
-            base_column, slice_length, slice_unit, "END"
-        )
-        ceil_column = iff(
-            base_column.equal_null(floor_column), base_column, ceil_column
-        )
+            ErrorMessage.parameter_not_implemented_error(f"freq='{freq}'", method_name)
 
-        internal_frame = internal_frame.append_column(
-            internal_frame.data_column_pandas_labels[0], ceil_column
-        )
+        def ceil_func(col_id: str) -> SnowparkColumn:
+            base_column = col(col_id)
+            floor_column = builtin("time_slice")(
+                base_column, slice_length, slice_unit, "START"
+            )
+            ceil_column = builtin("time_slice")(
+                base_column, slice_length, slice_unit, "END"
+            )
+            return iff(base_column.equal_null(floor_column), base_column, ceil_column)
+
+        frame = self._modin_frame
+        snowflake_ids = frame.data_column_snowflake_quoted_identifiers[0:1]
+        if include_index:
+            snowflake_ids.extend(frame.index_column_snowflake_quoted_identifiers)
 
         return SnowflakeQueryCompiler(
-            InternalFrame.create(
-                ordered_dataframe=internal_frame.ordered_dataframe,
-                data_column_pandas_labels=[None],
-                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
-                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers[
-                    -1:
-                ],
-                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
-                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
-                data_column_types=internal_frame.cached_data_column_snowpark_pandas_types[
-                    -1:
-                ],
-                index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
-            )
+            frame.update_snowflake_quoted_identifiers_with_expressions(
+                {col_id: ceil_func(col_id) for col_id in snowflake_ids}
+            ).frame
         )
 
     def dt_round(
-        self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
+        self,
+        freq: Frequency,
+        ambiguous: str = "raise",
+        nonexistent: str = "raise",
+        include_index: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Args:
@@ -16165,28 +16170,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 - 'NaT' will return NaT where there are nonexistent times
                 - timedelta objects will shift nonexistent times by the timedelta
                 - 'raise' will raise an NonExistentTimeError if there are nonexistent times.
+            include_index: Whether to include the index columns in the operation.
         Returns:
             A new QueryCompiler with round values.
 
         """
+        method_name = "DatetimeIndex.round" if include_index else "Series.dt.round"
         if ambiguous != "raise":
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.dt.round' method doesn't yet support 'ambiguous' parameter"
-            )
+            ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
         if nonexistent != "raise":
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.dt.round' method doesn't yet support 'nonexistent' parameter"
-            )
-        internal_frame = self._modin_frame
+            ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
 
         slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(
             rule=freq  # type:  ignore[arg-type]
         )
 
         if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS or slice_unit == "second":
-            ErrorMessage.not_implemented(
-                f"Snowpark pandas 'Series.dt.round' method doesn't support setting 'freq' parameter to '{freq}'"
-            )
+            ErrorMessage.parameter_not_implemented_error(f"freq={freq}", method_name)
 
         # We need to implement the algorithm for rounding half to even whenever
         # the date value is at half point of the slice:
@@ -16214,72 +16214,79 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if slice_length % 2 == 1:
             slice_length, slice_unit = down_level_freq(slice_length, slice_unit)
         half_slice_length = int(slice_length / 2)
-        base_column = col(internal_frame.data_column_snowflake_quoted_identifiers[0])
-
-        # Second, we determine whether floor represents an even number of slices.
-        # To do so, we must divide the number of epoch seconds in it over the number
-        # of epoch seconds in one slice. This way, we can get the number of slices.
-
-        floor_column = builtin("time_slice")(
-            base_column, slice_length, slice_unit, "START"
-        )
-        ceil_column = builtin("time_slice")(
-            base_column, slice_length, slice_unit, "END"
-        )
 
         def slice_length_when_unit_is_second(slice_length: int, slice_unit: str) -> int:
             while slice_unit != "second":
                 slice_length, slice_unit = down_level_freq(slice_length, slice_unit)
             return slice_length
 
-        floor_epoch_seconds_column = builtin("extract")("epoch_second", floor_column)
-        floor_num_slices_column = cast(
-            floor_epoch_seconds_column
-            / pandas_lit(slice_length_when_unit_is_second(slice_length, slice_unit)),
-            IntegerType(),
-        )
+        def round_func(col_id: str) -> SnowparkColumn:
+            base_column = col(col_id)
 
-        # Now that we know the number of slices, we can check if they are even or odd.
+            # Second, we determine whether floor represents an even number of slices.
+            # To do so, we must divide the number of epoch seconds in it over the number
+            # of epoch seconds in one slice. This way, we can get the number of slices.
 
-        floor_is_even = (floor_num_slices_column % pandas_lit(2)).equal_null(
-            pandas_lit(0)
-        )
+            floor_column = builtin("time_slice")(
+                base_column, slice_length, slice_unit, "START"
+            )
+            ceil_column = builtin("time_slice")(
+                base_column, slice_length, slice_unit, "END"
+            )
 
-        # Accordingly, we can decide if the round column should be the floor or ceil
-        # of the slice.
+            floor_epoch_seconds_column = builtin("extract")(
+                "epoch_second", floor_column
+            )
+            floor_num_slices_column = cast(
+                floor_epoch_seconds_column
+                / pandas_lit(
+                    slice_length_when_unit_is_second(slice_length, slice_unit)
+                ),
+                IntegerType(),
+            )
 
-        round_column_if_half_point = iff(floor_is_even, floor_column, ceil_column)
+            # Now that we know the number of slices, we can check if they are even or odd.
+            floor_is_even = (floor_num_slices_column % pandas_lit(2)).equal_null(
+                pandas_lit(0)
+            )
 
-        # In case the date value is not at half point of the slice, then we shift it
-        # by half a slice, and take the floor from there.
+            # Accordingly, we can decide if the round column should be the floor or ceil
+            # of the slice.
+            round_column_if_half_point = iff(floor_is_even, floor_column, ceil_column)
 
-        base_plus_half_slice_column = dateadd(
-            slice_unit, pandas_lit(half_slice_length), base_column
-        )
-        round_column_if_not_half_point = builtin("time_slice")(
-            base_plus_half_slice_column, slice_length, slice_unit, "START"
-        )
+            # In case the date value is not at half point of the slice, then we shift it
+            # by half a slice, and take the floor from there.
+            base_plus_half_slice_column = dateadd(
+                slice_unit, pandas_lit(half_slice_length), base_column
+            )
+            round_column_if_not_half_point = builtin("time_slice")(
+                base_plus_half_slice_column, slice_length, slice_unit, "START"
+            )
 
-        # The final expression for the round column.
+            # The final expression for the round column.
+            return iff(
+                base_plus_half_slice_column.equal_null(ceil_column),
+                round_column_if_half_point,
+                round_column_if_not_half_point,
+            )
 
-        round_column = iff(
-            base_plus_half_slice_column.equal_null(ceil_column),
-            round_column_if_half_point,
-            round_column_if_not_half_point,
-        )
+        frame = self._modin_frame
+        snowflake_ids = frame.data_column_snowflake_quoted_identifiers[0:1]
+        if include_index:
+            snowflake_ids.extend(frame.index_column_snowflake_quoted_identifiers)
 
         return SnowflakeQueryCompiler(
-            internal_frame.update_snowflake_quoted_identifiers_with_expressions(
-                {
-                    internal_frame.data_column_snowflake_quoted_identifiers[
-                        0
-                    ]: round_column
-                }
+            frame.update_snowflake_quoted_identifiers_with_expressions(
+                {col_id: round_func(col_id) for col_id in snowflake_ids}
             ).frame
         )
 
     def dt_floor(
-        self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
+        self,
+        freq: Frequency,
+        ambiguous: str = "raise",
+        nonexistent: str = "raise",
+        include_index: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Args:
@@ -16297,52 +16304,35 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 - 'NaT' will return NaT where there are nonexistent times
                 - timedelta objects will shift nonexistent times by the timedelta
                 - 'raise' will raise an NonExistentTimeError if there are nonexistent times.
+            include_index: Whether to include the index columns in the operation.
         Returns:
             A new QueryCompiler with floor values.
         """
+        method_name = "DatetimeIndex.floor" if include_index else "Series.dt.floor"
         if ambiguous != "raise":
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.dt.floor' method doesn't yet support 'ambiguous' parameter"
-            )
+            ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
         if nonexistent != "raise":
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.dt.floor' method doesn't yet support 'nonexistent' parameter"
-            )
-        internal_frame = self._modin_frame
+            ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
 
         slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(
             rule=freq  # type:  ignore[arg-type]
         )
 
         if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS:
-            ErrorMessage.not_implemented(
-                f"Snowpark pandas 'Series.dt.floor' method doesn't support setting 'freq' parameter to '{freq}'"
-            )
-        snowpark_column = builtin("time_slice")(
-            col(internal_frame.data_column_snowflake_quoted_identifiers[0]),
-            slice_length,
-            slice_unit,
-        )
+            ErrorMessage.parameter_not_implemented_error(f"freq='{freq}'", method_name)
 
-        internal_frame = internal_frame.append_column(
-            internal_frame.data_column_pandas_labels[0], snowpark_column
-        )
+        frame = self._modin_frame
+        snowflake_ids = frame.data_column_snowflake_quoted_identifiers[0:1]
+        if include_index:
+            snowflake_ids.extend(frame.index_column_snowflake_quoted_identifiers)
 
         return SnowflakeQueryCompiler(
-            InternalFrame.create(
-                ordered_dataframe=internal_frame.ordered_dataframe,
-                data_column_pandas_labels=[None],
-                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
-                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers[
-                    -1:
-                ],
-                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
-                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
-                data_column_types=internal_frame.cached_data_column_snowpark_pandas_types[
-                    -1:
-                ],
-                index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
-            )
+            frame.update_snowflake_quoted_identifiers_with_expressions(
+                {
+                    col_id: builtin("time_slice")(col(col_id), slice_length, slice_unit)
+                    for col_id in snowflake_ids
+                }
+            ).frame
         )
 
     def dt_normalize(self, include_index: bool = False) -> "SnowflakeQueryCompiler":
