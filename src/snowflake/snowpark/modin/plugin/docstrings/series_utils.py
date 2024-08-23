@@ -957,7 +957,45 @@ class StringMethods:
         pass
 
     def normalize():
-        pass
+        """
+        Convert times to midnight.
+
+
+        The time component of the date-time is converted to midnight i.e. 00:00:00. This is useful in cases, when the time does not matter. Length is unaltered. The timezones are unaffected.
+
+
+        This method is available on Series with datetime values under the .dt accessor, and directly on Datetime Array/Index.
+
+
+        Returns
+        -------
+        DatetimeArray, DatetimeIndex or Series
+            The same type as the original data. Series will have the same name and index. DatetimeIndex will have the same name.
+
+        See also
+        --------
+        floor
+            Floor the datetimes to the specified freq.
+        ceil
+            Ceil the datetimes to the specified freq.
+        round
+            Round the datetimes to the specified freq.
+
+        Examples
+        --------
+        >>> idx = pd.date_range(start='2014-08-01 10:00', freq='h',
+        ...                    periods=3, tz='Asia/Calcutta')  # doctest: +SKIP
+        >>> idx  # doctest: +SKIP
+        DatetimeIndex(['2014-08-01 10:00:00+05:30',
+                    '2014-08-01 11:00:00+05:30',
+                    '2014-08-01 12:00:00+05:30'],
+                        dtype='datetime64[ns, Asia/Calcutta]', freq=None)
+        >>> idx.normalize()  # doctest: +SKIP
+        DatetimeIndex(['2014-08-01 00:00:00+05:30',
+                    '2014-08-01 00:00:00+05:30',
+                    '2014-08-01 00:00:00+05:30'],
+                    dtype='datetime64[ns, Asia/Calcutta]', freq=None)
+        """
 
     def translate():
         """
@@ -1821,11 +1859,11 @@ class CombinedDatetimelikeProperties:
         DatetimeIndex
 
         >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
-        >>> rng  # doctest: +SKIP
+        >>> rng
         DatetimeIndex(['2018-01-01 11:59:00', '2018-01-01 12:00:00',
                        '2018-01-01 12:01:00'],
-                      dtype='datetime64[ns]', freq='min')
-        >>> rng.round('h')  # doctest: +SKIP
+                      dtype='datetime64[ns]', freq=None)
+        >>> rng.round('h')
         DatetimeIndex(['2018-01-01 12:00:00', '2018-01-01 12:00:00',
                        '2018-01-01 12:00:00'],
                       dtype='datetime64[ns]', freq=None)
@@ -1891,14 +1929,14 @@ class CombinedDatetimelikeProperties:
         DatetimeIndex
 
         >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
-        >>> rng  # doctest: +SKIP
+        >>> rng
         DatetimeIndex(['2018-01-01 11:59:00', '2018-01-01 12:00:00',
-                    '2018-01-01 12:01:00'],
-                    dtype='datetime64[ns]', freq='min')
-        >>> rng.floor('h')  # doctest: +SKIP
+                       '2018-01-01 12:01:00'],
+                      dtype='datetime64[ns]', freq=None)
+        >>> rng.floor('h')
         DatetimeIndex(['2018-01-01 11:00:00', '2018-01-01 12:00:00',
-                    '2018-01-01 12:00:00'],
-                    dtype='datetime64[ns]', freq=None)
+                       '2018-01-01 12:00:00'],
+                      dtype='datetime64[ns]', freq=None)
 
         Series
 
@@ -1920,7 +1958,6 @@ class CombinedDatetimelikeProperties:
         DatetimeIndex(['2021-10-31 02:00:00+02:00'],
                     dtype='datetime64[ns, Europe/Amsterdam]', freq=None)
         """
-        # TODO(SNOW-1486910): Unskip when date_range returns DatetimeIndex.
 
     def ceil():
         """
@@ -1962,14 +1999,14 @@ class CombinedDatetimelikeProperties:
         DatetimeIndex
 
         >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
-        >>> rng  # doctest: +SKIP
+        >>> rng
         DatetimeIndex(['2018-01-01 11:59:00', '2018-01-01 12:00:00',
-                    '2018-01-01 12:01:00'],
-                    dtype='datetime64[ns]', freq='min')
-        >>> rng.ceil('h')  # doctest: +SKIP
+                       '2018-01-01 12:01:00'],
+                      dtype='datetime64[ns]', freq=None)
+        >>> rng.ceil('h')
         DatetimeIndex(['2018-01-01 12:00:00', '2018-01-01 12:00:00',
-                    '2018-01-01 13:00:00'],
-                    dtype='datetime64[ns]', freq=None)
+                       '2018-01-01 13:00:00'],
+                      dtype='datetime64[ns]', freq=None)
 
         Series
 
@@ -1991,7 +2028,6 @@ class CombinedDatetimelikeProperties:
         DatetimeIndex(['2021-10-31 02:00:00+02:00'],
                     dtype='datetime64[ns, Europe/Amsterdam]', freq=None)
         """
-        # TODO(SNOW-1486910): Unskip when date_range returns DatetimeIndex.
 
     def month_name():
         """

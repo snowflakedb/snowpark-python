@@ -43,16 +43,19 @@
 #### Bug Fixes
 
 - Fixed a bug where the truncate mode in `DataFrameWriter.save_as_table` incorrectly handled DataFrames containing only a subset of columns from the existing table.
+- Fixed a bug where function `to_timestamp` does not set the default timezone of the column datatype.
 
 ### Snowpark pandas API Updates
 
 #### New Features
 
 - Added limited support for the `Timedelta` type, including
-  - support `copy`, `cache_result`, `shift`, `sort_index`.
+  - supporting tracking the Timedelta type through `copy`, `cache_result`, `shift`, `sort_index`.
+  - converting non-timedelta to timedelta via `astype`. 
   - `NotImplementedError` will be raised for the rest of methods that do not support `Timedelta`.
   - support for subtracting two timestamps to get a Timedelta.
   - support indexing with Timedelta data columns. 
+  - support for adding or subtracting timestamps and `Timedelta`.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
@@ -61,6 +64,10 @@
 - Added support for `DatetimeIndex.month_name` and `DatetimeIndex.day_name`.
 - Added support for `Series.dt.weekday`, `Series.dt.time`, and `DatetimeIndex.time`.
 - Added support for `Index.min` and `Index.max`.
+- Added support for `pd.merge_asof`.
+- Added support for `Series.dt.normalize` and `DatetimeIndex.normalize`.
+- Added support for `Index.is_boolean`, `Index.is_integer`, `Index.is_floating`, `Index.is_numeric`, and `Index.is_object`.
+- Added support for `DatetimeIndex.round`, `DatetimeIndex.floor` and `DatetimeIndex.ceil`.
 
 #### Bug Fixes
 
