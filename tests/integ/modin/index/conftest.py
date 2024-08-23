@@ -16,6 +16,10 @@ TEST_DFS = [
         data={"col1": [1, 2, 3], "col2": [3, 4, 5]},
         index=native_pd.DatetimeIndex(["2024-01-01", "2024-02-01", "2024-03-01"]),
     ),
+    native_pd.DataFrame(
+        data={"col1": [1, 2, 3], "col2": [3, 4, 5]},
+        index=native_pd.TimedeltaIndex(["0 days", "1 days", "3 days"]),
+    ),
 ]
 
 NATIVE_INDEX_TEST_DATA = [
@@ -36,6 +40,8 @@ NATIVE_INDEX_TEST_DATA = [
         tz="America/Los_Angeles",
     ),
     native_pd.DatetimeIndex([1262347200000000000, 1262347400000000000]),
+    native_pd.TimedeltaIndex(["0 days", "1 days", "3 days"]),
+    native_pd.TimedeltaIndex([100, 200, 300]),
 ]
 
 NATIVE_INDEX_UNIQUE_TEST_DATA = [

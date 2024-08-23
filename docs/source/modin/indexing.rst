@@ -220,3 +220,43 @@ DatetimeIndex
 
     DatetimeIndex.mean
     DatetimeIndex.std
+
+.. _api.timedeltaindex:
+
+TimedeltaIndex
+--------------
+
+.. autosummary::
+   :toctree: pandas_api/
+
+   TimedeltaIndex
+
+.. rubric:: `TimedeltaIndex` Components
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    TimedeltaIndex.days
+    TimedeltaIndex.seconds
+    TimedeltaIndex.microseconds
+    TimedeltaIndex.nanoseconds
+    TimedeltaIndex.components
+    TimedeltaIndex.inferred_freq
+
+.. rubric:: `TimedeltaIndex` Conversion
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    TimedeltaIndex.as_unit
+    TimedeltaIndex.to_pytimedelta
+    TimedeltaIndex.round
+    TimedeltaIndex.floor
+    TimedeltaIndex.ceil
+
+.. rubric:: `TimedeltaIndex` Methods
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    TimedeltaIndex.mean
