@@ -44,7 +44,14 @@ def test_series_to_dict(into, index):
 )
 @sql_count_checker(query_count=1)
 def test_dataframe_to_dict(orient, into, index):
-    native_df = native_pd.DataFrame({"col1": [1, 2], "col2": [0.5, None]}, index=index)
+    native_df = native_pd.DataFrame(
+        {
+            "col1": [1, 2],
+            "col2": [0.5, None],
+            "col3": native_pd.timedelta_range("1 hour", periods=2),
+        },
+        index=index,
+    )
     snow_df = pd.DataFrame(native_df)
     native_result = native_df.to_dict(orient, into)
     snow_result = snow_df.to_dict(orient, into)
