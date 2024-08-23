@@ -33,7 +33,7 @@ class LabelIdentifierPair(NamedTuple):
     snowflake_quoted_identifier: str
 
 
-JoinTypeLit = Literal["left", "right", "inner", "outer", "cross"]
+JoinTypeLit = Literal["left", "right", "inner", "outer", "cross", "asof"]
 AlignTypeLit = Literal[
     # If align column values matches exactly, merge frames line by line (this is
     # equivalent to joining on row position) otherwise perform LEFT OUTER JOIN on

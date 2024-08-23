@@ -36,6 +36,7 @@ from snowflake.snowpark.functions import (
     cast,
     col,
     date_part,
+    floor,
     iff,
     length,
     to_varchar,
@@ -43,6 +44,7 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
     SnowparkPandasType,
+    TimedeltaType,
 )
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     generate_timestamp_col,
@@ -228,6 +230,12 @@ class TypeMapper:
         """
         map a pandas or numpy type to snowpark data type.
         """
+        snowpark_pandas_type = (
+            SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(p)
+        )
+        if snowpark_pandas_type is not None:
+            return snowpark_pandas_type
+
         if isinstance(p, DatetimeTZDtype):
             return TimestampType(TimestampTimeZone.TZ)
         if p is native_pd.Timestamp or is_datetime64_any_dtype(p):
@@ -243,12 +251,6 @@ class TypeMapper:
             return LongType()
         if is_float_dtype(p):
             return DoubleType()
-
-        snowpark_pandas_type = (
-            SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(p)
-        )
-        if snowpark_pandas_type is not None:
-            return snowpark_pandas_type
 
         try:
             return PANDAS_TO_SNOWFLAKE_MAP[p]
@@ -294,7 +296,6 @@ def column_astype(
 
     if to_dtype == np.object_:
         return to_variant(curr_col)
-
     if from_sf_type == to_sf_type:
         return curr_col
 
@@ -366,6 +367,12 @@ def column_astype(
     ):
         # e.g., pd.Series([date(year=1, month=1, day=1)]*3).astype(bool) returns all true values
         new_col = cast(pandas_lit(True), to_sf_type)
+    elif isinstance(to_sf_type, TimedeltaType):
+        if isinstance(from_sf_type, _NumericType):
+            # pandas always rounds down for Fractional type conversion to timedelta
+            new_col = cast(floor(curr_col), LongType())
+        else:
+            new_col = cast(curr_col, LongType())
     else:
         new_col = cast(curr_col, to_sf_type)
     # astype should not have any effect on NULL values
@@ -404,6 +411,10 @@ def is_astype_type_error(
     ):
         return True
     elif isinstance(from_sf_type, DateType) and isinstance(to_sf_type, _NumericType):
+        return True
+    elif isinstance(from_sf_type, TimestampType) and isinstance(
+        to_sf_type, TimedeltaType
+    ):
         return True
     else:
         return False
