@@ -18,6 +18,7 @@ General functions
     concat
     get_dummies
     merge
+    merge_asof
     unique
 
 .. rubric:: Top-level missing data

@@ -58,6 +58,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
 from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoTableNode,
+    DynamicTableCreateMode,
     Limit,
     LogicalPlan,
     SaveMode,
@@ -123,6 +124,7 @@ from snowflake.snowpark._internal.utils import (
     prepare_pivot_arguments,
     quote_name,
     random_name_for_temp_object,
+    str_to_enum,
     validate_object_name,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
@@ -3418,6 +3420,13 @@ class DataFrame:
         warehouse: str,
         lag: str,
         comment: Optional[str] = None,
+        mode: str = "overwrite",
+        refresh_mode: Optional[str] = None,
+        initialize: Optional[str] = None,
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
+        is_transient: bool = False,
+        data_retention_time: Optional[int] = None,
+        max_data_extension_time: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a dynamic table that captures the computation expressed by this DataFrame.
@@ -3435,7 +3444,28 @@ class DataFrame:
             lag: specifies the target data freshness
             comment: Adds a comment for the created table. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
+            mode: Specifies the behavior of create dynamic table. Allowed values are:
+                - "overwrite" (default): Overwrite the table by dropping the old table.
+                - "errorifexists": Throw and exception if the table already exists.
+                - "ignore": Ignore the operation if table already exists.
+            refresh_mode: Specifies the refresh mode of the dynamic table. The value can be "AUTO",
+                "FULL", or "INCREMENTAL".
+            initialize: Specifies the behavior of initial refresh. The value can be "ON_CREATE" or
+                "ON_SCHEDULE".
+            clustering_keys: Specifies one or more columns or column expressions in the table as the clustering key.
+                See `Clustering Keys & Clustered Tables <https://docs.snowflake.com/en/user-guide/tables-clustering-keys>`_
+                for more details.
+            is_transient: A boolean value that specifies whether the dynamic table is transient.
+            data_retention_time: Specifies the retention period for the dynamic table in days so that
+                Time Travel actions can be performed on historical data in the dynamic table.
+            max_data_extension_time: Specifies the maximum number of days for which Snowflake can extend
+                the data retention period of the dynamic table to prevent streams on the dynamic table
+                from becoming stale.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+        Note:
+            See `understanding dynamic table refresh <https://docs.snowflake.com/en/user-guide/dynamic-tables-refresh>`_.
+            for more details on refresh mode.
         """
         if isinstance(name, str):
             formatted_name = name
@@ -3456,11 +3486,20 @@ class DataFrame:
                 "The lag input of create_or_replace_dynamic_table() can only be a str."
             )
 
+        create_mode = str_to_enum(mode.lower(), DynamicTableCreateMode, "`mode`")
+
         return self._do_create_or_replace_dynamic_table(
-            formatted_name,
-            warehouse,
-            lag,
-            comment,
+            name=formatted_name,
+            warehouse=warehouse,
+            lag=lag,
+            create_mode=create_mode,
+            comment=comment,
+            refresh_mode=refresh_mode,
+            initialize=initialize,
+            clustering_keys=clustering_keys,
+            is_transient=is_transient,
+            data_retention_time=data_retention_time,
+            max_data_extension_time=max_data_extension_time,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
@@ -3529,15 +3568,44 @@ class DataFrame:
         )
 
     def _do_create_or_replace_dynamic_table(
-        self, name: str, warehouse: str, lag: str, comment: Optional[str], **kwargs
+        self,
+        name: str,
+        warehouse: str,
+        lag: str,
+        create_mode: DynamicTableCreateMode,
+        comment: Optional[str] = None,
+        refresh_mode: Optional[str] = None,
+        initialize: Optional[str] = None,
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
+        is_transient: bool = False,
+        data_retention_time: Optional[int] = None,
+        max_data_extension_time: Optional[int] = None,
+        **kwargs,
     ):
         validate_object_name(name)
+        clustering_exprs = (
+            [
+                _to_col_if_str(
+                    col, "DataFrame.create_or_replace_dynamic_table"
+                )._expression
+                for col in clustering_keys
+            ]
+            if clustering_keys
+            else []
+        )
         cmd = CreateDynamicTableCommand(
-            name,
-            warehouse,
-            lag,
-            comment,
-            self._plan,
+            name=name,
+            warehouse=warehouse,
+            lag=lag,
+            comment=comment,
+            create_mode=create_mode,
+            refresh_mode=refresh_mode,
+            initialize=initialize,
+            clustering_exprs=clustering_exprs,
+            is_transient=is_transient,
+            data_retention_time=data_retention_time,
+            max_data_extension_time=max_data_extension_time,
+            child=self._plan,
         )
 
         return self._session._conn.execute(

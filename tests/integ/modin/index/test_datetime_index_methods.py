@@ -205,3 +205,15 @@ def test_day_month_name_negative(method):
     msg = f"Snowpark pandas method DatetimeIndex.{method} does not yet support the 'locale' parameter"
     with pytest.raises(NotImplementedError, match=msg):
         getattr(snow_index, method)(locale="pt_BR.utf8")
+
+
+@sql_count_checker(query_count=1)
+def test_normalize():
+    native_index = native_pd.date_range(start="2021-01-01", periods=5, freq="7h")
+    native_index = native_index.append(native_pd.DatetimeIndex([pd.NaT]))
+    snow_index = pd.DatetimeIndex(native_index)
+    eval_snowpark_pandas_result(
+        snow_index,
+        native_index,
+        lambda i: i.normalize(),
+    )
