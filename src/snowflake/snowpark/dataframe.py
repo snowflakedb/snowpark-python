@@ -2488,7 +2488,7 @@ class DataFrame:
         return df
 
     @df_api_usage
-    def intersect(self, other: "DataFrame") -> "DataFrame":
+    def intersect(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
         """Returns a new DataFrame that contains the intersection of rows from the
         current DataFrame and another DataFrame (``other``). Duplicate rows are
         eliminated.
@@ -2510,13 +2510,14 @@ class DataFrame:
                 intersection.
         """
         # AST.
-        stmt = self._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_intersect, stmt)
-        self.set_ast_ref(ast.df)
-        other.set_ast_ref(ast.other)
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_intersect, stmt)
+            other.set_ast_ref(ast.other)
 
-        if self._select_statement:
-            return self._with_plan(
+        df = (
+            self._with_plan(
                 self._select_statement.set_operator(
                     other._select_statement
                     or SelectSnowflakePlan(
@@ -2525,7 +2526,14 @@ class DataFrame:
                     operator=SET_INTERSECT,
                 )
             )
-        return self._with_plan(Intersect(self._plan, other._plan))
+            if self._select_statement
+            else self._with_plan(Intersect(self._plan, other._plan))
+        )
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
+
+        return df
 
     @df_api_usage
     def except_(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
