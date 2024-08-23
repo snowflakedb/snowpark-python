@@ -151,7 +151,7 @@ def timedelta_series_1() -> tuple[pd.Series, native_pd.Series]:
 class TestDataFrameAndScalar:
     @pytest.mark.parametrize("operation", ["sub", "rsub"])
     @sql_count_checker(query_count=1)
-    def test_timestamp_minus_timestamp(
+    def test_timestamp_col_minus_timestamp_scalar(
         self,
         timestamp_scalar,
         operation,
