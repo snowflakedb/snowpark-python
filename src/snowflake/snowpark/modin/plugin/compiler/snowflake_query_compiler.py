@@ -427,8 +427,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     method,
                     ", ".join(snowpark_pandas_types),
                 )
-        except Exception:
-            pass
+        except Exception:  # pragma: no cover
+            pass  # pragma: no cover
 
     def snowpark_pandas_type_immutable_check(func: Callable) -> Any:
         """The decorator to check on SnowflakeQueryCompiler methods which return a new SnowflakeQueryCompiler.
