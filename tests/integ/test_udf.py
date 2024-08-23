@@ -4,6 +4,7 @@
 #
 
 import datetime
+import decimal  # noqa: F401
 import json
 import logging
 import math
@@ -50,7 +51,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import call_udf, col, pandas_udf, parse_json, udf
+from snowflake.snowpark.functions import call_udf, col, lit, pandas_udf, parse_json, udf
 from snowflake.snowpark.types import (
     LTZ,
     NTZ,
@@ -66,6 +67,7 @@ from snowflake.snowpark.types import (
     Geometry,
     GeometryType,
     IntegerType,
+    LongType,
     MapType,
     StringType,
     StructField,
@@ -410,7 +412,6 @@ def test_session_register_udf(session, local_testing_mode):
         Utils.assert_executed_with_query_tag(session, query_tag)
 
 
-@pytest.mark.localtest
 def test_register_udf_from_file(session, resources_path):
     test_files = TestFiles(resources_path)
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
@@ -458,7 +459,6 @@ def test_register_vectorized_udf_from_file(session, resources_path):
     )
 
 
-@pytest.mark.localtest
 def test_register_udf_from_zip_file(session, resources_path, tmpdir):
     test_files = TestFiles(resources_path)
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
@@ -483,7 +483,6 @@ def test_register_udf_from_zip_file(session, resources_path, tmpdir):
     )
 
 
-@pytest.mark.localtest
 def test_register_udf_from_remote_file(session, resources_path):
     test_files = TestFiles(resources_path)
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
@@ -502,7 +501,6 @@ def test_register_udf_from_remote_file(session, resources_path):
     )
 
 
-@pytest.mark.localtest
 def test_register_udf_from_remote_file_with_statement_params(
     session, resources_path, local_testing_mode
 ):
@@ -575,7 +573,10 @@ def test_register_from_file_with_skip_upload(session, resources_path, caplog):
         Utils.drop_stage(session, stage_name)
 
 
-@pytest.mark.localtest
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1625599: Modulo on coerced integers does not return correct result.",
+)
 def test_add_import_local_file(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -622,7 +623,10 @@ def test_add_import_local_file(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1625599: Modulo on coerced integers does not return correct result.",
+)
 def test_add_import_local_directory(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -666,7 +670,10 @@ def test_add_import_local_directory(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1625599: Modulo on coerced integers does not return correct result.",
+)
 def test_add_import_stage_file(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -693,7 +700,6 @@ def test_add_import_stage_file(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is required")
 def test_add_import_package(session):
     def plus_one_month(x):
@@ -714,7 +720,6 @@ def test_add_import_package(session):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
@@ -743,7 +748,10 @@ def test_add_import_duplicate(session, resources_path, caplog, local_testing_mod
     assert len(session.get_imports()) == 0
 
 
-@pytest.mark.localtest
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1625599: Modulo on coerced integers does not return correct result.",
+)
 def test_udf_level_import(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
 
@@ -797,7 +805,10 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
     session.clear_imports()
 
 
-@pytest.mark.localtest
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1625599: Modulo on coerced integers does not return correct result.",
+)
 def test_add_import_namespace_collision(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -833,7 +844,6 @@ def test_add_import_namespace_collision(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 def test_add_import_namespace_collision_snowflake_package(session, tmp_path):
     fake_snowflake_dir = tmp_path / "snowflake" / "task"
     fake_snowflake_dir.mkdir(parents=True)
@@ -929,7 +939,6 @@ def test_type_hints(session, local_testing_mode):
         )
 
 
-@pytest.mark.localtest
 def test_type_hint_no_change_after_registration(session):
     def add(x: int, y: int) -> int:
         return x + y
@@ -939,7 +948,6 @@ def test_type_hint_no_change_after_registration(session):
     assert annotations == add.__annotations__
 
 
-@pytest.mark.localtest
 def test_register_udf_from_file_type_hints(session, tmpdir):
     source = """
 import datetime
@@ -990,6 +998,154 @@ def return_dict(v: dict) -> Dict[str, str]:
     Utils.check_answer(
         TestData.variant1(session).select(return_variant_dict_udf("obj1")).collect(),
         [Row('{\n  "Tree": "Tree Pine"\n}')],
+    )
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1412530 to fix bug",
+    run=False,
+)
+@pytest.mark.parametrize("register_from_file", [True, False])
+def test_register_udf_with_optional_args(session: Session, tmpdir, register_from_file):
+    import_body = """
+import datetime
+import decimal
+from snowflake.snowpark.types import Variant, Geometry, Geography
+from typing import Dict, List, Optional
+"""
+    func_body = """
+def add(x: int = 0, y: int = 0) -> int:
+    return x + y
+
+def snow(x: int = 1) -> Optional[str]:
+    return "snow" if x % 2 == 0 else None
+
+def double_str_list(x: str = "a") -> List[str]:
+    return [x, x]
+
+def return_date(
+    dt: datetime.date = datetime.date(2017, 1, 1)
+) -> datetime.date:
+    return dt
+
+def return_arr(
+    base_arr: List[int], extra_arr: List[int] = [4]
+) -> List[int]:
+    base_arr.extend(extra_arr)
+    return base_arr
+
+def return_all_datatypes(
+    a: int = 1,
+    b: float = 1.0,
+    c: str = "one",
+    d: List[int] = [],
+    e: Dict[str, int] = {"s": 1},
+    f: Variant = {"key": "val"},
+    g: Geometry = "POINT(-122.35 37.55)",
+    h: Geography = "POINT(-122.35 37.55)",
+    i: datetime.datetime = datetime.datetime(2021, 1, 1, 0, 0, 0),
+    j: datetime.date = datetime.date(2021, 1, 1),
+    k: datetime.time = datetime.time(0, 0, 0),
+    l: bytes = b"123",
+    m: bool = True,
+    n: decimal.Decimal = decimal.Decimal(1.0),
+) -> str:
+    final_str = f"{a}, {b}, {c}, {d}, {e}, {f}, {g}, {h}, {i}, {j}, {k}, {l}, {m}, {n}"
+    return final_str
+"""
+    session.add_packages("snowflake-snowpark-python")
+    if register_from_file:
+        file_path = os.path.join(tmpdir, "register_from_file_optional_args.py")
+        with open(file_path, "w") as f:
+            source = f"{import_body}\n{func_body}"
+            f.write(source)
+
+        add_udf = session.udf.register_from_file(file_path, "add")
+        snow_udf = session.udf.register_from_file(file_path, "snow")
+        double_str_list_udf = session.udf.register_from_file(
+            file_path, "double_str_list"
+        )
+        return_date_udf = session.udf.register_from_file(file_path, "return_date")
+        return_arr_udf = session.udf.register_from_file(file_path, "return_arr")
+        return_all_datatypes_udf = session.udf.register_from_file(
+            file_path, "return_all_datatypes"
+        )
+    else:
+        d = {}
+        exec(func_body, {**globals(), **locals()}, d)
+
+        add_udf = session.udf.register(d["add"])
+        snow_udf = session.udf.register(d["snow"])
+        double_str_list_udf = session.udf.register(d["double_str_list"])
+        return_date_udf = session.udf.register(d["return_date"])
+        return_arr_udf = session.udf.register(d["return_arr"])
+        return_all_datatypes_udf = session.udf.register(d["return_all_datatypes"])
+
+    df = session.create_dataframe([[1, 4], [2, 3]]).to_df("a", "b")
+    Utils.check_answer(
+        df.select(
+            add_udf("a", "b"),
+            add_udf("a"),
+            add_udf(),
+        ),
+        [
+            Row(5, 1, 0),
+            Row(5, 2, 0),
+        ],
+    )
+    Utils.check_answer(
+        df.select(
+            snow_udf("a"),
+            snow_udf(),
+        ),
+        [
+            Row(None, None),
+            Row("snow", None),
+        ],
+    )
+    Utils.check_answer(
+        df.select(
+            double_str_list_udf("a"),
+            double_str_list_udf(),
+        ),
+        [
+            Row('[\n  "1",\n  "1"\n]', '[\n  "a",\n  "a"\n]'),
+            Row('[\n  "2",\n  "2"\n]', '[\n  "a",\n  "a"\n]'),
+        ],
+    )
+    Utils.check_answer(
+        df.select(
+            return_date_udf(lit(datetime.date(2024, 4, 4))),
+            return_date_udf(),
+        ),
+        [
+            Row(datetime.date(2024, 4, 4), datetime.date(2017, 1, 1)),
+            Row(datetime.date(2024, 4, 4), datetime.date(2017, 1, 1)),
+        ],
+    )
+    Utils.check_answer(
+        df.select(
+            return_arr_udf(lit([1, 2, 3]), lit(list([4, 5]))),
+            return_arr_udf(lit([1, 2, 3])),
+        ),
+        [
+            Row("[\n  1,\n  2,\n  3,\n  4,\n  5\n]", "[\n  1,\n  2,\n  3,\n  4\n]"),
+            Row("[\n  1,\n  2,\n  3,\n  4,\n  5\n]", "[\n  1,\n  2,\n  3,\n  4\n]"),
+        ],
+    )
+
+    default_row = "1, 1.0, one, [], {'s': 1}, {'key': 'val'}, {'coordinates': [-122.35, 37.55], 'type': 'Point'}, {'coordinates': [-122.35, 37.55], 'type': 'Point'}, 2021-01-01 00:00:00, 2021-01-01, 00:00:00, b'123', True, 1.000000000000000000"
+    custom_row = "2, 2.0, two, [], {'s': 1}, {'key': 'val'}, {'coordinates': [-122.35, 37.55], 'type': 'Point'}, {'coordinates': [-122.35, 37.55], 'type': 'Point'}, 2021-01-01 00:00:00, 2021-01-01, 00:00:00, b'123', True, 1.000000000000000000"
+    Utils.check_answer(
+        df.select(
+            return_all_datatypes_udf(),
+            return_all_datatypes_udf(lit(2), lit(2.0), lit("two")),
+        ),
+        [
+            Row(default_row, custom_row),
+            Row(default_row, custom_row),
+        ],
     )
 
 
@@ -1088,7 +1244,7 @@ def test_udf_negative(session, local_testing_mode):
     with pytest.raises(ValueError) as ex_info:
         udf1("a", "")
     assert (
-        "Incorrect number of arguments passed to the UDF: Expected: 1, Found: 2"
+        "Incorrect number of arguments passed to the UDF: Expected: <=1, Found: 2"
         in str(ex_info)
     )
 
@@ -1229,6 +1385,42 @@ def test_add_import_negative(session, resources_path):
         "udf-level import can only be a file path (str) "
         "or a tuple of the file path (str) and the import path (str)" in str(ex_info)
     )
+
+
+def test_udf_coercion(session):
+    def get_data_type(value):
+        return str(type(value))
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    str_udf = udf(
+        get_data_type,
+        return_type=StringType(),
+        input_types=[StringType()],
+        name=f"{udf_name}str",
+        session=session,
+    )
+    float_udf = udf(
+        get_data_type,
+        return_type=StringType(),
+        input_types=[FloatType()],
+        name=f"{udf_name}float",
+        session=session,
+    )
+    int_udf = udf(
+        get_data_type,
+        return_type=StringType(),
+        input_types=[LongType()],
+        name=f"{udf_name}int",
+        session=session,
+    )
+
+    df = session.create_dataframe([[1]], schema=["a"])
+
+    # Check that int input type can be coerced to expected inputs
+    Utils.check_answer(df.select(str_udf("a")), [Row("<class 'str'>")])
+    Utils.check_answer(df.select(float_udf("a")), [Row("<class 'float'>")])
+    Utils.check_answer(df.select(int_udf("a")), [Row("<class 'int'>")])
 
 
 def test_udf_variant_type(session, local_testing_mode):
@@ -1913,6 +2105,7 @@ def test_pandas_udf_input_variant(session):
             [[True]],
             (
                 "<class 'bool'>",
+                "<class 'numpy.bool'>",
                 "<class 'numpy.bool_'>",
             ),
             ("bool",),
@@ -2127,7 +2320,6 @@ def test_register_udf_no_commit(session):
         session._run_query(f"drop function if exists {perm_func_name}(int)")
 
 
-@pytest.mark.localtest
 def test_udf_class_method(session):
     # Note that we never mention in the doc that we support registering UDF from a class method.
     # However, some users might still be interested in doing that.
@@ -2248,7 +2440,6 @@ def test_comment_in_udf_description(session):
             break
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
@@ -2300,7 +2491,6 @@ def test_secure_udf(session):
     (not is_pandas_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-@pytest.mark.localtest
 @pytest.mark.parametrize("func", numpy_funcs)
 def test_numpy_udf(session, func):
     numpy_udf = udf(
@@ -2541,7 +2731,6 @@ def test_udf_external_access_integration(session, db_parameters):
         pytest.skip("External Access Integration is not supported on the deployment.")
 
 
-@pytest.mark.localtest
 def test_access_snowflake_import_directory(session, resources_path):
     test_files = TestFiles(resources_path)
 

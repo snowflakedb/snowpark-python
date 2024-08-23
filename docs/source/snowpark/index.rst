@@ -4,7 +4,6 @@ Snowpark APIs
 .. toctree::
    :maxdepth: 2
 
-   session
    io
    dataframe
    column
@@ -25,5 +24,6 @@ Snowpark APIs
    lineage
    context
    exceptions
+   testing
 
 :ref:`genindex`

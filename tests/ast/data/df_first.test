@@ -10,10 +10,10 @@ df3 = df.first()
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df = session.table("test_table")
 
-res2 = res1.first(-5, True)
+df1 = df.first(-5, True)
 
-res3 = res1.first(2, True)
+df2 = df.first(2, True)
 
-res4 = res1.first(1, True)
+df3 = df.first(1, True)

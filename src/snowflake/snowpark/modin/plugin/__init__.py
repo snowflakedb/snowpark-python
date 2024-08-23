@@ -3,7 +3,6 @@
 #
 
 import sys
-import warnings
 
 from packaging import version
 
@@ -45,12 +44,6 @@ if version.parse(modin.__version__) != version.parse(supported_modin_version):
     )  # pragma: no cover
 
 
-warnings.warn(
-    "Snowpark pandas has been in Public Preview since 1.17.0."
-    + " See https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas for details.",  # TODO: SNOW-1326280 update link
-    stacklevel=1,
-)
-
 # We need this import here to prevent circular dependency issues, since snowflake.snowpark.modin.pandas
 # currently imports some internal utilities from snowflake.snowpark.modin.plugin. Test cases will
 # import snowflake.snowpark.modin.plugin before snowflake.snowpark.modin.pandas, so in order to prevent
@@ -64,6 +57,22 @@ from snowflake.snowpark.modin.plugin import docstrings  # isort: skip  # noqa: E
 DocModule.put(docstrings.__name__)
 
 
+# We cannot call ModinDocModule.put directly because it will produce a call to `importlib.reload`
+# that will overwrite our extensions. We instead directly call the _inherit_docstrings annotation
+# See https://github.com/modin-project/modin/issues/7122
+import modin.utils  # type: ignore[import]  # isort: skip  # noqa: E402
+import modin.pandas.series_utils  # type: ignore[import]  # isort: skip  # noqa: E402
+
+modin.utils._inherit_docstrings(
+    docstrings.series_utils.StringMethods,
+    overwrite_existing=True,
+)(modin.pandas.series_utils.StringMethods)
+
+modin.utils._inherit_docstrings(
+    docstrings.series_utils.CombinedDatetimelikeProperties,
+    overwrite_existing=True,
+)(modin.pandas.series_utils.DatetimeProperties)
+
 # Don't warn the user about our internal usage of private preview pivot
 # features. The user should have already been warned that Snowpark pandas
 # is in public or private preview. They likely don't know or care that we are
@@ -73,3 +82,17 @@ DocModule.put(docstrings.__name__)
 snowflake.snowpark._internal.utils.should_warn_dynamic_pivot_is_in_private_preview = (
     False
 )
+
+
+# TODO: SNOW-1504302: Modin upgrade - use Snowpark pandas DataFrame for isocalendar
+# OSS Modin's DatetimeProperties frontend class wraps the returned query compiler with `modin.pandas.DataFrame`.
+# Since we currently replace `pd.DataFrame` with our own Snowpark pandas DataFrame object, this causes errors
+# since OSS Modin explicitly imports its own DataFrame class here. This override can be removed once the frontend
+# DataFrame class is removed from our codebase.
+def isocalendar(self):  # type: ignore
+    from snowflake.snowpark.modin.pandas import DataFrame
+
+    return DataFrame(query_compiler=self._query_compiler.dt_isocalendar())
+
+
+modin.pandas.series_utils.DatetimeProperties.isocalendar = isocalendar

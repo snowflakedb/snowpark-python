@@ -10,6 +10,7 @@ from typing import Any, Callable, NamedTuple, Optional, Union
 import numpy as np
 import pandas as pd
 from pandas._typing import AggFuncType, AggFuncTypeBase, Scalar
+from pandas.api.types import is_dict_like, is_list_like
 
 from snowflake.snowpark.column import Column as SnowparkColumn
 from snowflake.snowpark.functions import (
@@ -24,6 +25,7 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     get_pandas_aggr_func_name,
     get_snowflake_agg_func,
+    repr_aggregate_function,
 )
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
@@ -52,6 +54,7 @@ from snowflake.snowpark.modin.plugin._typing import (
     LabelTuple,
     PandasLabelToSnowflakeIdentifierPair,
 )
+from snowflake.snowpark.modin.utils import ErrorMessage
 from snowflake.snowpark.types import DoubleType, StringType
 
 TEMP_PIVOT_COLUMN_PREFIX = "PIVOT_"
@@ -78,6 +81,7 @@ def perform_pivot_and_concatenate(
     groupby_snowflake_quoted_identifiers: list[str],
     pivot_snowflake_quoted_identifiers: list[str],
     should_join_along_columns: bool,
+    original_aggfunc: AggFuncType,
 ) -> PivotedOrderedDataFrameResult:
     """
     Helper function to perform a full pivot (including joining in the case of multiple aggrs or values) on an OrderedDataFrame.
@@ -88,6 +92,7 @@ def perform_pivot_and_concatenate(
         groupby_snowflake_quoted_identifiers: Group by identifiers
         pivot_snowflake_quoted_identifiers: Pivot identifiers
         should_join_along_columns: Whether to join along columns, or use union to join along rows instead.
+        original_aggfunc: The aggregation function that the user provided.
     """
     last_ordered_dataframe = None
     data_column_pandas_labels: list[Hashable] = []
@@ -114,6 +119,7 @@ def perform_pivot_and_concatenate(
             pivot_aggr_grouping.aggr_label_identifier_pair,
             pivot_aggr_grouping.aggfunc,
             pivot_aggr_grouping.prefix_label,
+            original_aggfunc,
         )
 
         if last_ordered_dataframe:
@@ -162,6 +168,7 @@ def pivot_helper(
     multiple_aggr_funcs: bool,
     multiple_values: bool,
     index: Optional[list],
+    original_aggfunc: AggFuncType,
 ) -> InternalFrame:
     """
     Helper function that that performs a full pivot on an InternalFrame.
@@ -177,6 +184,7 @@ def pivot_helper(
         multiple_aggr_funcs: Whether multiple aggregation functions have been passed in.
         multiple_values: Whether multiple values columns have been passed in.
         index: The index argument passed to `pivot_table` if specified. Will become the pandas labels for the index column.
+        original_aggfunc: The aggregation function that the user provided.
     Returns:
         InternalFrame
         The result of performing the pivot.
@@ -194,6 +202,64 @@ def pivot_helper(
     if ordered_dataframe.queries.get("post_actions"):
         ordered_dataframe = cache_result(ordered_dataframe)
 
+    if pivot_aggr_groupings is None:
+        # When pivot_aggr_groupings is None, there are no `values` to compute on. In that case, we simply return
+        # a DataFrame with no columns, whose index is the result of grouping by the index columns.
+        ordered_dataframe = get_groups_for_ordered_dataframe(
+            ordered_dataframe, groupby_snowflake_quoted_identifiers
+        )
+        # For the column index labels, pandas preserves the original names, and adds the `columns` arguments to the names.
+        # Take for example, the following DataFrame:
+        # df = pd.DataFrame({'foo': ['one', 'one', 'one', 'two', 'two',
+        #                    'three'],
+        #            'bar': ['A', 'B', 'C', 'A', 'B', 'C'],
+        #            'baz': [1, 2, 3, 4, 5, 6],
+        #            'zoo': [1, 2, 3, 1, 3, 5]})
+        # df.columns.names = ['column']
+        # df.columns = pd.MultiIndex.from_tuples([('a', 1), ('a', 2), ('b', 1), ('b', 2)])
+        # df
+        #        a     b
+        #        1  2  1  2
+        # 0    one  A  1  1
+        # 1    one  B  2  2
+        # 2    one  C  3  3
+        # 3    two  A  4  1
+        # 4    two  B  5  3
+        # 5  three  C  6  5
+        #
+        # df.columns.names = ['c1', 'c2']
+        # df
+        # c1      a     b
+        # c2      1  2  1  2
+        # 0     one  A  1  1
+        # 1     one  B  2  2
+        # 2     one  C  3  3
+        # 3     two  A  4  1
+        # 4     two  B  5  3
+        # 5   three  C  6  5
+        #
+        # df.columns
+        # MultiIndex([('a', 1),
+        #             ('a', 2),
+        #             ('b', 1),
+        #             ('b', 2)],
+        #            names=['c1', 'c2'])
+        #
+        # df.pivot_table(index=[('a', 1), ('a', 2)], columns=[('b', 1), ('b', 2)]).columns
+        # MultiIndex([], names=['c1', 'c2', ('b', 1), ('b', 2)])
+        # The columns of the result from `pivot_table` retain the original column labels from the input
+        # DataFrame, as well as the new column labels from the `columns` parameter.
+        return InternalFrame.create(
+            ordered_dataframe=ordered_dataframe,
+            data_column_pandas_index_names=pivot_frame.data_column_pandas_index_names
+            + columns,
+            data_column_pandas_labels=[],
+            data_column_snowflake_quoted_identifiers=[],
+            index_column_pandas_labels=index,
+            index_column_snowflake_quoted_identifiers=groupby_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
+        )
     data_column_pandas_labels: list[Hashable] = []
     data_column_snowflake_quoted_identifiers: list[str] = []
 
@@ -294,6 +360,7 @@ def pivot_helper(
                 groupby_snowflake_quoted_identifiers,
                 pivot_snowflake_quoted_identifiers,
                 True,
+                original_aggfunc,
             )
             if last_ordered_dataframe is None:
                 last_ordered_dataframe = pivot_ordered_dataframe
@@ -326,6 +393,7 @@ def pivot_helper(
             groupby_snowflake_quoted_identifiers,
             pivot_snowflake_quoted_identifiers,
             should_join_along_columns,
+            original_aggfunc,
         )
 
     # When there are no groupby columns, the index is the first column in the OrderedDataFrame.
@@ -342,7 +410,43 @@ def pivot_helper(
     # Generate the data column pandas index names
     if not isinstance(columns, list):
         columns = [columns]
-    columns = [None] * len(pivot_aggr_groupings[0].prefix_label) + columns
+    if len(pivot_aggr_groupings[0].prefix_label) != 0:
+        # This handles the case when we have a list of values (even if it is a list of length 1) -
+        # the columns labels for the result is original_df.columns.names +
+        #  None * (num_prefixes - len(original_df.columns.names)) + columns.
+        # e.g.
+        # In [8]: df
+        # Out[8]:
+        # column    A     B       C   D   E   F
+        # 0       foo  on.e    dull   0   1   2
+        # 1       foo  on.e    dull   1   2   3
+        # 2       foo  on.e  shi'ny   2   3   4
+        # 3       foo  tw"o    dull   3   4   5
+        # 4       bar  on.e    dull   4   5   6
+        # 5       bar  on.e  shi'ny   5   6   7
+        # 6       bar  on.e  shi'ny   6   7   8
+        # 7       bar  tw"o    dull   7   8   9
+        # 8       foo  tw"o  shi'ny   8   9  10
+        # 9       foo  tw"o  shi'ny   9  10  11
+        # 10      foo  on.e  shi'ny  10  11  12
+
+        # In [9]: df.pivot_table(**{
+        #    ...:                 "index": ["A"],
+        #    ...:                 "columns": ["B", "C"],
+        #    ...:                 "values": ["D", "E", "F"],
+        #    ...:                 "dropna": False,
+        #    ...:                 "aggfunc": {"D": ["count", "max"], "E": ["mean", "sum"]},
+        #    ...: }).columns.names
+        # Out[9]: FrozenList(['column', None, 'B', 'C'])
+        columns = (
+            pivot_frame.data_column_pandas_index_names
+            + [None]
+            * (
+                len(pivot_aggr_groupings[0].prefix_label)
+                - len(pivot_frame.data_column_pandas_index_names)
+            )
+            + columns
+        )
 
     if expand_with_cartesian_product:
         # Ensure the cartesian product of index / group by rows.  For example, if there are index values
@@ -380,6 +484,8 @@ def pivot_helper(
         data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
         index_column_pandas_labels=index,
         index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
 
@@ -391,6 +497,7 @@ def single_pivot_helper(
     value_label_to_identifier_pair: PandasLabelToSnowflakeIdentifierPair,
     pandas_aggr_func_name: str,
     prefix_pandas_labels: tuple[LabelComponent],
+    original_aggfunc: AggFuncType,
 ) -> tuple[OrderedDataFrame, list[str], list[Hashable]]:
     """
     Helper function that is a building block for generating a single pivot, that can be used by other pivot like
@@ -405,6 +512,7 @@ def single_pivot_helper(
         pandas_aggr_func_name: pandas label for aggregation function (since used as a label)
         prefix_pandas_labels: Any prefix labels that should be added to the result pivot column name, such as
             the aggregation function or other labels.
+        original_aggfunc: The aggregation function that the user provided.
 
     Returns:
         Tuple of:
@@ -415,7 +523,9 @@ def single_pivot_helper(
     snowpark_aggr_func = get_snowflake_agg_func(pandas_aggr_func_name, {})
     if not is_supported_snowflake_pivot_agg_func(snowpark_aggr_func):
         # TODO: (SNOW-853334) Add support for any non-supported snowflake pivot aggregations
-        raise KeyError(pandas_aggr_func_name)
+        raise ErrorMessage.not_implemented(
+            f"Snowpark pandas DataFrame.pivot_table does not yet support the aggregation {repr_aggregate_function(original_aggfunc, agg_kwargs={})} with the given arguments."
+        )
 
     pandas_aggr_label, aggr_snowflake_quoted_identifier = value_label_to_identifier_pair
 
@@ -778,7 +888,7 @@ def generate_single_pivot_labels(
             value_pandas_label_to_identifiers: Aggregation value pandas label to snowflake quoted identifier
             pandas_single_aggr_func: pandas aggregation function to apply to pandas aggregation label
     """
-    if isinstance(aggfunc, list):
+    if not is_dict_like(aggfunc) and is_list_like(aggfunc):
         # Fetch all aggregation functions, it will be the same aggregation function list for each aggregation value.
         (
             pandas_aggfunc_list,
@@ -884,7 +994,7 @@ def get_pandas_aggr_func_and_prefix(
 
         include_prefix = any([isinstance(af, list) for af in aggfunc.values()])
 
-    elif isinstance(aggfunc, list):
+    elif is_list_like(aggfunc):
         pandas_aggr_func = aggfunc
 
         if len(pandas_aggr_func) == 0:
@@ -1144,26 +1254,28 @@ def expand_pivot_result_with_pivot_table_margins_no_groupby_columns(
     pivot_snowflake_quoted_identifiers: list[str],
     values: list[str],
     margins_name: str,
+    original_aggfunc: AggFuncType,
 ) -> "SnowflakeQueryCompiler":  # type: ignore[name-defined] # noqa: F821
     names = pivot_qc.columns.names
     margins_frame = pivot_helper(
         original_modin_frame,
         pivot_aggr_groupings,
         not dropna,
-        not isinstance(aggfunc, list),
+        not is_list_like(aggfunc),
         columns[:1],
         [],  # There are no groupby_snowflake_quoted_identifiers
         pivot_snowflake_quoted_identifiers[:1],
-        (isinstance(aggfunc, list) and len(aggfunc) > 1),
+        (is_list_like(aggfunc) and len(aggfunc) > 1),
         (isinstance(values, list) and len(values) > 1),
         None,  # There is no index.
+        original_aggfunc,
     )
     if len(columns) > 1:
         # If there is a multiindex on the pivot result, we need to add the margin_name to the margins frame's data column
         # pandas labels, as well as any empty postfixes for the remaining pivot columns if there are more than 2.
         new_data_column_pandas_labels = []
         for label in margins_frame.data_column_pandas_labels:
-            if isinstance(aggfunc, list):
+            if is_list_like(aggfunc):
                 new_label = label + (margins_name,)
             else:
                 new_label = (label, margins_name) + tuple(
@@ -1177,6 +1289,8 @@ def expand_pivot_result_with_pivot_table_margins_no_groupby_columns(
             data_column_snowflake_quoted_identifiers=margins_frame.data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=margins_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=margins_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=margins_frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=margins_frame.cached_index_column_snowpark_pandas_types,
         )
 
     # Need to create a QueryCompiler for the margins frame, but SnowflakeQueryCompiler is not present in this scope
@@ -1244,7 +1358,7 @@ def expand_pivot_result_with_pivot_table_margins_no_groupby_columns(
         # tw"o  2
         # If there are multiple columns and multiple aggregation functions, we need to groupby the first two columns instead of just the first one -
         # as the first column will be the name of the aggregation function, and the second column will be the values from the first pivot column.
-        if isinstance(aggfunc, list):
+        if is_list_like(aggfunc):
             groupby_columns = mi_as_frame.columns[:2].tolist()
             value_column_index = 2
         else:
@@ -1583,6 +1697,8 @@ def expand_pivot_result_with_pivot_table_margins(
         data_column_pandas_index_names=pivoted_frame.data_column_pandas_index_names,
         index_column_pandas_labels=pivoted_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=pivoted_frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
     from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
@@ -1650,6 +1766,8 @@ def expand_pivot_result_with_pivot_table_margins(
         index_column_snowflake_quoted_identifiers=margin_row_df_identifiers[
             0 : len(groupby_snowflake_quoted_identifiers)
         ],
+        data_column_types=None,
+        index_column_types=None,
     )
     single_row_qc = SnowflakeQueryCompiler(margin_row_frame)
 

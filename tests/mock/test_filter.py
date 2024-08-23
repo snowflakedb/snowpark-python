@@ -4,13 +4,10 @@
 
 import math
 
-import pytest
-
 from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import col
 
 
-@pytest.mark.localtest
 def test_basic_filter(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -96,7 +93,6 @@ def test_basic_filter(session):
     ]
 
 
-@pytest.mark.localtest
 def test_null_nan_filter(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -153,7 +149,6 @@ def test_null_nan_filter(session):
     assert res[2] == Row(None, None)
 
 
-@pytest.mark.localtest
 def test_chain_filter(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -172,7 +167,6 @@ def test_chain_filter(session):
     ]
 
 
-@pytest.mark.localtest
 def test_like_filter(session):
     origin_df: DataFrame = session.create_dataframe(
         [["test"], ["tttest"], ["tett"], ["ess"], ["es#!s"], ["es#)s"]], schema=["a"]
@@ -200,7 +194,6 @@ def test_like_filter(session):
     ]
 
 
-@pytest.mark.localtest
 def test_regex_filter(session):
     origin_df: DataFrame = session.create_dataframe(
         [["test"], ["tttest"], ["tett"], ["ess"], ["es#%s"]], schema=["a"]

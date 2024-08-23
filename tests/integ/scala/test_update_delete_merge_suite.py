@@ -4,6 +4,7 @@
 #
 
 import copy
+import datetime
 
 import pytest
 
@@ -26,7 +27,16 @@ from snowflake.snowpark.functions import (
     when_matched,
     when_not_matched,
 )
-from snowflake.snowpark.types import IntegerType, StructField, StructType
+from snowflake.snowpark.types import (
+    DateType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampTimeZone,
+    TimestampType,
+    TimeType,
+)
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -34,7 +44,6 @@ table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 table_name3 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
 
-@pytest.mark.localtest
 def test_update_rows_in_table(session):
     TestData.test_data2(session).write.save_as_table(
         table_name, mode="overwrite", table_type="temporary"
@@ -94,7 +103,6 @@ def test_update_rows_nondeterministic_update(session):
         session.sql("alter session unset ERROR_ON_NONDETERMINISTIC_UPDATE").collect()
 
 
-@pytest.mark.localtest
 def test_delete_rows_in_table(session):
     TestData.test_data2(session).write.save_as_table(
         table_name, mode="overwrite", table_type="temporary"
@@ -123,7 +131,6 @@ def test_delete_rows_in_table(session):
     assert "condition should also be provided if source is provided" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_update_with_join(session):
     TestData.test_data2(session).write.save_as_table(
         table_name, mode="overwrite", table_type="temporary"
@@ -151,7 +158,6 @@ def test_update_with_join(session):
     )
 
 
-@pytest.mark.localtest
 def test_update_with_join_involving_ambiguous_columns(session):
     TestData.test_data2(session).write.save_as_table(
         table_name, mode="overwrite", table_type="temporary"
@@ -180,7 +186,6 @@ def test_update_with_join_involving_ambiguous_columns(session):
     )
 
 
-@pytest.mark.localtest
 def test_update_with_join_with_aggregated_source_data(session):
     tmp = session.createDataFrame([[0, 10]], schema=["k", "v"])
     tmp.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
@@ -191,7 +196,6 @@ def test_update_with_join_with_aggregated_source_data(session):
     Utils.check_answer(target, [Row(0, 11)])
 
 
-@pytest.mark.localtest
 def test_delete_with_join(session):
     TestData.test_data2(session).write.save_as_table(
         table_name, mode="overwrite", table_type="temporary"
@@ -212,7 +216,6 @@ def test_delete_with_join(session):
     Utils.check_answer(t2, [Row(3, "C"), Row(6, "F")])
 
 
-@pytest.mark.localtest
 def test_delete_with_join_involving_ambiguous_columns(session):
     TestData.test_data2(session).write.save_as_table(
         table_name, mode="overwrite", table_type="temporary"
@@ -234,7 +237,6 @@ def test_delete_with_join_involving_ambiguous_columns(session):
     Utils.check_answer(up, [Row(3, "C"), Row(6, "F")])
 
 
-@pytest.mark.localtest
 def test_delete_with_join_with_aggregated_source_data(session):
     tmp = session.createDataFrame([(0, 1), (0, 2), (0, 3)], schema=["k", "v"])
     tmp.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
@@ -245,7 +247,6 @@ def test_delete_with_join_with_aggregated_source_data(session):
     Utils.check_answer(target, [Row(0, 1), Row(0, 3)])
 
 
-@pytest.mark.localtest
 def test_merge_with_update_clause_only(session):
     target_df = session.createDataFrame(
         [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
@@ -279,7 +280,6 @@ def test_merge_with_update_clause_only(session):
     Utils.check_answer(target, [Row(10, "new"), Row(10, "too_old"), Row(11, "old")])
 
 
-@pytest.mark.localtest
 def test_merge_with_delete_clause_only(session):
     target_df = session.createDataFrame(
         [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
@@ -302,8 +302,7 @@ def test_merge_with_delete_clause_only(session):
     Utils.check_answer(target, [Row(10, "too_old"), Row(11, "old")])
 
 
-@pytest.mark.localtest
-def test_merge_with_insert_clause_only(session):
+def test_merge_with_insert_clause_only(session, local_testing_mode):
     target_df = session.createDataFrame(
         [(10, "old"), (11, "new")], schema=["id", "desc"]
     )
@@ -342,8 +341,54 @@ def test_merge_with_insert_clause_only(session):
     ) == MergeResult(1, 0, 0)
     Utils.check_answer(target, [Row(10, "old"), Row(11, "new"), Row(12, "new")])
 
+    fixed_datetime = datetime.datetime(2024, 7, 18, 12, 12, 12)
+    insert_datetime = datetime.datetime(2024, 8, 13, 10, 1, 50)
+    target_df = session.create_dataframe(
+        [("id1", fixed_datetime, fixed_datetime.date(), fixed_datetime.time())],
+        schema=StructType(
+            [
+                StructField("id", StringType()),
+                StructField("col_datetime", TimestampType(TimestampTimeZone.NTZ)),
+                StructField("col_date", DateType()),
+                StructField("col_time", TimeType()),
+            ]
+        ),
+    )
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
+    target = session.table(table_name)
+    source_df = session.create_dataframe(
+        [
+            ("id1"),
+            ("id2"),
+            ("id3"),
+        ],
+        schema=StructType([StructField("id", StringType())]),
+    )
+    assert target.merge(
+        source_df,
+        target["id"] == source_df["id"],
+        [
+            when_not_matched().insert(
+                {
+                    "id": source_df["id"],
+                    "col_datetime": insert_datetime,
+                    "col_date": insert_datetime.date(),
+                    "col_time": insert_datetime.time(),
+                }
+            )
+        ],
+    ) == MergeResult(2, 0, 0)
 
-@pytest.mark.localtest
+    Utils.check_answer(
+        target,
+        [
+            Row("id1", fixed_datetime, fixed_datetime.date(), fixed_datetime.time()),
+            Row("id2", insert_datetime, insert_datetime.date(), insert_datetime.time()),
+            Row("id3", insert_datetime, insert_datetime.date(), insert_datetime.time()),
+        ],
+    )
+
+
 def test_merge_with_matched_and_not_matched_clauses(session):
     target_df = session.createDataFrame(
         [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
@@ -372,7 +417,6 @@ def test_merge_with_matched_and_not_matched_clauses(session):
     )
 
 
-@pytest.mark.localtest
 def test_merge_with_aggregated_source(session):
     target_df = session.createDataFrame([(0, 10)], schema=["k", "v"])
     target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
@@ -391,7 +435,6 @@ def test_merge_with_aggregated_source(session):
     Utils.check_answer(target, [Row(0, 12)])
 
 
-@pytest.mark.localtest
 def test_merge_with_multiple_clause_conditions(session):
     schema = StructType(
         [StructField("k", IntegerType()), StructField("v", IntegerType())]
@@ -428,7 +471,6 @@ def test_merge_with_multiple_clause_conditions(session):
     )
 
 
-@pytest.mark.localtest
 def test_copy(session):
     df = session.createDataFrame([1, 2], schema=["a"])
     df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
@@ -440,7 +482,6 @@ def test_copy(session):
     Utils.check_answer(session.table(table_name), [Row(2)])
 
 
-@pytest.mark.localtest
 def test_match_clause_negative(session):
     with pytest.raises(SnowparkTableException) as ex_info:
         WhenMatchedClause().update({}).delete()
@@ -454,7 +495,6 @@ def test_match_clause_negative(session):
     )
 
 
-@pytest.mark.localtest
 def test_update_clause_negative(session):
     target_df = session.createDataFrame(
         [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
@@ -474,7 +514,6 @@ def test_update_clause_negative(session):
     assert ex_info.value.error_code == "1115"
 
 
-@pytest.mark.localtest
 def test_merge_clause_negative(session):
     target_df = session.createDataFrame(
         [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
@@ -494,7 +533,6 @@ def test_merge_clause_negative(session):
     )
 
 
-@pytest.mark.localtest
 def test_update_with_large_dataframe(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 
@@ -523,7 +561,6 @@ def test_update_with_large_dataframe(session):
         analyzer.ARRAY_BIND_THRESHOLD = original_value
 
 
-@pytest.mark.localtest
 def test_delete_with_large_dataframe(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 
@@ -542,7 +579,6 @@ def test_delete_with_large_dataframe(session):
         analyzer.ARRAY_BIND_THRESHOLD = original_value
 
 
-@pytest.mark.localtest
 def test_merge_with_large_dataframe(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 
@@ -578,7 +614,6 @@ def test_merge_with_large_dataframe(session):
         analyzer.ARRAY_BIND_THRESHOLD = original_value
 
 
-@pytest.mark.localtest
 def test_update_with_join_involving_null_values(session):
     t1_name = Utils.random_table_name()
     t2_name = Utils.random_table_name()

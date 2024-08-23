@@ -6,8 +6,10 @@
 
 from pandas.util._decorators import doc
 
-from snowflake.snowpark.modin.pandas.shared_docs import _shared_docs
-from snowflake.snowpark.modin.pandas.utils import _doc_binary_op
+from snowflake.snowpark.modin.plugin.docstrings.shared_docs import (
+    _doc_binary_op,
+    _shared_docs,
+)
 
 _doc_binary_op_kwargs = {"returns": "BasePandasDataset", "left": "BasePandasDataset"}
 
@@ -460,6 +462,79 @@ class BasePandasDataset:
     def asfreq():
         """
         Convert time series to specified frequency.
+
+        Returns the original data conformed to a new index with the specified frequency.
+
+        If the index of this Series/DataFrame is a PeriodIndex, the new index is the result of transforming the original
+        index with PeriodIndex.asfreq (so the original index will map one-to-one to the new index).
+
+        The new index will be equivalent to pd.date_range(start, end, freq=freq) where start and end are,
+        respectively, the first and last entries in the original index (see pandas.date_range()). The values
+        corresponding to any timesteps in the new index which were not present in the original index will be null (NaN),
+        unless a method for filling such unknowns is provided (see the method parameter below).
+
+        The resample() method is more appropriate if an operation on each group of timesteps (such as an aggregate) is
+        necessary to represent the data at the new frequency.
+
+        Parameters
+        ----------
+        freq : DateOffset or str
+            Frequency DateOffset or string.
+
+        method : {'backfill', 'bfill', 'pad', 'ffill'}, default None
+            Method to use for filling holes in reindexed Series (note this does not fill NaNs that already were present):
+            ‘pad’ / ‘ffill’: propagate last valid observation forward to next valid
+            ‘backfill’ / ‘bfill’: use NEXT valid observation to fill.
+
+        how : {'start', 'end'}, default None
+            For PeriodIndex only.
+
+        normalize : bool, default False
+            Whether to reset output index to midnight.
+
+        fill_value : scalar, optional
+            Value to use for missing values, applied during upsampling
+            (note this does not fill NaNs that already were present).
+
+        Returns
+        -------
+        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
+
+        Notes
+        -----
+        This implementation calls `resample` with the `first` aggregation. `asfreq`
+        is only supported on DataFrame/Series with DatetimeIndex, and only
+        the `freq` and `method` parameters are currently supported.
+
+        Examples
+        --------
+        >>> index = pd.date_range('1/1/2000', periods=4, freq='min')
+        >>> series = pd.Series([0.0, None, 2.0, 3.0], index=index)
+        >>> df = pd.DataFrame({'s': series})
+        >>> df
+                               s
+        2000-01-01 00:00:00  0.0
+        2000-01-01 00:01:00  NaN
+        2000-01-01 00:02:00  2.0
+        2000-01-01 00:03:00  3.0
+        >>> df.asfreq(freq='30s')
+                               s
+        2000-01-01 00:00:00  0.0
+        2000-01-01 00:00:30  NaN
+        2000-01-01 00:01:00  NaN
+        2000-01-01 00:01:30  NaN
+        2000-01-01 00:02:00  2.0
+        2000-01-01 00:02:30  NaN
+        2000-01-01 00:03:00  3.0
+        >>> df.asfreq(freq='30s', method='ffill')
+                               s
+        2000-01-01 00:00:00  0.0
+        2000-01-01 00:00:30  0.0
+        2000-01-01 00:01:00  NaN
+        2000-01-01 00:01:30  NaN
+        2000-01-01 00:02:00  2.0
+        2000-01-01 00:02:30  2.0
+        2000-01-01 00:03:00  3.0
         """
 
     def asof():
@@ -1018,11 +1093,6 @@ class BasePandasDataset:
         Return `BasePandasDataset` with duplicate rows removed.
         """
 
-    def map():
-        """
-        Apply a function to `BasePandasDataset elementwise.
-        """
-
     def mask():
         """
         Replace values where the condition is True.
@@ -1051,6 +1121,18 @@ class BasePandasDataset:
     def expanding():
         """
         Provide expanding window calculations.
+        Currently, ``axis = 1`` is not supported.
+
+        Parameters
+        ----------
+        min_periods: int, default 1.
+            Minimum number of observations in window required to have a value; otherwise, result is np.nan.
+        axis: int or str, default 0
+            If 0 or 'index', roll across the rows.
+            If 1 or 'columns', roll across the columns.
+            For Series this parameter is unused and defaults to 0.
+        method: str {‘single’, ‘table’}, default ‘single’
+            **This parameter is ignored in Snowpark pandas since the execution engine will always be Snowflake.**
         """
 
     def ffill():
@@ -1463,9 +1545,8 @@ class BasePandasDataset:
         With a callable, useful in method chains. The `x` passed
         to the ``lambda`` is the DataFrame being sliced. This selects
         the rows whose index labels are even.
-        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
 
-        >>> df.iloc[lambda x: x.index.to_pandas() % 2 == 0]
+        >>> df.iloc[lambda x: x.index % 2 == 0]
               a     b     c     d
         0     1     2     3     4
         2  1000  2000  3000  4000
@@ -2196,11 +2277,6 @@ class BasePandasDataset:
         Conform `BasePandasDataset` to new index with optional filling logic.
         """
 
-    def reindex_like():
-        """
-        Return an object with matching indices as `other` object.
-        """
-
     def rename_axis():
         """
         Set the name of the axis for the index or columns.
@@ -2556,8 +2632,7 @@ class BasePandasDataset:
         step: int, default None
             Evaluate the window at every step result, equivalent to slicing as [::step]. window must be an integer. Using a step argument other than None or 1 will produce a result with a different shape than the input.
         method: str {‘single’, ‘table’}, default ‘single’
-            Execute the rolling operation per single column or row ('single') or over the entire object ('table').
-            This argument is only implemented when specifying engine='numba' in the method call.
+            **This parameter is ignored in Snowpark pandas since the execution engine will always be Snowflake.**
         """
 
     def round():
@@ -2650,9 +2725,9 @@ class BasePandasDataset:
         -----
         If `frac` > 1, `replacement` should be set to `True`.
 
-        Snowpark pandas `sample` does not support the following cases: `weights`, `random_state`, or `replace = True`
-        when `axis = 0`. Also, native pandas will raise error if `n` is larger than the length of the DataFrame while
-        Snowpark pandas will return all rows from the DataFrame.
+        Snowpark pandas `sample` does not support the following cases: `weights` or `random_state`
+        when `axis = 0`. Also, when `replace = False`, native pandas will raise error if `n` is larger
+        than the length of the DataFrame while Snowpark pandas will return all rows from the DataFrame.
 
         Examples
         --------
@@ -2677,10 +2752,23 @@ class BasePandasDataset:
 
         A random 50% sample of the ``DataFrame``:
 
-        >>> df.sample(frac=0.5)  # doctest: +SKIP
+        >>> df.sample(frac=0.5, replace=True) with replacement # doctest: +SKIP
               num_legs  num_wings  num_specimen_seen
         dog          4          0                  2
         fish         0          0                  8
+
+        An upsample sample of the DataFrame with replacement: Note that replace parameter has to be True for frac parameter > 1.
+
+        >>> df.sample(frac=2, replace=True) # doctest: +SKIP
+                num_legs  num_wings  num_specimen_seen
+        dog            4          0                  2
+        fish           0          0                  8
+        falcon         2          2                 10
+        falcon         2          2                 10
+        fish           0          0                  8
+        dog            4          0                  2
+        fish           0          0                  8
+        dog            4          0                  2
 
         The exact number of specified rows is returned unless the DataFrame contains fewer rows:
 

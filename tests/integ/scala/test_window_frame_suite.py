@@ -25,7 +25,6 @@ from snowflake.snowpark.types import DecimalType, LongType, StructField, StructT
 from tests.utils import Utils
 
 
-@pytest.mark.localtest
 def test_lead_lag_with_positive_offset(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
@@ -37,7 +36,6 @@ def test_lead_lag_with_positive_offset(session):
     )
 
 
-@pytest.mark.localtest
 def test_reverse_lead_lag_with_positive_offset(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
@@ -49,7 +47,6 @@ def test_reverse_lead_lag_with_positive_offset(session):
     )
 
 
-@pytest.mark.localtest
 def test_lead_lag_with_negative_offset(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
@@ -61,7 +58,6 @@ def test_lead_lag_with_negative_offset(session):
     )
 
 
-@pytest.mark.localtest
 def test_reverse_lead_lag_with_negative_offset(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
@@ -73,7 +69,6 @@ def test_reverse_lead_lag_with_negative_offset(session):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("default", [None, "10"])
 def test_lead_lag_with_default_value(session, default):
     df = session.create_dataframe(
@@ -98,7 +93,6 @@ def test_lead_lag_with_default_value(session, default):
     )
 
 
-@pytest.mark.localtest
 def test_lead_lag_with_ignore_or_respect_nulls(session):
     df = session.create_dataframe(
         [(1, 5), (2, 4), (3, None), (4, 2), (5, None), (6, None), (7, 6)],
@@ -125,7 +119,6 @@ def test_lead_lag_with_ignore_or_respect_nulls(session):
     )
 
 
-@pytest.mark.localtest
 def test_first_last_value_with_ignore_or_respect_nulls(session):
     df = session.create_dataframe(
         [(1, None), (2, 4), (3, None), (4, 2), (5, None), (6, 6), (7, None)],
@@ -152,7 +145,6 @@ def test_first_last_value_with_ignore_or_respect_nulls(session):
     )
 
 
-@pytest.mark.localtest
 def test_unbounded_rows_range_between_with_aggregation(session):
     df = session.create_dataframe(
         [("one", 1), ("two", 2), ("one", 3), ("two", 4)]
@@ -176,7 +168,6 @@ def test_unbounded_rows_range_between_with_aggregation(session):
     )
 
 
-@pytest.mark.localtest
 def test_rows_between_boundary(session):
     # This test is different from scala as `int` in Python is unbounded
     df = session.create_dataframe(
@@ -244,7 +235,6 @@ def test_rows_between_boundary(session):
     )
 
 
-@pytest.mark.localtest
 def test_range_between_should_accept_at_most_one_order_by_expression_when_bounded(
     session, local_testing_mode
 ):
@@ -286,7 +276,6 @@ def test_range_between_should_accept_at_most_one_order_by_expression_when_bounde
             assert "Sliding window frame unsupported for function MIN" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_range_between_should_accept_non_numeric_values_only_when_unbounded(
     session, local_testing_mode
 ):
@@ -381,7 +370,6 @@ def test_reverse_sliding_rows_between_with_aggregation(session):
     )
 
 
-@pytest.mark.localtest
 def test_range_between_should_include_rows_equal_to_current_row(session):
     df1 = session.create_dataframe(
         [("b", 10), ("a", 10), ("a", 10), ("d", 15), ("e", 20), ("f", 20)],

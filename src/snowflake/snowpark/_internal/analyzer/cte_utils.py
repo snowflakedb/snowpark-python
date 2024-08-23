@@ -5,7 +5,7 @@
 import hashlib
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Optional, Sequence, Set, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Set, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     SPACE,
@@ -24,7 +24,9 @@ if TYPE_CHECKING:
     TreeNode = Union[SnowflakePlan, Selectable]
 
 
-def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
+def find_duplicate_subtrees(
+    root: "TreeNode",
+) -> Tuple[Set["TreeNode"], Dict["TreeNode", Set["TreeNode"]]]:
     """
     Returns a set containing all duplicate subtrees in query plan tree.
     The root of a duplicate subtree is defined as a duplicate node, if
@@ -47,8 +49,6 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
 
     This function is used to only include nodes that should be converted to CTEs.
     """
-    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
-
     node_count_map = defaultdict(int)
     node_parents_map = defaultdict(set)
 
@@ -60,17 +60,8 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
         while len(current_level) > 0:
             next_level = []
             for node in current_level:
-                # all subqueries under dynamic pivot node will not be optimized now
-                # due to a server side bug
-                # TODO: SNOW-1413967 Remove it when the bug is fixed
-                if is_dynamic_pivot_node(node):
-                    continue
                 node_count_map[node] += 1
                 for child in node.children_plan_nodes:
-                    # converting non-SELECT child query to SELECT query here,
-                    # so we can further optimize
-                    if isinstance(child, Selectable):
-                        child = child.to_subqueryable()
                     node_parents_map[child].add(node)
                     next_level.append(child)
             current_level = next_level
@@ -89,23 +80,9 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
                     return True
         return False
 
-    def is_dynamic_pivot_node(node: "TreeNode") -> bool:
-        from snowflake.snowpark._internal.analyzer.select_statement import (
-            SelectSnowflakePlan,
-        )
-        from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
-        from snowflake.snowpark._internal.analyzer.unary_plan_node import Pivot
-
-        if isinstance(node, SelectSnowflakePlan):
-            source_plan = node.snowflake_plan.source_plan
-        elif isinstance(node, SnowflakePlan):
-            source_plan = node.source_plan
-        else:
-            return False
-        return isinstance(source_plan, Pivot) and source_plan.pivot_values is None
-
     traverse(root)
-    return {node for node in node_count_map if is_duplicate_subtree(node)}
+    duplicated_node = {node for node in node_count_map if is_duplicate_subtree(node)}
+    return duplicated_node, node_parents_map
 
 
 def create_cte_query(root: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> str:
@@ -145,8 +122,6 @@ def create_cte_query(root: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> s
             else:
                 plan_to_query_map[node] = node.placeholder_query
                 for child in node.children_plan_nodes:
-                    if isinstance(child, Selectable):
-                        child = child.to_subqueryable()
                     # replace the placeholder (id) with child query
                     plan_to_query_map[node] = plan_to_query_map[node].replace(
                         child._id, plan_to_query_map[child]

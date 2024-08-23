@@ -99,7 +99,6 @@ def table_with_time(session: Session, local_testing_mode: bool):
     session.table(table_name).drop_table()
 
 
-@pytest.mark.localtest
 def test_read_snowflake_table(session, table_name_1):
     df = session.table(table_name_1)
     Utils.check_answer(df, [Row(1), Row(2), Row(3)])
@@ -115,7 +114,6 @@ def test_read_snowflake_table(session, table_name_1):
     Utils.check_answer(df3, [Row(1), Row(2), Row(3)])
 
 
-@pytest.mark.localtest
 def test_save_as_snowflake_table(session, table_name_1, local_testing_mode):
     df = session.table(table_name_1)
     assert df.collect() == [Row(1), Row(2), Row(3)]
@@ -157,7 +155,6 @@ def test_save_as_snowflake_table(session, table_name_1, local_testing_mode):
         session.table(table_name_3).drop_table()
 
 
-@pytest.mark.localtest
 def test_multipart_identifier(session, table_name_1, local_testing_mode):
     name1 = table_name_1
     name2 = session.get_current_schema() + "." + name1
@@ -190,7 +187,6 @@ def test_multipart_identifier(session, table_name_1, local_testing_mode):
         session.table(name6).drop_table()
 
 
-@pytest.mark.localtest
 def test_write_table_to_different_schema(
     session, temp_schema, table_name_1, local_testing_mode
 ):
@@ -203,14 +199,12 @@ def test_write_table_to_different_schema(
         session.table(name2).drop_table()
 
 
-@pytest.mark.localtest
 def test_read_from_different_schema(session, temp_schema, temp_table_name):
     table_from_different_schema = f"{temp_schema}.{temp_table_name}"
     df = session.table(table_from_different_schema)
     Utils.check_answer(df, [Row("abc")])
 
 
-@pytest.mark.localtest
 def test_quotes_upper_and_lower_case_name(session, table_name_1):
     tested_table_names = [
         '"' + table_name_1 + '"',
@@ -270,7 +264,6 @@ def test_table_with_time_type(session, table_with_time):
     )
 
 
-@pytest.mark.localtest
 def test_consistent_table_name_behaviors(session, local_testing_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     db = session.get_current_database()

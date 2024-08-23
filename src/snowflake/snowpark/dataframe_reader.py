@@ -596,7 +596,10 @@ class DataFrameReader:
         drop_tmp_file_format_if_exists_query: Optional[str] = None
         use_temp_file_format = "FORMAT_NAME" not in self._cur_options
         file_format_name = self._cur_options.get("FORMAT_NAME", temp_file_format_name)
-        infer_schema_query = infer_schema_statement(path, file_format_name)
+        infer_schema_options = self._cur_options.get("INFER_SCHEMA_OPTIONS", None)
+        infer_schema_query = infer_schema_statement(
+            path, file_format_name, infer_schema_options
+        )
         try:
             if use_temp_file_format:
                 self._session._conn.run_query(
@@ -614,6 +617,7 @@ class DataFrameReader:
                 drop_tmp_file_format_if_exists_query = (
                     drop_file_format_if_exists_statement(file_format_name)
                 )
+            # SNOW-1628625: Schema inference should be done lazily
             results = self._session._conn.run_query(infer_schema_query)["data"]
             if len(results) == 0:
                 raise FileNotFoundError(
@@ -641,7 +645,13 @@ class DataFrameReader:
                 new_schema.append(
                     Attribute(
                         name,
-                        convert_sf_to_sp_type(data_type, precision, scale, 0),
+                        convert_sf_to_sp_type(
+                            data_type,
+                            precision,
+                            scale,
+                            0,
+                            self._session._conn.max_string_size,
+                        ),
                         r[2],
                     )
                 )

@@ -13,8 +13,10 @@ SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
 MODIN_DEPENDENCY_VERSION = (
     "==0.28.1"  # Snowpark pandas requires modin 0.28.1, which depends on pandas 2.2.1
 )
-# Use HEAD of main branch in connector.
-CONNECTOR_DEPENDENCY = "snowflake-connector-python @ git+https://github.com/snowflakedb/snowflake-connector-python@main#egg=snowflake-connector-python"
+# Use HEAD of main branch in connector. This doesn't work with [pandas] extra.
+# CONNECTOR_DEPENDENCY = "snowflake-connector-python @ git+https://github.com/snowflakedb/snowflake-connector-python@main#egg=snowflake-connector-python"
+CONNECTOR_DEPENDENCY_VERSION = ">=3.12.0, <4.0.0"
+CONNECTOR_DEPENDENCY = f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}"
 INSTALL_REQ_LIST = [
     "setuptools>=40.6.0",
     "wheel",
@@ -32,7 +34,9 @@ if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     REQUIRED_PYTHON_VERSION = ">=3.8"
 
 PANDAS_REQUIREMENTS = [
-    f"{CONNECTOR_DEPENDENCY}[pandas]",
+    f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
+    # When using HEAD of connector.
+    # f"{CONNECTOR_DEPENDENCY}[pandas]",
 ]
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
@@ -41,13 +45,21 @@ MODIN_REQUIREMENTS = [
 DEVELOPMENT_REQUIREMENTS = [
     "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
     "pytest-cov",
+    "wrapt",
     "coverage",
     "sphinx==5.0.2",
     "cachetools",  # used in UDF doctest
     "pytest-timeout",
     "pytest-xdist",
+    "openpyxl",  # used in read_excel test, not a requirement for distribution
+    "matplotlib",  # used in plot tests
     "pre-commit",
     "protoc-wheel-0",
+    "aiohttp",  # vcrpy requirements.
+    "boto",  # vcrpy requirements.
+    "httplib2",  # vcrpy requirements.
+    "httpx",  # vcrpy requirements.
+    "tornado",  # vcrpy requirements.
 ]
 
 # read the version
@@ -88,6 +100,7 @@ setup(
         "snowflake.snowpark",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
+        "snowflake.snowpark._internal.compiler",
         "snowflake.snowpark._internal.proto",
         "snowflake.snowpark.mock",
         "snowflake.snowpark.modin",
@@ -115,7 +128,9 @@ setup(
         "pandas": PANDAS_REQUIREMENTS,
         "modin": MODIN_REQUIREMENTS,
         "secure-local-storage": [
-            f"{CONNECTOR_DEPENDENCY}[secure-local-storage]",
+            f"snowflake-connector-python[secure-local-storage]{CONNECTOR_DEPENDENCY_VERSION}",
+            # When using HEAD, use this.
+            # f"{CONNECTOR_DEPENDENCY}[secure-local-storage]",
         ],
         "development": DEVELOPMENT_REQUIREMENTS,
         "modin-development": [

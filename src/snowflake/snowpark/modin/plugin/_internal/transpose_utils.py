@@ -7,7 +7,7 @@ from typing import Union
 import pandas as native_pd
 from modin.core.dataframe.algebra.default2pandas import DataFrameDefault  # type: ignore
 
-from snowflake.snowpark.functions import any_value, get
+from snowflake.snowpark.functions import any_value, get, lit
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
@@ -47,7 +47,7 @@ def transpose_empty_df(
 
     return SnowflakeQueryCompiler.from_pandas(
         native_pd.DataFrame(
-            columns=original_frame.index_columns_index,
+            columns=original_frame.index_columns_pandas_index(),
             index=try_convert_index_to_native(original_frame.data_columns_index),
         )
     )
@@ -88,11 +88,12 @@ def prepare_and_unpivot_for_transpose(
             if identifier == row_position_snowflake_quoted_identifier:
                 new_columns.append((pandas_lit(-1)).as_(identifier))
             else:
-                # We use any_value to select any value in the dummy column to make sure its dtypes are
+                # We use any_value to select a value in the dummy column to make sure its dtypes are
                 # the same as the column in the original dataframe. This helps avoid type incompatibility
-                # issues in union_all.
+                # issues in union_all.  To ensure the results are deterministic we filter the results to
+                # empty (WHERE false) so any_value returns null values but preserves the data type information.
                 new_columns.append(any_value(identifier).as_(identifier))
-        dummy_df = ordered_dataframe.agg(new_columns)
+        dummy_df = ordered_dataframe.filter(lit(False)).agg(new_columns)
         ordered_dataframe = ordered_dataframe.union_all(dummy_df)
 
     return _prepare_unpivot_internal(
@@ -283,6 +284,8 @@ def clean_up_transpose_result_index_and_labels(
         data_column_snowflake_quoted_identifiers=new_data_column_snowflake_quoted_identifiers,
         index_column_pandas_labels=new_index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=new_index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
     # Rename the data column snowflake quoted identifiers to be closer to pandas labels, normalizing names

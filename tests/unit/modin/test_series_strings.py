@@ -21,7 +21,8 @@ def test_str_cat_no_others(mock_str_register, mock_series):
     return_callable.return_value = result_query_compiler
     mock_str_register.return_value = return_callable
     with pytest.raises(
-        NotImplementedError, match="cat is not yet implemented for Series.str"
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.cat",
     ):
         mock_series.str.cat()
 
@@ -43,11 +44,8 @@ def test_str_cat_no_others(mock_str_register, mock_series):
         (lambda s: s.str.wrap(3), "wrap"),
         (lambda s: s.str.slice_replace(start=3, stop=5, repl="abc"), "slice_replace"),
         (lambda s: s.str.findall("ab"), "findall"),
-        (lambda s: s.str.match("ab", case=False), "match"),
         (lambda s: s.str.extract("(ab)", expand=False), "extract"),
         (lambda s: s.str.extractall("(ab)", flags=1), "extractall"),
-        (lambda s: s.str.rstrip(","), "rstrip"),
-        (lambda s: s.str.lstrip(","), "lstrip"),
         (lambda s: s.str.partition("|", expand=False), "partition"),
         (lambda s: s.str.removeprefix("t"), "removeprefix"),
         (lambda s: s.str.removesuffix("a"), "removesuffix"),
@@ -59,7 +57,6 @@ def test_str_cat_no_others(mock_str_register, mock_series):
         (lambda s: s.str.rindex("abc", start=1), "rindex"),
         (lambda s: s.str.swapcase(), "swapcase"),
         (lambda s: s.str.normalize("NFC"), "normalize"),
-        (lambda s: s.str.translate(str.maketrans("a", "b")), "translate"),
         (lambda s: s.str.isalnum(), "isalnum"),
         (lambda s: s.str.isalpha(), "isalpha"),
         (lambda s: s.str.isnumeric(), "isnumeric"),
@@ -69,7 +66,7 @@ def test_str_cat_no_others(mock_str_register, mock_series):
 def test_str_methods_with_series_return(func, func_name, mock_series):
     with pytest.raises(
         NotImplementedError,
-        match=f"{func_name} is not yet implemented for Series.str",
+        match=f"Snowpark pandas does not yet support the method Series.str.{func_name}",
     ):
         func(mock_series)
 
@@ -85,7 +82,8 @@ def test_str_methods_with_series_return(func, func_name, mock_series):
 )
 def test_str_methods_with_dataframe_return(func, func_name, mock_series):
     with pytest.raises(
-        NotImplementedError, match="is not yet implemented for Series.str"
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.",
     ):
         func(mock_series)
 

@@ -124,6 +124,31 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         }
         self._kwargs.update(kwargs)
 
+    def _override(self, **kwargs):
+        """
+        Override groupby parameters.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Parameters to override.
+
+        Returns
+        -------
+        DataFrameGroupBy
+            A groupby object with new parameters.
+        """
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
+        new_kw = dict(
+            df=self._df,
+            by=self._by,
+            axis=self._axis,
+            idx_name=self._idx_name,
+            **self._kwargs,
+        )
+        new_kw.update(kwargs)
+        return type(self)(**new_kw)
+
     def __getattr__(self, key):
         """
         Alter regular attribute access, looks up the name in the columns.
@@ -188,9 +213,13 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_kwargs=dict(numeric_only=numeric_only),
         )
 
-    def any(self, skipna=True):
+    def any(self, skipna: bool = True):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="any", class_="GroupBy")
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_any,
+            numeric_only=False,
+            agg_kwargs=dict(skipna=skipna),
+        )
 
     @property
     def plot(self):  # pragma: no cover
@@ -418,9 +447,12 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         ErrorMessage.method_not_implemented_error(name="dtypes", class_="GroupBy")
 
-    def first(self, **kwargs):
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="first", class_="GroupBy")
+    def first(self, numeric_only=False, min_count=-1, skipna=True):
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_first,
+            agg_kwargs=dict(min_count=min_count, skipna=skipna),
+            numeric_only=numeric_only,
+        )
 
     _internal_by_cache = no_default
 
@@ -649,9 +681,12 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
 
     agg = aggregate
 
-    def last(self, **kwargs):
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="last", class_="GroupBy")
+    def last(self, numeric_only=False, min_count=-1, skipna=True):
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_last,
+            agg_kwargs=dict(min_count=min_count, skipna=skipna),
+            numeric_only=numeric_only,
+        )
 
     def rank(
         self,
@@ -725,19 +760,45 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
 
     def get_group(self, name, obj=None):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="get_group", class_="GroupBy")
+        work_object = self._override(
+            df=obj if obj is not None else self._df, as_index=True
+        )
+
+        return work_object._wrap_aggregation(
+            qc_method=type(work_object._query_compiler).groupby_get_group,
+            numeric_only=False,
+            agg_kwargs=dict(name=name),
+        )
 
     def __len__(self):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         ErrorMessage.method_not_implemented_error(name="__len__", class_="GroupBy")
 
-    def all(self, skipna=True):
+    def all(self, skipna: bool = True):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="all", class_="GroupBy")
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_all,
+            numeric_only=False,
+            agg_kwargs=dict(skipna=skipna),
+        )
 
     def size(self):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="size", class_="GroupBy")
+        result = self._wrap_aggregation(
+            type(self._query_compiler).groupby_size,
+            numeric_only=False,
+        )
+        if not isinstance(result, Series):
+            result = result.squeeze(axis=1)
+        if not self._kwargs.get("as_index") and not isinstance(result, Series):
+            result = (
+                result.rename(columns={MODIN_UNNAMED_SERIES_LABEL: "index"})
+                if MODIN_UNNAMED_SERIES_LABEL in result.columns
+                else result
+            )
+        elif isinstance(self._df, Series):
+            result.name = self._df.name
+        return result
 
     def sum(
         self,
@@ -1190,6 +1251,10 @@ class SeriesGroupBy(DataFrameGroupBy):
             name="is_monotonic_increasing", class_="GroupBy"
         )
 
+    def size(self):
+        # TODO: Remove this once SNOW-1478924 is fixed
+        return super().size().rename(self._df.columns[-1])
+
     def aggregate(
         self,
         func: Optional[AggFuncType] = None,
@@ -1243,6 +1308,11 @@ class SeriesGroupBy(DataFrameGroupBy):
             # https://github.com/modin-project/modin/issues/7097
             return dataframe_result.squeeze(axis=1).rename(self._df.columns[-1])
         return dataframe_result
+
+    def get_group(self, name, obj=None):
+        ErrorMessage.method_not_implemented_error(
+            name="get_group", class_="SeriesGroupBy"
+        )
 
 
 def validate_groupby_args(

@@ -8,8 +8,8 @@ df = df.sample(frac=0.5)
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+df = session.table("test_table")
 
-res2 = res1.sample(None, 3)
+df = df.sample(None, 3)
 
-res3 = res2.sample(0.5, None)
+df = df.sample(0.5, None)
