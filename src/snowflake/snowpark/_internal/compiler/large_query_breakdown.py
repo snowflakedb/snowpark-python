@@ -48,6 +48,7 @@ from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
 from snowflake.snowpark._internal.compiler.utils import (
     TreeNode,
     is_active_transaction,
+    plot_plan_if_enabled,
     replace_child,
     update_resolvable_node,
 )
@@ -182,6 +183,8 @@ class LargeQueryBreakdown:
             return [root]
 
         plans = []
+        plot_plan_if_enabled(root, f"/tmp/plots/root_{plan_index}")
+        partition_index = 0
         # TODO: SNOW-1617634 Have a one pass algorithm to find the valid node for partitioning
         while complexity_score > COMPLEXITY_SCORE_UPPER_BOUND:
             child = self._find_node_to_breakdown(root)
@@ -192,9 +195,15 @@ class LargeQueryBreakdown:
                 break
 
             partition = self._get_partitioned_plan(root, child)
+            plot_plan_if_enabled(
+                partition, f"/tmp/plots/partition_{plan_index}_{partition_index}"
+            )
+            partition_index += 1
             plans.append(partition)
             complexity_score = get_complexity_score(root.cumulative_node_complexity)
 
+        if partition_index > 0:
+            plot_plan_if_enabled(root, f"/tmp/plots/final_partition_{plan_index}")
         plans.append(root)
         return plans
 

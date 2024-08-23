@@ -752,7 +752,7 @@ class Session:
             )
 
     @large_query_breakdown_enabled.setter
-    @experimental_parameter(version="1.21.0")
+    @experimental_parameter(version="1.22.0")
     def large_query_breakdown_enabled(self, value: bool) -> None:
         """Set the value for large_query_breakdown_enabled"""
 
