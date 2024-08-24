@@ -109,21 +109,22 @@ empty_selectable = SelectSQL("dummy_query", analyzer=mock.create_autospec(Analyz
         ),
     ],
 )
-def test_pipeline_breaker_node(mock_session, mock_analyzer, node_generator):
+def test_pipeline_breaker_node(mock_session, mock_analyzer, node_generator, expected):
     large_query_breakdown = LargeQueryBreakdown(mock_session, mock_analyzer, [])
     node = node_generator(mock_analyzer)
 
-    assert large_query_breakdown._is_node_pipeline_breaker(
-        node
+    assert (
+        large_query_breakdown._is_node_pipeline_breaker(node) is expected
     ), f"Node {type(node)} is not detected as a pipeline breaker node"
 
     resolved_node = mock_analyzer.resolve(node)
     assert isinstance(resolved_node, SnowflakePlan)
-    assert large_query_breakdown._is_node_pipeline_breaker(
-        resolved_node
+    assert (
+        large_query_breakdown._is_node_pipeline_breaker(resolved_node) is expected
     ), f"Resolved node of {type(node)} is not detected as a pipeline breaker node"
 
     select_snowflake_plan = SelectSnowflakePlan(resolved_node, analyzer=mock_analyzer)
-    assert large_query_breakdown._is_node_pipeline_breaker(
-        select_snowflake_plan
+    assert (
+        large_query_breakdown._is_node_pipeline_breaker(select_snowflake_plan)
+        is expected
     ), "SelectSnowflakePlan node is not detected as a pipeline breaker node"

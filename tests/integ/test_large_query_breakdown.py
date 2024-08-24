@@ -9,7 +9,7 @@ import pytest
 
 from snowflake.snowpark._internal.analyzer import analyzer
 from snowflake.snowpark._internal.compiler import large_query_breakdown
-from snowflake.snowpark.functions import col, lit, sum_distinct
+from snowflake.snowpark.functions import col, lit, sum_distinct, when_matched
 from tests.utils import Utils
 
 pytestmark = [
@@ -81,6 +81,7 @@ def test_large_query_breakdown_with_cte_optimization(session):
     """Test large query breakdown works with cte optimized plan"""
     set_bounds(300, 600)
     session._cte_optimization_enabled = True
+    session._large_query_breakdown_enabled = True
     df0 = session.sql("select 2 as b, 32 as c")
     df1 = session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
     df1 = df1.join(df0, on=["b"], how="inner")
@@ -97,7 +98,6 @@ def test_large_query_breakdown_with_cte_optimization(session):
     df4 = df2.union_all(df3).filter(col("a") > 2).with_column("a", col("a") + 1)
     check_result_with_and_without_breakdown(session, df4)
 
-    session._large_query_breakdown_enabled = True
     assert len(df4.queries["queries"]) == 2
     assert df4.queries["queries"][0].startswith("CREATE  TEMP  TABLE")
     assert df4.queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
@@ -122,8 +122,44 @@ def test_save_as_table(session, large_query_df):
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
-def test_update_delete_merge():
-    pass
+def test_update_delete_merge(session, large_query_df):
+    set_bounds(300, 600)
+    session._large_query_breakdown_enabled = True
+    table_name = Utils.random_table_name()
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
+    df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+    t = session.table(table_name)
+
+    # update
+    with session.query_history() as history:
+        t.update({"B": 0}, t.a == large_query_df.a, large_query_df)
+    assert len(history.queries) == 4
+    assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
+    assert history.queries[1].sql_text.startswith("CREATE  TEMP  TABLE")
+    assert history.queries[2].sql_text.startswith(f"UPDATE {table_name}")
+    assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
+
+    # delete
+    with session.query_history() as history:
+        t.delete(t.a == large_query_df.a, large_query_df)
+    assert len(history.queries) == 4
+    assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
+    assert history.queries[1].sql_text.startswith("CREATE  TEMP  TABLE")
+    assert history.queries[2].sql_text.startswith(f"DELETE  FROM {table_name} USING")
+    assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
+
+    # merge
+    with session.query_history() as history:
+        t.merge(
+            large_query_df,
+            t.a == large_query_df.a,
+            [when_matched().update({"b": large_query_df.b})],
+        )
+    assert len(history.queries) == 4
+    assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
+    assert history.queries[1].sql_text.startswith("CREATE  TEMP  TABLE")
+    assert history.queries[2].sql_text.startswith(f"MERGE  INTO {table_name} USING")
+    assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
 def test_copy_into_location(session, large_query_df):
@@ -185,8 +221,38 @@ def test_pivot_unpivot(session):
     assert plan_queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
 
 
-def test_sort():
-    pass
+def test_sort(session):
+    set_bounds(300, 600)
+    session._large_query_breakdown_enabled = True
+    base_df = session.sql("select 1 as A, 2 as B")
+    df1 = base_df.with_column("A", col("A") + lit(1))
+    df2 = base_df.with_column("B", col("B") + lit(1))
+
+    for i in range(100):
+        df1 = df1.with_column("A", col("A") + lit(i))
+        df2 = df2.with_column("B", col("B") + lit(i))
+    df1_with_sort = df1.order_by("A")
+
+    union_df = df1_with_sort.union_all(df2)
+    final_df = union_df.with_column("A", col("A") + lit(1))
+    check_result_with_and_without_breakdown(session, final_df)
+
+    plan_queries = final_df.queries
+    assert len(plan_queries["queries"]) == 2
+    assert plan_queries["queries"][0].startswith("CREATE  TEMP  TABLE")
+
+    assert len(plan_queries["post_actions"]) == 1
+    assert plan_queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
+
+    # when sort is applied on the final dataframe, it should not be broken down
+    union_df = df1.union_all(df2)
+    final_df = union_df.with_column("A", col("A") + lit(1)).order_by("A")
+
+    check_result_with_and_without_breakdown(session, final_df)
+
+    plan_queries = final_df.queries
+    assert len(plan_queries["queries"]) == 1
+    assert len(plan_queries["post_actions"]) == 0
 
 
 def test_multiple_query_plan(session, large_query_df):

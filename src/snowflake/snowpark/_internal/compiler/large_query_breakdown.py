@@ -3,6 +3,8 @@
 #
 
 import logging
+import os
+import tempfile
 from collections import defaultdict
 from typing import List, Optional, Tuple
 
@@ -124,6 +126,7 @@ class LargeQueryBreakdown:
         self._query_generator = query_generator
         self.logical_plans = logical_plans
         self._parent_map = defaultdict(set)
+        self._tmp_plot_dir = os.path.join(tempfile.gettempdir(), "snowpark_plan_plots")
 
     def apply(self) -> List[LogicalPlan]:
         if is_active_transaction(self.session):
@@ -183,7 +186,9 @@ class LargeQueryBreakdown:
             return [root]
 
         plans = []
-        plot_plan_if_enabled(root, f"/tmp/plots/root_{plan_index}")
+        plot_plan_if_enabled(
+            root, os.path.join(self._tmp_plot_dir, f"root_{plan_index}")
+        )
         partition_index = 0
         # TODO: SNOW-1617634 Have a one pass algorithm to find the valid node for partitioning
         while complexity_score > COMPLEXITY_SCORE_UPPER_BOUND:
@@ -196,14 +201,19 @@ class LargeQueryBreakdown:
 
             partition = self._get_partitioned_plan(root, child)
             plot_plan_if_enabled(
-                partition, f"/tmp/plots/partition_{plan_index}_{partition_index}"
+                partition,
+                os.path.join(
+                    self._tmp_plot_dir, f"partition_{plan_index}_{partition_index}"
+                ),
             )
             partition_index += 1
             plans.append(partition)
             complexity_score = get_complexity_score(root.cumulative_node_complexity)
 
         if partition_index > 0:
-            plot_plan_if_enabled(root, f"/tmp/plots/final_partition_{plan_index}")
+            plot_plan_if_enabled(
+                root, os.path.join(self._tmp_plot_dir, f"final_partition_{plan_index}")
+            )
         plans.append(root)
         return plans
 
