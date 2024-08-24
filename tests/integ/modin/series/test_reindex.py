@@ -302,13 +302,14 @@ def test_reindex_index_non_overlapping_index():
 
 @sql_count_checker(query_count=1, join_count=2)
 def test_reindex_index_non_overlapping_datetime_index():
+    # TODO: SNOW-1638397 See if it's possible to use data={"prices": [100, 101, np.nan, 100, 89, 88]} instead.
     date_index = native_pd.date_range("1/1/2010", periods=6, freq="D")
     native_series = native_pd.Series(
-        {"prices": [100, 101, np.nan, 100, 89, 88]}, index=date_index
+        {"1/1/2023": [100, 101, np.nan, 100, 89, 88]}, index=date_index
     )
     date_index = pd.date_range("1/1/2010", periods=6, freq="D")
     snow_series = pd.Series(
-        {"prices": [100, 101, np.nan, 100, 89, 88]}, index=date_index
+        {"1/1/2023": [100, 101, np.nan, 100, 89, 88]}, index=date_index
     )
 
     def perform_reindex(series):
