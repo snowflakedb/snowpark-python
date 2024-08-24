@@ -2,11 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-"""
-TODO:
-* test query complexity score calculation is correct -- unit: put in replace_child test
-"""
-
 from unittest import mock
 
 import pytest
