@@ -279,9 +279,13 @@ def update_resolvable_node(
         node.analyzer = query_generator
 
     elif isinstance(node, SelectTableFunction):
+        assert node.snowflake_plan is not None
+        update_resolvable_node(node.snowflake_plan, query_generator)
         node.pre_actions = node.snowflake_plan.queries[:-1]
         node.post_actions = node.snowflake_plan.post_actions
         node._api_calls = node.snowflake_plan.api_calls
+
+        node.analyzer = query_generator
 
     elif isinstance(node, Selectable):
         node.analyzer = query_generator
@@ -321,7 +325,9 @@ def is_active_transaction(session):
 
 
 def plot_plan_if_enabled(root: TreeNode, path: str) -> None:
-    """A helper function to plot the query plan tree using graphviz useful for debugging."""
+    """A helper function to plot the query plan tree using graphviz useful for debugging
+    when environment variable ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING is set to True.
+    """
     import os
 
     if (
