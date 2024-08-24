@@ -29,7 +29,8 @@ TEST_RANK_DATA = [
 
 
 @sql_count_checker(query_count=1)
-@pytest.mark.parametrize("data, index", TEST_RANK_DATA)
+# Skipping last test case since it uses MultiIndex.
+@pytest.mark.parametrize("data, index", TEST_RANK_DATA[:-1])
 @pytest.mark.parametrize(
     "method",
     ["min", "dense", "first", "max", "average"],
