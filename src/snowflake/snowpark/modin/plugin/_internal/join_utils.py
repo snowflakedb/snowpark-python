@@ -326,6 +326,16 @@ def _create_internal_frame_with_join_or_align_result(
                 == left.ordered_dataframe.ordering_columns
             )
             if no_join_applied and origin_left_col == origin_right_col:
+                # if no join is applied, that means the result dataframe, left dataframe and right dataframe
+                # shares the same base dataframe. If the original left column and original right column are the
+                # same column, we always tries to keep the left column to stay align with the original dataframe
+                # as much as possible to increase the chance for optimization for later operations, especially
+                # when the later operations are applied with dfs coming from the ame dataframe.
+                # Keep left column can help stay aligned with the original dataframe is because when there are
+                # conflict between left and right, deduplication always happens at right. For example, when join
+                # or align left dataframe [col1, col2] and right dataframe [col1, col2], the result dataframe will
+                # have columns [col1, col2, col1_a12b, col2_de3b], where col1_a12b, col2_de3b are just alias of
+                # col1 and col2 in right dataframe.
                 coalesce_column_identifier = left_col
                 coalesce_col_type = origin_left_col_type
             else:
