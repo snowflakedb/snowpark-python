@@ -163,6 +163,7 @@ def test_select_snowflake_plan():
 def test_select_statement():
     analyzer = mock.create_autospec(Analyzer)
     session = mock.create_autospec(Session)
+    analyzer.session = session
     projection = [
         F.cast(F.col("B"), T.IntegerType())._expression,
         (F.col("A") + F.col("B")).alias("A")._expression,

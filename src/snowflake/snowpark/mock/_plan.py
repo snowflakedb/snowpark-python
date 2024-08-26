@@ -195,6 +195,7 @@ class MockExecutionPlan(LogicalPlan):
             df_aliased_col_name_to_real_col_name or {}
         )
         self.api_calls = []
+        self._attributes = None
 
     @property
     def attributes(self) -> List[Attribute]:

@@ -20,6 +20,7 @@
   - `is_transient`
   - `data_retention_time`
   - `max_data_extension_time`
+- Reduced the number of additional [describe queries](https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-example#retrieving-column-metadata) sent to the server to fetch the metadata of a DataFrame. It is still an experimental feature not enabled by default, and can be enabled by setting `session.reduce_describe_query_enabled` to `True`.
 
 #### Bug Fixes
 

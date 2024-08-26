@@ -147,7 +147,7 @@ def test_select_snowflake_plan_individual_node_complexity(
     ],
 )
 def test_select_statement_individual_node_complexity(
-    mock_analyzer, attribute, value, expected_stat
+    mock_analyzer, mock_session, attribute, value, expected_stat
 ):
     from_ = mock.create_autospec(Selectable)
     from_.pre_actions = None

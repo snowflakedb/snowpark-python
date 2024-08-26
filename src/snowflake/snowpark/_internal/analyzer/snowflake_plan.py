@@ -229,6 +229,7 @@ class SnowflakePlan(LogicalPlan):
         # current SnowflakePlan tree. This is needed for the final query
         # generation to generate the correct sql query with CTE definition.
         referenced_ctes: Optional[Set[str]] = None,
+        cached_attributes: Optional[List[Attribute]] = None,
         *,
         session: "snowflake.snowpark.session.Session",
     ) -> None:
@@ -260,6 +261,28 @@ class SnowflakePlan(LogicalPlan):
             referenced_ctes.copy() if referenced_ctes else set()
         )
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
+        if session.reduce_describe_query_enabled:
+            self._attributes = cached_attributes
+            if self._attributes is None:
+                from snowflake.snowpark._internal.analyzer.select_statement import (
+                    SelectStatement,
+                )
+
+                if (
+                    self.source_plan is not None
+                    and isinstance(self.source_plan, SelectStatement)
+                    and self.source_plan.from_._snowflake_plan is not None
+                ):
+                    if (
+                        not self.source_plan.projection
+                        and self.source_plan.from_._snowflake_plan._attributes
+                        is not None
+                    ):
+                        self._attributes = (
+                            self.source_plan.from_.snowflake_plan._attributes
+                        )
+        else:
+            self._attributes = None
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         if not isinstance(other, SnowflakePlan):
@@ -383,16 +406,34 @@ class SnowflakePlan(LogicalPlan):
             df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
         )
 
-    @cached_property
+    @property
     def attributes(self) -> List[Attribute]:
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            SelectStatement,
+        )
+
+        if self._attributes is not None:
+            return self._attributes
         assert (
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
-        output = analyze_attributes(self.schema_query, self.session)
+        self._attributes = analyze_attributes(self.schema_query, self.session)
+        if (
+            self.session.reduce_describe_query_enabled
+            and self.source_plan is not None
+            and isinstance(self.source_plan, SelectStatement)
+            and self.source_plan.from_._snowflake_plan is not None
+        ):
+            # infer the attribute from the source plan if possible
+            if (
+                not self.source_plan.projection
+                and self.source_plan.from_.snowflake_plan._attributes is not None
+            ):
+                self.source_plan.from_.snowflake_plan._attributes = self._attributes
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
         if not self.schema_query or not self.session.sql_simplifier_enabled:
-            self.schema_query = schema_value_statement(output)
-        return output
+            self.schema_query = schema_value_statement(self._attributes)
+        return self._attributes
 
     @cached_property
     def output(self) -> List[Attribute]:
@@ -536,6 +577,7 @@ class SnowflakePlanBuilder:
         # like SnowflakeCreateTable, the CTEs should not be propagated, because
         # the CTEs are already embedded and consumed in the child.
         propagate_referenced_ctes: bool = True,
+        cached_attributes: Optional[List[Attribute]] = None,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
         queries = select_child.queries[:-1] + [
@@ -575,6 +617,7 @@ class SnowflakePlanBuilder:
             referenced_ctes=child.referenced_ctes
             if propagate_referenced_ctes
             else None,
+            cached_attributes=cached_attributes,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -764,7 +807,12 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        return self.build(lambda x: filter_statement(condition, x), child, source_plan)
+        return self.build(
+            lambda x: filter_statement(condition, x),
+            child,
+            source_plan,
+            cached_attributes=child._attributes,
+        )
 
     def sample(
         self,
@@ -780,6 +828,7 @@ class SnowflakePlanBuilder:
             ),
             child,
             source_plan,
+            cached_attributes=child._attributes,
         )
 
     def sort(
@@ -788,7 +837,12 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        return self.build(lambda x: sort_statement(order, x), child, source_plan)
+        return self.build(
+            lambda x: sort_statement(order, x),
+            child,
+            source_plan,
+            cached_attributes=child._attributes,
+        )
 
     def set_operator(
         self,
@@ -1036,6 +1090,7 @@ class SnowflakePlanBuilder:
             lambda x: limit_statement(limit_expr, offset_expr, x, on_top_of_oder_by),
             child,
             source_plan,
+            cached_attributes=child._attributes,
         )
 
     def pivot(
