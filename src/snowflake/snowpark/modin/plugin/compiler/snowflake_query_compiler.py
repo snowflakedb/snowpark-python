@@ -388,7 +388,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def __init__(self, frame: InternalFrame) -> None:
         """this stores internally a local pandas object (refactor this)"""
-        assert frame is not None and isinstance(frame, InternalFrame)
+        assert frame is not None and isinstance(
+            frame, InternalFrame
+        ), "frame is None or not a InternalFrame"
         self._modin_frame = frame
         # self.snowpark_pandas_api_calls a list of lazy Snowpark pandas telemetry api calls
         # Copying and modifying self.snowpark_pandas_api_calls is taken care of in telemetry decorators

@@ -141,7 +141,7 @@ def get_valid_index_values(
             ordered_dataframe.select(index_quoted_identifier).limit(1).collect()
         )
     else:
-        assert first_or_last is ValidIndex.LAST
+        assert first_or_last is ValidIndex.LAST, "first_or_last is not ValidIndex.LAST"
         valid_index_values = (
             ordered_dataframe.sort(
                 [OrderingColumn(row_position_quoted_identifier, ascending=False)]

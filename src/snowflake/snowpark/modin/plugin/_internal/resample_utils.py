@@ -747,7 +747,7 @@ def perform_asof_join_on_frame(
             > right_snowpark_df[interval_end_snowflake_quoted_identifier]
         )
     else:
-        assert fill_method == "ffill"
+        assert fill_method == "ffill", f"invalid fill_method {fill_method}"
         on_expr = (
             left_snowpark_df[left_timecol_snowflake_quoted_identifier]
             >= right_snowpark_df[interval_start_snowflake_quoted_identifier]
