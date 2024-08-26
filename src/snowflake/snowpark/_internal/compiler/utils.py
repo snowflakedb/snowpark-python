@@ -6,9 +6,6 @@ import copy
 from typing import Dict, List, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import BinaryNode
-from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    get_complexity_score,
-)
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectSnowflakePlan,
@@ -265,25 +262,17 @@ def update_resolvable_node(
                     if action not in node.post_actions:
                         node.post_actions.append(action)
 
-    elif isinstance(node, SelectSnowflakePlan):
+    elif isinstance(node, (SelectSnowflakePlan, SelectTableFunction)):
         assert node.snowflake_plan is not None
         update_resolvable_node(node.snowflake_plan, query_generator)
         node.pre_actions = node.snowflake_plan.queries[:-1]
         node.post_actions = node.snowflake_plan.post_actions
         node._api_calls = node.snowflake_plan.api_calls
-        node._query_params = []
-        for query in node._snowflake_plan.queries:
-            if query.params:
-                node._query_params.extend(query.params)
-
-        node.analyzer = query_generator
-
-    elif isinstance(node, SelectTableFunction):
-        assert node.snowflake_plan is not None
-        update_resolvable_node(node.snowflake_plan, query_generator)
-        node.pre_actions = node.snowflake_plan.queries[:-1]
-        node.post_actions = node.snowflake_plan.post_actions
-        node._api_calls = node.snowflake_plan.api_calls
+        if isinstance(node, SelectSnowflakePlan):
+            node._query_params = []
+            for query in node._snowflake_plan.queries:
+                if query.params:
+                    node._query_params.extend(query.params)
 
         node.analyzer = query_generator
 
@@ -322,64 +311,3 @@ def get_snowflake_plan_queries(
 def is_active_transaction(session):
     """Check is the session has an active transaction."""
     return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
-
-
-def plot_plan_if_enabled(root: TreeNode, path: str) -> None:
-    """A helper function to plot the query plan tree using graphviz useful for debugging
-    when environment variable ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING is set to True.
-    """
-    import os
-
-    if (
-        os.environ.get("ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING", "false").lower()
-        != "true"
-    ):
-        return
-
-    import graphviz  # pyright: ignore[reportMissingImports]
-
-    def get_stat(node: TreeNode):
-        def get_name(node: Optional[LogicalPlan]) -> str:
-            if node is None:
-                return "EMPTY_SOURCE_PLAN"
-            addr = hex(id(node))
-            name = str(type(node)).split(".")[-1].split("'")[0]
-            return f"{name}({addr})"
-
-        name = get_name(node)
-        if isinstance(node, SnowflakePlan):
-            name = f"{name} :: ({get_name(node.source_plan)})"
-        elif isinstance(node, SelectSnowflakePlan):
-            name = f"{name} :: ({get_name(node.snowflake_plan.source_plan)})"
-        elif isinstance(node, SetStatement):
-            name = f"{name} :: ({node.set_operands[1].operator})"
-
-        score = get_complexity_score(node.cumulative_node_complexity)
-        sql_text = (
-            node.queries[-1].sql if isinstance(node, SnowflakePlan) else node.sql_query
-        )
-        sql_size = len(sql_text)
-        sql_preview = sql_text[:50]
-        num_post_actions = len(node.post_actions) if node.post_actions else 0
-
-        return f"{name=}\n{score=}, {sql_size=}, {num_post_actions=}\n{sql_preview=}"
-
-    g = graphviz.Graph(format="png")
-
-    curr_level = [root]
-    edges = set()  # add edges to set for de-duplication
-    while curr_level:
-        next_level = []
-        for node in curr_level:
-            node_id = hex(id(node))
-            g.node(node_id, get_stat(node))
-            for child in node.children_plan_nodes:
-                child_id = hex(id(child))
-                edges.add((node_id, child_id))
-                next_level.append(child)
-        curr_level = next_level
-    for edge in edges:
-        g.edge(*edge, dir="back")
-
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    g.render(path, format="png", cleanup=True)
