@@ -20,6 +20,7 @@ from snowflake.snowpark.column import (
     METADATA_FILENAME,
     METADATA_START_SCAN_TIME,
 )
+from snowflake.snowpark.dataframe_reader import READER_OPTIONS_ALIAS_MAP
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkPlanException,
@@ -438,6 +439,17 @@ def test_read_csv_with_infer_schema_negative(session, mode, caplog):
         with caplog.at_level(logging.WARN):
             reader.option("INFER_SCHEMA", True).csv(test_file_on_stage)
             assert "Could not infer csv schema due to exception:" in caplog.text
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_reader_option_aliases(session, mode, caplog):
+    reader = get_reader(session, mode)
+    with caplog.at_level(logging.WARN):
+        for key, alias_mapped_key in READER_OPTIONS_ALIAS_MAP.items():
+            reader.option(key, "test")
+        assert f"Option '{key}' is aliased to '{alias_mapped_key}'. You may see unexpected behavior" in caplog.text
+        caplog.clear()
+
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
