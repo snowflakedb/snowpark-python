@@ -63,6 +63,10 @@
 - Added support for `Index.is_boolean`, `Index.is_integer`, `Index.is_floating`, `Index.is_numeric`, and `Index.is_object`.
 - Added support for `DatetimeIndex.round`, `DatetimeIndex.floor` and `DatetimeIndex.ceil`.
 
+#### Improvements
+
+- Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
+
 #### Bug Fixes
 
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.

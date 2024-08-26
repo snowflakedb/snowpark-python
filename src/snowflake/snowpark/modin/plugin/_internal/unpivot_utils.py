@@ -323,11 +323,11 @@ def _prepare_unpivot_internal(
 
     # If the original frame had *all* the same data types, then we can preserve this here otherwise
     # we need to default to variant.
-    frame_data_type_map = original_frame.quoted_identifier_to_snowflake_type()
-    original_data_types = {
-        frame_data_type_map.get(snowflake_quoted_identifier)
-        for snowflake_quoted_identifier in original_frame.data_column_snowflake_quoted_identifiers
-    }
+    original_data_types = set(
+        original_frame.get_snowflake_type(
+            original_frame.data_column_snowflake_quoted_identifiers
+        )
+    )
     output_data_type = (
         original_data_types.pop() if len(original_data_types) == 1 else VariantType()
     )
