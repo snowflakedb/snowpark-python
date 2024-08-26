@@ -256,3 +256,18 @@ def test_to_csv_unsupported_params_error(sf_stage, session, kwargs):
     with pytest.raises(NotImplementedError, match=msg):
         # Write csv to snowflake stage.
         pd.DataFrame(native_df).to_csv(stage_location, **kwargs)
+
+
+@sql_count_checker(query_count=1)
+def test_timedelta_to_csv_series_local():
+    native_series = native_pd.Series(
+        native_pd.timedelta_range("1 day", periods=3), name="A"
+    )
+    native_path, snow_path = get_filepaths(kwargs={}, test_name="series_local")
+
+    # Write csv with native pandas.
+    native_series.to_csv(native_path)
+    # Write csv with snowpark pandas.
+    pd.Series(native_series).to_csv(snow_path)
+
+    assert_file_equal(snow_path, native_path, is_compressed=False)

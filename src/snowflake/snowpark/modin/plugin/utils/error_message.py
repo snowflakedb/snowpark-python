@@ -73,7 +73,7 @@ def _make_not_implemented_decorator(
                 def raise_not_implemented_function_error(
                     *args: tuple[Any, ...], **kwargs: dict[str, Any]
                 ) -> NoReturn:
-                    assert attribute_prefix is not None
+                    assert attribute_prefix is not None, "attribute_prefix is None"
                     ErrorMessage.not_implemented(
                         message=f"{_snowpark_pandas_does_not_yet_support} property {attribute_prefix}.{name}"
                     )

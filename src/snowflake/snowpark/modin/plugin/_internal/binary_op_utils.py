@@ -13,6 +13,7 @@ from snowflake.snowpark.column import Column as SnowparkColumn
 from snowflake.snowpark.functions import (
     col,
     concat,
+    dateadd,
     datediff,
     floor,
     iff,
@@ -277,7 +278,52 @@ def compute_binary_op_between_snowpark_columns(
     # some operators and the data types have to be handled specially to align with pandas
     # However, it is difficult to fail early if the arithmetic operator is not compatible
     # with the data type, so we just let the server raise exception (e.g. a string minus a string).
-    if op == "truediv":
+    if (
+        op == "add"
+        and isinstance(second_datatype(), TimedeltaType)
+        and isinstance(first_datatype(), TimestampType)
+    ):
+        binary_op_result_column = dateadd("ns", second_operand, first_operand)
+    elif (
+        op == "add"
+        and isinstance(first_datatype(), TimedeltaType)
+        and isinstance(second_datatype(), TimestampType)
+    ):
+        binary_op_result_column = dateadd("ns", first_operand, second_operand)
+    elif op == "add" and (
+        (
+            isinstance(first_datatype(), TimedeltaType)
+            and isinstance(second_datatype(), NullType)
+        )
+        or (
+            isinstance(second_datatype(), TimedeltaType)
+            and isinstance(first_datatype(), NullType)
+        )
+    ):
+        return SnowparkPandasColumn(pandas_lit(None), TimedeltaType())
+    elif (
+        op == "sub"
+        and isinstance(second_datatype(), TimedeltaType)
+        and isinstance(first_datatype(), TimestampType)
+    ):
+        binary_op_result_column = dateadd("ns", -1 * second_operand, first_operand)
+    elif (
+        op == "sub"
+        and isinstance(first_datatype(), TimedeltaType)
+        and isinstance(second_datatype(), TimestampType)
+    ):
+        # Timedelta - Timestamp doesn't make sense. Raise the same error
+        # message as pandas.
+        raise TypeError("bad operand type for unary -: 'DatetimeArray'")
+    elif isinstance(first_datatype(), TimedeltaType) or isinstance(
+        second_datatype(), TimedeltaType
+    ):
+        # We don't support these cases yet.
+        # TODO(SNOW-1637101, SNOW-1637102): Support these cases.
+        ErrorMessage.not_implemented(
+            f"Snowpark pandas does not yet support the binary operation {op} with timedelta types."
+        )
+    elif op == "truediv":
         binary_op_result_column = first_operand / second_operand
     elif op == "floordiv":
         binary_op_result_column = floor(first_operand / second_operand)
@@ -582,7 +628,7 @@ def prepare_binop_pairs_between_dataframe_and_dataframe(
         List of BinaryOperationPair.
     """
     # construct list of pairs which label belongs to which quoted identifier
-    type_map = aligned_rhs_and_lhs.result_frame.quoted_identifier_to_snowflake_type()
+    type_map = aligned_rhs_and_lhs.result_frame.get_snowflake_type
     left_right_pairs = []
     for label in combined_data_labels:
         left_identifier, right_identifier = None, None
@@ -600,7 +646,7 @@ def prepare_binop_pairs_between_dataframe_and_dataframe(
             left = col(left_identifier)
             # To avoid referencing always the last right_identifier in the loop, use functools.partial
             left_typer = functools.partial(
-                lambda identifier: type_map[identifier], left_identifier
+                lambda identifier: type_map(identifier), left_identifier
             )  # noqa: E731
         except ValueError:
             # lhs label not in list.
@@ -622,7 +668,7 @@ def prepare_binop_pairs_between_dataframe_and_dataframe(
             right = col(right_identifier)
             # To avoid referencing always the last right_identifier in the loop, use functools.partial
             right_typer = functools.partial(
-                lambda identifier: type_map[identifier], right_identifier
+                lambda identifier: type_map(identifier), right_identifier
             )  # noqa: E731
         except ValueError:
             # rhs label not in list
