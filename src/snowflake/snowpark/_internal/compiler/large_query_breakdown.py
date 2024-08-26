@@ -50,7 +50,6 @@ from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
 from snowflake.snowpark._internal.compiler.utils import (
     TreeNode,
     is_active_transaction,
-    plot_plan_if_enabled,
     replace_child,
     update_resolvable_node,
 )
@@ -137,19 +136,17 @@ class LargeQueryBreakdown:
             return self.logical_plans
 
         resulting_plans = []
-        for i, logical_plan in enumerate(self.logical_plans):
+        for logical_plan in self.logical_plans:
             # Similar to the repeated subquery elimination, we rely on
             # nodes of the plan to be SnowflakePlan or Selectable. Here,
             # we resolve the plan to make sure we get a valid plan tree.
             resolved_plan = self._query_generator.resolve(logical_plan)
-            partition_plans = self._try_to_breakdown_plan(i, resolved_plan)
+            partition_plans = self._try_to_breakdown_plan(resolved_plan)
             resulting_plans.extend(partition_plans)
 
         return resulting_plans
 
-    def _try_to_breakdown_plan(
-        self, plan_index: int, root: TreeNode
-    ) -> List[LogicalPlan]:
+    def _try_to_breakdown_plan(self, root: TreeNode) -> List[LogicalPlan]:
         """Method to breakdown a single plan into smaller partitions based on
         cumulative complexity score and node type.
 
@@ -163,7 +160,7 @@ class LargeQueryBreakdown:
         4. Update the ancestors snowflake plans to generate the correct queries.
         """
         _logger.debug(
-            f"Applying large query breakdown optimization for root[{plan_index}] of type {type(root)}"
+            f"Applying large query breakdown optimization for root of type {type(root)}"
         )
         if (
             isinstance(root, SnowflakePlan)
@@ -179,17 +176,13 @@ class LargeQueryBreakdown:
             return [root]
 
         complexity_score = get_complexity_score(root.cumulative_node_complexity)
-        _logger.debug(f"Complexity score for root[{plan_index}] is: {complexity_score}")
+        _logger.debug(f"Complexity score for root {type(root)} is: {complexity_score}")
 
         if complexity_score <= COMPLEXITY_SCORE_UPPER_BOUND:
             # Skip optimization if the complexity score is within the upper bound.
             return [root]
 
         plans = []
-        plot_plan_if_enabled(
-            root, os.path.join(self._tmp_plot_dir, f"root_{plan_index}")
-        )
-        partition_index = 0
         # TODO: SNOW-1617634 Have a one pass algorithm to find the valid node for partitioning
         while complexity_score > COMPLEXITY_SCORE_UPPER_BOUND:
             child = self._find_node_to_breakdown(root)
@@ -200,20 +193,9 @@ class LargeQueryBreakdown:
                 break
 
             partition = self._get_partitioned_plan(root, child)
-            plot_plan_if_enabled(
-                partition,
-                os.path.join(
-                    self._tmp_plot_dir, f"partition_{plan_index}_{partition_index}"
-                ),
-            )
-            partition_index += 1
             plans.append(partition)
             complexity_score = get_complexity_score(root.cumulative_node_complexity)
 
-        if partition_index > 0:
-            plot_plan_if_enabled(
-                root, os.path.join(self._tmp_plot_dir, f"final_partition_{plan_index}")
-            )
         plans.append(root)
         return plans
 
@@ -327,9 +309,13 @@ class LargeQueryBreakdown:
 
         if isinstance(node, SetStatement):
             # If the last operator applied in the SetStatement is a pipeline breaker, then the
-            # SetStatement is a pipeline breaker.
+            # SetStatement is a pipeline breaker. We determine the last operator by checking the
+            # operands in the operator list. The last operator is the last operator to be executed
+            # in the query based on precedence. Since INTERSECT has the highest precedence and
+            # other operators have equal precedence, we make a list of non-INTERSECT operators
+            # to determine the last operator.
 
-            # operands[0] is ignored in generating the query
+            # operands[0].operator is ignored in generating the query
             operators = [operand.operator for operand in node.set_operands[1:]]
 
             # INTERSECT has the highest precedence. EXCEPT, UNION, UNION ALL have the same precedence.
