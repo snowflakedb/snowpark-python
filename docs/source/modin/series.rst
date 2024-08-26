@@ -256,6 +256,8 @@ Series
     Series.dt.weekday
     Series.dt.dayofyear
     Series.dt.day_of_year
+    Series.dt.days_in_month
+    Series.dt.daysinmonth
     Series.dt.quarter
     Series.dt.isocalendar
     Series.dt.month_name
