@@ -973,7 +973,9 @@ def _reorder_index_columns(
     current_index_column_pandas_labels = frame.index_column_pandas_labels
     if current_index_column_pandas_labels != target_index_labels:
         # reorder needed
-        assert len(target_index_labels) == len(current_index_column_pandas_labels)
+        assert len(target_index_labels) == len(
+            current_index_column_pandas_labels
+        ), f"len mismatch {len(target_index_labels)} vs {len(current_index_column_pandas_labels)}"
         assert len(current_index_column_pandas_labels) == len(
             set(current_index_column_pandas_labels)
         ), "reorder index columns with duplication is not allowed"
@@ -1065,7 +1067,9 @@ def convert_incompatible_types_to_variant(
     Returns:
         Tuple of left and right frames with updated columns.
     """
-    assert len(left_ids) == len(right_ids)
+    assert len(left_ids) == len(
+        right_ids
+    ), f"ids len mismatch {len(left_ids)} vs. {len(right_ids)}"
 
     left_id_to_type_map = left.quoted_identifier_to_snowflake_type()
     right_id_to_type_map = right.quoted_identifier_to_snowflake_type()

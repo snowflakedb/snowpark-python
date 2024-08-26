@@ -225,7 +225,7 @@ def _gen_func_name(
     """
     func_name = func.__qualname__
     if property_name:
-        assert property_method_type is not None
+        assert property_method_type is not None, "property_method_type is None"
         func_name = f"property.{property_name}_{property_method_type.value}"
     return f"{class_prefix}.{func_name}"
 
