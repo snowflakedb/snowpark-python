@@ -626,7 +626,9 @@ def extract_pandas_label_from_snowflake_quoted_identifier(
     Returns:
         pandas label.
     """
-    assert is_valid_snowflake_quoted_identifier(snowflake_identifier)
+    assert is_valid_snowflake_quoted_identifier(
+        snowflake_identifier
+    ), f"invalid snowflake_identifier {snowflake_identifier}"
     return snowflake_identifier[1:-1].replace(DOUBLE_QUOTE + DOUBLE_QUOTE, DOUBLE_QUOTE)
 
 
