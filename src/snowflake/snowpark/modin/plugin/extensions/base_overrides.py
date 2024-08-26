@@ -2133,6 +2133,76 @@ def __neg__(self):
     return self.__constructor__(query_compiler=self._query_compiler.unary_op("__neg__"))
 
 
+# Modin needs to add a check for mapper is not None, which changes query counts in test_concat.py
+# if not present.
+@register_base_override("rename_axis")
+def rename_axis(
+    self,
+    mapper=lib.no_default,
+    *,
+    index=lib.no_default,
+    columns=lib.no_default,
+    axis=0,
+    copy=None,
+    inplace=False,
+):  # noqa: PR01, RT01, D200
+    """
+    Set the name of the axis for the index or columns.
+    """
+    axes = {"index": index, "columns": columns}
+
+    if copy is None:
+        copy = True
+
+    if axis is not None:
+        axis = self._get_axis_number(axis)
+
+    inplace = validate_bool_kwarg(inplace, "inplace")
+
+    if mapper is not lib.no_default and mapper is not None:
+        # Use v0.23 behavior if a scalar or list
+        non_mapper = is_scalar(mapper) or (
+            is_list_like(mapper) and not is_dict_like(mapper)
+        )
+        if non_mapper:
+            return self._set_axis_name(mapper, axis=axis, inplace=inplace)
+        else:
+            raise ValueError("Use `.rename` to alter labels with a mapper.")
+    else:
+        # Use new behavior.  Means that index and/or columns is specified
+        result = self if inplace else self.copy(deep=copy)
+
+        for axis in range(self.ndim):
+            v = axes.get(pandas.DataFrame._get_axis_name(axis))
+            if v is lib.no_default:
+                continue
+            non_mapper = is_scalar(v) or (is_list_like(v) and not is_dict_like(v))
+            if non_mapper:
+                newnames = v
+            else:
+
+                def _get_rename_function(mapper):
+                    if isinstance(mapper, (dict, BasePandasDataset)):
+
+                        def f(x):
+                            if x in mapper:
+                                return mapper[x]
+                            else:
+                                return x
+
+                    else:
+                        f = mapper
+
+                    return f
+
+                f = _get_rename_function(v)
+                curnames = self.index.names if axis == 0 else self.columns.names
+                newnames = [f(name) for name in curnames]
+            result._set_axis_name(newnames, axis=axis, inplace=True)
+        if not inplace:
+            return result
+
+
 # Snowpark pandas has custom dispatch logic for ufuncs, while modin defaults to pandas.
 @register_base_override("__array_ufunc__")
 def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs, **kwargs):
