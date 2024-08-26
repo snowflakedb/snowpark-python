@@ -18,10 +18,10 @@ def validate_expected_boolean_data_columns(frame: InternalFrame) -> None:
     """
     if not all(
         isinstance(
-            type,
+            t,
             BooleanType,
         )
-        for type in frame.get_snowflake_type(
+        for t in frame.get_snowflake_type(
             frame.data_column_snowflake_quoted_identifiers
         )
     ):
