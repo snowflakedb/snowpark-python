@@ -5931,8 +5931,8 @@ def vector_inner_product(v1: ColumnOrName, v2: ColumnOrName) -> Column:
     return builtin("vector_inner_product")(v1, v2)
 
 
-def ln(c: ColumnOrName) -> Column:
-    """Returns the ln product of given column
+def ln(c: ColumnOrLiteral) -> Column:
+    """Returns the natrual log product of given column expression
     Example::
         >>> from snowflake.snowpark.functions import ln
         >>> from math import e

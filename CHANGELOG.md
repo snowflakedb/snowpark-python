@@ -6,7 +6,6 @@
 
 #### Improvements
 
-
 - Added support for function `functions.ln`
 - Added support for specifying the following to `DataFrameWriter.save_as_table`:
   - `enable_schema_evolution`
