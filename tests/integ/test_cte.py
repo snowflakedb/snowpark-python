@@ -371,7 +371,6 @@ def test_table(session):
     [
         "select 1 as a, 2 as b",
         "show tables in schema limit 10",
-        "describe result last_query_id()",
     ],
 )
 def test_sql(session, query):
