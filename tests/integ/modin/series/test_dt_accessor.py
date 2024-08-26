@@ -33,6 +33,8 @@ dt_properties = pytest.mark.parametrize(
         "is_year_start",
         "is_year_end",
         "is_leap_year",
+        "days_in_month",
+        "daysinmonth",
     ],
 )
 
@@ -254,6 +256,27 @@ def test_is_x_start_end(property):
     date_range = native_pd.date_range("2023-01-01", periods=731, freq="1D")
     native_ser = native_pd.Series(date_range)
     native_ser = native_ser[native_ser.dt.is_month_start | native_ser.dt.is_month_end]
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda s: getattr(s.dt, property),
+    )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize(
+    "property",
+    [
+        "days_in_month",
+        "daysinmonth",
+    ],
+)
+def test_days_in_month(property):
+    # Create a series containing one date in each month
+    #  within both a normal year and a leap year.
+    date_range = native_pd.date_range("2023-01-01", periods=25, freq="1M")
+    native_ser = native_pd.Series(date_range)
     snow_ser = pd.Series(native_ser)
     eval_snowpark_pandas_result(
         snow_ser,
