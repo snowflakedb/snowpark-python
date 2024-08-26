@@ -90,7 +90,7 @@ def origin_to_ns(
     elif unit == "us":
         return origin * (10**3)
     else:
-        assert unit == "ns"
+        assert unit == "ns", f"unit {unit} is not ns"
         return origin
 
 
@@ -107,7 +107,7 @@ def col_to_s(col: Column, unit: Literal["D", "s", "ms", "us", "ns"]) -> Column:
     elif unit == "us":
         return col / 10**6
     else:
-        assert unit == "ns"
+        assert unit == "ns", f"unit {unit} is not ns"
         return col / 10**9
 
 

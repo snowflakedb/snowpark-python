@@ -821,7 +821,7 @@ def generate_pivot_aggregation_value_label_snowflake_quoted_identifier_mappings(
     Returns:
           List of pandas label to snowflake quoted identifiers pairs
     """
-    assert values is not None
+    assert values is not None, "values is None"
 
     values = [values] if isinstance(values, str) else values
 
@@ -899,7 +899,7 @@ def generate_single_pivot_labels(
         assert (
             include_aggfunc_prefix is True
         ), "aggr func should add prefix to resulting pandas label"
-        assert pandas_aggfunc_list is not None
+        assert pandas_aggfunc_list is not None, "pandas_aggfunc_list is None"
 
         # 1. Loop through all aggregation functions for this aggregation value.
         for pandas_single_aggr_func in pandas_aggfunc_list:
@@ -1234,7 +1234,7 @@ def get_margin_aggregation(
     resolved_aggfunc = get_snowflake_agg_func(aggfunc, {})
 
     # This would have been resolved during the original pivot at an early stage.
-    assert resolved_aggfunc is not None
+    assert resolved_aggfunc is not None, "resolved_aggfunc is None"
 
     aggfunc_expr = resolved_aggfunc(snowflake_quoted_identifier)
 
@@ -1528,7 +1528,7 @@ def expand_pivot_result_with_pivot_table_margins(
     assert all(
         len(pivot_aggr_groupings[0].prefix_label) == len(g.prefix_label)
         for g in pivot_aggr_groupings
-    )
+    ), "len mismatch for pivot_aggr_groupings"
     num_levels = max(len(pivot_snowflake_quoted_identifiers), 1) + prefix_len
 
     pivoted_frame = pivoted_qc._modin_frame
