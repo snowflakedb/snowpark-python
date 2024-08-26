@@ -5931,6 +5931,24 @@ def vector_inner_product(v1: ColumnOrName, v2: ColumnOrName) -> Column:
     return builtin("vector_inner_product")(v1, v2)
 
 
+def ln(c: ColumnOrLiteral) -> Column:
+    """Returns the natrual log product of given column expression
+    Example::
+        >>> from snowflake.snowpark.functions import ln
+        >>> from math import e
+        >>> df = session.create_dataframe([[e]], schema=["ln_value"])
+        >>> df.select(ln(col("ln_value")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.0       |
+        ------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(c, "ln")
+    return builtin("ln")(c)
+
+
 def asc(c: ColumnOrName) -> Column:
     """Returns a Column expression with values sorted in ascending order.
 
