@@ -628,7 +628,7 @@ def prepare_binop_pairs_between_dataframe_and_dataframe(
         List of BinaryOperationPair.
     """
     # construct list of pairs which label belongs to which quoted identifier
-    type_map = aligned_rhs_and_lhs.result_frame.quoted_identifier_to_snowflake_type()
+    type_map = aligned_rhs_and_lhs.result_frame.get_snowflake_type
     left_right_pairs = []
     for label in combined_data_labels:
         left_identifier, right_identifier = None, None
@@ -646,7 +646,7 @@ def prepare_binop_pairs_between_dataframe_and_dataframe(
             left = col(left_identifier)
             # To avoid referencing always the last right_identifier in the loop, use functools.partial
             left_typer = functools.partial(
-                lambda identifier: type_map[identifier], left_identifier
+                lambda identifier: type_map(identifier), left_identifier
             )  # noqa: E731
         except ValueError:
             # lhs label not in list.
@@ -668,7 +668,7 @@ def prepare_binop_pairs_between_dataframe_and_dataframe(
             right = col(right_identifier)
             # To avoid referencing always the last right_identifier in the loop, use functools.partial
             right_typer = functools.partial(
-                lambda identifier: type_map[identifier], right_identifier
+                lambda identifier: type_map(identifier), right_identifier
             )  # noqa: E731
         except ValueError:
             # rhs label not in list

@@ -21,9 +21,7 @@ def mock_query_compiler_for_dt_series() -> SnowflakeQueryCompiler:
     mock_internal_frame = mock.create_autospec(InternalFrame)
     mock_internal_frame.data_columns_index = native_pd.Index(["A"], name="B")
     mock_internal_frame.data_column_snowflake_quoted_identifiers = ['"A"']
-    mock_internal_frame.quoted_identifier_to_snowflake_type.return_value = {
-        '"A"': TimestampType()
-    }
+    mock_internal_frame.get_snowflake_type.return_value = [TimestampType()]
     fake_query_compiler = SnowflakeQueryCompiler(mock_internal_frame)
 
     return fake_query_compiler
