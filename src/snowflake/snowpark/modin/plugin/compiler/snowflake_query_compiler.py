@@ -207,7 +207,6 @@ from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
     ValidIndex,
-    _get_frame_by_row_series_bool,
     convert_snowpark_row_to_pandas_index,
     get_frame_by_col_label,
     get_frame_by_col_pos,
@@ -1683,49 +1682,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return self._modin_frame.index_columns_pandas_index()
         else:
             return pd.Index(query_compiler=self)
-
-    def _is_scalar_in_index(self, scalar: Union[Scalar, tuple]) -> bool:
-        """
-        check whether scalar is contained in index or not. May issue up to one COUNT(...) based query, but tries
-        to avoid issuing a query as much as possible through types.
-        Returns:
-            True if contained, False else.
-        """
-        if isinstance(scalar, tuple):
-            # this is multi-index related, check whether scalar exists by splitting scalar up
-            # to check along each index column. Should be done as part of TODO SNOW-920433 index refactoring
-            ErrorMessage.not_implemented(
-                "multi-index key in index check not yet supported"
-            )  # pragma: no cover
-            return False  # pragma: no cover
-        else:
-            frame = self._modin_frame
-
-            # is index column count different? this is the case if dataframe has a multi-index and access is done via a
-            # a scalar (not a tuple)
-            if 1 != len(frame.index_column_snowflake_quoted_identifiers):
-                return False
-
-            sf_scalar_type = infer_object_type(scalar)
-            index_quoted_identifier = frame.index_column_snowflake_quoted_identifiers[0]
-            sf_index_type = frame.get_snowflake_type(index_quoted_identifier)
-
-            # for variant type always need to check, else compare if scalar access matches type or not
-            if (
-                not isinstance(sf_scalar_type, VariantType)
-                and not isinstance(sf_index_type, VariantType)
-                and sf_scalar_type != sf_index_type
-            ):
-                return False
-
-            # else, compare whether count of scalar is >= 1.
-            scalar_count = count_rows(
-                self._modin_frame.ordered_dataframe.filter(
-                    col(index_quoted_identifier) == scalar
-                ).select(index_quoted_identifier)
-            )
-
-            return scalar_count >= 1
 
     def set_index(
         self,
@@ -9012,62 +8968,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         return SnowflakeQueryCompiler(result_frame)
-
-    def getitem_array(self, key: "SnowflakeQueryCompiler") -> "SnowflakeQueryCompiler":
-        """
-        Mask QueryCompiler with `key`. This functions supports 3 different types of masks:
-
-        1. boolean series: A boolean series is used to denote which row to return. E.g.
-                           for key=[True, False, False, True] on a DataFrame with 4 rows,
-                           getitem_array will return the first and last row.
-        2. integer series: A list of integers in range (-n, n-1) with n being the number of rows.
-                           getitem_array will return all rows specified through the integers. E.g., [1, 3, 1] will
-                           return the second, fourth and second row (duplicates ok).
-        3. arbitrary series: If key is neither boolean nor integer, getitem_array will mask column and defer the call
-                             to get_frame_by_col_label. Here, the mask is a column mask of pandas column labels.
-
-        Use getitem_array whenever you want to "mask" rows or columns through a series.
-
-        Parameters
-        ----------
-        key : SnowflakeQueryCompiler, np.ndarray or list of column labels
-            Boolean mask represented by QueryCompiler or ``np.ndarray`` of the same
-            shape as `self`, or enumerable of columns to pick.
-        Returns
-        -------
-        SnowflakeQueryCompiler
-            New masked QueryCompiler.
-        """
-
-        # Non query compiler cases have been handled above, handle here lazy eval case:
-        assert isinstance(key, SnowflakeQueryCompiler)
-        assert len(key.dtypes) == 1, "key must be 1-d series"
-
-        key_dtype = key.dtypes[0]
-
-        # boolean type indicates masked indexing
-        if is_bool_dtype(key_dtype):
-            # ensure that key is a series
-            if key.get_axis_len(axis=0) != self.get_axis_len(axis=0):
-                error_msg = f"Item wrong length {key.get_axis_len(axis=0)} instead of {self.get_axis_len(axis=0)}."
-                raise ValueError(error_msg)
-
-            new_frame = _get_frame_by_row_series_bool(
-                self._modin_frame, key._modin_frame
-            )
-            return SnowflakeQueryCompiler(new_frame)
-
-        # integer type indicates positional indexing
-        elif is_integer_dtype(key_dtype):
-            new_frame = get_frame_by_row_pos_frame(  # pragma: no cover
-                internal_frame=self._modin_frame, key=key._modin_frame
-            )
-            return SnowflakeQueryCompiler(new_frame)
-
-        # all other indexing is retrieving columns
-        return SnowflakeQueryCompiler(  # pragma: no cover
-            get_frame_by_col_label(internal_frame=self._modin_frame, col_loc=key)
-        )
 
     def getitem_row_array(
         self, key: Union[list[Any], "pd.Series", InternalFrame]
