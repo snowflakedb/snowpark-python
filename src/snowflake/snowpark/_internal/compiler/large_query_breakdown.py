@@ -219,9 +219,6 @@ class LargeQueryBreakdown:
                     self._parent_map[child].add(node)
                     valid_to_breakdown, score = self._is_node_valid_to_breakdown(child)
                     if valid_to_breakdown:
-                        _logger.debug(
-                            f"Added node of type {type(child)} with score {score} to pipeline breaker list."
-                        )
                         # Append score and child to the pipeline breaker sorted list
                         # so that the valid child with the highest complexity score
                         # is at the end of the list.
@@ -277,9 +274,14 @@ class LargeQueryBreakdown:
             A tuple of boolean indicating if the node is valid for partitioning and the complexity score.
         """
         score = get_complexity_score(node.cumulative_node_complexity)
-        return (
+        valid_node = (
             COMPLEXITY_SCORE_LOWER_BOUND < score < COMPLEXITY_SCORE_UPPER_BOUND
-        ) and self._is_node_pipeline_breaker(node), score
+        ) and self._is_node_pipeline_breaker(node)
+        if valid_node:
+            _logger.debug(
+                f"Added node of type {type(node)} with score {score} to pipeline breaker list."
+            )
+        return valid_node, score
 
     def _is_node_pipeline_breaker(self, node: LogicalPlan) -> bool:
         """Method to check if a node is a pipeline breaker based on the node type.
