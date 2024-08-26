@@ -179,11 +179,13 @@ class Series(BasePandasDataset):
             )._query_compiler
             if index is not None:
                 index = index if isinstance(index, Index) else Index(index)
-                query_compiler = (
-                    query_compiler.create_qc_with_data_and_index_joined_on_index(
+                data = Series(
+                    query_compiler=query_compiler.create_qc_with_data_and_index_joined_on_index(
                         index._query_compiler
                     )
                 )
+                # Perform .loc[] on `data` to select the rows that are in `index`.
+                query_compiler = data.loc[index]._query_compiler
 
         if query_compiler is None:
             # Defaulting to pandas
@@ -194,7 +196,6 @@ class Series(BasePandasDataset):
                     and data.name is not None
                 ):
                     name = data.name
-
             new_index = index
             if isinstance(index, Index):
                 # Skip turning this into a native pandas object here since this issues an extra query.
@@ -217,6 +218,7 @@ class Series(BasePandasDataset):
                 query_compiler = query_compiler.set_index_from_series(
                     index.to_series()._query_compiler
                 )
+
         self._query_compiler = query_compiler.columnarize()
         if name is not None:
             self.name = name
