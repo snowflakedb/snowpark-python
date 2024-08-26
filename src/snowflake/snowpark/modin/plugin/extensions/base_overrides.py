@@ -6,6 +6,9 @@
 Methods defined on BasePandasDataset that are overridden in Snowpark pandas. Adding a method to this file
 should be done with discretion, and only when relevant changes cannot be made to the query compiler or
 upstream frontend to accommodate Snowpark pandas.
+
+If you must override a method in this file, please add a comment describing why it must be overridden,
+and if possible, whether this can be reconciled with upstream Modin.
 """
 from __future__ import annotations
 
@@ -424,8 +427,25 @@ def __finalize__(self, other, method=None, **kwargs):
 
 
 # === OVERRIDDEN METHODS ===
+# The below methods have their frontend implementations overridden compared to the version present
+# in base.py. This is usually for one of the following reasons:
+# 1. The underlying QC interface used differs from that of modin. Notably, this applies to aggregate
+#    and binary operations; further work is needed to refactor either our implementation or upstream
+#    modin's implementation.
+# 2. Modin performs extra validation queries that perform extra SQL queries. Some of these are already
+#    fixed on main; see https://github.com/modin-project/modin/issues/7340 for details.
+# 3. Upstream Modin defaults to pandas for some edge cases. Defaulting to pandas at the query compiler
+#    layer is acceptable because we can force the method to raise NotImplementedError, but if a method
+#    defaults at the frontend, Modin raises a warning and performs the operation by coercing the
+#    dataset to a native pandas object. Removing these is tracked by
+#    https://github.com/modin-project/modin/issues/7104
+# 4. Snowpark pandas uses different default arguments from modin. This occurs if some parameters are
+#    only partially supported (like `numeric_only=True` for `skew`), but this behavior should likewise
+#    be revisited.
 
-
+# `aggregate` for axis=1 is performed as a call to `BasePandasDataset.apply` in upstream Modin,
+# which is unacceptable for Snowpark pandas. Upstream Modin should be changed to allow the query
+# compiler or a different layer to control dispatch.
 @register_base_override("aggregate")
 def aggregate(
     self, func: AggFuncType = None, axis: Axis | None = 0, *args: Any, **kwargs: Any
@@ -570,10 +590,212 @@ def aggregate(
     return result
 
 
+# `agg` is an alias of `aggregate`.
 agg = aggregate
 register_base_override("agg")(agg)
 
 
+# `_agg_helper` is not defined in modin, and used by Snowpark pandas to do extra validation.
+@register_base_override("_agg_helper")
+def _agg_helper(
+    self,
+    func: str,
+    skipna: bool = True,
+    axis: int | None | NoDefault = no_default,
+    numeric_only: bool = False,
+    **kwargs: Any,
+):
+    if not self._is_dataframe and numeric_only and not is_numeric_dtype(self.dtype):
+        # Series aggregations on non-numeric data do not support numeric_only:
+        # https://github.com/pandas-dev/pandas/blob/cece8c6579854f6b39b143e22c11cac56502c4fd/pandas/core/series.py#L6358
+        raise TypeError(
+            f"Series.{func} does not allow numeric_only=True with non-numeric dtypes."
+        )
+    axis = self._get_axis_number(axis)
+    numeric_only = validate_bool_kwarg(numeric_only, "numeric_only", none_allowed=True)
+    skipna = validate_bool_kwarg(skipna, "skipna", none_allowed=False)
+    agg_kwargs: dict[str, Any] = {
+        "numeric_only": numeric_only,
+        "skipna": skipna,
+    }
+    agg_kwargs.update(kwargs)
+    return self.aggregate(func=func, axis=axis, **agg_kwargs)
+
+
+# See _agg_helper
+@register_base_override("count")
+def count(
+    self,
+    axis: Axis | None = 0,
+    numeric_only: bool = False,
+):
+    """
+    Count non-NA cells for `BasePandasDataset`.
+    """
+    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+    return self._agg_helper(
+        func="count",
+        axis=axis,
+        numeric_only=numeric_only,
+    )
+
+
+# See _agg_helper
+@register_base_override("max")
+def max(
+    self,
+    axis: Axis | None = 0,
+    skipna: bool = True,
+    numeric_only: bool = False,
+    **kwargs: Any,
+):
+    """
+    Return the maximum of the values over the requested axis.
+    """
+    return self._agg_helper(
+        func="max",
+        axis=axis,
+        skipna=skipna,
+        numeric_only=numeric_only,
+        **kwargs,
+    )
+
+
+# See _agg_helper
+@register_base_override("min")
+def min(
+    self,
+    axis: Axis | None | NoDefault = no_default,
+    skipna: bool = True,
+    numeric_only: bool = False,
+    **kwargs,
+):
+    """
+    Return the minimum of the values over the requested axis.
+    """
+    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+    return self._agg_helper(
+        func="min",
+        axis=axis,
+        skipna=skipna,
+        numeric_only=numeric_only,
+        **kwargs,
+    )
+
+
+# See _agg_helper
+@register_base_override("mean")
+def mean(
+    self,
+    axis: Axis | None | NoDefault = no_default,
+    skipna: bool = True,
+    numeric_only: bool = False,
+    **kwargs: Any,
+):
+    """
+    Return the mean of the values over the requested axis.
+    """
+    return self._agg_helper(
+        func="mean",
+        axis=axis,
+        skipna=skipna,
+        numeric_only=numeric_only,
+        **kwargs,
+    )
+
+
+# See _agg_helper
+@register_base_override("median")
+def median(
+    self,
+    axis: Axis | None | NoDefault = no_default,
+    skipna: bool = True,
+    numeric_only: bool = False,
+    **kwargs: Any,
+):
+    """
+    Return the mean of the values over the requested axis.
+    """
+    return self._agg_helper(
+        func="median",
+        axis=axis,
+        skipna=skipna,
+        numeric_only=numeric_only,
+        **kwargs,
+    )
+
+
+# See _agg_helper
+@register_base_override("std")
+def std(
+    self,
+    axis: Axis | None = None,
+    skipna: bool = True,
+    ddof: int = 1,
+    numeric_only: bool = False,
+    **kwargs,
+):
+    """
+    Return sample standard deviation over requested axis.
+    """
+    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+    kwargs.update({"ddof": ddof})
+    return self._agg_helper(
+        func="std",
+        axis=axis,
+        skipna=skipna,
+        numeric_only=numeric_only,
+        **kwargs,
+    )
+
+
+# See _agg_helper
+@register_base_override("sum")
+def sum(
+    self,
+    axis: Axis | None = None,
+    skipna: bool = True,
+    numeric_only: bool = False,
+    min_count: int = 0,
+    **kwargs: Any,
+):
+    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+    min_count = validate_int_kwarg(min_count, "min_count")
+    kwargs.update({"min_count": min_count})
+    return self._agg_helper(
+        func="sum",
+        axis=axis,
+        skipna=skipna,
+        numeric_only=numeric_only,
+        **kwargs,
+    )
+
+
+# See _agg_helper
+@register_base_override("var")
+def var(
+    self,
+    axis: Axis | None = None,
+    skipna: bool = True,
+    ddof: int = 1,
+    numeric_only: bool = False,
+    **kwargs: Any,
+):
+    """
+    Return unbiased variance over requested axis.
+    """
+    kwargs.update({"ddof": ddof})
+    return self._agg_helper(
+        func="var",
+        axis=axis,
+        skipna=skipna,
+        numeric_only=numeric_only,
+        **kwargs,
+    )
+
+
+# Modin does not provide `MultiIndex` support and will default to pandas when `level` is specified,
+# and allows binary ops against native pandas objects that Snowpark pandas prohibits.
 @register_base_override("_binary_op")
 def _binary_op(
     self,
@@ -653,6 +875,9 @@ def _binary_op(
     )
 
 
+# Current Modin does not use _dropna and instead defines `dropna` directly, but Snowpark pandas
+# Series/DF still do. Snowpark pandas still needs to add support for the `ignore_index` parameter
+# (added in pandas 2.0), and should be able to refactor to remove this override.
 @register_base_override("_dropna")
 def _dropna(
     self,
@@ -699,6 +924,8 @@ def _dropna(
     return self._create_or_update_from_compiler(new_query_compiler, inplace)
 
 
+# Snowpark pandas uses `self_is_series` instead of `squeeze_self` and `squeeze_value` to determine
+# the shape of `self` and `value`. Further work is needed to reconcile these two approaches.
 @register_base_override("fillna")
 def fillna(
     self,
@@ -788,6 +1015,7 @@ def fillna(
     return self._create_or_update_from_compiler(new_query_compiler, inplace)
 
 
+# Snowpark pandas passes the query compiler object from a BasePandasDataset, which Modin does not do.
 @register_base_override("isin")
 def isin(
     self, values: BasePandasDataset | ListLike | dict[Hashable, ListLike]
@@ -812,6 +1040,9 @@ def isin(
     return self.__constructor__(query_compiler=self._query_compiler.isin(values=values))
 
 
+# Snowpark pandas uses the single `quantiles_along_axis0` query compiler method, while upstream
+# Modin splits this into `quantile_for_single_value` and `quantile_for_list_of_values` calls.
+# It should be possible to merge those two functions upstream and reconcile the implementations.
 @register_base_override("quantile")
 def quantile(
     self,
@@ -885,6 +1116,9 @@ def quantile(
         return result
 
 
+# Current Modin does not define this method. Snowpark pandas currently only uses it in
+# `DataFrame.set_index`. Modin does not support MultiIndex, or have its own lazy index class,
+# so we may need to keep this method for the foreseeable future.
 @register_base_override("_to_series_list")
 def _to_series_list(self, index: pd.Index) -> list[pd.Series]:
     """
@@ -906,6 +1140,7 @@ def _to_series_list(self, index: pd.Index) -> list[pd.Series]:
         raise Exception("invalid index: " + str(index))
 
 
+# Upstream modin defaults to pandas when `suffix` is provided.
 @register_base_override("shift")
 def shift(
     self,
@@ -939,6 +1174,8 @@ def shift(
     return self._create_or_update_from_compiler(new_query_compiler, False)
 
 
+# Snowpark pandas supports only `numeric_only=True`, which is not the default value of the argument,
+# so we have this overridden. We should revisit this behavior.
 @register_base_override("skew")
 def skew(
     self,
@@ -952,196 +1189,6 @@ def skew(
     Return unbiased skew over requested axis.
     """
     return self._stat_operation("skew", axis, skipna, numeric_only, **kwargs)
-
-
-@register_base_override("_agg_helper")
-def _agg_helper(
-    self,
-    func: str,
-    skipna: bool = True,
-    axis: int | None | NoDefault = no_default,
-    numeric_only: bool = False,
-    **kwargs: Any,
-):
-    if not self._is_dataframe and numeric_only and not is_numeric_dtype(self.dtype):
-        # Series aggregations on non-numeric data do not support numeric_only:
-        # https://github.com/pandas-dev/pandas/blob/cece8c6579854f6b39b143e22c11cac56502c4fd/pandas/core/series.py#L6358
-        raise TypeError(
-            f"Series.{func} does not allow numeric_only=True with non-numeric dtypes."
-        )
-    axis = self._get_axis_number(axis)
-    numeric_only = validate_bool_kwarg(numeric_only, "numeric_only", none_allowed=True)
-    skipna = validate_bool_kwarg(skipna, "skipna", none_allowed=False)
-    agg_kwargs: dict[str, Any] = {
-        "numeric_only": numeric_only,
-        "skipna": skipna,
-    }
-    agg_kwargs.update(kwargs)
-    return self.aggregate(func=func, axis=axis, **agg_kwargs)
-
-
-@register_base_override("count")
-def count(
-    self,
-    axis: Axis | None = 0,
-    numeric_only: bool = False,
-):
-    """
-    Count non-NA cells for `BasePandasDataset`.
-    """
-    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    return self._agg_helper(
-        func="count",
-        axis=axis,
-        numeric_only=numeric_only,
-    )
-
-
-@register_base_override("max")
-def max(
-    self,
-    axis: Axis | None = 0,
-    skipna: bool = True,
-    numeric_only: bool = False,
-    **kwargs: Any,
-):
-    """
-    Return the maximum of the values over the requested axis.
-    """
-    return self._agg_helper(
-        func="max",
-        axis=axis,
-        skipna=skipna,
-        numeric_only=numeric_only,
-        **kwargs,
-    )
-
-
-@register_base_override("min")
-def min(
-    self,
-    axis: Axis | None | NoDefault = no_default,
-    skipna: bool = True,
-    numeric_only: bool = False,
-    **kwargs,
-):
-    """
-    Return the minimum of the values over the requested axis.
-    """
-    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    return self._agg_helper(
-        func="min",
-        axis=axis,
-        skipna=skipna,
-        numeric_only=numeric_only,
-        **kwargs,
-    )
-
-
-@register_base_override("mean")
-def mean(
-    self,
-    axis: Axis | None | NoDefault = no_default,
-    skipna: bool = True,
-    numeric_only: bool = False,
-    **kwargs: Any,
-):
-    """
-    Return the mean of the values over the requested axis.
-    """
-    return self._agg_helper(
-        func="mean",
-        axis=axis,
-        skipna=skipna,
-        numeric_only=numeric_only,
-        **kwargs,
-    )
-
-
-@register_base_override("median")
-def median(
-    self,
-    axis: Axis | None | NoDefault = no_default,
-    skipna: bool = True,
-    numeric_only: bool = False,
-    **kwargs: Any,
-):
-    """
-    Return the mean of the values over the requested axis.
-    """
-    return self._agg_helper(
-        func="median",
-        axis=axis,
-        skipna=skipna,
-        numeric_only=numeric_only,
-        **kwargs,
-    )
-
-
-@register_base_override("std")
-def std(
-    self,
-    axis: Axis | None = None,
-    skipna: bool = True,
-    ddof: int = 1,
-    numeric_only: bool = False,
-    **kwargs,
-):
-    """
-    Return sample standard deviation over requested axis.
-    """
-    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    kwargs.update({"ddof": ddof})
-    return self._agg_helper(
-        func="std",
-        axis=axis,
-        skipna=skipna,
-        numeric_only=numeric_only,
-        **kwargs,
-    )
-
-
-@register_base_override("sum")
-def sum(
-    self,
-    axis: Axis | None = None,
-    skipna: bool = True,
-    numeric_only: bool = False,
-    min_count: int = 0,
-    **kwargs: Any,
-):
-    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    min_count = validate_int_kwarg(min_count, "min_count")
-    kwargs.update({"min_count": min_count})
-    return self._agg_helper(
-        func="sum",
-        axis=axis,
-        skipna=skipna,
-        numeric_only=numeric_only,
-        **kwargs,
-    )
-
-
-@register_base_override("var")
-def var(
-    self,
-    axis: Axis | None = None,
-    skipna: bool = True,
-    ddof: int = 1,
-    numeric_only: bool = False,
-    **kwargs: Any,
-):
-    """
-    Return unbiased variance over requested axis.
-    """
-    kwargs.update({"ddof": ddof})
-    return self._agg_helper(
-        func="var",
-        axis=axis,
-        skipna=skipna,
-        numeric_only=numeric_only,
-        **kwargs,
-    )
 
 
 @register_base_override("resample")
@@ -1199,6 +1246,9 @@ def resample(
     )
 
 
+# Snowpark pandas needs to return a custom Expanding window object. We cannot use the
+# extensions module for this at the moment because modin performs a relative import of
+# `from .window import Expanding`.
 @register_base_override("expanding")
 def expanding(self, min_periods=1, axis=0, method="single"):  # noqa: PR01, RT01, D200
     """
@@ -1236,6 +1286,7 @@ def expanding(self, min_periods=1, axis=0, method="single"):  # noqa: PR01, RT01
     )
 
 
+# Same as Expanding: Snowpark pandas needs to return a custmo Window object.
 @register_base_override("rolling")
 def rolling(
     self,
@@ -1305,6 +1356,7 @@ def rolling(
     )
 
 
+# Snowpark pandas uses a custom indexer object for all indexing methods.
 @register_base_override("iloc")
 @property
 def iloc(self):
@@ -1318,6 +1370,7 @@ def iloc(self):
     return _iLocIndexer(self)
 
 
+# Snowpark pandas uses a custom indexer object for all indexing methods.
 @register_base_override("loc")
 @property
 def loc(self):
@@ -1332,6 +1385,7 @@ def loc(self):
     return _LocIndexer(self)
 
 
+# Snowpark pandas uses a custom indexer object for all indexing methods.
 @register_base_override("iat")
 @property
 def iat(self, axis=None):  # noqa: PR01, RT01, D200
@@ -1344,6 +1398,7 @@ def iat(self, axis=None):  # noqa: PR01, RT01, D200
     return _iAtIndexer(self)
 
 
+# Snowpark pandas uses a custom indexer object for all indexing methods.
 @register_base_override("at")
 @property
 def at(self, axis=None):  # noqa: PR01, RT01, D200
@@ -1356,6 +1411,8 @@ def at(self, axis=None):  # noqa: PR01, RT01, D200
     return _AtIndexer(self)
 
 
+# Snowpark pandas performs different dispatch logic; some changes may need to be upstreamed
+# to fix edge case indexing behaviors.
 @register_base_override("__getitem__")
 def __getitem__(self, key):
     """
@@ -1406,6 +1463,7 @@ def __getitem__(self, key):
     return self.loc[:, key]
 
 
+# Snowpark pandas does extra argument validation, which may need to be upstreamed.
 @register_base_override("sort_values")
 def sort_values(
     self,
@@ -1483,6 +1541,8 @@ def sort_values(
     return self._create_or_update_from_compiler(result, inplace)
 
 
+# Modin does not define `where` on BasePandasDataset, and defaults to pandas at the frontend
+# layer for Series.
 @register_base_override("where")
 def where(
     self,
@@ -1544,61 +1604,8 @@ def where(
     return self._create_or_update_from_compiler(query_compiler, inplace)
 
 
-@register_base_override("to_csv")
-def to_csv(
-    self,
-    path_or_buf=None,
-    sep=",",
-    na_rep="",
-    float_format=None,
-    columns=None,
-    header=True,
-    index=True,
-    index_label=None,
-    mode="w",
-    encoding=None,
-    compression="infer",
-    quoting=None,
-    quotechar='"',
-    lineterminator=None,
-    chunksize=None,
-    date_format=None,
-    doublequote=True,
-    escapechar=None,
-    decimal=".",
-    errors: str = "strict",
-    storage_options: StorageOptions = None,
-):  # pragma: no cover
-    from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
-        FactoryDispatcher,
-    )
-
-    return FactoryDispatcher.to_csv(
-        self._query_compiler,
-        path_or_buf=path_or_buf,
-        sep=sep,
-        na_rep=na_rep,
-        float_format=float_format,
-        columns=columns,
-        header=header,
-        index=index,
-        index_label=index_label,
-        mode=mode,
-        encoding=encoding,
-        compression=compression,
-        quoting=quoting,
-        quotechar=quotechar,
-        lineterminator=lineterminator,
-        chunksize=chunksize,
-        date_format=date_format,
-        doublequote=doublequote,
-        escapechar=escapechar,
-        decimal=decimal,
-        errors=errors,
-        storage_options=storage_options,
-    )
-
-
+# Snowpark pandas performs extra argument validation, some of which should be pushed down
+# to the QC layer.
 @register_base_override("mask")
 def mask(
     self,
@@ -1660,6 +1667,63 @@ def mask(
     return self._create_or_update_from_compiler(query_compiler, inplace)
 
 
+# Snowpark pandas uses a custom I/O dispatcher class.
+@register_base_override("to_csv")
+def to_csv(
+    self,
+    path_or_buf=None,
+    sep=",",
+    na_rep="",
+    float_format=None,
+    columns=None,
+    header=True,
+    index=True,
+    index_label=None,
+    mode="w",
+    encoding=None,
+    compression="infer",
+    quoting=None,
+    quotechar='"',
+    lineterminator=None,
+    chunksize=None,
+    date_format=None,
+    doublequote=True,
+    escapechar=None,
+    decimal=".",
+    errors: str = "strict",
+    storage_options: StorageOptions = None,
+):  # pragma: no cover
+    from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
+        FactoryDispatcher,
+    )
+
+    return FactoryDispatcher.to_csv(
+        self._query_compiler,
+        path_or_buf=path_or_buf,
+        sep=sep,
+        na_rep=na_rep,
+        float_format=float_format,
+        columns=columns,
+        header=header,
+        index=index,
+        index_label=index_label,
+        mode=mode,
+        encoding=encoding,
+        compression=compression,
+        quoting=quoting,
+        quotechar=quotechar,
+        lineterminator=lineterminator,
+        chunksize=chunksize,
+        date_format=date_format,
+        doublequote=doublequote,
+        escapechar=escapechar,
+        decimal=decimal,
+        errors=errors,
+        storage_options=storage_options,
+    )
+
+
+# Modin performs extra argument validation and defaults to pandas for some edge cases.
 @register_base_override("sample")
 def sample(
     self,
@@ -1705,6 +1769,7 @@ def sample(
     return self.__constructor__(query_compiler=query_compiler)
 
 
+# Modin performs an extra query calling self.isna() to raise a warning when fill_method is unspecified.
 @register_base_override("pct_change")
 def pct_change(
     self, periods=1, fill_method=no_default, limit=no_default, freq=None, **kwargs
@@ -1761,6 +1826,7 @@ def pct_change(
     )
 
 
+# Snowpark pandas has different `copy` behavior, and some different behavior with native series arguments.
 @register_base_override("astype")
 def astype(
     self,
@@ -1808,6 +1874,8 @@ def astype(
     return self._create_or_update_from_compiler(new_query_compiler, not copy)
 
 
+# Modin defaults to pandsa when `level` is specified, and has some extra axis validation that
+# is guarded in newer versions.
 @register_base_override("drop")
 def drop(
     self,
@@ -1851,6 +1919,7 @@ def drop(
     return self._create_or_update_from_compiler(new_query_compiler, inplace)
 
 
+# Modin calls len(self.index) instead of a direct query compiler method.
 @register_base_override("__len__")
 def __len__(self) -> int:
     """
@@ -1864,6 +1933,7 @@ def __len__(self) -> int:
     return self._query_compiler.get_axis_len(axis=0)
 
 
+# Snowpark pandas ignores `copy`.
 @register_base_override("set_axis")
 def set_axis(
     self,
@@ -1898,6 +1968,7 @@ def set_axis(
     return obj
 
 
+# Modin has different behavior for empty dataframes and some slightly different length validation.
 @register_base_override("describe")
 def describe(
     self,
@@ -1943,6 +2014,7 @@ def describe(
     )
 
 
+# Modin does type validation on self that Snowpark pandas defers to SQL.
 @register_base_override("diff")
 def diff(self, periods: int = 1, axis: Axis = 0):
     """
@@ -1958,6 +2030,7 @@ def diff(self, periods: int = 1, axis: Axis = 0):
     )
 
 
+# Modin does an unnecessary len call when n == 0.
 @register_base_override("tail")
 def tail(self, n: int = 5):
     if n == 0:
@@ -1965,6 +2038,7 @@ def tail(self, n: int = 5):
     return self.iloc[-n:]
 
 
+# Snowpark pandas does extra argument validation (which should probably be deferred to SQL instead).
 @register_base_override("idxmax")
 def idxmax(self, axis=0, skipna=True, numeric_only=False):  # noqa: PR01, RT01, D200
     """
@@ -1992,6 +2066,7 @@ def idxmax(self, axis=0, skipna=True, numeric_only=False):  # noqa: PR01, RT01, 
     )
 
 
+# Snowpark pandas does extra argument validation (which should probably be deferred to SQL instead).
 @register_base_override("idxmin")
 def idxmin(self, axis=0, skipna=True, numeric_only=False):  # noqa: PR01, RT01, D200
     """
@@ -2019,6 +2094,7 @@ def idxmin(self, axis=0, skipna=True, numeric_only=False):  # noqa: PR01, RT01, 
     )
 
 
+# Modin does dtype validation on unary ops that Snowpark pandas does not.
 @register_base_override("__abs__")
 def abs(self):  # noqa: RT01, D200
     """
@@ -2028,6 +2104,7 @@ def abs(self):  # noqa: RT01, D200
     return self.__constructor__(query_compiler=self._query_compiler.unary_op("abs"))
 
 
+# Modin does dtype validation on unary ops that Snowpark pandas does not.
 @register_base_override("__invert__")
 def __invert__(self):
     """
@@ -2042,6 +2119,7 @@ def __invert__(self):
     return self.__constructor__(query_compiler=self._query_compiler.invert())
 
 
+# Modin does dtype validation on unary ops that Snowpark pandas does not.
 @register_base_override("__neg__")
 def __neg__(self):
     """
@@ -2055,75 +2133,7 @@ def __neg__(self):
     return self.__constructor__(query_compiler=self._query_compiler.unary_op("__neg__"))
 
 
-@register_base_override("rename_axis")
-def rename_axis(
-    self,
-    mapper=lib.no_default,
-    *,
-    index=lib.no_default,
-    columns=lib.no_default,
-    axis=0,
-    copy=None,
-    inplace=False,
-):  # noqa: PR01, RT01, D200
-    """
-    Set the name of the axis for the index or columns.
-    """
-    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    axes = {"index": index, "columns": columns}
-
-    if copy is None:
-        copy = True
-
-    if axis is not None:
-        axis = self._get_axis_number(axis)
-
-    inplace = validate_bool_kwarg(inplace, "inplace")
-
-    if mapper is not lib.no_default and mapper is not None:
-        # Use v0.23 behavior if a scalar or list
-        non_mapper = is_scalar(mapper) or (
-            is_list_like(mapper) and not is_dict_like(mapper)
-        )
-        if non_mapper:
-            return self._set_axis_name(mapper, axis=axis, inplace=inplace)
-        else:
-            raise ValueError("Use `.rename` to alter labels with a mapper.")
-    else:
-        # Use new behavior.  Means that index and/or columns is specified
-        result = self if inplace else self.copy(deep=copy)
-
-        for axis in range(self.ndim):
-            v = axes.get(pandas.DataFrame._get_axis_name(axis))
-            if v is lib.no_default:
-                continue
-            non_mapper = is_scalar(v) or (is_list_like(v) and not is_dict_like(v))
-            if non_mapper:
-                newnames = v
-            else:
-
-                def _get_rename_function(mapper):
-                    if isinstance(mapper, (dict, BasePandasDataset)):
-
-                        def f(x):
-                            if x in mapper:
-                                return mapper[x]
-                            else:
-                                return x
-
-                    else:
-                        f = mapper
-
-                    return f
-
-                f = _get_rename_function(v)
-                curnames = self.index.names if axis == 0 else self.columns.names
-                newnames = [f(name) for name in curnames]
-            result._set_axis_name(newnames, axis=axis, inplace=True)
-        if not inplace:
-            return result
-
-
+# Snowpark pandas has custom dispatch logic for ufuncs, while modin defaults to pandas.
 @register_base_override("__array_ufunc__")
 def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs, **kwargs):
     """
@@ -2160,6 +2170,7 @@ def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs, **kwargs):
     return NotImplemented
 
 
+# Snowpark pandas does extra argument validation.
 @register_base_override("reindex")
 def reindex(
     self,
@@ -2197,94 +2208,8 @@ def reindex(
     )
 
 
-@register_base_override("all")
-# Renamed to _all to avoid conflict with builtin python function all (override still has the correct name)
-def _all(self, axis=0, bool_only=None, skipna=True, **kwargs):
-    """
-    Return whether all elements are True, potentially over an axis.
-    """
-    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    validate_bool_kwarg(skipna, "skipna", none_allowed=False)
-    if axis is not None:
-        axis = self._get_axis_number(axis)
-        if bool_only and axis == 0:
-            if hasattr(self, "dtype"):
-                ErrorMessage.not_implemented(
-                    "{}.{} does not implement numeric_only.".format(
-                        type(self).__name__, "all"
-                    )
-                )  # pragma: no cover
-            data_for_compute = self[self.columns[self.dtypes == np.bool_]]
-            return data_for_compute.all(
-                axis=axis, bool_only=False, skipna=skipna, **kwargs
-            )
-        result = self._reduce_dimension(
-            self._query_compiler.all(
-                axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
-            )
-        )
-    else:
-        if bool_only:
-            raise ValueError(f"Axis must be 0 or 1 (got {axis})")
-        # Reduce to a scalar if axis is None.
-        result = self._reduce_dimension(
-            # FIXME: Judging by pandas docs `**kwargs` serves only compatibility
-            # purpose and does not affect the result, we shouldn't pass them to the query compiler.
-            self._query_compiler.all(
-                axis=0,
-                bool_only=bool_only,
-                skipna=skipna,
-                **kwargs,
-            )
-        )
-        if isinstance(result, BasePandasDataset):
-            return result.all(axis=axis, bool_only=bool_only, skipna=skipna, **kwargs)
-    return True if result is None else result
-
-
-@register_base_override("any")
-# Renamed to _any to avoid conflict with builtin python function any (override still has the correct name)
-def _any(self, axis=0, bool_only=None, skipna=True, **kwargs):
-    """
-    Return whether any element is True, potentially over an axis.
-    """
-    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    validate_bool_kwarg(skipna, "skipna", none_allowed=False)
-    if axis is not None:
-        axis = self._get_axis_number(axis)
-        if bool_only and axis == 0:
-            if hasattr(self, "dtype"):
-                ErrorMessage.not_implemented(
-                    "{}.{} does not implement numeric_only.".format(
-                        type(self).__name__, "all"
-                    )
-                )  # pragma: no cover
-            data_for_compute = self[self.columns[self.dtypes == np.bool_]]
-            return data_for_compute.any(
-                axis=axis, bool_only=False, skipna=skipna, **kwargs
-            )
-        result = self._reduce_dimension(
-            self._query_compiler.any(
-                axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
-            )
-        )
-    else:
-        if bool_only:
-            raise ValueError(f"Axis must be 0 or 1 (got {axis})")
-        # Reduce to a scalar if axis is None.
-        result = self._reduce_dimension(
-            self._query_compiler.any(
-                axis=0,
-                bool_only=bool_only,
-                skipna=skipna,
-                **kwargs,
-            )
-        )
-        if isinstance(result, BasePandasDataset):
-            return result.any(axis=axis, bool_only=bool_only, skipna=skipna, **kwargs)
-    return False if result is None else result
-
-
+# No direct override annotation; used as part of `property`.
+# Snowpark pandas may return a custom lazy index object.
 def _get_index(self):
     """
     Get the index for this DataFrame.
@@ -2306,6 +2231,8 @@ def _get_index(self):
     return idx
 
 
+# No direct override annotation; used as part of `property`.
+# Snowpark pandas may return a custom lazy index object.
 def _set_index(self, new_index: Axes) -> None:
     """
     Set the index for this DataFrame.
@@ -2323,4 +2250,5 @@ def _set_index(self, new_index: Axes) -> None:
     )
 
 
+# Snowpark pandas may return a custom lazy index object.
 register_base_override("index")(property(_get_index, _set_index))
