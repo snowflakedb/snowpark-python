@@ -216,6 +216,15 @@ class Attribute(Expression, NamedExpression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.COLUMN
 
+    def __eq__(self, other):
+        if not isinstance(other, Attribute):
+            return False
+        return (
+            self.name == other.name
+            and self.datatype == other.datatype
+            and self.nullable == other.nullable
+        )
+
 
 class Star(Expression):
     def __init__(
