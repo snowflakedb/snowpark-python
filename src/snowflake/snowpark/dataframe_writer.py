@@ -348,7 +348,7 @@ class DataFrameWriter:
             )
 
         # apply writer option alias mapping
-        for key, value in enumerate(format_type_options or {}):
+        for key, value in (format_type_options or {}).items():
             upper_key = key.upper().strip()
             if upper_key in WRITER_OPTIONS_ALIAS_MAP:
                 aliased_key = WRITER_OPTIONS_ALIAS_MAP[upper_key]
