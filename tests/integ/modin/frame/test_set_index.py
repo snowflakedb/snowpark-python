@@ -8,7 +8,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import assert_frame_equal, eval_snowpark_pandas_result
 
 
 @pytest.fixture
@@ -78,6 +78,16 @@ def test_set_index_multiindex_columns(snow_df):
     eval_snowpark_pandas_result(
         snow_df, snow_df.to_pandas(), lambda df: df.set_index(("foo", 1))
     )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_set_index_different_index_length(snow_df):
+    index = pd.Index([1, 2])
+    actual_df = snow_df.set_index(index)
+    expected_df = native_pd.DataFrame(
+        {"a": [1, 2, 2], "b": [3, 4, 5], ("c", "d"): [0, 0, 1]}, index=[1, 2, np.nan]
+    )
+    assert_frame_equal(actual_df, expected_df)
 
 
 @sql_count_checker(query_count=1)
