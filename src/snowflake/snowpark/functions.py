@@ -5932,7 +5932,7 @@ def vector_inner_product(v1: ColumnOrName, v2: ColumnOrName) -> Column:
 
 
 def ln(c: ColumnOrName) -> Column:
-    """return the ln product of given column
+    """Returns the ln product of given column
     Example::
         >>> from snowflake.snowpark.functions import ln
         >>> from math import e
