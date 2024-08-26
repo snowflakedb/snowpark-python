@@ -105,7 +105,7 @@ def test_set_index_names(snow_df):
     # Verify name from input index is set.
     index = pd.Index([1, 2, 0])
     index.names = ["iname"]
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=0):
         assert snow_df.set_index(index).index.names == ["iname"]
 
     # Verify names from input multiindex are set.
@@ -115,7 +115,7 @@ def test_set_index_names(snow_df):
     with SqlCounter(query_count=1, join_count=2):
         assert snow_df.set_index(multi_index).index.names == ["a", "b"]
 
-    with SqlCounter(query_count=0, join_count=4):
+    with SqlCounter(query_count=2, join_count=4):
         # Verify that [MultiIndex, MultiIndex] yields a MultiIndex rather
         # than a pair of tuples
         multi_index2 = multi_index.rename(["C", "D"])
