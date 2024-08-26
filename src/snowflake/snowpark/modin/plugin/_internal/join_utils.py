@@ -319,42 +319,52 @@ def _create_internal_frame_with_join_or_align_result(
             right_col = result_helper.map_right_quoted_identifiers([origin_right_col])[
                 0
             ]
-            # Coalescing is only required for 'outer' or 'asof' joins or align.
-            # For 'inner' and 'left' join we use left join keys and for 'right' join we
-            # use right join keys.
-            # For 'left' and 'coalesce' align we use left join keys.
-            if how in ("asof", "outer"):
-                # Generate an expression equivalent of
-                # "COALESCE('left_col', 'right_col') as 'left_col'"
-                coalesce_column_identifier = (
-                    result_ordered_frame.generate_snowflake_quoted_identifiers(
-                        pandas_labels=[
-                            extract_pandas_label_from_snowflake_quoted_identifier(
-                                left_col
-                            )
-                        ],
-                    )[0]
-                )
-                coalesce_column_identifiers.append(coalesce_column_identifier)
-                coalesce_column_values.append(coalesce(left_col, right_col))
-                if origin_left_col_type == origin_right_col_type:
-                    coalesce_col_type = origin_left_col_type
-            elif how == "right":
-                # No coalescing required for 'right' join. Simply use right join key
-                # as output column.
-                coalesce_column_identifier = right_col
-                coalesce_col_type = origin_right_col_type
-            elif how in ("inner", "left", "coalesce"):
-                # No coalescing required for 'left' or 'inner' join and for 'left' or
-                # 'coalesce' align. Simply use left join key as output column.
+            # if the result ordering column has the same ordering columns as the original left ordering columns,
+            # that means the original left and right shares the same base, and no actual join is applied.
+            no_join_applied = (
+                result_ordered_frame.ordering_columns
+                == left.ordered_dataframe.ordering_columns
+            )
+            if no_join_applied and origin_left_col == origin_right_col:
                 coalesce_column_identifier = left_col
                 coalesce_col_type = origin_left_col_type
             else:
-                raise AssertionError(f"Unsupported join/align type {how}")
+                # Coalescing is only required for 'outer' or 'asof' joins or align.
+                # For 'inner' and 'left' join we use left join keys and for 'right' join we
+                # use right join keys.
+                # For 'left' and 'coalesce' align we use left join keys.
+                if how in ("asof", "outer"):
+                    # Generate an expression equivalent of
+                    # "COALESCE('left_col', 'right_col') as 'left_col'"
+                    coalesce_column_identifier = (
+                        result_ordered_frame.generate_snowflake_quoted_identifiers(
+                            pandas_labels=[
+                                extract_pandas_label_from_snowflake_quoted_identifier(
+                                    left_col
+                                )
+                            ],
+                        )[0]
+                    )
+                    coalesce_column_identifiers.append(coalesce_column_identifier)
+                    coalesce_column_values.append(coalesce(left_col, right_col))
+                    if origin_left_col_type == origin_right_col_type:
+                        coalesce_col_type = origin_left_col_type
+                elif how == "right":
+                    # No coalescing required for 'right' join. Simply use right join key
+                    # as output column.
+                    coalesce_column_identifier = right_col
+                    coalesce_col_type = origin_right_col_type
+                elif how in ("inner", "left", "coalesce"):
+                    # No coalescing required for 'left' or 'inner' join and for 'left' or
+                    # 'coalesce' align. Simply use left join key as output column.
+                    coalesce_column_identifier = left_col
+                    coalesce_col_type = origin_left_col_type
+                else:
+                    raise AssertionError(f"Unsupported join/align type {how}")
 
-            if coalesce_config == JoinKeyCoalesceConfig.RIGHT:
-                # swap left_col and right_col
-                left_col, right_col = right_col, left_col
+                if coalesce_config == JoinKeyCoalesceConfig.RIGHT:
+                    # swap left_col and right_col
+                    left_col, right_col = right_col, left_col
 
             # To provide same behavior as native pandas, remove duplicate join column.
             if right_col in data_column_snowflake_quoted_identifiers:
