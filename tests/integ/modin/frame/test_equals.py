@@ -25,15 +25,10 @@ from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
         ([1, 2, None], [1, 2, None], True),  # nulls are considered equal
         ([1, 2, 3], [1.0, 2.0, 3.0], False),  # float and integer types are not equal
         ([1, 2, 3], ["1", "2", "3"], False),  # integer and string types are not equal
-        pytest.param(
+        (
             [1, 2, 3],
             pandas.timedelta_range(1, periods=3),
             False,  # timedelta and integer types are not equal
-            marks=pytest.mark.xfail(
-                strict=True,
-                raises=NotImplementedError,
-                reason="TODO(SNOW-1637101, SNOW-1637102): Support these cases.",
-            ),
         ),
     ],
 )

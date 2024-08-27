@@ -956,7 +956,7 @@ def test_mask_series_other_axis_1(index, data):
     )
 
 
-@pytest.mark.xfail(reason="TODO(SNOW-1637101, SNOW-1637102): Support these cases.")
+@sql_count_checker(query_count=1)
 def test_mask_timedelta(test_data):
     native_df = native_pd.DataFrame(test_data, dtype="timedelta64[ns]")
     snow_df = pd.DataFrame(native_df)

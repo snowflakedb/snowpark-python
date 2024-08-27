@@ -172,6 +172,30 @@ def join(
         JoinTypeLit
     ), f"Invalid join type: {how}. Allowed values are {get_args(JoinTypeLit)}"
 
+    def assert_snowpark_pandas_types_match() -> None:
+        """If Snowpark pandas types does not match, then a ValueError will be raised."""
+        left_types = [
+            left.snowflake_quoted_identifier_to_snowpark_pandas_type.get(id, None)
+            for id in left_on
+        ]
+        right_types = [
+            right.snowflake_quoted_identifier_to_snowpark_pandas_type.get(id, None)
+            for id in right_on
+        ]
+        for i, (lt, rt) in enumerate(zip(left_types, right_types)):
+            if lt != rt:
+                left_on_id = left_on[i]
+                idx = left.data_column_snowflake_quoted_identifiers.index(left_on_id)
+                key = left.data_column_pandas_labels[idx]
+                lt = lt if lt is not None else left.get_snowflake_type(left_on_id)
+                rt = rt if rt is not None else right.get_snowflake_type(right_on[i])
+                raise ValueError(
+                    f"You are trying to merge on {type(lt).__name__} and {type(rt).__name__} columns for key '{key}'. "
+                    f"If you wish to proceed you should use pd.concat"
+                )
+
+    assert_snowpark_pandas_types_match()
+
     # Re-project the active columns to make sure all active columns of the internal frame participate
     # in the join operation, and unnecessary columns are dropped from the projected columns.
     left = left.select_active_columns()
