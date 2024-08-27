@@ -269,16 +269,16 @@ def update_resolvable_node(
         assert node.snowflake_plan is not None
         update_resolvable_node(node.snowflake_plan, query_generator)
         node.analyzer = query_generator
-        node.expr_to_alias.update(node._snowflake_plan.expr_to_alias)
-        node.df_aliased_col_name_to_real_col_name.update(
-            node._snowflake_plan.df_aliased_col_name_to_real_col_name
-        )
 
         node.pre_actions = node._snowflake_plan.queries[:-1]
         node.post_actions = node._snowflake_plan.post_actions
         node._api_calls = node._snowflake_plan.api_calls
 
         if isinstance(node, SelectSnowflakePlan):
+            node.expr_to_alias.update(node._snowflake_plan.expr_to_alias)
+            node.df_aliased_col_name_to_real_col_name.update(
+                node._snowflake_plan.df_aliased_col_name_to_real_col_name
+            )
             node._query_params = []
             for query in node._snowflake_plan.queries:
                 if query.params:
