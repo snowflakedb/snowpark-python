@@ -1117,11 +1117,10 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        _, resolved_result_dict = self._resolve_packages(
+        self._resolve_packages(
             parse_positional_args_to_list(*packages),
             self._packages,
         )
-        self._packages.update(resolved_result_dict)
 
     def remove_package(self, package: str) -> None:
         """
@@ -1482,12 +1481,13 @@ class Session:
         validate_package: bool = True,
         include_pandas: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> Tuple[List[str], Dict[str, str]]:
+    ) -> List[str]:
         """
         Given a list of packages to add, this method will
         1. Check if the packages are supported by Snowflake
         2. Check if the package version if provided is supported by Snowflake
         3. Check if the package is already added
+        4. Update existing packages dictionary with the new packages (*this is required for python sp to work*)
 
         When auto package upload is enabled, this method will also try to upload the packages
         unavailable in Snowflake to the stage.
@@ -1496,7 +1496,6 @@ class Session:
 
         Returns:
             List[str]: List of package specifiers
-            Dict[str, str]: Dictionary of package name -> package specifier
         """
         # Extract package names, whether they are local, and their associated Requirement objects
         package_dict = self._parse_packages(packages)
@@ -1518,7 +1517,9 @@ class Session:
                 raise errors[0]
             elif len(errors) > 0:
                 raise RuntimeError(errors)
-            return list(result_dict.values()), result_dict
+
+            self._packages.update(result_dict)
+            return list(result_dict.values())
 
         package_table = "information_schema.packages"
         if not self.get_current_database():
@@ -1531,7 +1532,7 @@ class Session:
         #  'scikit-learn': 'scikit-learn==1.2.2',
         #  'python-dateutil': 'python-dateutil==2.8.2'}
         # Add to packages dictionary. Make a copy of existing packages
-        # dictionary to avoid modifying it.
+        # dictionary to avoid modifying it during intermediate steps.
         result_dict = (
             existing_packages_dict.copy() if existing_packages_dict is not None else {}
         )
@@ -1567,10 +1568,9 @@ class Session:
         if include_pandas:
             extra_modules.append("pandas")
 
-        return (
-            list(result_dict.values())
-            + self._get_req_identifiers_list(extra_modules, result_dict),
-            result_dict,
+        existing_packages_dict.update(result_dict)
+        return list(result_dict.values()) + self._get_req_identifiers_list(
+            extra_modules, result_dict
         )
 
     def _upload_unsupported_packages(
