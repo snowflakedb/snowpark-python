@@ -304,6 +304,10 @@ class DataFrameReader:
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
 
+        raise NotImplementedError(
+            "TODO SNOW-1638240: Support DataFrameReader class/session.read."
+        )
+
     @property
     def _infer_schema(self):
         # let _cur_options to be the source of truth
