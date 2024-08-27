@@ -1158,8 +1158,8 @@ def test_merge_validate_negative(lvalues, rvalues, validate):
         left.merge(right, left_on="A", right_on="B", validate=validate)
 
 
-@sql_count_checker(query_count=4, join_count=4)
-def test_merge_timedelta():
+@sql_count_checker(query_count=1, join_count=1)
+def test_merge_timedelta_on():
     left_df = native_pd.DataFrame(
         {"lkey": ["foo", "bar", "baz", "foo"], "value": [1, 2, 3, 5]}
     ).astype({"value": "timedelta64[ns]"})
@@ -1176,36 +1176,42 @@ def test_merge_timedelta():
         ),
     )
 
-    left_df = native_pd.DataFrame({"a": ["foo", "bar"], "b": [1, 2]}).astype(
-        {"b": "timedelta64[ns]"}
-    )
-    right_df = native_pd.DataFrame({"a": ["foo", "baz"], "c": [3, 4]}).astype(
-        {"c": "timedelta64[ns]"}
-    )
-    eval_snowpark_pandas_result(
-        pd.DataFrame(left_df),
-        left_df,
-        lambda df: df.merge(
-            pd.DataFrame(right_df) if isinstance(df, pd.DataFrame) else right_df,
-            how="inner",
-            on="a",
-        ),
-    )
 
-    eval_snowpark_pandas_result(
-        pd.DataFrame(left_df),
-        left_df,
-        lambda df: df.merge(
-            pd.DataFrame(right_df) if isinstance(df, pd.DataFrame) else right_df,
-            how="right",
-            on="a",
-        ),
-    )
-    eval_snowpark_pandas_result(
-        pd.DataFrame(left_df),
-        left_df,
-        lambda df: df.merge(
-            pd.DataFrame(right_df) if isinstance(df, pd.DataFrame) else right_df,
-            how="cross",
-        ),
-    )
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"how": "inner", "on": "a"},
+        {"how": "right", "on": "a"},
+        {"how": "right", "on": "b"},
+        {"how": "left", "on": "c"},
+        {"how": "cross"},
+    ],
+)
+def test_merge_timedelta_how(kwargs):
+    left_df = native_pd.DataFrame(
+        {"a": ["foo", "bar"], "b": [1, 2], "c": [3, 5]}
+    ).astype({"b": "timedelta64[ns]"})
+    right_df = native_pd.DataFrame(
+        {"a": ["foo", "baz"], "b": [1, 3], "c": [3, 4]}
+    ).astype({"b": "timedelta64[ns]", "c": "timedelta64[ns]"})
+    count = 1
+    expect_exception = False
+    if "c" == kwargs.get("on", None):  # merge timedelta with int exception
+        expect_exception = True
+        count = 0
+
+    with SqlCounter(query_count=count, join_count=count):
+        eval_snowpark_pandas_result(
+            pd.DataFrame(left_df),
+            left_df,
+            lambda df: df.merge(
+                pd.DataFrame(right_df) if isinstance(df, pd.DataFrame) else right_df,
+                **kwargs,
+            ),
+            expect_exception=expect_exception,
+            expect_exception_match="You are trying to merge on LongType and TimedeltaType columns for key 'c'. If you "
+            "wish to proceed you should use pd.concat",
+            expect_exception_type=ValueError,
+            assert_exception_equal=False,  # pandas exception: You are trying to merge on int64 and timedelta64[ns]
+            # columns for key 'c'. If you wish to proceed you should use pd.concat
+        )
