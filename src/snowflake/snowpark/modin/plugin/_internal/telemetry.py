@@ -225,7 +225,7 @@ def _gen_func_name(
     """
     func_name = func.__qualname__
     if property_name:
-        assert property_method_type is not None
+        assert property_method_type is not None, "property_method_type is None"
         func_name = f"property.{property_name}_{property_method_type.value}"
     return f"{class_prefix}.{func_name}"
 
@@ -330,9 +330,9 @@ def _telemetry_helper(
         _send_snowpark_pandas_telemetry_helper(
             session=session,
             telemetry_type=error_to_telemetry_type(e),
-            # Only track error messages for NotImplementedError
+            # Only track error messages for NotImplementedError, AssertionError
             error_msg=e.args[0]
-            if isinstance(e, NotImplementedError) and e.args
+            if isinstance(e, (NotImplementedError, AssertionError)) and e.args
             else None,
             func_name=func_name,
             query_history=query_history,

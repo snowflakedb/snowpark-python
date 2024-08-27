@@ -1007,8 +1007,12 @@ class DataFrame:
             B A
             2 1  1  3  1
         """
-        import snowflake.snowpark.modin.pandas as pd  # pragma: no cover
-
+        # black and isort disagree on how to format this section with isort: skip
+        # fmt: off
+        import snowflake.snowpark.modin.plugin  # isort: skip  # noqa: F401
+        # If snowflake.snowpark.modin.plugin was successfully imported, then modin.pandas is available
+        import modin.pandas as pd  # isort: skip
+        # fmt: on
         # create a temporary table out of the current snowpark dataframe
         temporary_table_name = random_name_for_temp_object(
             TempObjectType.TABLE
