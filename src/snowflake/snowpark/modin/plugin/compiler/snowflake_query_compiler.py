@@ -17257,17 +17257,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             other._modin_frame.data_column_snowflake_quoted_identifiers,
             self._modin_frame.data_column_pandas_labels,
         ):
+            left_identiifer = result_column_mapper.left_quoted_identifiers_map[
+                left_identifier
+            ]
+            right_identifier = result_column_mapper.right_quoted_identifiers_map[
+                right_identifier
+            ]
+            op_result = compute_binary_op_between_snowpark_columns(
+                op="equal_null",
+                first_operand=col(left_identifier),
+                first_datatype=functools.partial(
+                    lambda col: result_frame.get_snowflake_type(col), left_identiifer
+                ),
+                second_operand=col(right_identifier),
+                second_datatype=functools.partial(
+                    lambda col: result_frame.get_snowflake_type(col), right_identifier
+                ),
+            )
             binary_op_result = binary_op_result.append_column(
                 str(left_pandas_label) + "_comparison_result",
-                col(
-                    result_column_mapper.left_quoted_identifiers_map[left_identifier]
-                ).equal_null(
-                    col(
-                        result_column_mapper.right_quoted_identifiers_map[
-                            right_identifier
-                        ]
-                    )
-                ),
+                op_result.snowpark_column,
+                op_result.snowpark_pandas_type,
             )
         """
         >>> SnowflakeQueryCompiler(binary_op_result).to_pandas()
@@ -17345,28 +17355,48 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         new_pandas_labels = []
         new_values = []
         column_index_tuples = []
+        column_types = []
         for (
             pandas_column_value,
             pandas_label,
             left_identifier,
             right_identifier,
             column_only_contains_matches,
+            left_type,
+            right_type,
         ) in zip(
             self.columns,
             filtered_binary_op_result.data_column_pandas_labels,
             self._modin_frame.data_column_snowflake_quoted_identifiers,
             other._modin_frame.data_column_snowflake_quoted_identifiers,
             all_rows_match_frame.iloc[:, 0].values,
+            self._modin_frame.cached_data_column_snowpark_pandas_types,
+            other._modin_frame.cached_data_column_snowpark_pandas_types,
         ):
             # Drop columns that only contain matches.
             if column_only_contains_matches:
                 continue
 
-            cols_equal = col(
-                result_column_mapper.left_quoted_identifiers_map[left_identifier]
-            ).equal_null(
-                col(result_column_mapper.right_quoted_identifiers_map[right_identifier])
-            )
+            left_mappped_identifier = result_column_mapper.left_quoted_identifiers_map[
+                left_identifier
+            ]
+            right_mapped_identifier = result_column_mapper.right_quoted_identifiers_map[
+                right_identifier
+            ]
+
+            cols_equal = compute_binary_op_between_snowpark_columns(
+                op="equal_null",
+                first_operand=col(left_mappped_identifier),
+                first_datatype=functools.partial(
+                    lambda col: result_frame.get_snowflake_type(col),
+                    left_mappped_identifier,
+                ),
+                second_operand=col(right_mapped_identifier),
+                second_datatype=functools.partial(
+                    lambda col: result_frame.get_snowflake_type(col),
+                    right_mapped_identifier,
+                ),
+            ).snowpark_column
 
             # Add a column containing the values from `self`, but replace
             # matching values with null.
@@ -17375,11 +17405,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 iff(
                     condition=cols_equal,
                     expr1=pandas_lit(np.nan),
-                    expr2=col(
-                        result_column_mapper.left_quoted_identifiers_map[
-                            left_identifier
-                        ]
-                    ),
+                    expr2=col(left_mappped_identifier),
                 )
             )
 
@@ -17390,11 +17416,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 iff(
                     condition=cols_equal,
                     expr1=pandas_lit(np.nan),
-                    expr2=col(
-                        result_column_mapper.right_quoted_identifiers_map[
-                            right_identifier
-                        ]
-                    ),
+                    expr2=col(right_mapped_identifier),
                 )
             )
 
@@ -17408,8 +17430,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 column_index_tuples.append((pandas_column_value, "self"))
                 column_index_tuples.append((pandas_column_value, "other"))
 
+            column_types.append(left_type)
+            column_types.append(right_type)
+
         result = SnowflakeQueryCompiler(
-            filtered_binary_op_result.project_columns(new_pandas_labels, new_values)
+            filtered_binary_op_result.project_columns(
+                new_pandas_labels, new_values, column_types
+            )
         ).set_columns(
             # TODO(SNOW-1510921): fix the levels and inferred_type of the
             # result's MultiIndex once we can pass the levels correctly through
