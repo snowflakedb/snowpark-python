@@ -405,6 +405,8 @@ class RelationalGroupedDataFrame:
         )
         partition_by = [functions.col(expr) for expr in self._grouping_exprs]
 
+        raise NotImplementedError("TODO SNOW-1514712: support UDxFs")
+
         return self._df.select(
             _apply_in_pandas_udtf(*self._df.columns).over(partition_by=partition_by)
         )
@@ -547,13 +549,20 @@ class RelationalGroupedDataFrame:
 
     builtin = function
 
-    def _function(self, agg_name: str, *cols: ColumnOrName) -> DataFrame:
+    def _function(
+        self, agg_name: str, *cols: ColumnOrName, _emit_ast: bool = True
+    ) -> DataFrame:
         agg_exprs = []
         for c in cols:
             c_expr = Column(c)._expression if isinstance(c, str) else c._expression
             expr = functions.builtin(agg_name)(c_expr)._expression
             agg_exprs.append(expr)
-        return self._to_df(agg_exprs)
+        df = self._to_df(agg_exprs)
+
+        if _emit_ast:
+            raise NotImplementedError("TODO: SNOW-1554390")
+
+        return df
 
     def _non_empty_argument_function(
         self, func_name: str, *cols: ColumnOrName
