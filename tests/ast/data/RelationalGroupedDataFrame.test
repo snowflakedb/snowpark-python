@@ -1,0 +1,19 @@
+## TEST CASE
+
+df = session.create_dataframe([(1, 1),(1, 2),(2, 1),(2, 2),(3, 1),(3, 2)], schema=["a", "b"])
+
+df.group_by("a").median("b").collect()
+
+df.group_by("a").function("avg")("b").collect()
+
+df.group_by("a").count()
+
+## EXPECTED OUTPUT
+
+df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 2), (3, 1), (3, 2)], schema=["a", "b"])
+
+df.group_by("a").median("b").collect()
+
+df.group_by("a").avg("b").collect()
+
+res8 = df.group_by("a").count()

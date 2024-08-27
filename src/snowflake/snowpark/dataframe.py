@@ -1916,6 +1916,8 @@ class DataFrame:
                 )
                 for c in col_list:
                     build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+
+                expr.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
             else:
                 stmt = _ast_stmt
 
