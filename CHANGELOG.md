@@ -68,6 +68,9 @@
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 - Fixed AssertionError in tree of binary operations.
 
+#### Improvements
+- Improve concat, join performance when operations are performed on series coming from the same dataframe by avoiding unnecessary joins.
+
 ## 1.21.0 (2024-08-19)
 
 ### Snowpark Python API Updates
@@ -119,7 +122,6 @@
 #### Improvements
 
 - Fix pandas FutureWarning about integer indexing.
-- Improve concat, join performance when operations are performed on series coming from the same dataframe.
 
 ### Snowpark pandas API Updates
 
