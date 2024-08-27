@@ -2588,4 +2588,17 @@ def test_df_sub_series():
     )
 
 
-# def test_binary_op_series_from_same_df():
+@sql_count_checker(query_count=1, join_count=0)
+def test_binary_op_series_from_same_df():
+    native_df = native_pd.DataFrame(
+        {
+            "A": [1, 2, 3],
+            "B": [2, 3, 4],
+            "C": [4, 5, 6],
+        },
+        index=["a", "b", "c"],
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df["A"] + df["B"] + df["C"]
+    )
