@@ -2843,6 +2843,7 @@ def test_write_table_with_clustering_keys_and_comment(
     reason="Clustering is a SQL feature",
     run=False,
 )
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="show parameters is not supported in SP")
 def test_write_table_with_all_options(session):
     try:
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -2996,6 +2997,8 @@ def test_create_dynamic_table(session, table_name_1, is_transient):
         if is_transient:
             assert "create or replace transient" in ddl_result, ddl_result
         else:
+            if IS_IN_STORED_PROC:
+                pytest.skip("show parameters is not supported in SP")
             # data retention and max data extension time cannot be queried from get_ddl
             # we run a show parameters query to get the values for these parameters
             show_params_sql = (

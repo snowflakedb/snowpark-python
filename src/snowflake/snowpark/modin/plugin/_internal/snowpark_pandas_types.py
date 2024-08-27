@@ -51,7 +51,7 @@ class SnowparkPandasTypeMetaclass(
             return new_snowpark_python_type
 
         for type in new_snowpark_python_type.types_to_convert_with_from_pandas:
-            assert inspect.isclass(type)
+            assert inspect.isclass(type), f"{type} is not a class"
             for existing_type in _python_type_to_from_pandas:
                 # we don't want any class in _python_type_to_from_pandas to be
                 # a subclass of another type in _python_type_to_from_pandas.
