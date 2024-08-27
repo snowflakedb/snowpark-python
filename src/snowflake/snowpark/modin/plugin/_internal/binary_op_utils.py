@@ -457,6 +457,8 @@ def compute_binary_op_between_snowpark_columns(
             pandas_lit(""),
         )
     elif op == "equal_null":
+        # TODO(SNOW-1641716): In Snowpark pandas, generally use this equal_null
+        # with type checking intead of snowflake.snowpark.functions.equal_null.
         if not are_equal_types(first_datatype(), second_datatype()):
             binary_op_result_column = pandas_lit(False)
         else:
