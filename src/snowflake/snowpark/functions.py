@@ -5333,27 +5333,51 @@ def array_append(array: ColumnOrName, element: ColumnOrName) -> Column:
     return builtin("array_append")(a, e)
 
 
-def array_remove(array: ColumnOrName, element) -> Column:
-    """Returns an object constructed by removing all elements that are equal to the specified element from the given array.
+def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
+    """Given a source ARRAY, returns an ARRAY with elements of the specified value removed.
 
     Args:
         array: name of column containing array.
-        element: element to be removed from the array.
+        element: element to be removed from the array. If the element is a VARCHAR, it needs
+            to be casted into VARIANT data type.
+
     Examples::
-        >>> df = session.create_dataframe([([1, 2, 3, 1, 1],)], ['data'])
+        >>> from snowflake.snowpark.types import VariantType
+        >>> df = session.create_dataframe([([1, '2', 3.1, 1, 1],)], ['data'])
         >>> df.select(array_remove(df.data, 1).alias("objects")).show()
         -------------
         |"OBJECTS"  |
         -------------
         |[          |
-        |  2,       |
-        |  3        |
+        |  "2",     |
+        |  3.1      |
         |]          |
         -------------
         <BLANKLINE>
 
+        >>> df.select(array_remove(df.data, lit('2').cast(VariantType())).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |[          |
+        |  1,       |
+        |  3.1,     |
+        |  1,       |
+        |  1        |
+        |]          |
+        -------------
+        <BLANKLINE>
+
+        >>> df.select(array_remove(df.data, None).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |NULL       |
+        -------------
+        <BLANKLINE>
+
     See Also:
-        - https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-object for information on Objects
+        - `ARRAY <https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-array>`_ for more details on semi-structured arrays.
     """
     a = _to_col_if_str(array, "array_remove")
     return builtin("array_remove")(a, element)
