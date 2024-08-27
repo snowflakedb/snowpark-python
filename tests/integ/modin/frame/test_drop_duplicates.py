@@ -64,7 +64,7 @@ def test_drop_duplicates(subset, keep, ignore_index):
     query_count = 1
     join_count = 2
     if ignore_index is True:
-        query_count += 2
+        query_count += 1
         join_count += 3
     with SqlCounter(query_count=query_count, join_count=join_count):
         assert_frame_equal(

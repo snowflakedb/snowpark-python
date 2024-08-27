@@ -108,7 +108,7 @@ def test_drop_duplicate_columns(native_df, labels):
 
 @pytest.mark.parametrize(
     "labels, expected_query_count, expected_join_count",
-    [([], 3, 1), (1, 4, 2), (2, 4, 2), ([1, 2], 5, 3)],
+    [([], 1, 1), (1, 2, 2), (2, 2, 2), ([1, 2], 3, 3)],
 )
 def test_drop_duplicate_row_labels(
     native_df, labels, expected_query_count, expected_join_count
