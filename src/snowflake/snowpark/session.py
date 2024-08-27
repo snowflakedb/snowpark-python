@@ -1568,7 +1568,8 @@ class Session:
         if include_pandas:
             extra_modules.append("pandas")
 
-        existing_packages_dict.update(result_dict)
+        if existing_packages_dict is not None:
+            existing_packages_dict.update(result_dict)
         return list(result_dict.values()) + self._get_req_identifiers_list(
             extra_modules, result_dict
         )
