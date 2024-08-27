@@ -264,8 +264,12 @@ class DataFrameAnalyticsFunctions:
                 agg_expression = builtin(func)(col(column + rename_suffix)).alias(
                     agg_column_name
                 )
-                agg_df = input_df.group_by(group_by_cols).agg(agg_expression)
-                base_df = base_df.join(agg_df, on=group_by_cols, how="left")
+                agg_df = input_df.group_by(group_by_cols, _emit_ast=False).agg(
+                    agg_expression, _emit_ast=False
+                )
+                base_df = base_df.join(
+                    agg_df, on=group_by_cols, how="left", _emit_ast=False
+                )
 
         return base_df
 
@@ -276,6 +280,7 @@ class DataFrameAnalyticsFunctions:
         order_by: List[str],
         group_by: List[str],
         col_formatter: Callable[[str, str, int], str] = _default_col_formatter,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Applies moving aggregations to the specified columns of the DataFrame using defined window sizes,
@@ -335,17 +340,19 @@ class DataFrameAnalyticsFunctions:
         self._validate_formatter_argument(col_formatter)
 
         # AST.
-        stmt = self._df._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_analytics_moving_agg, stmt)
-        self._df.set_ast_ref(ast.df)
-        for col_name, agg_funcs in aggs.items():
-            agg_func_tuple_ast = proto.Tuple_String_List_String()
-            agg_func_tuple_ast._1 = col_name
-            agg_func_tuple_ast._2.extend(agg_funcs)
-            ast.aggs.append(agg_func_tuple_ast)
-        ast.window_sizes.extend(window_sizes)
-        ast.group_by.extend(group_by)
-        ast.order_by.extend(order_by)
+        stmt = None
+        if _emit_ast:
+            stmt = self._df._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_analytics_moving_agg, stmt)
+            self._df.set_ast_ref(ast.df)
+            for col_name, agg_funcs in aggs.items():
+                agg_func_tuple_ast = proto.Tuple_String_List_String()
+                agg_func_tuple_ast._1 = col_name
+                agg_func_tuple_ast._2.extend(agg_funcs)
+                ast.aggs.append(agg_func_tuple_ast)
+            ast.window_sizes.extend(window_sizes)
+            ast.group_by.extend(group_by)
+            ast.order_by.extend(order_by)
 
         # Perform window aggregation
         agg_df = self._df
@@ -367,6 +374,9 @@ class DataFrameAnalyticsFunctions:
                         formatted_col_name, agg_col, _emit_ast=False
                     )
 
+        if _emit_ast:
+            agg_df._ast_id = stmt.var_id.bitfield1
+
         return agg_df
 
     def cumulative_agg(
@@ -376,6 +386,7 @@ class DataFrameAnalyticsFunctions:
         order_by: List[str],
         is_forward: bool,
         col_formatter: Callable[[str, str], str] = _default_col_formatter,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Applies cummulative aggregations to the specified columns of the DataFrame using defined window direction,
@@ -432,17 +443,21 @@ class DataFrameAnalyticsFunctions:
         self._validate_formatter_argument(col_formatter)
 
         # AST.
-        stmt = self._df._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_analytics_cumulative_agg, stmt)
-        self._df.set_ast_ref(ast.df)
-        for col_name, agg_funcs in aggs.items():
-            agg_func_tuple_ast = proto.Tuple_String_List_String()
-            agg_func_tuple_ast._1 = col_name
-            agg_func_tuple_ast._2.extend(agg_funcs)
-            ast.aggs.append(agg_func_tuple_ast)
-        ast.group_by.extend(group_by)
-        ast.order_by.extend(order_by)
-        ast.is_forward = is_forward
+        stmt = None
+        if _emit_ast:
+            stmt = self._df._session._ast_batch.assign()
+            ast = with_src_position(
+                stmt.expr.sp_dataframe_analytics_cumulative_agg, stmt
+            )
+            self._df.set_ast_ref(ast.df)
+            for col_name, agg_funcs in aggs.items():
+                agg_func_tuple_ast = proto.Tuple_String_List_String()
+                agg_func_tuple_ast._1 = col_name
+                agg_func_tuple_ast._2.extend(agg_funcs)
+                ast.aggs.append(agg_func_tuple_ast)
+            ast.group_by.extend(group_by)
+            ast.order_by.extend(order_by)
+            ast.is_forward = is_forward
 
         window_spec = Window.partition_by(group_by).order_by(order_by)
         if is_forward:
@@ -463,6 +478,9 @@ class DataFrameAnalyticsFunctions:
                     formatted_col_name, agg_col, _emit_ast=False
                 )
 
+        if _emit_ast:
+            agg_df._ast_id = stmt.var_id.bitfield1
+
         return agg_df
 
     def compute_lag(
@@ -472,6 +490,7 @@ class DataFrameAnalyticsFunctions:
         order_by: List[str],
         group_by: List[str],
         col_formatter: Callable[[str, str, int], str] = _default_col_formatter,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Creates lag columns to the specified columns of the DataFrame by grouping and ordering criteria.
@@ -516,14 +535,16 @@ class DataFrameAnalyticsFunctions:
             <BLANKLINE>
         """
         # AST.
-        stmt = self._df._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lag, stmt)
-        self._df.set_ast_ref(ast.df)
-        for c in cols:
-            build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
-        ast.lags.extend(lags)
-        ast.group_by.extend(group_by)
-        ast.order_by.extend(order_by)
+        stmt = None
+        if _emit_ast:
+            stmt = self._df._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lag, stmt)
+            for c in cols:
+                build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
+            ast.lags.extend(lags)
+            ast.group_by.extend(group_by)
+            ast.order_by.extend(order_by)
+
         for c in cols:
             for _lag in lags:
                 column = _to_col_if_str(c, "transform.compute_lag")
@@ -531,9 +552,13 @@ class DataFrameAnalyticsFunctions:
                     column.get_name().replace('"', ""), "LAG", _lag
                 )
                 ast.formatted_col_names.append(formatted_col_name)
-        return self._compute_window_function(
+        df = self._compute_window_function(
             cols, lags, order_by, group_by, col_formatter, lag, "LAG"
         )
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
+        return df
 
     def compute_lead(
         self,
@@ -542,6 +567,7 @@ class DataFrameAnalyticsFunctions:
         order_by: List[str],
         group_by: List[str],
         col_formatter: Callable[[str, str, int], str] = _default_col_formatter,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Creates lead columns to the specified columns of the DataFrame by grouping and ordering criteria.
@@ -586,14 +612,17 @@ class DataFrameAnalyticsFunctions:
             <BLANKLINE>
         """
         # AST.
-        stmt = self._df._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lead, stmt)
-        self._df.set_ast_ref(ast.df)
-        for c in cols:
-            build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
-        ast.leads.extend(leads)
-        ast.group_by.extend(group_by)
-        ast.order_by.extend(order_by)
+        stmt = None
+        if _emit_ast:
+            stmt = self._df._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lead, stmt)
+            self._df.set_ast_ref(ast.df)
+            for c in cols:
+                build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
+            ast.leads.extend(leads)
+            ast.group_by.extend(group_by)
+            ast.order_by.extend(order_by)
+
         for c in cols:
             for _lead in leads:
                 column = _to_col_if_str(c, "transform.compute_lead")
@@ -601,9 +630,14 @@ class DataFrameAnalyticsFunctions:
                     column.get_name().replace('"', ""), "LEAD", _lead
                 )
                 ast.formatted_col_names.append(formatted_col_name)
-        return self._compute_window_function(
+        df = self._compute_window_function(
             cols, leads, order_by, group_by, col_formatter, lead, "LEAD"
         )
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
+
+        return df
 
     @experimental(version="1.12.0")
     def time_series_agg(
@@ -614,6 +648,7 @@ class DataFrameAnalyticsFunctions:
         group_by: List[str],
         sliding_interval: str,
         col_formatter: Callable[[str, str, int], str] = _default_col_formatter,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Applies aggregations to the specified columns of the DataFrame over specified time windows,
@@ -684,27 +719,31 @@ class DataFrameAnalyticsFunctions:
             raise ValueError("time_col must be a string")
 
         # AST.
-        stmt = self._df._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_analytics_time_series_agg, stmt)
-        self._df.set_ast_ref(ast.df)
-        ast.time_col = time_col
-        for col_name, agg_funcs in aggs.items():
-            agg_func_tuple_ast = proto.Tuple_String_List_String()
-            agg_func_tuple_ast._1 = col_name
-            agg_func_tuple_ast._2.extend(agg_funcs)
-            ast.aggs.append(agg_func_tuple_ast)
-        ast.windows.extend(windows)
-        ast.group_by.extend(group_by)
-        ast.sliding_interval = sliding_interval
-        for window in windows:
-            for column, funcs in aggs.items():
-                for func in funcs:
-                    agg_column_name = (
-                        col_formatter(column, func, window)
-                        if col_formatter
-                        else f"{column}_{func}B"
-                    )
-                    ast.formatted_col_names.append(agg_column_name)
+        stmt = None
+        if _emit_ast:
+            stmt = self._df._session._ast_batch.assign()
+            ast = with_src_position(
+                stmt.expr.sp_dataframe_analytics_time_series_agg, stmt
+            )
+            ast.time_col = time_col
+            for col_name, agg_funcs in aggs.items():
+                agg_func_tuple_ast = proto.Tuple_String_List_String()
+                agg_func_tuple_ast._1 = col_name
+                agg_func_tuple_ast._2.extend(agg_funcs)
+                ast.aggs.append(agg_func_tuple_ast)
+            ast.windows.extend(windows)
+            ast.group_by.extend(group_by)
+            ast.sliding_interval = sliding_interval
+
+            for window in windows:
+                for column, funcs in aggs.items():
+                    for func in funcs:
+                        agg_column_name = (
+                            col_formatter(column, func, window)
+                            if col_formatter
+                            else f"{column}_{func}B"
+                        )
+                        ast.formatted_col_names.append(agg_column_name)
 
         # TODO: Support time_series_agg in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -776,5 +815,8 @@ class DataFrameAnalyticsFunctions:
                 window,
                 rename_suffix="B",
             )
+
+        if _emit_ast:
+            result_df._ast_id = stmt.var_id.bitfield1
 
         return result_df

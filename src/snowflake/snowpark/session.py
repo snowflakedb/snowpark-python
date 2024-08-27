@@ -2802,7 +2802,7 @@ class Session:
                 )
                 sf_schema = self._conn._get_current_parameter("schema", quoted=False)
 
-                t = self.write_pandas(
+                table = self.write_pandas(
                     data,
                     temp_table_name,
                     database=sf_database,
@@ -2812,14 +2812,23 @@ class Session:
                     table_type="temporary",
                     use_logical_type=self._use_logical_type_for_create_df,
                 )
-                set_api_call_source(t, "Session.create_dataframe[pandas]")
+                set_api_call_source(table, "Session.create_dataframe[pandas]")
 
                 if _emit_ast:
-                    raise NotImplementedError(
-                        "TODO SNOW-1554591: Support pandas.DataFrame ServerConnection."
+                    stmt = self._ast_batch.assign()
+                    ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
+
+                    # Save temp table and schema of it in AST (dataframe).
+                    ast.data.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (
+                        temp_table_name
                     )
 
-                return t
+                    build_proto_from_struct_type(
+                        table.schema, ast.schema.sp_dataframe_schema__struct.v
+                    )
+                    table._ast_id = stmt.var_id.bitfield1
+
+                return table
 
         # infer the schema based on the data
         names = None
@@ -3094,7 +3103,13 @@ class Session:
 
         return df
 
-    def range(self, start: int, end: Optional[int] = None, step: int = 1) -> DataFrame:
+    def range(
+        self,
+        start: int,
+        end: Optional[int] = None,
+        step: int = 1,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
         """
         Creates a new DataFrame from a range of numbers. The resulting DataFrame has
         single column named ``ID``, containing elements in a range from ``start`` to
@@ -3118,12 +3133,14 @@ class Session:
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
 
         # AST.
-        stmt = self._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_range, stmt)
-        ast.start = start
-        if end:
-            ast.end.value = end
-        ast.step.value = step
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_range, stmt)
+            ast.start = start
+            if end:
+                ast.end.value = end
+            ast.step.value = step
 
         if self.sql_simplifier_enabled:
             df = DataFrame(
@@ -3138,6 +3155,10 @@ class Session:
         else:
             df = DataFrame(self, range_plan)
         set_api_call_source(df, "Session.range")
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
+
         return df
 
     def create_async_job(self, query_id: str) -> AsyncJob:

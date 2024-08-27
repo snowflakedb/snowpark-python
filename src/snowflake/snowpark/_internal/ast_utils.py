@@ -168,6 +168,10 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
             obj._ast_id is not None
         ), "Dataframe object to encode as part of AST does not have an id assigned. Missing AST for object or previous operation?"
         ast.id.bitfield1 = obj._ast_id
+    elif isinstance(obj, snowflake.snowpark.table_function.TableFunctionCall):
+        raise NotImplementedError(
+            "TODO SNOW-1629946: Implement TableFunctionCall with args."
+        )
     else:
         raise NotImplementedError("not supported type: %s" % type(obj))
 
