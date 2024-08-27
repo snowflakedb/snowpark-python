@@ -27,6 +27,7 @@
 - Fixed a bug in `session.read.csv` that caused an error when setting `PARSE_HEADER = True` in an externally defined file format.
 - Fixed a bug in query generation from set operations that allowed generation of duplicate queries when children have common subqueries.
 - Fixed a bug in `session.get_session_stage` that referenced a non-existing stage after switching database or schema.
+- Fixed a bug where calling `DataFrame.to_snowpark_pandas_dataframe` without explicitly initializing the Snowpark pandas plugin caused an error.
 
 ### Snowpark Local Testing Updates
 
