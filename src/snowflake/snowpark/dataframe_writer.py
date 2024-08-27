@@ -40,7 +40,7 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
-logger = getLogger(__name__)
+_logger = getLogger(__name__)
 
 WRITER_OPTIONS_ALIAS_MAP = {
     "SEP": "FIELD_DELIMITER",
@@ -348,16 +348,20 @@ class DataFrameWriter:
             )
 
         # apply writer option alias mapping
-        for key, value in (format_type_options or {}).items():
-            upper_key = key.upper().strip()
-            if upper_key in WRITER_OPTIONS_ALIAS_MAP:
-                aliased_key = WRITER_OPTIONS_ALIAS_MAP[upper_key]
-                format_type_options.pop(key)
-                format_type_options[aliased_key] = value
-                logger.warning(
-                    f"Option '{key}' is not aliased to '{aliased_key}'. You may see unexpected behavior. "
-                    "Please refer to the format specific options for more information."
-                )
+        format_type_aliased_options = None
+        if format_type_options:
+            format_type_aliased_options = {}
+            for key, value in format_type_options.items():
+                upper_key = key.upper().strip()
+                if upper_key in WRITER_OPTIONS_ALIAS_MAP:
+                    aliased_key = WRITER_OPTIONS_ALIAS_MAP[upper_key]
+                    format_type_aliased_options[aliased_key] = value
+                    _logger.warning(
+                        f"Option '{key}' is aliased to '{aliased_key}'. You may see unexpected behavior. "
+                        "Please refer to the format specific options for more information."
+                    )
+                else:
+                    format_type_aliased_options[key] = value
 
         df = self._dataframe._with_plan(
             CopyIntoLocationNode(
@@ -366,7 +370,7 @@ class DataFrameWriter:
                 partition_by=partition_by,
                 file_format_name=file_format_name,
                 file_format_type=file_format_type,
-                format_type_options=format_type_options,
+                format_type_options=format_type_aliased_options,
                 copy_options=copy_options,
                 header=header,
             )
