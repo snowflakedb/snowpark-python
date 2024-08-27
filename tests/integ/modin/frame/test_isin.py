@@ -248,3 +248,25 @@ def test_isin_dataframe_values_type_negative():
     ):
         df = pd.DataFrame([1, 2, 3])
         df.isin(values="abcdef")
+
+
+@sql_count_checker(query_count=6)
+def test_isin_timedelta():
+    native_df = native_pd.DataFrame({"a": [1, 2, 3], "b": [None, 4, 2]}).astype(
+        "timedelta64[ns]"
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: _test_isin_with_snowflake_logic(df, [2, 3], query_count=1),
+    )
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: _test_isin_with_snowflake_logic(
+            df, [pd.Timedelta(2), pd.Timedelta(3)], query_count=1
+        ),
+    )
