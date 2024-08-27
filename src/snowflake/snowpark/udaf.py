@@ -92,6 +92,8 @@ class UserDefinedAggregateFunction:
                     f"The inputs of UDAF {self.name} must be Column or column name"
                 )
 
+        raise NotImplementedError("TODO SNOW-1514712: support UDxFs")
+
         return Column(self._create_udaf_expression(exprs))
 
     def _create_udaf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
