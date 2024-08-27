@@ -797,9 +797,9 @@ def get_aliased_option_name(
     key: str,
     alias_map: Dict[str, str],
 ) -> str:
-    key = key.strip().upper()
-    aliased_key = alias_map.get(key, key)
-    if aliased_key != key:
+    upper_key = key.strip().upper()
+    aliased_key = alias_map.get(upper_key, upper_key)
+    if aliased_key != upper_key:
         logger.warning(
             f"Option '{key}' is aliased to '{aliased_key}'. You may see unexpected behavior."
             " Please refer to format specific options for more information"
