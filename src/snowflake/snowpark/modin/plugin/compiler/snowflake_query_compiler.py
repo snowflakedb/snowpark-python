@@ -1705,17 +1705,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if not any(isinstance(k, SnowflakeQueryCompiler) for k in keys):
             return self.set_index_from_columns(keys, drop=drop, append=append)
 
-        self_num_rows = self.get_axis_len(axis=0)
         new_qc = self
         for key in keys:
             if isinstance(key, SnowflakeQueryCompiler):
-                assert (
-                    len(key._modin_frame.data_column_pandas_labels) == 1
-                ), "need to be a series"
-                if key.get_axis_len(0) != self_num_rows:
-                    raise ValueError(
-                        f"Length mismatch: Expected {self_num_rows} rows, received array of length {key.get_axis_len(0)}"
-                    )
                 new_qc = new_qc.set_index_from_series(key, append)
             else:
                 new_qc = new_qc.set_index_from_columns([key], drop, append)
