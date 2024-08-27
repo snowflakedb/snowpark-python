@@ -289,6 +289,12 @@ class CopyIntoTableNode(LeafNode):
         user_schema: Optional[StructType] = None,
         cur_options: Optional[Dict[str, Any]] = None,  # the options of DataFrameReader
         create_table_from_infer_schema: bool = False,
+        is_iceberg: bool = False,
+        external_volume: Optional[str] = None,
+        catalog: Optional[str] = None,
+        base_location: Optional[str] = None,
+        catalog_sync: Optional[str] = None,
+        storage_serialization_policy: Optional[str] = None,
     ) -> None:
         super().__init__()
         self.table_name = table_name
@@ -304,6 +310,12 @@ class CopyIntoTableNode(LeafNode):
         self.user_schema = user_schema
         self.cur_options = cur_options
         self.create_table_from_infer_schema = create_table_from_infer_schema
+        self.is_iceberg = is_iceberg
+        self.external_volume = external_volume
+        self.catalog = catalog
+        self.base_location = base_location
+        self.catalog_sync = catalog_sync
+        self.storage_serialization_policy = storage_serialization_policy
 
 
 class CopyIntoLocationNode(LogicalPlan):
