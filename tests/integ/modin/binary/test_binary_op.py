@@ -2586,3 +2586,6 @@ def test_df_sub_series():
     eval_snowpark_pandas_result(
         snow_df, native_df, lambda df: df.sub(df["two"], axis="index"), inplace=True
     )
+
+
+# def test_binary_op_series_from_same_df():
