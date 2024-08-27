@@ -26,8 +26,8 @@ TIME_DATA1 = {
 }
 
 
-@sql_count_checker(query_count=0)
-def test_td_case1_negative():
+@sql_count_checker(query_count=1)
+def test_insert_datetime_difference_in_days():
     data = TIME_DATA1
     snow_df = pd.DataFrame(data)
     native_df = native_pd.DataFrame(data)
@@ -41,80 +41,20 @@ def test_td_case1_negative():
         )
         / np.timedelta64(1, "D")
     ).round()
-    # TODO SNOW-1635620: remove Exception raised when TimeDelta is implemented
-    with pytest.raises(NotImplementedError):
-        snow_df["month_lag"] = (
-            (
-                pd.to_datetime(snow_df["CREATED_AT"], format="%Y-%m-%d %H:%M:%S")
-                - pd.to_datetime(
-                    snow_df["REPORTING_DATE"], format="%Y-%m-%d", errors="coerce"
-                )
-            )
-            / np.timedelta64(1, "D")
-        ).round()
-        assert_series_equal(snow_df["month_lag"], native_df["open_lag"])
-
-
-@sql_count_checker(query_count=0)
-def test_td_case2_negative():
-    data = TIME_DATA1
-    snow_df = pd.DataFrame(data)
-    native_df = native_pd.DataFrame(data)
-    native_df["open_lag"] = (
+    snow_df["month_lag"] = (
         (
-            native_pd.to_datetime(native_df["CREATED_AT"], format="%Y-%m-%d %H:%M:%S")
-            - native_pd.to_datetime(
-                native_df["OPEN_DATE"], format="%Y-%m-%d", errors="coerce"
+            pd.to_datetime(snow_df["CREATED_AT"], format="%Y-%m-%d %H:%M:%S")
+            - pd.to_datetime(
+                snow_df["REPORTING_DATE"], format="%Y-%m-%d", errors="coerce"
             )
         )
         / np.timedelta64(1, "D")
     ).round()
-    # TODO SNOW-1635620: remove Exception raised when TimeDelta is implemented
-    with pytest.raises(NotImplementedError):
-        snow_df["open_lag"] = (
-            (
-                pd.to_datetime(snow_df["CREATED_AT"], format="%Y-%m-%d %H:%M:%S")
-                - pd.to_datetime(
-                    snow_df["OPEN_DATE"], format="%Y-%m-%d", errors="coerce"
-                )
-            )
-            / np.timedelta64(1, "D")
-        ).round()
-        assert_series_equal(snow_df["open_lag"], native_df["open_lag"])
-
-
-@sql_count_checker(query_count=0)
-def test_td_case3_negative():
-    data = TIME_DATA1
-    snow_df = pd.DataFrame(data)
-    native_df = native_pd.DataFrame(data)
-
-    native_df["close_lag"] = (
-        (
-            native_pd.to_datetime(native_df["CREATED_AT"], format="%Y-%m-%d %H:%M:%S")
-            - native_pd.to_datetime(
-                native_df["CLOSED_DATE"], format="%Y-%m-%d", errors="coerce"
-            )
-        )
-        / np.timedelta64(1, "D")
-    ).round()
-    # TODO SNOW-1635620: remove Exception raised when TimeDelta is implemented
-    with pytest.raises(NotImplementedError):
-        snow_df["close_lag"] = (
-            (
-                pd.to_datetime(snow_df["CREATED_AT"], format="%Y-%m-%d %H:%M:%S")
-                - pd.to_datetime(
-                    snow_df["CLOSED_DATE"], format="%Y-%m-%d", errors="coerce"
-                )
-            )
-            / np.timedelta64(1, "D")
-        ).round()
-
-        assert_series_equal(snow_df["close_lag"], native_df["close_lag"])
+    assert_series_equal(snow_df["month_lag"], native_df["month_lag"])
 
 
 @sql_count_checker(query_count=1)
-def test_td_case4():
+def test_insert_datetime_difference():
     data = {
         "bl_start_ts": [Timestamp("2017-03-01T12")],
         "green_light_ts": [Timestamp("2017-01-07T12")],
@@ -131,7 +71,7 @@ def test_td_case4():
 
 
 @sql_count_checker(query_count=0)
-def test_td_case5_negative():
+def test_diff_timestamp_column_to_get_timedelta_negative():
     data = {
         "Country": ["A", "B", "C", "D", "E"],
         "Agreement Signing Date": [
@@ -144,7 +84,7 @@ def test_td_case5_negative():
     }
     snow_df = pd.DataFrame(data)
     native_df = native_pd.DataFrame(data)
-    # TODO SNOW-1635620: remove Exception raised when TimeDelta is implemented
+    # TODO SNOW-1641729: remove Exception raised when TimeDelta is implemented
     with pytest.raises(SnowparkSQLException):
         eval_snowpark_pandas_result(
             snow_df,
