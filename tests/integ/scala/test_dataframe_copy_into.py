@@ -4,6 +4,7 @@
 
 import datetime
 import json
+import re
 from decimal import Decimal
 from textwrap import dedent
 
@@ -245,6 +246,31 @@ def test_copy_csv_basic(session, tmp_stage_name1, tmp_table_name):
     )
 
 
+def test_copy_into_csv_iceberg(session, tmp_stage_name1, tmp_table_name):
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    df = session.read.schema(user_schema).csv(test_file_on_stage)
+
+    test_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df.copy_into_table(
+        test_table_name,
+        is_iceberg=True,
+        external_volume="python_connector_iceberg_exvol",
+        catalog="SNOWFLAKE",
+        base_location="snowpark_python_tests",
+    )
+    try:
+        # Check that table is an iceberg table with correct properties set
+        ddl = session._run_query(f"select get_ddl('table', '{test_table_name}')")
+        assert (
+            ddl[0][0]
+            == f"create or replace ICEBERG TABLE {test_table_name} (\n\tA LONG,\n\tB STRING,\n\tC DOUBLE\n)\n EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n BASE_LOCATION = 'snowpark_python_tests/';"
+        )
+        # Check that a copy_into works on the newly created table.
+        df.copy_into_table(test_table_name)
+    finally:
+        Utils.drop_table(session, test_table_name)
+
+
 def test_copy_csv_create_table_if_not_exists(session, tmp_stage_name1):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
     df = session.read.schema(user_schema).csv(test_file_on_stage)
@@ -372,6 +398,17 @@ def test_copy_csv_negative(session, tmp_stage_name1, tmp_table_name):
     assert "Insert value list does not match column list expecting 3 but got 1" in str(
         exec_info
     )
+
+    # case 3: copy into non-iceberg table with iceberg params enabled
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Iceberg specific parameters (external_volume,catalog) cannot be used with non-iceberg tables."
+        ),
+    ):
+        df.copy_into_table(
+            tmp_table_name, external_volume="test_volume", catalog="SNOWFLAKE"
+        )
 
 
 def test_copy_csv_copy_transformation_with_column_names(session, tmp_stage_name1):

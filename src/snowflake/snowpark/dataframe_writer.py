@@ -254,6 +254,22 @@ class DataFrameWriter:
                     f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
                 )
 
+            if is_iceberg is False and any(
+                (
+                    params := {
+                        "external_volume": external_volume,
+                        "catalog": catalog,
+                        "base_location": base_location,
+                        "catalog_sync": catalog_sync,
+                        "storage_serialization_policy": storage_serialization_policy,
+                    }
+                ).values()
+            ):
+                params = {k: v for k, v in params.items() if v is not None}
+                raise ValueError(
+                    f"Iceberg specific parameters ({','.join(params)}) cannot be used with non-iceberg tables."
+                )
+
             create_table_logic_plan = SnowflakeCreateTable(
                 table_name,
                 column_names,

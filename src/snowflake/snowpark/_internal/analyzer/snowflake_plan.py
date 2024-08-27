@@ -1403,6 +1403,12 @@ class SnowflakePlanBuilder:
         *,
         copy_options: Dict[str, Any],
         format_type_options: Dict[str, Any],
+        is_iceberg: bool = False,
+        external_volume: Optional[str] = None,
+        catalog: Optional[str] = None,
+        base_location: Optional[str] = None,
+        catalog_sync: Optional[str] = None,
+        storage_serialization_policy: Optional[str] = None,
     ) -> SnowflakePlan:
         # tracking usage of pattern, will refactor this function in future
         if pattern:
@@ -1436,6 +1442,12 @@ class SnowflakePlanBuilder:
                     create_table_statement(
                         full_table_name,
                         attribute_to_schema_string(attributes),
+                        is_iceberg=is_iceberg,
+                        external_volume=external_volume,
+                        catalog=catalog,
+                        base_location=base_location,
+                        catalog_sync=catalog_sync,
+                        storage_serialization_policy=storage_serialization_policy,
                     ),
                     # This is an exception. The principle is to avoid surprising behavior and most of the time
                     # it applies to temp object. But this perm table creation is also one place where we create

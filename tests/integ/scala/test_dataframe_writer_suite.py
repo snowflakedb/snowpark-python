@@ -3,6 +3,7 @@
 #
 
 import copy
+import re
 
 import pytest
 
@@ -20,7 +21,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import TestFiles, Utils
+from tests.utils import TestFiles, Utils, iceberg_supported
 
 
 def test_write_with_target_column_name_order(session, local_testing_mode):
@@ -150,6 +151,57 @@ def test_write_with_target_table_autoincrement(
         Utils.check_answer(session.table(table_name), [Row(2, 1, 1)])
     finally:
         Utils.drop_table(session, table_name)
+
+
+def test_iceberg(session, local_testing_mode):
+    if not iceberg_supported(session, local_testing_mode):
+        pytest.skip("Test requires iceberg support.")
+
+    table_name = Utils.random_table_name()
+    df = session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("a", StringType()),
+                StructField("b", IntegerType()),
+            ]
+        ),
+    )
+    df.write.save_as_table(
+        table_name,
+        is_iceberg=True,
+        external_volume="python_connector_iceberg_exvol",
+        catalog="SNOWFLAKE",
+        base_location="snowpark_python_tests",
+    )
+    try:
+        ddl = session._run_query(f"select get_ddl('table', '{table_name}')")
+        assert (
+            ddl[0][0]
+            == f"create or replace ICEBERG TABLE {table_name} (\n\tA STRING,\n\tB LONG\n)\n EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n BASE_LOCATION = 'snowpark_python_tests/';"
+        )
+    finally:
+        session.table(table_name).drop_table()
+
+
+def test_negative_iceberg_options(session):
+    table_name = Utils.random_table_name()
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Iceberg specific parameters (catalog_sync,storage_serialization_policy) cannot be used with non-iceberg tables."
+        ),
+    ):
+        session.create_dataframe(
+            [],
+            schema=StructType(
+                [StructField("a", IntegerType()), StructField("b", IntegerType())]
+            ),
+        ).write.save_as_table(
+            table_name,
+            catalog_sync="test_sync",
+            storage_serialization_policy="test_policy",
+        )
 
 
 def test_negative_write_with_target_column_name_order(session):
