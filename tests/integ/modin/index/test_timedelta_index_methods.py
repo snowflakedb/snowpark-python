@@ -26,6 +26,12 @@ def test_timedelta_index_construction():
     snow_index = pd.Index(pd.TimedeltaIndex([123]))
     assert isinstance(snow_index, pd.TimedeltaIndex)
 
+    # create by subtracting datetime index from another.
+    date_range1 = pd.date_range("2000-01-01", periods=10, freq="h")
+    date_range2 = pd.date_range("2001-05-01", periods=10, freq="h")
+    snow_index = date_range2 - date_range1
+    assert isinstance(snow_index, pd.TimedeltaIndex)
+
 
 @sql_count_checker(query_count=0)
 @pytest.mark.parametrize(

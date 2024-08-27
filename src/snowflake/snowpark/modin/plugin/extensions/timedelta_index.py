@@ -223,7 +223,7 @@ class TimedeltaIndex(Index):
 
         Returns
         -------
-        DataFrame
+        A DataFrame
 
         Examples
         --------
