@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.telemetry import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName, ColumnOrSqlExpr
 from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
+    get_aliased_option_name,
     normalize_remote_file_or_dir,
     parse_table_name,
     str_to_enum,
@@ -352,16 +353,8 @@ class DataFrameWriter:
         if format_type_options:
             format_type_aliased_options = {}
             for key, value in format_type_options.items():
-                upper_key = key.upper().strip()
-                if upper_key in WRITER_OPTIONS_ALIAS_MAP:
-                    aliased_key = WRITER_OPTIONS_ALIAS_MAP[upper_key]
-                    format_type_aliased_options[aliased_key] = value
-                    _logger.warning(
-                        f"Option '{key}' is aliased to '{aliased_key}'. You may see unexpected behavior. "
-                        "Please refer to the format specific options for more information."
-                    )
-                else:
-                    format_type_aliased_options[key] = value
+                aliased_key = get_aliased_option_name(key, WRITER_OPTIONS_ALIAS_MAP)
+                format_type_aliased_options[aliased_key] = value
 
         df = self._dataframe._with_plan(
             CopyIntoLocationNode(
