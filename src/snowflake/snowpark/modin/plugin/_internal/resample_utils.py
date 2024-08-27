@@ -292,7 +292,7 @@ def get_snowflake_quoted_identifier_for_resample_index_col(frame: InternalFrame)
         )
 
     index_col = index_cols[0]
-    sf_type = frame.quoted_identifier_to_snowflake_type()[index_col]
+    sf_type = frame.get_snowflake_type(index_col)
 
     if not isinstance(sf_type, (TimestampType, DateType)):
         raise TypeError("Only valid with DatetimeIndex.")
@@ -747,7 +747,7 @@ def perform_asof_join_on_frame(
             > right_snowpark_df[interval_end_snowflake_quoted_identifier]
         )
     else:
-        assert fill_method == "ffill"
+        assert fill_method == "ffill", f"invalid fill_method {fill_method}"
         on_expr = (
             left_snowpark_df[left_timecol_snowflake_quoted_identifier]
             >= right_snowpark_df[interval_start_snowflake_quoted_identifier]
