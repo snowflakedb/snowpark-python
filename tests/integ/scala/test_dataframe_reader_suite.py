@@ -445,11 +445,13 @@ def test_read_csv_with_infer_schema_negative(session, mode, caplog):
 def test_reader_option_aliases(session, mode, caplog):
     reader = get_reader(session, mode)
     with caplog.at_level(logging.WARN):
-        for key, alias_mapped_key in READER_OPTIONS_ALIAS_MAP.items():
+        for key, _aliased_key in READER_OPTIONS_ALIAS_MAP.items():
             reader.option(key, "test")
-        assert f"Option '{key}' is aliased to '{alias_mapped_key}'. You may see unexpected behavior" in caplog.text
+        assert (
+            f"Option '{key}' is aliased to '{_aliased_key}'. You may see unexpected behavior"
+            in caplog.text
+        )
         caplog.clear()
-
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
