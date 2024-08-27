@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     TempObjectType,
+    get_aliased_option_name,
     get_copy_into_table_options,
     random_name_for_temp_object,
 )
@@ -582,14 +583,8 @@ class DataFrameReader:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
         """
-        upper_key = key.upper()
-        alias_mapped_key = READER_OPTIONS_ALIAS_MAP.get(upper_key, upper_key)
-        if alias_mapped_key != upper_key:
-            logger.warning(
-                f"Option '{key}' is aliased to '{alias_mapped_key}'. You may see unexpected behavior. "
-                "Please refer to the format specific options for more information."
-            )
-        self._cur_options[alias_mapped_key] = value
+        aliased_key = get_aliased_option_name(key, READER_OPTIONS_ALIAS_MAP)
+        self._cur_options[aliased_key] = value
         return self
 
     def options(self, configs: Dict) -> "DataFrameReader":
