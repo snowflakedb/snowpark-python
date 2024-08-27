@@ -167,13 +167,20 @@ def test_variable_binding_multiple(session):
         "select $1 as a, $2 as b from values (?, ?), (?, ?)", params=[1, "c", 3, "d"]
     )
 
-    """
     df_res = df1.union(df1).union(df2)
     check_result(session, df_res, expect_cte_optimized=True)
     plan_queries = df_res._plan.execution_queries
 
-    assert plan_queries[PlanQueryType.QUERIES][-1].params == [1, "a", 2, "b", 1, "c", 3, "d"]
-    """
+    assert plan_queries[PlanQueryType.QUERIES][-1].params == [
+        1,
+        "a",
+        2,
+        "b",
+        1,
+        "c",
+        3,
+        "d",
+    ]
 
     df_res = df2.union(df1).union(df2).union(df1)
     check_result(session, df_res, expect_cte_optimized=True)
