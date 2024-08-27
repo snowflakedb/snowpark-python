@@ -50,13 +50,14 @@
 
 #### New Features
 
-- Added limited support for the `Timedelta` type, including
+- Added limited support for the `Timedelta` type, including the following features. Snowpark pandas will raise `NotImplementedError` for unsupported `Timedelta` use cases.
   - supporting tracking the Timedelta type through `copy`, `cache_result`, `shift`, `sort_index`.
   - converting non-timedelta to timedelta via `astype`.
   - `NotImplementedError` will be raised for the rest of methods that do not support `Timedelta`.
   - support for subtracting two timestamps to get a Timedelta.
   - support indexing with Timedelta data columns.
   - support for adding or subtracting timestamps and `Timedelta`.
+  - support for binary arithmetic between two `Timedelta` values.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
