@@ -1664,15 +1664,14 @@ class Index(metaclass=TelemetryMeta):
             "_is_index": True,
         }
 
-        internal_data_types = (
-            self._query_compiler._modin_frame.quoted_identifier_to_snowflake_type()
-        )
         internal_index_column = (
             self._query_compiler._modin_frame.index_column_snowflake_quoted_identifiers[
                 0
             ]
         )
-        internal_index_type = internal_data_types[internal_index_column]
+        internal_index_type = self._query_compiler._modin_frame.get_snowflake_type(
+            internal_index_column
+        )
         if isinstance(internal_index_type, ArrayType):
             raise NotImplementedError(
                 "Snowpark pandas does not support `reindex` with tuple-like Index values."

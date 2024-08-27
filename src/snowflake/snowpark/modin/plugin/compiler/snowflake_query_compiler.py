@@ -207,7 +207,6 @@ from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
     ValidIndex,
-    _get_frame_by_row_series_bool,
     convert_snowpark_row_to_pandas_index,
     get_frame_by_col_label,
     get_frame_by_col_pos,
@@ -388,7 +387,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def __init__(self, frame: InternalFrame) -> None:
         """this stores internally a local pandas object (refactor this)"""
-        assert frame is not None and isinstance(frame, InternalFrame)
+        assert frame is not None and isinstance(
+            frame, InternalFrame
+        ), "frame is None or not a InternalFrame"
         self._modin_frame = frame
         # self.snowpark_pandas_api_calls a list of lazy Snowpark pandas telemetry api calls
         # Copying and modifying self.snowpark_pandas_api_calls is taken care of in telemetry decorators
@@ -470,10 +471,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         pandas.Series
             Series with dtypes of each column.
         """
-        col_to_type = self._modin_frame.quoted_identifier_to_snowflake_type()
         types = [
-            TypeMapper.to_pandas(col_to_type[c])
-            for c in self._modin_frame.data_column_snowflake_quoted_identifiers
+            TypeMapper.to_pandas(t)
+            for t in self._modin_frame.get_snowflake_type(
+                self._modin_frame.data_column_snowflake_quoted_identifiers
+            )
         ]
 
         from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
@@ -494,10 +496,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         pandas.Series
             Series with dtypes of each column.
         """
-        col_to_type = self._modin_frame.quoted_identifier_to_snowflake_type()
         return [
-            TypeMapper.to_pandas(col_to_type[c])
-            for c in self._modin_frame.index_column_snowflake_quoted_identifiers
+            TypeMapper.to_pandas(t)
+            for t in self._modin_frame.get_snowflake_type(
+                self._modin_frame.index_column_snowflake_quoted_identifiers
+            )
         ]
 
     @classmethod
@@ -1497,7 +1500,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         fill_value_dtype = infer_object_type(fill_value)
         fill_value = pandas_lit(fill_value) if fill_value is not None else None
-        type_map = frame.quoted_identifier_to_snowflake_type()
 
         def shift_expression_and_type(
             quoted_identifier: str, dtype: DataType
@@ -1542,7 +1544,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         data_column_snowpark_pandas_types = []
         for identifier in frame.data_column_snowflake_quoted_identifiers:
             expression, snowpark_pandas_type = shift_expression_and_type(
-                identifier, type_map[identifier]
+                identifier, frame.get_snowflake_type(identifier)
             )
             quoted_identifier_to_column_map[identifier] = expression
             data_column_snowpark_pandas_types.append(snowpark_pandas_type)
@@ -1683,51 +1685,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             return pd.Index(query_compiler=self)
 
-    def _is_scalar_in_index(self, scalar: Union[Scalar, tuple]) -> bool:
-        """
-        check whether scalar is contained in index or not. May issue up to one COUNT(...) based query, but tries
-        to avoid issuing a query as much as possible through types.
-        Returns:
-            True if contained, False else.
-        """
-        if isinstance(scalar, tuple):
-            # this is multi-index related, check whether scalar exists by splitting scalar up
-            # to check along each index column. Should be done as part of TODO SNOW-920433 index refactoring
-            ErrorMessage.not_implemented(
-                "multi-index key in index check not yet supported"
-            )  # pragma: no cover
-            return False  # pragma: no cover
-        else:
-            frame = self._modin_frame
-
-            # is index column count different? this is the case if dataframe has a multi-index and access is done via a
-            # a scalar (not a tuple)
-            if 1 != len(frame.index_column_snowflake_quoted_identifiers):
-                return False
-
-            sf_scalar_type = infer_object_type(scalar)
-            index_quoted_identifier = frame.index_column_snowflake_quoted_identifiers[0]
-            sf_index_type = frame.quoted_identifier_to_snowflake_type()[
-                index_quoted_identifier
-            ]
-
-            # for variant type always need to check, else compare if scalar access matches type or not
-            if (
-                not isinstance(sf_scalar_type, VariantType)
-                and not isinstance(sf_index_type, VariantType)
-                and sf_scalar_type != sf_index_type
-            ):
-                return False
-
-            # else, compare whether count of scalar is >= 1.
-            scalar_count = count_rows(
-                self._modin_frame.ordered_dataframe.filter(
-                    col(index_quoted_identifier) == scalar
-                ).select(index_quoted_identifier)
-            )
-
-            return scalar_count >= 1
-
     def set_index(
         self,
         keys: list[Union[Hashable, "SnowflakeQueryCompiler"]],
@@ -1748,17 +1705,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if not any(isinstance(k, SnowflakeQueryCompiler) for k in keys):
             return self.set_index_from_columns(keys, drop=drop, append=append)
 
-        self_num_rows = self.get_axis_len(axis=0)
         new_qc = self
         for key in keys:
             if isinstance(key, SnowflakeQueryCompiler):
-                assert (
-                    len(key._modin_frame.data_column_pandas_labels) == 1
-                ), "need to be a series"
-                if key.get_axis_len(0) != self_num_rows:
-                    raise ValueError(
-                        f"Length mismatch: Expected {self_num_rows} rows, received array of length {key.get_axis_len(0)}"
-                    )
                 new_qc = new_qc.set_index_from_series(key, append)
             else:
                 new_qc = new_qc.set_index_from_columns([key], drop, append)
@@ -1867,14 +1816,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 If data in both corresponding DataFrame locations is missing the result will be missing.
                 only arithmetic binary operation has this parameter (e.g., add() has, but eq() doesn't have).
         """
-        type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
         replace_mapping = {}
         data_column_snowpark_pandas_types = []
         for identifier in self._modin_frame.data_column_snowflake_quoted_identifiers:
             expression, snowpark_pandas_type = compute_binary_op_with_fill_value(
                 op=op,
                 lhs=col(identifier),
-                lhs_datatype=lambda: type_map[identifier],  # noqa: B023
+                lhs_datatype=lambda identifier=identifier: self._modin_frame.get_snowflake_type(
+                    identifier
+                ),
                 rhs=pandas_lit(other),
                 rhs_datatype=lambda: infer_object_type(other),
                 fill_value=fill_value,
@@ -1921,7 +1871,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Step 2: The operation will be performed as a broadcast operation over all columns, therefore iterate
         # through all the data quoted identifiers. In the case of a Series, there is only one data column.
-        identifier_to_type_map = new_frame.quoted_identifier_to_snowflake_type()
 
         # Due to the join above, other's data column is the right-most column.
         other_identifier = new_frame.data_column_snowflake_quoted_identifiers[-1]
@@ -1933,9 +1882,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             expression, snowpark_pandas_type = compute_binary_op_with_fill_value(
                 op=op,
                 lhs=col(identifier),
-                lhs_datatype=lambda: identifier_to_type_map[identifier],  # noqa: B023
+                lhs_datatype=lambda identifier=identifier: new_frame.get_snowflake_type(
+                    identifier
+                ),
                 rhs=col(other_identifier),
-                rhs_datatype=lambda: identifier_to_type_map[other_identifier],
+                rhs_datatype=lambda: new_frame.get_snowflake_type(other_identifier),
                 fill_value=fill_value,
             )
             replace_mapping[identifier] = expression
@@ -1986,7 +1937,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         other = other.tolist() if not isinstance(other, list) else other
 
         # each element in the list-like object can be treated as a scalar for each corresponding column.
-        type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
         snowpark_pandas_types = []
         for idx, identifier in enumerate(
             self._modin_frame.data_column_snowflake_quoted_identifiers
@@ -2004,9 +1954,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             expression, snowpark_pandas_type = compute_binary_op_with_fill_value(
                 op,
                 lhs=lhs,
-                lhs_datatype=lambda: type_map[identifier],  # noqa: B023
+                lhs_datatype=lambda identifier=identifier: self._modin_frame.get_snowflake_type(
+                    identifier
+                ),
                 rhs=rhs_lit,
-                rhs_datatype=lambda: infer_object_type(rhs),  # noqa: B023
+                rhs_datatype=lambda rhs=rhs: infer_object_type(rhs),
                 fill_value=fill_value,
             )
             replace_mapping[identifier] = expression
@@ -2125,7 +2077,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
             assert 2 == len(aligned_frame.data_column_snowflake_quoted_identifiers)
 
-            identifier_to_type_map = aligned_frame.quoted_identifier_to_snowflake_type()
             lhs_quoted_identifier = result_column_mapper.map_left_quoted_identifiers(
                 lhs_frame.data_column_snowflake_quoted_identifiers
             )[0]
@@ -2137,9 +2088,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             new_column_expr, snowpark_pandas_type = compute_binary_op_with_fill_value(
                 op=op,
                 lhs=col(lhs_quoted_identifier),
-                lhs_datatype=lambda: identifier_to_type_map[lhs_quoted_identifier],
+                lhs_datatype=lambda: aligned_frame.get_snowflake_type(
+                    lhs_quoted_identifier
+                ),
                 rhs=col(rhs_quoted_identifier),
-                rhs_datatype=lambda: identifier_to_type_map[rhs_quoted_identifier],
+                rhs_datatype=lambda: aligned_frame.get_snowflake_type(
+                    rhs_quoted_identifier
+                ),
                 fill_value=fill_value,
             )
 
@@ -3512,9 +3467,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
             row_position_agg_column_op = AggregateColumnOpParameters(
                 snowflake_quoted_identifier=row_position_quoted_identifier,
-                data_type=internal_frame.quoted_identifier_to_snowflake_type()[
+                data_type=internal_frame.get_snowflake_type(
                     row_position_quoted_identifier
-                ],
+                ),
                 agg_pandas_label=None,
                 agg_snowflake_quoted_identifier=row_position_quoted_identifier,
                 snowflake_agg_func=min_,
@@ -6289,11 +6244,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         sf_format = (
             to_snowflake_timestamp_format(format) if format is not None else None
         )
-        id_to_sf_type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
         col_ids = []
         if include_index:
             col_ids = self._modin_frame.index_column_snowflake_quoted_identifiers
         col_ids.extend(self._modin_frame.data_column_snowflake_quoted_identifiers)
+        id_to_sf_type_map = self._modin_frame.quoted_identifier_to_snowflake_type(
+            col_ids
+        )
+        to_datetime_cols = {}
 
         for col_id in col_ids:
             sf_type = id_to_sf_type_map[col_id]
@@ -6301,8 +6259,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # bool is not allowed in to_datetime (but note that bool is allowed by astype)
                 raise TypeError("dtype bool cannot be converted to datetime64[ns]")
 
-        to_datetime_cols = {
-            col_id: generate_timestamp_col(
+            to_datetime_cols[col_id] = generate_timestamp_col(
                 col(col_id),
                 sf_type,
                 sf_format=sf_format,
@@ -6311,8 +6268,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 unit="ns" if unit is None else unit,
                 origin=origin,
             )
-            for col_id in col_ids
-        }
+
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
                 to_datetime_cols
@@ -7414,9 +7370,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self._raise_not_implemented_error_for_timedelta()
 
         # extract index columns and types, which are passed as first columns to UDF.
-        type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
         index_identifiers = self._modin_frame.index_column_snowflake_quoted_identifiers
-        index_types = [type_map[identifier] for identifier in index_identifiers]
+        index_types = self._modin_frame.get_snowflake_type(index_identifiers)
         n_index_columns = len(index_types)
 
         # If func is passed as Snowpark UserDefinedFunction, extract underlying wrapped function and add its packages.
@@ -7553,12 +7508,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         # get input types of all data columns from the dataframe directly
-        input_types = [
-            datatype
-            for quoted_identifier, datatype in self._modin_frame.quoted_identifier_to_snowflake_type().items()
-            if quoted_identifier
-            in self._modin_frame.data_column_snowflake_quoted_identifiers
-        ]
+        input_types = self._modin_frame.get_snowflake_type(
+            self._modin_frame.data_column_snowflake_quoted_identifiers
+        )
 
         from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 
@@ -8366,7 +8318,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         assert len(self.columns) == 1, "to_numeric only work for series"
 
         col_id = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
-        col_id_sf_type = self._modin_frame.quoted_identifier_to_snowflake_type()[col_id]
+        col_id_sf_type = self._modin_frame.get_snowflake_type(col_id)
         # handle unsupported types
         if isinstance(
             col_id_sf_type, (DateType, TimeType, MapType, ArrayType, BinaryType)
@@ -8808,7 +8760,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         }
 
         astype_mapping = {}
-        id_to_sf_type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
         labels = list(col_dtypes_map.keys())
         col_ids = (
             self._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
@@ -8826,7 +8777,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 to_dtype = col_dtypes_map[label]
                 to_sf_type = TypeMapper.to_snowflake(to_dtype)
                 from_dtype = col_dtypes_curr[label]
-                from_sf_type = id_to_sf_type_map[id]
+                from_sf_type = self._modin_frame.get_snowflake_type(id)
                 if is_astype_type_error(from_sf_type, to_sf_type):
                     raise TypeError(
                         f"dtype {pandas_dtype(from_dtype)} cannot be converted to {pandas_dtype(to_dtype)}"
@@ -8873,7 +8824,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             col_dtypes_curr[column] = self.index.dtype
 
         astype_mapping = {}
-        id_to_sf_type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
         labels = list(col_dtypes_map.keys())
         col_ids = (
             self._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
@@ -8885,7 +8835,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 to_dtype = col_dtypes_map[label]
                 to_sf_type = TypeMapper.to_snowflake(to_dtype)
                 from_dtype = col_dtypes_curr[label]
-                from_sf_type = id_to_sf_type_map[id]
+                from_sf_type = self._modin_frame.get_snowflake_type(id)
                 if is_astype_type_error(from_sf_type, to_sf_type):
                     raise TypeError(
                         f"dtype {pandas_dtype(from_dtype)} cannot be converted to {pandas_dtype(to_dtype)}"
@@ -9012,62 +8962,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         return SnowflakeQueryCompiler(result_frame)
-
-    def getitem_array(self, key: "SnowflakeQueryCompiler") -> "SnowflakeQueryCompiler":
-        """
-        Mask QueryCompiler with `key`. This functions supports 3 different types of masks:
-
-        1. boolean series: A boolean series is used to denote which row to return. E.g.
-                           for key=[True, False, False, True] on a DataFrame with 4 rows,
-                           getitem_array will return the first and last row.
-        2. integer series: A list of integers in range (-n, n-1) with n being the number of rows.
-                           getitem_array will return all rows specified through the integers. E.g., [1, 3, 1] will
-                           return the second, fourth and second row (duplicates ok).
-        3. arbitrary series: If key is neither boolean nor integer, getitem_array will mask column and defer the call
-                             to get_frame_by_col_label. Here, the mask is a column mask of pandas column labels.
-
-        Use getitem_array whenever you want to "mask" rows or columns through a series.
-
-        Parameters
-        ----------
-        key : SnowflakeQueryCompiler, np.ndarray or list of column labels
-            Boolean mask represented by QueryCompiler or ``np.ndarray`` of the same
-            shape as `self`, or enumerable of columns to pick.
-        Returns
-        -------
-        SnowflakeQueryCompiler
-            New masked QueryCompiler.
-        """
-
-        # Non query compiler cases have been handled above, handle here lazy eval case:
-        assert isinstance(key, SnowflakeQueryCompiler)
-        assert len(key.dtypes) == 1, "key must be 1-d series"
-
-        key_dtype = key.dtypes[0]
-
-        # boolean type indicates masked indexing
-        if is_bool_dtype(key_dtype):
-            # ensure that key is a series
-            if key.get_axis_len(axis=0) != self.get_axis_len(axis=0):
-                error_msg = f"Item wrong length {key.get_axis_len(axis=0)} instead of {self.get_axis_len(axis=0)}."
-                raise ValueError(error_msg)
-
-            new_frame = _get_frame_by_row_series_bool(
-                self._modin_frame, key._modin_frame
-            )
-            return SnowflakeQueryCompiler(new_frame)
-
-        # integer type indicates positional indexing
-        elif is_integer_dtype(key_dtype):
-            new_frame = get_frame_by_row_pos_frame(  # pragma: no cover
-                internal_frame=self._modin_frame, key=key._modin_frame
-            )
-            return SnowflakeQueryCompiler(new_frame)
-
-        # all other indexing is retrieving columns
-        return SnowflakeQueryCompiler(  # pragma: no cover
-            get_frame_by_col_label(internal_frame=self._modin_frame, col_loc=key)
-        )
 
     def getitem_row_array(
         self, key: Union[list[Any], "pd.Series", InternalFrame]
@@ -10197,7 +10091,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             An expression to generate the discrete difference along the specified axis, with the
             specified period, for the column specified by `column_position`.
         """
-        column_datatype_map = self._modin_frame.quoted_identifier_to_snowflake_type()
         # If periods is 0, we are doing a subtraction with self (or XOR in case of bool
         # dtype). In this case, even if axis is 0, we prefer to use the col-wise code,
         # since it is more efficient to just subtract (or xor) the columns, than to
@@ -10208,7 +10101,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     column_position
                 ]
             )
-            column_datatype = column_datatype_map.get(snowflake_quoted_identifier)
+            column_datatype = self._modin_frame.get_snowflake_type(
+                snowflake_quoted_identifier
+            )
             # When computing the discrete difference over axis=0, we are basically
             # subtracting each row from the row `periods` previous. We can achieve
             # this using lag (or lead if periods is negative), as that replicates
@@ -10257,8 +10152,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         other_column_position
                     ]
                 )
-                col1_dtype = column_datatype_map.get(col1_snowflake_quoted_identifier)
-                col2_dtype = column_datatype_map.get(col2_snowflake_quoted_identifier)
+                col1_dtype = self._modin_frame.get_snowflake_type(
+                    col1_snowflake_quoted_identifier
+                )
+                col2_dtype = self._modin_frame.get_snowflake_type(
+                    col2_snowflake_quoted_identifier
+                )
                 col1 = col(col1_snowflake_quoted_identifier)
                 col2 = col(col2_snowflake_quoted_identifier)
                 # If both columns are of type bool, pandas uses XOR rather than subtraction.
@@ -10557,7 +10456,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return self.dt_property("is_leap_year")
 
     def dt_daysinmonth(self) -> "SnowflakeQueryCompiler":
-        return self.dt_property("daysinmonth")
+        return self.dt_property("days_in_month")
 
     def dt_days_in_month(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("days_in_month")
@@ -10680,6 +10579,44 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     pandas_lit(False),
                 )
             ),
+            "days_in_month": (
+                lambda column: when(col(column).is_null(), None)
+                .when(
+                    month(col(column)).in_(
+                        pandas_lit(1),
+                        pandas_lit(3),
+                        pandas_lit(5),
+                        pandas_lit(7),
+                        pandas_lit(8),
+                        pandas_lit(10),
+                        pandas_lit(12),
+                    ),
+                    pandas_lit(31),
+                )
+                .when(
+                    month(col(column)).in_(
+                        pandas_lit(4),
+                        pandas_lit(6),
+                        pandas_lit(9),
+                        pandas_lit(11),
+                    ),
+                    pandas_lit(30),
+                )
+                .when(
+                    builtin("day")(
+                        dateadd(
+                            "day",
+                            pandas_lit(1),
+                            date_from_parts(
+                                year(col(column)), pandas_lit(2), pandas_lit(28)
+                            ),
+                        )
+                    )
+                    == pandas_lit(1),
+                    pandas_lit(28),
+                )
+                .otherwise(pandas_lit(29))
+            ),
         }
         property_function = dt_property_to_function_map.get(property_name)
         if not property_function:
@@ -10725,7 +10662,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         is_snowflake_query_compiler = isinstance(values, SnowflakeQueryCompiler)  # type: ignore[union-attr]
         is_series = is_snowflake_query_compiler and values.is_series_like()  # type: ignore[union-attr]
-        type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
 
         # convert list-like values to [lit(...), ..., lit(...)] and determine type
         # which is required to produce correct isin expression using array_contains(...) below
@@ -10750,7 +10686,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     quoted_identifier: scalar_isin_expression(
                         quoted_identifier,
                         values,
-                        type_map[quoted_identifier],
+                        self._modin_frame.get_snowflake_type(quoted_identifier),
                         values_dtype,
                     )
                     for quoted_identifier in self._modin_frame.data_column_snowflake_quoted_identifiers
@@ -10779,7 +10715,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     quoted_identifier: scalar_isin_expression(
                         quoted_identifier,
                         values[label][1],
-                        type_map[quoted_identifier],
+                        self._modin_frame.get_snowflake_type(quoted_identifier),
                         values[label][0],
                     )
                     for label, quoted_identifier in pairs
@@ -11960,9 +11896,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     index_identifier: column_astype(
                         index_identifier,
                         TypeMapper.to_pandas(
-                            internal_frame.quoted_identifier_to_snowflake_type()[
-                                index_identifier
-                            ]
+                            internal_frame.get_snowflake_type(index_identifier)
                         ),
                         index_dtype,
                         TypeMapper.to_snowflake(index_dtype),
@@ -12316,12 +12250,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 back to the appropriate datetime type.
                 """
                 # Can't use QC.astype() in case of duplicate columns since that requires label keys
-                numeric_and_datetime_frame_types = [
-                    numeric_and_datetime_frame.quoted_identifier_to_snowflake_type()[
-                        ident
-                    ]
-                    for ident in numeric_and_datetime_frame.data_column_snowflake_quoted_identifiers
-                ]
+                numeric_and_datetime_frame_types = numeric_and_datetime_frame.get_snowflake_type(
+                    numeric_and_datetime_frame.data_column_snowflake_quoted_identifiers
+                )
                 # Convert datetime cols to NS since epoch
                 datetime_as_epoch_qc = SnowflakeQueryCompiler(
                     numeric_and_datetime_frame.update_snowflake_quoted_identifiers_with_expressions(
@@ -13809,9 +13740,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 List of callables to enable lazy on-demand datatype retrieval.
             """
             return [
-                lambda: joined_frame.result_frame.quoted_identifier_to_snowflake_type()[
-                    identifier  # noqa: B023
-                ]
+                lambda identifier=identifier: joined_frame.result_frame.get_snowflake_type(  # type: ignore[misc]
+                    identifier
+                )
                 for identifier in identifiers
             ]
 
@@ -14348,10 +14279,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         assert len(overlapping_pairs) > 0, "case for no overlapping pairs handled above"
 
         datatype_getters = {
-            identifier: lambda: new_frame.quoted_identifier_to_snowflake_type()[
-                identifier  # noqa: B023
-            ]
-            for _, identifier in overlapping_pairs  # noqa: B023
+            identifier: lambda identifier=identifier: new_frame.get_snowflake_type(
+                identifier
+            )
+            for _, identifier in overlapping_pairs
         }
 
         replace_mapping = {}

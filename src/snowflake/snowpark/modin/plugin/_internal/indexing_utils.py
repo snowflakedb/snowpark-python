@@ -52,7 +52,6 @@ from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
 )
 from snowflake.snowpark.modin.plugin._internal.type_utils import (
     NUMERIC_SNOWFLAKE_TYPES_TUPLE,
-    is_numeric_snowpark_type,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
     DEFAULT_DATA_COLUMN_LABEL,
@@ -141,7 +140,7 @@ def get_valid_index_values(
             ordered_dataframe.select(index_quoted_identifier).limit(1).collect()
         )
     else:
-        assert first_or_last is ValidIndex.LAST
+        assert first_or_last is ValidIndex.LAST, "first_or_last is not ValidIndex.LAST"
         valid_index_values = (
             ordered_dataframe.sort(
                 [OrderingColumn(row_position_quoted_identifier, ascending=False)]
@@ -383,9 +382,9 @@ def get_frame_by_row_pos_frame(
         The selected frame
     """
     # check data type
-    key_datatype = key.quoted_identifier_to_snowflake_type()[
+    key_datatype = key.get_snowflake_type(
         key.data_column_snowflake_quoted_identifiers[0]
-    ]
+    )
     # implicitly allow float types to be compatible with pandas
     assert isinstance(
         key_datatype, NUMERIC_SNOWFLAKE_TYPES_TUPLE
@@ -1238,9 +1237,9 @@ def get_frame_by_row_label(
     ), f"frontend should convert key to the supported types but got {type(key)}"
 
     # check data type
-    key_datatype = key.quoted_identifier_to_snowflake_type()[
+    key_datatype = key.get_snowflake_type(
         key.data_column_snowflake_quoted_identifiers[0]
-    ]
+    )
 
     # boolean indexer
     if isinstance(key_datatype, BooleanType):
@@ -1652,9 +1651,7 @@ def _get_frame_by_row_label_non_boolean_frame(
         # Otherwise, when key value is not array type, loc does prefix match, i.e., match the top level only
         # e.g., if the internal frame has multiindex ["foo", "bar"]
         if isinstance(
-            key.quoted_identifier_to_snowflake_type()[
-                key.data_column_snowflake_quoted_identifiers[0]
-            ],
+            key.get_snowflake_type(key.data_column_snowflake_quoted_identifiers[0]),
             ArrayType,
         ):
             # if the key is array type, pandas performs exact match, so the value in the array needs to be exact
@@ -1697,91 +1694,6 @@ def _get_frame_by_row_label_non_boolean_frame(
         ),
         data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
         index_column_pandas_labels=joined_frame.index_column_pandas_labels,
-        index_column_snowflake_quoted_identifiers=result_column_mapper.map_right_quoted_identifiers(
-            internal_frame.index_column_snowflake_quoted_identifiers
-        ),
-        data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
-        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
-    )
-
-
-def _get_frame_by_row_series_bool(
-    internal_frame: InternalFrame,
-    key: InternalFrame,
-) -> InternalFrame:
-    """
-    Helper function for `get_frame_2d_by_label_and_positional` by row with Series[bool] input.
-
-    key will be reindexed to match DataFrame index.
-    Return an InternalFrame with rows from `internal_frame` whose index are indexes in the boolean mask with True value.
-
-    Parameters
-    ----------
-    internal_frame: the InternalFrame of the series calling loc
-    key: InternalFrame of Series[bool] input.
-
-    Returns
-    -------
-    Result InternalFrame from loc by row with Series boolean mask.
-
-    """
-    # TODO: SNOW-884220 support Series[bool] with multiindex
-    # we only support single index for now.
-    key_index_identifier = key.index_column_snowflake_quoted_identifiers[0]
-
-    # validate no duplicate index in key
-    if not key.has_unique_index(axis=0):
-        raise UNALIGNABLE_INDEXING_ERROR
-    # raise error unless both are numeric or have the same type, otherwise isin will do Implicit Casting (“Coercion”)
-    # e.g. if key's index is Index([1, 2, 3]) and df's index is Index(["1", "2", "3"]) they do not match in pandas
-    # TODO SNOW-878592: if key has DateTimeIndex, and df has str index, it should be valid and supported.
-    #  No need to support the other way around.
-    # e.g. `df = pd.DataFrame({'val': range(3)}, index=['2023-01-01', '2023-01-02', '2023-01-03', ])
-    # bool_series = pd.Series([False, False, True, ],index=pd.date_range('2023-01-01', periods=3, freq='D'))
-    # `df.loc[bool_series]` should return a dataframe with the third row from df
-    key_index_type = key.quoted_identifier_to_snowflake_type()[key_index_identifier]
-    df_index_type = internal_frame.quoted_identifier_to_snowflake_type()[
-        internal_frame.index_column_snowflake_quoted_identifiers[0]
-    ]
-    if (
-        not (
-            is_numeric_snowpark_type(key_index_type)
-            and is_numeric_snowpark_type(df_index_type)
-        )
-        and df_index_type != key_index_type
-    ):
-        raise UNALIGNABLE_INDEXING_ERROR
-
-    new_key = InternalFrame.create(
-        # filter key based on boolean mask
-        ordered_dataframe=key.ordered_dataframe.filter(
-            key.data_column_snowflake_quoted_identifiers[0]
-        ),
-        data_column_pandas_labels=key.data_column_pandas_labels,
-        data_column_pandas_index_names=key.data_column_pandas_index_names,
-        data_column_snowflake_quoted_identifiers=key.data_column_snowflake_quoted_identifiers,
-        index_column_pandas_labels=key.index_column_pandas_labels,
-        index_column_snowflake_quoted_identifiers=key.index_column_snowflake_quoted_identifiers,
-        data_column_types=key.cached_data_column_snowpark_pandas_types,
-        index_column_types=key.cached_index_column_snowpark_pandas_types,
-    )
-
-    joined_frame, result_column_mapper = join(
-        left=new_key,
-        right=internal_frame,
-        left_on=key.index_column_snowflake_quoted_identifiers,
-        right_on=internal_frame.index_column_snowflake_quoted_identifiers,
-        how="inner",
-        inherit_join_index=InheritJoinIndex.FROM_RIGHT,
-    )
-    return InternalFrame.create(
-        ordered_dataframe=joined_frame.ordered_dataframe,
-        data_column_pandas_labels=internal_frame.data_column_pandas_labels,
-        data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
-        data_column_snowflake_quoted_identifiers=result_column_mapper.map_right_quoted_identifiers(
-            internal_frame.data_column_snowflake_quoted_identifiers
-        ),
-        index_column_pandas_labels=internal_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=result_column_mapper.map_right_quoted_identifiers(
             internal_frame.index_column_snowflake_quoted_identifiers
         ),
@@ -2679,9 +2591,9 @@ def set_frame_2d_positional(
     -------
     The result is a frame that has the indexed row and columns replaced with item values.
     """
-    index_data_type = index.quoted_identifier_to_snowflake_type()[
+    index_data_type = index.get_snowflake_type(
         index.data_column_snowflake_quoted_identifiers[0]
-    ]
+    )
 
     # If index is a bool_indexer then convert to same-sized position index, False values will be null.
     if isinstance(index_data_type, BooleanType):

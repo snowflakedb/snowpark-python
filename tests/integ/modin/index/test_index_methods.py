@@ -22,6 +22,7 @@ from tests.integ.modin.utils import (
     assert_index_equal,
     assert_series_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    eval_snowpark_pandas_result,
 )
 
 
@@ -469,3 +470,30 @@ def test_index_is_type(native_index, func):
     snow_res = getattr(snow_index, func)()
     native_res = getattr(native_index, func)()
     assert snow_res == native_res
+
+
+@pytest.mark.parametrize("obj_type", ["df", "series"])
+def test_df_series_set_index_and_reset_index(obj_type):
+    obj = {"A": [1, 2, 3], "B": [4, 5, 6]}
+    original_index = ["A", "B", "C"]
+    assert_equal = assert_frame_equal if obj_type == "df" else assert_series_equal
+    native_obj = (
+        native_pd.DataFrame(obj, index=original_index)
+        if obj_type == "df"
+        else native_pd.Series(obj, index=original_index)
+    )
+    snow_obj = pd.DataFrame(native_obj) if obj_type == "df" else pd.Series(native_obj)
+
+    # Index object to change obj's index to.
+    native_idx = native_pd.Index([11, 22, 33])
+    snow_idx = pd.Index(native_idx)
+
+    # Test that df.index = new_index works with lazy index.
+    with SqlCounter(query_count=1):
+        native_obj.index = native_idx
+        snow_obj.index = snow_idx
+        assert_equal(snow_obj, native_obj)
+
+    # Check if reset_index works with lazy index.
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(snow_obj, native_obj, lambda df: df.reset_index())
