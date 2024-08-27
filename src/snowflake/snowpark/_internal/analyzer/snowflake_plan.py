@@ -1608,7 +1608,9 @@ class SnowflakePlanBuilder:
 
         new_query = project_statement([], name)
 
-        queries = child.queries[:-1] + [Query(sql=new_query)]
+        queries = child.queries[:-1] + [
+            Query(sql=new_query, params=child.queries[-1].params)
+        ]
         # propagate the cte table
         referenced_ctes = {name}.union(child.referenced_ctes)
 
