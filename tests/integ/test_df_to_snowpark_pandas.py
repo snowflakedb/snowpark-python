@@ -51,7 +51,7 @@ def test_to_snowpark_pandas_no_modin(session, tmp_table_basic):
         # modin is not installed.
         match = (
             "Snowpark pandas does not support Python 3.8. Please update to Python 3.9 or later"
-            if sys.version_info == (3, 8)
+            if sys.version_info.major == 3 and sys.version_info.minor == 8
             else "does not match the supported pandas version in Snowpark pandas"
         )
         with pytest.raises(
