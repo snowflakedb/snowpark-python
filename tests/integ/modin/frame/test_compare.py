@@ -35,16 +35,10 @@ JOIN_COUNT_SINGLE_LEVEL_INDEX = 4
 def base_df() -> native_pd.DataFrame:
     return native_pd.DataFrame(
         [
-            [None, None, 3.1, pd.Timestamp("2024-01-01"), [130]],
-            [
-                "a",
-                1,
-                4.2,
-                pd.Timestamp("2024-02-01"),
-                [131],
-            ],
-            ["b", 2, 5.3, pd.Timestamp("2024-03-01"), [132]],
-            [None, 3, 6.4, pd.Timestamp("2024-04-01"), [133]],
+            [None, None, 3.1, pd.Timestamp("2024-01-01"), [130], pd.Timedelta(1)],
+            ["a", 1, 4.2, pd.Timestamp("2024-02-01"), [131], pd.Timedelta(11)],
+            ["b", 2, 5.3, pd.Timestamp("2024-03-01"), [132], pd.Timedelta(21)],
+            [None, 3, 6.4, pd.Timestamp("2024-04-01"), [133], pd.Timedelta(13)],
         ],
         index=pd.MultiIndex.from_tuples(
             [
@@ -64,6 +58,7 @@ def base_df() -> native_pd.DataFrame:
                 ("group_2", "float_col"),
                 ("group_2", "timestamp_col"),
                 ("group_2", "list_col"),
+                ("group_2", "timedelta_col"),
             ],
             names=["column_level1", "column_level2"],
         ),

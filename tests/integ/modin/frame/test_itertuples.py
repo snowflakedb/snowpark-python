@@ -37,6 +37,7 @@ ITERTUPLES_DF_DATA = [
     native_pd.DataFrame([[1, 1.5], [2, 2.5], [3, 7.8]], columns=["i nt", "flo at"]),
     # empty df
     native_pd.DataFrame([]),
+    native_pd.DataFrame({"ts": native_pd.timedelta_range(10, periods=10)}),
 ]
 
 

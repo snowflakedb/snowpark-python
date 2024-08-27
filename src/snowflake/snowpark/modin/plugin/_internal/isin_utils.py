@@ -14,6 +14,9 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.indexing_utils import set_frame_2d_labels
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    SnowparkPandasType,
+)
 from snowflake.snowpark.modin.plugin._internal.type_utils import infer_series_type
 from snowflake.snowpark.modin.plugin._internal.utils import (
     append_columns,
@@ -99,6 +102,13 @@ def scalar_isin_expression(
             pandas_lit(literal_expr._expression.value, VariantType())
             for literal_expr in values
         ]
+
+    # Case 4: If column's and values' data type differs and any of the type is SnowparkPandasType
+    elif values_dtype != column_dtype and (
+        isinstance(values_dtype, SnowparkPandasType)
+        or isinstance(column_dtype, SnowparkPandasType)
+    ):
+        return pandas_lit(False)
 
     values = array_construct(*values)
 

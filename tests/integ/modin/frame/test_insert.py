@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import functools
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -768,3 +770,32 @@ def test_insert_with_unique_and_duplicate_index_values(
         expected_res = native_df1.join(native_df2["bar"], how="left", sort=False)
         expected_res = expected_res[["bar", "foo"]]
         assert_frame_equal(snow_res, expected_res, check_dtype=False)
+
+
+@sql_count_checker(query_count=4, join_count=6)
+def test_insert_timedelta():
+    native_df = native_pd.DataFrame({"col1": [1, 2], "col2": [3, 4]})
+    snow_df = pd.DataFrame(native_df)
+
+    def insert(column, vals, df):
+        if isinstance(df, pd.DataFrame) and isinstance(vals, native_pd.Series):
+            values = pd.Series(vals)
+        else:
+            values = vals
+        df.insert(1, column, values)
+        return df
+
+    vals = native_pd.timedelta_range(1, periods=2)
+    eval_snowpark_pandas_result(
+        snow_df, native_df, functools.partial(insert, "td", vals)
+    )
+
+    vals = native_pd.Series(native_pd.timedelta_range(1, periods=2))
+    eval_snowpark_pandas_result(
+        snow_df, native_df, functools.partial(insert, "td2", vals)
+    )
+
+    vals = native_pd.Series(native_pd.timedelta_range(1, periods=2), index=[0, 2])
+    eval_snowpark_pandas_result(
+        snow_df, native_df, functools.partial(insert, "td3", vals)
+    )

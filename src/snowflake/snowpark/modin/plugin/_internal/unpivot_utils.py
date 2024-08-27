@@ -735,12 +735,16 @@ def _simple_unpivot(
     # create the initial set of columns to be retained as identifiers and those
     # which will be unpivoted. Collect data type information.
     unpivot_quoted_columns = []
+    unpivot_quoted_column_types = []
+
     ordering_decode_conditions = []
     id_col_names = []
     id_col_quoted_identifiers = []
-    for (pandas_label, snowflake_quoted_identifier) in zip(
+    id_col_types = []
+    for (pandas_label, snowflake_quoted_identifier, sp_pandas_type) in zip(
         frame.data_column_pandas_labels,
         frame.data_column_snowflake_quoted_identifiers,
+        frame.cached_data_column_snowpark_pandas_types,
     ):
         is_id_col = pandas_label in pandas_id_columns
         is_var_col = pandas_label in pandas_value_columns
@@ -752,9 +756,11 @@ def _simple_unpivot(
                 col(var_quoted) == pandas_lit(pandas_label)
             )
             unpivot_quoted_columns.append(snowflake_quoted_identifier)
+            unpivot_quoted_column_types.append(sp_pandas_type)
         if is_id_col:
             id_col_names.append(pandas_label)
             id_col_quoted_identifiers.append(snowflake_quoted_identifier)
+            id_col_types.append(sp_pandas_type)
 
     # create the case expressions used for the final result set ordering based
     # on the column position. This clause will be appled after the unpivot
@@ -787,7 +793,7 @@ def _simple_unpivot(
                 pandas_labels=[unquoted_col_name],
             )[0]
         )
-        # coalese the values to unpivot and preserve null values This code
+        # coalesce the values to unpivot and preserve null values This code
         # can be removed when UNPIVOT_INCLUDE_NULLS is enabled
         unpivot_columns_normalized_types.append(
             coalesce(to_variant(c), to_variant(pandas_lit(null_replace_value))).alias(
@@ -870,6 +876,13 @@ def _simple_unpivot(
         var_quoted,
         corrected_value_column_name,
     ]
+    corrected_value_column_type = None
+    if len(set(unpivot_quoted_column_types)) == 1:
+        corrected_value_column_type = unpivot_quoted_column_types[0]
+    final_snowflake_quoted_col_types = id_col_types + [
+        None,
+        corrected_value_column_type,
+    ]
 
     # Create the new frame and compiler
     return InternalFrame.create(
@@ -881,8 +894,8 @@ def _simple_unpivot(
         index_column_snowflake_quoted_identifiers=[
             ordered_dataframe.row_position_snowflake_quoted_identifier
         ],
-        data_column_types=None,
-        index_column_types=None,
+        data_column_types=final_snowflake_quoted_col_types,
+        index_column_types=[None],
     )
 
 

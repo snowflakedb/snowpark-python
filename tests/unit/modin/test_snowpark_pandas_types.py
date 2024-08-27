@@ -14,6 +14,7 @@ from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
     SnowparkPandasType,
     TimedeltaType,
 )
+from snowflake.snowpark.types import LongType
 
 
 def test_timedelta_type_is_immutable():
@@ -68,3 +69,9 @@ def test_get_snowpark_pandas_type_for_pandas_type(pandas_obj, snowpark_pandas_ty
 )
 def test_TimedeltaType_from_pandas(timedelta, snowpark_pandas_value):
     assert TimedeltaType.from_pandas(timedelta) == snowpark_pandas_value
+
+
+def test_equals():
+    assert TimedeltaType() == TimedeltaType()
+    assert TimedeltaType() != LongType()
+    assert LongType() != TimedeltaType()

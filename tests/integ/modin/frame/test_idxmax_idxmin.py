@@ -197,6 +197,26 @@ def test_idxmax_idxmin_with_dates(func, axis):
 @sql_count_checker(query_count=1)
 @pytest.mark.parametrize("func", ["idxmax", "idxmin"])
 @pytest.mark.parametrize("axis", [0, 1])
+@pytest.mark.xfail(reason="SNOW-1625380 TODO")
+def test_idxmax_idxmin_with_timedelta(func, axis):
+    native_df = native_pd.DataFrame(
+        data={
+            "date_1": native_pd.timedelta_range(1, periods=3),
+            "date_2": [pd.Timedelta(1), pd.Timedelta(-1), pd.Timedelta(0)],
+        },
+        index=[10, 17, 12],
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: getattr(df, func)(axis=axis),
+    )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("func", ["idxmax", "idxmin"])
+@pytest.mark.parametrize("axis", [0, 1])
 def test_idxmax_idxmin_with_strings(func, axis):
     eval_snowpark_pandas_result(
         *create_test_dfs(

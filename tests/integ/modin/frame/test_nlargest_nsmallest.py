@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import modin.pandas as pd
+import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -124,3 +125,20 @@ def test_nlargest_nsmallest_non_numeric_types(method, data):
     n = 2
     expected_df = snow_df.sort_values("A", ascending=(method == "nsmallest")).head(n)
     assert_frame_equal(getattr(snow_df, method)(n, "A"), expected_df)
+
+
+@pytest.mark.parametrize("n", [1, 2, 4])
+@pytest.mark.parametrize("columns", ["A", "B", ["A", "B"], ["B", "A"]])
+@pytest.mark.parametrize("keep", ["first", "last"])
+@sql_count_checker(query_count=1)
+def test_time_delta_nlargest_nsmallest(method, n, columns, keep):
+    native_df = native_pd.DataFrame(
+        {"A": [3, 2, 1, 4, 4], "B": [1, 2, 3, 4, 5]}
+    ).astype("timedelta64[ns]")
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: getattr(df, method)(n, columns=columns, keep=keep),
+    )

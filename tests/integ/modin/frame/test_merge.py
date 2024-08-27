@@ -1156,3 +1156,56 @@ def test_merge_validate_negative(lvalues, rvalues, validate):
     msg = "Snowpark pandas merge API doesn't yet support 'validate' parameter"
     with pytest.raises(NotImplementedError, match=msg):
         left.merge(right, left_on="A", right_on="B", validate=validate)
+
+
+@sql_count_checker(query_count=4, join_count=4)
+def test_merge_timedelta():
+    left_df = native_pd.DataFrame(
+        {"lkey": ["foo", "bar", "baz", "foo"], "value": [1, 2, 3, 5]}
+    ).astype({"value": "timedelta64[ns]"})
+    right_df = native_pd.DataFrame(
+        {"rkey": ["foo", "bar", "baz", "foo"], "value": [5, 6, 7, 8]}
+    ).astype({"value": "timedelta64[ns]"})
+    eval_snowpark_pandas_result(
+        pd.DataFrame(left_df),
+        left_df,
+        lambda df: df.merge(
+            pd.DataFrame(right_df) if isinstance(df, pd.DataFrame) else right_df,
+            left_on="lkey",
+            right_on="rkey",
+        ),
+    )
+
+    left_df = native_pd.DataFrame({"a": ["foo", "bar"], "b": [1, 2]}).astype(
+        {"b": "timedelta64[ns]"}
+    )
+    right_df = native_pd.DataFrame({"a": ["foo", "baz"], "c": [3, 4]}).astype(
+        {"c": "timedelta64[ns]"}
+    )
+    eval_snowpark_pandas_result(
+        pd.DataFrame(left_df),
+        left_df,
+        lambda df: df.merge(
+            pd.DataFrame(right_df) if isinstance(df, pd.DataFrame) else right_df,
+            how="inner",
+            on="a",
+        ),
+    )
+
+    eval_snowpark_pandas_result(
+        pd.DataFrame(left_df),
+        left_df,
+        lambda df: df.merge(
+            pd.DataFrame(right_df) if isinstance(df, pd.DataFrame) else right_df,
+            how="right",
+            on="a",
+        ),
+    )
+    eval_snowpark_pandas_result(
+        pd.DataFrame(left_df),
+        left_df,
+        lambda df: df.merge(
+            pd.DataFrame(right_df) if isinstance(df, pd.DataFrame) else right_df,
+            how="cross",
+        ),
+    )

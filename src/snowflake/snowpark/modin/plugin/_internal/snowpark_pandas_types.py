@@ -101,6 +101,13 @@ class SnowparkPandasType(DataType, metaclass=SnowparkPandasTypeMetaclass):
             return _type_to_snowpark_pandas_type[pandas_type]()
         return None
 
+    def type_match(self, value: Any) -> bool:
+        """Return True if the value's type matches self."""
+        val_type = SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(
+            type(value)
+        )
+        return self == val_type
+
 
 class SnowparkPandasColumn(NamedTuple):
     """A Snowpark Column that has an optional SnowparkPandasType."""
@@ -111,7 +118,7 @@ class SnowparkPandasColumn(NamedTuple):
     snowpark_pandas_type: Optional[SnowparkPandasType]
 
 
-class TimedeltaType(SnowparkPandasType, LongType):
+class TimedeltaType(SnowparkPandasType):
     """
     Timedelta represents the difference between two times.
 
@@ -132,6 +139,12 @@ class TimedeltaType(SnowparkPandasType, LongType):
         # Timedelta support.
         WarningMessage.single_warning(TIMEDELTA_WARNING_MESSAGE)
         super().__init__()
+
+    def __eq__(self, other: Any) -> bool:
+        return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+    def __ne__(self, other: Any) -> bool:
+        return not self.__eq__(other)
 
     @staticmethod
     def to_pandas(value: int) -> native_pd.Timedelta:
