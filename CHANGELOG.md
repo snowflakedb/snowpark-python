@@ -119,6 +119,7 @@
 #### Improvements
 
 - Fix pandas FutureWarning about integer indexing.
+- Improve concat, join performance when operations are performed on series coming from the same dataframe.
 
 ### Snowpark pandas API Updates
 
