@@ -287,7 +287,7 @@ def update_resolvable_node(
 
 
 def get_snowflake_plan_queries(
-    plan: SnowflakePlan, resolved_with_query_blocks: Dict[str, str]
+    plan: SnowflakePlan, resolved_with_query_blocks: Dict[str, Query]
 ) -> Dict[PlanQueryType, List[Query]]:
 
     from snowflake.snowpark._internal.analyzer.analyzer_utils import cte_statement
@@ -301,12 +301,16 @@ def get_snowflake_plan_queries(
         post_action_queries = copy.deepcopy(plan.post_actions)
         table_names = []
         definition_queries = []
+        final_query_params = []
         for name, definition_query in resolved_with_query_blocks.items():
             if name in plan.referenced_ctes:
                 table_names.append(name)
-                definition_queries.append(definition_query)
+                definition_queries.append(definition_query.sql)
+                final_query_params.extend(definition_query.params)
         with_query = cte_statement(definition_queries, table_names)
         plan_queries[-1].sql = with_query + plan_queries[-1].sql
+        final_query_params.extend(plan_queries[-1].params)
+        plan_queries[-1].params = final_query_params
 
     return {
         PlanQueryType.QUERIES: plan_queries,

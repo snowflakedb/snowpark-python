@@ -64,7 +64,7 @@ class QueryGenerator(Analyzer):
         # NOTE: the dict used here is an ordered dict, all with query block definition is recorded in the
         # order of when the with query block is visited. The order is important to make sure the dependency
         # between the CTE definition is satisfied.
-        self.resolved_with_query_block: Dict[str, str] = {}
+        self.resolved_with_query_block: Dict[str, Query] = {}
 
     def generate_queries(
         self, logical_plans: List[LogicalPlan]
@@ -209,7 +209,7 @@ class QueryGenerator(Analyzer):
             if logical_plan.name not in self.resolved_with_query_block:
                 self.resolved_with_query_block[
                     logical_plan.name
-                ] = resolved_child.queries[-1].sql
+                ] = resolved_child.queries[-1]
 
             resolved_plan = self.plan_builder.with_query_block(
                 logical_plan.name,
