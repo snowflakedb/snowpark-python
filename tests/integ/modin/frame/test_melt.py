@@ -305,8 +305,9 @@ def test_everything():
     )
 
 
-@sql_count_checker(query_count=2)
-def test_melt_timedelta():
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("value_vars", [["B"], ["B", "C"]])
+def test_melt_timedelta(value_vars):
     native_df = npd.DataFrame(
         {
             "A": {0: "a", 1: "b", 2: "c"},
@@ -316,9 +317,5 @@ def test_melt_timedelta():
     ).astype({"B": "timedelta64[ns]", "C": "timedelta64[ns]"})
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(
-        snow_df, native_df, lambda df: df.melt(id_vars=["A"], value_vars=["B"])
-    )
-
-    eval_snowpark_pandas_result(
-        snow_df, native_df, lambda df: df.melt(id_vars=["A"], value_vars=["B", "C"])
+        snow_df, native_df, lambda df: df.melt(id_vars=["A"], value_vars=value_vars)
     )
