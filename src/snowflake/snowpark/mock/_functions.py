@@ -418,6 +418,13 @@ def mock_sqrt(column: ColumnEmulator):
     return result
 
 
+@patch("ln")
+def mock_ln(column: ColumnEmulator):
+    result = column.apply(math.log)
+    result.sf_type = ColumnType(FloatType(), column.sf_type.nullable)
+    return result
+
+
 @patch("pow")
 def mock_pow(left: ColumnEmulator, right: ColumnEmulator):
     result = left.combine(right, lambda l, r: l**r)
