@@ -376,3 +376,25 @@ def test_reindex_multiindex_negative():
         match="Snowpark pandas doesn't support `reindex` with MultiIndex",
     ):
         snow_series.reindex(index=[1, 2, 3])
+
+
+def test_reindex_with_index_name():
+    native_series = native_pd.Series([0, 1, 2], index=list("ABC"), name="test")
+    snow_series = pd.Series(native_series)
+    index_with_name = native_pd.Index(list("CAB"), name="weewoo")
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        snow_series.reindex(index=index_with_name),
+        native_series.reindex(index=index_with_name),
+    )
+
+
+def test_reindex_with_index_name_and_series_index_name():
+    native_series = native_pd.Series(
+        [0, 1, 2], index=native_pd.Index(list("ABC"), name="AAAAA"), name="test"
+    )
+    snow_series = pd.Series(native_series)
+    index_with_name = native_pd.Index(list("CAB"), name="weewoo")
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        snow_series.reindex(index=index_with_name),
+        native_series.reindex(index=index_with_name),
+    )
