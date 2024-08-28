@@ -76,7 +76,7 @@
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 - Fixed AssertionError in tree of binary operations.
 - Fixed a bug where `Series.reindex` and `DataFrame.reindex` did not update the result index's name correctly.
-- Fixed a bug where `Index` objects were not set correctly during binary operations.
+- Fixed a bug where `Index.name` was not being set correctly during binary operations.
 
 ## 1.21.0 (2024-08-19)
 
