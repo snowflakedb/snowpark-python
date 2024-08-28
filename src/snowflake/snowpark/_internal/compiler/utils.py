@@ -268,6 +268,15 @@ def update_resolvable_node(
     elif isinstance(node, (SelectSnowflakePlan, SelectTableFunction)):
         assert node.snowflake_plan is not None
         update_resolvable_node(node.snowflake_plan, query_generator)
+        node.pre_actions = node.snowflake_plan.queries[:-1]
+        node.post_actions = node.snowflake_plan.post_actions
+        node._api_calls = node.snowflake_plan.api_calls
+        if isinstance(node, SelectSnowflakePlan):
+            node._query_params = []
+            for query in node._snowflake_plan.queries:
+                if query.params:
+                    node._query_params.extend(query.params)
+
         node.analyzer = query_generator
 
         node.pre_actions = node._snowflake_plan.queries[:-1]
@@ -318,3 +327,8 @@ def get_snowflake_plan_queries(
         PlanQueryType.QUERIES: plan_queries,
         PlanQueryType.POST_ACTIONS: post_action_queries,
     }
+
+
+def is_active_transaction(session):
+    """Check is the session has an active transaction."""
+    return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
