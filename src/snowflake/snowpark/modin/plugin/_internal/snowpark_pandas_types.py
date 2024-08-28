@@ -118,7 +118,7 @@ class SnowparkPandasColumn(NamedTuple):
     snowpark_pandas_type: Optional[SnowparkPandasType]
 
 
-class TimedeltaType(SnowparkPandasType):
+class TimedeltaType(SnowparkPandasType, LongType):
     """
     Timedelta represents the difference between two times.
 
