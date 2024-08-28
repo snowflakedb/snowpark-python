@@ -1322,9 +1322,13 @@ class DataFrame:
                     temp_join_plan = self._session._analyzer.resolve(
                         TableFunctionJoin(self._plan, func_expr)
                     )
-                    _, new_cols, alias_cols = _get_cols_after_join_table(
+                    old_cols, new_cols, alias_cols = _get_cols_after_join_table(
                         func_expr, self._plan, temp_join_plan
                     )
+
+                    # TODO: Bug in Snowpark? This here always assumes names=[], yet there may be overlap between old_cols/new_cols.
+                    names = old_cols
+
                 # when generating join table expression, we inculcate aliased column into the initial
                 # query like so,
                 #
@@ -5082,7 +5086,11 @@ Query List:
 
     def _resolve(self, col_name: str) -> Union[Expression, NamedExpression]:
         normalized_col_name = quote_name(col_name)
-        cols = list(filter(lambda attr: attr.name == normalized_col_name, self._output))
+        cols = list(
+            filter(
+                lambda attr: quote_name(attr.name) == normalized_col_name, self._output
+            )
+        )
         if len(cols) == 1:
             return cols[0].with_name(normalized_col_name)
         else:
