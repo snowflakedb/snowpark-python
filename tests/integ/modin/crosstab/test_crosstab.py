@@ -11,10 +11,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import (
-    assert_snowpark_pandas_equal_to_pandas,
-    eval_snowpark_pandas_result,
-)
+from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 
 @pytest.mark.parametrize("dropna", [True, False])
@@ -190,18 +187,23 @@ class TestCrosstab:
                 "shiny",
             ],
         )
+
+        def eval_func(lib):
+            if lib is pd:
+                return lib.crosstab(
+                    a,
+                    [lib.Series(b), lib.Series(c)],
+                    rownames=["a"],
+                    colnames=["b", "c"],
+                    dropna=dropna,
+                )
+            else:
+                return lib.crosstab(
+                    a, [b, c], rownames=["a"], colnames=["b", "c"], dropna=dropna
+                )
+
         with SqlCounter(query_count=query_count, join_count=join_count):
-            native_df = native_pd.crosstab(
-                a, [b, c], rownames=["a"], colnames=["b", "c"], dropna=dropna
-            )
-            snow_df = pd.crosstab(
-                a,
-                [pd.Series(b), pd.Series(c)],
-                rownames=["a"],
-                colnames=["b", "c"],
-                dropna=dropna,
-            )
-            assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
+            eval_snowpark_pandas_result(pd, native_pd, eval_func)
 
     def test_basic_crosstab_with_series_objs_some_overlap(self, dropna):
         # In this case, some values are shared across indexes (non-zero intersection),
@@ -806,22 +808,30 @@ class TestCrosstab:
         )
         snow_df = pd.DataFrame(native_df)
 
+        def eval_func(df):
+            if isinstance(df, pd.DataFrame):
+                return pd.crosstab(
+                    df["species"],
+                    df["favorite_food"],
+                    values=df["age"],
+                    aggfunc=aggfunc,
+                    dropna=dropna,
+                )
+            else:
+                return native_pd.crosstab(
+                    df["species"],
+                    df["favorite_food"],
+                    values=df["age"],
+                    aggfunc=aggfunc,
+                    dropna=dropna,
+                )
+
         with SqlCounter(query_count=query_count, join_count=join_count):
-            native_df = native_pd.crosstab(
-                native_df["species"],
-                native_df["favorite_food"],
-                values=native_df["age"],
-                aggfunc=aggfunc,
-                dropna=dropna,
+            eval_snowpark_pandas_result(
+                snow_df,
+                native_df,
+                eval_func,
             )
-            snow_df = pd.crosstab(
-                snow_df["species"],
-                snow_df["favorite_food"],
-                values=snow_df["age"],
-                aggfunc=aggfunc,
-                dropna=dropna,
-            )
-            assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
 
 
 @sql_count_checker(query_count=0)
