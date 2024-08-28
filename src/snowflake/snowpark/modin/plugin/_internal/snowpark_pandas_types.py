@@ -12,12 +12,7 @@ import numpy as np
 import pandas as native_pd
 
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.types import DataType, LongType
-
-TIMEDELTA_WARNING_MESSAGE = (
-    "Snowpark pandas support for Timedelta is not currently available."
-)
 
 """Map Python type to its from_pandas method"""
 _python_type_to_from_pandas: dict[type, Callable[[Any], Any]] = {}
@@ -128,9 +123,6 @@ class TimedeltaType(SnowparkPandasType, LongType):
     )
 
     def __init__(self) -> None:
-        # TODO(SNOW-1620452): Remove this warning message before releasing
-        # Timedelta support.
-        WarningMessage.single_warning(TIMEDELTA_WARNING_MESSAGE)
         super().__init__()
 
     @staticmethod
