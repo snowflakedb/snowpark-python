@@ -1326,8 +1326,11 @@ class DataFrame:
                         func_expr, self._plan, temp_join_plan
                     )
 
-                    # TODO: Bug in Snowpark? This here always assumes names=[], yet there may be overlap between old_cols/new_cols.
-                    names = old_cols
+                    # TODO: Bug in Snowpark/MockServer? This here always assumes names=[], yet there may be overlap between old_cols/new_cols.
+                    from snowflake.snowpark.mock._connection import MockServerConnection
+
+                    if isinstance(self._session, MockServerConnection):
+                        names = old_cols  # --> this needs to prob. go somewhere else.
 
                 # when generating join table expression, we inculcate aliased column into the initial
                 # query like so,
