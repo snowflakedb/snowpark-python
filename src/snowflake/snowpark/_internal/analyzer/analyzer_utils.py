@@ -784,12 +784,7 @@ def create_table_statement(
     *,
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
-    is_iceberg: bool = False,
-    external_volume: Optional[str] = None,
-    catalog: Optional[str] = None,
-    base_location: Optional[str] = None,
-    catalog_sync: Optional[str] = None,
-    storage_serialization_policy: Optional[str] = None,
+    iceberg_config: Optional[dict] = None,
 ) -> str:
     cluster_by_clause = (
         (CLUSTER_BY + LEFT_PARENTHESIS + COMMA.join(clustering_key) + RIGHT_PARENTHESIS)
@@ -797,23 +792,31 @@ def create_table_statement(
         else EMPTY_STRING
     )
     comment_sql = get_comment_sql(comment)
-    options_statement = get_options_statement(
-        {
-            ENABLE_SCHEMA_EVOLUTION: enable_schema_evolution,
-            DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
-            MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
-            CHANGE_TRACKING: change_tracking,
-            EXTERNAL_VOLUME: external_volume,
-            CATALOG: catalog,
-            BASE_LOCATION: base_location,
-            CATALOG_SYNC: catalog_sync,
-            STORAGE_SERIALIZATION_POLICY: storage_serialization_policy,
-        }
-    )
+    options = {
+        ENABLE_SCHEMA_EVOLUTION: enable_schema_evolution,
+        DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
+        MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
+        CHANGE_TRACKING: change_tracking,
+    }
+
+    if iceberg_config is not None:
+        options.update(
+            {
+                EXTERNAL_VOLUME: iceberg_config.get("external_volume", None),
+                CATALOG: iceberg_config.get("catalog", None),
+                BASE_LOCATION: iceberg_config.get("base_location", None),
+                CATALOG_SYNC: iceberg_config.get("catalog_sync", None),
+                STORAGE_SERIALIZATION_POLICY: iceberg_config.get(
+                    "storage_serialization_policy", None
+                ),
+            }
+        )
+
+    options_statement = get_options_statement(options)
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
-        f"{ICEBERG if is_iceberg else EMPTY_STRING}{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
+        f"{ICEBERG if iceberg_config is not None else EMPTY_STRING}{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}{cluster_by_clause}"
         f"{options_statement}{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql}"
     )
@@ -873,12 +876,7 @@ def create_table_as_select_statement(
     max_data_extension_time: Optional[int] = None,
     change_tracking: Optional[bool] = None,
     copy_grants: bool = False,
-    is_iceberg: bool = False,
-    external_volume: Optional[str] = None,
-    catalog: Optional[str] = None,
-    base_location: Optional[str] = None,
-    catalog_sync: Optional[str] = None,
-    storage_serialization_policy: Optional[str] = None,
+    iceberg_config: Optional[dict] = None,
 ) -> str:
     column_definition_sql = (
         f"{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
@@ -891,22 +889,28 @@ def create_table_as_select_statement(
         else EMPTY_STRING
     )
     comment_sql = get_comment_sql(comment)
-    options_statement = get_options_statement(
-        {
-            ENABLE_SCHEMA_EVOLUTION: enable_schema_evolution,
-            DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
-            MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
-            CHANGE_TRACKING: change_tracking,
-            EXTERNAL_VOLUME: external_volume,
-            CATALOG: catalog,
-            BASE_LOCATION: base_location,
-            CATALOG_SYNC: catalog_sync,
-            STORAGE_SERIALIZATION_POLICY: storage_serialization_policy,
-        }
-    )
-    return (
+    options = {
+        ENABLE_SCHEMA_EVOLUTION: enable_schema_evolution,
+        DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
+        MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
+        CHANGE_TRACKING: change_tracking,
+    }
+    if iceberg_config is not None:
+        options.update(
+            {
+                EXTERNAL_VOLUME: iceberg_config.get("external_volume", None),
+                CATALOG: iceberg_config.get("catalog", None),
+                BASE_LOCATION: iceberg_config.get("base_location", None),
+                CATALOG_SYNC: iceberg_config.get("catalog_sync", None),
+                STORAGE_SERIALIZATION_POLICY: iceberg_config.get(
+                    "storage_serialization_policy", None
+                ),
+            }
+        )
+    options_statement = get_options_statement(options)
+    raise ValueError(
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} "
-        f"{ICEBERG if is_iceberg else EMPTY_STRING}{TABLE}"
+        f"{ICEBERG if iceberg_config is not None else EMPTY_STRING}{TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
         f"{table_name}{column_definition_sql}{cluster_by_clause}{options_statement}"
         f"{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql} {AS}{project_statement([], child)}"

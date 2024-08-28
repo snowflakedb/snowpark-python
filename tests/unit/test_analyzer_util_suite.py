@@ -358,12 +358,13 @@ def test_create_iceberg_table_statement():
     assert create_table_statement(
         table_name="test_table",
         schema="test_col varchar",
-        is_iceberg=True,
-        external_volume="example_volume",
-        catalog="example_catalog",
-        base_location="/root",
-        catalog_sync="integration_name",
-        storage_serialization_policy="OPTIMIZED",
+        iceberg_config={
+            "external_volume": "example_volume",
+            "catalog": "example_catalog",
+            "base_location": "/root",
+            "catalog_sync": "integration_name",
+            "storage_serialization_policy": "OPTIMIZED",
+        },
     ) == (
         " CREATE    ICEBERG  TABLE test_table(test_col varchar)  EXTERNAL_VOLUME  = 'example_volume' "
         " CATALOG  = 'example_catalog'  BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'"
@@ -376,12 +377,13 @@ def test_create_iceberg_table_as_select_statement():
         table_name="test_table",
         child="select * from foo",
         column_definition=None,
-        is_iceberg=True,
-        external_volume="example_volume",
-        catalog="example_catalog",
-        base_location="/root",
-        catalog_sync="integration_name",
-        storage_serialization_policy="OPTIMIZED",
+        iceberg_config={
+            "external_volume": "example_volume",
+            "catalog": "example_catalog",
+            "base_location": "/root",
+            "catalog_sync": "integration_name",
+            "storage_serialization_policy": "OPTIMIZED",
+        },
     ) == (
         " CREATE    ICEBERG  TABLE  test_table  EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = "
         "'example_catalog'  BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'  "
