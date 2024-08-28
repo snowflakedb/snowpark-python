@@ -173,6 +173,9 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
         raise NotImplementedError(
             "TODO SNOW-1629946: Implement TableFunctionCall with args."
         )
+    elif isinstance(obj, snowflake.snowpark._internal.type_utils.DataType):
+        ast = with_src_position(expr_builder.sp_datatype_val)
+        obj._fill_ast(ast.datatype)
     else:
         raise NotImplementedError("not supported type: %s" % type(obj))
 
