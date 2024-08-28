@@ -28,7 +28,6 @@
 - Fixed a bug in query generation from set operations that allowed generation of duplicate queries when children have common subqueries.
 - Fixed a bug in `session.get_session_stage` that referenced a non-existing stage after switching database or schema.
 - Fixed a bug where calling `DataFrame.to_snowpark_pandas_dataframe` without explicitly initializing the Snowpark pandas plugin caused an error.
-- Fixed a bug where `Series.reindex` and `DataFrame.reindex` did update the result index's name correctly.
 
 ### Snowpark Local Testing Updates
 
@@ -75,6 +74,7 @@
 
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 - Fixed AssertionError in tree of binary operations.
+- Fixed a bug where `Series.reindex` and `DataFrame.reindex` did update the result index's name correctly.
 
 ## 1.21.0 (2024-08-19)
 
