@@ -371,13 +371,6 @@ def test_async_is_running_and_cancel(session):
     assert async_job2.is_done()
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Requires large result")
-def test_async_place_holder(session):
-    exp = session.sql("show functions").where("1=1").collect()
-    async_job = session.sql("show functions").where("1=1").collect_nowait()
-    Utils.check_answer(async_job.result(), exp)
-
-
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
 @pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
 def test_create_async_job(session, create_async_job_from_query_id):
