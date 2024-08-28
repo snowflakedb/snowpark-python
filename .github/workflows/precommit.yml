@@ -85,7 +85,7 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest-64-cores, ubuntu-latest-64-cores]
         python-version: ["3.9", "3.10", "3.11"]
-        cloud-provider: [aws, gcp] # TODO: SNOW-1643374 add azure back
+        cloud-provider: [aws, gcp, azure] # TODO: SNOW-1643374 add azure back
         exclude:
           # only run macos with aws py3.9 for doctest
           - os: macos-latest
@@ -309,7 +309,7 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest-64-cores, ubuntu-latest-64-cores]
         python-version: [ "3.9", "3.10", "3.11" ]
-        cloud-provider: [aws, gcp] # TODO: SNOW-1643374 add azure back
+        cloud-provider: [aws, gcp, azure] # TODO: SNOW-1643374 add azure back
         exclude:
           # only run macos with aws py3.9 for doctest
           - os: macos-latest
