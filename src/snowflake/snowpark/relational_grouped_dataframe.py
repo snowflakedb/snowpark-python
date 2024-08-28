@@ -27,6 +27,8 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate, Pivot
 from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_python_val,
+    build_proto_from_callable,
+    build_proto_from_struct_type,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -310,6 +312,7 @@ class RelationalGroupedDataFrame:
         self,
         func: Callable,
         output_schema: StructType,
+        _emit_ast: bool = True,
         **kwargs,
     ) -> DataFrame:
         """Maps each grouped dataframe in to a pandas.DataFrame, applies the given function on
@@ -406,15 +409,35 @@ class RelationalGroupedDataFrame:
         _apply_in_pandas_udtf = self._df._session.udtf.register(
             _ApplyInPandas,
             output_schema=output_schema,
+            _emit_ast=False,
             **kwargs,
         )
-        partition_by = [functions.col(expr) for expr in self._grouping_exprs]
+        partition_by = [
+            functions.col(expr, _emit_ast=False) for expr in self._grouping_exprs
+        ]
 
-        raise NotImplementedError("TODO SNOW-1514712: support UDxFs")
-
-        return self._df.select(
-            _apply_in_pandas_udtf(*self._df.columns).over(partition_by=partition_by)
+        df = self._df.select(
+            _apply_in_pandas_udtf(*self._df.columns).over(partition_by=partition_by),
+            _emit_ast=False,
         )
+
+        if _emit_ast:
+            stmt = self._df._session._ast_batch.assign()
+            ast = with_src_position(
+                stmt.expr.sp_relational_grouped_dataframe_apply_in_pandas, stmt
+            )
+            ast.grouped_df.sp_relational_grouped_dataframe_ref.id.bitfield1 = (
+                self._ast_id
+            )
+            build_proto_from_callable(ast.func, func, self._df._session._ast_batch)
+            build_proto_from_struct_type(output_schema, ast.output_schema)
+            for k, v in kwargs.items():
+                entry = ast.kwargs.add()
+                entry._1 = k
+                build_expr_from_python_val(entry._2, v)
+            df._ast_id = stmt.var_id.bitfield1
+
+        return df
 
     applyInPandas = apply_in_pandas
 

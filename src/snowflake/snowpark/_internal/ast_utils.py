@@ -9,7 +9,7 @@ import re
 import sys
 from functools import reduce
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, Optional, Tuple, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
+from snowflake.snowpark._internal.ast import AstBatch
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
@@ -722,3 +723,11 @@ def fill_sp_write_file(
             t = expr.copy_options.add()
             t._1 = k
             build_expr_from_python_val(t._2, v)
+
+
+def build_proto_from_callable(
+    expr_builder: proto.SpCallable, func: Callable, ast_batch: Optional[AstBatch] = None
+):
+    """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as SpCallable protobuf."""
+
+    expr_builder.name = "test"

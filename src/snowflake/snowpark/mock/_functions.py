@@ -2083,7 +2083,7 @@ def cast_column_to(
         target_data_type, _IntegralType
     ):  # includes ByteType, ShortType, IntegerType, LongType
         res = mock_to_decimal(col, try_cast=try_cast)
-        res.set_sf_type(ColumnType(target_data_type, nullable=True))
+        res.sf_type = ColumnType(target_data_type, nullable=True)
         return res
     if isinstance(target_data_type, BinaryType):
         return mock_to_binary(col, try_cast=try_cast)

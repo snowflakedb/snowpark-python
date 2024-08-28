@@ -1,7 +1,15 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Dict, NamedTuple, Optional, Union
+from typing import Any, Dict, NamedTuple, Optional, Union
+
+from pandas.core.dtypes.common import (
+    is_bool_dtype,
+    is_float_dtype,
+    is_integer_dtype,
+    is_object_dtype,
+    is_string_dtype,
+)
 
 from snowflake.snowpark.mock._options import installed_pandas, pandas as pd
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
@@ -31,6 +39,21 @@ from snowflake.snowpark.types import (
 # not installed, here we redefine the base class to avoid ImportError
 PandasDataframeType = object if not installed_pandas else pd.DataFrame
 PandasSeriesType = object if not installed_pandas else pd.Series
+
+
+def get_type(p: Any) -> DataType:
+    if is_object_dtype(p):
+        return VariantType()
+    if is_string_dtype(p):
+        return StringType()
+
+    if is_bool_dtype(p):
+        return BooleanType()
+    if is_integer_dtype(p):
+        return LongType()
+    if is_float_dtype(p):
+        return DoubleType()
+    return VariantType()
 
 
 class Operator:
@@ -154,7 +177,18 @@ def reset_nan_to_none_if_necessary(col_a, col_b, res_col):
     return res_col
 
 
-def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
+def get_column_type(obj: Any) -> ColumnType:
+
+    if isinstance(obj, ColumnEmulator):
+        return obj.sf_type
+
+    if obj is None:
+        ColumnType(VariantType(), True)
+
+    return ColumnType(get_type(type(obj)), False)
+
+
+def calculate_type(c1: ColumnType, c2: ColumnType, op: Union[str]):
     """op, left, right decide what's next."""
     t1, t2 = c1.datatype, c2.datatype
     nullable = c1.nullable or c2.nullable
@@ -354,14 +388,14 @@ class TableEmulator(PandasDataframeType):
     def __getitem__(self, item):
         result = super().__getitem__(item)
         if isinstance(result, ColumnEmulator):  # pandas.Series
-            result.sf_type = self.sf_types.get(item)
+            result._sf_type = self.sf_types.get(item)
         elif isinstance(result, TableEmulator):  # pandas.DataFrame
             result.sf_types = self.sf_types
         else:
             # TODO: figure out what cases, it may can be removed
             # list of columns
             for ce in result:
-                ce.sf_type = self.sf_types.get(ce.name)
+                ce._sf_type = self.sf_types.get(ce.name)
         return result
 
     def __setitem__(self, key, value):
@@ -374,6 +408,17 @@ class TableEmulator(PandasDataframeType):
         result = super().sort_values(by, **kwargs)
         result.sf_types = self.sf_types
         return result
+
+    def to_pandas(self):
+        return super().copy()
+
+    def copy(self, deep=True):
+        ans = super().copy(deep)
+        ans.sf_types = self.sf_types.copy()
+        ans._null_rows_idxs_map = self._null_rows_idxs_map.copy()
+        ans.sf_types_by_col_index = self.sf_types_by_col_index.copy()
+        ans.sorted_by = self.sorted_by.copy()
+        return ans
 
 
 def get_number_precision_scale(t: DataType):
@@ -403,6 +448,13 @@ def add_date_and_number(
     )
 
 
+def broadcast_value(value: Any, len: int) -> "ColumnEmulator":
+    if isinstance(value, ColumnEmulator):
+        return value
+    # Create Series with length len
+    return ColumnEmulator([value] * len)
+
+
 class ColumnEmulator(PandasSeriesType):
     _metadata = ["sf_type", "_null_rows_idxs"]
 
@@ -422,7 +474,7 @@ class ColumnEmulator(PandasSeriesType):
             )
         sf_type = kwargs.pop("sf_type", None)
         super().__init__(*args, **kwargs)
-        self.sf_type: ColumnType = sf_type
+        self._sf_type: ColumnType = sf_type
         # record which rows should be marked as null instead of None
         # snowflake SubfieldString has this behavior
         # suppose there are two Variant objects in table "v": 1. { "a": None } 2. None
@@ -432,11 +484,30 @@ class ColumnEmulator(PandasSeriesType):
         # check SNOW-960190 for more context
         self._null_rows_idxs = []
 
-    def set_sf_type(self, value):
-        self.sf_type = value
+    @property
+    def sf_type(self) -> ColumnType:
+        if self._sf_type is not None:
+            return self._sf_type
+
+        # TODO: happens in UDTF local testing.
+        # If not explicitly set, infer from underlying pandas series
+        else:
+            # Can not use short cut self.isna().any() as this leads to endless recursion.
+            nullable = any([pd.isna(obj) for obj in self.values])
+
+            if is_object_dtype(self.dtype) and len(self) != 0:
+                # infer from data when object type to be more specific.
+                return ColumnType(get_type(type(self.iloc[0])), nullable)
+            else:
+                return ColumnType(get_type(self.dtype), nullable)
+
+    @sf_type.setter
+    def sf_type(self, value: ColumnType):
+        self._sf_type = value
 
     def __add__(self, other):
         """TODO: needs to calculate date +"""
+        other = broadcast_value(other, len(self))
         if isinstance(self.sf_type.datatype, DateType) or isinstance(
             other.sf_type.datatype, DateType
         ):
@@ -452,6 +523,7 @@ class ColumnEmulator(PandasSeriesType):
             other.sf_type.datatype, DateType
         ):
             return add_date_and_number(self, other)
+        other = broadcast_value(other, len(self))
         result = super().__radd__(other)
         result.sf_type = calculate_type(other.sf_type, self.sf_type, op="+")
         result = reset_nan_to_none_if_necessary(self, other, result)
@@ -462,24 +534,28 @@ class ColumnEmulator(PandasSeriesType):
             other.sf_type.datatype, _NumericType
         ):
             return add_date_and_number(self, -other)
+        other = broadcast_value(other, len(self))
         result = super().__sub__(other)
         result.sf_type = calculate_type(self.sf_type, other.sf_type, op="-")
         result = reset_nan_to_none_if_necessary(self, other, result)
         return result
 
     def __rsub__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__rsub__(other)
         result.sf_type = calculate_type(other.sf_type, self.sf_type, op="-")
         result = reset_nan_to_none_if_necessary(self, other, result)
         return result
 
     def __mul__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__mul__(other)
         result.sf_type = calculate_type(self.sf_type, other.sf_type, op="*")
         result = reset_nan_to_none_if_necessary(self, other, result)
         return result
 
     def __rmul__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__rmul__(other)
         result.sf_type = calculate_type(other.sf_type, self.sf_type, op="*")
         result = reset_nan_to_none_if_necessary(self, other, result)
@@ -491,21 +567,25 @@ class ColumnEmulator(PandasSeriesType):
         return result
 
     def __and__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__and__(other)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __or__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__or__(other)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __ne__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__ne__(other)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __xor__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__xor__(other)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
@@ -518,11 +598,13 @@ class ColumnEmulator(PandasSeriesType):
         return result
 
     def __ge__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__ge__(other)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __gt__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__gt__(other)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
@@ -533,16 +615,19 @@ class ColumnEmulator(PandasSeriesType):
         return result
 
     def __le__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__le__(other)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __lt__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__lt__(other)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __eq__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__eq__(other)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
@@ -553,21 +638,25 @@ class ColumnEmulator(PandasSeriesType):
         return result
 
     def __rand__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__rand__(other)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
 
     def __mod__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__mod__(other)
         result.sf_type = calculate_type(self.sf_type, other.sf_type, op="%")
         return result
 
     def __rmod__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__mod__(other)
         result.sf_type = calculate_type(other.sf_type, self.sf_type, op="%")
         return result
 
     def __ror__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__ror__(other)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
@@ -579,40 +668,43 @@ class ColumnEmulator(PandasSeriesType):
         elif isinstance(self.sf_type.datatype, DecimalType):
             scale = self.sf_type.datatype.scale
             if scale <= n:
-                result.sf_type = self.sf_type
+                result._sf_type = self.sf_type
             else:
                 result_scale = 0 if n <= 0 else n
                 result_precision = min(self.sf_type.datatype.precision + 1, 38)
-                result.sf_type = ColumnType(
+                result._sf_type = ColumnType(
                     DecimalType(result_precision, result_scale), self.sf_type.nullable
                 )
         return result
 
     def __rpow__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__rpow__(other)
-        result.sf_type = ColumnType(DoubleType(), True)
+        result._sf_type = ColumnType(DoubleType(), True)
         return result
 
     def __rtruediv__(self, other):
+        other = broadcast_value(other, len(self))
         return other.__truediv__(self)
 
     def __truediv__(self, other):
+        other = broadcast_value(other, len(self))
         result = super().__truediv__(other)
         sf_type = calculate_type(self.sf_type, other.sf_type, op="/")
         if isinstance(sf_type.datatype, DecimalType):
             result = result.astype("double").round(sf_type.datatype.scale)
         elif isinstance(sf_type.datatype, (FloatType, DoubleType)):
             result = result.astype("double").round(16)
-        result.sf_type = sf_type
+        result._sf_type = sf_type
         result = reset_nan_to_none_if_necessary(self, other, result)
         return result
 
     def isna(self):
         result = super().isna()
-        result.sf_type = ColumnType(BooleanType(), True)
+        result._sf_type = ColumnType(BooleanType(), True)
         return result
 
     def isnull(self):
         result = super().isnull()
-        result.sf_type = ColumnType(BooleanType(), True)
+        result._sf_type = ColumnType(BooleanType(), True)
         return result

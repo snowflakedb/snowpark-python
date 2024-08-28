@@ -662,9 +662,10 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, TableFunctionJoin):
-            self._conn.log_not_supported_error(
-                external_feature_name="table_function.TableFunctionJoin",
-                raise_error=NotImplementedError,
+            # TODO: Fix for local testing.
+            return MockExecutionPlan(
+                logical_plan,
+                self.session,
             )
 
         if isinstance(logical_plan, TableFunctionRelation):
