@@ -164,3 +164,29 @@ def plot(
 @series_not_implemented()
 def transform(self, func, axis=0, *args, **kwargs):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
+
+
+@register_series_accessor("is_monotonic_increasing")
+@property
+@snowpark_pandas_telemetry_method_decorator
+def is_monotonic_increasing(self):  # noqa: RT01, D200
+    """
+    Return True if values in the Series are monotonic_increasing.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self._reduce_dimension(
+        self._query_compiler.is_monotonic_increasing(index=False)
+    )
+
+
+@register_series_accessor("is_monotonic_decreasing")
+@property
+@snowpark_pandas_telemetry_method_decorator
+def is_monotonic_decreasing(self):  # noqa: RT01, D200
+    """
+    Return True if values in the Series are monotonic_decreasing.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self._reduce_dimension(
+        self._query_compiler.is_monotonic_decreasing(index=False)
+    )

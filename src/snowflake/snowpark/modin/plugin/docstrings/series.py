@@ -3659,6 +3659,38 @@ class Series:
         Return True if there are any NaNs.
         """
 
+    @property
+    def is_monotonic_increasing():
+        """
+        Return boolean if values in the object are monotonically decreasing.
+
+        Examples
+        --------
+        >>> s = pd.Series([3, 2, 2, 1])
+        >>> s.is_monotonic_decreasing
+        True
+
+        >>> s = pd.Series([1, 2, 3])
+        >>> s.is_monotonic_decreasing
+        False
+        """
+
+    @property
+    def is_monotonic_decreasing():
+        """
+        Return boolean if values in the object are monotonically increasing.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 2])
+        >>> s.is_monotonic_increasing
+        True
+
+        >>> s = pd.Series([3, 2, 1])
+        >>> s.is_monotonic_increasing
+        False
+        """
+
     def isna():
         """
         Detect missing values.
@@ -3717,18 +3749,6 @@ class Series:
         1    False
         2     True
         dtype: bool
-        """
-
-    @property
-    def is_monotonic_increasing():
-        """
-        Return True if values in the Series are monotonic_increasing.
-        """
-
-    @property
-    def is_monotonic_decreasing():
-        """
-        Return True if values in the Series are monotonic_decreasing.
         """
 
     @property
