@@ -490,3 +490,9 @@ class TestRename:
 
         snow_float_frame.rename(columns={"C": "foo"}, copy=True)
         assert msg in caplog.text
+
+
+def test_v():
+    df = Series({"A": [1, 2], "B": [3, 4]})
+    df.index = pd.Index([1, 2, 3, 4])
+    print(df)

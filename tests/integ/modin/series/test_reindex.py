@@ -400,3 +400,18 @@ def test_reindex_with_index_name_and_series_index_name():
         snow_series.reindex(index=index_with_name),
         native_series.reindex(index=index_with_name),
     )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_reindex_with_lazy_index():
+    native_series = native_pd.Series([0, 1, 2], index=list("ABC"))
+    snow_series = pd.Series(native_series)
+    native_idx = native_pd.Index(list("CAB"))
+    lazy_idx = pd.Index(native_idx)
+    eval_snowpark_pandas_result(
+        snow_series,
+        native_series,
+        lambda series: series.reindex(
+            index=native_idx if isinstance(series, native_pd.Series) else lazy_idx
+        ),
+    )

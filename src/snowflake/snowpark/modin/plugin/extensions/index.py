@@ -252,9 +252,12 @@ class Index(metaclass=TelemetryMeta):
     def _binary_ops(self, method: str, other: Any) -> Index:
         if isinstance(other, Index):
             other = other.to_series().reset_index(drop=True)
-        return self.__constructor__(
-            self.to_series().reset_index(drop=True).__getattr__(method)(other)
-        )
+        series = self.to_series().reset_index(drop=True).__getattr__(method)(other)
+        qc = series._query_compiler
+        qc = qc.set_index_from_columns(qc.columns, include_index=False)
+        idx = self.__constructor__(query_compiler=qc)
+        idx.name = series.name
+        return idx
 
     def _unary_ops(self, method: str) -> Index:
         return self.__constructor__(
