@@ -746,6 +746,6 @@ def build_proto_from_pivot_values(
         return
 
     if isinstance(values, snowflake.snowpark.dataframe.DataFrame):
-        expr_builder.sp_pivot_value__dataframe.v.id = values._ast_id
+        expr_builder.sp_pivot_value__dataframe.v.id.bitfield1 = values._ast_id
     else:
         build_expr_from_python_val(expr_builder.sp_pivot_value__expr.v, values)

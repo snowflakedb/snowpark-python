@@ -523,7 +523,8 @@ class RelationalGroupedDataFrame:
             ------------------------------
             <BLANKLINE>
         """
-        self._df, pc, pivot_values, default_on_null = prepare_pivot_arguments(
+
+        self._df, pc, pivot_values, pivot_default_on_null = prepare_pivot_arguments(
             self._df,
             "RelationalGroupedDataFrame.pivot",
             pivot_col,
@@ -531,7 +532,7 @@ class RelationalGroupedDataFrame:
             default_on_null,
         )
 
-        self._group_type = _PivotType(pc[0], pivot_values, default_on_null)
+        self._group_type = _PivotType(pc[0], pivot_values, pivot_default_on_null)
 
         # special case: This is an internal state modifying operation.
         if _emit_ast:
@@ -542,10 +543,11 @@ class RelationalGroupedDataFrame:
             if default_on_null is not None:
                 build_expr_from_python_val(ast.default_on_null, default_on_null)
             build_expr_from_snowpark_column_or_col_name(ast.pivot_col, pivot_col)
-            build_proto_from_pivot_values(ast.values, pivot_values)
+            build_proto_from_pivot_values(ast.values, values)
             ast.grouped_df.sp_relational_grouped_dataframe_ref.id.bitfield1 = (
                 self._ast_id
             )
+
             # Update self's id.
             self._ast_id = stmt.var_id.bitfield1
 
