@@ -954,3 +954,12 @@ def test_mask_series_other_axis_1(index, data):
         native_df,
         perform_mask,
     )
+
+
+@sql_count_checker(query_count=1)
+def test_mask_timedelta(test_data):
+    native_df = native_pd.DataFrame(test_data, dtype="timedelta64[ns]")
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df.mask(df > pd.Timedelta(1))
+    )

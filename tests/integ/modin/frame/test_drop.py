@@ -71,6 +71,18 @@ def test_drop_list_like(native_df, labels):
 
 
 @pytest.mark.parametrize(
+    "labels", [Index(["red", "green"]), np.array(["red", "green"])]
+)
+@sql_count_checker(query_count=1)
+def test_drop_timedelta(native_df, labels):
+    native_df_dt = native_df.astype({"red": "timedelta64[ns]"})
+    snow_df = pd.DataFrame(native_df_dt)
+    eval_snowpark_pandas_result(
+        snow_df, native_df_dt, lambda df: df.drop(labels, axis=1)
+    )
+
+
+@pytest.mark.parametrize(
     "labels, axis, expected_query_count",
     [
         ([], 0, 1),

@@ -1499,7 +1499,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         row_position_quoted_identifier = frame.row_position_snowflake_quoted_identifier
 
         fill_value_dtype = infer_object_type(fill_value)
-        fill_value = pandas_lit(fill_value) if fill_value is not None else None
+        fill_value = None if pd.isna(fill_value) else pandas_lit(fill_value)
 
         def shift_expression_and_type(
             quoted_identifier: str, dtype: DataType
@@ -5757,8 +5757,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A new SnowflakeQueryCompiler instance with new column.
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         if not isinstance(value, SnowflakeQueryCompiler):
             # Scalar value
             new_internal_frame = self._modin_frame.append_column(
@@ -5848,7 +5846,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         data_column_snowflake_quoted_identifiers = (
             new_internal_frame.data_column_snowflake_quoted_identifiers
         )
+        data_column_types = new_internal_frame.cached_data_column_snowpark_pandas_types
         move_last_element(data_column_snowflake_quoted_identifiers, loc)
+        move_last_element(data_column_types, loc)
 
         new_internal_frame = InternalFrame.create(
             ordered_dataframe=new_internal_frame.ordered_dataframe,
@@ -5857,8 +5857,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_index_names=new_internal_frame.data_column_pandas_index_names,
             index_column_pandas_labels=new_internal_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=new_internal_frame.index_column_snowflake_quoted_identifiers,
-            data_column_types=None,
-            index_column_types=None,
+            data_column_types=data_column_types,
+            index_column_types=new_internal_frame.cached_index_column_snowpark_pandas_types,
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -6645,8 +6645,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Notes:
             melt does not yet handle multiindex or ignore index
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         if col_level is not None:
             raise NotImplementedError(
                 "Snowpark Pandas doesn't support 'col_level' argument in melt API"
@@ -6749,8 +6747,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler instance with merged result.
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         if validate:
             ErrorMessage.not_implemented(
                 "Snowpark pandas merge API doesn't yet support 'validate' parameter"
@@ -9815,6 +9811,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # case 2: fillna with a method
         if method is not None:
+            # no Snowpark pandas type change in this case
+            data_column_snowpark_pandas_types = (
+                self._modin_frame.cached_data_column_snowpark_pandas_types
+            )
             method = FillNAMethod.get_enum_for_string_method(method)
             method_is_ffill = method is FillNAMethod.FFILL_METHOD
             if axis == 0:
@@ -9921,6 +9921,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 include_index=False,
             )
             fillna_column_map = {}
+            data_column_snowpark_pandas_types = []
             if columns_mask is not None:
                 columns_to_ignore = itertools.compress(
                     self._modin_frame.data_column_pandas_labels,
@@ -9940,10 +9941,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                                 col(id),
                                 coalesce(id, pandas_lit(val)),
                             )
+                        col_type = self._modin_frame.get_snowflake_type(id)
+                        col_pandas_type = (
+                            col_type
+                            if isinstance(col_type, SnowparkPandasType)
+                            and col_type.type_match(val)
+                            else None
+                        )
+                        data_column_snowpark_pandas_types.append(col_pandas_type)
 
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
-                fillna_column_map
+                fillna_column_map, data_column_snowpark_pandas_types
             ).frame
         )
 
@@ -10217,7 +10226,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         }
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
-                diff_label_to_value_map
+                diff_label_to_value_map,
+                self._modin_frame.cached_data_column_snowpark_pandas_types,
             ).frame
         )
 
