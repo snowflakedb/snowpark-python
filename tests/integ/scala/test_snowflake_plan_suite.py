@@ -175,9 +175,8 @@ def test_execution_queries_and_post_actions(session):
             # the cte optimization is not kicking in when sql simplifier disabled, because
             # the cte_optimization_enabled is set to False when constructing the plan for df2,
             # and place_holder is not propogated.
-            # TODO (SNOW-1541096): revisit this test once the cte optimization is switched to the
-            #   new compilation infra.
-            cte_applied=session.sql_simplifier_enabled,
+            cte_applied=session.sql_simplifier_enabled
+            or session._query_compilation_stage_enabled,
             exec_queries=df2._plan.execution_queries,
         )
 
@@ -253,69 +252,89 @@ def test_create_scoped_temp_table(session):
         temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         assert (
             session._plan_builder.save_as_table(
-                [temp_table_name],
-                None,
-                SaveMode.ERROR_IF_EXISTS,
-                "temp",
-                None,
-                None,
-                df._plan,
-                None,
+                table_name=[temp_table_name],
+                column_names=None,
+                mode=SaveMode.ERROR_IF_EXISTS,
+                table_type="temp",
+                clustering_keys=None,
+                comment=None,
+                enable_schema_evolution=None,
+                data_retention_time=None,
+                max_data_extension_time=None,
+                change_tracking=None,
+                copy_grants=False,
+                child=df._plan,
+                source_plan=None,
                 use_scoped_temp_objects=True,
                 creation_source=TableCreationSource.CACHE_RESULT,
                 child_attributes=df._plan.attributes,
             )
             .queries[0]
             .sql
-            == f' CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+            == f' CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))  '
         )
         assert (
             session._plan_builder.save_as_table(
-                [temp_table_name],
-                None,
-                SaveMode.ERROR_IF_EXISTS,
-                "temp",
-                None,
-                None,
-                df._plan,
-                None,
+                table_name=[temp_table_name],
+                column_names=None,
+                mode=SaveMode.ERROR_IF_EXISTS,
+                table_type="temp",
+                clustering_keys=None,
+                comment=None,
+                enable_schema_evolution=None,
+                data_retention_time=None,
+                max_data_extension_time=None,
+                change_tracking=None,
+                copy_grants=False,
+                child=df._plan,
+                source_plan=None,
                 use_scoped_temp_objects=False,
                 creation_source=TableCreationSource.CACHE_RESULT,
                 child_attributes=df._plan.attributes,
             )
             .queries[0]
             .sql
-            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))  '
         )
         assert (
             session._plan_builder.save_as_table(
-                [temp_table_name],
-                None,
-                SaveMode.ERROR_IF_EXISTS,
-                "temp",
-                None,
-                None,
-                df._plan,
-                None,
+                table_name=[temp_table_name],
+                column_names=None,
+                mode=SaveMode.ERROR_IF_EXISTS,
+                table_type="temp",
+                clustering_keys=None,
+                comment=None,
+                enable_schema_evolution=None,
+                data_retention_time=None,
+                max_data_extension_time=None,
+                change_tracking=None,
+                copy_grants=False,
+                child=df._plan,
+                source_plan=None,
                 use_scoped_temp_objects=False,
                 creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
                 child_attributes=None,
             )
             .queries[0]
             .sql
-            == f" CREATE  TEMP  TABLE  {temp_table_name}   AS  SELECT  *  FROM ( SELECT  *  FROM ({table_name}))"
+            == f" CREATE  TEMP  TABLE  {temp_table_name}    AS  SELECT  *  FROM ( SELECT  *  FROM ({table_name}))"
         )
         expected_sql = f' CREATE  TEMPORARY  TABLE  {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         assert expected_sql in (
             session._plan_builder.save_as_table(
-                [temp_table_name],
-                None,
-                SaveMode.ERROR_IF_EXISTS,
-                "temporary",
-                None,
-                None,
-                df._plan,
-                None,
+                table_name=[temp_table_name],
+                column_names=None,
+                mode=SaveMode.ERROR_IF_EXISTS,
+                table_type="temporary",
+                clustering_keys=None,
+                comment=None,
+                enable_schema_evolution=None,
+                data_retention_time=None,
+                max_data_extension_time=None,
+                change_tracking=None,
+                copy_grants=False,
+                child=df._plan,
+                source_plan=None,
                 use_scoped_temp_objects=True,
                 creation_source=TableCreationSource.OTHERS,
                 child_attributes=df._plan.attributes,
@@ -328,14 +347,19 @@ def test_create_scoped_temp_table(session):
             match="Internally generated tables must be called with mode ERROR_IF_EXISTS",
         ):
             session._plan_builder.save_as_table(
-                [temp_table_name],
-                None,
-                SaveMode.APPEND,
-                "temporary",
-                None,
-                None,
-                df._plan,
-                None,
+                table_name=[temp_table_name],
+                column_names=None,
+                mode=SaveMode.APPEND,
+                table_type="temporary",
+                clustering_keys=None,
+                comment=None,
+                enable_schema_evolution=None,
+                data_retention_time=None,
+                max_data_extension_time=None,
+                change_tracking=None,
+                copy_grants=False,
+                child=df._plan,
+                source_plan=None,
                 use_scoped_temp_objects=True,
                 creation_source=TableCreationSource.CACHE_RESULT,
                 child_attributes=df._plan.attributes,
@@ -346,14 +370,19 @@ def test_create_scoped_temp_table(session):
             match="child attribute must be provided when table creation source is not large query breakdown",
         ):
             session._plan_builder.save_as_table(
-                [temp_table_name],
-                None,
-                SaveMode.ERROR_IF_EXISTS,
-                "temporary",
-                None,
-                None,
-                df._plan,
-                None,
+                table_name=[temp_table_name],
+                column_names=None,
+                mode=SaveMode.ERROR_IF_EXISTS,
+                table_type="temporary",
+                clustering_keys=None,
+                comment=None,
+                enable_schema_evolution=None,
+                data_retention_time=None,
+                max_data_extension_time=None,
+                change_tracking=None,
+                copy_grants=False,
+                child=df._plan,
+                source_plan=None,
                 use_scoped_temp_objects=True,
                 creation_source=TableCreationSource.OTHERS,
                 child_attributes=None,

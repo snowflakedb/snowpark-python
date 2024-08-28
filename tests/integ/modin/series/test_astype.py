@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import logging
+import re
 from datetime import date, time
 from itertools import product
 
@@ -37,6 +38,7 @@ from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    eval_snowpark_pandas_result,
 )
 
 
@@ -400,6 +402,48 @@ def test_python_datetime_astype_DatetimeTZDtype(seed):
                 expected_to_pandas,
                 check_datetimelike_compat=True,
             )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize(
+    "data",
+    [[12345678, 9], [12345678, 2.6], [True, False], [1, "2"]],
+    ids=["int", "float", "boolean", "object"],
+)
+def test_astype_to_timedelta(data):
+    native_series = native_pd.Series(data)
+    snow_series = pd.Series(native_series)
+    eval_snowpark_pandas_result(
+        snow_series, native_series, lambda series: series.astype("timedelta64[ns]")
+    )
+
+
+@sql_count_checker(query_count=2)
+def test_astype_to_timedelta_negative():
+    native_datetime_series = native_pd.Series(
+        data=[pd.to_datetime("2000-01-01"), pd.to_datetime("2001-01-01")]
+    )
+    snow_datetime_series = pd.Series(native_datetime_series)
+    with SqlCounter(query_count=0):
+        with pytest.raises(
+            TypeError,
+            match=re.escape("Cannot cast DatetimeArray to dtype timedelta64[ns]"),
+        ):
+            native_datetime_series.astype("timedelta64[ns]")
+        with pytest.raises(
+            TypeError,
+            match=re.escape(
+                "dtype datetime64[ns] cannot be converted to timedelta64[ns]"
+            ),
+        ):
+            snow_datetime_series.astype("timedelta64[ns]")
+    with SqlCounter(query_count=0):
+        snow_string_series = pd.Series(data=["2 days, 3 minutes"])
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape("dtype object cannot be converted to timedelta64[ns]"),
+        ):
+            snow_string_series.astype("timedelta64[ns]")
 
 
 @sql_count_checker(query_count=0)

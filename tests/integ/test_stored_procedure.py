@@ -1947,3 +1947,47 @@ def test_stored_proc_register_with_module(session):
         source_code_display=False,
         packages=packages,
     )
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="use schema is not allowed in stored proc (owner mode)"
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="running sql query is not supported in local testing",
+)
+def test_register_sproc_after_switch_schema(session):
+    add_sp = session.sproc.register(
+        lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[0][0],
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+    assert add_sp(1, 2) == 3
+
+    current_schema = session.get_current_schema()
+    current_database = session.get_current_database()
+
+    databases = []
+    try:
+        for i in range(2):
+            new_database = f"db_{Utils.random_alphanumeric_str(10)}"
+            databases.append(new_database)
+            new_schema = f"{new_database}.test"
+
+            session._run_query(f"create database if not exists {new_database}")
+            session._run_query(f"create schema if not exists {new_schema}")
+            session._run_query(f"use schema {new_schema}")
+
+            add_sp = session.sproc.register(
+                lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[
+                    0
+                ][0],
+                return_type=IntegerType(),
+                input_types=[IntegerType(), IntegerType()],
+            )
+            assert add_sp(1, 2) == 3
+    finally:
+        for db in databases:
+            Utils.drop_database(session, db)
+        session.use_database(current_database)
+        session.use_schema(current_schema)

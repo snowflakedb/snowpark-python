@@ -154,6 +154,12 @@ class SnowflakeValues(LeafNode):
         }
 
 
+class DynamicTableCreateMode(Enum):
+    OVERWRITE = "overwrite"
+    ERROR_IF_EXISTS = "errorifexists"
+    IGNORE = "ignore"
+
+
 class SaveMode(Enum):
     APPEND = "append"
     OVERWRITE = "overwrite"
@@ -186,6 +192,11 @@ class SnowflakeCreateTable(LogicalPlan):
         table_type: str = "",
         clustering_exprs: Optional[Iterable[Expression]] = None,
         comment: Optional[str] = None,
+        enable_schema_evolution: Optional[bool] = None,
+        data_retention_time: Optional[int] = None,
+        max_data_extension_time: Optional[int] = None,
+        change_tracking: Optional[bool] = None,
+        copy_grants: bool = False,
     ) -> None:
         super().__init__()
 
@@ -201,6 +212,11 @@ class SnowflakeCreateTable(LogicalPlan):
         self.clustering_exprs = clustering_exprs or []
         self.comment = comment
         self.creation_source = creation_source
+        self.enable_schema_evolution = enable_schema_evolution
+        self.data_retention_time = data_retention_time
+        self.max_data_extension_time = max_data_extension_time
+        self.change_tracking = change_tracking
+        self.copy_grants = copy_grants
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:

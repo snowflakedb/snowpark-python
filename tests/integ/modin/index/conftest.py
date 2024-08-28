@@ -16,6 +16,10 @@ TEST_DFS = [
         data={"col1": [1, 2, 3], "col2": [3, 4, 5]},
         index=native_pd.DatetimeIndex(["2024-01-01", "2024-02-01", "2024-03-01"]),
     ),
+    native_pd.DataFrame(
+        data={"col1": [1, 2, 3], "col2": [3, 4, 5]},
+        index=native_pd.TimedeltaIndex(["0 days", "1 days", "3 days"]),
+    ),
 ]
 
 NATIVE_INDEX_TEST_DATA = [
@@ -36,6 +40,8 @@ NATIVE_INDEX_TEST_DATA = [
         tz="America/Los_Angeles",
     ),
     native_pd.DatetimeIndex([1262347200000000000, 1262347400000000000]),
+    native_pd.TimedeltaIndex(["0 days", "1 days", "3 days"]),
+    native_pd.TimedeltaIndex([100, 200, 300]),
 ]
 
 NATIVE_INDEX_UNIQUE_TEST_DATA = [
@@ -55,4 +61,22 @@ NATIVE_INDEX_UNIQUE_TEST_DATA = [
         ["2020-01-01 10:00:00+00:00", "2020-01-01 10:00:00+00:00"],
         tz="America/Los_Angeles",
     ),
+]
+
+NATIVE_INDEX_SCALAR_TEST_DATA = [
+    native_pd.Index([], dtype="object"),
+    native_pd.Index([1, 2, 3.55, -0.992, 1, 3, 2, 1, 2, 3, 4, 2, 1]),
+    native_pd.Index([3, np.nan, 5], name="my_index"),
+    native_pd.Index([5, None, 7, None]),
+    native_pd.Index([1]),
+    native_pd.Index(["a", "b", "c", "d"]),
+    native_pd.DatetimeIndex(
+        ["2020-01-01 10:00:00+00:00", "2020-02-01 11:00:00+00:00"],
+        tz="America/Los_Angeles",
+    ),
+    native_pd.DatetimeIndex(
+        ["2020-01-01 10:00:00+00:00", "2020-01-01 10:00:00+00:00"],
+        tz="America/Los_Angeles",
+    ),
+    native_pd.DatetimeIndex([1262347200000000000, 1262347400000000000]),
 ]

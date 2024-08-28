@@ -44,9 +44,13 @@ from snowflake.snowpark.modin.plugin.extensions.datetime_index import (  # noqa:
     DatetimeIndex,
 )
 from snowflake.snowpark.modin.plugin.extensions.index import Index  # noqa: F401
+from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (  # noqa: F401
+    TimedeltaIndex,
+)
 
 register_pd_accessor("Index")(Index)
 register_pd_accessor("DatetimeIndex")(DatetimeIndex)
+register_pd_accessor("TimedeltaIndex")(TimedeltaIndex)
 
 
 @_inherit_docstrings(native_pd.read_csv, apilink="pandas.read_csv")
