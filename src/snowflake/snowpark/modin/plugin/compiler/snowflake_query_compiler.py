@@ -5073,9 +5073,62 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 result._modin_frame.data_column_pandas_labels[:-1]
                 + ["proportion" if normalize else "count"]
             )
-        # Within groups, rows are ordered based on their first appearance in the input frame.
-        # Note that in native pandas, preservation of order on non-grouping columns is not guaranteed:
+        # pandas currently provides the following behaviors based on the different sort flags.
+        # These behaviors are not entirely consistent with documentation; see this issue for discussion:
         # https://github.com/pandas-dev/pandas/issues/59307
+        #
+        # Example data (using pandas 2.2.1 behavior):
+        # >>> df = pd.DataFrame({"X": ["B", "A", "A", "B", "B", "B"], "Y": [4, 1, 3, -2, -1, -1]})
+        #
+        # 1. groupby(sort=True).value_counts(sort=True)
+        #   Sort on non-grouping columns, then sort on frequencies, then sort on grouping columns.
+        # >>> df.groupby("X", sort=True).value_counts(sort=True)
+        # X  Y
+        # A   1    1
+        #     3    1
+        # B  -1    2
+        #    -2    1
+        #     4    1
+        # Name: count, dtype: int64
+        #
+        # 2. groupby(sort=True).value_counts(sort=False)
+        #   Sort on non-grouping columns, then sort on grouping columns.
+        # >>> df.groupby("X", sort=True).value_counts(sort=True)
+        # X  Y
+        # X  Y
+        # A   1    1
+        #     3    1
+        # B  -2    1
+        #    -1    2
+        #     4    1
+        # Name: count, dtype: int64
+        #
+        # 3. groupby(sort=False).value_counts(sort=True)
+        #   Sort on frequencies.
+        # >>> df.groupby("X", sort=False).value_counts(sort=True)
+        # X  Y
+        # B  -1    2
+        #     4    1
+        # A   1    1
+        #     3    1
+        # B  -2    1
+        # Name: count, dtype: int64
+        #
+        # 4. groupby(sort=False).value_counts(sort=False)
+        #   Sort on nothing (entries match the order of the original frame).
+        # X  Y
+        # B   4    1
+        # A   1    1
+        #     3    1
+        # B  -2    1
+        #    -1    2
+        # Name: count, dtype: int64
+        #
+        # Lastly, when `normalize` is set with groupby(sort=False).value_counts(sort=True, normalize=True),
+        # pandas will sort by the pre-normalization counts rather than the resulting proportions. As this
+        # is an uncommon edge case, we cannot handle this using existing QC methods efficiently, so we just
+        # update our testing code to account for this.
+        # See comment on issue: https://github.com/pandas-dev/pandas/issues/59307#issuecomment-2313767856
         sort_cols = []
         if groupby_sort:
             # When groupby(sort=True), sort the result on the grouping columns
@@ -5087,6 +5140,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 result._modin_frame.data_column_pandas_labels[-1],
             )
             ascending_cols.append(ascending)
+        if groupby_sort:
+            # When groupby_sort=True, also sort by the non-grouping columns before sorting by
+            # the count/proportion column
+            # Exclude the grouping columns (always the first) from the sort
+            non_grouping_cols = result._modin_frame.index_column_pandas_labels[
+                len(by) :
+            ]
+            sort_cols.extend(non_grouping_cols)
+            ascending_cols.extend([True] * len(non_grouping_cols))
         return result.sort_rows_by_column_values(
             columns=sort_cols,
             ascending=ascending_cols,
