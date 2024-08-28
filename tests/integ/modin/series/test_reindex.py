@@ -378,6 +378,7 @@ def test_reindex_multiindex_negative():
         snow_series.reindex(index=[1, 2, 3])
 
 
+@sql_count_checker(query_count=1, join_count=1)
 def test_reindex_with_index_name():
     native_series = native_pd.Series([0, 1, 2], index=list("ABC"), name="test")
     snow_series = pd.Series(native_series)
@@ -388,6 +389,7 @@ def test_reindex_with_index_name():
     )
 
 
+@sql_count_checker(query_count=1, join_count=1)
 def test_reindex_with_index_name_and_series_index_name():
     native_series = native_pd.Series(
         [0, 1, 2], index=native_pd.Index(list("ABC"), name="AAAAA"), name="test"
