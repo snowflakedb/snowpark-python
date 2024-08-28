@@ -3,7 +3,6 @@
 #
 
 import sys
-from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints
@@ -40,8 +39,6 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
-
-_logger = getLogger(__name__)
 
 WRITER_OPTIONS_ALIAS_MAP = {
     "SEP": "FIELD_DELIMITER",
