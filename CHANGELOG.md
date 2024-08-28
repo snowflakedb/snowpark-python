@@ -65,6 +65,7 @@
 - Added support for `Index.is_boolean`, `Index.is_integer`, `Index.is_floating`, `Index.is_numeric`, and `Index.is_object`.
 - Added support for `DatetimeIndex.round`, `DatetimeIndex.floor` and `DatetimeIndex.ceil`.
 - Added support for `Series.dt.days_in_month` and `Series.dt.daysinmonth`.
+- Added support for lazy `Index` objects in `DataFrame.reindex` and `Series.reindex`.
 
 #### Improvements
 
@@ -74,7 +75,8 @@
 
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 - Fixed AssertionError in tree of binary operations.
-- Fixed a bug where `Series.reindex` and `DataFrame.reindex` did update the result index's name correctly.
+- Fixed a bug where `Series.reindex` and `DataFrame.reindex` did not update the result index's name correctly.
+- Fixed a bug where `Index` objects were not set correctly during binary operations.
 
 ## 1.21.0 (2024-08-19)
 
