@@ -389,3 +389,113 @@ def test_df_indexing_enlargement_timedelta():
             loc_enlargement(key, item, snow_td.copy()).to_pandas().dtypes,
             snow_td.dtypes,
         )
+
+
+@pytest.mark.parametrize(
+    "key, join_count",
+    [(2, 2), ([2, 1], 2), (slice(1, None), 0), ([True, False, False, True], 1)],
+)
+def test_index_get_timedelta(key, join_count):
+    td_idx = native_pd.TimedeltaIndex(
+        [
+            native_pd.Timedelta("1 days 1 hour"),
+            native_pd.Timedelta("2 days 1 minute"),
+            native_pd.Timedelta("3 days 1 nanoseconds"),
+            native_pd.Timedelta("100 nanoseconds"),
+        ]
+    )
+    snow_td_idx = pd.TimedeltaIndex(td_idx)
+
+    with SqlCounter(query_count=1, join_count=join_count):
+        if is_scalar(key):
+            assert snow_td_idx[key] == td_idx[key]
+        else:
+            eval_snowpark_pandas_result(snow_td_idx, td_idx, lambda idx: idx[key])
+
+
+@pytest.mark.parametrize(
+    "key, api, query_count, join_count",
+    [
+        [2, "iat", 1, 2],
+        [native_pd.Timedelta("1 days 1 hour"), "at", 2, 2],
+        [[2, 1], "iloc", 1, 2],
+        [
+            [
+                native_pd.Timedelta("1 days 1 hour"),
+                native_pd.Timedelta("1 days 1 hour"),
+            ],
+            "loc",
+            1,
+            1,
+        ],
+        [slice(1, None), "iloc", 1, 0],
+        [[True, False, False, True], "iloc", 1, 1],
+        [[True, False, False, True], "loc", 1, 1],
+    ],
+)
+def test_series_with_timedelta_index(key, api, query_count, join_count):
+    td_idx = native_pd.TimedeltaIndex(
+        [
+            native_pd.Timedelta("1 days 1 hour"),
+            native_pd.Timedelta("2 days 1 minute"),
+            native_pd.Timedelta("3 days 1 nanoseconds"),
+            native_pd.Timedelta("100 nanoseconds"),
+        ]
+    )
+    snow_td_idx = pd.TimedeltaIndex(td_idx)
+
+    data = [1, 2, 3, 4]
+    native_series = native_pd.Series(data, index=td_idx)
+    snow_series = pd.Series(data, index=snow_td_idx)
+
+    with SqlCounter(query_count=query_count, join_count=join_count):
+        if is_scalar(key):
+            assert getattr(snow_series, api)[key] == getattr(native_series, api)[key]
+        else:
+            eval_snowpark_pandas_result(
+                snow_series, native_series, lambda s: getattr(s, api)[key]
+            )
+
+
+@pytest.mark.parametrize(
+    "key, api, query_count, join_count",
+    [
+        [2, "iat", 1, 2],
+        [native_pd.Timedelta("1 days 1 hour"), "at", 2, 2],
+        [[2, 1], "iloc", 1, 2],
+        [
+            [
+                native_pd.Timedelta("1 days 1 hour"),
+                native_pd.Timedelta("1 days 1 hour"),
+            ],
+            "loc",
+            1,
+            1,
+        ],
+        [slice(1, None), "iloc", 1, 0],
+        [[True, False, False, True], "iloc", 1, 1],
+        [[True, False, False, True], "loc", 1, 1],
+    ],
+)
+def test_df_with_timedelta_index(key, api, query_count, join_count):
+    td_idx = native_pd.TimedeltaIndex(
+        [
+            native_pd.Timedelta("1 days 1 hour"),
+            native_pd.Timedelta("2 days 1 minute"),
+            native_pd.Timedelta("3 days 1 nanoseconds"),
+            native_pd.Timedelta("100 nanoseconds"),
+        ]
+    )
+    snow_td_idx = pd.TimedeltaIndex(td_idx)
+
+    data = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]
+    native_df = native_pd.DataFrame(data, index=td_idx)
+    snow_df = pd.DataFrame(data, index=snow_td_idx)
+
+    with SqlCounter(query_count=query_count, join_count=join_count):
+        if is_scalar(key):
+            assert getattr(snow_df, api)[key, 0] == getattr(native_df, api)[key, 0]
+        else:
+            eval_snowpark_pandas_result(
+                snow_df, native_df, lambda s: getattr(s, api)[key]
+            )
