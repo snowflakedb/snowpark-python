@@ -12,6 +12,7 @@
 
 #### Improvements
 
+- Added support for `ln` in `snowflake.snowpark.functions`
 - Added support for specifying the following to `DataFrameWriter.save_as_table`:
   - `enable_schema_evolution`
   - `data_retention_time`
@@ -51,7 +52,7 @@
 #### New Features
 
 - Added limited support for the `Timedelta` type, including the following features. Snowpark pandas will raise `NotImplementedError` for unsupported `Timedelta` use cases.
-  - supporting tracking the Timedelta type through `copy`, `cache_result`, `shift`, `sort_index`.
+  - supporting tracking the Timedelta type through `copy`, `cache_result`, `shift`, `sort_index`, `assign`, `bfill`, `ffill`, `fillna`, `compare`, `diff`, `drop`, `dropna`, `duplicated`, `empty`, `equals`, `insert`, `isin`, `isna`, `items`, `iterrows`, `join`, `len`, `mask`, `melt`, `merge`, `nlargest`, `nsmallest`.
   - converting non-timedelta to timedelta via `astype`.
   - `NotImplementedError` will be raised for the rest of methods that do not support `Timedelta`.
   - support for subtracting two timestamps to get a Timedelta.
