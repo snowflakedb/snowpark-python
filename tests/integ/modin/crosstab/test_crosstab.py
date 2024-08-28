@@ -16,57 +16,9 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 @pytest.mark.parametrize("dropna", [True, False])
 class TestCrosstab:
-    def test_basic_crosstab_with_numpy_arrays(self, dropna):
+    def test_basic_crosstab_with_numpy_arrays(self, dropna, a, b, c):
         query_count = 1
         join_count = 0 if dropna else 1
-        a = np.array(
-            [
-                "foo",
-                "foo",
-                "foo",
-                "foo",
-                "bar",
-                "bar",
-                "bar",
-                "bar",
-                "foo",
-                "foo",
-                "foo",
-            ],
-            dtype=object,
-        )
-        b = np.array(
-            [
-                "one",
-                "one",
-                "one",
-                "two",
-                "one",
-                "one",
-                "one",
-                "two",
-                "two",
-                "two",
-                "one",
-            ],
-            dtype=object,
-        )
-        c = np.array(
-            [
-                "dull",
-                "dull",
-                "shiny",
-                "dull",
-                "dull",
-                "shiny",
-                "shiny",
-                "dull",
-                "shiny",
-                "shiny",
-                "shiny",
-            ],
-            dtype=object,
-        )
         with SqlCounter(query_count=query_count, join_count=join_count):
             eval_snowpark_pandas_result(
                 pd,
@@ -76,49 +28,10 @@ class TestCrosstab:
                 ),
             )
 
-    def test_basic_crosstab_with_numpy_arrays_different_lengths(self, dropna):
-        a = np.array(
-            [
-                "foo",
-                "foo",
-                "foo",
-                "foo",
-                "bar",
-                "bar",
-                "bar",
-                "bar",
-                "foo",
-                "foo",
-            ],
-            dtype=object,
-        )
-        b = np.array(
-            [
-                "one",
-                "one",
-                "one",
-                "two",
-                "one",
-                "two",
-                "two",
-                "two",
-                "one",
-            ],
-            dtype=object,
-        )
-        c = np.array(
-            [
-                "dull",
-                "dull",
-                "shiny",
-                "dull",
-                "dull",
-                "shiny",
-                "shiny",
-                "shiny",
-            ],
-            dtype=object,
-        )
+    def test_basic_crosstab_with_numpy_arrays_different_lengths(self, dropna, a, b, c):
+        a = a[:-1]
+        b = b[:-2]
+        c = c[:-3]
         with SqlCounter(query_count=0):
             eval_snowpark_pandas_result(
                 pd,
@@ -137,56 +50,10 @@ class TestCrosstab:
     # only the intersection of the index objects of all Series when determining
     # the final DataFrame to pass into pivot_table, so here, we are testing
     # that we follow that behavior.
-    def test_basic_crosstab_with_series_objs_full_overlap(self, dropna):
+    def test_basic_crosstab_with_series_objs_full_overlap(self, dropna, a, b, c):
         # In this case, all indexes are identical - hence "full" overlap.
         query_count = 2
         join_count = 5 if dropna else 10
-        a = np.array(
-            [
-                "foo",
-                "foo",
-                "foo",
-                "foo",
-                "bar",
-                "bar",
-                "bar",
-                "bar",
-                "foo",
-                "foo",
-                "foo",
-            ],
-            dtype=object,
-        )
-        b = native_pd.Series(
-            [
-                "one",
-                "one",
-                "one",
-                "two",
-                "one",
-                "one",
-                "one",
-                "two",
-                "two",
-                "two",
-                "one",
-            ],
-        )
-        c = native_pd.Series(
-            [
-                "dull",
-                "dull",
-                "shiny",
-                "dull",
-                "dull",
-                "shiny",
-                "shiny",
-                "dull",
-                "shiny",
-                "shiny",
-                "shiny",
-            ],
-        )
 
         def eval_func(lib):
             if lib is pd:
@@ -205,7 +72,7 @@ class TestCrosstab:
         with SqlCounter(query_count=query_count, join_count=join_count):
             eval_snowpark_pandas_result(pd, native_pd, eval_func)
 
-    def test_basic_crosstab_with_series_objs_some_overlap(self, dropna):
+    def test_basic_crosstab_with_series_objs_some_overlap(self, dropna, a, b, c):
         # In this case, some values are shared across indexes (non-zero intersection),
         # hence "some" overlap.
         # When a mix of Series and non-Series objects are passed in, the non-Series
@@ -214,52 +81,12 @@ class TestCrosstab:
         # are the length of the intersection rather than the length of each of the Series.
         query_count = 2
         join_count = 5 if dropna else 10
-        a = np.array(
-            [
-                "foo",
-                "foo",
-                "foo",
-                "foo",
-                "bar",
-                "bar",
-                "bar",
-                "bar",
-                "foo",
-                "foo",
-                "foo",
-            ],
-            dtype=object,
-        )
         b = native_pd.Series(
-            [
-                "one",
-                "one",
-                "one",
-                "two",
-                "one",
-                "one",
-                "one",
-                "two",
-                "two",
-                "two",
-                "one",
-            ],
+            b,
             index=list(range(len(a))),
         )
         c = native_pd.Series(
-            [
-                "dull",
-                "dull",
-                "shiny",
-                "dull",
-                "dull",
-                "shiny",
-                "shiny",
-                "dull",
-                "shiny",
-                "shiny",
-                "shiny",
-            ],
+            c,
             index=-1 * np.array(list(range(len(a)))),
         )
 
@@ -288,7 +115,7 @@ class TestCrosstab:
             )
 
     @sql_count_checker(query_count=1, join_count=1)
-    def test_basic_crosstab_with_series_objs_some_overlap_error(self, dropna):
+    def test_basic_crosstab_with_series_objs_some_overlap_error(self, dropna, a, b, c):
         # Same as above - the intersection of the indexes of the Series objects
         # is non-zero, but the indexes are not identical - hence "some" overlap.
         # When a mix of Series and non-Series objects are passed in, the non-Series
@@ -296,52 +123,12 @@ class TestCrosstab:
         # of the Series objects. This test case errors because we pass in arrays that
         # are the length of the Series, rather than the length of the intersection of
         # the indexes of the Series.
-        a = np.array(
-            [
-                "foo",
-                "foo",
-                "foo",
-                "foo",
-                "bar",
-                "bar",
-                "bar",
-                "bar",
-                "foo",
-                "foo",
-                "foo",
-            ],
-            dtype=object,
-        )
         b = native_pd.Series(
-            [
-                "one",
-                "one",
-                "one",
-                "two",
-                "one",
-                "one",
-                "one",
-                "two",
-                "two",
-                "two",
-                "one",
-            ],
+            b,
             index=list(range(len(a))),
         )
         c = native_pd.Series(
-            [
-                "dull",
-                "dull",
-                "shiny",
-                "dull",
-                "dull",
-                "shiny",
-                "shiny",
-                "dull",
-                "shiny",
-                "shiny",
-                "shiny",
-            ],
+            c,
             index=-1 * np.array(list(range(len(a)))),
         )
 
@@ -374,56 +161,16 @@ class TestCrosstab:
         )
 
     @sql_count_checker(query_count=1, join_count=1)
-    def test_basic_crosstab_with_series_objs_no_overlap_error(self, dropna):
+    def test_basic_crosstab_with_series_objs_no_overlap_error(self, dropna, a, b, c):
         # In this case, no values are shared across the indexes - the intersection is an
         # empty set - hence "no" overlap. We error here for the same reason as above - the
         # arrays passed in should also be empty, but are non-empty.
-        a = np.array(
-            [
-                "foo",
-                "foo",
-                "foo",
-                "foo",
-                "bar",
-                "bar",
-                "bar",
-                "bar",
-                "foo",
-                "foo",
-                "foo",
-            ],
-            dtype=object,
-        )
         b = native_pd.Series(
-            [
-                "one",
-                "one",
-                "one",
-                "two",
-                "one",
-                "one",
-                "one",
-                "two",
-                "two",
-                "two",
-                "one",
-            ],
+            b,
             index=list(range(len(a))),
         )
         c = native_pd.Series(
-            [
-                "dull",
-                "dull",
-                "shiny",
-                "dull",
-                "dull",
-                "shiny",
-                "shiny",
-                "dull",
-                "shiny",
-                "shiny",
-                "shiny",
-            ],
+            c,
             index=-1 - np.array(list(range(len(a)))),
         )
 
@@ -455,53 +202,19 @@ class TestCrosstab:
             assert_exception_equal=False,  # Our error message is a little different.
         )
 
-    def test_basic_crosstab_with_df_and_series_objs_pandas_errors(self, dropna):
+    def test_basic_crosstab_with_df_and_series_objs_pandas_errors(
+        self, dropna, a, b, c
+    ):
         query_count = 4
         join_count = 1 if dropna else 3
         a = native_pd.Series(
-            [
-                "foo",
-                "foo",
-                "foo",
-                "foo",
-                "bar",
-                "bar",
-                "bar",
-                "bar",
-                "foo",
-                "foo",
-                "foo",
-            ],
+            a,
             dtype=object,
         )
         b = native_pd.DataFrame(
             {
-                "0": [
-                    "one",
-                    "one",
-                    "one",
-                    "two",
-                    "one",
-                    "one",
-                    "one",
-                    "two",
-                    "two",
-                    "two",
-                    "one",
-                ],
-                "1": [
-                    "dull",
-                    "dull",
-                    "shiny",
-                    "dull",
-                    "dull",
-                    "shiny",
-                    "shiny",
-                    "dull",
-                    "shiny",
-                    "shiny",
-                    "shiny",
-                ],
+                "0": b,
+                "1": c,
             }
         )
         # pandas expects only Series objects, or DataFrames that have only a single column, while
@@ -535,58 +248,11 @@ class TestCrosstab:
                 eval_func,
             )
 
-    def test_margins(self, dropna):
+    def test_margins(self, dropna, a, b, c):
         query_count = 1
         join_count = 1 if dropna else 2
         union_count = 1
-        a = np.array(
-            [
-                "foo",
-                "foo",
-                "foo",
-                "foo",
-                "bar",
-                "bar",
-                "bar",
-                "bar",
-                "foo",
-                "foo",
-                "foo",
-            ],
-            dtype=object,
-        )
-        b = np.array(
-            [
-                "one",
-                "one",
-                "one",
-                "two",
-                "one",
-                "one",
-                "one",
-                "two",
-                "two",
-                "two",
-                "one",
-            ],
-            dtype=object,
-        )
-        c = np.array(
-            [
-                "dull",
-                "dull",
-                "shiny",
-                "dull",
-                "dull",
-                "shiny",
-                "shiny",
-                "dull",
-                "shiny",
-                "shiny",
-                "shiny",
-            ],
-            dtype=object,
-        )
+
         with SqlCounter(
             query_count=query_count, join_count=join_count, union_count=union_count
         ):
@@ -605,59 +271,12 @@ class TestCrosstab:
             )
 
     @pytest.mark.parametrize("normalize", [0, 1, True, "all", "index", "columns"])
-    def test_normalize(self, dropna, normalize):
+    def test_normalize(self, dropna, normalize, a, b, c):
         query_count = 1 if normalize in (0, "index") else 2
         join_count = 3 if normalize in (0, "index") else 2
         if dropna:
             join_count -= 2
-        a = np.array(
-            [
-                "foo",
-                "foo",
-                "foo",
-                "foo",
-                "bar",
-                "bar",
-                "bar",
-                "bar",
-                "foo",
-                "foo",
-                "foo",
-            ],
-            dtype=object,
-        )
-        b = np.array(
-            [
-                "one",
-                "one",
-                "one",
-                "two",
-                "one",
-                "one",
-                "one",
-                "two",
-                "two",
-                "two",
-                "one",
-            ],
-            dtype=object,
-        )
-        c = np.array(
-            [
-                "dull",
-                "dull",
-                "shiny",
-                "dull",
-                "dull",
-                "shiny",
-                "shiny",
-                "dull",
-                "shiny",
-                "shiny",
-                "shiny",
-            ],
-            dtype=object,
-        )
+
         with SqlCounter(query_count=query_count, join_count=join_count):
             eval_snowpark_pandas_result(
                 pd,
@@ -673,7 +292,7 @@ class TestCrosstab:
             )
 
     @pytest.mark.parametrize("normalize", [0, 1, True, "all", "index", "columns"])
-    def test_normalize_and_margins(self, dropna, normalize):
+    def test_normalize_and_margins(self, dropna, normalize, a, b, c):
         counts = {
             "columns": [3, 5 if dropna else 9, 4],
             "index": [1, 5 if dropna else 8, 3],
@@ -681,54 +300,7 @@ class TestCrosstab:
         }
         counts[0] = counts["index"]
         counts[1] = counts["columns"]
-        a = np.array(
-            [
-                "foo",
-                "foo",
-                "foo",
-                "foo",
-                "bar",
-                "bar",
-                "bar",
-                "bar",
-                "foo",
-                "foo",
-                "foo",
-            ],
-            dtype=object,
-        )
-        b = np.array(
-            [
-                "one",
-                "one",
-                "one",
-                "two",
-                "one",
-                "one",
-                "one",
-                "two",
-                "two",
-                "two",
-                "one",
-            ],
-            dtype=object,
-        )
-        c = np.array(
-            [
-                "dull",
-                "dull",
-                "shiny",
-                "dull",
-                "dull",
-                "shiny",
-                "shiny",
-                "dull",
-                "shiny",
-                "shiny",
-                "shiny",
-            ],
-            dtype=object,
-        )
+
         if normalize is True:
             sql_counts = counts["all"]
         else:
@@ -754,7 +326,7 @@ class TestCrosstab:
 
     @pytest.mark.parametrize("normalize", [0, 1, "index", "columns"])
     @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
-    def test_normalize_margins_and_values(self, dropna, normalize, aggfunc):
+    def test_normalize_margins_and_values(self, dropna, normalize, aggfunc, a, b, c):
         counts = {
             "columns": [3, 29 if dropna else 41, 4],
             "index": [1, 23 if dropna else 32, 3],
@@ -762,54 +334,6 @@ class TestCrosstab:
         }
         counts[0] = counts["index"]
         counts[1] = counts["columns"]
-        a = np.array(
-            [
-                "foo",
-                "foo",
-                "foo",
-                "foo",
-                "bar",
-                "bar",
-                "bar",
-                "bar",
-                "foo",
-                "foo",
-                "foo",
-            ],
-            dtype=object,
-        )
-        b = np.array(
-            [
-                "one",
-                "one",
-                "one",
-                "two",
-                "one",
-                "one",
-                "one",
-                "two",
-                "two",
-                "two",
-                "one",
-            ],
-            dtype=object,
-        )
-        c = np.array(
-            [
-                "dull",
-                "dull",
-                "shiny",
-                "dull",
-                "dull",
-                "shiny",
-                "shiny",
-                "dull",
-                "shiny",
-                "shiny",
-                "shiny",
-            ],
-            dtype=object,
-        )
         vals = np.array([12, 10, 9, 4, 3, 49, 19, 20, 21, 34, 0])
         if normalize is True:
             sql_counts = counts["all"]
@@ -829,7 +353,12 @@ class TestCrosstab:
                 aggfunc=aggfunc,
             )
             if aggfunc == "sum":
-                # Thanks to our hack, the rounding is different for sum.
+                # When normalizing the data, we apply the normalization function to the
+                # entire table (including margins), which requires us to multiply by 2
+                # (since the function takes the sum over the rows, and the margins row is
+                # itself the sum over the rows, causing the sum over all rows to be equal
+                # to 2 * the sum over the input rows). This hack allows us to save on joins
+                # but results in slight precision issues.
                 df = df.round(decimals=6)
             return df
 
@@ -845,55 +374,7 @@ class TestCrosstab:
             )
 
     @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
-    def test_margins_and_values(self, dropna, aggfunc):
-        a = np.array(
-            [
-                "foo",
-                "foo",
-                "foo",
-                "foo",
-                "bar",
-                "bar",
-                "bar",
-                "bar",
-                "foo",
-                "foo",
-                "foo",
-            ],
-            dtype=object,
-        )
-        b = np.array(
-            [
-                "one",
-                "one",
-                "one",
-                "two",
-                "one",
-                "one",
-                "one",
-                "two",
-                "two",
-                "two",
-                "one",
-            ],
-            dtype=object,
-        )
-        c = np.array(
-            [
-                "dull",
-                "dull",
-                "shiny",
-                "dull",
-                "dull",
-                "shiny",
-                "shiny",
-                "dull",
-                "shiny",
-                "shiny",
-                "shiny",
-            ],
-            dtype=object,
-        )
+    def test_margins_and_values(self, dropna, aggfunc, a, b, c):
         vals = np.array([12, 10, 9, 4, 3, 49, 19, 20, 21, 34, 0])
 
         def eval_func(lib):
@@ -922,7 +403,7 @@ class TestCrosstab:
 
     @pytest.mark.parametrize("normalize", [0, 1, True, "all", "index", "columns"])
     @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
-    def test_normalize_and_values(self, dropna, normalize, aggfunc):
+    def test_normalize_and_values(self, dropna, normalize, aggfunc, a, b, c):
         counts = {
             "columns": [2, 4 if dropna else 10],
             "index": [1, 5 if dropna else 11],
@@ -930,54 +411,6 @@ class TestCrosstab:
         }
         counts[0] = counts["index"]
         counts[1] = counts["columns"]
-        a = np.array(
-            [
-                "foo",
-                "foo",
-                "foo",
-                "foo",
-                "bar",
-                "bar",
-                "bar",
-                "bar",
-                "foo",
-                "foo",
-                "foo",
-            ],
-            dtype=object,
-        )
-        b = np.array(
-            [
-                "one",
-                "one",
-                "one",
-                "two",
-                "one",
-                "one",
-                "one",
-                "two",
-                "two",
-                "two",
-                "one",
-            ],
-            dtype=object,
-        )
-        c = np.array(
-            [
-                "dull",
-                "dull",
-                "shiny",
-                "dull",
-                "dull",
-                "shiny",
-                "shiny",
-                "dull",
-                "shiny",
-                "shiny",
-                "shiny",
-            ],
-            dtype=object,
-        )
         vals = np.array([12, 10, 9, 4, 3, 49, 19, 20, 21, 34, 0])
         if normalize is True:
             sql_counts = counts["all"]
@@ -996,7 +429,12 @@ class TestCrosstab:
                 aggfunc=aggfunc,
             )
             if aggfunc in ["sum", "max"]:
-                # Thanks to our hack, the rounding is different for sum and max.
+                # When normalizing the data, we apply the normalization function to the
+                # entire table (including margins), which requires us to multiply by 2
+                # (since the function takes the sum over the rows, and the margins row is
+                # itself the sum over the rows, causing the sum over all rows to be equal
+                # to 2 * the sum over the input rows). This hack allows us to save on joins
+                # but results in slight precision issues.
                 df = df.round(decimals=6)
             return df
 
@@ -1014,56 +452,8 @@ class TestCrosstab:
     @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
     @sql_count_checker(query_count=0)
     def test_normalize_margins_and_values_not_supported(
-        self, dropna, normalize, aggfunc
+        self, dropna, normalize, aggfunc, a, b, c
     ):
-        a = np.array(
-            [
-                "foo",
-                "foo",
-                "foo",
-                "foo",
-                "bar",
-                "bar",
-                "bar",
-                "bar",
-                "foo",
-                "foo",
-                "foo",
-            ],
-            dtype=object,
-        )
-        b = np.array(
-            [
-                "one",
-                "one",
-                "one",
-                "two",
-                "one",
-                "one",
-                "one",
-                "two",
-                "two",
-                "two",
-                "one",
-            ],
-            dtype=object,
-        )
-        c = np.array(
-            [
-                "dull",
-                "dull",
-                "shiny",
-                "dull",
-                "dull",
-                "shiny",
-                "shiny",
-                "dull",
-                "shiny",
-                "shiny",
-                "shiny",
-            ],
-            dtype=object,
-        )
         vals = np.array([12, 10, 9, 4, 3, 49, 19, 20, 21, 34, 0])
         with pytest.raises(
             NotImplementedError,
@@ -1082,25 +472,10 @@ class TestCrosstab:
             )
 
     @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
-    def test_values(self, dropna, aggfunc):
+    def test_values(self, dropna, aggfunc, basic_crosstab_dfs):
         query_count = 1
         join_count = 2 if dropna else 5
-        native_df = native_pd.DataFrame(
-            {
-                "species": ["dog", "cat", "dog", "dog", "cat", "cat", "dog", "cat"],
-                "favorite_food": [
-                    "chicken",
-                    "fish",
-                    "fish",
-                    "beef",
-                    "chicken",
-                    "beef",
-                    "fish",
-                    "beef",
-                ],
-                "age": [7, 2, 8, 5, 9, 3, 6, 1],
-            }
-        )
+        native_df = basic_crosstab_dfs[0]
 
         with SqlCounter(query_count=query_count, join_count=join_count):
             eval_snowpark_pandas_result(
@@ -1116,26 +491,10 @@ class TestCrosstab:
             )
 
     @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
-    def test_values_series_like(self, dropna, aggfunc):
+    def test_values_series_like(self, dropna, aggfunc, basic_crosstab_dfs):
         query_count = 5
         join_count = 2 if dropna else 5
-        native_df = native_pd.DataFrame(
-            {
-                "species": ["dog", "cat", "dog", "dog", "cat", "cat", "dog", "cat"],
-                "favorite_food": [
-                    "chicken",
-                    "fish",
-                    "fish",
-                    "beef",
-                    "chicken",
-                    "beef",
-                    "fish",
-                    "beef",
-                ],
-                "age": [7, 2, 8, 5, 9, 3, 6, 1],
-            }
-        )
-        snow_df = pd.DataFrame(native_df)
+        native_df, snow_df = basic_crosstab_dfs
 
         def eval_func(df):
             if isinstance(df, pd.DataFrame):
@@ -1164,23 +523,8 @@ class TestCrosstab:
 
 
 @sql_count_checker(query_count=0)
-def test_values_unsupported_aggfunc():
-    native_df = native_pd.DataFrame(
-        {
-            "species": ["dog", "cat", "dog", "dog", "cat", "cat", "dog", "cat"],
-            "favorite_food": [
-                "chicken",
-                "fish",
-                "fish",
-                "beef",
-                "chicken",
-                "beef",
-                "fish",
-                "beef",
-            ],
-            "age": [7, 2, 8, 5, 9, 3, 6, 1],
-        }
-    )
+def test_values_unsupported_aggfunc(basic_crosstab_dfs):
+    native_df = basic_crosstab_dfs[0]
 
     with pytest.raises(
         NotImplementedError,
@@ -1196,26 +540,10 @@ def test_values_unsupported_aggfunc():
 
 
 @sql_count_checker(query_count=4)
-def test_values_series_like_unsupported_aggfunc():
+def test_values_series_like_unsupported_aggfunc(basic_crosstab_dfs):
     # The query count above comes from building the DataFrame
     # that we pass in to pivot table.
-    native_df = native_pd.DataFrame(
-        {
-            "species": ["dog", "cat", "dog", "dog", "cat", "cat", "dog", "cat"],
-            "favorite_food": [
-                "chicken",
-                "fish",
-                "fish",
-                "beef",
-                "chicken",
-                "beef",
-                "fish",
-                "beef",
-            ],
-            "age": [7, 2, 8, 5, 9, 3, 6, 1],
-        }
-    )
-    snow_df = pd.DataFrame(native_df)
+    _, snow_df = basic_crosstab_dfs
 
     with pytest.raises(
         NotImplementedError,

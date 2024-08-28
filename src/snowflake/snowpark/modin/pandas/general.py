@@ -2282,6 +2282,15 @@ def crosstab(
             elif normalize == "all":
                 # Normalize core
                 f = normalizers[normalize]
+
+                # When we perform the normalization function, we take the sum over
+                # the rows, and divide every value by the sum. Since margins is included
+                # though, the result of the sum is actually 2 * the sum of the original
+                # values (since the margin itself is the sum of the original values),
+                # so we need to multiply by 2 here to account for that.
+                # The alternative would be to apply normalization to the main table
+                # and the index margins separately, but that would require additional joins
+                # to get the final table, which we want to avoid.
                 table = f(table.iloc[:, :-1]) * 2.0
 
                 column_margin = column_margin / column_margin.sum()
