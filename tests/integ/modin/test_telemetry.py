@@ -547,3 +547,18 @@ def test_telemetry_repr():
         {"name": "Series.property.name_set"},
         {"name": "Series.Series.__repr__"},
     ]
+
+
+@sql_count_checker(query_count=0)
+def test_telemetry_copy():
+    # copy() is defined in upstream modin's BasePandasDataset class, and not overridden by any
+    # child class or the extensions module.
+    s = pd.Series([1, 2, 3, 4])
+    copied = s.copy()
+    assert s._query_compiler.snowpark_pandas_api_calls == [
+        {"name": "Series.property.name_set"}
+    ]
+    assert copied._query_compiler.snowpark_pandas_api_calls == [
+        {"name": "Series.property.name_set"},
+        {"name": "Series.BasePandasDataset.copy"},
+    ]
