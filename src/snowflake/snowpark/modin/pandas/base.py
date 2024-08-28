@@ -616,12 +616,14 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         ----
         When setting `DataFrame.index` or `Series.index` where the length of the
         `Series`/`DataFrame` object does not match with the new index's length,
-        a `ValueError` is not raised. When the `Series`/`DataFrame` object is
-        longer than the new index, the `Series`/`DataFrame`'s new index is
-        filled with `NaN` values for the "extra" elements. When the `Series`/
-        `DataFrame` object is shorter than the new index, the extra values in
-        the new index are ignored—`Series` and `DataFrame` stay the same length `n`,
-        and use only the first `n` values of the new index.
+        pandas raises a ValueError. Snowpark pandas does not raise this error;
+        this operation is valid.
+        When the `Series`/`DataFrame` object is longer than the new index,
+        the `Series`/`DataFrame`'s new index is filled with `NaN` values for
+        the "extra" elements. When the `Series`/`DataFrame` object is shorter than
+        the new index, the extra values in the new index are ignored—`Series` and
+        `DataFrame` stay the same length `n`, and use only the first `n` values of
+        the new index.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         self._update_inplace(
@@ -678,12 +680,14 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         ----
         When setting `DataFrame.index` or `Series.index` where the length of the
         `Series`/`DataFrame` object does not match with the new index's length,
-        a `ValueError` is not raised. When the `Series`/`DataFrame` object is
-        longer than the new index, the `Series`/`DataFrame`'s new index is
-        filled with `NaN` values for the "extra" elements. When the `Series`/
-        `DataFrame` object is shorter than the new index, the extra values in
-        the new index are ignored—`Series` and `DataFrame` stay the same length `n`,
-        and use only the first `n` values of the new index.
+        pandas raises a ValueError. Snowpark pandas does not raise this error;
+        this operation is valid.
+        When the `Series`/`DataFrame` object is longer than the new index,
+        the `Series`/`DataFrame`'s new index is filled with `NaN` values for
+        the "extra" elements. When the `Series`/`DataFrame` object is shorter than
+        the new index, the extra values in the new index are ignored—`Series` and
+        `DataFrame` stay the same length `n`, and use only the first `n` values of
+        the new index.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         from snowflake.snowpark.modin.plugin.extensions.index import Index
