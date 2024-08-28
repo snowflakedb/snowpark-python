@@ -1499,7 +1499,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         row_position_quoted_identifier = frame.row_position_snowflake_quoted_identifier
 
         fill_value_dtype = infer_object_type(fill_value)
-        fill_value = pandas_lit(fill_value) if fill_value is not None else None
+        fill_value = None if pd.isna(fill_value) else pandas_lit(fill_value)
 
         def shift_expression_and_type(
             quoted_identifier: str, dtype: DataType

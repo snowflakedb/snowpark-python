@@ -260,7 +260,7 @@ def test_isin_dataframe_values_type_negative():
 )
 def test_isin_timedelta(values):
     native_df = native_pd.DataFrame({"a": [1, 2, 3], "b": [None, 4, 2]}).astype(
-        "timedelta64[ns]"
+        {"b": "timedelta64[ns]"}
     )
     snow_df = pd.DataFrame(native_df)
 
