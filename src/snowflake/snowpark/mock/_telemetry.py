@@ -5,6 +5,7 @@ import atexit
 import json
 import logging
 import os
+import threading
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -92,6 +93,7 @@ class LocalTestOOBTelemetryService(TelemetryService):
         )
         self._deployment_url = self.PROD
         self._enable = True
+        self._lock = threading.RLock()
 
     def _upload_payload(self, payload) -> None:
         if not REQUESTS_AVAILABLE:
@@ -136,12 +138,13 @@ class LocalTestOOBTelemetryService(TelemetryService):
         if not self.enabled:
             return
 
-        self.queue.put(event)
-        if self.queue.qsize() > self.batch_size:
-            payload = self.export_queue_to_string()
-            if payload is None:
-                return
-            self._upload_payload(payload)
+        with self._lock:
+            self.queue.put(event)
+            if self.queue.qsize() > self.batch_size:
+                payload = self.export_queue_to_string()
+                if payload is None:
+                    return
+                self._upload_payload(payload)
 
     @property
     def enabled(self) -> bool:
