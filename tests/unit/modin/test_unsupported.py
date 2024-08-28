@@ -45,7 +45,6 @@ def test_unsupported_io(io_method, kwargs):
     [
         ["merge_ordered", {"left": "", "right": ""}],
         ["value_counts", {"values": ""}],
-        ["crosstab", {"index": "", "columns": ""}],
         ["lreshape", {"data": "", "groups": ""}],
         ["wide_to_long", {"df": "", "stubnames": "", "i": "", "j": ""}],
         ["to_timedelta", {"arg": ""}],
