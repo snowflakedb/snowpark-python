@@ -752,7 +752,7 @@ class TestCrosstab:
                 ),
             )
 
-    @pytest.mark.parametrize("aggfunc", ["mean", "sum"])
+    @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
     def test_values(self, dropna, aggfunc):
         query_count = 1
         join_count = 2 if dropna else 5
@@ -786,7 +786,7 @@ class TestCrosstab:
                 ),
             )
 
-    @pytest.mark.parametrize("aggfunc", ["mean", "sum"])
+    @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
     def test_values_series_like(self, dropna, aggfunc):
         query_count = 5
         join_count = 2 if dropna else 5
