@@ -3,8 +3,6 @@
 #
 
 import logging
-import os
-import tempfile
 from collections import defaultdict
 from typing import List, Optional, Tuple
 
@@ -125,7 +123,6 @@ class LargeQueryBreakdown:
         self._query_generator = query_generator
         self.logical_plans = logical_plans
         self._parent_map = defaultdict(set)
-        self._tmp_plot_dir = os.path.join(tempfile.gettempdir(), "snowpark_plan_plots")
 
     def apply(self) -> List[LogicalPlan]:
         if is_active_transaction(self.session):

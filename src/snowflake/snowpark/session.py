@@ -754,7 +754,11 @@ class Session:
     @large_query_breakdown_enabled.setter
     @experimental_parameter(version="1.22.0")
     def large_query_breakdown_enabled(self, value: bool) -> None:
-        """Set the value for large_query_breakdown_enabled"""
+        """Set the value for large_query_breakdown_enabled. When enabled, the client will
+        automatically detect large query plans and break them down into smaller partitions,
+        materialize the partitions, and then combine them to execute the query to improve
+        overall performance.
+        """
 
         if value in [True, False]:
             self._conn._telemetry_client.send_large_query_breakdown_telemetry(
