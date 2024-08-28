@@ -173,7 +173,7 @@ def join(
     ), f"Invalid join type: {how}. Allowed values are {get_args(JoinTypeLit)}"
 
     def assert_snowpark_pandas_types_match() -> None:
-        """If Snowpark pandas types does not match, then a ValueError will be raised."""
+        """If Snowpark pandas types do not match, then a ValueError will be raised."""
         left_types = [
             left.snowflake_quoted_identifier_to_snowpark_pandas_type.get(id, None)
             for id in left_on
