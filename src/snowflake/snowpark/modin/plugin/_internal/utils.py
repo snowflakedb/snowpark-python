@@ -626,7 +626,9 @@ def extract_pandas_label_from_snowflake_quoted_identifier(
     Returns:
         pandas label.
     """
-    assert is_valid_snowflake_quoted_identifier(snowflake_identifier)
+    assert is_valid_snowflake_quoted_identifier(
+        snowflake_identifier
+    ), f"invalid snowflake_identifier {snowflake_identifier}"
     return snowflake_identifier[1:-1].replace(DOUBLE_QUOTE + DOUBLE_QUOTE, DOUBLE_QUOTE)
 
 
@@ -1523,6 +1525,12 @@ def pandas_lit(value: Any, datatype: Optional[DataType] = None) -> Column:
         return (to_timestamp_ntz if value.tz is None else to_timestamp_tz)(
             Column(Literal(str(value)))
         )
+
+    snowpark_pandas_type = SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(
+        type(value)
+    )
+    if snowpark_pandas_type:
+        return Column(Literal(type(snowpark_pandas_type).from_pandas(value)))
 
     value = (
         convert_numpy_pandas_scalar_to_snowpark_literal(value)

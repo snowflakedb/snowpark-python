@@ -262,7 +262,7 @@ def test_add_packages(session, local_testing_mode):
     # add module objects
     # but we can't register a udf with these versions
     # because the server might not have them
-    resolved_packages = session._resolve_packages(
+    resolved_packages, _ = session._resolve_packages(
         [numpy, pandas, dateutil], validate_package=False
     )
     assert f"numpy=={numpy.__version__}" in resolved_packages

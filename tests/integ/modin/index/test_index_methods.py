@@ -3,6 +3,7 @@
 #
 
 import modin.pandas as pd
+import numpy as np
 import pandas as native_pd
 import pytest
 from numpy.testing import assert_equal
@@ -10,6 +11,7 @@ from pandas._libs import lib
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.index.conftest import (
+    NATIVE_INDEX_SCALAR_TEST_DATA,
     NATIVE_INDEX_TEST_DATA,
     NATIVE_INDEX_UNIQUE_TEST_DATA,
     TEST_DFS,
@@ -20,6 +22,7 @@ from tests.integ.modin.utils import (
     assert_index_equal,
     assert_series_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    eval_snowpark_pandas_result,
 )
 
 
@@ -419,3 +422,78 @@ def test_index_identical():
     i3 = pd.Index([("a", "a"), ("a", "b"), ("b", "a")])
     i4 = pd.Index([("a", "a"), ("a", "b"), ("b", "a")], tupleize_cols=False)
     assert not i3.identical(i4)
+
+
+@pytest.mark.parametrize("native_index", NATIVE_INDEX_SCALAR_TEST_DATA)
+@pytest.mark.parametrize("func", ["min", "max"])
+@sql_count_checker(query_count=1)
+def test_index_min_max(native_index, func):
+    snow_index = pd.Index(native_index)
+    snow_res = getattr(snow_index, func)()
+    native_res = getattr(native_index, func)()
+    # Snowpark pandas treats np.nan as None.
+    native_res = None if native_res is np.nan else native_res
+    assert snow_res == native_res
+
+
+@pytest.mark.parametrize("func", ["min", "max"])
+@pytest.mark.parametrize("axis", [1, "axis", 0.6, -1])
+@sql_count_checker(query_count=0)
+def test_index_min_max_wrong_axis_negative(func, axis):
+    idx = pd.Index([1, 2, 3])
+    with pytest.raises(ValueError, match="Axis must be None or 0 for Index objects"):
+        getattr(idx, func)(axis=axis)
+
+
+@pytest.mark.parametrize(
+    "native_index",
+    [
+        native_pd.Index(["Apple", "Mango", "Watermelon"]),
+        native_pd.Index(["Apple", "Mango", 2.0]),
+        native_pd.Index([1, 2, 3, 4]),
+        native_pd.Index([1.0, 2.0, 3.0, 4.0]),
+        native_pd.Index([1.0, 2.0, np.nan, 4.0]),
+        native_pd.Index([1, 2, 3, 4.0, np.nan]),
+        native_pd.Index([1, 2, 3, 4.0, np.nan, "Apple"]),
+        native_pd.Index([1, 2, 3, 4.0]),
+        native_pd.Index([True, False, True]),
+        native_pd.Index(["True", "False", "True"]),
+        native_pd.Index([True, False, "True"]),
+    ],
+)
+@pytest.mark.parametrize(
+    "func", ["is_integer", "is_boolean", "is_floating", "is_numeric", "is_object"]
+)
+@sql_count_checker(query_count=0)
+def test_index_is_type(native_index, func):
+    snow_index = pd.Index(native_index)
+    snow_res = getattr(snow_index, func)()
+    native_res = getattr(native_index, func)()
+    assert snow_res == native_res
+
+
+@pytest.mark.parametrize("obj_type", ["df", "series"])
+def test_df_series_set_index_and_reset_index(obj_type):
+    obj = {"A": [1, 2, 3], "B": [4, 5, 6]}
+    original_index = ["A", "B", "C"]
+    assert_equal = assert_frame_equal if obj_type == "df" else assert_series_equal
+    native_obj = (
+        native_pd.DataFrame(obj, index=original_index)
+        if obj_type == "df"
+        else native_pd.Series(obj, index=original_index)
+    )
+    snow_obj = pd.DataFrame(native_obj) if obj_type == "df" else pd.Series(native_obj)
+
+    # Index object to change obj's index to.
+    native_idx = native_pd.Index([11, 22, 33])
+    snow_idx = pd.Index(native_idx)
+
+    # Test that df.index = new_index works with lazy index.
+    with SqlCounter(query_count=1):
+        native_obj.index = native_idx
+        snow_obj.index = snow_idx
+        assert_equal(snow_obj, native_obj)
+
+    # Check if reset_index works with lazy index.
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(snow_obj, native_obj, lambda df: df.reset_index())

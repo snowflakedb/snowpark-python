@@ -44,7 +44,6 @@ def test_unsupported_io(io_method, kwargs):
     "general_method, kwargs",
     [
         ["merge_ordered", {"left": "", "right": ""}],
-        ["merge_asof", {"left": "", "right": ""}],
         ["value_counts", {"values": ""}],
         ["crosstab", {"index": "", "columns": ""}],
         ["lreshape", {"data": "", "groups": ""}],

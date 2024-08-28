@@ -27,6 +27,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     serialize_pandas_labels,
 )
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 TRANSPOSE_INDEX = "TRANSPOSE_IDX"
 # transpose value column used in unpivot
@@ -277,6 +278,30 @@ def clean_up_transpose_result_index_and_labels(
         OrderingColumn(row_position_snowflake_quoted_identifier)
     )
 
+    original_frame_data_column_types = (
+        original_frame.cached_data_column_snowpark_pandas_types
+    )
+    if all(t is None for t in original_frame_data_column_types):
+        new_data_column_types = None
+    elif len(set(original_frame_data_column_types)) == 1:
+        # unique type
+        new_data_column_types = [original_frame_data_column_types[0]] * len(
+            new_data_column_snowflake_quoted_identifiers
+        )
+    else:
+        # transpose will lose the type
+        new_data_column_types = None
+        WarningMessage.lost_type_warning(
+            "transpose",
+            ", ".join(
+                [
+                    type(t).__name__
+                    for t in set(original_frame_data_column_types)
+                    if t is not None
+                ]
+            ),
+        )
+
     new_internal_frame = InternalFrame.create(
         ordered_dataframe=ordered_transposed_df,
         data_column_pandas_labels=new_data_column_pandas_labels,
@@ -284,7 +309,7 @@ def clean_up_transpose_result_index_and_labels(
         data_column_snowflake_quoted_identifiers=new_data_column_snowflake_quoted_identifiers,
         index_column_pandas_labels=new_index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=new_index_column_snowflake_quoted_identifiers,
-        data_column_types=None,
+        data_column_types=new_data_column_types,
         index_column_types=None,
     )
 
