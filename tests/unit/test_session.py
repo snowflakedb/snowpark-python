@@ -245,7 +245,9 @@ def test_resolve_package_terms_not_accepted():
         )
 
 
-def test_resolve_packages_no_side_effect():
+def test_resolve_packages_side_effect():
+    """Python stored procedure depends on this behavior to add packages to the session."""
+
     def mock_get_information_schema_packages(table_name: str):
         result = MagicMock()
         result.filter().group_by().agg()._internal_collect_with_tag.return_value = [
@@ -261,15 +263,19 @@ def test_resolve_packages_no_side_effect():
 
     existing_packages = {}
 
-    resolved_packages, _ = session._resolve_packages(
+    resolved_packages = session._resolve_packages(
         ["random_package_name"],
         existing_packages_dict=existing_packages,
         validate_package=True,
         include_pandas=False,
     )
 
-    assert len(resolved_packages) == 2  # random_package_name and cloudpickle
-    assert len(existing_packages) == 0
+    assert (
+        len(resolved_packages) == 2
+    ), resolved_packages  # random_package_name and cloudpickle
+    assert (
+        len(existing_packages) == 1
+    ), existing_packages  # {"random_package_name": "random_package_name"}
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")

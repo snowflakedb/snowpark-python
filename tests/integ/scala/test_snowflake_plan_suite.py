@@ -175,9 +175,8 @@ def test_execution_queries_and_post_actions(session):
             # the cte optimization is not kicking in when sql simplifier disabled, because
             # the cte_optimization_enabled is set to False when constructing the plan for df2,
             # and place_holder is not propogated.
-            # TODO (SNOW-1541096): revisit this test once the cte optimization is switched to the
-            #   new compilation infra.
-            cte_applied=session.sql_simplifier_enabled,
+            cte_applied=session.sql_simplifier_enabled
+            or session._query_compilation_stage_enabled,
             exec_queries=df2._plan.execution_queries,
         )
 

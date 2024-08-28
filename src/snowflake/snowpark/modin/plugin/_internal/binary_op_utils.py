@@ -6,6 +6,7 @@ from collections.abc import Hashable
 from dataclasses import dataclass
 from types import MappingProxyType
 
+import numpy as np
 import pandas as native_pd
 from pandas._typing import Callable, Scalar
 
@@ -13,6 +14,7 @@ from snowflake.snowpark.column import Column as SnowparkColumn
 from snowflake.snowpark.functions import (
     col,
     concat,
+    dateadd,
     datediff,
     floor,
     iff,
@@ -235,8 +237,32 @@ _RIGHT_BINARY_OP_TO_LEFT_BINARY_OP: MappingProxyType[str, str] = MappingProxyTyp
         "rmul": "mul",
         "rsub": "sub",
         "rmod": "mod",
+        "__rand__": "__and__",
+        "__ror__": "__or__",
     }
 )
+
+
+def _op_is_between_two_timedeltas_or_timedelta_and_null(
+    first_datatype: DataType, second_datatype: DataType
+) -> bool:
+    """
+    Whether the binary operation is between two timedeltas, or between timedelta and null.
+
+    Args:
+        first_datatype: First datatype
+        second_datatype: Second datatype
+
+    Returns:
+        bool: Whether op is between two timedeltas or between timedelta and null.
+    """
+    return (
+        isinstance(first_datatype, TimedeltaType)
+        and isinstance(second_datatype, (TimedeltaType, NullType))
+    ) or (
+        isinstance(first_datatype, (TimedeltaType, NullType))
+        and isinstance(second_datatype, TimedeltaType)
+    )
 
 
 def compute_binary_op_between_snowpark_columns(
@@ -273,12 +299,119 @@ def compute_binary_op_between_snowpark_columns(
         )
 
     binary_op_result_column = None
+    snowpark_pandas_type = None
 
     # some operators and the data types have to be handled specially to align with pandas
     # However, it is difficult to fail early if the arithmetic operator is not compatible
     # with the data type, so we just let the server raise exception (e.g. a string minus a string).
-    if op == "truediv":
-        binary_op_result_column = first_operand / second_operand
+    if (
+        op == "add"
+        and isinstance(second_datatype(), TimedeltaType)
+        and isinstance(first_datatype(), TimestampType)
+    ):
+        binary_op_result_column = dateadd("ns", second_operand, first_operand)
+    elif (
+        op == "add"
+        and isinstance(first_datatype(), TimedeltaType)
+        and isinstance(second_datatype(), TimestampType)
+    ):
+        binary_op_result_column = dateadd("ns", first_operand, second_operand)
+    elif op in (
+        "add",
+        "sub",
+        "eq",
+        "ne",
+        "gt",
+        "ge",
+        "lt",
+        "le",
+        "floordiv",
+        "truediv",
+    ) and (
+        (
+            isinstance(first_datatype(), TimedeltaType)
+            and isinstance(second_datatype(), NullType)
+        )
+        or (
+            isinstance(second_datatype(), TimedeltaType)
+            and isinstance(first_datatype(), NullType)
+        )
+    ):
+        return SnowparkPandasColumn(pandas_lit(None), TimedeltaType())
+    elif (
+        op == "sub"
+        and isinstance(second_datatype(), TimedeltaType)
+        and isinstance(first_datatype(), TimestampType)
+    ):
+        binary_op_result_column = dateadd("ns", -1 * second_operand, first_operand)
+    elif (
+        op == "sub"
+        and isinstance(first_datatype(), TimedeltaType)
+        and isinstance(second_datatype(), TimestampType)
+    ):
+        # Timedelta - Timestamp doesn't make sense. Raise the same error
+        # message as pandas.
+        raise TypeError("bad operand type for unary -: 'DatetimeArray'")
+    elif op == "mod" and _op_is_between_two_timedeltas_or_timedelta_and_null(
+        first_datatype(), second_datatype()
+    ):
+        binary_op_result_column = compute_modulo_between_snowpark_columns(
+            first_operand, first_datatype(), second_operand, second_datatype()
+        )
+        snowpark_pandas_type = TimedeltaType()
+    elif op == "pow" and _op_is_between_two_timedeltas_or_timedelta_and_null(
+        first_datatype(), second_datatype()
+    ):
+        raise TypeError("unsupported operand type for **: Timedelta")
+    elif op == "__or__" and _op_is_between_two_timedeltas_or_timedelta_and_null(
+        first_datatype(), second_datatype()
+    ):
+        raise TypeError("unsupported operand type for |: Timedelta")
+    elif op == "__and__" and _op_is_between_two_timedeltas_or_timedelta_and_null(
+        first_datatype(), second_datatype()
+    ):
+        raise TypeError("unsupported operand type for &: Timedelta")
+    elif (
+        op in ("add", "sub")
+        and isinstance(first_datatype(), TimedeltaType)
+        and isinstance(second_datatype(), TimedeltaType)
+    ):
+        snowpark_pandas_type = TimedeltaType()
+    elif op == "mul" and _op_is_between_two_timedeltas_or_timedelta_and_null(
+        first_datatype(), second_datatype()
+    ):
+        raise np.core._exceptions._UFuncBinaryResolutionError(  # type: ignore[attr-defined]
+            np.multiply, (np.dtype("timedelta64[ns]"), np.dtype("timedelta64[ns]"))
+        )
+    elif _op_is_between_two_timedeltas_or_timedelta_and_null(
+        first_datatype(), second_datatype()
+    ) and op in ("eq", "ne", "gt", "ge", "lt", "le", "truediv"):
+        # These operations, when done between timedeltas, work without any
+        # extra handling in `snowpark_pandas_type` or `binary_op_result_column`.
+        # They produce outputs that are not timedeltas (e.g. numbers for floordiv
+        # and truediv, and bools for the comparisons).
+        pass
+    elif (
+        # equal_null and floordiv for timedelta also work without special
+        # handling, but we need to exclude them from the above case so we catch
+        # them in an `elif` clause further down.
+        op not in ("equal_null", "floordiv")
+        and (
+            (
+                isinstance(first_datatype(), TimedeltaType)
+                and not isinstance(second_datatype(), TimedeltaType)
+            )
+            or (
+                not isinstance(first_datatype(), TimedeltaType)
+                and isinstance(second_datatype(), TimedeltaType)
+            )
+        )
+    ):
+        # We don't support these cases yet.
+        # TODO(SNOW-1637102): Support this case.
+        ErrorMessage.not_implemented(
+            f"Snowpark pandas does not yet support the binary operation {op} with a Timedelta column and a non-Timedelta column."
+        )
     elif op == "floordiv":
         binary_op_result_column = floor(first_operand / second_operand)
     elif op == "mod":
@@ -289,9 +422,9 @@ def compute_binary_op_between_snowpark_columns(
         binary_op_result_column = compute_power_between_snowpark_columns(
             first_operand, second_operand
         )
-    elif op in ["__or__", "__ror__"]:
+    elif op == "__or__":
         binary_op_result_column = first_operand | second_operand
-    elif op in ["__and__", "__rand__"]:
+    elif op == "__and__":
         binary_op_result_column = first_operand & second_operand
     elif (
         op == "add"
@@ -324,6 +457,8 @@ def compute_binary_op_between_snowpark_columns(
             pandas_lit(""),
         )
     elif op == "equal_null":
+        # TODO(SNOW-1641716): In Snowpark pandas, generally use this equal_null
+        # with type checking intead of snowflake.snowpark.functions.equal_null.
         if not are_equal_types(first_datatype(), second_datatype()):
             binary_op_result_column = pandas_lit(False)
         else:
@@ -363,7 +498,7 @@ def compute_binary_op_between_snowpark_columns(
 
     return SnowparkPandasColumn(
         snowpark_column=binary_op_result_column,
-        snowpark_pandas_type=None,
+        snowpark_pandas_type=snowpark_pandas_type,
     )
 
 
@@ -377,6 +512,8 @@ def are_equal_types(type1: DataType, type2: DataType) -> bool:
     Returns:
         True if given types are equal, False otherwise.
     """
+    if isinstance(type1, TimedeltaType) or isinstance(type2, TimedeltaType):
+        return type1 == type2
     if isinstance(type1, _IntegralType) and isinstance(type2, _IntegralType):
         return True
     if isinstance(type1, _FractionalType) and isinstance(type2, _FractionalType):
@@ -582,7 +719,7 @@ def prepare_binop_pairs_between_dataframe_and_dataframe(
         List of BinaryOperationPair.
     """
     # construct list of pairs which label belongs to which quoted identifier
-    type_map = aligned_rhs_and_lhs.result_frame.quoted_identifier_to_snowflake_type()
+    type_map = aligned_rhs_and_lhs.result_frame.get_snowflake_type
     left_right_pairs = []
     for label in combined_data_labels:
         left_identifier, right_identifier = None, None
@@ -600,7 +737,7 @@ def prepare_binop_pairs_between_dataframe_and_dataframe(
             left = col(left_identifier)
             # To avoid referencing always the last right_identifier in the loop, use functools.partial
             left_typer = functools.partial(
-                lambda identifier: type_map[identifier], left_identifier
+                lambda identifier: type_map(identifier), left_identifier
             )  # noqa: E731
         except ValueError:
             # lhs label not in list.
@@ -622,7 +759,7 @@ def prepare_binop_pairs_between_dataframe_and_dataframe(
             right = col(right_identifier)
             # To avoid referencing always the last right_identifier in the loop, use functools.partial
             right_typer = functools.partial(
-                lambda identifier: type_map[identifier], right_identifier
+                lambda identifier: type_map(identifier), right_identifier
             )  # noqa: E731
         except ValueError:
             # rhs label not in list

@@ -230,6 +230,12 @@ class TypeMapper:
         """
         map a pandas or numpy type to snowpark data type.
         """
+        snowpark_pandas_type = (
+            SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(p)
+        )
+        if snowpark_pandas_type is not None:
+            return snowpark_pandas_type
+
         if isinstance(p, DatetimeTZDtype):
             return TimestampType(TimestampTimeZone.TZ)
         if p is native_pd.Timestamp or is_datetime64_any_dtype(p):
@@ -246,12 +252,6 @@ class TypeMapper:
         if is_float_dtype(p):
             return DoubleType()
 
-        snowpark_pandas_type = (
-            SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(p)
-        )
-        if snowpark_pandas_type is not None:
-            return snowpark_pandas_type
-
         try:
             return PANDAS_TO_SNOWFLAKE_MAP[p]
         except KeyError:
@@ -267,6 +267,8 @@ class TypeMapper:
             return np.dtype("int64") if s.scale == 0 else np.dtype("float64")
         if isinstance(s, TimestampType):
             return np.dtype("datetime64[ns]")
+        if isinstance(s, TimedeltaType):
+            return np.dtype("timedelta64[ns]")
         # We also need to treat parameterized types correctly
         if isinstance(s, (StringType, ArrayType, MapType, GeographyType)):
             return np.dtype(np.object_)
@@ -316,12 +318,12 @@ def column_astype(
         isinstance(from_sf_type, TimestampType)
         and from_sf_type.tz == TimestampTimeZone.LTZ
     ):
-        # treat TIMESTAMPT_LTZ columns as same as TIMESTAMPT_TZ
+        # treat TIMESTAMP_LTZ columns as same as TIMESTAMP_TZ
         curr_col = builtin("to_timestamp_tz")(curr_col)
 
     if isinstance(to_sf_type, TimestampType):
         assert to_sf_type.tz != TimestampTimeZone.LTZ, (
-            "Cast to TIMESTAMPT_LTZ is not supported in astype since "
+            "Cast to TIMESTAMP_LTZ is not supported in astype since "
             "Snowpark pandas API maps tz aware datetime to TIMESTAMP_TZ"
         )
         # convert to timestamp

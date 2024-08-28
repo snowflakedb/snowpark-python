@@ -682,7 +682,9 @@ def create_udf_for_series_apply(
     # Snowpark function with annotations, extract underlying func to wrap.
     if isinstance(func, UserDefinedFunction):
         # Ensure return_type specified is identical.
-        assert func._return_type == return_type
+        assert (
+            func._return_type == return_type
+        ), f"UserDefinedFunction has invalid return type {func.return_type} vs. {return_type}"
 
         # Append packages from function.
         if func._packages:
