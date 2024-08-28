@@ -499,3 +499,73 @@ def test_df_with_timedelta_index(key, api, query_count, join_count):
             eval_snowpark_pandas_result(
                 snow_df, native_df, lambda s: getattr(s, api)[key]
             )
+
+
+def test_df_with_timedelta_index_enlargement_during_indexing():
+    td_idx = native_pd.TimedeltaIndex(
+        [
+            native_pd.Timedelta("1 days 1 hour"),
+            native_pd.Timedelta("2 days 1 minute"),
+            native_pd.Timedelta("3 days 1 nanoseconds"),
+            native_pd.Timedelta("100 nanoseconds"),
+        ]
+    )
+    snow_td_idx = pd.TimedeltaIndex(td_idx)
+
+    data = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]
+    cols = ["a", "b", "c", "d"]
+    native_df = native_pd.DataFrame(data, index=td_idx, columns=cols)
+    snow_df = pd.DataFrame(data, index=snow_td_idx, columns=cols)
+
+    def setitem_enlargement(key, item, df):
+        df[key] = item
+        return df
+
+    item = 23
+
+    key = native_pd.Timedelta("2 days")
+    with SqlCounter(query_count=1, join_count=0):
+        eval_snowpark_pandas_result(
+            snow_df.copy(),
+            native_df.copy(),
+            functools.partial(setitem_enlargement, key, item),
+        )
+
+    key = native_pd.Timedelta("2 days 45 minutes")
+    with SqlCounter(query_count=1, join_count=1):
+        eval_snowpark_pandas_result(
+            snow_df["a"].copy(),
+            native_df["a"].copy(),
+            functools.partial(setitem_enlargement, key, item),
+        )
+
+    def loc_enlargement(key, item, df):
+        df.loc[key] = item
+        return df
+
+    key = (slice(None, None, None), "x")
+
+    with SqlCounter(query_count=1, join_count=0):
+        eval_snowpark_pandas_result(
+            snow_df.copy(),
+            native_df.copy(),
+            functools.partial(loc_enlargement, key, item),
+        )
+
+    key = native_pd.Timedelta("2 days 25 minutes")
+    with SqlCounter(query_count=1, join_count=1):
+        eval_snowpark_pandas_result(
+            snow_df["a"].copy(),
+            native_df["a"].copy(),
+            functools.partial(loc_enlargement, key, item),
+        )
+
+    # single row
+    key = (native_pd.Timedelta("2 days 45 minutes"), slice(None, None, None))
+
+    with SqlCounter(query_count=1, join_count=1):
+        eval_snowpark_pandas_result(
+            snow_df.copy(),
+            native_df.copy(),
+            functools.partial(loc_enlargement, key, item),
+        )
