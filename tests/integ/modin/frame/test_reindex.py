@@ -569,3 +569,26 @@ def test_reindex_multiindex_negative(axis):
             snow_df.reindex(index=[1, 2, 3])
         else:
             snow_df.T.reindex(columns=[1, 2, 3])
+
+
+def test_reindex_with_index_name():
+    native_df = native_pd.DataFrame(
+        [[0, 1, 2], [0, 0, 1], [1, 0, 0]], index=list("ABC"), name="test"
+    )
+    snow_df = pd.DataFrame(native_df)
+    index_with_name = native_pd.Index(list("CAB"), name="weewoo")
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        snow_df.reindex(index=index_with_name), native_df.reindex(index=index_with_name)
+    )
+
+
+def test_reindex_with_index_name_and_df_index_name():
+    native_df = native_pd.DataFrame(
+        {"X": [1, 2, 3], "Y": [8, 7, 3], "Z": [3, 4, 5]},
+        index=native_pd.Index(list("ABC"), name="AAAAA"),
+    )
+    snow_df = pd.DataFrame(native_df)
+    index_with_name = native_pd.Index(list("CAB"), name="weewoo")
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        snow_df.reindex(index=index_with_name), native_df.reindex(index=index_with_name)
+    )
