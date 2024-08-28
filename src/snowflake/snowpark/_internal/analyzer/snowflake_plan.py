@@ -1645,6 +1645,9 @@ class SnowflakePlanBuilder:
 
         new_query = project_statement([], name)
 
+        # note we do not propagate the query parameter of the child here,
+        # the query parameter will be propagate along with the definition during
+        # query generation stage.
         queries = child.queries[:-1] + [Query(sql=new_query)]
         # propagate the cte table
         referenced_ctes = {name}.union(child.referenced_ctes)
