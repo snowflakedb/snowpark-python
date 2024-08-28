@@ -176,6 +176,8 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
     elif isinstance(obj, snowflake.snowpark._internal.type_utils.DataType):
         ast = with_src_position(expr_builder.sp_datatype_val)
         obj._fill_ast(ast.datatype)
+    elif isinstance(obj, snowflake.snowpark._internal.analyzer.expression.Literal):
+        build_expr_from_python_val(expr_builder, obj.value)
     else:
         raise NotImplementedError("not supported type: %s" % type(obj))
 
@@ -734,3 +736,16 @@ def build_proto_from_callable(
     """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as SpCallable protobuf."""
 
     expr_builder.name = "test"
+
+
+def build_proto_from_pivot_values(
+    expr_builder: proto.SpPivotValue,
+    values: Optional[Union[Iterable["LiteralType"], "DataFrame"]],  # noqa: F821
+):
+    if not values:
+        return
+
+    if isinstance(values, snowflake.snowpark.dataframe.DataFrame):
+        expr_builder.sp_pivot_value__dataframe.v.id = values._ast_id
+    else:
+        build_expr_from_python_val(expr_builder.sp_pivot_value__expr.v, values)

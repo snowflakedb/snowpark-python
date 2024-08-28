@@ -27,7 +27,9 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate, Pivot
 from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_python_val,
+    build_expr_from_snowpark_column_or_col_name,
     build_proto_from_callable,
+    build_proto_from_pivot_values,
     build_proto_from_struct_type,
     with_src_position,
 )
@@ -448,6 +450,7 @@ class RelationalGroupedDataFrame:
         pivot_col: ColumnOrName,
         values: Optional[Union[Iterable[LiteralType], DataFrame]] = None,
         default_on_null: Optional[LiteralType] = None,
+        _emit_ast: bool = True,
     ) -> "RelationalGroupedDataFrame":
         """Rotates this DataFrame by turning unique values from one column in the input
         expression into multiple columns and aggregating results where required on any
@@ -529,6 +532,23 @@ class RelationalGroupedDataFrame:
         )
 
         self._group_type = _PivotType(pc[0], pivot_values, default_on_null)
+
+        # special case: This is an internal state modifying operation.
+        if _emit_ast:
+            stmt = self._df._session._ast_batch.assign()
+            ast = with_src_position(
+                stmt.expr.sp_relational_grouped_dataframe_pivot, stmt
+            )
+            if default_on_null is not None:
+                build_expr_from_python_val(ast.default_on_null, default_on_null)
+            build_expr_from_snowpark_column_or_col_name(ast.pivot_col, pivot_col)
+            build_proto_from_pivot_values(ast.values, pivot_values)
+            ast.grouped_df.sp_relational_grouped_dataframe_ref.id.bitfield1 = (
+                self._ast_id
+            )
+            # Update self's id.
+            self._ast_id = stmt.var_id.bitfield1
+
         return self
 
     @relational_group_df_api_usage

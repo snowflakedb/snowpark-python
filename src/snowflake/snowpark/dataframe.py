@@ -4084,7 +4084,7 @@ class DataFrame:
             # Phase 0 code where string gets formatted.
             if is_sql_select_statement(query):
                 result, meta = self._session._conn.get_result_and_metadata(
-                    self.limit(n)._plan, **kwargs
+                    self.limit(n, _emit_ast=False)._plan, **kwargs
                 )
             else:
                 res, meta = self._session._conn.get_result_and_metadata(

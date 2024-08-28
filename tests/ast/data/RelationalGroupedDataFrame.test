@@ -12,23 +12,23 @@ import pandas as pd
 
 from snowflake.snowpark.types import StructType, StructField, StringType, FloatType
 
-def convert(pandas_df):
-    return pandas_df.assign(TEMP_F = lambda x: x.TEMP_C * 9 / 5 + 32)
+#def convert(pandas_df):
+#    return pandas_df.assign(TEMP_F = lambda x: x.TEMP_C * 9 / 5 + 32)
 
-df = session.createDataFrame([('SF', 21.0), ('SF', 17.5), ('SF', 24.0), ('NY', 30.9), ('NY', 33.6)],
-        schema=['location', 'temp_c'])
-
-df.group_by("location").apply_in_pandas(convert,
-    output_schema=StructType([StructField("location", StringType()),
-                              StructField("temp_c", FloatType()),
-                              StructField("temp_f", FloatType())])).order_by("temp_c").collect()
-
+#df = session.createDataFrame([('SF', 21.0), ('SF', 17.5), ('SF', 24.0), ('NY', 30.9), ('NY', 33.6)],
+#        schema=['location', 'temp_c'])
 
 #df.group_by("location").apply_in_pandas(convert,
 #    output_schema=StructType([StructField("location", StringType()),
 #                              StructField("temp_c", FloatType()),
-#                              StructField("temp_f", FloatType())])).order_by("temp_c").show()
+#                              StructField("temp_f", FloatType())])).order_by("temp_c").collect()
 
+
+df = session.create_dataframe([(1, 'A', 10000, 'JAN'), (1, 'B', 400, 'JAN'), (1, 'B', 5000, 'FEB')], schema=['empid', 'team', 'amount', 'month'])
+
+#df.group_by("empid").pivot("month", ['JAN', 'FEB']).sum("amount").sort(df["empid"]).show()
+
+df.group_by("empid").pivot("month", ['JAN', 'FEB']).sum("amount").show()
 
 ## EXPECTED OUTPUT
 
