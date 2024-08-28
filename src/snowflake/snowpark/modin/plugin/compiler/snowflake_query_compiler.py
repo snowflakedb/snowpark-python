@@ -1730,7 +1730,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             The new SnowflakeQueryCompiler after the set_index operation
         """
-        self._raise_not_implemented_error_for_timedelta()
 
         assert (
             len(key._modin_frame.data_column_pandas_labels) == 1
@@ -1761,6 +1760,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         new_index_ids = result_column_mapper.map_right_quoted_identifiers(
             other_frame.data_column_snowflake_quoted_identifiers
         )
+        new_index_snowpark_types = other_frame.cached_data_column_snowpark_pandas_types
         if append:
             new_index_labels = (
                 new_internal_frame.index_column_pandas_labels + new_index_labels
@@ -1768,6 +1768,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             new_index_ids = (
                 new_internal_frame.index_column_snowflake_quoted_identifiers
                 + new_index_ids
+            )
+            new_index_snowpark_types = (
+                self_frame.cached_index_column_snowpark_pandas_types
+                + new_index_snowpark_types
             )
         new_internal_frame = InternalFrame.create(
             ordered_dataframe=new_internal_frame.ordered_dataframe,
@@ -1778,8 +1782,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ),
             index_column_pandas_labels=new_index_labels,
             index_column_snowflake_quoted_identifiers=new_index_ids,
-            data_column_types=None,
-            index_column_types=None,
+            data_column_types=self_frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=new_index_snowpark_types,
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -5894,7 +5898,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A new QueryCompiler instance with updated index.
         """
-        self._raise_not_implemented_error_for_timedelta()
 
         index_column_pandas_labels = keys
         index_column_snowflake_quoted_identifiers = []
@@ -5921,6 +5924,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers = (
                 self._modin_frame.data_column_snowflake_quoted_identifiers
             )
+
+        id_to_type = (
+            self._modin_frame.snowflake_quoted_identifier_to_snowpark_pandas_type
+        )
+        index_column_snowpark_pandas_types = [
+            id_to_type.get(id) for id in index_column_snowflake_quoted_identifiers
+        ]
+        data_column_snowpark_pandas_types = [
+            id_to_type.get(id) for id in data_column_snowflake_quoted_identifiers
+        ]
 
         # Generate aliases for new index columns if
         # 1. 'keys' are also kept as data columns, or
@@ -5956,6 +5969,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame.index_column_snowflake_quoted_identifiers
                 + index_column_snowflake_quoted_identifiers
             )
+            index_column_snowpark_pandas_types = (
+                self._modin_frame.cached_index_column_snowpark_pandas_types
+                + index_column_snowpark_pandas_types
+            )
 
         frame = InternalFrame.create(
             ordered_dataframe=ordered_dataframe,
@@ -5964,8 +5981,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
             data_column_pandas_labels=data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
-            data_column_types=None,
-            index_column_types=None,
+            data_column_types=data_column_snowpark_pandas_types,
+            index_column_types=index_column_snowpark_pandas_types,
         )
         return SnowflakeQueryCompiler(frame)
 
@@ -8790,7 +8807,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 to_sf_type = TypeMapper.to_snowflake(to_dtype)
                 from_dtype = col_dtypes_curr[label]
                 from_sf_type = self._modin_frame.get_snowflake_type(id)
-                if is_astype_type_error(from_sf_type, to_sf_type):
+                if isinstance(from_sf_type, StringType) and isinstance(
+                    to_sf_type, TimedeltaType
+                ):
+                    # Raise NotImplementedError as there is no Snowflake SQL function converting
+                    # string (e.g. 1 day, 3 hours, 2 minutes) to Timedelta
+                    ErrorMessage.not_implemented(
+                        f"dtype {pandas_dtype(from_dtype)} cannot be converted to {pandas_dtype(to_dtype)}"
+                    )
+                elif is_astype_type_error(from_sf_type, to_sf_type):
                     raise TypeError(
                         f"dtype {pandas_dtype(from_dtype)} cannot be converted to {pandas_dtype(to_dtype)}"
                     )
@@ -10267,13 +10292,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
             data_column_labels = []
             data_column_identifiers = []
-            for label, identifiers in zip(
+            data_column_snowpark_pandas_types = []
+            for label, identifiers, type in zip(
                 frame.data_column_pandas_labels,
                 frame.data_column_snowflake_quoted_identifiers,
+                frame.cached_data_column_snowpark_pandas_types,
             ):
                 if label not in data_column_labels_to_drop:
                     data_column_labels.append(label)
                     data_column_identifiers.append(identifiers)
+                    data_column_snowpark_pandas_types.append(type)
 
             frame = InternalFrame.create(
                 ordered_dataframe=frame.ordered_dataframe,
@@ -10282,8 +10310,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_pandas_labels=data_column_labels,
                 data_column_snowflake_quoted_identifiers=data_column_identifiers,
                 data_column_pandas_index_names=frame.data_column_pandas_index_names,
-                data_column_types=None,
-                index_column_types=None,
+                data_column_types=data_column_snowpark_pandas_types,
+                index_column_types=frame.cached_index_column_snowpark_pandas_types,
             )
             frame = frame.select_active_columns()
 

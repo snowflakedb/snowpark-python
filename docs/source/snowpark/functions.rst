@@ -43,6 +43,7 @@ Functions
     array_min
     array_position
     array_prepend
+    array_remove
     array_size
     array_slice
     array_sort
