@@ -185,6 +185,10 @@
 - Fixed a bug in `Series.reset_index(drop=True)` where the result name may be wrong.
 - Fixed a bug in `Groupby.first/last` ordering by the correct columns in the underlying window expression.
 
+#### Behavior Change
+
+- When performing `set_index` on a `Series` or `DataFrame` object whose length does not match with the new index's length, a `ValueError` is no longer raised. When the `Series`/`DataFrame` object is longer than the new index, the `Series`/`DataFrame`'s new index is filled with `NaN` values for the "extra" elements. When the `Series`/`DataFrame` object is shorter than the new index, the extra values in the new index are ignored—`Series` and `DataFrame` stay the same length `n`, and use only the first `n` values of the new index.
+
 ## 1.20.0 (2024-07-17)
 
 ### Snowpark Python API Updates
