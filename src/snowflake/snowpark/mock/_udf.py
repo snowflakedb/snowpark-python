@@ -38,9 +38,11 @@ class MockUDFRegistration(UDFRegistration):
             dict()
         )  # maps udf name to either the callable or a pair of str (module_name, callable_name)
         self._session_level_imports = set()
+        self._lock = self._session._conn._lock
 
     def _clear_session_imports(self):
-        self._session_level_imports.clear()
+        with self._lock:
+            self._session_level_imports.clear()
 
     def _import_file(
         self,
@@ -54,29 +56,32 @@ class MockUDFRegistration(UDFRegistration):
         When udf_name is not None, the import is added to the UDF associated with the name;
         Otherwise, it is a session level import and will be used if no UDF-level imports are specified.
         """
-        absolute_module_path, module_name = extract_import_dir_and_module_name(
-            file_path, self._session._conn.stage_registry, import_path
-        )
-        if udf_name:
-            self._registry[udf_name].add_import(absolute_module_path)
-        else:
-            self._session_level_imports.add(absolute_module_path)
+        with self._lock:
+            absolute_module_path, module_name = extract_import_dir_and_module_name(
+                file_path, self._session._conn.stage_registry, import_path
+            )
+            if udf_name:
+                self._registry[udf_name].add_import(absolute_module_path)
+            else:
+                self._session_level_imports.add(absolute_module_path)
 
-        return module_name
+            return module_name
 
     def get_udf(self, udf_name: str) -> MockUserDefinedFunction:
-        if udf_name not in self._registry:
-            raise SnowparkLocalTestingException(f"udf {udf_name} does not exist.")
-        return self._registry[udf_name]
+        with self._lock:
+            if udf_name not in self._registry:
+                raise SnowparkLocalTestingException(f"udf {udf_name} does not exist.")
+            return self._registry[udf_name]
 
     def get_udf_imports(self, udf_name: str) -> Set[str]:
-        udf = self._registry.get(udf_name)
-        if not udf:
-            return set()
-        elif udf.use_session_imports:
-            return self._session_level_imports
-        else:
-            return udf._imports
+        with self._lock:
+            udf = self._registry.get(udf_name)
+            if not udf:
+                return set()
+            elif udf.use_session_imports:
+                return self._session_level_imports
+            else:
+                return udf._imports
 
     def _do_register_udf(
         self,
