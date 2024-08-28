@@ -316,12 +316,12 @@ def column_astype(
         isinstance(from_sf_type, TimestampType)
         and from_sf_type.tz == TimestampTimeZone.LTZ
     ):
-        # treat TIMESTAMPT_LTZ columns as same as TIMESTAMPT_TZ
+        # treat TIMESTAMP_LTZ columns as same as TIMESTAMP_TZ
         curr_col = builtin("to_timestamp_tz")(curr_col)
 
     if isinstance(to_sf_type, TimestampType):
         assert to_sf_type.tz != TimestampTimeZone.LTZ, (
-            "Cast to TIMESTAMPT_LTZ is not supported in astype since "
+            "Cast to TIMESTAMP_LTZ is not supported in astype since "
             "Snowpark pandas API maps tz aware datetime to TIMESTAMP_TZ"
         )
         # convert to timestamp
