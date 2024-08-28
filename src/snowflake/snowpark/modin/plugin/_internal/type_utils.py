@@ -267,6 +267,8 @@ class TypeMapper:
             return np.dtype("int64") if s.scale == 0 else np.dtype("float64")
         if isinstance(s, TimestampType):
             return np.dtype("datetime64[ns]")
+        if isinstance(s, TimedeltaType):
+            return np.dtype("timedelta64[ns]")
         # We also need to treat parameterized types correctly
         if isinstance(s, (StringType, ArrayType, MapType, GeographyType)):
             return np.dtype(np.object_)

@@ -58,6 +58,7 @@
   - support indexing with Timedelta data columns.
   - support for adding or subtracting timestamps and `Timedelta`.
   - support for binary arithmetic between two `Timedelta` values.
+  - support for lazy `TimedeltaIndex`.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
