@@ -416,8 +416,6 @@ def is_astype_type_error(
         to_sf_type, TimedeltaType
     ):
         return True
-    elif isinstance(from_sf_type, StringType) and isinstance(to_sf_type, TimedeltaType):
-        return True
     else:
         return False
 
