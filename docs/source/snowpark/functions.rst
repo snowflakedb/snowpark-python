@@ -196,6 +196,7 @@ Functions
     length
     listagg
     lit
+    ln
     locate
     log
     lower
