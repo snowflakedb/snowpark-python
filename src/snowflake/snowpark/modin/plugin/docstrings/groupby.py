@@ -238,16 +238,6 @@ class DataFrameGroupBy:
 
         By default, the result will be in descending order so that the first element of each group is the most frequently-occurring row.
 
-        **GroupBy.value_counts in Snowpark pandas may produce different results from vanilla pandas.**
-        This is because pandas internally uses a hash map to track counts, which results in row
-        orderings that are deterministic but platform-dependent.
-
-        Snowpark pandas will always preserve the original order of rows in the input frame. When
-        `groupby` is called with `sort=True`, then the result is sorted on grouping columns; ties
-        are broken according to their original positions in the input frame.
-        When `value_counts` is called with `sort=True`, the result is sorted on the count/proportion
-        column; ties are again broken by their original positions.
-
         Examples
         --------
         >>> df = pd.DataFrame({
