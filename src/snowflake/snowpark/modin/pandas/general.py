@@ -2031,6 +2031,11 @@ def crosstab(
     DataFrame
         Cross tabulation of the data.
 
+    Notes
+    -----
+
+    Raises NotImplementedError if aggfunc is not one of "count", "mean", "min", "max", or "sum".
+
     Examples
     --------
     >>> a = np.array(["foo", "foo", "foo", "foo", "bar", "bar",
