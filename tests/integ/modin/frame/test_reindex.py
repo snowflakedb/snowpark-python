@@ -569,3 +569,20 @@ def test_reindex_multiindex_negative(axis):
             snow_df.reindex(index=[1, 2, 3])
         else:
             snow_df.T.reindex(columns=[1, 2, 3])
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_reindex_with_lazy_index():
+    native_df = native_pd.DataFrame(
+        [[1, np.nan, 3], [np.nan, 5, np.nan], [7, 8, np.nan]], index=list("XYZ")
+    )
+    snow_df = pd.DataFrame(native_df)
+    native_idx = native_pd.Index(list("CAB"))
+    lazy_idx = pd.Index(native_idx)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.reindex(
+            index=native_idx if isinstance(df, native_pd.DataFrame) else lazy_idx
+        ),
+    )
