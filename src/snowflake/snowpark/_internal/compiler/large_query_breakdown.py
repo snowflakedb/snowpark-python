@@ -77,20 +77,19 @@ class LargeQueryBreakdown:
     Example:
         For a data pipeline with a large query plan created like so:
 
-            >>> base_df = session.sql("select 1 as A, 2 as B")
-            >>> df1 = base_df.with_column("A", F.col("A") + F.lit(1))
-            >>> x = 100
-            >>> for i in range(x):
-            >>>     df1 = df1.with_column("A", F.col("A") + F.lit(i))
-            >>> df1 = df1.group_by(F.col("A")).agg(F.sum(F.col("B")).alias("B"))
+            base_df = session.sql("select 1 as A, 2 as B")
+            df1 = base_df.with_column("A", F.col("A") + F.lit(1))
+            df2 = base_df.with_column("B", F.col("B") + F.lit(1))
 
-            >>> df2 = base_df.with_column("B", F.col("B") + F.lit(1))
-            >>> for i in range(x):
-            >>>     df2 = df2.with_column("B", F.col("B") + F.lit(i))
-            >>> df2 = df2.group_by(F.col("B")).agg(F.sum(F.col("A")).alias("A"))
+            for i in range(100):
+                df1 = df1.with_column("A", F.col("A") + F.lit(i))
+                df2 = df2.with_column("B", F.col("B") + F.lit(i))
 
-            >>> union_df = df1.union_all(df2)
-            >>> final_df = union_df.with_column("A", F.col("A") + F.lit(1))
+            df1 = df1.group_by(F.col("A")).agg(F.sum(F.col("B")).alias("B"))
+            df2 = df2.group_by(F.col("B")).agg(F.sum(F.col("A")).alias("A"))
+
+            union_df = df1.union_all(df2)
+            final_df = union_df.with_column("A", F.col("A") + F.lit(1))
 
         The corresponding query plan has the following structure:
 
