@@ -5,6 +5,8 @@
 
 # Tests behavior of to_snowpark_pandas() without explicitly initializing Snowpark pandas.
 
+import sys
+
 import pytest
 
 from snowflake.snowpark._internal.utils import TempObjectType
@@ -47,9 +49,14 @@ def test_to_snowpark_pandas_no_modin(session, tmp_table_basic):
         # TODO: SNOW-1552497: after upgrading to modin 0.30.1, Snowpark pandas will support
         # all pandas 2.2.x, and this function call will raise a ModuleNotFoundError since
         # modin is not installed.
+        match = (
+            "Snowpark pandas does not support Python 3.8. Please update to Python 3.9 or later"
+            if sys.version_info.major == 3 and sys.version_info.minor == 8
+            else "does not match the supported pandas version in Snowpark pandas"
+        )
         with pytest.raises(
             RuntimeError,
-            match="does not match the supported pandas version in Snowpark pandas",
+            match=match,
         ):
             snowpark_df.to_snowpark_pandas()
     else:
