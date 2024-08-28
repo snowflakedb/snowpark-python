@@ -112,7 +112,7 @@ def _init_doc_module():
 
 DOC_OVERRIDE_XFAIL_REASON = (
     "test docstring overrides currently cannot override real docstring overrides until "
-    "modin 0.30.1 is available (SNOW-1473605)"
+    "modin 0.31.0 is available"
 )
 
 

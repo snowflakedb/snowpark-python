@@ -87,6 +87,15 @@ from snowflake.snowpark.modin.utils import validate_int_kwarg
 
 
 def register_base_override(method_name: str):
+    """
+    Decorator function to override a method on BasePandasDataset. Since Modin does not provide a mechanism
+    for directly overriding methods on BasePandasDataset, we mock this by performing the override on
+    DataFrame and Series, and manually performing a `setattr` on the base class. These steps are necessary
+    to allow both the docstring extension and method dispatch to work properly.
+
+    Methods annotated here also are automatically instrumented with Snowpark pandas telemetry.
+    """
+
     def decorator(base_method: Any):
         if callable(base_method) and (
             not method_name.startswith("_")

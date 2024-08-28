@@ -63,6 +63,7 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     series_not_implemented,
 )
+from snowflake.snowpark.modin.plugin.utils.frontend_constants import _ATTRS_NO_LOOKUP
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import (
     MODIN_UNNAMED_SERIES_LABEL,
@@ -95,30 +96,6 @@ SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SCALAR_ERROR_MESSAGE = (
 
 # Dictionary of extensions assigned to this class
 _SERIES_EXTENSIONS_ = {}
-
-
-# Do not look up certain attributes in columns or index, as they're used for some
-# special purposes, like serving remote context
-_ATTRS_NO_LOOKUP = {
-    "____id_pack__",
-    "__name__",
-    "_cache",
-    "_ipython_canary_method_should_not_exist_",
-    "_ipython_display_",
-    "_repr_html_",
-    "_repr_javascript_",
-    "_repr_jpeg_",
-    "_repr_json_",
-    "_repr_latex_",
-    "_repr_markdown_",
-    "_repr_mimebundle_",
-    "_repr_pdf_",
-    "_repr_png_",
-    "_repr_svg_",
-    "__array_struct__",
-    "__array_interface__",
-    "_typ",
-}
 
 
 @_inherit_docstrings(
