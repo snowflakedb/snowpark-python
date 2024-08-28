@@ -797,6 +797,10 @@ def get_aliased_option_name(
     key: str,
     alias_map: Dict[str, str],
 ) -> str:
+    """Method that takes a key and an option alias map as arguments and returns
+    the aliased key if the key is present in the alias map. Also raise a warning
+    if alias key is applied.
+    """
     upper_key = key.strip().upper()
     aliased_key = alias_map.get(upper_key, upper_key)
     if aliased_key != upper_key:
