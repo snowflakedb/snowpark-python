@@ -8778,7 +8778,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 to_sf_type = TypeMapper.to_snowflake(to_dtype)
                 from_dtype = col_dtypes_curr[label]
                 from_sf_type = self._modin_frame.get_snowflake_type(id)
-                if is_astype_type_error(from_sf_type, to_sf_type):
+                if isinstance(from_sf_type, StringType) and isinstance(
+                    to_sf_type, TimedeltaType
+                ):
+                    # Raise NotImplementedError as there is no Snowflake SQL function converting
+                    # string (e.g. 1 day, 3 hours, 2 minutes) to Timedelta
+                    ErrorMessage.not_implemented(
+                        f"dtype {pandas_dtype(from_dtype)} cannot be converted to {pandas_dtype(to_dtype)}"
+                    )
+                elif is_astype_type_error(from_sf_type, to_sf_type):
                     raise TypeError(
                         f"dtype {pandas_dtype(from_dtype)} cannot be converted to {pandas_dtype(to_dtype)}"
                     )

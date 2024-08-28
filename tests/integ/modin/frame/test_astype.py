@@ -148,7 +148,7 @@ def test_astype_to_timedelta_negative():
     with SqlCounter(query_count=0):
         snow_string_df = pd.DataFrame(data=["2 days, 3 minutes", "4 days, 1 hour"])
         with pytest.raises(
-            TypeError,
+            NotImplementedError,
             match=re.escape("dtype object cannot be converted to timedelta64[ns]"),
         ):
             snow_string_df.astype("timedelta64[ns]")
