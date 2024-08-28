@@ -2034,7 +2034,8 @@ def crosstab(
     Notes
     -----
 
-    Raises NotImplementedError if aggfunc is not one of "count", "mean", "min", "max", or "sum".
+    Raises NotImplementedError if aggfunc is not one of "count", "mean", "min", "max", or "sum", or
+    margins is True, normalize is True or all, and values is passed.
 
     Examples
     --------
@@ -2062,6 +2063,15 @@ def crosstab(
         index = [index]
     if not is_nested_list_like(columns):
         columns = [columns]
+
+    if (
+        values is not None
+        and margins is True
+        and (normalize is True or normalize == "all")
+    ):
+        raise NotImplementedError(
+            'Snowpark pandas does not yet support passing in margins=True, normalize="all", and values.'
+        )
 
     user_passed_rownames = rownames is not None
     user_passed_colnames = colnames is not None

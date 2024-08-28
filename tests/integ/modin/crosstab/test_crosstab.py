@@ -752,6 +752,169 @@ class TestCrosstab:
                 ),
             )
 
+    @pytest.mark.parametrize("normalize", [0, 1, "index", "columns"])
+    @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
+    def test_normalize_margins_and_values(self, dropna, normalize, aggfunc):
+        counts = {
+            "columns": [3, 29 if dropna else 41, 4],
+            "index": [1, 23 if dropna else 32, 3],
+            "all": [3, 54 if dropna else 75, 7],
+        }
+        counts[0] = counts["index"]
+        counts[1] = counts["columns"]
+        a = np.array(
+            [
+                "foo",
+                "foo",
+                "foo",
+                "foo",
+                "bar",
+                "bar",
+                "bar",
+                "bar",
+                "foo",
+                "foo",
+                "foo",
+            ],
+            dtype=object,
+        )
+        b = np.array(
+            [
+                "one",
+                "one",
+                "one",
+                "two",
+                "one",
+                "one",
+                "one",
+                "two",
+                "two",
+                "two",
+                "one",
+            ],
+            dtype=object,
+        )
+        c = np.array(
+            [
+                "dull",
+                "dull",
+                "shiny",
+                "dull",
+                "dull",
+                "shiny",
+                "shiny",
+                "dull",
+                "shiny",
+                "shiny",
+                "shiny",
+            ],
+            dtype=object,
+        )
+        vals = np.array([12, 10, 9, 4, 3, 49, 19, 20, 21, 34, 0])
+        if normalize is True:
+            sql_counts = counts["all"]
+        else:
+            sql_counts = counts[normalize]
+
+        def eval_func(lib):
+            df = lib.crosstab(
+                a,
+                [b, c],
+                rownames=["a"],
+                colnames=["b", "c"],
+                values=vals,
+                normalize=normalize,
+                margins=True,
+                dropna=dropna,
+                aggfunc=aggfunc,
+            )
+            if aggfunc == "sum":
+                # For some reason, the rounding is different for sum.
+                df = df.round(decimals=6)
+            return df
+
+        with SqlCounter(
+            query_count=sql_counts[0],
+            join_count=sql_counts[1],
+            union_count=sql_counts[2],
+        ):
+            eval_snowpark_pandas_result(
+                pd,
+                native_pd,
+                eval_func,
+            )
+
+    @pytest.mark.parametrize("normalize", ["all", True])
+    @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
+    @sql_count_checker(query_count=0)
+    def test_normalize_margins_and_values_not_supported(
+        self, dropna, normalize, aggfunc
+    ):
+        a = np.array(
+            [
+                "foo",
+                "foo",
+                "foo",
+                "foo",
+                "bar",
+                "bar",
+                "bar",
+                "bar",
+                "foo",
+                "foo",
+                "foo",
+            ],
+            dtype=object,
+        )
+        b = np.array(
+            [
+                "one",
+                "one",
+                "one",
+                "two",
+                "one",
+                "one",
+                "one",
+                "two",
+                "two",
+                "two",
+                "one",
+            ],
+            dtype=object,
+        )
+        c = np.array(
+            [
+                "dull",
+                "dull",
+                "shiny",
+                "dull",
+                "dull",
+                "shiny",
+                "shiny",
+                "dull",
+                "shiny",
+                "shiny",
+                "shiny",
+            ],
+            dtype=object,
+        )
+        vals = np.array([12, 10, 9, 4, 3, 49, 19, 20, 21, 34, 0])
+        with pytest.raises(
+            NotImplementedError,
+            match='Snowpark pandas does not yet support passing in margins=True, normalize="all", and values.',
+        ):
+            pd.crosstab(
+                a,
+                [b, c],
+                rownames=["a"],
+                colnames=["b", "c"],
+                values=vals,
+                normalize=normalize,
+                margins=True,
+                dropna=dropna,
+                aggfunc=aggfunc,
+            )
+
     @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
     def test_values(self, dropna, aggfunc):
         query_count = 1
