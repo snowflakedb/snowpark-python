@@ -801,6 +801,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TypeError: got an unexpected keyword argument 'skipna'
         if is_dict_like(func) and not uses_named_kwargs:
             kwargs.clear()
+
         result = self.__constructor__(
             query_compiler=self._query_compiler.agg(
                 func=func,

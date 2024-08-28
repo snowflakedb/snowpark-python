@@ -2103,6 +2103,7 @@ def crosstab(
         row_idx_names = []
         dfs = []
         arrays = []
+        array_lengths = []
         for obj in index:
             if isinstance(obj, Series):
                 row_idx_names.append(obj.name)
@@ -2119,6 +2120,7 @@ def crosstab(
                 dfs.append(obj)
             else:
                 row_idx_names.append(None)
+                array_lengths.append(len(obj))
                 df = pd.DataFrame(obj)
                 df.columns = unique_rownames[
                     rownames_idx : rownames_idx + len(df.columns)
@@ -2144,12 +2146,16 @@ def crosstab(
                 dfs.append(obj)
             else:
                 col_idx_names.append(None)
+                array_lengths.append(len(obj))
                 df = pd.DataFrame(obj)
                 df.columns = unique_colnames[
                     colnames_idx : colnames_idx + len(df.columns)
                 ]
                 colnames_idx += len(df.columns)
                 arrays.append(df)
+
+        if len(set(array_lengths)) > 1:
+            raise ValueError("All arrays must be of the same length")
 
         # Now, we have two lists - a list of Snowpark pandas objects, and a list of objects
         # that were not passed in as Snowpark pandas objects, but that we have converted
@@ -2159,10 +2165,15 @@ def crosstab(
         df = dfs[0]
         for right in dfs[1:]:
             df = df.merge(right, left_index=True, right_index=True)
-
         if len(arrays) > 0:
             index = df.index
             right_df = pd.concat(arrays, axis=1)
+            # Increases query count by 1, but necessary for error checking.
+            index_length = len(df)
+            if index_length != array_lengths[0]:
+                raise ValueError(
+                    f"Length mismatch: Expected {array_lengths[0]} rows, received array of length {index_length}"
+                )
             right_df.index = index
             df = df.merge(right_df, left_index=True, right_index=True)
     else:

@@ -19,9 +19,9 @@ from tests.integ.modin.utils import (
 
 @pytest.mark.parametrize("dropna", [True, False])
 class TestCrosstab:
-    def test_basic_crosstab(self, dropna):
-        query_count = 3
-        join_count = 0 if dropna else 3
+    def test_basic_crosstab_with_numpy_arrays(self, dropna):
+        query_count = 1
+        join_count = 0 if dropna else 1
         a = np.array(
             [
                 "foo",
@@ -71,17 +71,79 @@ class TestCrosstab:
             dtype=object,
         )
         with SqlCounter(query_count=query_count, join_count=join_count):
-            native_df = native_pd.crosstab(
-                a, [b, c], rownames=["a"], colnames=["b", "c"], dropna=dropna
+            eval_snowpark_pandas_result(
+                pd,
+                native_pd,
+                lambda lib: lib.crosstab(
+                    a, [b, c], rownames=["a"], colnames=["b", "c"], dropna=dropna
+                ),
             )
-            snow_df = pd.crosstab(
-                a, [b, c], rownames=["a"], colnames=["b", "c"], dropna=dropna
-            )
-            assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
 
+    def test_basic_crosstab_with_numpy_arrays_different_lengths(self, dropna):
+        a = np.array(
+            [
+                "foo",
+                "foo",
+                "foo",
+                "foo",
+                "bar",
+                "bar",
+                "bar",
+                "bar",
+                "foo",
+                "foo",
+            ],
+            dtype=object,
+        )
+        b = np.array(
+            [
+                "one",
+                "one",
+                "one",
+                "two",
+                "one",
+                "two",
+                "two",
+                "two",
+                "one",
+            ],
+            dtype=object,
+        )
+        c = np.array(
+            [
+                "dull",
+                "dull",
+                "shiny",
+                "dull",
+                "dull",
+                "shiny",
+                "shiny",
+                "shiny",
+            ],
+            dtype=object,
+        )
+        with SqlCounter(query_count=0):
+            eval_snowpark_pandas_result(
+                pd,
+                native_pd,
+                lambda lib: lib.crosstab(
+                    a, [b, c], rownames=["a"], colnames=["b", "c"], dropna=dropna
+                ),
+                assert_exception_equal=True,
+                expect_exception=True,
+                expect_exception_match="All arrays must be of the same length",
+                expect_exception_type=ValueError,
+            )
+
+    # In these tests, `overlap` refers to the intersection of the indices
+    # of the Series objects being passed in to crosstab. crosstab takes
+    # only the intersection of the index objects of all Series when determining
+    # the final DataFrame to pass into pivot_table, so here, we are testing
+    # that we follow that behavior.
     def test_basic_crosstab_with_series_objs_full_overlap(self, dropna):
-        query_count = 5
-        join_count = 13 if dropna else 28
+        # In this case, all indexes are identical - hence "full" overlap.
+        query_count = 2
+        join_count = 5 if dropna else 10
         a = np.array(
             [
                 "foo",
@@ -142,8 +204,14 @@ class TestCrosstab:
             assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
 
     def test_basic_crosstab_with_series_objs_some_overlap(self, dropna):
-        query_count = 5
-        join_count = 13 if dropna else 28
+        # In this case, some values are shared across indexes (non-zero intersection),
+        # hence "some" overlap.
+        # When a mix of Series and non-Series objects are passed in, the non-Series
+        # objects are expected to have the same length as the intersection of the indexes
+        # of the Series objects. This test case passes because we pass in arrays that
+        # are the length of the intersection rather than the length of each of the Series.
+        query_count = 2
+        join_count = 5 if dropna else 10
         a = np.array(
             [
                 "foo",
@@ -217,8 +285,15 @@ class TestCrosstab:
                 eval_func,
             )
 
-    @sql_count_checker(query_count=2, join_count=1)
+    @sql_count_checker(query_count=1, join_count=1)
     def test_basic_crosstab_with_series_objs_some_overlap_error(self, dropna):
+        # Same as above - the intersection of the indexes of the Series objects
+        # is non-zero, but the indexes are not identical - hence "some" overlap.
+        # When a mix of Series and non-Series objects are passed in, the non-Series
+        # objects are expected to have the same length as the intersection of the indexes
+        # of the Series objects. This test case errors because we pass in arrays that
+        # are the length of the Series, rather than the length of the intersection of
+        # the indexes of the Series.
         a = np.array(
             [
                 "foo",
@@ -296,8 +371,11 @@ class TestCrosstab:
             assert_exception_equal=False,  # Our error message is a little different.
         )
 
-    @sql_count_checker(query_count=2, join_count=1)
+    @sql_count_checker(query_count=1, join_count=1)
     def test_basic_crosstab_with_series_objs_no_overlap_error(self, dropna):
+        # In this case, no values are shared across the indexes - the intersection is an
+        # empty set - hence "no" overlap. We error here for the same reason as above - the
+        # arrays passed in should also be empty, but are non-empty.
         a = np.array(
             [
                 "foo",
@@ -376,8 +454,8 @@ class TestCrosstab:
         )
 
     def test_basic_crosstab_with_df_and_series_objs_pandas_errors(self, dropna):
-        query_count = 6
-        join_count = 3 if dropna else 9
+        query_count = 4
+        join_count = 1 if dropna else 3
         a = native_pd.Series(
             [
                 "foo",
@@ -456,9 +534,9 @@ class TestCrosstab:
             )
 
     def test_margins(self, dropna):
-        query_count = 3
-        join_count = 3 if dropna else 6
-        union_count = 3
+        query_count = 1
+        join_count = 1 if dropna else 2
+        union_count = 1
         a = np.array(
             [
                 "foo",
@@ -510,32 +588,26 @@ class TestCrosstab:
         with SqlCounter(
             query_count=query_count, join_count=join_count, union_count=union_count
         ):
-            native_df = native_pd.crosstab(
-                a,
-                [b, c],
-                rownames=["a"],
-                colnames=["b", "c"],
-                margins=True,
-                margins_name="MARGINS_NAME",
-                dropna=dropna,
+            eval_snowpark_pandas_result(
+                pd,
+                native_pd,
+                lambda lib: lib.crosstab(
+                    a,
+                    [b, c],
+                    rownames=["a"],
+                    colnames=["b", "c"],
+                    margins=True,
+                    margins_name="MARGINS_NAME",
+                    dropna=dropna,
+                ),
             )
-            snow_df = pd.crosstab(
-                a,
-                [b, c],
-                rownames=["a"],
-                colnames=["b", "c"],
-                margins=True,
-                margins_name="MARGINS_NAME",
-                dropna=dropna,
-            )
-            assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
 
     @pytest.mark.parametrize("normalize", [0, 1, True, "all", "index", "columns"])
     def test_normalize(self, dropna, normalize):
-        query_count = 4 if normalize not in (0, "index") else 3
-        join_count = 0 if normalize not in (0, "index") else 3
-        if not dropna:
-            join_count = 9 if normalize in (0, "index") else 4
+        query_count = 1 if normalize in (0, "index") else 2
+        join_count = 3 if normalize in (0, "index") else 2
+        if dropna:
+            join_count -= 2
         a = np.array(
             [
                 "foo",
@@ -585,30 +657,25 @@ class TestCrosstab:
             dtype=object,
         )
         with SqlCounter(query_count=query_count, join_count=join_count):
-            native_df = native_pd.crosstab(
-                a,
-                [b, c],
-                rownames=["a"],
-                colnames=["b", "c"],
-                normalize=normalize,
-                dropna=dropna,
+            eval_snowpark_pandas_result(
+                pd,
+                native_pd,
+                lambda lib: lib.crosstab(
+                    a,
+                    [b, c],
+                    rownames=["a"],
+                    colnames=["b", "c"],
+                    normalize=normalize,
+                    dropna=dropna,
+                ),
             )
-            snow_df = pd.crosstab(
-                a,
-                [b, c],
-                rownames=["a"],
-                colnames=["b", "c"],
-                normalize=normalize,
-                dropna=dropna,
-            )
-            assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
 
     @pytest.mark.parametrize("normalize", [0, 1, True, "all", "index", "columns"])
     def test_normalize_and_margins(self, dropna, normalize):
         counts = {
-            "columns": [5, 11 if dropna else 19, 8],
-            "index": [3, 15 if dropna else 24, 9],
-            "all": [7, 41 if dropna else 63, 22],
+            "columns": [3, 5 if dropna else 9, 4],
+            "index": [1, 5 if dropna else 8, 3],
+            "all": [3, 12 if dropna else 19, 7],
         }
         counts[0] = counts["index"]
         counts[1] = counts["columns"]
@@ -669,30 +736,24 @@ class TestCrosstab:
             join_count=sql_counts[1],
             union_count=sql_counts[2],
         ):
-            native_df = native_pd.crosstab(
-                a,
-                [b, c],
-                rownames=["a"],
-                colnames=["b", "c"],
-                normalize=normalize,
-                margins=True,
-                dropna=dropna,
+            eval_snowpark_pandas_result(
+                pd,
+                native_pd,
+                lambda lib: lib.crosstab(
+                    a,
+                    [b, c],
+                    rownames=["a"],
+                    colnames=["b", "c"],
+                    normalize=normalize,
+                    margins=True,
+                    dropna=dropna,
+                ),
             )
-            snow_df = pd.crosstab(
-                a,
-                [b, c],
-                rownames=["a"],
-                colnames=["b", "c"],
-                normalize=normalize,
-                margins=True,
-                dropna=dropna,
-            )
-            assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
 
     @pytest.mark.parametrize("aggfunc", ["mean", "sum"])
     def test_values(self, dropna, aggfunc):
-        query_count = 3
-        join_count = 6 if dropna else 15
+        query_count = 1
+        join_count = 2 if dropna else 5
         native_df = native_pd.DataFrame(
             {
                 "species": ["dog", "cat", "dog", "dog", "cat", "cat", "dog", "cat"],
@@ -711,26 +772,22 @@ class TestCrosstab:
         )
 
         with SqlCounter(query_count=query_count, join_count=join_count):
-            native_df_result = native_pd.crosstab(
-                native_df["species"].values,
-                native_df["favorite_food"].values,
-                values=native_df["age"].values,
-                aggfunc=aggfunc,
-                dropna=dropna,
+            eval_snowpark_pandas_result(
+                pd,
+                native_pd,
+                lambda lib: lib.crosstab(
+                    native_df["species"].values,
+                    native_df["favorite_food"].values,
+                    values=native_df["age"].values,
+                    aggfunc=aggfunc,
+                    dropna=dropna,
+                ),
             )
-            snow_df = pd.crosstab(
-                native_df["species"].values,
-                native_df["favorite_food"].values,
-                values=native_df["age"].values,
-                aggfunc=aggfunc,
-                dropna=dropna,
-            )
-            assert_snowpark_pandas_equal_to_pandas(snow_df, native_df_result)
 
     @pytest.mark.parametrize("aggfunc", ["mean", "sum"])
     def test_values_series_like(self, dropna, aggfunc):
-        query_count = 9
-        join_count = 10 if dropna else 25
+        query_count = 5
+        join_count = 2 if dropna else 5
         native_df = native_pd.DataFrame(
             {
                 "species": ["dog", "cat", "dog", "dog", "cat", "cat", "dog", "cat"],
@@ -765,3 +822,70 @@ class TestCrosstab:
                 dropna=dropna,
             )
             assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
+
+
+@sql_count_checker(query_count=0)
+def test_values_unsupported_aggfunc():
+    native_df = native_pd.DataFrame(
+        {
+            "species": ["dog", "cat", "dog", "dog", "cat", "cat", "dog", "cat"],
+            "favorite_food": [
+                "chicken",
+                "fish",
+                "fish",
+                "beef",
+                "chicken",
+                "beef",
+                "fish",
+                "beef",
+            ],
+            "age": [7, 2, 8, 5, 9, 3, 6, 1],
+        }
+    )
+
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas DataFrame.pivot_table does not yet support the aggregation 'median' with the given arguments.",
+    ):
+        pd.crosstab(
+            native_df["species"].values,
+            native_df["favorite_food"].values,
+            values=native_df["age"].values,
+            aggfunc="median",
+            dropna=False,
+        )
+
+
+@sql_count_checker(query_count=4)
+def test_values_series_like_unsupported_aggfunc():
+    # The query count above comes from building the DataFrame
+    # that we pass in to pivot table.
+    native_df = native_pd.DataFrame(
+        {
+            "species": ["dog", "cat", "dog", "dog", "cat", "cat", "dog", "cat"],
+            "favorite_food": [
+                "chicken",
+                "fish",
+                "fish",
+                "beef",
+                "chicken",
+                "beef",
+                "fish",
+                "beef",
+            ],
+            "age": [7, 2, 8, 5, 9, 3, 6, 1],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas DataFrame.pivot_table does not yet support the aggregation 'median' with the given arguments.",
+    ):
+        snow_df = pd.crosstab(
+            snow_df["species"],
+            snow_df["favorite_food"],
+            values=snow_df["age"],
+            aggfunc="median",
+            dropna=False,
+        )
