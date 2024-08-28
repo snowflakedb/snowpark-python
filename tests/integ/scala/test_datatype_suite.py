@@ -424,6 +424,10 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
         )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="strucutred types do not fully support structured types yet.",
+)
 def test_structured_dtypes_iceberg(
     structured_type_session, local_testing_mode, structured_type_support
 ):
@@ -461,6 +465,10 @@ def test_structured_dtypes_iceberg(
         structured_type_session.sql(f"drop table if exists {table_name}")
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="strucutred types do not fully support structured types yet.",
+)
 def test_structured_dtypes_iceberg_udf(
     structured_type_session, local_testing_mode, structured_type_support
 ):
