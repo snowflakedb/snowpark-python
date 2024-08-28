@@ -4,9 +4,15 @@
 
 ### Snowpark Python API Updates
 
+### New Features
+
+- Added following new functions in `snowflake.snowpark.functions`:
+  - `array_remove`
+  - `ln`
+
 #### Improvements
 
-- Added support for function `functions.ln`
+- Added support for `ln` in `snowflake.snowpark.functions`
 - Added support for specifying the following to `DataFrameWriter.save_as_table`:
   - `enable_schema_evolution`
   - `data_retention_time`
@@ -46,12 +52,14 @@
 #### New Features
 
 - Added limited support for the `Timedelta` type, including the following features. Snowpark pandas will raise `NotImplementedError` for unsupported `Timedelta` use cases.
-  - supporting tracking the Timedelta type through `copy`, `cache_result`, `shift`, `sort_index`.
-  - converting non-timedelta to timedelta via `astype`. 
+  - supporting tracking the Timedelta type through `copy`, `cache_result`, `shift`, `sort_index`, `assign`, `bfill`, `ffill`, `fillna`, `compare`, `diff`, `drop`, `dropna`, `duplicated`, `empty`, `equals`, `insert`, `isin`, `isna`, `items`, `iterrows`, `join`, `len`, `mask`, `melt`, `merge`, `nlargest`, `nsmallest`.
+  - converting non-timedelta to timedelta via `astype`.
+  - `NotImplementedError` will be raised for the rest of methods that do not support `Timedelta`.
   - support for subtracting two timestamps to get a Timedelta.
-  - support indexing with Timedelta data columns. 
+  - support indexing with Timedelta data columns.
   - support for adding or subtracting timestamps and `Timedelta`.
   - support for binary arithmetic between two `Timedelta` values.
+  - support for lazy `TimedeltaIndex`.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
