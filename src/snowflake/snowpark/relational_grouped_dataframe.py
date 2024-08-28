@@ -417,7 +417,9 @@ class RelationalGroupedDataFrame:
         ]
 
         df = self._df.select(
-            _apply_in_pandas_udtf(*self._df.columns).over(partition_by=partition_by),
+            _apply_in_pandas_udtf(*self._df.columns).over(
+                partition_by=partition_by, _emit_ast=False
+            ),
             _emit_ast=False,
         )
 

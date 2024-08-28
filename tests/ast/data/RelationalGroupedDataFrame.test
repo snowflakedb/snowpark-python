@@ -21,7 +21,13 @@ df = session.createDataFrame([('SF', 21.0), ('SF', 17.5), ('SF', 24.0), ('NY', 3
 df.group_by("location").apply_in_pandas(convert,
     output_schema=StructType([StructField("location", StringType()),
                               StructField("temp_c", FloatType()),
-                              StructField("temp_f", FloatType())])).order_by("temp_c").show()
+                              StructField("temp_f", FloatType())])).order_by("temp_c").collect()
+
+
+#df.group_by("location").apply_in_pandas(convert,
+#    output_schema=StructType([StructField("location", StringType()),
+#                              StructField("temp_c", FloatType()),
+#                              StructField("temp_f", FloatType())])).order_by("temp_c").show()
 
 
 ## EXPECTED OUTPUT

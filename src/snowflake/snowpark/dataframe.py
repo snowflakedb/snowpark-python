@@ -1635,6 +1635,7 @@ class DataFrame:
             for c in _cols:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
             ast.cols_variadic = is_variadic
+            self.set_ast_ref(ast.df)
 
         orders = []
         # `ascending` is represented by Expr in the AST.
@@ -1690,11 +1691,16 @@ class DataFrame:
                     SortOrder(exprs[idx], orders[idx] if orders else Ascending())
                 )
 
-        if self._select_statement:
-            return self._with_plan(
-                self._select_statement.sort(sort_exprs), ast_stmt=stmt
-            )
-        return self._with_plan(Sort(sort_exprs, self._plan), ast_stmt=stmt)
+        df = (
+            self._with_plan(self._select_statement.sort(sort_exprs))
+            if self._select_statement
+            else self._with_plan(Sort(sort_exprs, self._plan))
+        )
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
+
+        return df
 
     @experimental(version="1.5.0")
     def alias(self, name: str, _emit_ast: bool = True):
