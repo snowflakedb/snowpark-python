@@ -152,39 +152,40 @@ class MockUDFRegistration(UDFRegistration):
         if replace and if_not_exists:
             raise ValueError("options replace and if_not_exists are incompatible")
 
-        if udf_name in self._registry and if_not_exists:
-            return self._registry[udf_name]
+        with self._lock:
+            if udf_name in self._registry and if_not_exists:
+                return self._registry[udf_name]
 
-        if udf_name in self._registry and not replace:
-            raise SnowparkSQLException(
-                f"002002 (42710): SQL compilation error: \nObject '{udf_name}' already exists.",
-                error_code="1304",
+            if udf_name in self._registry and not replace:
+                raise SnowparkSQLException(
+                    f"002002 (42710): SQL compilation error: \nObject '{udf_name}' already exists.",
+                    error_code="1304",
+                )
+
+            if packages:
+                pass  # NO-OP
+
+            # register
+            self._registry[udf_name] = MockUserDefinedFunction(
+                func,
+                return_type,
+                input_types,
+                udf_name,
+                strict=strict,
+                packages=packages,
+                use_session_imports=imports is None,
             )
 
-        if packages:
-            pass  # NO-OP
+            if type(func) is tuple:  # update file registration
+                module_name = self._import_file(func[0], udf_name=udf_name)
+                self._registry[udf_name].func = (module_name, func[1])
 
-        # register
-        self._registry[udf_name] = MockUserDefinedFunction(
-            func,
-            return_type,
-            input_types,
-            udf_name,
-            strict=strict,
-            packages=packages,
-            use_session_imports=imports is None,
-        )
+            if imports is not None:
+                for _import in imports:
+                    if type(_import) is str:
+                        self._import_file(_import, udf_name=udf_name)
+                    else:
+                        local_path, import_path = _import
+                        self._import_file(local_path, import_path, udf_name=udf_name)
 
-        if type(func) is tuple:  # update file registration
-            module_name = self._import_file(func[0], udf_name=udf_name)
-            self._registry[udf_name].func = (module_name, func[1])
-
-        if imports is not None:
-            for _import in imports:
-                if type(_import) is str:
-                    self._import_file(_import, udf_name=udf_name)
-                else:
-                    local_path, import_path = _import
-                    self._import_file(local_path, import_path, udf_name=udf_name)
-
-        return self._registry[udf_name]
+            return self._registry[udf_name]
