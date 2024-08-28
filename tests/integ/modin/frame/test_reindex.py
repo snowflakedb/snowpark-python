@@ -571,9 +571,11 @@ def test_reindex_multiindex_negative(axis):
             snow_df.T.reindex(columns=[1, 2, 3])
 
 
+@sql_count_checker(query_count=1, join_count=1)
 def test_reindex_with_index_name():
     native_df = native_pd.DataFrame(
-        [[0, 1, 2], [0, 0, 1], [1, 0, 0]], index=list("ABC"), name="test"
+        [[0, 1, 2], [0, 0, 1], [1, 0, 0]],
+        index=list("ABC"),
     )
     snow_df = pd.DataFrame(native_df)
     index_with_name = native_pd.Index(list("CAB"), name="weewoo")
@@ -582,6 +584,7 @@ def test_reindex_with_index_name():
     )
 
 
+@sql_count_checker(query_count=1, join_count=1)
 def test_reindex_with_index_name_and_df_index_name():
     native_df = native_pd.DataFrame(
         {"X": [1, 2, 3], "Y": [8, 7, 3], "Z": [3, 4, 5]},
