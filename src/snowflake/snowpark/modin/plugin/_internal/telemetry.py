@@ -9,6 +9,7 @@ from contextlib import nullcontext
 from enum import Enum, unique
 from typing import Any, Callable, Optional, TypeVar, Union, cast
 
+import modin
 from typing_extensions import ParamSpec
 
 import snowflake.snowpark.session
@@ -535,17 +536,30 @@ class TelemetryMeta(type):
                 snowflake.snowpark.modin.pandas.window.Rolling]:
                 The modified class with decorated methods.
         """
-        for attr_name, attr_value in attrs.items():
+        attr_dict = dict(attrs.items())
+        # If BasePandasDataset, defined exclusively by upstream modin, is a parent of this class,
+        # then apply the telemetry decorator to it.
+        # https://stackoverflow.com/a/71105206
+        # TODO figure out solution for dataframe/series when those directly use modin frontend
+        for base in bases:
+            if base is modin.pandas.base.BasePandasDataset:
+                # Newly defined attrs should take precedence over those defined in base,
+                # so the keys in attr_dict should overwrite those in base_dict
+                base_dict = dict(vars(base).items())
+                base_dict.update(attr_dict)
+                attr_dict = base_dict
+        new_attrs = {}
+        for attr_name, attr_value in attr_dict.items():
             if callable(attr_value) and (
                 not attr_name.startswith("_")
                 or (attr_name in TELEMETRY_PRIVATE_METHODS)
             ):
-                attrs[attr_name] = snowpark_pandas_telemetry_method_decorator(
+                new_attrs[attr_name] = snowpark_pandas_telemetry_method_decorator(
                     attr_value
                 )
             elif isinstance(attr_value, property):
                 # wrap on getter and setter
-                attrs[attr_name] = property(
+                new_attrs[attr_name] = property(
                     snowpark_pandas_telemetry_method_decorator(
                         cast(
                             # add a cast because mypy doesn't recognize that
@@ -575,4 +589,6 @@ class TelemetryMeta(type):
                     ),
                     doc=attr_value.__doc__,
                 )
-        return type.__new__(cls, name, bases, attrs)
+            else:
+                new_attrs[attr_name] = attr_value
+        return type.__new__(cls, name, bases, new_attrs)

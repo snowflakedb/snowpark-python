@@ -78,7 +78,7 @@ from snowflake.snowpark.modin.pandas.groupby import (
     DataFrameGroupBy,
     validate_groupby_args,
 )
-from snowflake.snowpark.modin.pandas.series import _ATTRS_NO_LOOKUP, Series
+from snowflake.snowpark.modin.pandas.series import Series
 from snowflake.snowpark.modin.pandas.snow_partition_iterator import (
     SnowparkPandasRowPartitionIterator,
 )
@@ -98,6 +98,7 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     dataframe_not_implemented,
 )
+from snowflake.snowpark.modin.plugin.utils.frontend_constants import _ATTRS_NO_LOOKUP
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     SET_DATAFRAME_ATTRIBUTE_WARNING,
     WarningMessage,
