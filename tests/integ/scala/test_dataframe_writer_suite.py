@@ -3,7 +3,6 @@
 #
 
 import copy
-import re
 
 import pytest
 
@@ -169,10 +168,11 @@ def test_iceberg(session, local_testing_mode):
     )
     df.write.save_as_table(
         table_name,
-        is_iceberg=True,
-        external_volume="python_connector_iceberg_exvol",
-        catalog="SNOWFLAKE",
-        base_location="snowpark_python_tests",
+        iceberg_config={
+            "external_volume": "example_volume",
+            "catalog": "example_catalog",
+            "base_location": "/root",
+        },
     )
     try:
         ddl = session._run_query(f"select get_ddl('table', '{table_name}')")
@@ -182,26 +182,6 @@ def test_iceberg(session, local_testing_mode):
         )
     finally:
         session.table(table_name).drop_table()
-
-
-def test_negative_iceberg_options(session):
-    table_name = Utils.random_table_name()
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
-            "Iceberg specific parameters (catalog_sync,storage_serialization_policy) cannot be used with non-iceberg tables."
-        ),
-    ):
-        session.create_dataframe(
-            [],
-            schema=StructType(
-                [StructField("a", IntegerType()), StructField("b", IntegerType())]
-            ),
-        ).write.save_as_table(
-            table_name,
-            catalog_sync="test_sync",
-            storage_serialization_policy="test_policy",
-        )
 
 
 def test_negative_write_with_target_column_name_order(session):

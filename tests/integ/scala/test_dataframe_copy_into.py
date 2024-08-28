@@ -4,7 +4,6 @@
 
 import datetime
 import json
-import re
 from decimal import Decimal
 from textwrap import dedent
 
@@ -253,10 +252,11 @@ def test_copy_into_csv_iceberg(session, tmp_stage_name1, tmp_table_name):
     test_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df.copy_into_table(
         test_table_name,
-        is_iceberg=True,
-        external_volume="python_connector_iceberg_exvol",
-        catalog="SNOWFLAKE",
-        base_location="snowpark_python_tests",
+        iceberg_config={
+            "external_volume": "example_volume",
+            "catalog": "example_catalog",
+            "base_location": "/root",
+        },
     )
     try:
         # Check that table is an iceberg table with correct properties set
@@ -398,17 +398,6 @@ def test_copy_csv_negative(session, tmp_stage_name1, tmp_table_name):
     assert "Insert value list does not match column list expecting 3 but got 1" in str(
         exec_info
     )
-
-    # case 3: copy into non-iceberg table with iceberg params enabled
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
-            "Iceberg specific parameters (external_volume,catalog) cannot be used with non-iceberg tables."
-        ),
-    ):
-        df.copy_into_table(
-            tmp_table_name, external_volume="test_volume", catalog="SNOWFLAKE"
-        )
 
 
 def test_copy_csv_copy_transformation_with_column_names(session, tmp_stage_name1):

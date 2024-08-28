@@ -3026,12 +3026,7 @@ class DataFrame:
         transformations: Optional[Iterable[ColumnOrName]] = None,
         format_type_options: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
-        is_iceberg: bool = False,
-        external_volume: Optional[str] = None,
-        catalog: Optional[str] = None,
-        base_location: Optional[str] = None,
-        catalog_sync: Optional[str] = None,
-        storage_serialization_policy: Optional[str] = None,
+        iceberg_config: Optional[dict] = None,
         **copy_options: Any,
     ) -> List[Row]:
         """Executes a `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html>`__ command to load data from files in a stage location into a specified table.
@@ -3085,24 +3080,13 @@ class DataFrame:
             transformations: A list of column transformations.
             format_type_options: A dict that contains the ``formatTypeOptions`` of the ``COPY INTO <table>`` command.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            is_iceberg: In the case that a table needs to be created, specifies that this table
-                should be saved as an Iceberg table. Other iceberg specific parameters are also only
-                used in the event that a new table is created.
-            external_volume: (iceberg only) Specifies the identifier (name) for the external volume
-                where the Iceberg table stores its metadata files and data in Parquet format. Iceberg
-                metadata and manifest files store the table schema, partitions, snapshots, and
-                other metadata.
-            catalog: (iceberg only) Specifies either Snowflake as the catalog or the identifier
-                (name) of the catalog integration for this table.
-            base_location: (iceberg only) The path to a directory where Snowflake can write data and
-                metadata files for the table. Specify a relative path from the table’s
-                ``external_volume`` location.
-            catalog_sync: (iceberg only) Optionally specifies the name of a catalog integration
-                configured for Polaris Catalog.
-            storage_serialization_policy: (iceberg only) Specifies the storage serialization policy
-                for the table. If not specified at table creation, the table inherits the value set
-                at the schema, database, or account level. If the value isn’t specified at any
-                level, the table uses the default value.
+            iceberg_config: A dictionary that can contain the following iceberg confiration values:
+                external_volume: specifies the identifier for the external volume where
+                    the Iceberg table stores its metadata files and data in Parquet format
+                catalog: specifies either Snowflake or a catalog integration to use for this table
+                base_location: the base directory that snowflake can write iceberg metadata and files to
+                catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
+                storage_serialization_policy: specifies the storage serialization policy for the table
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
         if not self._reader or not self._reader._file_path:
@@ -3168,21 +3152,6 @@ class DataFrame:
             if transformations
             else None
         )
-        if is_iceberg is False and any(
-            (
-                params := {
-                    "external_volume": external_volume,
-                    "catalog": catalog,
-                    "base_location": base_location,
-                    "catalog_sync": catalog_sync,
-                    "storage_serialization_policy": storage_serialization_policy,
-                }
-            ).values()
-        ):
-            params = {k: v for k, v in params.items() if v is not None}
-            raise ValueError(
-                f"Iceberg specific parameters ({','.join(params)}) cannot be used with non-iceberg tables."
-            )
 
         return DataFrame(
             self._session,
@@ -3200,12 +3169,7 @@ class DataFrame:
                 user_schema=self._reader._user_schema,
                 cur_options=self._reader._cur_options,
                 create_table_from_infer_schema=create_table_from_infer_schema,
-                is_iceberg=is_iceberg,
-                external_volume=external_volume,
-                catalog=catalog,
-                base_location=base_location,
-                catalog_sync=catalog_sync,
-                storage_serialization_policy=storage_serialization_policy,
+                iceberg_config=iceberg_config,
             ),
         )._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
 
