@@ -258,8 +258,8 @@ def test_copy_into_csv_iceberg(
         test_table_name,
         iceberg_config={
             "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
-            "catalog": "SNOWFLAKE",
-            "base_location": "snowpark_python_tests",
+            "CATALOG": "SNOWFLAKE",
+            "BASE_LOCATION": "snowpark_python_tests",
         },
     )
     try:

@@ -800,6 +800,7 @@ def create_table_statement(
     }
 
     if iceberg_config is not None:
+        iceberg_config = {k.lower(): v for k, v in iceberg_config.items()}
         options.update(
             {
                 EXTERNAL_VOLUME: iceberg_config.get("external_volume", None),
@@ -896,6 +897,7 @@ def create_table_as_select_statement(
         CHANGE_TRACKING: change_tracking,
     }
     if iceberg_config is not None:
+        iceberg_config = {k.lower(): v for k, v in iceberg_config.items()}
         options.update(
             {
                 EXTERNAL_VOLUME: iceberg_config.get("external_volume", None),
