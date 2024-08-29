@@ -12,12 +12,7 @@ import numpy as np
 import pandas as native_pd
 
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.types import DataType, LongType
-
-TIMEDELTA_WARNING_MESSAGE = (
-    "Snowpark pandas support for Timedelta is not currently available."
-)
 
 """Map Python type to its from_pandas method"""
 _python_type_to_from_pandas: dict[type, Callable[[Any], Any]] = {}
@@ -101,6 +96,13 @@ class SnowparkPandasType(DataType, metaclass=SnowparkPandasTypeMetaclass):
             return _type_to_snowpark_pandas_type[pandas_type]()
         return None
 
+    def type_match(self, value: Any) -> bool:
+        """Return True if the value's type matches self."""
+        val_type = SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(
+            type(value)
+        )
+        return self == val_type
+
 
 class SnowparkPandasColumn(NamedTuple):
     """A Snowpark Column that has an optional SnowparkPandasType."""
@@ -128,10 +130,13 @@ class TimedeltaType(SnowparkPandasType, LongType):
     )
 
     def __init__(self) -> None:
-        # TODO(SNOW-1620452): Remove this warning message before releasing
-        # Timedelta support.
-        WarningMessage.single_warning(TIMEDELTA_WARNING_MESSAGE)
         super().__init__()
+
+    def __eq__(self, other: Any) -> bool:
+        return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+    def __ne__(self, other: Any) -> bool:
+        return not self.__eq__(other)
 
     @staticmethod
     def to_pandas(value: int) -> native_pd.Timedelta:

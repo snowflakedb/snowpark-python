@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.telemetry import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName, ColumnOrSqlExpr
 from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
+    get_aliased_option_name,
     normalize_remote_file_or_dir,
     parse_table_name,
     str_to_enum,
@@ -38,6 +39,15 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+WRITER_OPTIONS_ALIAS_MAP = {
+    "SEP": "FIELD_DELIMITER",
+    "LINESEP": "RECORD_DELIMITER",
+    "QUOTE": "FIELD_OPTIONALLY_ENCLOSED_BY",
+    "NULLVALUE": "NULL_IF",
+    "DATEFORMAT": "DATE_FORMAT",
+    "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
+}
 
 
 class DataFrameWriter:
@@ -366,6 +376,15 @@ class DataFrameWriter:
             raise TypeError(  # pragma: no cover
                 f"'partition_by' is expected to be a column name, a Column object, or a sql expression. Got type {type(partition_by)}"
             )
+
+        # apply writer option alias mapping
+        format_type_aliased_options = None
+        if format_type_options:
+            format_type_aliased_options = {}
+            for key, value in format_type_options.items():
+                aliased_key = get_aliased_option_name(key, WRITER_OPTIONS_ALIAS_MAP)
+                format_type_aliased_options[aliased_key] = value
+
         df = self._dataframe._with_plan(
             CopyIntoLocationNode(
                 self._dataframe._plan,
@@ -373,7 +392,7 @@ class DataFrameWriter:
                 partition_by=partition_by,
                 file_format_name=file_format_name,
                 file_format_type=file_format_type,
-                format_type_options=format_type_options,
+                format_type_options=format_type_aliased_options,
                 copy_options=copy_options,
                 header=header,
             )
