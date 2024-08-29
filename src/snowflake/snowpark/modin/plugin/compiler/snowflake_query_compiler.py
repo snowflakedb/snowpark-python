@@ -198,6 +198,8 @@ from snowflake.snowpark.modin.plugin._internal.cut_utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
+    GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE,
+    GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES,
     check_is_groupby_supported_by_snowflake,
     extract_groupby_column_pandas_labels,
     get_frame_with_groupby_columns_as_index,
@@ -3228,8 +3230,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             KeyError if a hashable label in by (groupby items) can not be found in the current dataframe
             ValueError if more than one column can be found for the groupby item
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         validate_groupby_columns(self, by, axis, level)
 
     def groupby_ngroups(
@@ -3325,8 +3325,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         level = groupby_kwargs.get("level", None)
 
         if agg_func in ["head", "tail"]:
@@ -3419,12 +3417,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         # the pandas label and quoted identifier generated for each result column
         # after aggregation will be used as new pandas label and quoted identifiers.
-        new_data_column_pandas_labels = [
-            col_agg_op.agg_pandas_label for col_agg_op in agg_col_ops
-        ]
-        new_data_column_quoted_identifier = [
-            col_agg_op.agg_snowflake_quoted_identifier for col_agg_op in agg_col_ops
-        ]
+        new_data_column_pandas_labels = []
+        new_data_column_quoted_identifiers = []
+        new_data_column_snowpark_pandas_types = []
+        for col_agg_op in agg_col_ops:
+            new_data_column_pandas_labels.append(col_agg_op.agg_pandas_label)
+            new_data_column_quoted_identifiers.append(
+                col_agg_op.agg_snowflake_quoted_identifier
+            )
+            if agg_func in GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE:
+                new_data_column_snowpark_pandas_types.append(
+                    col_agg_op.data_type
+                    if isinstance(col_agg_op.data_type, SnowparkPandasType)
+                    else None
+                )
+            elif agg_func in GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES:
+                # In the case where the aggregation overrides the type of the output data column
+                # (e.g. any always returns boolean data columns), set the output Snowpark pandas type to None
+                new_data_column_snowpark_pandas_types = None  # type: ignore
+            else:
+                self._raise_not_implemented_error_for_timedelta()
+                new_data_column_snowpark_pandas_types = None  # type: ignore
 
         # The ordering of the named aggregations is changed by us when we process
         # the agg_kwargs into the func dict (named aggregations on the same
@@ -3438,10 +3451,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # and the new_data_column_quoted_identifier.
                 data_column_label_to_quoted_identifier = list(
                     zip(
-                        new_data_column_pandas_labels, new_data_column_quoted_identifier
+                        new_data_column_pandas_labels,
+                        new_data_column_quoted_identifiers,
                     )
                 )
-                new_data_column_pandas_labels, new_data_column_quoted_identifier = list(
+                (
+                    new_data_column_pandas_labels,
+                    new_data_column_quoted_identifiers,
+                ) = list(
                     zip(
                         *[
                             pair
@@ -3562,11 +3579,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # original pandas label for data columns are still used as pandas labels
                 data_column_pandas_labels=new_data_column_pandas_labels,
                 data_column_pandas_index_names=new_data_column_index_names,
-                data_column_snowflake_quoted_identifiers=new_data_column_quoted_identifier,
+                data_column_snowflake_quoted_identifiers=new_data_column_quoted_identifiers,
                 index_column_pandas_labels=new_index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=new_index_column_quoted_identifiers,
-                data_column_types=None,
-                index_column_types=None,
+                data_column_types=new_data_column_snowpark_pandas_types,
+                index_column_types=[
+                    internal_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
+                        identifier
+                    )
+                    for identifier in new_index_column_quoted_identifiers
+                ],
             )
         )
 
@@ -4575,8 +4597,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: The result of groupby_size()
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         level = groupby_kwargs.get("level", None)
         is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
         if not is_supported:
@@ -4943,8 +4963,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         drop: bool = False,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
         # does not have **kwargs.
@@ -4968,7 +4986,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         drop: bool = False,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
 
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
@@ -4993,7 +5010,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         drop: bool = False,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
 
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
