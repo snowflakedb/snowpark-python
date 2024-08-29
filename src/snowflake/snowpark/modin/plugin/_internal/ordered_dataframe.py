@@ -1200,16 +1200,17 @@ class OrderedDataFrame:
         # get the new mapped right on identifier
         right_on_cols = [right_identifiers_rename_map[key] for key in right_on_cols]
 
-        # Generate sql ON clause
         on = None
-        # Use EQUAL_NULL as default to compare left and right "on" columns
+
         from snowflake.snowpark.modin.plugin._internal.join_utils import MatchComparator
 
+        # Use EQUAL_NULL as default to compare left and right "on" columns
         on_comparators = (
             [MatchComparator.EQUAL_NULL] * len(left_on_cols)
             if not on_comparators
             else on_comparators
         )
+        # Generate sql ON clause comparing left and right columns
         for left_col, right_col, on_comparator in zip(
             left_on_cols, right_on_cols, on_comparators
         ):
