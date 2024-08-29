@@ -2028,7 +2028,7 @@ def crosstab(
 
     Returns
     -------
-    DataFrame
+    Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
         Cross tabulation of the data.
 
     Notes
