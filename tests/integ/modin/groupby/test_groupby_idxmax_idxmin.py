@@ -161,7 +161,7 @@ def test_df_groupby_idxmax_idxmin_on_groupby_axis_1_default_to_pandas(func):
 
 
 @pytest.mark.parametrize("agg_func", ["idxmin", "idxmax"])
-def test_groupby_idxmin_idxmax_timedelta(agg_func):
+def test_timedelta(agg_func):
     native_df = native_pd.DataFrame(
         {
             "A": native_pd.to_timedelta(

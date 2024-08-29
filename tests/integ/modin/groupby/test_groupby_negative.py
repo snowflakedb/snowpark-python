@@ -559,7 +559,7 @@ def test_groupby_agg_invalid_min_count(
 
 
 @sql_count_checker(query_count=0)
-def test_groupby_negative_var():
+def test_groupby_var_no_support_for_timedelta():
     native_df = native_pd.DataFrame(
         {
             "A": native_pd.to_timedelta(

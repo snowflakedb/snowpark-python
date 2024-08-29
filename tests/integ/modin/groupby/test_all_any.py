@@ -39,7 +39,7 @@ def test_all_any_basic(data):
 
 
 @pytest.mark.parametrize("agg_func", ["all", "any"])
-def test_groupby_all_any_timedelta(agg_func):
+def test_timedelta(agg_func):
     native_df = native_pd.DataFrame(
         {
             "A": native_pd.to_timedelta(["1 days 06:05:01.00003", "15.5us", "10"]),

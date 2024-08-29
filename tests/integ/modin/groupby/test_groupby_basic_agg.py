@@ -1106,7 +1106,7 @@ def test_valid_func_valid_kwarg_should_work(basic_snowpark_pandas_df):
         "std",
     ],
 )
-def test_groupby_basic_agg_timedelta(agg_func):
+def test_timedelta(agg_func):
     native_df = native_pd.DataFrame(
         {
             "A": native_pd.to_timedelta(

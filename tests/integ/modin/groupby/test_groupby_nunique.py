@@ -82,7 +82,7 @@ def test_groupby_nunique(df, groupby_columns, dropna):
         )
 
 
-def test_groupby_nunique_timedelta():
+def test_timedelta():
     native_df = native_pd.DataFrame(
         {
             "A": native_pd.to_timedelta(

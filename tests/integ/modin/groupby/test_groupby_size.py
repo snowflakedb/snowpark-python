@@ -92,7 +92,7 @@ def test_error_checking():
         s.groupby(s).size()
 
 
-def test_groupby_size_timedelta():
+def test_timedelta():
     native_df = native_pd.DataFrame(
         {
             "A": native_pd.to_timedelta(

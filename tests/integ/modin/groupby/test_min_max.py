@@ -178,7 +178,7 @@ def test_min_max_with_mixed_str_numeric_type():
 
 
 @pytest.mark.parametrize("agg_func", ["min", "max"])
-def test_groupby_min_max_timedelta(agg_func):
+def test_timedelta(agg_func):
     native_df = native_pd.DataFrame(
         {
             "A": native_pd.to_timedelta(
