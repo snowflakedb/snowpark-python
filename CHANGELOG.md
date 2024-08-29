@@ -60,6 +60,7 @@
   - support for adding or subtracting timestamps and `Timedelta`.
   - support for binary arithmetic between two `Timedelta` values.
   - support for lazy `TimedeltaIndex`.
+  - support for `pd.to_timedelta`.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
