@@ -2219,7 +2219,15 @@ class Session:
             isinstance(self._conn, MockServerConnection)
             and self._conn._suppress_not_implemented_error
         ):
-            return self.createDataFrame([])
+            # TODO: Snowpark does not allow empty dataframes (no schema, no data). Have a dummy schema here.
+            ans = self.createDataFrame(
+                [],
+                schema=StructType([StructField("row", IntegerType())]),
+                _emit_ast=False,
+            )
+            if _emit_ast:
+                ans._ast_id = stmt.var_id.bitfield1
+            return ans
 
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(

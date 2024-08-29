@@ -3575,6 +3575,7 @@ class DataFrame:
                 expr.col_names.append(col_name)
             for value in values:
                 build_expr_from_snowpark_column_or_table_fn(expr.values.add(), value)
+            self.set_ast_ref(expr.df)
 
         # Put it all together
         df = self.select([*old_cols, *new_cols], _ast_stmt=ast_stmt, _emit_ast=False)
