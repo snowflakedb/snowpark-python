@@ -43,6 +43,7 @@ class MatchComparator(Enum):
     GREATER_THAN = "__gt__"
     LESS_THAN_OR_EQUAL_TO = "__le__"
     LESS_THAN = "__lt__"
+    EQUAL_NULL = "equal_null"
 
 
 class InheritJoinIndex(IntFlag):
@@ -109,6 +110,7 @@ def join(
     how: JoinTypeLit,
     left_on: list[str],
     right_on: list[str],
+    on_comparators: Optional[list[MatchComparator]] = None,
     left_match_col: Optional[str] = None,
     right_match_col: Optional[str] = None,
     match_comparator: Optional[MatchComparator] = None,
@@ -126,11 +128,13 @@ def join(
         left_on: List of snowflake identifiers to join on from 'left' frame.
         right_on: List of snowflake identifiers to join on from 'right' frame.
             left_on and right_on must be lists of equal length.
+        on_comparators: list of MatchComparator {"__ge__", "__gt__", "__le__", "__lt__", "equal_null"}
+            Comparing the 'left_on' and 'right_on' columns.
         left_match_col: Snowflake identifier to match condition on from 'left' frame.
             Only applicable for 'asof' join.
         right_match_col: Snowflake identifier to match condition on from 'right' frame.
             Only applicable for 'asof' join.
-        match_comparator: MatchComparator {"__ge__", "__gt__", "__le__", "__lt__"}
+        match_comparator: MatchComparator {"__ge__", "__gt__", "__le__", "__lt__", "equal_null"}
             Only applicable for 'asof' join, the operation to compare 'left_match_condition'
             and 'right_match_condition'.
         sort: If True order merged frame on join keys. If False, ordering behavior
@@ -200,11 +204,11 @@ def join(
     # in the join operation, and unnecessary columns are dropped from the projected columns.
     left = left.select_active_columns()
     right = right.select_active_columns()
-
     joined_ordered_dataframe = left.ordered_dataframe.join(
         right=right.ordered_dataframe,
         left_on_cols=left_on,
         right_on_cols=right_on,
+        on_comparators=on_comparators,
         left_match_col=left_match_col,
         right_match_col=right_match_col,
         match_comparator=match_comparator,
