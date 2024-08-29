@@ -107,12 +107,12 @@ class TimedeltaIndex(Index):
         Examples
         --------
         >>> pd.TimedeltaIndex(['0 days', '1 days', '2 days', '3 days', '4 days'])
-        TimedeltaIndex(['0 days', '1 days', '2 days', '3 days', '4 days'], dtype='timedelta64[ns]')
+        TimedeltaIndex(['0 days', '1 days', '2 days', '3 days', '4 days'], dtype='timedelta64[ns]', freq=None)
 
         We can also let pandas infer the frequency when possible.
 
         >>> pd.TimedeltaIndex(np.arange(5) * 24 * 3600 * 1e9, freq='infer')
-        TimedeltaIndex(['0 days', '1 days', '2 days', '3 days', '4 days'], dtype='timedelta64[ns]')
+        TimedeltaIndex(['0 days', '1 days', '2 days', '3 days', '4 days'], dtype='timedelta64[ns]', freq=None)
         """
         if query_compiler:
             # Raise error if underlying type is not a Timedelta type.

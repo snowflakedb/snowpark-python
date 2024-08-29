@@ -47,7 +47,6 @@ def test_unsupported_io(io_method, kwargs):
         ["value_counts", {"values": ""}],
         ["lreshape", {"data": "", "groups": ""}],
         ["wide_to_long", {"df": "", "stubnames": "", "i": "", "j": ""}],
-        ["to_timedelta", {"arg": ""}],
     ],
 )
 def test_unsupported_general(general_method, kwargs):

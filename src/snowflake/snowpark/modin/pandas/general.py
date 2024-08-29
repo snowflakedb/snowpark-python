@@ -23,7 +23,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
-from datetime import date, datetime, tzinfo
+from datetime import date, datetime, timedelta, tzinfo
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal, Union
 
@@ -35,6 +35,7 @@ from pandas._libs import NaTType, lib
 from pandas._libs.tslibs import to_offset
 from pandas._typing import (
     AnyArrayLike,
+    ArrayLike,
     Axis,
     DateTimeErrorChoices,
     IndexLabel,
@@ -2392,21 +2393,116 @@ def _determine_name(objs: Iterable[BaseQueryCompiler], axis: int | str):
         return None
 
 
-@_inherit_docstrings(pandas.to_datetime, apilink="pandas.to_timedelta")
 @snowpark_pandas_telemetry_standalone_function_decorator
-@pandas_module_level_function_not_implemented()
-def to_timedelta(arg, unit=None, errors="raise"):  # noqa: PR01, RT01, D200
+def to_timedelta(
+    arg: str
+    | int
+    | float
+    | timedelta
+    | list
+    | tuple
+    | range
+    | ArrayLike
+    | pd.Index
+    | pd.Series
+    | pandas.Index
+    | pandas.Series,
+    unit: str = None,
+    errors: DateTimeErrorChoices = "raise",
+):
     """
     Convert argument to timedelta.
 
-    Accepts str, timedelta, list-like or Series for arg parameter.
-    Returns a Series if and only if arg is provided as a Series.
+    Timedeltas are absolute differences in times, expressed in difference
+    units (e.g. days, hours, minutes, seconds). This method converts
+    an argument from a recognized timedelta format / value into
+    a Timedelta type.
+
+    Parameters
+    ----------
+    arg : str, timedelta, list-like or Series
+        The data to be converted to timedelta.
+    unit : str, optional
+        Denotes the unit of the arg for numeric `arg`. Defaults to ``"ns"``.
+
+        Possible values:
+        * 'W'
+        * 'D' / 'days' / 'day'
+        * 'hours' / 'hour' / 'hr' / 'h' / 'H'
+        * 'm' / 'minute' / 'min' / 'minutes' / 'T'
+        * 's' / 'seconds' / 'sec' / 'second' / 'S'
+        * 'ms' / 'milliseconds' / 'millisecond' / 'milli' / 'millis' / 'L'
+        * 'us' / 'microseconds' / 'microsecond' / 'micro' / 'micros' / 'U'
+        * 'ns' / 'nanoseconds' / 'nano' / 'nanos' / 'nanosecond' / 'N'
+
+        Must not be specified when `arg` contains strings and ``errors="raise"``.
+    errors : {'ignore', 'raise', 'coerce'}, default 'raise'
+        - If 'raise', then invalid parsing will raise an exception.
+        - If 'coerce', then invalid parsing will be set as NaT.
+        - If 'ignore', then invalid parsing will return the input.
+
+    Returns
+    -------
+    timedelta
+        If parsing succeeded.
+        Return type depends on input:
+        - list-like: TimedeltaIndex of timedelta64 dtype
+        - Series: Series of timedelta64 dtype
+        - scalar: Timedelta
+
+    See Also
+    --------
+    DataFrame.astype : Cast argument to a specified dtype.
+    to_datetime : Convert argument to datetime.
+    convert_dtypes : Convert dtypes.
+
+    Notes
+    -----
+    If the precision is higher than nanoseconds, the precision of the duration is
+    truncated to nanoseconds for string inputs.
+
+    Examples
+    --------
+    Parsing a single string to a Timedelta:
+
+    >>> pd.to_timedelta('1 days 06:05:01.00003')
+    Timedelta('1 days 06:05:01.000030')
+    >>> pd.to_timedelta('15.5us')
+    Timedelta('0 days 00:00:00.000015500')
+
+    Parsing a list or array of strings:
+
+    >>> pd.to_timedelta(['1 days 06:05:01.00003', '15.5us', 'nan'])
+    TimedeltaIndex(['1 days 06:05:01.000030', '0 days 00:00:00.000015500', NaT], dtype='timedelta64[ns]', freq=None)
+
+    Converting numbers by specifying the `unit` keyword argument:
+
+    >>> pd.to_timedelta(np.arange(5), unit='s')
+    TimedeltaIndex(['0 days 00:00:00', '0 days 00:00:01', '0 days 00:00:02',
+                    '0 days 00:00:03', '0 days 00:00:04'],
+                   dtype='timedelta64[ns]', freq=None)
+    >>> pd.to_timedelta(np.arange(5), unit='d')
+    TimedeltaIndex(['0 days', '1 days', '2 days', '3 days', '4 days'], dtype='timedelta64[ns]', freq=None)
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    if isinstance(arg, Series):
-        query_compiler = arg._query_compiler.to_timedelta(unit=unit, errors=errors)
-        return Series(query_compiler=query_compiler)
-    return pandas.to_timedelta(arg, unit=unit, errors=errors)
+    # If arg is snowpark pandas lazy object call to_timedelta on the query compiler.
+    if isinstance(arg, (Series, pd.Index)):
+        query_compiler = arg._query_compiler.to_timedelta(
+            unit=unit if unit else "ns",
+            errors=errors,
+            include_index=isinstance(arg, pd.Index),
+        )
+        return arg.__constructor__(query_compiler=query_compiler)
+
+    # Use native pandas to_timedelta for scalar values and list-like objects.
+    result = pandas.to_timedelta(arg, unit=unit, errors=errors)
+    # Convert to lazy if result is a native pandas Series or Index.
+    if isinstance(result, pandas.Index):
+        return pd.Index(result)
+    if isinstance(result, pandas.Series):
+        return pd.Series(result)
+    # Return the result as is for scaler.
+    return result
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
