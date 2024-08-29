@@ -92,7 +92,9 @@ def test_error_checking():
         s.groupby(s).size()
 
 
-def test_timedelta():
+@pytest.mark.parametrize("by", ["A", "B"])
+@sql_count_checker(query_count=1)
+def test_timedelta(by):
     native_df = native_pd.DataFrame(
         {
             "A": native_pd.to_timedelta(
@@ -104,17 +106,8 @@ def test_timedelta():
     )
     snow_df = pd.DataFrame(native_df)
 
-    with SqlCounter(query_count=1):
-        eval_snowpark_pandas_result(
-            snow_df,
-            native_df,
-            lambda df: df.groupby("A").size(),
-        )
-    with SqlCounter(query_count=1):
-        eval_snowpark_pandas_result(
-            snow_df, native_df, lambda df: df.groupby("A").size()
-        )
-    with SqlCounter(query_count=1):
-        eval_snowpark_pandas_result(
-            snow_df, native_df, lambda df: df.groupby(["A", "B"]).size()
-        )
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.groupby(by).size(),
+    )

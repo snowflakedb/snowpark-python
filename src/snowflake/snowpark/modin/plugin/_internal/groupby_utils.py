@@ -41,7 +41,7 @@ BaseInternalKeyType = Union[
 ]
 
 NO_GROUPKEY_ERROR = ValueError("No group keys passed!")
-GROUPBY_AGG_SAME_INPUT_AND_OUTPUT_DATA_TYPES = [
+GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE = [
     "min",
     "max",
     "sum",
@@ -51,7 +51,7 @@ GROUPBY_AGG_SAME_INPUT_AND_OUTPUT_DATA_TYPES = [
     "first",
     "last",
 ]
-GROUPBY_AGG_DIFFERENT_INPUT_AND_OUTPUT_DATA_TYPES = [
+GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES = [
     "any",
     "all",
     "count",

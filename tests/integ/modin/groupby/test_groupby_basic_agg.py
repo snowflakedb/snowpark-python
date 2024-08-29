@@ -1106,7 +1106,9 @@ def test_valid_func_valid_kwarg_should_work(basic_snowpark_pandas_df):
         "std",
     ],
 )
-def test_timedelta(agg_func):
+@pytest.mark.parametrize("by", ["A", "B"])
+@sql_count_checker(query_count=1)
+def test_timedelta(agg_func, by):
     native_df = native_pd.DataFrame(
         {
             "A": native_pd.to_timedelta(
@@ -1117,11 +1119,6 @@ def test_timedelta(agg_func):
     )
     snow_df = pd.DataFrame(native_df)
 
-    with SqlCounter(query_count=1):
-        eval_snowpark_pandas_result(
-            snow_df, native_df, lambda df: getattr(df.groupby("A"), agg_func)()
-        )
-    with SqlCounter(query_count=1):
-        eval_snowpark_pandas_result(
-            snow_df, native_df, lambda df: getattr(df.groupby("B"), agg_func)()
-        )
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: getattr(df.groupby(by), agg_func)()
+    )
