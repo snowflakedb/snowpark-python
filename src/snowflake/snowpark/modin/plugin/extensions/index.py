@@ -42,6 +42,7 @@ from pandas.core.dtypes.common import (
     is_integer_dtype,
     is_numeric_dtype,
     is_object_dtype,
+    is_timedelta64_dtype,
     pandas_dtype,
 )
 from pandas.core.dtypes.inference import is_hashable
@@ -112,21 +113,30 @@ class Index(metaclass=TelemetryMeta):
         from snowflake.snowpark.modin.plugin.extensions.datetime_index import (
             DatetimeIndex,
         )
+        from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (
+            TimedeltaIndex,
+        )
 
         if query_compiler:
             dtype = query_compiler.index_dtypes[0]
-            if dtype == np.dtype("datetime64[ns]"):
+            if is_datetime64_any_dtype(dtype):
                 return DatetimeIndex(query_compiler=query_compiler)
+            if is_timedelta64_dtype(dtype):
+                return TimedeltaIndex(query_compiler=query_compiler)
         elif isinstance(data, BasePandasDataset):
             if data.ndim != 1:
                 raise ValueError("Index data must be 1 - dimensional")
             dtype = data.dtype
-            if dtype == np.dtype("datetime64[ns]"):
-                return DatetimeIndex(data, dtype, copy, name, tupleize_cols)
+            if is_datetime64_any_dtype(dtype):
+                return DatetimeIndex(data, dtype=dtype, copy=copy, name=name)
+            if is_timedelta64_dtype(dtype):
+                return TimedeltaIndex(data, dtype=dtype, copy=copy, name=name)
         else:
             index = native_pd.Index(data, dtype, copy, name, tupleize_cols)
             if isinstance(index, native_pd.DatetimeIndex):
                 return DatetimeIndex(data)
+            if isinstance(index, native_pd.TimedeltaIndex):
+                return TimedeltaIndex(data)
         return object.__new__(cls)
 
     def __init__(
@@ -252,9 +262,13 @@ class Index(metaclass=TelemetryMeta):
     def _binary_ops(self, method: str, other: Any) -> Index:
         if isinstance(other, Index):
             other = other.to_series().reset_index(drop=True)
-        return self.__constructor__(
-            self.to_series().reset_index(drop=True).__getattr__(method)(other)
-        )
+        series = self.to_series().reset_index(drop=True).__getattr__(method)(other)
+        qc = series._query_compiler
+        qc = qc.set_index_from_columns(qc.columns, include_index=False)
+        # Use base constructor to ensure that the correct type is returned.
+        idx = Index(query_compiler=qc)
+        idx.name = series.name
+        return idx
 
     def _unary_ops(self, method: str) -> Index:
         return self.__constructor__(
@@ -2610,9 +2624,11 @@ class Index(metaclass=TelemetryMeta):
         name_repr = f", name='{self.name}'" if self.name else ""
         # Length is displayed only when the number of elements is greater than the number of elements to display.
         length_repr = f", length={length_of_index}" if too_many_elem else ""
-        # The frequency is displayed only for DatetimeIndex.
+        # The frequency is displayed for DatetimeIndex and TimedeltaIndex
         # TODO: SNOW-1625233 update freq_repr; replace None with the correct value.
-        freq_repr = ", freq=None" if "DatetimeIndex" in class_name else ""
+        freq_repr = (
+            ", freq=None" if class_name in ("DatetimeIndex", "TimedeltaIndex") else ""
+        )
 
         repr = (
             class_name

@@ -64,7 +64,7 @@ class QueryGenerator(Analyzer):
         # NOTE: the dict used here is an ordered dict, all with query block definition is recorded in the
         # order of when the with query block is visited. The order is important to make sure the dependency
         # between the CTE definition is satisfied.
-        self.resolved_with_query_block: Dict[str, str] = {}
+        self.resolved_with_query_block: Dict[str, Query] = {}
 
     def generate_queries(
         self, logical_plans: List[LogicalPlan]
@@ -89,8 +89,16 @@ class QueryGenerator(Analyzer):
             plan_queries = get_snowflake_plan_queries(
                 snowflake_plan, self.resolved_with_query_block
             )
-            queries.extend(plan_queries[PlanQueryType.QUERIES])
-            post_actions.extend(plan_queries[PlanQueryType.POST_ACTIONS])
+            # we deduplicate the queries and post actions generated across the logical
+            # plans because it is possible for large query breakdown to partition
+            # original plan into multiple plans that may contain the same nodes which
+            # generate the same queries and post actions.
+            for query in plan_queries[PlanQueryType.QUERIES]:
+                if query not in queries:
+                    queries.append(query)
+            for action in plan_queries[PlanQueryType.POST_ACTIONS]:
+                if action not in post_actions:
+                    post_actions.append(action)
 
         return {
             PlanQueryType.QUERIES: queries,
@@ -209,7 +217,7 @@ class QueryGenerator(Analyzer):
             if logical_plan.name not in self.resolved_with_query_block:
                 self.resolved_with_query_block[
                     logical_plan.name
-                ] = resolved_child.queries[-1].sql
+                ] = resolved_child.queries[-1]
 
             resolved_plan = self.plan_builder.with_query_block(
                 logical_plan.name,

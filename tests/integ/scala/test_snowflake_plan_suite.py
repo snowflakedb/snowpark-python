@@ -175,9 +175,8 @@ def test_execution_queries_and_post_actions(session):
             # the cte optimization is not kicking in when sql simplifier disabled, because
             # the cte_optimization_enabled is set to False when constructing the plan for df2,
             # and place_holder is not propogated.
-            # TODO (SNOW-1541096): revisit this test once the cte optimization is switched to the
-            #   new compilation infra.
-            cte_applied=session.sql_simplifier_enabled,
+            cte_applied=session.sql_simplifier_enabled
+            or session._query_compilation_stage_enabled,
             exec_queries=df2._plan.execution_queries,
         )
 
@@ -339,6 +338,29 @@ def test_create_scoped_temp_table(session):
                 use_scoped_temp_objects=True,
                 creation_source=TableCreationSource.OTHERS,
                 child_attributes=df._plan.attributes,
+            )
+            .queries[0]
+            .sql
+        )
+        expected_sql = f" CREATE  TEMPORARY  TABLE  {temp_table_name}    AS  SELECT"
+        assert expected_sql in (
+            session._plan_builder.save_as_table(
+                table_name=[temp_table_name],
+                column_names=None,
+                mode=SaveMode.ERROR_IF_EXISTS,
+                table_type="temporary",
+                clustering_keys=None,
+                comment=None,
+                enable_schema_evolution=None,
+                data_retention_time=None,
+                max_data_extension_time=None,
+                change_tracking=None,
+                copy_grants=False,
+                child=df._plan,
+                source_plan=None,
+                use_scoped_temp_objects=True,
+                creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
+                child_attributes=[],
             )
             .queries[0]
             .sql
