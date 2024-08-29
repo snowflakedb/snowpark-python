@@ -1739,6 +1739,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_alias, stmt)
             ast.name = name
+            self.set_ast_ref(ast.df)
 
         # TODO: Support alias in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -1838,6 +1839,7 @@ class DataFrame:
             for e in exprs:
                 build_expr_from_python_val(expr.exprs.args.add(), e)
             expr.exprs.variadic = is_variadic
+            self.set_ast_ref(expr.df)
 
         df = self.group_by(_emit_ast=False).agg(*exprs, _emit_ast=False)
 
@@ -2329,6 +2331,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_union, stmt)
             other.set_ast_ref(ast.other)
+            self.set_ast_ref(ast.df)
 
         df = (
             self._with_plan(
@@ -2379,6 +2382,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_union_all, stmt)
             other.set_ast_ref(ast.other)
+            self.set_ast_ref(ast.df)
 
         df = (
             self._with_plan(
@@ -2541,6 +2545,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_intersect, stmt)
             other.set_ast_ref(ast.other)
+            self.set_ast_ref(ast.df)
 
         df = (
             self._with_plan(

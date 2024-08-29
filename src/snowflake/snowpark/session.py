@@ -185,8 +185,10 @@ from snowflake.snowpark.types import (
     DecimalType,
     GeographyType,
     GeometryType,
+    IntegerType,
     MapType,
     StringType,
+    StructField,
     StructType,
     TimestampTimeZone,
     TimestampType,
@@ -2019,6 +2021,7 @@ class Session:
         self,
         func_name: Union[str, List[str], Callable[..., Any], TableFunctionCall],
         *func_arguments: ColumnOrName,
+        _emit_ast: bool = True,
         **func_named_arguments: ColumnOrName,
     ) -> DataFrame:
         """Creates a new DataFrame from the given snowflake SQL table function.
@@ -2107,7 +2110,16 @@ class Session:
         # TODO: Support table_function in MockServerConnection.
         if isinstance(self._conn, MockServerConnection):
             if self._conn._suppress_not_implemented_error:
-                return self.create_dataframe([])
+
+                # TODO: Snowpark does not allow empty dataframes (no schema, no data). Have a dummy schema here.
+                ans = self.createDataFrame(
+                    [],
+                    schema=StructType([StructField("row", IntegerType())]),
+                    _emit_ast=False,
+                )
+                if _emit_ast:
+                    ans._ast_id = stmt.var_id.bitfield1
+                return ans
             else:
                 self._conn.log_not_supported_error(
                     external_feature_name="Session.table_function",
