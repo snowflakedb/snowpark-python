@@ -3381,10 +3381,7 @@ class Session:
         Returns a :class:`udtf.UDTFRegistration` object that you can use to register UDTFs.
         See details of how to use this object in :class:`udtf.UDTFRegistration`.
         """
-        if isinstance(self._conn, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.udtf", raise_error=NotImplementedError
-            )
+        # TODO: Test udtf support properly.
         return self._udtf_registration
 
     @property

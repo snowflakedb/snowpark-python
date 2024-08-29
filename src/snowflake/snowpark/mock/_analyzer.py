@@ -662,6 +662,26 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, TableFunctionJoin):
+            # standard optimizer returns here:
+            # return self.plan_builder.join_table_function(
+            #     self.analyze(
+            #         logical_plan.table_function, df_aliased_col_name_to_real_col_name
+            #     ),
+            #     resolved_children[logical_plan.children[0]],
+            #     logical_plan,
+            #     logical_plan.left_cols,
+            #     logical_plan.right_cols,
+            #     self.session.conf.get("use_constant_subquery_alias", False),
+            # )
+            # func = self.analyze(...)
+            # child = resolved_children[logical_plan.children[0]]
+            # source_plan = logical_plan
+            # left_cols = logical_plan.left_cols
+            # right_cols = logical_plan.right_cols
+            # use_constant_subquery_alias = self.session.conf.get(
+            #    "use_constant_subquery_alias", False
+            # )
+
             # TODO: Fix for local testing.
             return MockExecutionPlan(
                 logical_plan,

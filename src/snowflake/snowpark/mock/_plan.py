@@ -203,6 +203,12 @@ class MockExecutionPlan(LogicalPlan):
     @property
     def attributes(self) -> List[Attribute]:
         output = describe(self)
+
+        # special case: TableFunctionJoin, the logic is currently written to expect input + output columns joined.
+        if isinstance(self.source_plan, TableFunctionJoin):
+            # prepend arguments.
+            return self.source_plan.table_function.args + output
+
         return output
 
     @cached_property
