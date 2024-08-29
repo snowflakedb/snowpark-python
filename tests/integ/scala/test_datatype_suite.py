@@ -14,6 +14,7 @@ from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     array_construct,
+    builtin,
     col,
     current_account,
     current_database,
@@ -570,6 +571,7 @@ def test_structured_dtypes_iceberg_udf(
                     current_schema(),
                     current_user(),
                     current_warehouse(),
+                    builtin("current_account_name")(),
                 )
                 .collect()
             )
