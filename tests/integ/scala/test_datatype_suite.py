@@ -531,48 +531,6 @@ def test_structured_dtypes_iceberg_udf(
         structured_type_session.sql(f"drop table if exists {table_name}")
 
 
-# @pytest.mark.skipif(
-#     "config.getoption('local_testing_mode', default=False)",
-#     reason="strucutred types do not fully support structured types yet.",
-# )
-# def test_structured_dtypes_iceberg_table_save(
-#     structured_type_session, local_testing_mode, structured_type_support
-# ):
-#     if not (
-#         structured_type_support
-#         and iceberg_supported(structured_type_session, local_testing_mode)
-#     ):
-#         pytest.mark.skip("Test requires iceberg support and structured type support.")
-#
-#     table_name = Utils.random_table_name()
-#     df = structured_type_session.create_dataframe(
-#         [],
-#         schema=StructType(
-#             [
-#                 # StructField("a", MapType(StringType(), IntegerType(), structured=True)),
-#                 StructField("b", ArrayType(StringType(), structured=True)),
-#                 # StructField("c", StructType( [StructField("A", StringType()), StructField("B", DoubleType())], structured=True)),
-#             ]
-#         ),
-#     )
-#     df.write.save_as_table(
-#         table_name,
-#         iceberg_config={
-#         "external_volume": "python_connector_iceberg_exvol",
-#         "catalog": "SNOWFLAKE",
-#         "base_location": "snowpark_python_tests",
-#     }
-#     )
-#     try:
-#         ddl = structured_type_session._run_query(f"select get_ddl('table', '{table_name}')")
-#         assert (
-#             ddl[0][0]
-#             == f"create or replace ICEBERG TABLE {table_name} (\n\tA STRING,\n\tB LONG\n)\n EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n BASE_LOCATION = 'snowpark_python_tests/';"
-#         )
-#     finally:
-#         structured_type_session.table(table_name).drop_table()
-
-
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_dtypes_vector(session):
     schema = StructType(
