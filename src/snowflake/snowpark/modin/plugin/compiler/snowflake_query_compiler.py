@@ -198,6 +198,8 @@ from snowflake.snowpark.modin.plugin._internal.cut_utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
+    GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE,
+    GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES,
     check_is_groupby_supported_by_snowflake,
     extract_groupby_column_pandas_labels,
     get_frame_with_groupby_columns_as_index,
@@ -270,6 +272,7 @@ from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     VALID_TO_DATETIME_DF_KEYS,
     DateTimeOrigin,
+    col_to_timedelta,
     generate_timestamp_col,
     raise_if_to_datetime_not_supported,
     to_snowflake_timestamp_format,
@@ -1574,12 +1577,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Fill all columns with fill value (or NULL) if abs(periods) exceeds column count.
         if abs(periods) >= len(column_labels):
-            new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
-                {
-                    quoted_identifier: pandas_lit(fill_value)
-                    for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
-                }
-            ).frame
+            new_frame = frame.apply_snowpark_function_to_columns(
+                lambda column: pandas_lit(fill_value)
+            )
             return self.__constructor__(new_frame)
 
         # No fill with fill value when using periods == 0. Can be handled in frontend as well,
@@ -3230,8 +3230,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             KeyError if a hashable label in by (groupby items) can not be found in the current dataframe
             ValueError if more than one column can be found for the groupby item
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         validate_groupby_columns(self, by, axis, level)
 
     def groupby_ngroups(
@@ -3327,8 +3325,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         level = groupby_kwargs.get("level", None)
 
         if agg_func in ["head", "tail"]:
@@ -3421,12 +3417,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         # the pandas label and quoted identifier generated for each result column
         # after aggregation will be used as new pandas label and quoted identifiers.
-        new_data_column_pandas_labels = [
-            col_agg_op.agg_pandas_label for col_agg_op in agg_col_ops
-        ]
-        new_data_column_quoted_identifier = [
-            col_agg_op.agg_snowflake_quoted_identifier for col_agg_op in agg_col_ops
-        ]
+        new_data_column_pandas_labels = []
+        new_data_column_quoted_identifiers = []
+        new_data_column_snowpark_pandas_types = []
+        for col_agg_op in agg_col_ops:
+            new_data_column_pandas_labels.append(col_agg_op.agg_pandas_label)
+            new_data_column_quoted_identifiers.append(
+                col_agg_op.agg_snowflake_quoted_identifier
+            )
+            if agg_func in GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE:
+                new_data_column_snowpark_pandas_types.append(
+                    col_agg_op.data_type
+                    if isinstance(col_agg_op.data_type, SnowparkPandasType)
+                    else None
+                )
+            elif agg_func in GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES:
+                # In the case where the aggregation overrides the type of the output data column
+                # (e.g. any always returns boolean data columns), set the output Snowpark pandas type to None
+                new_data_column_snowpark_pandas_types = None  # type: ignore
+            else:
+                self._raise_not_implemented_error_for_timedelta()
+                new_data_column_snowpark_pandas_types = None  # type: ignore
 
         # The ordering of the named aggregations is changed by us when we process
         # the agg_kwargs into the func dict (named aggregations on the same
@@ -3440,10 +3451,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # and the new_data_column_quoted_identifier.
                 data_column_label_to_quoted_identifier = list(
                     zip(
-                        new_data_column_pandas_labels, new_data_column_quoted_identifier
+                        new_data_column_pandas_labels,
+                        new_data_column_quoted_identifiers,
                     )
                 )
-                new_data_column_pandas_labels, new_data_column_quoted_identifier = list(
+                (
+                    new_data_column_pandas_labels,
+                    new_data_column_quoted_identifiers,
+                ) = list(
                     zip(
                         *[
                             pair
@@ -3564,11 +3579,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # original pandas label for data columns are still used as pandas labels
                 data_column_pandas_labels=new_data_column_pandas_labels,
                 data_column_pandas_index_names=new_data_column_index_names,
-                data_column_snowflake_quoted_identifiers=new_data_column_quoted_identifier,
+                data_column_snowflake_quoted_identifiers=new_data_column_quoted_identifiers,
                 index_column_pandas_labels=new_index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=new_index_column_quoted_identifiers,
-                data_column_types=None,
-                index_column_types=None,
+                data_column_types=new_data_column_snowpark_pandas_types,
+                index_column_types=[
+                    internal_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
+                        identifier
+                    )
+                    for identifier in new_index_column_quoted_identifiers
+                ],
             )
         )
 
@@ -4577,8 +4597,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: The result of groupby_size()
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         level = groupby_kwargs.get("level", None)
         is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
         if not is_supported:
@@ -4945,8 +4963,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         drop: bool = False,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
         # does not have **kwargs.
@@ -4970,7 +4986,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         drop: bool = False,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
 
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
@@ -4995,7 +5010,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         drop: bool = False,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
 
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
@@ -6221,6 +6235,68 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_types=[None],
                 index_column_types=[None],
             )
+        )
+
+    def to_timedelta(
+        self,
+        unit: str = "ns",
+        errors: DateTimeErrorChoices = "raise",
+        include_index: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Convert data to timedelta.
+
+        Args:
+            unit: Denotes unit of the input data.  Defaults to 'ns'.
+                Possible values:
+                * 'W'
+                * 'D' / 'days' / 'day'
+                * 'hours' / 'hour' / 'hr' / 'h' / 'H'
+                * 'm' / 'minute' / 'min' / 'minutes' / 'T'
+                * 's' / 'seconds' / 'sec' / 'second' / 'S'
+                * 'ms' / 'milliseconds' / 'millisecond' / 'milli' / 'millis' / 'L'
+                * 'us' / 'microseconds' / 'microsecond' / 'micro' / 'micros' / 'U'
+                * 'ns' / 'nanoseconds' / 'nano' / 'nanos' / 'nanosecond' / 'N'
+            errors : {'ignore', 'raise', 'coerce'}, default 'raise'
+                - If 'raise', then invalid parsing will raise an exception.
+                - If 'coerce', then invalid parsing will be set as NaT.
+                - If 'ignore', then invalid parsing will return the input.
+            include_index: If true, also convert index columns to timedelta.
+
+        Returns:
+            A new query compiler with the data converted to timedelta.
+        """
+        if errors != "raise":
+            ErrorMessage.parameter_not_implemented_error("errors", "pd.to_timedelta")
+        internal_frame = self._modin_frame
+        col_ids = internal_frame.data_column_snowflake_quoted_identifiers
+        if include_index:
+            col_ids.extend(internal_frame.index_column_snowflake_quoted_identifiers)
+
+        # Raise error if the original data type is not numeric.
+        id_to_type = internal_frame.quoted_identifier_to_snowflake_type(col_ids)
+        for id, sf_type in id_to_type.items():
+            if isinstance(sf_type, TimedeltaType):
+                # already timedelta
+                col_ids.remove(id)
+            elif isinstance(sf_type, StringType):
+                ErrorMessage.not_implemented(
+                    "Snowpark pandas method pd.to_timedelta does not yet support conversion from string type"
+                )
+            elif not isinstance(sf_type, _NumericType):
+                raise TypeError(
+                    f"dtype {TypeMapper.to_pandas(sf_type)} cannot be converted to timedelta64[ns]"
+                )
+
+        # If all columns are already timedelta. No conversion is needed.
+        if not col_ids:
+            return self
+
+        return SnowflakeQueryCompiler(
+            internal_frame.update_snowflake_quoted_identifiers_with_expressions(
+                {col_id: col_to_timedelta(col(col_id), unit) for col_id in col_ids},
+                [TimedeltaType()] * len(col_ids),
+            ).frame
         )
 
     def series_to_datetime(
@@ -8492,8 +8568,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Boolean mask for self of whether an element at the corresponding
             position is NaN.
         """
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: is_null(col_name)
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            lambda column: is_null(column)
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -8507,8 +8583,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Boolean mask for `self` of whether an element at the corresponding
             position is not NaN.
         """
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: not_(is_null(col_name))
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            lambda column: not_(is_null(column))
         )
 
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -10550,9 +10626,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "minute": minute,
             "second": second,
             "day": dayofmonth,
-            "weekiso": (lambda column: builtin("weekiso")(col(column))),
-            "dayofweekiso": (lambda column: builtin("dayofweekiso")(col(column))),
-            "yearofweekiso": (lambda column: builtin("yearofweekiso")(col(column))),
+            "weekiso": (lambda column: builtin("weekiso")(column)),
+            "dayofweekiso": (lambda column: builtin("dayofweekiso")(column)),
+            "yearofweekiso": (lambda column: builtin("yearofweekiso")(column)),
             "month": month,
             "year": year,
             "quarter": quarter,
@@ -10560,32 +10636,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # Use DAYOFWEEKISO for `dayofweek` so that the result doesn't
             # depend on the Snowflake session's WEEK_START parameter. Subtract
             # 1 to match pandas semantics.
-            "dayofweek": (lambda column: builtin("dayofweekiso")(col(column)) - 1),
-            "weekday": (lambda column: builtin("dayofweekiso")(col(column)) - 1),
-            "microsecond": (lambda column: floor(date_part("ns", col(column)) / 1000)),
-            "nanosecond": (lambda column: date_part("ns", col(column)) % 1000),
+            "dayofweek": (lambda column: builtin("dayofweekiso")(column) - 1),
+            "weekday": (lambda column: builtin("dayofweekiso")(column) - 1),
+            "microsecond": (lambda column: floor(date_part("ns", column) / 1000)),
+            "nanosecond": (lambda column: date_part("ns", column) % 1000),
             "is_month_start": (
-                lambda column: coalesce(dayofmonth(col(column)) == 1, pandas_lit(False))
+                lambda column: coalesce(dayofmonth(column) == 1, pandas_lit(False))
             ),
             # To check if it's a month end, make sure that the following day is a month start.
             "is_month_end": (
                 lambda column: coalesce(
-                    dayofmonth(dateadd("day", pandas_lit(1), col(column))) == 1,
+                    dayofmonth(dateadd("day", pandas_lit(1), column)) == 1,
                     pandas_lit(False),
                 )
             ),
             "is_quarter_start": (
                 lambda column: coalesce(
-                    (dayofmonth(col(column)) == 1)
-                    & (month(col(column)).in_(*QUARTER_START_MONTHS)),
+                    (dayofmonth(column) == 1)
+                    & (month(column).in_(*QUARTER_START_MONTHS)),
                     pandas_lit(False),
                 )
             ),
             "is_quarter_end": (
                 lambda column: coalesce(
-                    (dayofmonth(dateadd("day", pandas_lit(1), col(column))) == 1)
+                    (dayofmonth(dateadd("day", pandas_lit(1), column)) == 1)
                     & (
-                        month(dateadd("day", pandas_lit(1), col(column))).in_(
+                        month(dateadd("day", pandas_lit(1), column)).in_(
                             *QUARTER_START_MONTHS
                         )
                     ),
@@ -10594,13 +10670,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ),
             "is_year_start": (
                 lambda column: coalesce(
-                    (dayofmonth(col(column)) == 1) & (month(col(column)) == 1),
+                    (dayofmonth(column) == 1) & (month(column) == 1),
                     pandas_lit(False),
                 )
             ),
             "is_year_end": (
                 lambda column: coalesce(
-                    (dayofmonth(col(column)) == 31) & (month(col(column)) == 12),
+                    (dayofmonth(column) == 31) & (month(column) == 12),
                     pandas_lit(False),
                 )
             ),
@@ -10610,7 +10686,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         dateadd(
                             "day",
                             pandas_lit(1),
-                            date_from_parts(year(col(column)), 2, 28),
+                            date_from_parts(year(column), 2, 28),
                         )
                     )
                     == 29,
@@ -10618,9 +10694,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             ),
             "days_in_month": (
-                lambda column: when(col(column).is_null(), None)
+                lambda column: when(column.is_null(), None)
                 .when(
-                    month(col(column)).in_(
+                    month(column).in_(
                         pandas_lit(1),
                         pandas_lit(3),
                         pandas_lit(5),
@@ -10632,7 +10708,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     pandas_lit(31),
                 )
                 .when(
-                    month(col(column)).in_(
+                    month(column).in_(
                         pandas_lit(4),
                         pandas_lit(6),
                         pandas_lit(9),
@@ -10646,7 +10722,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                             "day",
                             pandas_lit(1),
                             date_from_parts(
-                                year(col(column)), pandas_lit(2), pandas_lit(28)
+                                year(column), pandas_lit(2), pandas_lit(28)
                             ),
                         )
                     )
@@ -10663,20 +10739,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 f"Snowpark pandas doesn't yet support the property '{class_prefix}.{property_name}'"
             )  # pragma: no cover
 
-        internal_frame = self._modin_frame
-        snowflake_ids = internal_frame.data_column_snowflake_quoted_identifiers[0:1]
-        if include_index:
-            snowflake_ids.extend(
-                internal_frame.index_column_snowflake_quoted_identifiers
-            )
-
-        internal_frame_with_property_column = (
-            internal_frame.update_snowflake_quoted_identifiers_with_expressions(
-                {col_id: property_function(col_id) for col_id in snowflake_ids}
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                property_function, include_index
             )
         )
-
-        return SnowflakeQueryCompiler(internal_frame_with_property_column.frame)
 
     def isin(
         self,
@@ -10819,7 +10886,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 f"The unary operation {op} is currently not supported."
             )  # pragma: no cover
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
             lambda col_name: op_function(col_name)
         )
 
@@ -13872,17 +13939,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 for id in ids:
                     id_to_decimal_dict[id] = decimals[label]
 
-        def round_col(col_name: ColumnOrName) -> SnowparkColumn:
+        def round_col(column: SnowparkColumn) -> SnowparkColumn:
             if is_scalar(decimals):
-                return snowpark_round(col_name, decimals)
+                return snowpark_round(column, decimals)
             elif is_dict_like(decimals):
-                if col_name in id_to_decimal_dict:
-                    return snowpark_round(col_name, id_to_decimal_dict[col_name])
+                if column.get_name() in id_to_decimal_dict:
+                    return snowpark_round(column, id_to_decimal_dict[column.get_name()])
                 else:
-                    return col(col_name)
+                    return column
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: round_col(col_name)
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            lambda column: round_col(column)
         )
 
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -14408,7 +14475,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             raise TypeError(f"expected a string or tuple, not {type(pat).__name__}")
 
         def output_col(
-            col_name: ColumnOrName, pat: tuple, na: object
+            column: SnowparkColumn, pat: tuple, na: object
         ) -> SnowparkColumn:
             if all([not isinstance(p, str) for p in pat]):
                 new_col = pandas_lit(np.nan)
@@ -14418,14 +14485,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 new_pat = "|".join(
                     f"{prefix}{re.escape(p)}{suffix}" for p in pat if isinstance(p, str)
                 )
-                new_col = col(col_name).rlike(pandas_lit(new_pat))
+                new_col = column.rlike(pandas_lit(new_pat))
                 if any([not isinstance(p, str) for p in pat]):
                     new_col = iff(new_col, pandas_lit(True), pandas_lit(None))
             new_col = new_col if na is None else coalesce(new_col, pandas_lit(na))
-            return self._replace_non_str(col(col_name), new_col, replacement_value=na)
+            return self._replace_non_str(column, new_col, replacement_value=na)
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: output_col(col_name, pat, na)
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            lambda column: output_col(column, pat, na)
         )
 
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -14536,17 +14603,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             flags = flags | re.IGNORECASE
         params = self._get_regex_params(flags)
 
-        def output_col(col_name: ColumnOrName, pat: str, na: object) -> SnowparkColumn:
-            new_col = builtin("rlike")(
-                col(col_name), pandas_lit(pat), pandas_lit(params)
-            )
+        def output_col(column: SnowparkColumn, pat: str, na: object) -> SnowparkColumn:
+            new_col = builtin("rlike")(column, pandas_lit(pat), pandas_lit(params))
             new_col = (
                 new_col if pandas.isnull(na) else coalesce(new_col, pandas_lit(na))
             )
-            return self._replace_non_str(col(col_name), new_col, replacement_value=na)
+            return self._replace_non_str(column, new_col, replacement_value=na)
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: output_col(col_name, pat, na)
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            lambda column: output_col(column, pat, na)
         )
 
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -14566,7 +14631,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler representing result of the string operation.
         """
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
             # We use delimeters and set it as the empty string so that we treat the entire string as one word
             # and thus only capitalize the first character of the first word
             lambda col: self._replace_non_str(
@@ -14589,10 +14654,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: self._replace_non_str(
-                col(col_name), col(col_name).rlike("[0-9]+")
-            )
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            lambda column: self._replace_non_str(column, column.rlike("[0-9]+"))
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -14607,12 +14670,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: self._replace_non_str(
-                col(col_name),
-                col(col_name)
-                .rlike("(.|\n)*[a-zA-Z]+(.|\n)*")
-                .__and__(col(col_name).__eq__(lower(col_name))),
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            lambda column: self._replace_non_str(
+                column,
+                column.rlike("(.|\n)*[a-zA-Z]+(.|\n)*").__and__(
+                    column.__eq__(lower(column))
+                ),
             )
         )
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -14625,12 +14688,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: self._replace_non_str(
-                col(col_name),
-                col(col_name)
-                .rlike("(.|\n)*[a-zA-Z]+(.|\n)*")
-                .__and__(col(col_name).__eq__(upper(col_name))),
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            lambda column: self._replace_non_str(
+                column,
+                column.rlike("(.|\n)*[a-zA-Z]+(.|\n)*").__and__(
+                    column.__eq__(upper(column))
+                ),
             )
         )
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -14649,12 +14712,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_identifier: self._replace_non_str(
-                col(col_identifier),
-                col(col_identifier).rlike(
-                    "^([^a-zA-Z]*[A-Z]{1}[a-z]*([^a-zA-Z]|$)+)+$"
-                ),
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            lambda column: self._replace_non_str(
+                column,
+                column.rlike("^([^a-zA-Z]*[A-Z]{1}[a-z]*([^a-zA-Z]|$)+)+$"),
             )
         )
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -14673,8 +14734,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: self._replace_non_str(col(col_name), lower(col_name))
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            lambda column: self._replace_non_str(column, lower(column))
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -14686,8 +14747,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: self._replace_non_str(col(col_name), upper(col_name))
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            lambda column: self._replace_non_str(column, upper(column))
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -14700,7 +14761,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler representing result of the string operation.
         """
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
             # Capitalize the first character of each word
             lambda col: self._replace_non_str(col, initcap(col))
         )
@@ -14807,16 +14868,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             flags = flags | re.IGNORECASE
         params = self._get_regex_params(flags)
 
-        def output_col(col_name: ColumnOrName) -> SnowparkColumn:
-            new_col = builtin("rlike")(
-                col(col_name), pandas_lit(pat), pandas_lit(params)
-            )
+        def output_col(column: SnowparkColumn) -> SnowparkColumn:
+            new_col = builtin("rlike")(column, pandas_lit(pat), pandas_lit(params))
             new_col = (
                 new_col if pandas.isnull(na) else coalesce(new_col, pandas_lit(na))
             )
-            return self._replace_non_str(col(col_name), new_col, replacement_value=na)
+            return self._replace_non_str(column, new_col, replacement_value=na)
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
             output_col
         )
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -14844,18 +14903,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         params = self._get_regex_params(flags)
 
-        def output_col(col_name: ColumnOrName) -> SnowparkColumn:
+        def output_col(column: SnowparkColumn) -> SnowparkColumn:
             if pat == "":
                 # Special case to handle empty search pattern.
                 # Snowflake's regexp_count returns 0, while pandas returns string length + 1.
-                new_col = length(col(col_name)) + 1
+                new_col = length(column) + 1
             else:
                 new_col = builtin("regexp_count")(
-                    col(col_name), pandas_lit(pat), 1, pandas_lit(params)
+                    column, pandas_lit(pat), 1, pandas_lit(params)
                 )
-            return self._replace_non_str(col(col_name), new_col)
+            return self._replace_non_str(column, new_col)
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
             output_col
         )
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -14880,8 +14939,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas method 'Series.str.get' doesn't yet support non-numeric 'i' argument"
             )
 
-        def output_col(col_name: ColumnOrName) -> SnowparkColumn:
-            col_len_exp = length(col(col_name))
+        def output_col(column: SnowparkColumn) -> SnowparkColumn:
+            col_len_exp = length(column)
             if i is None:
                 new_col = pandas_lit(None)
             elif i < 0:
@@ -14891,9 +14950,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 new_col = iff(
                     pandas_lit(i) + col_len_exp < pandas_lit(0),
                     pandas_lit(None),
-                    substring(
-                        col(col_name), pandas_lit(i + 1) + col_len_exp, pandas_lit(1)
-                    ),
+                    substring(column, pandas_lit(i + 1) + col_len_exp, pandas_lit(1)),
                 )
             else:
                 assert i >= 0
@@ -14903,11 +14960,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 new_col = iff(
                     pandas_lit(i) >= col_len_exp,
                     pandas_lit(None),
-                    substring(col(col_name), pandas_lit(i + 1), pandas_lit(1)),
+                    substring(column, pandas_lit(i + 1), pandas_lit(1)),
                 )
-            return self._replace_non_str(col(col_name), new_col)
+            return self._replace_non_str(column, new_col)
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
             output_col
         )
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -14947,7 +15004,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         # TODO SNOW-1438001: Handle dict, list, and tuple values for Series.str.len().
         return SnowflakeQueryCompiler(
-            self._modin_frame.apply_snowpark_function_to_data_columns(
+            self._modin_frame.apply_snowpark_function_to_columns(
                 lambda col: self._replace_non_str(col, length(col))
             )
         )
@@ -14985,14 +15042,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
 
         def output_col(
-            col_name: ColumnOrName,
+            column: SnowparkColumn,
             start: Optional[int],
             stop: Optional[int],
             step: Optional[int],
         ) -> SnowparkColumn:
             if step is None:
                 step = 1
-            col_len_exp = length(col(col_name))
+            col_len_exp = length(column)
 
             # In what follows, we define the expressions needed to evaluate the correct start and stop positions for a slice.
             # In general, the start position needs to be included and the stop position needs to be excluded from the slice.
@@ -15058,12 +15115,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if step < 0:
                 # When step is negative, we flip the column string value along with the start and
                 # stop positions. Step can be considered positive now.
-                new_col = reverse(col(col_name))
+                new_col = reverse(column)
                 start_exp = col_len_exp - start_exp + pandas_lit(1)
                 stop_exp = col_len_exp - stop_exp + pandas_lit(1)
                 step = -step
             else:
-                new_col = col(col_name)
+                new_col = column
             # End of evaluation for start and end positions.
 
             # If step is 1, then slicing is no different than getting a substring.
@@ -15089,10 +15146,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     pandas_lit(f"((.|\n)(.|\n){{{step-1}}})"),
                     pandas_lit("\\2"),
                 )
-            return self._replace_non_str(col(col_name), new_col)
+            return self._replace_non_str(column, new_col)
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: output_col(col_name, start, stop, step)
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            lambda column: output_col(column, start, stop, step)
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -15160,7 +15217,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         def output_col(
-            col_name: ColumnOrName, pat: Optional[str], n: int
+            column: SnowparkColumn, pat: Optional[str], n: int
         ) -> SnowparkColumn:
             if pandas.isnull(pat):
                 # When pat is null, it means we need to split on whitespace.
@@ -15171,22 +15228,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 regex_pat = r"\s+"
                 regex_pat_as_prefix = r"\s+.*"
                 new_col = builtin("regexp_replace")(
-                    builtin("trim")(col(col_name), pandas_lit(whitespace_chars)),
+                    builtin("trim")(column, pandas_lit(whitespace_chars)),
                     pandas_lit(regex_pat),
                     pandas_lit(" "),
                 )
 
                 n_for_split_idx = iff(
-                    builtin("regexp_like")(
-                        col(col_name), pandas_lit(regex_pat_as_prefix)
-                    ),
+                    builtin("regexp_like")(column, pandas_lit(regex_pat_as_prefix)),
                     pandas_lit(n + 1),
                     pandas_lit(n),
                 )
             else:
                 new_pat = str(pat)
                 regex_pat = re.escape(str(pat))
-                new_col = col(col_name)
+                new_col = column
                 n_for_split_idx = pandas_lit(n)
 
             if np.isnan(n):
@@ -15207,7 +15262,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 #   it will not be split and will remain intact irrespective of the number of
                 #   delimiter occurrences it has.
                 split_idx = builtin("regexp_instr")(
-                    col(col_name), pandas_lit(regex_pat), 1, n_for_split_idx, 1
+                    column, pandas_lit(regex_pat), 1, n_for_split_idx, 1
                 )
                 new_col = iff(
                     builtin("array_size")(
@@ -15222,20 +15277,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                             pandas_lit(n),
                         ),
                         builtin("substr")(
-                            col(col_name),
+                            column,
                             split_idx,
                         ),
                     ),
                 )
             if pandas.isnull(pat):
                 new_col = iff(
-                    builtin("regexp_like")(col(col_name), pandas_lit(r"\s*")),
+                    builtin("regexp_like")(column, pandas_lit(r"\s*")),
                     pandas_lit([]),
                     new_col,
                 )
-            return self._replace_non_str(col(col_name), new_col)
+            return self._replace_non_str(column, new_col)
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
             lambda col_name: output_col(col_name, pat, n)
         )
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -15309,7 +15364,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             flags = flags | re.IGNORECASE
 
         def output_col(
-            col_name: ColumnOrName, pat: str, n: int, flags: int
+            column: SnowparkColumn, pat: str, n: int, flags: int
         ) -> SnowparkColumn:
             if regex or (case is not None and not case) or n > 0:
                 # Here we handle the cases where SQL's regexp_replace rather than SQL's replace
@@ -15319,14 +15374,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 params = self._get_regex_params(flags)
                 if n < 0:
                     # Replace all occurrences.
-                    new_col = builtin("regexp_replace")(
-                        col(col_name), pat, repl, 1, 0, params
-                    )
+                    new_col = builtin("regexp_replace")(column, pat, repl, 1, 0, params)
                 elif n == 1:
                     # Replace first occurrence.
-                    new_col = builtin("regexp_replace")(
-                        col(col_name), pat, repl, 1, 1, params
-                    )
+                    new_col = builtin("regexp_replace")(column, pat, repl, 1, 1, params)
                 else:
                     # Replace first n occurences through these steps:
                     # (1) Find index of nth occurence (if present).
@@ -15334,39 +15385,33 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     # (3) Replace all occurrences in the left part and leave right part unchanged.
                     # (4) Concat left and right parts.
                     split_idx = iff(
-                        builtin("regexp_instr")(col(col_name), pat, 1, 1, 1, params)
-                        == 0,
+                        builtin("regexp_instr")(column, pat, 1, 1, 1, params) == 0,
                         0,
                         iff(
-                            builtin("regexp_instr")(col(col_name), pat, 1, n, 1, params)
-                            == 0,
-                            builtin("len")(col(col_name)) + 1,
-                            builtin("regexp_instr")(
-                                col(col_name), pat, 1, n, 1, params
-                            ),
+                            builtin("regexp_instr")(column, pat, 1, n, 1, params) == 0,
+                            builtin("len")(column) + 1,
+                            builtin("regexp_instr")(column, pat, 1, n, 1, params),
                         )
                         - 1,
                     )
                     new_col = builtin("concat")(
                         builtin("regexp_replace")(
-                            builtin("left")(col(col_name), split_idx),
+                            builtin("left")(column, split_idx),
                             pat,
                             repl,
                             1,
                             0,
                             params,
                         ),
-                        builtin("right")(
-                            col(col_name), builtin("len")(col(col_name)) - split_idx
-                        ),
+                        builtin("right")(column, builtin("len")(column) - split_idx),
                     )
             else:
                 # Replace all occurrences using SQL's replace.
-                new_col = builtin("replace")(col(col_name), pat, repl)
-            return self._replace_non_str(col(col_name), new_col)
+                new_col = builtin("replace")(column, pat, repl)
+            return self._replace_non_str(column, new_col)
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: output_col(col_name, pat, n, flags)
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            lambda column: output_col(column, pat, n, flags)
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -15407,11 +15452,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if to_strip is None:
             to_strip = "\t\n\r\f "
 
-        def output_col(col_name: ColumnOrName) -> SnowparkColumn:
-            new_col = sp_func(col(col_name), pandas_lit(to_strip))
-            return self._replace_non_str(col(col_name), new_col)
+        def output_col(column: SnowparkColumn) -> SnowparkColumn:
+            new_col = sp_func(column, pandas_lit(to_strip))
+            return self._replace_non_str(column, new_col)
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
             output_col
         )
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -15532,9 +15577,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         source_alphabet = "".join(single_char_pairs.keys()) + "".join(none_keys)
         target_alphabet = "".join(single_char_pairs.values())
         return SnowflakeQueryCompiler(
-            self._modin_frame.apply_snowpark_function_to_data_columns(
-                lambda col_name: translate(
-                    col(col_name),
+            self._modin_frame.apply_snowpark_function_to_columns(
+                lambda column: translate(
+                    column,
                     pandas_lit(source_alphabet),
                     pandas_lit(target_alphabet),
                 )
@@ -16095,25 +16140,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS:
             ErrorMessage.parameter_not_implemented_error(f"freq='{freq}'", method_name)
 
-        def ceil_func(col_id: str) -> SnowparkColumn:
-            base_column = col(col_id)
+        def ceil_func(column: SnowparkColumn) -> SnowparkColumn:
             floor_column = builtin("time_slice")(
-                base_column, slice_length, slice_unit, "START"
+                column, slice_length, slice_unit, "START"
             )
-            ceil_column = builtin("time_slice")(
-                base_column, slice_length, slice_unit, "END"
-            )
-            return iff(base_column.equal_null(floor_column), base_column, ceil_column)
-
-        frame = self._modin_frame
-        snowflake_ids = frame.data_column_snowflake_quoted_identifiers[0:1]
-        if include_index:
-            snowflake_ids.extend(frame.index_column_snowflake_quoted_identifiers)
+            ceil_column = builtin("time_slice")(column, slice_length, slice_unit, "END")
+            return iff(column.equal_null(floor_column), column, ceil_column)
 
         return SnowflakeQueryCompiler(
-            frame.update_snowflake_quoted_identifiers_with_expressions(
-                {col_id: ceil_func(col_id) for col_id in snowflake_ids}
-            ).frame
+            self._modin_frame.apply_snowpark_function_to_columns(
+                ceil_func, include_index
+            )
         )
 
     def dt_round(
@@ -16189,19 +16226,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 slice_length, slice_unit = down_level_freq(slice_length, slice_unit)
             return slice_length
 
-        def round_func(col_id: str) -> SnowparkColumn:
-            base_column = col(col_id)
-
+        def round_func(column: SnowparkColumn) -> SnowparkColumn:
             # Second, we determine whether floor represents an even number of slices.
             # To do so, we must divide the number of epoch seconds in it over the number
             # of epoch seconds in one slice. This way, we can get the number of slices.
 
             floor_column = builtin("time_slice")(
-                base_column, slice_length, slice_unit, "START"
+                column, slice_length, slice_unit, "START"
             )
-            ceil_column = builtin("time_slice")(
-                base_column, slice_length, slice_unit, "END"
-            )
+            ceil_column = builtin("time_slice")(column, slice_length, slice_unit, "END")
 
             floor_epoch_seconds_column = builtin("extract")(
                 "epoch_second", floor_column
@@ -16226,7 +16259,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # In case the date value is not at half point of the slice, then we shift it
             # by half a slice, and take the floor from there.
             base_plus_half_slice_column = dateadd(
-                slice_unit, pandas_lit(half_slice_length), base_column
+                slice_unit, pandas_lit(half_slice_length), column
             )
             round_column_if_not_half_point = builtin("time_slice")(
                 base_plus_half_slice_column, slice_length, slice_unit, "START"
@@ -16239,15 +16272,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 round_column_if_not_half_point,
             )
 
-        frame = self._modin_frame
-        snowflake_ids = frame.data_column_snowflake_quoted_identifiers[0:1]
-        if include_index:
-            snowflake_ids.extend(frame.index_column_snowflake_quoted_identifiers)
-
         return SnowflakeQueryCompiler(
-            frame.update_snowflake_quoted_identifiers_with_expressions(
-                {col_id: round_func(col_id) for col_id in snowflake_ids}
-            ).frame
+            self._modin_frame.apply_snowpark_function_to_columns(
+                round_func, include_index
+            )
         )
 
     def dt_floor(
@@ -16290,18 +16318,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS:
             ErrorMessage.parameter_not_implemented_error(f"freq='{freq}'", method_name)
 
-        frame = self._modin_frame
-        snowflake_ids = frame.data_column_snowflake_quoted_identifiers[0:1]
-        if include_index:
-            snowflake_ids.extend(frame.index_column_snowflake_quoted_identifiers)
+        def floor_func(column: SnowparkColumn) -> SnowparkColumn:
+            return builtin("time_slice")(column, slice_length, slice_unit)
 
         return SnowflakeQueryCompiler(
-            frame.update_snowflake_quoted_identifiers_with_expressions(
-                {
-                    col_id: builtin("time_slice")(col(col_id), slice_length, slice_unit)
-                    for col_id in snowflake_ids
-                }
-            ).frame
+            self._modin_frame.apply_snowpark_function_to_columns(
+                floor_func, include_index
+            )
         )
 
     def dt_normalize(self, include_index: bool = False) -> "SnowflakeQueryCompiler":
@@ -16316,20 +16339,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         BaseQueryCompiler
             New QueryCompiler containing date-time values with midnight time.
         """
-        internal_frame = self._modin_frame
 
-        def normalize_column(col_id: str) -> SnowparkColumn:
-            return builtin("date_trunc")("d", col(col_id))
+        def normalize_column(column: SnowparkColumn) -> SnowparkColumn:
+            return builtin("date_trunc")("d", column)
 
-        snowflake_ids = internal_frame.data_column_snowflake_quoted_identifiers[0:1]
-        if include_index:
-            snowflake_ids.extend(
-                internal_frame.index_column_snowflake_quoted_identifiers
-            )
         return SnowflakeQueryCompiler(
-            internal_frame.update_snowflake_quoted_identifiers_with_expressions(
-                {col_id: normalize_column(col_id) for col_id in snowflake_ids}
-            ).frame
+            self._modin_frame.apply_snowpark_function_to_columns(
+                normalize_column, include_index
+            )
         )
 
     def dt_month_name(
@@ -16348,7 +16365,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.parameter_not_implemented_error(
                 "locale", f"{class_name}.month_name"
             )
-        internal_frame = self._modin_frame
 
         # The following generates a mapping list of the form:
         # [1, "January", 2, "February", ..., 12, "December"]
@@ -16357,24 +16373,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             for i in range(2, 26)
         ]
 
-        snowflake_ids = internal_frame.data_column_snowflake_quoted_identifiers[0:1]
-        if include_index:
-            snowflake_ids.extend(
-                internal_frame.index_column_snowflake_quoted_identifiers
-            )
+        def month_name_func(column: SnowparkColumn) -> SnowparkColumn:
+            return builtin("decode")(builtin("extract")("month", column), *mapping_list)
 
-        internal_frame = (
-            internal_frame.update_snowflake_quoted_identifiers_with_expressions(
-                {
-                    col_id: builtin("decode")(
-                        builtin("extract")("month", col(col_id)), *mapping_list
-                    )
-                    for col_id in snowflake_ids
-                }
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                month_name_func, include_index
             )
         )
-
-        return SnowflakeQueryCompiler(internal_frame.frame)
 
     def dt_day_name(
         self, locale: Optional[str] = None, include_index: bool = False
@@ -16392,7 +16398,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.parameter_not_implemented_error(
                 "locale", f"{class_name}.day_name"
             )
-        internal_frame = self._modin_frame
 
         # The following generates a mapping list of the form:
         # [1, "Monday", 2, "Tuesday", ..., 7, "Sunday"]
@@ -16401,24 +16406,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             for i in range(0, 14)
         ]
 
-        snowflake_ids = internal_frame.data_column_snowflake_quoted_identifiers[0:1]
-        if include_index:
-            snowflake_ids.extend(
-                internal_frame.index_column_snowflake_quoted_identifiers
-            )
+        def day_name_func(column: SnowparkColumn) -> SnowparkColumn:
+            return builtin("decode")(builtin("dayofweekiso")(column), *mapping_list)
 
-        internal_frame = (
-            internal_frame.update_snowflake_quoted_identifiers_with_expressions(
-                {
-                    col_id: builtin("decode")(
-                        builtin("dayofweekiso")(col(col_id)), *mapping_list
-                    )
-                    for col_id in snowflake_ids
-                }
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                day_name_func, include_index
             )
         )
-
-        return SnowflakeQueryCompiler(internal_frame.frame)
 
     def dt_total_seconds(self) -> None:
         """

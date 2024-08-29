@@ -318,3 +318,8 @@ def get_snowflake_plan_queries(
         PlanQueryType.QUERIES: plan_queries,
         PlanQueryType.POST_ACTIONS: post_action_queries,
     }
+
+
+def is_active_transaction(session):
+    """Check is the session has an active transaction."""
+    return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
