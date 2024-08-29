@@ -1212,11 +1212,11 @@ def align(
     # join columns of left and right matches, then there is no need to coalesce the join
     # keys, simply inherent from left gives the correct result.
     # Retaining the original columns also helps avoid unnecessary join in later steps.
-    if (
-        how
-        == "outer"
+    # if (
+    #    how == "outer"
         # and aligned_ordered_frame.ordering_columns != left.ordering_columns
-    ):
+    #):
+    if how == "outer":
         coalesce_key_config = [JoinKeyCoalesceConfig.LEFT] * len(left_on)
         inherit_join_index = InheritJoinIndex.FROM_BOTH
     (
