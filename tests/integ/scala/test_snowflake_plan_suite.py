@@ -342,6 +342,29 @@ def test_create_scoped_temp_table(session):
             .queries[0]
             .sql
         )
+        expected_sql = f" CREATE  TEMPORARY  TABLE  {temp_table_name}    AS  SELECT"
+        assert expected_sql in (
+            session._plan_builder.save_as_table(
+                table_name=[temp_table_name],
+                column_names=None,
+                mode=SaveMode.ERROR_IF_EXISTS,
+                table_type="temporary",
+                clustering_keys=None,
+                comment=None,
+                enable_schema_evolution=None,
+                data_retention_time=None,
+                max_data_extension_time=None,
+                change_tracking=None,
+                copy_grants=False,
+                child=df._plan,
+                source_plan=None,
+                use_scoped_temp_objects=True,
+                creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
+                child_attributes=[],
+            )
+            .queries[0]
+            .sql
+        )
         with pytest.raises(
             ValueError,
             match="Internally generated tables must be called with mode ERROR_IF_EXISTS",

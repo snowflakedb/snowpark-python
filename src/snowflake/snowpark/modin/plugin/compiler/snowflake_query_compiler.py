@@ -270,6 +270,7 @@ from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     VALID_TO_DATETIME_DF_KEYS,
     DateTimeOrigin,
+    col_to_timedelta,
     generate_timestamp_col,
     raise_if_to_datetime_not_supported,
     to_snowflake_timestamp_format,
@@ -6304,6 +6305,86 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
                 data_column_types=[None],
                 index_column_types=[None],
+            )
+        )
+
+    def to_timedelta(
+        self,
+        unit: str = "ns",
+        errors: DateTimeErrorChoices = "raise",
+        include_index: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Convert data to timedelta.
+
+        Args:
+            unit: Denotes unit of the input data.  Defaults to 'ns'.
+                Possible values:
+                * 'W'
+                * 'D' / 'days' / 'day'
+                * 'hours' / 'hour' / 'hr' / 'h' / 'H'
+                * 'm' / 'minute' / 'min' / 'minutes' / 'T'
+                * 's' / 'seconds' / 'sec' / 'second' / 'S'
+                * 'ms' / 'milliseconds' / 'millisecond' / 'milli' / 'millis' / 'L'
+                * 'us' / 'microseconds' / 'microsecond' / 'micro' / 'micros' / 'U'
+                * 'ns' / 'nanoseconds' / 'nano' / 'nanos' / 'nanosecond' / 'N'
+            errors : {'ignore', 'raise', 'coerce'}, default 'raise'
+                - If 'raise', then invalid parsing will raise an exception.
+                - If 'coerce', then invalid parsing will be set as NaT.
+                - If 'ignore', then invalid parsing will return the input.
+            include_index: If true, also convert index columns to timedelta.
+
+        Returns:
+            A new query compiler with the data converted to timedelta.
+        """
+        if errors != "raise":
+            ErrorMessage.parameter_not_implemented_error("errors", "pd.to_timedelta")
+        internal_frame = self._modin_frame
+        col_ids = internal_frame.data_column_snowflake_quoted_identifiers
+        data_column_types = [TimedeltaType()] * len(col_ids)
+
+        index_column_types = internal_frame.cached_index_column_snowpark_pandas_types
+        if include_index:
+            col_ids.extend(internal_frame.index_column_snowflake_quoted_identifiers)
+            index_column_types = [TimedeltaType()] * len(
+                internal_frame.index_column_snowflake_quoted_identifiers
+            )
+
+        # Raise error if the original data type is not numeric.
+        id_to_type = internal_frame.quoted_identifier_to_snowflake_type(col_ids)
+        for id, sf_type in id_to_type.items():
+            if isinstance(sf_type, TimedeltaType):
+                # already timedelta
+                col_ids.remove(id)
+            elif isinstance(sf_type, StringType):
+                ErrorMessage.not_implemented(
+                    "Snowpark pandas method pd.to_timedelta does not yet support conversion from string type"
+                )
+            elif not isinstance(sf_type, _NumericType):
+                raise TypeError(
+                    f"dtype {TypeMapper.to_pandas(sf_type)} cannot be converted to timedelta64[ns]"
+                )
+
+        # If all columns are already timedelta. No conversion is needed.
+        if not col_ids:
+            return self
+
+        internal_frame = (
+            internal_frame.update_snowflake_quoted_identifiers_with_expressions(
+                {col_id: col_to_timedelta(col(col_id), unit) for col_id in col_ids}
+            ).frame
+        )
+
+        return SnowflakeQueryCompiler(
+            internal_frame.create(
+                ordered_dataframe=internal_frame.ordered_dataframe,
+                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
+                data_column_pandas_labels=internal_frame.data_column_pandas_labels,
+                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
+                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers,
+                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=data_column_types,
+                index_column_types=index_column_types,
             )
         )
 

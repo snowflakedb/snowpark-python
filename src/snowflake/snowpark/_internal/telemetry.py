@@ -41,6 +41,7 @@ class TelemetryField(Enum):
         "snowpark_eliminate_numeric_sql_value_cast_enabled"
     )
     TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = "snowpark_auto_clean_up_temp_table_enabled"
+    TYPE_LARGE_QUERY_BREAKDOWN_ENABLED = "snowpark_large_query_breakdown_enabled"
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
     KEY_START_TIME = "start_time"
@@ -66,10 +67,11 @@ class TelemetryField(Enum):
     FUNC_CAT_CREATE = "create"
     # performance categories
     PERF_CAT_UPLOAD_FILE = "upload_file"
-    # sql simplifier
+    # optimizations
     SESSION_ID = "session_id"
     SQL_SIMPLIFIER_ENABLED = "sql_simplifier_enabled"
     CTE_OPTIMIZATION_ENABLED = "cte_optimization_enabled"
+    LARGE_QUERY_BREAKDOWN_ENABLED = "large_query_breakdown_enabled"
     # dataframe query stats
     QUERY_PLAN_HEIGHT = "query_plan_height"
     QUERY_PLAN_NUM_DUPLICATE_NODES = "query_plan_num_duplicate_nodes"
@@ -405,6 +407,20 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED.value: value,
+            },
+        }
+        self.send(message)
+
+    def send_large_query_breakdown_telemetry(
+        self, session_id: str, value: bool
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_ENABLED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: True,
             },
         }
         self.send(message)
