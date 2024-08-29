@@ -123,7 +123,7 @@ we can check against in code. Valid column names include plural and abbreviated 
 the specified time units.
 """
 
-AUTO_FORMAT_WARNING_MSG = """Snowflake automatic format detection is used when a format is not provided. 
+AUTO_FORMAT_WARNING_MSG = """Snowflake automatic format detection is used when a format is not provided.
 In this case Snowflake's auto format may yield different result values compared to pandas.
 See https://docs.snowflake.com/en/sql-reference/date-time-input-output#supported-formats-for-auto-detection for details
 """
