@@ -107,6 +107,7 @@ def test_value_counts_basic(
 @pytest.mark.parametrize("sort", [True, False])
 @pytest.mark.parametrize("ascending", [True, False])
 @pytest.mark.parametrize("normalize", [True, False])
+@sql_count_checker(query_count=1)
 def test_value_counts_normalize(
     test_data, by, groupby_sort, sort, ascending, normalize
 ):
