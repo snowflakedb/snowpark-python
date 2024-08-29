@@ -23,7 +23,7 @@
 from __future__ import annotations
 
 from collections.abc import Hashable, Iterable, Mapping, Sequence
-from datetime import date, datetime, tzinfo
+from datetime import date, datetime, timedelta, tzinfo
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal, Union
 
@@ -35,6 +35,7 @@ from pandas._libs import NaTType, lib
 from pandas._libs.tslibs import to_offset
 from pandas._typing import (
     AnyArrayLike,
+    ArrayLike,
     Axis,
     DateTimeErrorChoices,
     IndexLabel,
@@ -1741,16 +1742,13 @@ def to_datetime(
 
     The default behaviour (``utc=False``) is as follows:
 
-    - Timezone-naive inputs are converted to timezone-naive :class:`~snowflake.snowpark.modin.pandas.Series`:
+    - Timezone-naive inputs are kept as timezone-naive :class:`~snowflake.snowpark.modin.pandas.DatetimeIndex`:
 
-    >>> pd.to_datetime(['2018-10-26 12:00', '2018-10-26 13:00:15'])
+    >>> pd.to_datetime(['2018-10-26 12:00:00', '2018-10-26 13:00:15'])
     DatetimeIndex(['2018-10-26 12:00:00', '2018-10-26 13:00:15'], dtype='datetime64[ns]', freq=None)
 
-    - Timezone-aware inputs *with constant time offset* are still converted to
-      timezone-naive :class:`~snowflake.snowpark.modin.pandas.Series` by default.
-
     >>> pd.to_datetime(['2018-10-26 12:00:00 -0500', '2018-10-26 13:00:00 -0500'])
-    DatetimeIndex(['2018-10-26 12:00:00', '2018-10-26 13:00:00'], dtype='datetime64[ns]', freq=None)
+    DatetimeIndex(['2018-10-26 10:00:00-07:00', '2018-10-26 11:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
 
     - Use right format to convert to timezone-aware type (Note that when call Snowpark
       pandas API to_pandas() the timezone-aware output will always be converted to session timezone):
@@ -1762,17 +1760,17 @@ def to_datetime(
       issued from a timezone with daylight savings, such as Europe/Paris):
 
     >>> pd.to_datetime(['2020-10-25 02:00:00 +0200', '2020-10-25 04:00:00 +0100'])
-    DatetimeIndex(['2020-10-25 02:00:00', '2020-10-25 04:00:00'], dtype='datetime64[ns]', freq=None)
+    Index(['2020-10-24 17:00:00-07:00', '2020-10-24 20:00:00-07:00'], dtype='datetime64[ns]')
 
     >>> pd.to_datetime(['2020-10-25 02:00:00 +0200', '2020-10-25 04:00:00 +0100'], format="%Y-%m-%d %H:%M:%S %z")
-    DatetimeIndex(['2020-10-24 17:00:00-07:00', '2020-10-24 20:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
+    Index(['2020-10-24 17:00:00-07:00', '2020-10-24 20:00:00-07:00'], dtype='datetime64[ns]')
 
     Setting ``utc=True`` makes sure always convert to timezone-aware outputs:
 
     - Timezone-naive inputs are *localized* based on the session timezone
 
     >>> pd.to_datetime(['2018-10-26 12:00', '2018-10-26 13:00'], utc=True)
-    DatetimeIndex(['2018-10-26 12:00:00-07:00', '2018-10-26 13:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
+    DatetimeIndex(['2018-10-26 05:00:00-07:00', '2018-10-26 06:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
 
     - Timezone-aware inputs are *converted* to session timezone
 
@@ -1783,8 +1781,28 @@ def to_datetime(
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
     raise_if_native_pandas_objects(arg)
 
-    if arg is None:
-        return None  # same as pandas
+    if not isinstance(arg, (DataFrame, Series, pd.Index)):
+        # use pandas.to_datetime to convert local data to datetime
+        res = pandas.to_datetime(
+            arg,
+            errors,
+            dayfirst,
+            yearfirst,
+            utc,
+            format,
+            exact,
+            unit,
+            infer_datetime_format,
+            origin,
+            cache,
+        )
+        if isinstance(res, pandas.Series):
+            res = pd.Series(res)
+        elif not is_scalar(res):
+            res = pd.Index(res)
+        return res
+
+    # handle modin objs
     if unit and unit not in VALID_TO_DATETIME_UNIT:
         raise ValueError(f"Unrecognized unit {unit}")
 
@@ -1794,15 +1812,8 @@ def to_datetime(
             argument="cache",
             message="cache parameter is ignored with Snowflake backend, i.e., no caching will be applied",
         )
-    arg_is_scalar = is_scalar(arg)
 
-    if not isinstance(arg, (DataFrame, Series, pd.Index)):
-        # Turn dictionary like arg into pd.DataFrame and list-like or scalar to
-        # pd.Index.
-        arg = [arg] if arg_is_scalar else arg
-        arg = DataFrame(arg) if isinstance(arg, dict) else pd.Index(arg)
-
-    series_or_index = arg._to_datetime(
+    return arg._to_datetime(
         errors=errors,
         dayfirst=dayfirst,
         yearfirst=yearfirst,
@@ -1813,13 +1824,6 @@ def to_datetime(
         infer_datetime_format=infer_datetime_format,
         origin=origin,
     )
-    if arg_is_scalar:
-        # Calling squeeze directly on Snowpark pandas Series makes an unnecessary
-        # count sql call. To avoid that we convert Snowpark pandas Series to Native
-        # pandas series first.
-        # Note: When arg_is_scalar is True 'series_or_index' is always an Index.
-        return series_or_index.to_series().to_pandas().squeeze()
-    return series_or_index
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
@@ -2096,21 +2100,116 @@ def _determine_name(objs: Iterable[BaseQueryCompiler], axis: int | str):
         return None
 
 
-@_inherit_docstrings(pandas.to_datetime, apilink="pandas.to_timedelta")
 @snowpark_pandas_telemetry_standalone_function_decorator
-@pandas_module_level_function_not_implemented()
-def to_timedelta(arg, unit=None, errors="raise"):  # noqa: PR01, RT01, D200
+def to_timedelta(
+    arg: str
+    | int
+    | float
+    | timedelta
+    | list
+    | tuple
+    | range
+    | ArrayLike
+    | pd.Index
+    | pd.Series
+    | pandas.Index
+    | pandas.Series,
+    unit: str = None,
+    errors: DateTimeErrorChoices = "raise",
+):
     """
     Convert argument to timedelta.
 
-    Accepts str, timedelta, list-like or Series for arg parameter.
-    Returns a Series if and only if arg is provided as a Series.
+    Timedeltas are absolute differences in times, expressed in difference
+    units (e.g. days, hours, minutes, seconds). This method converts
+    an argument from a recognized timedelta format / value into
+    a Timedelta type.
+
+    Parameters
+    ----------
+    arg : str, timedelta, list-like or Series
+        The data to be converted to timedelta.
+    unit : str, optional
+        Denotes the unit of the arg for numeric `arg`. Defaults to ``"ns"``.
+
+        Possible values:
+        * 'W'
+        * 'D' / 'days' / 'day'
+        * 'hours' / 'hour' / 'hr' / 'h' / 'H'
+        * 'm' / 'minute' / 'min' / 'minutes' / 'T'
+        * 's' / 'seconds' / 'sec' / 'second' / 'S'
+        * 'ms' / 'milliseconds' / 'millisecond' / 'milli' / 'millis' / 'L'
+        * 'us' / 'microseconds' / 'microsecond' / 'micro' / 'micros' / 'U'
+        * 'ns' / 'nanoseconds' / 'nano' / 'nanos' / 'nanosecond' / 'N'
+
+        Must not be specified when `arg` contains strings and ``errors="raise"``.
+    errors : {'ignore', 'raise', 'coerce'}, default 'raise'
+        - If 'raise', then invalid parsing will raise an exception.
+        - If 'coerce', then invalid parsing will be set as NaT.
+        - If 'ignore', then invalid parsing will return the input.
+
+    Returns
+    -------
+    timedelta
+        If parsing succeeded.
+        Return type depends on input:
+        - list-like: TimedeltaIndex of timedelta64 dtype
+        - Series: Series of timedelta64 dtype
+        - scalar: Timedelta
+
+    See Also
+    --------
+    DataFrame.astype : Cast argument to a specified dtype.
+    to_datetime : Convert argument to datetime.
+    convert_dtypes : Convert dtypes.
+
+    Notes
+    -----
+    If the precision is higher than nanoseconds, the precision of the duration is
+    truncated to nanoseconds for string inputs.
+
+    Examples
+    --------
+    Parsing a single string to a Timedelta:
+
+    >>> pd.to_timedelta('1 days 06:05:01.00003')
+    Timedelta('1 days 06:05:01.000030')
+    >>> pd.to_timedelta('15.5us')
+    Timedelta('0 days 00:00:00.000015500')
+
+    Parsing a list or array of strings:
+
+    >>> pd.to_timedelta(['1 days 06:05:01.00003', '15.5us', 'nan'])
+    TimedeltaIndex(['1 days 06:05:01.000030', '0 days 00:00:00.000015500', NaT], dtype='timedelta64[ns]', freq=None)
+
+    Converting numbers by specifying the `unit` keyword argument:
+
+    >>> pd.to_timedelta(np.arange(5), unit='s')
+    TimedeltaIndex(['0 days 00:00:00', '0 days 00:00:01', '0 days 00:00:02',
+                    '0 days 00:00:03', '0 days 00:00:04'],
+                   dtype='timedelta64[ns]', freq=None)
+    >>> pd.to_timedelta(np.arange(5), unit='d')
+    TimedeltaIndex(['0 days', '1 days', '2 days', '3 days', '4 days'], dtype='timedelta64[ns]', freq=None)
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    if isinstance(arg, Series):
-        query_compiler = arg._query_compiler.to_timedelta(unit=unit, errors=errors)
-        return Series(query_compiler=query_compiler)
-    return pandas.to_timedelta(arg, unit=unit, errors=errors)
+    # If arg is snowpark pandas lazy object call to_timedelta on the query compiler.
+    if isinstance(arg, (Series, pd.Index)):
+        query_compiler = arg._query_compiler.to_timedelta(
+            unit=unit if unit else "ns",
+            errors=errors,
+            include_index=isinstance(arg, pd.Index),
+        )
+        return arg.__constructor__(query_compiler=query_compiler)
+
+    # Use native pandas to_timedelta for scalar values and list-like objects.
+    result = pandas.to_timedelta(arg, unit=unit, errors=errors)
+    # Convert to lazy if result is a native pandas Series or Index.
+    if isinstance(result, pandas.Index):
+        return pd.Index(result)
+    if isinstance(result, pandas.Series):
+        return pd.Series(result)
+    # Return the result as is for scaler.
+    return result
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator

@@ -512,10 +512,8 @@ def are_equal_types(type1: DataType, type2: DataType) -> bool:
     Returns:
         True if given types are equal, False otherwise.
     """
-    if isinstance(type1, TimedeltaType) and not isinstance(type2, TimedeltaType):
-        return False
-    if isinstance(type2, TimedeltaType) and not isinstance(type1, TimedeltaType):
-        return False
+    if isinstance(type1, TimedeltaType) or isinstance(type2, TimedeltaType):
+        return type1 == type2
     if isinstance(type1, _IntegralType) and isinstance(type2, _IntegralType):
         return True
     if isinstance(type1, _FractionalType) and isinstance(type2, _FractionalType):
