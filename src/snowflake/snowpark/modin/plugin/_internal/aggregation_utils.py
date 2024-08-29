@@ -8,7 +8,9 @@ import functools
 from collections import defaultdict
 from collections.abc import Hashable, Iterable
 from functools import partial
-from typing import Any, Callable, Literal, NamedTuple, Optional, Union
+from inspect import getmembers
+from types import BuiltinFunctionType
+from typing import Any, Callable, Literal, Mapping, NamedTuple, Optional, Union
 
 import numpy as np
 from pandas._typing import AggFuncType, AggFuncTypeBase
@@ -78,6 +80,9 @@ from snowflake.snowpark.types import (
 )
 
 AGG_NAME_COL_LABEL = "AGG_FUNC_NAME"
+_NUMPY_FUNCTION_TO_NAME = {
+    function: name for name, function in getmembers(np) if callable(function)
+}
 
 
 def array_agg_keepna(
@@ -473,6 +478,21 @@ def get_snowflake_agg_func(
                 # through the aggregate frontend in this manner is unsupported.
                 return None
             return lambda col: column_quantile(col, interpolation, q)
+        elif agg_func in ("all", "any"):
+            # If there are no rows in the input frame, the function will also return NULL, which should
+            # instead by TRUE for "all" and FALSE for "any".
+            # Need to wrap column name in IDENTIFIER, or else the agg function will treat the name
+            # as a string literal.
+            # The generated SQL expression for "all" is
+            #   IFNULL(BOOLAND_AGG(IDENTIFIER("column_name")), TRUE)
+            # The expression for "any" is
+            #   IFNULL(BOOLOR_AGG(IDENTIFIER("column_name")), FALSE)
+            default_value = bool(agg_func == "all")
+            return lambda col: builtin("ifnull")(
+                # mypy refuses to acknowledge snowflake_agg_func is non-NULL here
+                snowflake_agg_func(builtin("identifier")(col)),  # type: ignore[misc]
+                pandas_lit(default_value),
+            )
     else:
         snowflake_agg_func = SNOWFLAKE_COLUMNS_AGG_FUNC_MAP.get(agg_func)
 
@@ -632,6 +652,12 @@ def drop_non_numeric_data_columns(
         col.snowflake_quoted_identifier for col in data_column_to_retain
     ]
 
+    new_data_column_types = [
+        type
+        for id, type in original_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.items()
+        if id in new_data_column_snowflake_quoted_identifiers
+    ]
+
     return SnowflakeQueryCompiler(
         InternalFrame.create(
             ordered_dataframe=original_frame.ordered_dataframe,
@@ -640,6 +666,8 @@ def drop_non_numeric_data_columns(
             data_column_pandas_index_names=original_frame.data_column_pandas_index_names,
             index_column_pandas_labels=original_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=original_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=new_data_column_types,
+            index_column_types=original_frame.cached_index_column_snowpark_pandas_types,
         )
     )
 
@@ -694,12 +722,6 @@ def generate_aggregation_column(
             agg_snowpark_column = coalesce(
                 snowflake_agg_func(snowpark_column), pandas_lit(0)
             )
-    elif snowflake_agg_func in (
-        SNOWFLAKE_BUILTIN_AGG_FUNC_MAP["all"],
-        SNOWFLAKE_BUILTIN_AGG_FUNC_MAP["any"],
-    ):
-        # Need to wrap column name in IDENTIFIER, or else bool agg function will treat the name as a string literal
-        agg_snowpark_column = snowflake_agg_func(builtin("identifier")(snowpark_column))
     elif snowflake_agg_func == array_agg:
         # Array aggregation requires the ordering columns, which we have to
         # pass in here.
@@ -1019,10 +1041,6 @@ def generate_column_agg_info(
         List[Hashable]
             The new index data column index names for the dataframe after aggregation
     """
-
-    quoted_identifier_to_snowflake_type: dict[
-        str, DataType
-    ] = internal_frame.quoted_identifier_to_snowflake_type()
     num_levels: int = internal_frame.num_index_levels(axis=1)
     # reserve all index column name and ordering column names
     identifiers_to_exclude: list[str] = (
@@ -1044,6 +1062,10 @@ def generate_column_agg_info(
     )
     pandas_label_level_included = (
         not agg_func_level_included or not include_agg_func_only_in_result_label
+    )
+
+    identifier_to_snowflake_type = internal_frame.quoted_identifier_to_snowflake_type(
+        [pair.snowflake_quoted_identifier for pair in column_to_agg_func.keys()]
     )
 
     for pandas_label_to_identifier, agg_func in column_to_agg_func.items():
@@ -1084,7 +1106,7 @@ def generate_column_agg_info(
             column_agg_ops.append(
                 AggregateColumnOpParameters(
                     snowflake_quoted_identifier=agg_func_col,
-                    data_type=quoted_identifier_to_snowflake_type[quoted_identifier],
+                    data_type=identifier_to_snowflake_type[quoted_identifier],
                     agg_pandas_label=label,
                     agg_snowflake_quoted_identifier=identifier,
                     snowflake_agg_func=snowflake_agg_func,
@@ -1127,11 +1149,75 @@ def using_named_aggregations_for_func(func: Any) -> bool:
     )
 
 
-def format_kwargs_for_error_message(kwargs: dict[Any, Any]) -> str:
+def repr_aggregate_function(agg_func: AggFuncType, agg_kwargs: Mapping) -> str:
     """
-    Helper method to format a kwargs dictionary for an error message.
+    Represent an aggregation function as a string.
 
-    Returns a string containing the keys + values of kwargs formatted like so:
-    "key1=value1, key2=value2, ..."
+    Use this function to represent aggregation functions in error message to
+    the user. This function will hide sensitive information, like axis labels or
+    names of callables, in the function description.
+
+    Args:
+        agg_func: AggFuncType
+            The aggregation function from the user. This may be a list-like or a
+            dictionary containing multiple aggregations.
+        agg_kwargs: Mapping
+            The keyword arguments for the aggregation function.
+
+    Returns:
+        str
+            The representation of the aggregation function.
     """
-    return ", ".join([f"{key}={value}" for key, value in kwargs.items()])
+    if using_named_aggregations_for_func(agg_func):
+        # New axis labels are sensitive, so replace them with "new_label."
+        # Existing axis labels are sensitive, so replace them with "label."
+        return ", ".join(
+            f"new_label=(label, {repr_aggregate_function(f, agg_kwargs)})"
+            for _, f in agg_kwargs.values()
+        )
+    if isinstance(agg_func, str):
+        # Strings functions represent names of pandas functions, e.g.
+        # "sum" means to aggregate with pandas.Series.sum. string function
+        # identifiers are not sensitive.
+        return repr(agg_func)
+    if is_dict_like(agg_func):
+        # axis labels in the dictionary keys are sensitive, so replace them with
+        # "label."
+        return (
+            "{"
+            + ", ".join(
+                f"label: {repr_aggregate_function(agg_func[key], agg_kwargs)}"
+                for key in agg_func.keys()
+            )
+            + "}"
+        )
+    if is_list_like(agg_func):
+        return f"[{', '.join(repr_aggregate_function(func, agg_kwargs) for func in agg_func)}]"
+    if isinstance(agg_func, BuiltinFunctionType):
+        return repr(agg_func)
+
+    # for built-in classes like `list`, return "list" as opposed to repr(list),
+    # i.e. <class 'list'>, which would be confusing because the user is using
+    # `list` as a callable in this context.
+    if agg_func is list:
+        return "list"
+    if agg_func is tuple:
+        return "tuple"
+    if agg_func is set:
+        return "set"
+    if agg_func is str:
+        return "str"
+
+    # Format numpy aggregations, e.g. np.argmin should become "np.argmin"
+    if agg_func in _NUMPY_FUNCTION_TO_NAME:
+        return f"np.{_NUMPY_FUNCTION_TO_NAME[agg_func]}"
+
+    # agg_func should be callable at this point. pandas error messages at this
+    # point are not consistent, so choose one style of error message.
+    if not callable(agg_func):
+        raise ValueError("aggregation function is not callable")
+
+    # Return a constant string instead of some kind of function name to avoid
+    # exposing sensitive user input in the NotImplemented error message and
+    # thus in telemetry.
+    return "Callable"

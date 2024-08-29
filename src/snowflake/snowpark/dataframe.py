@@ -55,10 +55,15 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectStatement,
     SelectTableFunction,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoTableNode,
+    DynamicTableCreateMode,
     Limit,
     LogicalPlan,
+    SaveMode,
+    SnowflakeCreateTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -117,9 +122,9 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
     parse_table_name,
     prepare_pivot_arguments,
-    private_preview,
     quote_name,
     random_name_for_temp_object,
+    str_to_enum,
     validate_object_name,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
@@ -1002,8 +1007,12 @@ class DataFrame:
             B A
             2 1  1  3  1
         """
-        import snowflake.snowpark.modin.pandas as pd  # pragma: no cover
-
+        # black and isort disagree on how to format this section with isort: skip
+        # fmt: off
+        import snowflake.snowpark.modin.plugin  # isort: skip  # noqa: F401
+        # If snowflake.snowpark.modin.plugin was successfully imported, then modin.pandas is available
+        import modin.pandas as pd  # isort: skip
+        # fmt: on
         # create a temporary table out of the current snowpark dataframe
         temporary_table_name = random_name_for_temp_object(
             TempObjectType.TABLE
@@ -2198,7 +2207,7 @@ class DataFrame:
                 - Left semi join: "semi", "leftsemi"
                 - Left anti join: "anti", "leftanti"
                 - Cross join: "cross"
-                - [Preview Feature] Asof join: "asof"
+                - Asof join: "asof"
 
                 You can also use ``join_type`` keyword to specify this condition.
                 Note that to avoid breaking changes, currently when ``join_type`` is specified,
@@ -3408,7 +3417,6 @@ class DataFrame:
         )
 
     @df_collect_api_telemetry
-    @private_preview(version="1.4.0")
     def create_or_replace_dynamic_table(
         self,
         name: Union[str, Iterable[str]],
@@ -3416,6 +3424,13 @@ class DataFrame:
         warehouse: str,
         lag: str,
         comment: Optional[str] = None,
+        mode: str = "overwrite",
+        refresh_mode: Optional[str] = None,
+        initialize: Optional[str] = None,
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
+        is_transient: bool = False,
+        data_retention_time: Optional[int] = None,
+        max_data_extension_time: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a dynamic table that captures the computation expressed by this DataFrame.
@@ -3433,7 +3448,28 @@ class DataFrame:
             lag: specifies the target data freshness
             comment: Adds a comment for the created table. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
+            mode: Specifies the behavior of create dynamic table. Allowed values are:
+                - "overwrite" (default): Overwrite the table by dropping the old table.
+                - "errorifexists": Throw and exception if the table already exists.
+                - "ignore": Ignore the operation if table already exists.
+            refresh_mode: Specifies the refresh mode of the dynamic table. The value can be "AUTO",
+                "FULL", or "INCREMENTAL".
+            initialize: Specifies the behavior of initial refresh. The value can be "ON_CREATE" or
+                "ON_SCHEDULE".
+            clustering_keys: Specifies one or more columns or column expressions in the table as the clustering key.
+                See `Clustering Keys & Clustered Tables <https://docs.snowflake.com/en/user-guide/tables-clustering-keys>`_
+                for more details.
+            is_transient: A boolean value that specifies whether the dynamic table is transient.
+            data_retention_time: Specifies the retention period for the dynamic table in days so that
+                Time Travel actions can be performed on historical data in the dynamic table.
+            max_data_extension_time: Specifies the maximum number of days for which Snowflake can extend
+                the data retention period of the dynamic table to prevent streams on the dynamic table
+                from becoming stale.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+        Note:
+            See `understanding dynamic table refresh <https://docs.snowflake.com/en/user-guide/dynamic-tables-refresh>`_.
+            for more details on refresh mode.
         """
         if isinstance(name, str):
             formatted_name = name
@@ -3454,11 +3490,20 @@ class DataFrame:
                 "The lag input of create_or_replace_dynamic_table() can only be a str."
             )
 
+        create_mode = str_to_enum(mode.lower(), DynamicTableCreateMode, "`mode`")
+
         return self._do_create_or_replace_dynamic_table(
-            formatted_name,
-            warehouse,
-            lag,
-            comment,
+            name=formatted_name,
+            warehouse=warehouse,
+            lag=lag,
+            create_mode=create_mode,
+            comment=comment,
+            refresh_mode=refresh_mode,
+            initialize=initialize,
+            clustering_keys=clustering_keys,
+            is_transient=is_transient,
+            data_retention_time=data_retention_time,
+            max_data_extension_time=max_data_extension_time,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
@@ -3527,15 +3572,44 @@ class DataFrame:
         )
 
     def _do_create_or_replace_dynamic_table(
-        self, name: str, warehouse: str, lag: str, comment: Optional[str], **kwargs
+        self,
+        name: str,
+        warehouse: str,
+        lag: str,
+        create_mode: DynamicTableCreateMode,
+        comment: Optional[str] = None,
+        refresh_mode: Optional[str] = None,
+        initialize: Optional[str] = None,
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
+        is_transient: bool = False,
+        data_retention_time: Optional[int] = None,
+        max_data_extension_time: Optional[int] = None,
+        **kwargs,
     ):
         validate_object_name(name)
+        clustering_exprs = (
+            [
+                _to_col_if_str(
+                    col, "DataFrame.create_or_replace_dynamic_table"
+                )._expression
+                for col in clustering_keys
+            ]
+            if clustering_keys
+            else []
+        )
         cmd = CreateDynamicTableCommand(
-            name,
-            warehouse,
-            lag,
-            comment,
-            self._plan,
+            name=name,
+            warehouse=warehouse,
+            lag=lag,
+            comment=comment,
+            create_mode=create_mode,
+            refresh_mode=refresh_mode,
+            initialize=initialize,
+            clustering_exprs=clustering_exprs,
+            is_transient=is_transient,
+            data_retention_time=data_retention_time,
+            max_data_extension_time=max_data_extension_time,
+            child=self._plan,
         )
 
         return self._session._conn.execute(
@@ -3960,21 +4034,27 @@ class DataFrame:
         if isinstance(self._session._conn, MockServerConnection):
             self.write.save_as_table(temp_table_name, create_temp_table=True)
         else:
-            create_temp_table = self._session._analyzer.plan_builder.create_temp_table(
-                temp_table_name,
-                self._plan,
-                use_scoped_temp_objects=self._session._use_scoped_temp_objects,
-                is_generated=True,
+            df = self._with_plan(
+                SnowflakeCreateTable(
+                    [temp_table_name],
+                    None,
+                    SaveMode.ERROR_IF_EXISTS,
+                    self._plan,
+                    creation_source=TableCreationSource.CACHE_RESULT,
+                    table_type="temp",
+                )
             )
             self._session._conn.execute(
-                create_temp_table,
+                df._plan,
                 _statement_params=create_or_update_statement_params_with_query_tag(
                     statement_params or self._statement_params,
                     self._session.query_tag,
                     SKIP_LEVELS_TWO,
                 ),
             )
-        cached_df = self._session.table(temp_table_name)
+        cached_df = snowflake.snowpark.table.Table(
+            temp_table_name, self._session, is_temp_table_for_cleanup=True
+        )
         cached_df.is_cached = True
         return cached_df
 
@@ -4053,10 +4133,14 @@ class DataFrame:
         evaluate this DataFrame with the key `queries`, and a list of post-execution
         actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
         """
-        plan = self._plan.replace_repeated_subquery_with_cte()
+        plan_queries = self._plan.execution_queries
         return {
-            "queries": [query.sql.strip() for query in plan.queries],
-            "post_actions": [query.sql.strip() for query in plan.post_actions],
+            "queries": [
+                query.sql.strip() for query in plan_queries[PlanQueryType.QUERIES]
+            ],
+            "post_actions": [
+                query.sql.strip() for query in plan_queries[PlanQueryType.POST_ACTIONS]
+            ],
         }
 
     def explain(self) -> None:
@@ -4070,20 +4154,20 @@ class DataFrame:
         print(self._explain_string())  # noqa: T201: we need to print here.
 
     def _explain_string(self) -> str:
-        plan = self._plan.replace_repeated_subquery_with_cte()
+        plan_queries = self._plan.execution_queries[PlanQueryType.QUERIES]
         output_queries = "\n---\n".join(
-            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(plan.queries)
+            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(plan_queries)
         )
         msg = f"""---------DATAFRAME EXECUTION PLAN----------
 Query List:
 {output_queries}"""
         # if query list contains more then one queries, skip execution plan
-        if len(plan.queries) == 1:
-            exec_plan = self._session._explain_query(plan.queries[0].sql)
+        if len(plan_queries) == 1:
+            exec_plan = self._session._explain_query(plan_queries[0].sql)
             if exec_plan:
                 msg = f"{msg}\nLogical Execution Plan:\n{exec_plan}"
             else:
-                msg = f"{plan.queries[0].sql} can't be explained"
+                msg = f"{plan_queries[0].sql} can't be explained"
 
         return f"{msg}\n--------------------------------------------"
 

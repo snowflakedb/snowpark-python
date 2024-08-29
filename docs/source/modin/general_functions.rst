@@ -11,12 +11,14 @@ General functions
     :toctree: pandas_api/
 
     melt
+    pivot
     pivot_table
     cut
     qcut
     concat
     get_dummies
     merge
+    merge_asof
     unique
 
 .. rubric:: Top-level missing data

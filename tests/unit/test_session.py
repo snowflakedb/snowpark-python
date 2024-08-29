@@ -245,6 +245,39 @@ def test_resolve_package_terms_not_accepted():
         )
 
 
+def test_resolve_packages_side_effect():
+    """Python stored procedure depends on this behavior to add packages to the session."""
+
+    def mock_get_information_schema_packages(table_name: str):
+        result = MagicMock()
+        result.filter().group_by().agg()._internal_collect_with_tag.return_value = [
+            ("random_package_name", json.dumps(["1.0.0"]))
+        ]
+        return result
+
+    fake_connection = mock.create_autospec(ServerConnection)
+    fake_connection._conn = mock.Mock()
+    session = Session(fake_connection)
+    session.table = MagicMock(name="session.table")
+    session.table.side_effect = mock_get_information_schema_packages
+
+    existing_packages = {}
+
+    resolved_packages = session._resolve_packages(
+        ["random_package_name"],
+        existing_packages_dict=existing_packages,
+        validate_package=True,
+        include_pandas=False,
+    )
+
+    assert (
+        len(resolved_packages) == 2
+    ), resolved_packages  # random_package_name and cloudpickle
+    assert (
+        len(existing_packages) == 1
+    ), existing_packages  # {"random_package_name": "random_package_name"}
+
+
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
 def test_write_pandas_wrong_table_type():
     fake_connection = mock.create_autospec(ServerConnection)
@@ -489,7 +522,16 @@ def test_connection_expiry():
             m.assert_called_once()
 
 
-def test_session_builder_app_name_no_existing_query_tag():
+@pytest.mark.parametrize(
+    "app_name,format_json,expected_query_tag",
+    [
+        ("my_app_name", False, "APPNAME=my_app_name"),
+        ("my_app_name", True, '{"APPNAME": "my_app_name"}'),
+    ],
+)
+def test_session_builder_app_name_no_existing_query_tag(
+    app_name, format_json, expected_query_tag
+):
     mocked_session = Session(
         ServerConnection(
             {"": ""},
@@ -510,14 +552,54 @@ def test_session_builder_app_name_no_existing_query_tag():
     with mock.patch.object(
         builder, "_create_internal", return_value=mocked_session
     ) as m:
-        app_name = "my_app_name"
-        assert builder.app_name(app_name) is builder
+        assert builder.app_name(app_name, format_json=format_json) is builder
         created_session = builder.getOrCreate()
         m.assert_called_once()
-        assert created_session.query_tag == f"APPNAME={app_name}"
+        assert created_session.query_tag == expected_query_tag
 
 
-def test_session_builder_app_name_existing_query_tag():
+@pytest.mark.parametrize(
+    "app_name,format_json,existing_query_tag,expected_query_tag",
+    [
+        ("my_app_name", False, "tag", "tag,APPNAME=my_app_name"),
+        (
+            "my_app_name",
+            True,
+            '{"key": "value"}',
+            '{"key": "value", "APPNAME": "my_app_name"}',
+        ),
+    ],
+)
+def test_session_builder_app_name_existing_query_tag(
+    app_name, format_json, existing_query_tag, expected_query_tag
+):
+    mocked_session = Session(
+        ServerConnection(
+            {"": ""},
+            mock.Mock(
+                spec=SnowflakeConnection,
+                _telemetry=mock.Mock(),
+                _session_parameters=mock.Mock(),
+                is_closed=mock.Mock(return_value=False),
+                expired=False,
+            ),
+        ),
+    )
+
+    mocked_session._get_remote_query_tag = MagicMock(return_value=existing_query_tag)
+
+    builder = Session.builder
+
+    with mock.patch.object(
+        builder, "_create_internal", return_value=mocked_session
+    ) as m:
+        assert builder.app_name(app_name, format_json=format_json) is builder
+        created_session = builder.getOrCreate()
+        m.assert_called_once()
+        assert created_session.query_tag == expected_query_tag
+
+
+def test_session_builder_app_name_existing_invalid_json_query_tag():
     mocked_session = Session(
         ServerConnection(
             {"": ""},
@@ -539,9 +621,10 @@ def test_session_builder_app_name_existing_query_tag():
 
     with mock.patch.object(
         builder, "_create_internal", return_value=mocked_session
-    ) as m:
+    ), pytest.raises(
+        ValueError,
+        match="Expected query tag to be valid json. Current query tag: tag",
+    ):
         app_name = "my_app_name"
-        assert builder.app_name(app_name) is builder
-        created_session = builder.getOrCreate()
-        m.assert_called_once()
-        assert created_session.query_tag == f"tag,APPNAME={app_name}"
+        assert builder.app_name(app_name, format_json=True) is builder
+        builder.getOrCreate()

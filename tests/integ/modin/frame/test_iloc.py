@@ -714,9 +714,8 @@ def test_df_iloc_get_key_bool(
 
     # One extra query for index conversion to series to set item
     query_count = (
-        2 if "index" in key_type or (key_type == "series" and axis == "col") else 1
+        2 if ("index" in key_type or key_type == "series") and axis == "col" else 1
     )
-    expected_join_count = 0
     if axis == "row":
         if key == [] and key_type in ["list", "ndarray"]:
             expected_join_count = 2
@@ -952,7 +951,7 @@ def test_df_iloc_get_key_numeric(
 
     # one extra query for index conversion to series to set item
     query_count = (
-        2 if "index" in key_type or (key_type == "series" and axis == "col") else 1
+        2 if ("index" in key_type or key_type == "series") and axis == "col" else 1
     )
     join_count = 2 if axis == "row" else 0
 
@@ -1053,13 +1052,13 @@ def test_df_iloc_get_key_int_series_with_1k_shape(key, native_df_1k_1k):
         )
 
     high_count_reason = """
-        11 queries includes 5 queries to prepare the temp table for df, including create, insert,
-        drop the temp table (3.). and alter session to set and unset query_tag (2) and one select query.
+        6 queries includes queries to create, insert, and drop the temp table (3), alter session
+        to set and unset query_tag (2) and one select query.
         Another 5 query to prepare the temp table for df again due to the fact it is used in another
         join even though it is in the same query.
-        16 queries add extra 5 queries to prepare the temp table for key
+        11 queries add extra 5 queries to prepare the temp table for key
     """
-    query_count = 11 if len(key) < 300 else 16
+    query_count = 6 if len(key) < 300 else 11
     _test_df_iloc_with_1k_shape(
         native_df_1k_1k, iloc_helper, query_count, 2, high_count_reason
     )
@@ -1300,15 +1299,7 @@ def test_df_iloc_get_non_numeric_key_negative(
 
     if isinstance(key, native_pd.Index):
         key = pd.Index(key)
-    # 2 extra queries for repr
-    # 1 extra query to convert index to series if row case
-    with SqlCounter(
-        query_count=3
-        if isinstance(key, pd.Index) and axis == "row"
-        else 2
-        if isinstance(key, pd.Index)
-        else 0
-    ):
+    with SqlCounter(query_count=2 if isinstance(key, pd.Index) else 0):
         # General case fails with TypeError.
         error_msg = re.escape(f".iloc requires numeric indexers, got {key}")
         with pytest.raises(IndexError, match=error_msg):
@@ -3205,3 +3196,12 @@ def test_df_iloc_set_ffill_na_values_negative():
         iloc_helper,
         inplace=True,
     )
+
+
+@sql_count_checker(query_count=0)
+def test_raise_set_cell_with_list_like_value_error():
+    s = pd.Series([[1, 2], [3, 4]])
+    with pytest.raises(NotImplementedError):
+        s.iloc[0] = [0, 0]
+    with pytest.raises(NotImplementedError):
+        s.to_frame().iloc[0, 0] = [0, 0]

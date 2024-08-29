@@ -3,9 +3,7 @@
 #
 
 import sys
-import warnings
 
-from modin.pandas.series_utils import DatetimeProperties  # type: ignore
 from packaging import version
 
 import snowflake.snowpark._internal.utils
@@ -46,12 +44,6 @@ if version.parse(modin.__version__) != version.parse(supported_modin_version):
     )  # pragma: no cover
 
 
-warnings.warn(
-    "Snowpark pandas has been in Public Preview since 1.17.0."
-    + " See https://docs.snowflake.com/developer-guide/snowpark/python/snowpark-pandas for details.",
-    stacklevel=1,
-)
-
 # We need this import here to prevent circular dependency issues, since snowflake.snowpark.modin.pandas
 # currently imports some internal utilities from snowflake.snowpark.modin.plugin. Test cases will
 # import snowflake.snowpark.modin.plugin before snowflake.snowpark.modin.pandas, so in order to prevent
@@ -91,22 +83,23 @@ Engine.put("Snowflake")
 import modin.utils  # type: ignore[import]  # isort: skip  # noqa: E402
 import modin.pandas.series_utils  # type: ignore[import]  # isort: skip  # noqa: E402
 
-modin.utils._inherit_docstrings(
-    docstrings.series_utils.StringMethods,
-    overwrite_existing=True,
-)(modin.pandas.series_utils.StringMethods)
+# TODO: SNOW-1643979 pull in fixes for
+# https://github.com/modin-project/modin/issues/7113 and https://github.com/modin-project/modin/issues/7134
+# Upstream Modin has issues with certain docstring generation edge cases, so we should use our version instead
+_inherit_docstrings = snowflake.snowpark.modin.utils._inherit_docstrings
 
-modin.utils._inherit_docstrings(
-    docstrings.series_utils.CombinedDatetimelikeProperties,
-    overwrite_existing=True,
-)(modin.pandas.series_utils.DatetimeProperties)
+inherit_modules = [
+    (docstrings.base.BasePandasDataset, modin.pandas.base.BasePandasDataset),
+    (docstrings.series_utils.StringMethods, modin.pandas.series_utils.StringMethods),
+    (
+        docstrings.series_utils.CombinedDatetimelikeProperties,
+        modin.pandas.series_utils.DatetimeProperties,
+    ),
+]
 
-# Instrument telemetry on external classes
-from snowflake.snowpark.modin.plugin._internal.telemetry import (  # noqa: E402
-    register_series_telemetry,
-)
+for (doc_module, target_object) in inherit_modules:
+    _inherit_docstrings(doc_module, overwrite_existing=True)(target_object)
 
-register_series_telemetry()
 
 # Don't warn the user about our internal usage of private preview pivot
 # features. The user should have already been warned that Snowpark pandas
@@ -130,4 +123,4 @@ def isocalendar(self):  # type: ignore
     return DataFrame(query_compiler=self._query_compiler.dt_isocalendar())
 
 
-DatetimeProperties.isocalendar = isocalendar
+modin.pandas.series_utils.DatetimeProperties.isocalendar = isocalendar

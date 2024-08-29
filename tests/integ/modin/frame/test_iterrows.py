@@ -53,6 +53,7 @@ def assert_iterators_equal(snowpark_iterator, native_iterator):
         ),
         # empty df
         native_pd.DataFrame([]),
+        native_pd.DataFrame({"ts": native_pd.timedelta_range(10, periods=4)}),
     ],
 )
 def test_df_iterrows(native_df):

@@ -24,16 +24,16 @@ from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    create_test_series,
+    eval_snowpark_pandas_result,
 )
 
 
 def validate_series_snowpark_dtype(series: pd.Series, snowpark_type: DataType) -> None:
     internal_frame = series._query_compiler._modin_frame
-    snowpark_type_map = internal_frame.quoted_identifier_to_snowflake_type()
-    snowpark_dtypes = [
-        snowpark_type_map[quoted_identifier]
-        for quoted_identifier in internal_frame.data_column_snowflake_quoted_identifiers
-    ]
+    snowpark_dtypes = internal_frame.get_snowflake_type(
+        internal_frame.data_column_snowflake_quoted_identifiers
+    )
     assert len(snowpark_dtypes) == 1
     assert snowpark_dtypes[0] == snowpark_type
 
@@ -109,16 +109,19 @@ def test_integer(dataframe_input, input_dtype, logical_dtype):
 
 
 @pytest.mark.parametrize(
-    "dataframe_input, expected_dtype",
+    "values",
     [
-        ([pd.Timedelta("1 day"), None], np.dtype("float64")),
-        ([pd.Timedelta("1 day")], np.dtype("int64")),
+        [pd.Timedelta("1 day"), None],
+        [pd.Timedelta("1 day")],
     ],
 )
 @sql_count_checker(query_count=0)
-def test_timedelta(dataframe_input, expected_dtype):
-    with pytest.raises(NotImplementedError):
-        pd.Series(dataframe_input, dtype="timedelta64[ns]").to_pandas()
+def test_timedelta(values):
+    eval_snowpark_pandas_result(
+        *create_test_series(values, dtype="timedelta64[ns]"),
+        lambda s: s.dtype,
+        comparator=lambda snow_dtype, pandas_dtype: snow_dtype == pandas_dtype,
+    )
 
 
 @pytest.mark.parametrize(

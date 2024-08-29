@@ -14,7 +14,7 @@ import numpy as np
 import pandas as native_pd
 import pandas.testing as tm
 import pytest
-from modin.pandas import DataFrame, Series
+from modin.pandas import DataFrame, Index, Series
 from pandas import isna
 from pandas._typing import Scalar
 from pandas.core.dtypes.common import is_list_like
@@ -194,7 +194,7 @@ def create_test_dfs(*args, **kwargs) -> tuple[pd.DataFrame, native_pd.DataFrame]
         and isinstance(native_kw_args["columns"], native_pd.Index)
         and not isinstance(native_kw_args["columns"], pd.MultiIndex)
     ):
-        kwargs["columns"] = pd.Index(native_kw_args["columns"], convert_to_lazy=False)
+        kwargs["columns"] = native_pd.Index(native_kw_args["columns"])
     return (pd.DataFrame(*args, **kwargs), native_pd.DataFrame(*args, **native_kw_args))
 
 
@@ -249,8 +249,10 @@ def assert_snowpark_pandas_equal_to_pandas(
     Raises:
         AssertionError if the converted dataframe does not match with the original one
     """
-    assert isinstance(snow, (DataFrame, Series))
-    assert isinstance(expected_pandas, (native_pd.DataFrame, native_pd.Series))
+    assert isinstance(snow, (DataFrame, Series, Index)), f"Got type: {type(snow)}"
+    assert isinstance(
+        expected_pandas, (native_pd.DataFrame, native_pd.Series, native_pd.Index)
+    ), f"Got type: {type(expected_pandas)}"
     # Due to server-side compression, only check that index values are equivalent and ignore the
     # index types. Snowpark pandas will use the smallest possible dtype (typically int8), while
     # native pandas will default to int64.
@@ -264,10 +266,16 @@ def assert_snowpark_pandas_equal_to_pandas(
         assert isinstance(snow, DataFrame)
         snow_to_native = snow_to_native.replace({None: pd.NA})
         tm.assert_frame_equal(snow_to_native, expected_pandas, **kwargs)
-    else:
-        assert isinstance(snow, Series)
+    elif isinstance(snow, Series):
         snow_to_native = snow_to_native.replace({None: pd.NA})
         tm.assert_series_equal(snow_to_native, expected_pandas, **kwargs)
+    else:
+        assert isinstance(snow, Index)
+        if "check_dtype" in kwargs:
+            kwargs.pop("check_dtype")
+        if kwargs.pop("check_index_type"):
+            kwargs.update(exact=False)
+        tm.assert_index_equal(snow_to_native, expected_pandas, **kwargs)
     if expected_index_type is not None:
         assert (
             expected_index_type == snow_to_native.index.dtype.name
@@ -280,8 +288,8 @@ def assert_snowpark_pandas_equal_to_pandas(
 
 
 def assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-    snow: DataFrame | Series,
-    native: native_pd.DataFrame | native_pd.Series,
+    snow: DataFrame | Series | Index,
+    native: native_pd.DataFrame | native_pd.Series | native_pd.Index,
     **kwargs,
 ) -> None:
     """
@@ -291,8 +299,8 @@ def assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
 
 
 def assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64(
-    snow: DataFrame | Series,
-    native: native_pd.DataFrame | native_pd.Series,
+    snow: DataFrame | Series | Index,
+    native: native_pd.DataFrame | native_pd.Series | native_pd.Index,
     **kwargs,
 ) -> None:
     """
@@ -327,13 +335,15 @@ def assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64(
             rtol=1.0e-5,
             **kwargs,
         )
-    else:
+    elif isinstance(snow, Series):
         assert_series_equal(
             snow_to_native.astype("float64"),
             native.astype("float64"),
             rtol=1.0e-5,
             **kwargs,
         )
+    else:
+        assert_index_equal(snow_to_native, native, **kwargs)
 
 
 def assert_series_equal(*args, **kwargs) -> None:
@@ -411,7 +421,7 @@ def eval_snowpark_pandas_result(
                 # If the operation affected the snow_pandas object in place,
                 # we have to call to_pandas() on snow_pandas.
                 snow_pandas.to_pandas()
-            elif isinstance(result, (DataFrame, Series)):
+            elif isinstance(result, (DataFrame, Series, Index)):
                 # otherwise, we have to call to_pandas() on the result.
                 result.to_pandas()
         if expect_exception_type:

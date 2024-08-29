@@ -27,12 +27,7 @@ from pandas.core.arrays.integer import (
     UInt64Dtype,
 )
 from pandas.core.arrays.string_ import StringDtype
-from pandas.core.dtypes.common import (
-    is_bool_dtype,
-    is_float_dtype,
-    is_integer_dtype,
-    is_timedelta64_dtype,
-)
+from pandas.core.dtypes.common import is_bool_dtype, is_float_dtype, is_integer_dtype
 
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.type_utils import infer_type, merge_type
@@ -41,10 +36,15 @@ from snowflake.snowpark.functions import (
     cast,
     col,
     date_part,
+    floor,
     iff,
     length,
     to_varchar,
     to_variant,
+)
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    SnowparkPandasType,
+    TimedeltaType,
 )
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     generate_timestamp_col,
@@ -180,10 +180,6 @@ def infer_series_type(series: native_pd.Series) -> DataType:
     """Infer the snowpark DataType for the given native pandas series"""
 
     data_type = series.dtype
-    if is_timedelta64_dtype(data_type):
-        raise NotImplementedError(
-            "Snowpark pandas does not support timedelta64 data type."
-        )
     if data_type == np.object_:
         # if the series type is object type, try to derive the snowpark type based on
         # the type of each data element of the series. If failed to derive the type
@@ -234,6 +230,12 @@ class TypeMapper:
         """
         map a pandas or numpy type to snowpark data type.
         """
+        snowpark_pandas_type = (
+            SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(p)
+        )
+        if snowpark_pandas_type is not None:
+            return snowpark_pandas_type
+
         if isinstance(p, DatetimeTZDtype):
             return TimestampType(TimestampTimeZone.TZ)
         if p is native_pd.Timestamp or is_datetime64_any_dtype(p):
@@ -265,9 +267,13 @@ class TypeMapper:
             return np.dtype("int64") if s.scale == 0 else np.dtype("float64")
         if isinstance(s, TimestampType):
             return np.dtype("datetime64[ns]")
+        if isinstance(s, TimedeltaType):
+            return np.dtype("timedelta64[ns]")
         # We also need to treat parameterized types correctly
         if isinstance(s, (StringType, ArrayType, MapType, GeographyType)):
             return np.dtype(np.object_)
+        if isinstance(s, SnowparkPandasType):
+            return type(s).pandas_type
         return SNOWFLAKE_TO_PANDAS_MAP.get(s, np.dtype(np.object_))
 
 
@@ -292,7 +298,6 @@ def column_astype(
 
     if to_dtype == np.object_:
         return to_variant(curr_col)
-
     if from_sf_type == to_sf_type:
         return curr_col
 
@@ -313,12 +318,12 @@ def column_astype(
         isinstance(from_sf_type, TimestampType)
         and from_sf_type.tz == TimestampTimeZone.LTZ
     ):
-        # treat TIMESTAMPT_LTZ columns as same as TIMESTAMPT_TZ
+        # treat TIMESTAMP_LTZ columns as same as TIMESTAMP_TZ
         curr_col = builtin("to_timestamp_tz")(curr_col)
 
     if isinstance(to_sf_type, TimestampType):
         assert to_sf_type.tz != TimestampTimeZone.LTZ, (
-            "Cast to TIMESTAMPT_LTZ is not supported in astype since "
+            "Cast to TIMESTAMP_LTZ is not supported in astype since "
             "Snowpark pandas API maps tz aware datetime to TIMESTAMP_TZ"
         )
         # convert to timestamp
@@ -364,6 +369,12 @@ def column_astype(
     ):
         # e.g., pd.Series([date(year=1, month=1, day=1)]*3).astype(bool) returns all true values
         new_col = cast(pandas_lit(True), to_sf_type)
+    elif isinstance(to_sf_type, TimedeltaType):
+        if isinstance(from_sf_type, _NumericType):
+            # pandas always rounds down for Fractional type conversion to timedelta
+            new_col = cast(floor(curr_col), LongType())
+        else:
+            new_col = cast(curr_col, LongType())
     else:
         new_col = cast(curr_col, to_sf_type)
     # astype should not have any effect on NULL values
@@ -402,6 +413,10 @@ def is_astype_type_error(
     ):
         return True
     elif isinstance(from_sf_type, DateType) and isinstance(to_sf_type, _NumericType):
+        return True
+    elif isinstance(from_sf_type, TimestampType) and isinstance(
+        to_sf_type, TimedeltaType
+    ):
         return True
     else:
         return False

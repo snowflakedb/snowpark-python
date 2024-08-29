@@ -31,6 +31,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas
 from modin.pandas.accessor import CachedAccessor, SparseAccessor
+from modin.pandas.base import BasePandasDataset
 from modin.pandas.iterator import PartitionIterator
 from pandas._libs.lib import NoDefault, is_integer, no_default
 from pandas._typing import (
@@ -51,7 +52,6 @@ from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
 from pandas.core.series import _coerce_method
 from pandas.util._validators import validate_bool_kwarg
 
-from snowflake.snowpark.modin.pandas.base import _ATTRS_NO_LOOKUP, BasePandasDataset
 from snowflake.snowpark.modin.pandas.utils import (
     from_pandas,
     is_scalar,
@@ -62,6 +62,7 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     series_not_implemented,
 )
+from snowflake.snowpark.modin.plugin.utils.frontend_constants import _ATTRS_NO_LOOKUP
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import (
     MODIN_UNNAMED_SERIES_LABEL,
@@ -130,7 +131,11 @@ class DONOTEXPORTMESeries(BasePandasDataset):
         # modified:
         # Engine.subscribe(_update_engine)
 
-        if isinstance(data, type(self)):
+        # Convert lazy index to Series without pulling the data to client.
+        if isinstance(data, pd.Index):
+            query_compiler = data.to_series(index=index, name=name)._query_compiler
+            query_compiler = query_compiler.reset_index(drop=True)
+        elif isinstance(data, type(self)):
             query_compiler = data._query_compiler.copy()
             if index is not None:
                 if any(i not in data.index for i in index):
@@ -783,25 +788,37 @@ class DONOTEXPORTMESeries(BasePandasDataset):
 
         return self.__constructor__(query_compiler=new_query_compiler)
 
-    @series_not_implemented()
     def argmax(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, D200
         """
         Return int position of the largest value in the Series.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        result = self.idxmax(axis=axis, skipna=skipna, *args, **kwargs)
-        if np.isnan(result) or result is pandas.NA:
+        if self._query_compiler.has_multiindex():
+            # The index is a MultiIndex, current logic does not support this.
+            ErrorMessage.not_implemented(
+                "Series.argmax is not yet supported when the index is a MultiIndex."
+            )
+        result = self.reset_index(drop=True).idxmax(
+            axis=axis, skipna=skipna, *args, **kwargs
+        )
+        if not is_integer(result):  # if result is None, return -1
             result = -1
         return result
 
-    @series_not_implemented()
     def argmin(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, D200
         """
         Return int position of the smallest value in the Series.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        result = self.idxmin(axis=axis, skipna=skipna, *args, **kwargs)
-        if np.isnan(result) or result is pandas.NA:
+        if self._query_compiler.has_multiindex():
+            # The index is a MultiIndex, current logic does not support this.
+            ErrorMessage.not_implemented(
+                "Series.argmin is not yet supported when the index is a MultiIndex."
+            )
+        result = self.reset_index(drop=True).idxmin(
+            axis=axis, skipna=skipna, *args, **kwargs
+        )
+        if not is_integer(result):  # if result is None, return -1
             result = -1
         return result
 
@@ -833,7 +850,6 @@ class DONOTEXPORTMESeries(BasePandasDataset):
             pandas.Series.between, left, right, inclusive=inclusive
         )
 
-    @series_not_implemented()
     def compare(
         self,
         other: Series,
@@ -849,7 +865,9 @@ class DONOTEXPORTMESeries(BasePandasDataset):
         if not isinstance(other, Series):
             raise TypeError(f"Cannot compare Series to {type(other)}")
         result = self.to_frame().compare(
-            other.to_frame(),
+            # TODO(https://github.com/modin-project/modin/issues/7334):
+            # upstream this fix for differently named Series.
+            other.rename(self.name).to_frame(),
             align_axis=align_axis,
             keep_shape=keep_shape,
             keep_equal=keep_equal,
@@ -858,7 +876,19 @@ class DONOTEXPORTMESeries(BasePandasDataset):
         if align_axis == "columns" or align_axis == 1:
             # pandas.DataFrame.Compare returns a dataframe with a multidimensional index object as the
             # columns so we have to change column object back.
-            result.columns = pandas.Index(["self", "other"])
+            if len(result.columns) == 2:
+                result.columns = pandas.Index(result_names)
+            else:
+                # even if the DataFrame.compare() result has no columns, the
+                # Series.compare() result always has the `result_names` as two
+                # columns.
+                # TODO(https://github.com/modin-project/modin/issues/5697):
+                # upstream this fix to modin.
+
+                # we have compared only one column, so DataFrame.compare()
+                # should only produce 0 or 2 columns.
+                assert len(result.columns) == 0
+                result = pd.DataFrame([], columns=result_names, index=result.index)
         else:
             result = result.squeeze().rename(None)
         return result
@@ -1072,17 +1102,31 @@ class DONOTEXPORTMESeries(BasePandasDataset):
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         return super().eq(other, level=level, axis=axis)
 
-    @series_not_implemented()
-    def equals(self, other):  # noqa: PR01, RT01, D200
+    def equals(self, other) -> bool:  # noqa: PR01, RT01, D200
         """
         Test whether two objects contain the same elements.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        return (
-            self.name == other.name
-            and self.index.equals(other.index)
-            and self.eq(other).all()
-        )
+        if isinstance(other, pandas.Series):
+            # Copy into a Modin Series to simplify logic below
+            other = self.__constructor__(other)
+
+        if type(self) is not type(other) or not self.index.equals(other.index):
+            return False
+
+        old_name_self = self.name
+        old_name_other = other.name
+        try:
+            self.name = "temp_name_for_equals_op"
+            other.name = "temp_name_for_equals_op"
+            # this function should return only scalar
+            res = self.__constructor__(
+                query_compiler=self._query_compiler.equals(other._query_compiler)
+            )
+        finally:
+            self.name = old_name_self
+            other.name = old_name_other
+        return res.all()
 
     @series_not_implemented()
     def explode(self, ignore_index: bool = False):  # noqa: PR01, RT01, D200
@@ -1539,19 +1583,31 @@ class DONOTEXPORTMESeries(BasePandasDataset):
             copy=copy,
         )
 
-    @series_not_implemented()
-    def unstack(self, level=-1, fill_value=None):  # noqa: PR01, RT01, D200
+    def unstack(
+        self,
+        level: int | str | list = -1,
+        fill_value: int | str | dict = None,
+        sort: bool = True,
+    ):
         """
         Unstack, also known as pivot, Series with MultiIndex to produce DataFrame.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 
-        result = DataFrame(
-            query_compiler=self._query_compiler.unstack(level, fill_value)
-        )
+        # We can't unstack a Series object, if we don't have a MultiIndex.
+        if self._query_compiler.has_multiindex:
+            result = DataFrame(
+                query_compiler=self._query_compiler.unstack(
+                    level, fill_value, sort, is_series_input=True
+                )
+            )
+        else:
+            raise ValueError(  # pragma: no cover
+                f"index must be a MultiIndex to unstack, {type(self.index)} was passed"
+            )
 
-        return result.droplevel(0, axis=1) if result.columns.nlevels > 1 else result
+        return result
 
     @series_not_implemented()
     @property
@@ -1662,10 +1718,12 @@ class DONOTEXPORTMESeries(BasePandasDataset):
     def reindex(self, *args, **kwargs):
         if args:
             if len(args) > 1:
-                raise TypeError("Only one positional argument ('index') is allowed")
+                raise TypeError(
+                    "Series.reindex() takes from 1 to 2 positional arguments but 3 were given"
+                )
             if "index" in kwargs:
                 raise TypeError(
-                    "'index' passed as both positional and keyword argument"
+                    "Series.reindex() got multiple values for argument 'index'"
                 )
             kwargs.update({"index": args[0]})
         index = kwargs.pop("index", None)
@@ -1675,10 +1733,11 @@ class DONOTEXPORTMESeries(BasePandasDataset):
         limit = kwargs.pop("limit", None)
         tolerance = kwargs.pop("tolerance", None)
         fill_value = kwargs.pop("fill_value", None)
+        kwargs.pop("axis", None)
         if kwargs:
             raise TypeError(
-                "reindex() got an unexpected keyword "
-                + f'argument "{list(kwargs.keys())[0]}"'
+                "Series.reindex() got an unexpected keyword "
+                + f"argument '{list(kwargs.keys())[0]}'"
             )
         return super().reindex(
             index=index,
@@ -1689,6 +1748,26 @@ class DONOTEXPORTMESeries(BasePandasDataset):
             limit=limit,
             tolerance=tolerance,
             fill_value=fill_value,
+        )
+
+    @series_not_implemented()
+    def reindex_like(
+        self,
+        other,
+        method=None,
+        copy: bool | None = None,
+        limit=None,
+        tolerance=None,
+    ) -> Series:  # pragma: no cover
+        # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+        # docs say "Same as calling .reindex(index=other.index, columns=other.columns,...).":
+        # https://pandas.pydata.org/pandas-docs/version/1.4/reference/api/pandas.Series.reindex_like.html
+        return self.reindex(
+            index=other.index,
+            method=method,
+            copy=copy,
+            limit=limit,
+            tolerance=tolerance,
         )
 
     def rename_axis(
@@ -1779,7 +1858,9 @@ class DONOTEXPORTMESeries(BasePandasDataset):
         Generate a new Series with the index reset.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        if name is no_default:
+        if drop:
+            name = self.name
+        elif name is no_default:
             # For backwards compatibility, keep columns as [0] instead of
             #  [None] when self.name is None
             name = 0 if self.name is None else self.name

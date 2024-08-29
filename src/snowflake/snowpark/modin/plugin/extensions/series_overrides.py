@@ -12,10 +12,14 @@ from __future__ import annotations
 import pandas as native_pd
 from modin.pandas import Series
 
-from snowflake.snowpark.modin import pandas as pd  # noqa: F401
+from snowflake.snowpark.modin import pandas as spd  # noqa: F401
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
+from snowflake.snowpark.modin.plugin._internal.telemetry import (
+    snowpark_pandas_telemetry_method_decorator,
+)
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import series_not_implemented
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import _inherit_docstrings
 
 # These methods are not implemented by Snowpark pandas and raise errors at the frontend layer
@@ -92,7 +96,7 @@ frontend_not_implemented = [
 ]
 
 for name in frontend_not_implemented:
-    register_series_accessor(name)(series_not_implemented()(getattr(pd.Series, name)))
+    register_series_accessor(name)(series_not_implemented()(getattr(spd.Series, name)))
 
 
 @_inherit_docstrings(native_pd.Series.memory_usage, apilink="pandas.Series")
@@ -189,6 +193,53 @@ def isin(self, values: set | ListLike) -> Series:
         values = list(values)
 
     return super(Series, self).isin(values)
+
+
+@register_series_accessor("plot")
+@property
+@snowpark_pandas_telemetry_method_decorator
+def plot(
+    self,
+    kind="line",
+    ax=None,
+    figsize=None,
+    use_index=True,
+    title=None,
+    grid=None,
+    legend=False,
+    style=None,
+    logx=False,
+    logy=False,
+    loglog=False,
+    xticks=None,
+    yticks=None,
+    xlim=None,
+    ylim=None,
+    rot=None,
+    fontsize=None,
+    colormap=None,
+    table=False,
+    yerr=None,
+    xerr=None,
+    label=None,
+    secondary_y=False,
+    **kwds,
+):  # noqa: PR01, RT01, D200
+    """
+    Make plot of Series.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    WarningMessage.single_warning(
+        "Series.plot materializes data to the local machine for plotting."
+    )
+    return self._to_pandas().plot
+
+
+@register_series_accessor("transform")
+@snowpark_pandas_telemetry_method_decorator
+@series_not_implemented()
+def transform(self, func, axis=0, *args, **kwargs):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
 
 
 # modin 0.28.1 doesn't define type annotations on properties, so we override this

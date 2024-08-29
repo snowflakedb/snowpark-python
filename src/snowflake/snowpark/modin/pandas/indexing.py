@@ -44,6 +44,7 @@ from typing import Any, Callable, Optional, Union
 import numpy as np
 import pandas
 from modin.pandas import Series
+from modin.pandas.base import BasePandasDataset
 from pandas._libs.tslibs import Resolution, parsing
 from pandas._typing import AnyArrayLike, Scalar
 from pandas.api.types import is_bool, is_list_like
@@ -59,7 +60,6 @@ from pandas.core.indexing import IndexingError
 
 import snowflake.snowpark.modin.pandas as pd
 import snowflake.snowpark.modin.pandas.utils as frontend_utils
-from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.pandas.series import (
     SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE,
@@ -327,6 +327,25 @@ def validate_key_for_at_iat(
                 validate_key_for_single_dim_for_at_iat(
                     modin_df=modin_df, key=col_loc, for_at=for_at, axis=1
                 )
+
+
+def raise_set_cell_with_list_like_value_error(
+    df: BasePandasDataset,
+    item: INDEXING_ITEM_TYPE,
+    row_loc: INDEXING_LOCATOR_TYPE,
+    col_loc: INDEXING_LOCATOR_TYPE,
+) -> None:
+    """
+    Raise NotImplementedError when setting cell with list like item
+    """
+    if is_list_like(item) or isinstance(item, pd.Series):
+        # item is list like or a series
+        if is_scalar(row_loc) and (
+            isinstance(df, pd.Series)
+            or (isinstance(df, pd.DataFrame) and is_scalar(col_loc))
+        ):
+            # locators indicate setting a cell
+            ErrorMessage.not_implemented(SET_CELL_WITH_LIST_LIKE_VALUE_ERROR_MESSAGE)
 
 
 class _LocationIndexerBase:
@@ -949,7 +968,7 @@ class _LocIndexer(_LocationIndexerBase):
                 f".{self.api_name} set for multiindex is not yet implemented"
             )
 
-        self._validate_item_type(item, row_loc)
+        self._validate_item_type(item, row_loc, col_loc)
 
         # If the row key is list-like (Index, list, np.ndarray, etc.), convert it to Series.
         if not isinstance(row_loc, pd.Series) and is_list_like(row_loc):
@@ -1004,6 +1023,7 @@ class _LocIndexer(_LocationIndexerBase):
         self,
         item: INDEXING_ITEM_TYPE,
         row_loc: Union[Scalar, list, slice, tuple, AnyArrayLike],
+        col_loc: Union[Scalar, list, slice, tuple, AnyArrayLike],
     ) -> None:
         """
         Validate item data type for loc set. Raise error if the type is invalid.
@@ -1020,12 +1040,6 @@ class _LocIndexer(_LocationIndexerBase):
         if isinstance(self.df, pd.Series):
             if isinstance(item, pd.DataFrame):
                 raise ValueError(LOC_SET_INCOMPATIBLE_INDEXER_WITH_DF_ERROR_MESSAGE)
-            elif is_scalar(row_loc) and (
-                isinstance(item, pd.Series) or is_list_like(item)
-            ):
-                ErrorMessage.not_implemented(
-                    SET_CELL_WITH_LIST_LIKE_VALUE_ERROR_MESSAGE
-                )
         else:
             if is_scalar(row_loc) and (
                 isinstance(item, pd.DataFrame) or is_2d_array(item)
@@ -1035,6 +1049,8 @@ class _LocIndexer(_LocationIndexerBase):
                         item.__class__.__name__
                     )
                 )
+
+        raise_set_cell_with_list_like_value_error(self.df, item, row_loc, col_loc)
 
         if (isinstance(row_loc, pd.Series) or is_list_like(row_loc)) and (
             isinstance(item, range)
@@ -1136,6 +1152,9 @@ class _iLocIndexer(_LocationIndexerBase):
         # Convert all scalar, list-like, and indexer row_loc to a Series object to get a query compiler object.
         if is_scalar(row_loc):
             row_loc = pd.Series([row_loc])
+        elif isinstance(row_loc, pd.Index):
+            # Convert index row_loc to series
+            row_loc = row_loc.to_series().reset_index(drop=True)
         elif is_list_like(row_loc):
             if hasattr(row_loc, "dtype"):
                 dtype = row_loc.dtype
@@ -1245,11 +1264,8 @@ class _iLocIndexer(_LocationIndexerBase):
 
         is_item_series = isinstance(item, pd.Series)
 
-        if not isinstance(item, (BasePandasDataset, pd.Series)) and is_list_like(item):
-            if isinstance(self.df, pd.Series) and is_scalar(row_loc):
-                ErrorMessage.not_implemented(
-                    SET_CELL_WITH_LIST_LIKE_VALUE_ERROR_MESSAGE
-                )
+        if not isinstance(item, BasePandasDataset) and is_list_like(item):
+            raise_set_cell_with_list_like_value_error(self.df, item, row_loc, col_loc)
 
             if isinstance(item, pd.Index):
                 item = np.array(item.tolist()).transpose()

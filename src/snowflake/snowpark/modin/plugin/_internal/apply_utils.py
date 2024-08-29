@@ -682,7 +682,9 @@ def create_udf_for_series_apply(
     # Snowpark function with annotations, extract underlying func to wrap.
     if isinstance(func, UserDefinedFunction):
         # Ensure return_type specified is identical.
-        assert func._return_type == return_type
+        assert (
+            func._return_type == return_type
+        ), f"UserDefinedFunction has invalid return type {func.return_type} vs. {return_type}"
 
         # Append packages from function.
         if func._packages:
@@ -1257,6 +1259,8 @@ def groupby_apply_create_internal_frame_from_final_ordered_dataframe(
         + func_result_index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=group_quoted_identifiers
         + func_result_index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
 

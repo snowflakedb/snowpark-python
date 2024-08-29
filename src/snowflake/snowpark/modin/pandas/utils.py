@@ -170,11 +170,10 @@ def is_scalar(obj):
     bool
         True if given object is scalar and False otherwise.
     """
+    from modin.pandas.base import BasePandasDataset
     from pandas.api.types import is_scalar as pandas_is_scalar
 
-    from .base import BasePandasDataset
-
-    return not isinstance(obj, (BasePandasDataset, pd.Series)) and pandas_is_scalar(obj)
+    return not isinstance(obj, BasePandasDataset) and pandas_is_scalar(obj)
 
 
 def is_full_grab_slice(slc, sequence_len=None):

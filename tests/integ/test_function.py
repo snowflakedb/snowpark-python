@@ -38,6 +38,7 @@ from snowflake.snowpark.functions import (
     array_to_string,
     array_unique_agg,
     arrays_overlap,
+    arrays_zip,
     as_array,
     as_binary,
     as_char,
@@ -106,6 +107,7 @@ from snowflake.snowpark.functions import (
     json_extract_path_text,
     least,
     lit,
+    ln,
     log,
     months_between,
     negate,
@@ -1399,6 +1401,48 @@ def test_array_flatten(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: arrays_zip function not supported",
+)
+@pytest.mark.parametrize(
+    "data, expected",
+    [
+        (
+            [([1, 2], ["a", "b"])],
+            [
+                Row(
+                    ZIPPED='[\n  {\n    "$1": 1,\n    "$2": "a"\n  },\n  {\n    "$1": 2,\n    "$2": "b"\n  }\n]'
+                )
+            ],
+        ),
+        (
+            [([1, 2], ["a", "b", "c"])],
+            [
+                Row(
+                    ZIPPED='[\n  {\n    "$1": 1,\n    "$2": "a"\n  },\n  {\n    "$1": 2,\n    "$2": "b"\n  },\n  {\n    "$1": null,\n    "$2": "c"\n  }\n]'
+                )
+            ],
+        ),
+        (
+            [([1, 2], ["a", "b"], [10.1, 10.2])],
+            [
+                Row(
+                    ZIPPED='[\n  {\n    "$1": 1,\n    "$2": "a",\n    "$3": 10.1\n  },\n  {\n    "$1": 2,\n    "$2": "b",\n    "$3": 10.2\n  }\n]'
+                )
+            ],
+        ),
+    ],
+)
+def test_arrays_zip(session, data, expected):
+    df = session.create_dataframe(data)
+    df = df.select(arrays_zip(*df.columns).as_("zipped"))
+
+    Utils.check_answer(
+        df, expected, statement_params={"enable_arrays_zip_function": "TRUE"}
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: array_construct function not supported",
 )
 def test_array_sort(session):
@@ -2196,3 +2240,11 @@ def test_negative_function_call(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sum_(col("a"))).collect()
         assert "is not recognized" in str(ex_info)
+
+
+def test_ln(session):
+    from math import e
+
+    df = session.create_dataframe([[e]], schema=["ln_value"])
+    res = df.select(ln(col("ln_value")).alias("result")).collect()
+    assert res[0][0] == 1.0

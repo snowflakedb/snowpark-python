@@ -11,7 +11,6 @@ import pytest
         (lambda se: se.groupby("A").__len__(), "__len__"),
         (lambda se: se.groupby("A").__bytes__(), "__bytes__"),
         (lambda se: se.groupby("A").corrwith, "corrwith"),
-        (lambda se: se.groupby("A").get_group("group"), "get_group"),
         (lambda se: se.groupby("A").dtypes, "dtypes"),
         (lambda se: se.groupby("A").pipe(lambda x: x.max() - x.min()), "pipe"),
         (lambda se: se.groupby("A").filter(lambda x: x.mean() > 3), "filter"),
@@ -49,7 +48,7 @@ import pytest
 def test_series_groupby_unsupported_methods_raises(
     mock_series, func, func_name
 ) -> None:
-    msg = f"{func_name} is not yet implemented for GroupBy"
+    msg = f"Snowpark pandas does not yet support the method GroupBy.{func_name}"
     with pytest.raises(NotImplementedError, match=msg):
         func(mock_series)
 
@@ -61,7 +60,6 @@ def test_series_groupby_unsupported_methods_raises(
         (lambda df: df.groupby("A").__len__(), "__len__"),
         (lambda df: df.groupby("A").__bytes__(), "__bytes__"),
         (lambda df: df.groupby("A").corrwith, "corrwith"),
-        (lambda df: df.groupby("A").get_group("group"), "get_group"),
         (lambda df: df.groupby("A").dtypes, "dtypes"),
         (lambda df: df.groupby("A").pipe(lambda x: x.max() - x.min()), "pipe"),
         (lambda df: df.groupby("A").filter(lambda x: x.mean() > 3), "filter"),
@@ -94,6 +92,6 @@ def test_series_groupby_unsupported_methods_raises(
 def test_dataframe_groupby_unsupported_methods_raises(
     mock_dataframe, func, func_name
 ) -> None:
-    msg = f"{func_name} is not yet implemented for GroupBy"
+    msg = f"Snowpark pandas does not yet support the method GroupBy.{func_name}"
     with pytest.raises(NotImplementedError, match=msg):
         func(mock_dataframe)

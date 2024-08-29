@@ -3,16 +3,20 @@
 #
 
 import copy
+import logging
 
 import pytest
 
+import snowflake.connector.errors
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col, parse_json
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
+    LongType,
     StringType,
     StructField,
     StructType,
@@ -20,10 +24,6 @@ from snowflake.snowpark.types import (
 from tests.utils import TestFiles, Utils
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: support truncate and column_order in save as table",
-)
 def test_write_with_target_column_name_order(session, local_testing_mode):
     table_name = Utils.random_table_name()
     empty_df = session.create_dataframe(
@@ -41,7 +41,7 @@ def test_write_with_target_column_name_order(session, local_testing_mode):
 
         # By default, it is by index
         df1.write.save_as_table(table_name, mode="append", table_type="temp")
-        Utils.check_answer(session.table(table_name), [Row(1, 2)])
+        Utils.check_answer(session.table(table_name), [Row(**{"A": 1, "B": 2})])
 
         # Explicitly use "index"
         empty_df.write.save_as_table(
@@ -50,7 +50,7 @@ def test_write_with_target_column_name_order(session, local_testing_mode):
         df1.write.save_as_table(
             table_name, mode="append", column_order="index", table_type="temp"
         )
-        Utils.check_answer(session.table(table_name), [Row(1, 2)])
+        Utils.check_answer(session.table(table_name), [Row(**{"A": 1, "B": 2})])
 
         # use order by "name"
         empty_df.write.save_as_table(
@@ -59,28 +59,76 @@ def test_write_with_target_column_name_order(session, local_testing_mode):
         df1.write.save_as_table(
             table_name, mode="append", column_order="name", table_type="temp"
         )
-        Utils.check_answer(session.table(table_name), [Row(2, 1)])
+        Utils.check_answer(session.table(table_name), [Row(**{"A": 2, "B": 1})])
 
-        # If target table doesn't exists, "order by name" is not actually used.
+        # If target table doesn't exist, "order by name" is not actually used.
         Utils.drop_table(session, table_name)
-        df1.write.saveAsTable(table_name, mode="append", column_order="name")
-        Utils.check_answer(session.table(table_name), [Row(1, 2)])
+        df1.write.save_as_table(table_name, mode="append", column_order="name")
+        # NOTE: Order is different in the below check
+        # because the table returns columns in the order of the order of the schema `df1`
+        Utils.check_answer(session.table(table_name), [Row(**{"B": 1, "A": 2})])
     finally:
         session.table(table_name).drop_table()
 
-    # column name and table name with special characters
-    special_table_name = '"test table name"'
-    Utils.create_table(
-        session, special_table_name, '"a a" int, "b b" int', is_temporary=True
-    )
-    try:
-        df2 = session.create_dataframe([(1, 2)]).to_df("b b", "a a")
-        df2.write.save_as_table(
-            special_table_name, mode="append", column_order="name", table_type="temp"
+    if not local_testing_mode:
+        # column name and table name with special characters
+        special_table_name = '"test table name"'
+        Utils.create_table(
+            session, special_table_name, '"a a" int, "b b" int', is_temporary=True
         )
-        Utils.check_answer(session.table(special_table_name), [Row(2, 1)])
+        try:
+            df2 = session.create_dataframe([(1, 2)]).to_df("b b", "a a")
+            df2.write.save_as_table(
+                special_table_name,
+                mode="append",
+                column_order="name",
+                table_type="temp",
+            )
+            Utils.check_answer(session.table(special_table_name), [Row(2, 1)])
+        finally:
+            Utils.drop_table(session, special_table_name)
+
+
+def test_write_truncate_with_less_columns(session):
+    # test truncate mode saving dataframe with fewer columns than the target table but column name in the same order
+    schema1 = StructType(
+        [
+            StructField("A", LongType(), False),
+            StructField("B", LongType(), True),
+        ]
+    )
+    schema2 = StructType([StructField("A", LongType(), False)])
+    df1 = session.create_dataframe([(1, 2), (3, 4)], schema=schema1)
+    df2 = session.create_dataframe([1, 2], schema=schema2)
+    table_name1 = Utils.random_table_name()
+
+    try:
+        df1.write.save_as_table(table_name1, mode="truncate")
+        Utils.check_answer(session.table(table_name1), [Row(1, 2), Row(3, 4)])
+        df2.write.save_as_table(table_name1, mode="truncate")
+        Utils.check_answer(session.table(table_name1), [Row(1, None), Row(2, None)])
     finally:
-        Utils.drop_table(session, special_table_name)
+        Utils.drop_table(session, table_name1)
+
+    # test truncate mode saving dataframe with fewer columns than the target table but column name not in order
+    schema3 = StructType(
+        [
+            StructField("A", LongType(), True),
+            StructField("B", LongType(), True),
+        ]
+    )
+    schema4 = StructType([StructField("B", LongType(), False)])
+    df3 = session.create_dataframe([(1, 2), (3, 4)], schema=schema3)
+    df4 = session.create_dataframe([1, 2], schema=schema4)
+    table_name2 = Utils.random_table_name()
+
+    try:
+        df3.write.save_as_table(table_name2, mode="truncate")
+        Utils.check_answer(session.table(table_name2), [Row(1, 2), Row(3, 4)])
+        df4.write.save_as_table(table_name2, mode="truncate")
+        Utils.check_answer(session.table(table_name2), [Row(None, 1), Row(None, 2)])
+    finally:
+        Utils.drop_table(session, table_name2)
 
 
 @pytest.mark.xfail(
@@ -105,10 +153,6 @@ def test_write_with_target_table_autoincrement(
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: Inserting data into table by matching columns is not supported",
-)
 def test_negative_write_with_target_column_name_order(session):
     table_name = Utils.random_table_name()
     session.create_dataframe(
@@ -137,6 +181,105 @@ def test_negative_write_with_target_column_name_order(session):
                 )
     finally:
         session.table(table_name).drop_table()
+
+
+def test_write_with_target_column_name_order_all_kinds_of_dataframes_without_truncates(
+    session,
+):
+    table_name = Utils.random_table_name()
+
+    session.create_dataframe(
+        [],
+        schema=StructType(
+            [StructField("a", IntegerType()), StructField("b", IntegerType())]
+        ),
+    ).write.save_as_table(table_name, table_type="temporary")
+
+    try:
+        large_df = session.create_dataframe([[1, 2]] * 1024, schema=["b", "a"])
+        large_df.write.save_as_table(
+            table_name, mode="append", column_order="name", table_type="temp"
+        )
+        rows = session.table(table_name).collect()
+        assert len(rows) == 1024
+        for row in rows:
+            assert row["B"] == 1 and row["A"] == 2
+    finally:
+        session.table(table_name).drop_table()
+
+
+def test_write_with_target_column_name_order_with_nullable_column(
+    session, local_testing_mode
+):
+    table_name, non_nullable_table_name = (
+        Utils.random_table_name(),
+        Utils.random_table_name(),
+    )
+
+    session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField("b", IntegerType()),
+                StructField("c", StringType(), nullable=True),
+                StructField("d", StringType(), nullable=True),
+            ]
+        ),
+    ).write.save_as_table(table_name, table_type="temporary")
+
+    session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField("b", StringType(), nullable=False),
+            ]
+        ),
+    ).write.save_as_table(non_nullable_table_name, table_type="temporary")
+    try:
+        df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["b", "a"])
+
+        df1.write.save_as_table(
+            table_name, mode="append", table_type="temp", column_order="name"
+        )
+        Utils.check_answer(
+            session.table(table_name),
+            [
+                Row(
+                    **{
+                        "A": 2,
+                        "B": 1,
+                        "C": None,
+                        "D": None,
+                    }
+                ),
+                Row(
+                    **{
+                        "A": 4,
+                        "B": 3,
+                        "C": None,
+                        "D": None,
+                    }
+                ),
+            ],
+        )
+
+        df2 = session.create_dataframe([[1], [2]], schema=["a"])
+        with pytest.raises(
+            SnowparkLocalTestingException
+            if local_testing_mode
+            else snowflake.connector.errors.IntegrityError
+        ):
+            df2.write.save_as_table(
+                non_nullable_table_name,
+                mode="append",
+                table_type="temp",
+                column_order="name",
+            )
+    finally:
+        session.table(table_name).drop_table()
+        session.table(non_nullable_table_name).drop_table()
 
 
 @pytest.mark.skipif(
@@ -393,7 +536,7 @@ def test_write_table_names(session, db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
 )
-def test_writer_csv(session, tmpdir_factory):
+def test_writer_csv(session, caplog):
 
     """Tests for df.write.csv()."""
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [3, 7]], schema=["a", "b"])
@@ -448,6 +591,32 @@ def test_writer_csv(session, tmpdir_factory):
         assert result6[0].rows_unloaded == ROWS_COUNT
         data6 = session.read.schema(schema).csv(f"@{path6}")
         Utils.assert_rows_count(data6, ROWS_COUNT)
+
+        # test option alias case
+        path7 = f"{temp_stage}/test_csv_example7/my_file.csv.gz"
+        with caplog.at_level(logging.WARNING):
+            result7 = df.write.csv(
+                path7,
+                format_type_options={"SEP": ":", "quote": '"'},
+                single=True,
+                header=True,
+            )
+        assert "Option 'SEP' is aliased to 'FIELD_DELIMITER'." in caplog.text
+        assert (
+            "Option 'quote' is aliased to 'FIELD_OPTIONALLY_ENCLOSED_BY'."
+            in caplog.text
+        )
+
+        assert result7[0].rows_unloaded == ROWS_COUNT
+        data7 = (
+            session.read.schema(schema)
+            .option("header", True)
+            .option("inferSchema", True)
+            .option("SEP", ":")
+            .option("quote", '"')
+            .csv(f"@{path7}")
+        )
+        Utils.check_answer(data7, df)
     finally:
         Utils.drop_stage(session, temp_stage)
 

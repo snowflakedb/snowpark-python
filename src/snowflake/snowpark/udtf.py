@@ -427,7 +427,7 @@ class UDTFRegistration:
             -----------------------------
             <BLANKLINE>
 
-    [Preview Feature] The syntax for declaring UDTF with a vectorized process method is similar to above.
+    The syntax for declaring UDTF with a vectorized process method is similar to above.
     Defining ``__init__`` and ``end_partition`` methods are optional. The ``process`` method only accepts one
     argument which is the pandas Dataframe object, and outputs the same number of rows as is in the given input.
     Both ``__init__`` and ``end_partition`` do not take any additional arguments.
@@ -894,6 +894,7 @@ class UDTFRegistration:
             is_dataframe_input,
             output_schema,
             input_types,
+            opt_arg_defaults,
         ) = process_registration_inputs(
             self._session,
             TempObjectType.TABLE_FUNCTION,
@@ -945,6 +946,7 @@ class UDTFRegistration:
                 func=handler,
                 return_type=output_schema,
                 input_args=input_args,
+                opt_arg_defaults=opt_arg_defaults,
                 handler=handler_name,
                 object_type=TempObjectType.FUNCTION,
                 object_name=udtf_name,

@@ -27,6 +27,7 @@ from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
     result_set_to_rows,
@@ -35,7 +36,7 @@ from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.mock._options import pandas
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
-from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
+from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.mock._util import get_fully_qualified_name
@@ -121,8 +122,12 @@ class MockServerConnection:
                 )
 
         def write_table(
-            self, name: Union[str, Iterable[str]], table: TableEmulator, mode: SaveMode
-        ) -> Row:
+            self,
+            name: Union[str, Iterable[str]],
+            table: TableEmulator,
+            mode: SaveMode,
+            column_names: Optional[List[str]] = None,
+        ) -> List[Row]:
             for column in table.columns:
                 if not table[column].sf_type.nullable and table[column].isnull().any():
                     raise SnowparkLocalTestingException(
@@ -133,21 +138,49 @@ class MockServerConnection:
             name = get_fully_qualified_name(name, current_schema, current_database)
             table = copy(table)
             if mode == SaveMode.APPEND:
-                # Fix append by index
                 if name in self.table_registry:
                     target_table = self.table_registry[name]
+                    input_schema = table.columns.to_list()
+                    existing_schema = target_table.columns.to_list()
 
-                    if len(table.columns.to_list()) != len(
-                        target_table.columns.to_list()
-                    ):
-                        raise SnowparkLocalTestingException(
-                            f"Cannot append because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
-                        )
+                    if not column_names:  # append with column_order being index
+                        if len(input_schema) != len(existing_schema):
+                            raise SnowparkLocalTestingException(
+                                f"Cannot append because incoming data has different schema {input_schema} than existing table {existing_schema}"
+                            )
+                        # temporarily align the column names of both dataframe to be col indexes 0, 1, ... N - 1
+                        table.columns = range(table.shape[1])
+                        target_table.columns = range(target_table.shape[1])
+                    else:  # append with column_order being name
+                        if invalid_cols := set(input_schema) - set(existing_schema):
+                            identifiers = "', '".join(
+                                unquote_if_quoted(id) for id in invalid_cols
+                            )
+                            raise SnowparkLocalTestingException(
+                                f"table contains invalid identifier '{identifiers}'"
+                            )
+                        invalid_non_nullable_cols = []
+                        for missing_col in set(existing_schema) - set(input_schema):
+                            if target_table[missing_col].sf_type.nullable:
+                                table[missing_col] = None
+                                table.sf_types[missing_col] = target_table[
+                                    missing_col
+                                ].sf_type
+                            else:
+                                invalid_non_nullable_cols.append(missing_col)
+                        if invalid_non_nullable_cols:
+                            identifiers = "', '".join(
+                                unquote_if_quoted(id)
+                                for id in invalid_non_nullable_cols
+                            )
+                            raise SnowparkLocalTestingException(
+                                f"NULL result in a non-nullable column '{identifiers}'"
+                            )
 
-                    table.columns = target_table.columns
                     self.table_registry[name] = pandas.concat(
                         [target_table, table], ignore_index=True
                     )
+                    self.table_registry[name].columns = existing_schema
                     self.table_registry[name].sf_types = target_table.sf_types
                 else:
                     self.table_registry[name] = table
@@ -164,22 +197,25 @@ class MockServerConnection:
             elif mode == SaveMode.TRUNCATE:
                 if name in self.table_registry:
                     target_table = self.table_registry[name]
-                    input_schema = table.columns.to_list()
-                    existing_schema = target_table.columns.to_list()
-                    if len(input_schema) <= len(existing_schema) and (
-                        all(
-                            target_table[col].sf_type.nullable
-                            for col in (existing_schema[len(input_schema) :])
-                        )
+                    input_schema = set(table.columns.to_list())
+                    existing_schema = set(target_table.columns.to_list())
+                    # input is a subset of existing schema and all missing columns are nullable
+                    if input_schema.issubset(existing_schema) and all(
+                        target_table[col].sf_type.nullable
+                        for col in set(existing_schema - input_schema)
                     ):
-                        for col in existing_schema[len(input_schema) :]:
-                            table[col] = None
-                            table.sf_types[col] = target_table[col].sf_type
+                        for col in set(existing_schema - input_schema):
+                            table[col] = ColumnEmulator(
+                                data=[None] * table.shape[0],
+                                sf_type=target_table[col].sf_type,
+                                dtype=object,
+                            )
                     else:
                         raise SnowparkLocalTestingException(
                             f"Cannot truncate because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
                         )
-
+                    table.sf_types_by_col_index = target_table.sf_types_by_col_index
+                    table = table.reindex(columns=target_table.columns)
                 self.table_registry[name] = table
             else:
                 raise SnowparkLocalTestingException(f"Unrecognized mode: {mode}")
@@ -369,7 +405,7 @@ class MockServerConnection:
                 name="source",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -378,7 +414,7 @@ class MockServerConnection:
                 name="target",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -387,7 +423,7 @@ class MockServerConnection:
                 name="source_size",
                 type_code=0,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=0,
                 scale=0,
                 is_nullable=False,
@@ -396,7 +432,7 @@ class MockServerConnection:
                 name="target_size",
                 type_code=0,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=0,
                 scale=0,
                 is_nullable=False,
@@ -405,7 +441,7 @@ class MockServerConnection:
                 name="source_compression",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -414,7 +450,7 @@ class MockServerConnection:
                 name="target_compression",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -423,7 +459,7 @@ class MockServerConnection:
                 name="status",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -432,7 +468,7 @@ class MockServerConnection:
                 name="message",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -571,10 +607,12 @@ class MockServerConnection:
                 )
                 row = row_struct(
                     *[
-                        Decimal("{0:.{1}f}".format(v, sf_types[i].datatype.scale))
-                        if isinstance(sf_types[i].datatype, DecimalType)
-                        and v is not None
-                        else v
+                        (
+                            Decimal("{0:.{1}f}".format(v, sf_types[i].datatype.scale))
+                            if isinstance(sf_types[i].datatype, DecimalType)
+                            and v is not None
+                            else v
+                        )
                         for i, v in enumerate(pdr)
                     ]
                 )
@@ -636,9 +674,11 @@ class MockServerConnection:
         attrs = [
             Attribute(
                 name=quote_name(column_name.strip()),
-                datatype=column_data.sf_type
-                if column_data.sf_type
-                else res.sf_types[column_name],
+                datatype=(
+                    column_data.sf_type
+                    if column_data.sf_type
+                    else res.sf_types[column_name]
+                ),
             )
             for column_name, column_data in res.items()
         ]
@@ -666,6 +706,10 @@ class MockServerConnection:
             internal_feature_name="MockServerConnection.get_result_query_id",
             raise_error=NotImplementedError,
         )
+
+    @property
+    def max_string_size(self) -> int:
+        return DEFAULT_STRING_SIZE
 
 
 def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":

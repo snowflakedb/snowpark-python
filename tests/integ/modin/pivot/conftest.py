@@ -373,3 +373,13 @@ def df_data_with_nulls_2():
         "E": [1, 2],
         "F": [None, 2],
     }
+
+
+@pytest.fixture(scope="module")
+def df_pivot_data():
+    return {
+        "foo": ["one", "one", "one", "two", "two", "two"],
+        "bar": ["A", "B", "C", "A", "B", "C"],
+        "baz": [1, 2, 3, 4, 5, 6],
+        "zoo": ["x", "y", "z", "q", "w", "t"],
+    }

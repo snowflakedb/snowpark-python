@@ -95,3 +95,29 @@ def clear_warning_dict():
     # clear the warning dict so that warnings from one test don't affect
     # warnings from other tests.
     warning_dict.clear()
+
+
+# the fixture only works when opentelemetry is installed
+try:
+    from opentelemetry import trace
+    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    @pytest.fixture(scope="session")
+    def dict_exporter():
+        resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
+        trace_provider = TracerProvider(resource=resource)
+        dict_exporter = InMemorySpanExporter()
+        processor = SimpleSpanProcessor(dict_exporter)
+        trace_provider.add_span_processor(processor)
+        trace.set_tracer_provider(trace_provider)
+        yield dict_exporter
+
+    opentelemetry_installed = True
+
+except ModuleNotFoundError:
+    opentelemetry_installed = False

@@ -41,6 +41,25 @@ BaseInternalKeyType = Union[
 ]
 
 NO_GROUPKEY_ERROR = ValueError("No group keys passed!")
+GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE = [
+    "min",
+    "max",
+    "sum",
+    "mean",
+    "median",
+    "std",
+    "first",
+    "last",
+]
+GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES = [
+    "any",
+    "all",
+    "count",
+    "idxmax",
+    "idxmin",
+    "size",
+    "nunique",
+]
 
 
 def is_groupby_value_label_like(val: Any) -> bool:
@@ -386,6 +405,8 @@ def get_frame_with_groupby_columns_as_index(
             data_column_pandas_labels=internal_frame.data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
+            data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
         )
     )
 

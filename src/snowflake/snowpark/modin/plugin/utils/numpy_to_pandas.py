@@ -3,8 +3,9 @@
 #
 from typing import Any, Optional, Union
 
+from modin.pandas.base import BasePandasDataset
+
 import snowflake.snowpark.modin.pandas as pd
-from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 from snowflake.snowpark.modin.pandas.utils import is_scalar
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
@@ -78,18 +79,12 @@ def where_mapper(
         )
         # handles np.where(df1, df2, df3)
         if hasattr(x, "_query_compiler") and hasattr(y, "_query_compiler"):
-            return x.__constructor__(  # type: ignore
-                query_compiler=x._query_compiler.where(  # type: ignore
-                    cond._query_compiler, y._query_compiler  # type: ignore
-                )
-            )
+            return x.where(cond, y)  # type: ignore
 
         # handles np.where(df1, df2, scalar)
         if hasattr(x, "_query_compiler") and is_scalar(y):
             # no need to broadcast y
-            return x.__constructor__(  # type: ignore
-                query_compiler=x._query_compiler.where(cond._query_compiler, y)  # type: ignore
-            )
+            return x.where(cond, y)  # type: ignore
 
         if is_scalar(x):
             # broadcast scalar x to size of cond
@@ -102,19 +97,8 @@ def where_mapper(
                 )
 
             # handles np.where(df, scalar1, scalar2)
-            if is_scalar(y):
-                return cond.__constructor__(  # type: ignore
-                    query_compiler=df_scalar._query_compiler.where(  # type: ignore
-                        cond._query_compiler, y  # type: ignore
-                    )
-                )
             # handles np.where(df1, scalar, df2)
-            if hasattr(y, "_query_compiler"):
-                return cond.__constructor__(  # type: ignore
-                    query_compiler=df_scalar._query_compiler.where(  # type: ignore
-                        cond._query_compiler, y._query_compiler  # type: ignore
-                    )
-                )
+            return df_scalar.where(cond, y)
     # return the sentinel NotImplemented if we do not support this function
     return NotImplemented
 

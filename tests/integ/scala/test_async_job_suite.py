@@ -120,13 +120,18 @@ def test_async_to_pandas_common(session):
 def test_async_to_pandas_batches(session):
     df = session.range(100000).cache_result()
     async_job = df.to_pandas_batches(block=False)
+
     res = list(async_job.result())
     expected_res = list(df.to_pandas_batches())
     assert len(res) > 0
     assert len(expected_res) > 0
-    for r, er in zip(res, expected_res):
-        assert_frame_equal(r, er)
-        break
+    res = pd.concat(res, axis=0).sort_values(by="ID").reset_index(level=0, drop=True)
+    expected_res = (
+        pd.concat(expected_res, axis=0)
+        .sort_values(by="ID")
+        .reset_index(level=0, drop=True)
+    )
+    assert_frame_equal(res, expected_res, check_dtype=False)
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
@@ -364,13 +369,6 @@ def test_async_is_running_and_cancel(session):
     # If query is canceled, it takes less time than originally needed
     assert (time() - start) < 20
     assert async_job2.is_done()
-
-
-@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Requires large result")
-def test_async_place_holder(session):
-    exp = session.sql("show functions").where("1=1").collect()
-    async_job = session.sql("show functions").where("1=1").collect_nowait()
-    Utils.check_answer(async_job.result(), exp)
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")

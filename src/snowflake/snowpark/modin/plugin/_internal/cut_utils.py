@@ -127,7 +127,7 @@ def preprocess_bins_for_cut(
 
     if not np.iterable(bins):
         # Call adjusted function from pandas 2.2.x branch
-        assert type(bins) is int
+        assert type(bins) is int, f"type(bins) is not int but {type(bins)}"
         bins = _nbins_to_bins(x_min, x_max, bins, right)
 
     elif isinstance(bins, IntervalIndex):
@@ -310,6 +310,8 @@ def compute_bin_indices(
         data_column_snowflake_quoted_identifiers=[new_data_identifier],
         index_column_pandas_labels=value_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=value_index_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
     return new_frame
