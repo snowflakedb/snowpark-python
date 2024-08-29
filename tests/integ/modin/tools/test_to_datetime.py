@@ -15,7 +15,8 @@ import pandas as native_pd
 import pandas._testing as tm
 import pytest
 import pytz
-from modin.pandas import DatetimeIndex, NaT, Series, Timestamp, to_datetime
+from modin.pandas import NaT, Series, Timestamp, to_datetime
+from pandas import DatetimeIndex
 from pandas.core.arrays import DatetimeArray
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -25,6 +26,7 @@ from snowflake.snowpark.exceptions import (
 )
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
+    assert_index_equal,
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
     eval_snowpark_pandas_result,
@@ -57,10 +59,10 @@ class TestTimeConversionFormats:
         if readonly:
             arr.setflags(write=False)
         result = to_datetime(arr)
-        expected = Series([], dtype=object)
-        assert_series_equal(result, expected)
+        expected = pd.DatetimeIndex([])
+        assert_index_equal(result, expected)
 
-    @pytest.mark.parametrize("box", [Series, native_pd.Index])
+    @pytest.mark.parametrize("box", [Series, pd.Index])
     @pytest.mark.parametrize(
         "format, expected",
         [
@@ -78,11 +80,18 @@ class TestTimeConversionFormats:
     def test_to_datetime_format(self, cache, box, format, expected):
         values = box(["1/1/2000", "1/2/2000", "1/3/2000"])
         result = to_datetime(values, format=format, cache=cache)
-        expected = Series(expected)
-        assert_series_equal(result, expected)
+        expected = box(expected)
+        if box is Series:
+            assert_series_equal(result, expected)
+        else:
+            assert_index_equal(result, expected)
+
         # cache values is ignored at Snowpark pandas so only test here to make sure it works as well
         result = to_datetime(values, format=format, cache=False)
-        assert_series_equal(result, expected)
+        if box is Series:
+            assert_series_equal(result, expected)
+        else:
+            assert_index_equal(result, expected)
 
     @pytest.mark.parametrize(
         "arg, expected, format",
@@ -234,9 +243,9 @@ class TestTimeConversionFormats:
         # GH 30011
         # format='yyyymmdd'
         # with None
-        expected = Series([Timestamp("19801222"), Timestamp("20010112"), NaT])
-        result = Series(to_datetime(input_s, format="%Y%m%d"))
-        assert_series_equal(result, expected)
+        expected = pd.DatetimeIndex([Timestamp("19801222"), Timestamp("20010112"), NaT])
+        result = to_datetime(input_s, format="%Y%m%d")
+        assert_index_equal(result, expected)
 
     @pytest.mark.parametrize(
         "input, expected",
@@ -294,7 +303,7 @@ class TestTimeConversionFormats:
     def test_to_datetime_with_NA(self, data, format, expected):
         # GH#42957
         result = to_datetime(data, format=format)
-        assert_series_equal(result, Series(expected))
+        assert_index_equal(result, pd.DatetimeIndex(expected))
 
     @sql_count_checker(query_count=1, udf_count=0)
     def test_to_datetime_format_integer_year_only(self, cache):
@@ -508,10 +517,10 @@ class TestTimeConversionFormats:
         fmt = "%Y-%m-%d %H:%M:%S %z"
 
         result = to_datetime(dates, format=fmt, utc=True)
-        expected = Series(expected_dates)
-        assert_series_equal(result, expected)
+        expected = pd.DatetimeIndex(expected_dates)
+        assert_index_equal(result, expected)
         result2 = to_datetime(dates, utc=True)
-        assert_series_equal(result2, expected)
+        assert_index_equal(result2, expected)
 
     @pytest.mark.parametrize(
         "offset", ["+0", "-1foo", "UTCbar", ":10", "+01:000:01", ""]
@@ -528,8 +537,7 @@ class TestTimeConversionFormats:
         ):
             to_datetime([date], format=fmt).to_pandas()
 
-    # 2 extra queries to convert index to series
-    @sql_count_checker(query_count=2)
+    @sql_count_checker(query_count=0)
     def test_to_datetime_parse_timezone_keeps_name(self):
         # GH 21697
         fmt = "%Y-%m-%d %H:%M:%S %z"
@@ -546,14 +554,14 @@ class TestToDatetime:
         res = to_datetime(["2020-01-01 17:00:00 -0100", d2])
         # The input will become a series with variant type and the timezone is unaware by the Snowflake engine, so the
         # result ignores the timezone by default
-        expected = native_pd.Series(
+        expected = native_pd.DatetimeIndex(
             [datetime(2020, 1, 1, 17), datetime(2020, 1, 1, 18)]
         )
-        assert_series_equal(res, expected, check_dtype=False, check_index_type=False)
+        assert_index_equal(res, expected)
         # Set utc=True to make sure timezone aware in to_datetime
         res = to_datetime(["2020-01-01 17:00:00 -0100", d2], utc=True)
-        expected = pd.Series([d1, d2])
-        assert_series_equal(res, expected, check_dtype=False, check_index_type=False)
+        expected = pd.DatetimeIndex([d1, d2])
+        assert_index_equal(res, expected)
 
     @pytest.mark.parametrize(
         "tz",
@@ -567,8 +575,9 @@ class TestToDatetime:
         # DatetimeArray
         dti = native_pd.date_range("1965-04-03", periods=19, freq="2W", tz=tz)
         arr = DatetimeArray(dti)
+        # Use assert_series_equal to ignore timezone difference in dtype.
         assert_series_equal(
-            to_datetime(arr),
+            Series(to_datetime(arr)),
             Series(arr),
             check_dtype=False,
         )

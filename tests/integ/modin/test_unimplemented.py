@@ -43,9 +43,34 @@ def eval_and_validate_unsupported_methods(
         func(snow_pd_args)
 
 
+def unimplemented_dt_index_helper(name, *args):
+    # Helper method for methods that require the frame to have a DatetimeIndex and tz-aware timestamp data.
+    # If the argument is a native pandas object, then convert its index to DatetimeIndex.
+    # If the argument is a Snowpark pandas object, pass it as-is, since it should fail at the
+    # query compiler layer without validating the index object.
+    def helper(df):
+        if isinstance(df, (native_pd.DataFrame, native_pd.Series)):
+            # When the method is tz_convert, the index must already be tz-aware
+            # otherwise leave it tz-naive
+            df.index = native_pd.to_datetime(range(len(df)), utc=name == "tz_convert")
+        return getattr(df, name)(*args)
+
+    return helper, name
+
+
 # unsupported methods for both dataframe and series
 UNSUPPORTED_DATAFRAME_SERIES_METHODS = [
     (lambda df: df.cumprod(), "cumprod"),
+    unimplemented_dt_index_helper("at_time", "12:00"),
+    unimplemented_dt_index_helper("between_time", "12:00", "13:00"),
+    (lambda df: df.explode("a"), "explode"),
+    (lambda df: df.infer_objects(), "infer_objects"),
+    (lambda df: df.kurt(), "kurt"),
+    (lambda df: df.kurtosis(), "kurtosis"),
+    (lambda df: df.mode(), "mode"),
+    (lambda df: df.sem(), "sem"),
+    unimplemented_dt_index_helper("tz_convert", "US/Central"),
+    unimplemented_dt_index_helper("tz_localize", "US/Central"),
 ]
 
 # unsupported methods that can only be applied on dataframe
@@ -58,6 +83,7 @@ UNSUPPORTED_DATAFRAME_METHODS = [
 UNSUPPORTED_SERIES_METHODS = [
     (lambda se: se.is_monotonic_increasing, "property fget:is_monotonic_increasing"),
     (lambda se: se.is_monotonic_decreasing, "property fget:is_monotonic_decreasing"),
+    (lambda df: df.transform(lambda x: x + 1), "transform"),
 ]
 
 # unsupported binary operations that can be applied on both dataframe and series
@@ -65,6 +91,10 @@ UNSUPPORTED_SERIES_METHODS = [
 UNSUPPORTED_BINARY_METHODS = [
     # TODO SNOW-862664, support together with combine
     # (lambda dfs: dfs[0].combine(dfs[1], np.minimum, fill_value=1), "combine"),
+    (lambda dfs: dfs[0].align(dfs[1]), "align"),
+    (lambda dfs: dfs[0].combine(dfs[1], func=lambda a, b: a), "combine"),
+    (lambda dfs: dfs[0].combine_first(dfs[1]), "combine_first"),
+    (lambda dfs: dfs[0].reindex_like(dfs[1]), "reindex_like"),
     (lambda dfs: dfs[0].update(dfs[1]), "update"),
 ]
 
@@ -117,7 +147,7 @@ def test_unsupported_dataframe_binary_methods(func, func_name, caplog) -> None:
     "func, func_name",
     UNSUPPORTED_BINARY_METHODS,
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_unsupported_series_binary_methods(func, func_name, caplog) -> None:
     native_se1 = native_pd.Series([1, 2, 3, 0, 2])
     native_se2 = native_pd.Series([2, 3, 10, 0, 1])
@@ -148,60 +178,23 @@ def test_unsupported_str_methods(func, func_name, caplog) -> None:
     eval_and_validate_unsupported_methods(func, func_name, [native_series], caplog)
 
 
-# This set of method triggers DateTimeDefault
-# The full set of DateTimeAccessor test is under tests/integ/modin/series/test_dt_accessor.py
-UNSUPPORTED_DT_METHODS = [
-    (lambda ds: ds.dt.is_month_start, "property fget:is_month_start"),
-    (lambda ds: ds.dt.is_year_end, "property fget:is_year_end"),
-]
-
-
-@pytest.mark.parametrize(
-    "func, func_name",
-    UNSUPPORTED_DT_METHODS,
-)
-@sql_count_checker(query_count=0)
-def test_unsupported_dt_methods(func, func_name, caplog) -> None:
-    datetime_series = native_pd.Series(
-        native_pd.date_range("2000-01-01", periods=3, freq="h")
-    )
-    eval_and_validate_unsupported_methods(func, func_name, [datetime_series], caplog)
-
-
 # unsupported methods for Index
 UNSUPPORTED_INDEX_METHODS = [
     lambda idx: idx.is_monotonic_increasing(),
     lambda idx: idx.is_monotonic_decreasing(),
     lambda idx: idx.nbytes(),
     lambda idx: idx.memory_usage(),
-    lambda idx: idx.all(),
-    lambda idx: idx.any(),
-    lambda idx: idx.all(),
-    lambda idx: idx.argmin(),
-    lambda idx: idx.argmax(),
     lambda idx: idx.delete(),
-    lambda idx: idx.all(),
     lambda idx: idx.drop_duplicates(),
     lambda idx: idx.factorize(),
-    lambda idx: idx.identical(),
     lambda idx: idx.insert(),
     lambda idx: idx.is_(),
-    lambda idx: idx.is_boolean(),
     lambda idx: idx.is_categorical(),
-    lambda idx: idx.is_floating(),
-    lambda idx: idx.is_integer(),
     lambda idx: idx.is_interval(),
-    lambda idx: idx.is_numeric(),
-    lambda idx: idx.is_object(),
-    lambda idx: idx.min(),
-    lambda idx: idx.max(),
-    lambda idx: idx.reindex(),
-    lambda idx: idx.rename(),
     lambda idx: idx.repeat(),
     lambda idx: idx.where(),
     lambda idx: idx.take(),
     lambda idx: idx.putmask(),
-    lambda idx: idx.nunique(),
     lambda idx: idx.droplevel(),
     lambda idx: idx.fillna(),
     lambda idx: idx.dropna(),

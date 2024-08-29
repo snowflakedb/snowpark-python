@@ -241,19 +241,44 @@ class Resampler(metaclass=TelemetryMeta):
         )
 
     def backfill(self, limit: Optional[int] = None):
-        self._method_not_implemented("backfill")  # pragma: no cover
+        return self.bfill(limit=limit)
 
-    def bfill(self, limit: Optional[int] = None):  # pragma: no cover
-        self._method_not_implemented("bfill")
+    def bfill(self, limit: Optional[int] = None):
+        is_series = not self._dataframe._is_dataframe
 
-    def pad(self, limit: Optional[int] = None):  # pragma: no cover
-        self._method_not_implemented("pad")
+        if limit is not None:
+            ErrorMessage.not_implemented(
+                "Parameter limit of resample.bfill has not been implemented."
+            )
+
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.resample(
+                self.resample_kwargs,
+                "bfill",
+                (),
+                {},
+                is_series,
+            )
+        )
+
+    def pad(self, limit: Optional[int] = None):
+        return self.ffill(limit=limit)
 
     def nearest(self, limit: Optional[int] = None):  # pragma: no cover
         self._method_not_implemented("nearest")
 
-    def fillna(self, method, limit: Optional[int] = None):  # pragma: no cover
-        self._method_not_implemented("fillna")
+    def fillna(self, method: str, limit: Optional[int] = None):
+        if not isinstance(method, str) or method not in (
+            "pad",
+            "ffill",
+            "backfill",
+            "bfill",
+            "nearest",
+        ):
+            raise ValueError(
+                f"Invalid fill method. Expecting pad (ffill), backfill (bfill) or nearest. Got {method}"
+            )
+        return getattr(self, method)(limit=limit)
 
     def asfreq(self, fill_value: Optional[Any] = None):  # pragma: no cover
         self._method_not_implemented("asfreq")

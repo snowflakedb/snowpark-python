@@ -23,7 +23,7 @@
 from __future__ import annotations
 
 from collections.abc import Hashable, Iterable, Mapping, Sequence
-from datetime import date, datetime, tzinfo
+from datetime import date, datetime, timedelta, tzinfo
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal, Union
 
@@ -31,11 +31,13 @@ import numpy as np
 import pandas
 import pandas.core.common as common
 from modin.pandas import Series
-from pandas import IntervalIndex, NaT, Timestamp
+from modin.pandas.base import BasePandasDataset
+from pandas import IntervalIndex, NaT, Timedelta, Timestamp
 from pandas._libs import NaTType, lib
 from pandas._libs.tslibs import to_offset
 from pandas._typing import (
     AnyArrayLike,
+    ArrayLike,
     Axis,
     DateTimeErrorChoices,
     IndexLabel,
@@ -56,11 +58,11 @@ from pandas.core.tools.datetimes import (
     DatetimeScalarOrArrayConvertible,
     DictConvertible,
 )
+from pandas.errors import MergeError
 from pandas.util._validators import validate_inclusive
 
 # add this line to make doctests runnable
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
-from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.pandas.utils import (
     is_scalar,
@@ -394,29 +396,163 @@ def merge_ordered(
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
-@pandas_module_level_function_not_implemented()
 @_inherit_docstrings(pandas.merge_asof, apilink="pandas.merge_asof")
 def merge_asof(
     left,
     right,
-    on=None,
-    left_on=None,
-    right_on=None,
+    on: str | None = None,
+    left_on: str | None = None,
+    right_on: str | None = None,
     left_index: bool = False,
     right_index: bool = False,
-    by=None,
-    left_by=None,
-    right_by=None,
-    suffixes=("_x", "_y"),
-    tolerance=None,
+    by: str | list[str] | None = None,
+    left_by: str | None = None,
+    right_by: str | None = None,
+    suffixes: Suffixes = ("_x", "_y"),
+    tolerance: int | Timedelta | None = None,
     allow_exact_matches: bool = True,
     direction: str = "backward",
-) -> DataFrame:  # noqa: PR01, RT01, D200
+) -> snowflake.snowpark.modin.pandas.DataFrame:
     """
     Perform a merge by key distance.
+
+    This is similar to a left-join except that we match on nearest key rather than equal keys.
+    Both DataFrames must be sorted by the key. For each row in the left DataFrame:
+
+    A “backward” search selects the last row in the right DataFrame whose ‘on’ key is less than or equal to the left’s key.
+    A “forward” search selects the first row in the right DataFrame whose ‘on’ key is greater than or equal to the left’s key.
+    A “nearest” search selects the row in the right DataFrame whose ‘on’ key is closest in absolute distance to the left’s key.
+
+    Optionally match on equivalent keys with ‘by’ before searching with ‘on’.
+
+    Parameters
+    ----------
+    left : :class:`~snowflake.snowpark.modin.pandas.DataFrame` or named :class:`~snowflake.snowpark.modin.pandas.Series`.
+    right : :class:`~snowflake.snowpark.modin.pandas.DataFrame` or named :class:`~snowflake.snowpark.modin.pandas.Series`.
+    on : label
+        Field name to join on. Must be found in both DataFrames. The data MUST be ordered.
+        Furthermore, this must be a numeric column such as datetimelike, integer, or float.
+        On or left_on/right_on must be given.
+    left_on : label
+        Field name to join on in left DataFrame.
+    right_on : label
+        Field name to join on in right DataFrame.
+    left_index : bool
+        Use the index of the left DataFrame as the join key.
+    right_index : bool
+        Use the index of the right DataFrame as the join key.
+    by : column name or list of column names
+        Match on these columns before performing merge operation.
+    left_by : column name
+        Field names to match on in the left DataFrame.
+    right_by : column name
+        Field names to match on in the right DataFrame.
+    suffixes : 2-length sequence (tuple, list, …)
+        Suffix to apply to overlapping column names in the left and right side, respectively.
+    tolerance: int or Timedelta, optional, default None
+        Select asof tolerance within this range; must be compatible with the merge index.
+    allow_exact_matches : bool, default True
+        If True, allow matching with the same ‘on’ value (i.e. less-than-or-equal-to / greater-than-or-equal-to)
+        If False, don’t match the same ‘on’ value (i.e., strictly less-than / strictly greater-than).
+    direction : ‘backward’ (default), ‘forward’, or ‘nearest’
+        Whether to search for prior, subsequent, or closest matches.
+
+    Returns
+    -------
+    Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+
+    Examples
+    --------
+    >>> left = pd.DataFrame({"a": [1, 5, 10], "left_val": ["a", "b", "c"]})
+    >>> left
+        a left_val
+    0   1        a
+    1   5        b
+    2  10        c
+    >>> right = pd.DataFrame({"a": [1, 2, 3, 6, 7], "right_val": [1, 2, 3, 6, 7]})
+    >>> right
+       a  right_val
+    0  1          1
+    1  2          2
+    2  3          3
+    3  6          6
+    4  7          7
+    >>> pd.merge_asof(left, right, on="a")
+        a left_val  right_val
+    0   1        a          1
+    1   5        b          3
+    2  10        c          7
+    >>> pd.merge_asof(left, right, on="a", allow_exact_matches=False)
+        a left_val  right_val
+    0   1        a        NaN
+    1   5        b        3.0
+    2  10        c        7.0
+    >>> pd.merge_asof(left, right, on="a", direction="forward")
+        a left_val  right_val
+    0   1        a        1.0
+    1   5        b        6.0
+    2  10        c        NaN
+
+    Here is a real-world times-series example:
+
+    >>> quotes = pd.DataFrame(
+    ...    {
+    ...        "time": [
+    ...            pd.Timestamp("2016-05-25 13:30:00.023"),
+    ...            pd.Timestamp("2016-05-25 13:30:00.023"),
+    ...            pd.Timestamp("2016-05-25 13:30:00.030"),
+    ...            pd.Timestamp("2016-05-25 13:30:00.041"),
+    ...            pd.Timestamp("2016-05-25 13:30:00.048"),
+    ...            pd.Timestamp("2016-05-25 13:30:00.049"),
+    ...            pd.Timestamp("2016-05-25 13:30:00.072"),
+    ...            pd.Timestamp("2016-05-25 13:30:00.075")
+    ...        ],
+    ...        "bid": [720.50, 51.95, 51.97, 51.99, 720.50, 97.99, 720.50, 52.01],
+    ...        "ask": [720.93, 51.96, 51.98, 52.00, 720.93, 98.01, 720.88, 52.03]
+    ...    }
+    ... )
+    >>> quotes
+                         time     bid     ask
+    0 2016-05-25 13:30:00.023  720.50  720.93
+    1 2016-05-25 13:30:00.023   51.95   51.96
+    2 2016-05-25 13:30:00.030   51.97   51.98
+    3 2016-05-25 13:30:00.041   51.99   52.00
+    4 2016-05-25 13:30:00.048  720.50  720.93
+    5 2016-05-25 13:30:00.049   97.99   98.01
+    6 2016-05-25 13:30:00.072  720.50  720.88
+    7 2016-05-25 13:30:00.075   52.01   52.03
+    >>> trades = pd.DataFrame(
+    ...    {
+    ...        "time": [
+    ...            pd.Timestamp("2016-05-25 13:30:00.023"),
+    ...            pd.Timestamp("2016-05-25 13:30:00.038"),
+    ...            pd.Timestamp("2016-05-25 13:30:00.048"),
+    ...            pd.Timestamp("2016-05-25 13:30:00.048"),
+    ...            pd.Timestamp("2016-05-25 13:30:00.048")
+    ...        ],
+    ...        "price": [51.95, 51.95, 720.77, 720.92, 98.0],
+    ...        "quantity": [75, 155, 100, 100, 100]
+    ...    }
+    ... )
+    >>> trades
+                         time   price  quantity
+    0 2016-05-25 13:30:00.023   51.95        75
+    1 2016-05-25 13:30:00.038   51.95       155
+    2 2016-05-25 13:30:00.048  720.77       100
+    3 2016-05-25 13:30:00.048  720.92       100
+    4 2016-05-25 13:30:00.048   98.00       100
+    >>> pd.merge_asof(trades, quotes, on="time")
+                         time   price  quantity     bid     ask
+    0 2016-05-25 13:30:00.023   51.95        75   51.95   51.96
+    1 2016-05-25 13:30:00.038   51.95       155   51.97   51.98
+    2 2016-05-25 13:30:00.048  720.77       100  720.50  720.93
+    3 2016-05-25 13:30:00.048  720.92       100  720.50  720.93
+    4 2016-05-25 13:30:00.048   98.00       100  720.50  720.93
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
     if not isinstance(left, DataFrame):
+        raise ValueError(f"can not merge DataFrame with instance of type {type(left)}")
+    if not isinstance(right, DataFrame):
         raise ValueError(f"can not merge DataFrame with instance of type {type(right)}")
 
     # As of pandas 1.2 these should raise an error; before that it did
@@ -431,6 +567,8 @@ def merge_asof(
     if on is not None:
         if left_on is not None or right_on is not None:
             raise ValueError("If 'on' is set, 'left_on' and 'right_on' can't be set.")
+        if is_list_like(on) and len(on) > 1:
+            raise MergeError("can only asof on a key for left")
         left_on = on
         right_on = on
 
@@ -445,13 +583,23 @@ def merge_asof(
     if right_on is None and not right_index:
         raise ValueError("Must pass on, right_on, or right_index=True")
 
+    if not left_index and not right_index:
+        left_on_length = len(left_on) if is_list_like(left_on) else 1
+        right_on_length = len(right_on) if is_list_like(right_on) else 1
+        if left_on_length != right_on_length:
+            raise ValueError("len(right_on) must equal len(left_on)")
+        if left_on_length > 1:
+            raise MergeError("can only asof on a key for left")
+
     return DataFrame(
         query_compiler=left._query_compiler.merge_asof(
             right._query_compiler,
+            on,
             left_on,
             right_on,
             left_index,
             right_index,
+            by,
             left_by,
             right_by,
             suffixes,
@@ -648,11 +796,100 @@ def pivot_table(
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
-@pandas_module_level_function_not_implemented()
-@_inherit_docstrings(pandas.pivot, apilink="pandas.pivot")
 def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D200
     """
     Return reshaped DataFrame organized by given index / column values.
+
+    Reshape data (produce a “pivot” table) based on column values. Uses unique values from
+    specified index / columns to form axes of the resulting DataFrame. This function does not
+    support data aggregation, multiple values will result in a MultiIndex in the columns.
+
+    Parameters
+    ----------
+    data : :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+    columns : str or object or a list of str
+        Column to use to make new frame’s columns.
+    index : str or object or a list of str, optional
+        Column to use to make new frame’s index. If not given, uses existing index.
+    values : str, object or a list of the previous, optional
+        Column(s) to use for populating new frame’s values. If not specified, all remaining columns
+        will be used and the result will have hierarchically indexed columns.
+
+    Returns
+    -------
+    :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+
+    Notes
+    -----
+    Calls pivot_table with columns, values, index and aggregation "min".
+
+    See Also
+    --------
+    DataFrame.pivot_table : Generalization of pivot that can handle
+        duplicate values for one index/column pair.
+    DataFrame.unstack: Pivot based on the index values instead
+        of a column.
+    wide_to_long : Wide panel to long format. Less flexible but more
+        user-friendly than melt.
+
+    Examples
+    --------
+    >>> df = pd.DataFrame({'foo': ['one', 'one', 'one', 'two', 'two',
+    ...                   'two'],
+    ...           'bar': ['A', 'B', 'C', 'A', 'B', 'C'],
+    ...           'baz': [1, 2, 3, 4, 5, 6],
+    ...           'zoo': ['x', 'y', 'z', 'q', 'w', 't']})
+    >>> df
+       foo bar  baz zoo
+    0  one   A    1   x
+    1  one   B    2   y
+    2  one   C    3   z
+    3  two   A    4   q
+    4  two   B    5   w
+    5  two   C    6   t
+    >>> pd.pivot(data=df, index='foo', columns='bar', values='baz')  # doctest: +NORMALIZE_WHITESPACE
+    bar  A  B  C
+    foo
+    one  1  2  3
+    two  4  5  6
+    >>> pd.pivot(data=df, index='foo', columns='bar')['baz']  # doctest: +NORMALIZE_WHITESPACE
+    bar  A  B  C
+    foo
+    one  1  2  3
+    two  4  5  6
+    >>> pd.pivot(data=df, index='foo', columns='bar', values=['baz', 'zoo'])  # doctest: +NORMALIZE_WHITESPACE
+        baz       zoo
+    bar   A  B  C   A  B  C
+    foo
+    one   1  2  3   x  y  z
+    two   4  5  6   q  w  t
+    >>> df = pd.DataFrame({
+    ...     "lev1": [1, 1, 1, 2, 2, 2],
+    ...     "lev2": [1, 1, 2, 1, 1, 2],
+    ...     "lev3": [1, 2, 1, 2, 1, 2],
+    ...     "lev4": [1, 2, 3, 4, 5, 6],
+    ...     "values": [0, 1, 2, 3, 4, 5]})
+    >>> df
+       lev1  lev2  lev3  lev4  values
+    0     1     1     1     1       0
+    1     1     1     2     2       1
+    2     1     2     1     3       2
+    3     2     1     2     4       3
+    4     2     1     1     5       4
+    5     2     2     2     6       5
+    >>> pd.pivot(data=df, index="lev1", columns=["lev2", "lev3"], values="values")  # doctest: +NORMALIZE_WHITESPACE
+    lev2  1       2
+    lev3  1  2    1    2
+    lev1
+    1     0  1  2.0  NaN
+    2     4  3  NaN  5.0
+    >>> pd.pivot(data=df, index=["lev1", "lev2"], columns=["lev3"], values="values")  # doctest: +NORMALIZE_WHITESPACE
+    lev3         1    2
+    lev1 lev2
+    1    1     0.0  1.0
+         2     2.0  NaN
+    2    1     4.0  3.0
+         2     NaN  5.0
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
     if not isinstance(data, DataFrame):
@@ -1263,7 +1500,7 @@ def to_datetime(
     infer_datetime_format: lib.NoDefault | bool = lib.no_default,
     origin: Any = "unix",
     cache: bool = True,
-) -> Series | DatetimeScalar | NaTType | None:
+) -> pd.DatetimeIndex | Series | DatetimeScalar | NaTType | None:
     """
     Convert argument to datetime.
 
@@ -1370,8 +1607,7 @@ def to_datetime(
         parsing):
 
         - scalar: :class:`Timestamp` (or :class:`datetime.datetime`)
-        - array-like: :class:`~snowflake.snowpark.modin.pandas.Series` with :class:`datetime64` dtype containing
-          :class:`datetime.datetime` (or
+        - array-like: :class:`~snowflake.snowpark.modin.pandas.DatetimeIndex` (or
           :class: :class:`~snowflake.snowpark.modin.pandas.Series` of :class:`object` dtype containing
           :class:`datetime.datetime`)
         - Series: :class:`~snowflake.snowpark.modin.pandas.Series` of :class:`datetime64` dtype (or
@@ -1483,10 +1719,7 @@ def to_datetime(
 
     >>> pd.to_datetime([1, 2, 3], unit='D',
     ...                origin=pd.Timestamp('1960-01-01'))
-    0   1960-01-02
-    1   1960-01-03
-    2   1960-01-04
-    dtype: datetime64[ns]
+    DatetimeIndex(['1960-01-02', '1960-01-03', '1960-01-04'], dtype='datetime64[ns]', freq=None)
 
 
     **Non-convertible date/times**
@@ -1500,9 +1733,7 @@ def to_datetime(
     in addition to forcing non-dates (or non-parseable dates) to :const:`NaT`.
 
     >>> pd.to_datetime(['13000101', 'abc'], format='%Y%m%d', errors='coerce')
-    0   NaT
-    1   NaT
-    dtype: datetime64[ns]
+    DatetimeIndex(['NaT', 'NaT'], dtype='datetime64[ns]', freq=None)
 
 
     .. _to_datetime_tz_examples:
@@ -1514,55 +1745,41 @@ def to_datetime(
     - Timezone-naive inputs are converted to timezone-naive :class:`~snowflake.snowpark.modin.pandas.Series`:
 
     >>> pd.to_datetime(['2018-10-26 12:00', '2018-10-26 13:00:15'])
-    0   2018-10-26 12:00:00
-    1   2018-10-26 13:00:15
-    dtype: datetime64[ns]
+    DatetimeIndex(['2018-10-26 12:00:00', '2018-10-26 13:00:15'], dtype='datetime64[ns]', freq=None)
 
     - Timezone-aware inputs *with constant time offset* are still converted to
       timezone-naive :class:`~snowflake.snowpark.modin.pandas.Series` by default.
 
     >>> pd.to_datetime(['2018-10-26 12:00:00 -0500', '2018-10-26 13:00:00 -0500'])
-    0   2018-10-26 12:00:00
-    1   2018-10-26 13:00:00
-    dtype: datetime64[ns]
+    DatetimeIndex(['2018-10-26 12:00:00', '2018-10-26 13:00:00'], dtype='datetime64[ns]', freq=None)
 
     - Use right format to convert to timezone-aware type (Note that when call Snowpark
       pandas API to_pandas() the timezone-aware output will always be converted to session timezone):
 
     >>> pd.to_datetime(['2018-10-26 12:00:00 -0500', '2018-10-26 13:00:00 -0500'], format="%Y-%m-%d %H:%M:%S %z")
-    0   2018-10-26 10:00:00-07:00
-    1   2018-10-26 11:00:00-07:00
-    dtype: datetime64[ns, America/Los_Angeles]
+    DatetimeIndex(['2018-10-26 10:00:00-07:00', '2018-10-26 11:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
 
     - Timezone-aware inputs *with mixed time offsets* (for example
       issued from a timezone with daylight savings, such as Europe/Paris):
 
     >>> pd.to_datetime(['2020-10-25 02:00:00 +0200', '2020-10-25 04:00:00 +0100'])
-    0   2020-10-25 02:00:00
-    1   2020-10-25 04:00:00
-    dtype: datetime64[ns]
+    DatetimeIndex(['2020-10-25 02:00:00', '2020-10-25 04:00:00'], dtype='datetime64[ns]', freq=None)
 
     >>> pd.to_datetime(['2020-10-25 02:00:00 +0200', '2020-10-25 04:00:00 +0100'], format="%Y-%m-%d %H:%M:%S %z")
-    0   2020-10-24 17:00:00-07:00
-    1   2020-10-24 20:00:00-07:00
-    dtype: datetime64[ns, America/Los_Angeles]
+    DatetimeIndex(['2020-10-24 17:00:00-07:00', '2020-10-24 20:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
 
     Setting ``utc=True`` makes sure always convert to timezone-aware outputs:
 
     - Timezone-naive inputs are *localized* based on the session timezone
 
     >>> pd.to_datetime(['2018-10-26 12:00', '2018-10-26 13:00'], utc=True)
-    0   2018-10-26 12:00:00-07:00
-    1   2018-10-26 13:00:00-07:00
-    dtype: datetime64[ns, America/Los_Angeles]
+    DatetimeIndex(['2018-10-26 12:00:00-07:00', '2018-10-26 13:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
 
     - Timezone-aware inputs are *converted* to session timezone
 
     >>> pd.to_datetime(['2018-10-26 12:00:00 -0530', '2018-10-26 12:00:00 -0500'],
     ...                utc=True)
-    0   2018-10-26 10:30:00-07:00
-    1   2018-10-26 10:00:00-07:00
-    dtype: datetime64[ns, America/Los_Angeles]
+    DatetimeIndex(['2018-10-26 10:30:00-07:00', '2018-10-26 10:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
     raise_if_native_pandas_objects(arg)
@@ -1579,22 +1796,14 @@ def to_datetime(
             message="cache parameter is ignored with Snowflake backend, i.e., no caching will be applied",
         )
     arg_is_scalar = is_scalar(arg)
-    # handle empty array, list, dict
-    if not arg_is_scalar and not isinstance(arg, (DataFrame, Series)) and len(arg) == 0:
-        return arg if isinstance(arg, Series) else Series(arg)  # always return a Series
-    if not isinstance(arg, (DataFrame, Series)):
-        # turn dictionary like arg into DataFrame and list like or scalar to Series
-        if isinstance(arg, dict):
-            arg = DataFrame(arg)  # pragma: no cover
-        else:
-            name = None
-            # keep index name
-            if isinstance(arg, pd.Index):
-                name = arg.name
-            arg = Series(arg)
-            arg.name = name
 
-    series = arg._to_datetime(
+    if not isinstance(arg, (DataFrame, Series, pd.Index)):
+        # Turn dictionary like arg into pd.DataFrame and list-like or scalar to
+        # pd.Index.
+        arg = [arg] if arg_is_scalar else arg
+        arg = DataFrame(arg) if isinstance(arg, dict) else pd.Index(arg)
+
+    series_or_index = arg._to_datetime(
         errors=errors,
         dayfirst=dayfirst,
         yearfirst=yearfirst,
@@ -1608,9 +1817,10 @@ def to_datetime(
     if arg_is_scalar:
         # Calling squeeze directly on Snowpark pandas Series makes an unnecessary
         # count sql call. To avoid that we convert Snowpark pandas Series to Native
-        # pandas seris first.
-        return series.to_pandas().squeeze()
-    return series
+        # pandas series first.
+        # Note: When arg_is_scalar is True 'series_or_index' is always an Index.
+        return series_or_index.to_series().to_pandas().squeeze()
+    return series_or_index
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
@@ -1887,21 +2097,116 @@ def _determine_name(objs: Iterable[BaseQueryCompiler], axis: int | str):
         return None
 
 
-@_inherit_docstrings(pandas.to_datetime, apilink="pandas.to_timedelta")
 @snowpark_pandas_telemetry_standalone_function_decorator
-@pandas_module_level_function_not_implemented()
-def to_timedelta(arg, unit=None, errors="raise"):  # noqa: PR01, RT01, D200
+def to_timedelta(
+    arg: str
+    | int
+    | float
+    | timedelta
+    | list
+    | tuple
+    | range
+    | ArrayLike
+    | pd.Index
+    | pd.Series
+    | pandas.Index
+    | pandas.Series,
+    unit: str = None,
+    errors: DateTimeErrorChoices = "raise",
+):
     """
     Convert argument to timedelta.
 
-    Accepts str, timedelta, list-like or Series for arg parameter.
-    Returns a Series if and only if arg is provided as a Series.
+    Timedeltas are absolute differences in times, expressed in difference
+    units (e.g. days, hours, minutes, seconds). This method converts
+    an argument from a recognized timedelta format / value into
+    a Timedelta type.
+
+    Parameters
+    ----------
+    arg : str, timedelta, list-like or Series
+        The data to be converted to timedelta.
+    unit : str, optional
+        Denotes the unit of the arg for numeric `arg`. Defaults to ``"ns"``.
+
+        Possible values:
+        * 'W'
+        * 'D' / 'days' / 'day'
+        * 'hours' / 'hour' / 'hr' / 'h' / 'H'
+        * 'm' / 'minute' / 'min' / 'minutes' / 'T'
+        * 's' / 'seconds' / 'sec' / 'second' / 'S'
+        * 'ms' / 'milliseconds' / 'millisecond' / 'milli' / 'millis' / 'L'
+        * 'us' / 'microseconds' / 'microsecond' / 'micro' / 'micros' / 'U'
+        * 'ns' / 'nanoseconds' / 'nano' / 'nanos' / 'nanosecond' / 'N'
+
+        Must not be specified when `arg` contains strings and ``errors="raise"``.
+    errors : {'ignore', 'raise', 'coerce'}, default 'raise'
+        - If 'raise', then invalid parsing will raise an exception.
+        - If 'coerce', then invalid parsing will be set as NaT.
+        - If 'ignore', then invalid parsing will return the input.
+
+    Returns
+    -------
+    timedelta
+        If parsing succeeded.
+        Return type depends on input:
+        - list-like: TimedeltaIndex of timedelta64 dtype
+        - Series: Series of timedelta64 dtype
+        - scalar: Timedelta
+
+    See Also
+    --------
+    DataFrame.astype : Cast argument to a specified dtype.
+    to_datetime : Convert argument to datetime.
+    convert_dtypes : Convert dtypes.
+
+    Notes
+    -----
+    If the precision is higher than nanoseconds, the precision of the duration is
+    truncated to nanoseconds for string inputs.
+
+    Examples
+    --------
+    Parsing a single string to a Timedelta:
+
+    >>> pd.to_timedelta('1 days 06:05:01.00003')
+    Timedelta('1 days 06:05:01.000030')
+    >>> pd.to_timedelta('15.5us')
+    Timedelta('0 days 00:00:00.000015500')
+
+    Parsing a list or array of strings:
+
+    >>> pd.to_timedelta(['1 days 06:05:01.00003', '15.5us', 'nan'])
+    TimedeltaIndex(['1 days 06:05:01.000030', '0 days 00:00:00.000015500', NaT], dtype='timedelta64[ns]', freq=None)
+
+    Converting numbers by specifying the `unit` keyword argument:
+
+    >>> pd.to_timedelta(np.arange(5), unit='s')
+    TimedeltaIndex(['0 days 00:00:00', '0 days 00:00:01', '0 days 00:00:02',
+                    '0 days 00:00:03', '0 days 00:00:04'],
+                   dtype='timedelta64[ns]', freq=None)
+    >>> pd.to_timedelta(np.arange(5), unit='d')
+    TimedeltaIndex(['0 days', '1 days', '2 days', '3 days', '4 days'], dtype='timedelta64[ns]', freq=None)
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    if isinstance(arg, Series):
-        query_compiler = arg._query_compiler.to_timedelta(unit=unit, errors=errors)
-        return Series(query_compiler=query_compiler)
-    return pandas.to_timedelta(arg, unit=unit, errors=errors)
+    # If arg is snowpark pandas lazy object call to_timedelta on the query compiler.
+    if isinstance(arg, (Series, pd.Index)):
+        query_compiler = arg._query_compiler.to_timedelta(
+            unit=unit if unit else "ns",
+            errors=errors,
+            include_index=isinstance(arg, pd.Index),
+        )
+        return arg.__constructor__(query_compiler=query_compiler)
+
+    # Use native pandas to_timedelta for scalar values and list-like objects.
+    result = pandas.to_timedelta(arg, unit=unit, errors=errors)
+    # Convert to lazy if result is a native pandas Series or Index.
+    if isinstance(result, pandas.Index):
+        return pd.Index(result)
+    if isinstance(result, pandas.Series):
+        return pd.Series(result)
+    # Return the result as is for scaler.
+    return result
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
@@ -1915,9 +2220,9 @@ def date_range(
     name: Hashable | None = None,
     inclusive: IntervalClosedType = "both",
     **kwargs,
-) -> Series:
+) -> pd.DatetimeIndex:
     """
-    Return a fixed frequency series.
+    Return a fixed frequency DatetimeIndex.
 
     Returns the range of equally spaced time points (where the difference between any
     two adjacent points is specified by the given frequency) such that they all
@@ -1989,109 +2294,72 @@ def date_range(
     Specify `start` and `end`, with the default daily frequency.
 
     >>> pd.date_range(start='1/1/2018', end='1/08/2018')
-    0   2018-01-01
-    1   2018-01-02
-    2   2018-01-03
-    3   2018-01-04
-    4   2018-01-05
-    5   2018-01-06
-    6   2018-01-07
-    7   2018-01-08
-    dtype: datetime64[ns]
+    DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03', '2018-01-04',
+                   '2018-01-05', '2018-01-06', '2018-01-07', '2018-01-08'],
+                  dtype='datetime64[ns]', freq=None)
 
     Specify `start` and `periods`, the number of periods (days).
 
     >>> pd.date_range(start='1/1/2018', periods=8)
-    0   2018-01-01
-    1   2018-01-02
-    2   2018-01-03
-    3   2018-01-04
-    4   2018-01-05
-    5   2018-01-06
-    6   2018-01-07
-    7   2018-01-08
-    dtype: datetime64[ns]
+    DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03', '2018-01-04',
+                   '2018-01-05', '2018-01-06', '2018-01-07', '2018-01-08'],
+                  dtype='datetime64[ns]', freq=None)
 
     Specify `end` and `periods`, the number of periods (days).
 
     >>> pd.date_range(end='1/1/2018', periods=8)
-    0   2017-12-25
-    1   2017-12-26
-    2   2017-12-27
-    3   2017-12-28
-    4   2017-12-29
-    5   2017-12-30
-    6   2017-12-31
-    7   2018-01-01
-    dtype: datetime64[ns]
+    DatetimeIndex(['2017-12-25', '2017-12-26', '2017-12-27', '2017-12-28',
+                   '2017-12-29', '2017-12-30', '2017-12-31', '2018-01-01'],
+                  dtype='datetime64[ns]', freq=None)
 
     Specify `start`, `end`, and `periods`; the frequency is generated
     automatically (linearly spaced).
 
     >>> pd.date_range(start='2018-04-24', end='2018-04-27', periods=3)
-    0   2018-04-24 00:00:00
-    1   2018-04-25 12:00:00
-    2   2018-04-27 00:00:00
-    dtype: datetime64[ns]
+    DatetimeIndex(['2018-04-24 00:00:00', '2018-04-25 12:00:00',
+                   '2018-04-27 00:00:00'],
+                  dtype='datetime64[ns]', freq=None)
+
 
     **Other Parameters**
 
     Changed the `freq` (frequency) to ``'ME'`` (month end frequency).
 
     >>> pd.date_range(start='1/1/2018', periods=5, freq='ME')
-    0   2018-01-31
-    1   2018-02-28
-    2   2018-03-31
-    3   2018-04-30
-    4   2018-05-31
-    dtype: datetime64[ns]
+    DatetimeIndex(['2018-01-31', '2018-02-28', '2018-03-31', '2018-04-30',
+                   '2018-05-31'],
+                  dtype='datetime64[ns]', freq=None)
 
     Multiples are allowed
 
     >>> pd.date_range(start='1/1/2018', periods=5, freq='3ME')
-    0   2018-01-31
-    1   2018-04-30
-    2   2018-07-31
-    3   2018-10-31
-    4   2019-01-31
-    dtype: datetime64[ns]
+    DatetimeIndex(['2018-01-31', '2018-04-30', '2018-07-31', '2018-10-31',
+                   '2019-01-31'],
+                  dtype='datetime64[ns]', freq=None)
 
     `freq` can also be specified as an Offset object.
 
     >>> pd.date_range(start='1/1/2018', periods=5, freq=pd.offsets.MonthEnd(3))
-    0   2018-01-31
-    1   2018-04-30
-    2   2018-07-31
-    3   2018-10-31
-    4   2019-01-31
-    dtype: datetime64[ns]
+    DatetimeIndex(['2018-01-31', '2018-04-30', '2018-07-31', '2018-10-31',
+                   '2019-01-31'],
+                  dtype='datetime64[ns]', freq=None)
 
     `inclusive` controls whether to include `start` and `end` that are on the
     boundary. The default, "both", includes boundary points on either end.
 
     >>> pd.date_range(start='2017-01-01', end='2017-01-04', inclusive="both")
-    0   2017-01-01
-    1   2017-01-02
-    2   2017-01-03
-    3   2017-01-04
-    dtype: datetime64[ns]
+    DatetimeIndex(['2017-01-01', '2017-01-02', '2017-01-03', '2017-01-04'], dtype='datetime64[ns]', freq=None)
 
     Use ``inclusive='left'`` to exclude `end` if it falls on the boundary.
 
     >>> pd.date_range(start='2017-01-01', end='2017-01-04', inclusive='left')
-    0   2017-01-01
-    1   2017-01-02
-    2   2017-01-03
-    dtype: datetime64[ns]
+    DatetimeIndex(['2017-01-01', '2017-01-02', '2017-01-03'], dtype='datetime64[ns]', freq=None)
 
     Use ``inclusive='right'`` to exclude `start` if it falls on the boundary, and
     similarly ``inclusive='neither'`` will exclude both `start` and `end`.
 
     >>> pd.date_range(start='2017-01-01', end='2017-01-04', inclusive='right')
-    0   2017-01-02
-    1   2017-01-03
-    2   2017-01-04
-    dtype: datetime64[ns]
+    DatetimeIndex(['2017-01-02', '2017-01-03', '2017-01-04'], dtype='datetime64[ns]', freq=None)
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
 
@@ -2140,9 +2408,11 @@ def date_range(
         left_inclusive=left_inclusive,
         right_inclusive=right_inclusive,
     )
-    s = Series(query_compiler=qc)
-    s.name = name
-    return s
+    # Set date range as index column.
+    qc = qc.set_index_from_columns(qc.columns.tolist(), include_index=False)
+    # Set index column name.
+    qc = qc.set_index_names([name])
+    return pd.DatetimeIndex(query_compiler=qc)
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator

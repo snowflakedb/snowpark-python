@@ -53,11 +53,24 @@ def test_duplicated_with_misspelled_column_name_or_empty_subset(subset):
         (["A"], native_pd.Series([False, False, True, False, True])),
         (["B"], native_pd.Series([False, False, False, True, True])),
         (["A", "B"], native_pd.Series([False, False, False, False, True])),
+        ("C", native_pd.Series([False, False, True, False, True])),
     ],
 )
 @sql_count_checker(query_count=1, join_count=1)
 def test_duplicated_subset(subset, expected):
-    df = pd.DataFrame({"A": [0, 1, 1, 2, 0], "B": ["a", "b", "c", "b", "a"]})
+    df = pd.DataFrame(
+        {
+            "A": [0, 1, 1, 2, 0],
+            "B": ["a", "b", "c", "b", "a"],
+            "C": [
+                pd.Timedelta(1),
+                pd.Timedelta(10),
+                pd.Timedelta(1),
+                pd.Timedelta(0),
+                pd.Timedelta(10),
+            ],
+        }
+    )
 
     result = df.duplicated(subset=subset)
     assert_snowpark_pandas_equal_to_pandas(result, expected)
@@ -91,9 +104,9 @@ def test_duplicated_on_empty_frame():
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
-@sql_count_checker(query_count=5, join_count=4)
+@sql_count_checker(query_count=3, join_count=2)
 def test_frame_datetime64_duplicated():
-    dates = pd.date_range("2010-07-01", end="2010-08-05")
+    dates = pd.date_range("2010-07-01", end="2010-08-05").to_series()
 
     tst = pd.DataFrame({"symbol": "AAA", "date": dates})
     result = tst.duplicated(["date", "symbol"])

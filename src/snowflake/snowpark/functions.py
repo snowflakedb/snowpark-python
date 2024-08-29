@@ -327,6 +327,29 @@ def sql_expr(sql: str) -> Column:
     return Column._expr(sql)
 
 
+def system_reference(
+    object_type: str,
+    object_identifier: str,
+    scope: str = "CALL",
+    privileges: Optional[List[str]] = None,
+):
+    """
+    Returns a reference to an object (a table, view, or function). When you execute SQL actions on a
+    reference to an object, the actions are performed using the role of the user who created the
+    reference.
+
+    Example::
+        >>> df = session.create_dataframe([(1,)], schema=["A"])
+        >>> df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
+        >>> df.select(substr(system_reference("table", "my_table"), 1, 14).alias("identifier")).collect()
+        [Row(IDENTIFIER='ENT_REF_TABLE_')]
+    """
+    privileges = privileges or []
+    return builtin("system$reference")(
+        object_type, object_identifier, scope, *privileges
+    )
+
+
 def current_session() -> Column:
     """
     Returns a unique system identifier for the Snowflake session corresponding to the present connection.
@@ -3302,7 +3325,7 @@ def to_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
     return builtin("convert_timezone")(tz_c, "UTC", c)
 
 
-def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+def to_date(e: ColumnOrName, fmt: Optional[ColumnOrLiteral] = None) -> Column:
     """Converts an input expression into a date.
 
     Example::
@@ -3311,13 +3334,21 @@ def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         >>> df.select(to_date(col('a')).as_('ans')).collect()
         [Row(ANS=datetime.date(2013, 5, 17)), Row(ANS=datetime.date(2013, 5, 17))]
 
+        >>> df = session.create_dataframe(['2013-05-17', '2013-05-17'], schema=['a'])
+        >>> df.select(to_date(col('a'), 'YYYY-MM-DD').as_('ans')).collect()
+        [Row(ANS=datetime.date(2013, 5, 17)), Row(ANS=datetime.date(2013, 5, 17))]
+
         >>> df = session.create_dataframe(['31536000000000', '71536004000000'], schema=['a'])
         >>> df.select(to_date(col('a')).as_('ans')).collect()
         [Row(ANS=datetime.date(1971, 1, 1)), Row(ANS=datetime.date(1972, 4, 7))]
 
     """
     c = _to_col_if_str(e, "to_date")
-    return builtin("to_date")(c, fmt) if fmt is not None else builtin("to_date")(c)
+
+    if fmt is None:
+        return builtin("to_date")(c)
+    else:
+        return builtin("to_date")(c, Column._to_expr(fmt))
 
 
 def current_timestamp() -> Column:
@@ -4049,6 +4080,66 @@ def arrays_to_object(
     keys_c = _to_col_if_str(keys, "arrays_to_object")
     values_c = _to_col_if_str(values, "arrays_to_object")
     return builtin("arrays_to_object")(keys_c, values_c)
+
+
+def arrays_zip(*cols: ColumnOrName) -> Column:
+    """Returns an array of structured objects, where the N-th object contains the N-th elements of the input arrays.
+
+    Args:
+        cols: The columns to zip together.
+
+    Returns:
+        A new array of structured objects.
+
+    Examples::
+        >>> df = session.sql("select array_construct('10', '20', '30') as A, array_construct(10, 20, 30) as B")
+        >>> df.select(arrays_zip(df.a, df.b).as_("zipped")).show(statement_params={"enable_arrays_zip_function": "TRUE"})
+        -------------------
+        |"ZIPPED"         |
+        -------------------
+        |[                |
+        |  {              |
+        |    "$1": "10",  |
+        |    "$2": 10     |
+        |  },             |
+        |  {              |
+        |    "$1": "20",  |
+        |    "$2": 20     |
+        |  },             |
+        |  {              |
+        |    "$1": "30",  |
+        |    "$2": 30     |
+        |  }              |
+        |]                |
+        -------------------
+        <BLANKLINE>
+        >>> df = session.sql("select array_construct('10', '20', '30') as A, array_construct(1, 2) as B, array_construct(1.1) as C")
+        >>> df.select(arrays_zip(df.a, df.b, df.c).as_("zipped")).show(statement_params={"enable_arrays_zip_function": "TRUE"})
+        -------------------
+        |"ZIPPED"         |
+        -------------------
+        |[                |
+        |  {              |
+        |    "$1": "10",  |
+        |    "$2": 1,     |
+        |    "$3": 1.1    |
+        |  },             |
+        |  {              |
+        |    "$1": "20",  |
+        |    "$2": 2,     |
+        |    "$3": null   |
+        |  },             |
+        |  {              |
+        |    "$1": "30",  |
+        |    "$2": null,  |
+        |    "$3": null   |
+        |  }              |
+        |]                |
+        -------------------
+        <BLANKLINE>
+    """
+    cols = [_to_col_if_str(c, "arrays_zip") for c in cols]
+    return builtin("arrays_zip")(*cols)
 
 
 def array_generate_range(
@@ -5242,6 +5333,56 @@ def array_append(array: ColumnOrName, element: ColumnOrName) -> Column:
     return builtin("array_append")(a, e)
 
 
+def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
+    """Given a source ARRAY, returns an ARRAY with elements of the specified value removed.
+
+    Args:
+        array: name of column containing array.
+        element: element to be removed from the array. If the element is a VARCHAR, it needs
+            to be casted into VARIANT data type.
+
+    Examples::
+        >>> from snowflake.snowpark.types import VariantType
+        >>> df = session.create_dataframe([([1, '2', 3.1, 1, 1],)], ['data'])
+        >>> df.select(array_remove(df.data, 1).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |[          |
+        |  "2",     |
+        |  3.1      |
+        |]          |
+        -------------
+        <BLANKLINE>
+
+        >>> df.select(array_remove(df.data, lit('2').cast(VariantType())).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |[          |
+        |  1,       |
+        |  3.1,     |
+        |  1,       |
+        |  1        |
+        |]          |
+        -------------
+        <BLANKLINE>
+
+        >>> df.select(array_remove(df.data, None).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |NULL       |
+        -------------
+        <BLANKLINE>
+
+    See Also:
+        - `ARRAY <https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-array>`_ for more details on semi-structured arrays.
+    """
+    a = _to_col_if_str(array, "array_remove")
+    return builtin("array_remove")(a, element)
+
+
 def array_cat(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     """Returns the concatenation of two ARRAYs.
 
@@ -5838,6 +5979,25 @@ def vector_inner_product(v1: ColumnOrName, v2: ColumnOrName) -> Column:
     v1 = _to_col_if_str(v1, "vector_inner_product")
     v2 = _to_col_if_str(v2, "vector_inner_product")
     return builtin("vector_inner_product")(v1, v2)
+
+
+def ln(c: ColumnOrLiteral) -> Column:
+    """Returns the natrual logarithm of given column expression.
+
+    Example::
+        >>> from snowflake.snowpark.functions import ln
+        >>> from math import e
+        >>> df = session.create_dataframe([[e]], schema=["ln_value"])
+        >>> df.select(ln(col("ln_value")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.0       |
+        ------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(c, "ln")
+    return builtin("ln")(c)
 
 
 def asc(c: ColumnOrName) -> Column:
@@ -6893,15 +7053,15 @@ def ntile(e: Union[int, ColumnOrName]) -> Column:
         ...     [["C", "SPY", 3], ["C", "AAPL", 10], ["N", "SPY", 5], ["N", "AAPL", 7], ["Q", "MSFT", 3]],
         ...     schema=["exchange", "symbol", "shares"]
         ... )
-        >>> df.select(col("exchange"), col("symbol"), ntile(3).over(Window.partition_by("exchange").order_by("shares")).alias("ntile_3")).show()
+        >>> df.select(col("exchange"), col("symbol"), ntile(3).over(Window.partition_by("exchange").order_by("shares")).alias("ntile_3")).order_by(["exchange","symbol"]).show()
         -------------------------------------
         |"EXCHANGE"  |"SYMBOL"  |"NTILE_3"  |
         -------------------------------------
-        |Q           |MSFT      |1          |
-        |N           |SPY       |1          |
-        |N           |AAPL      |2          |
-        |C           |SPY       |1          |
         |C           |AAPL      |2          |
+        |C           |SPY       |1          |
+        |N           |AAPL      |2          |
+        |N           |SPY       |1          |
+        |Q           |MSFT      |1          |
         -------------------------------------
         <BLANKLINE>
     """

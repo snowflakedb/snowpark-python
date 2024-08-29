@@ -39,7 +39,6 @@ with warnings.catch_warnings():
         CategoricalDtype,
         CategoricalIndex,
         DateOffset,
-        DatetimeIndex,
         DatetimeTZDtype,
         ExcelWriter,
         Flags,
@@ -64,7 +63,6 @@ with warnings.catch_warnings():
         SparseDtype,
         StringDtype,
         Timedelta,
-        TimedeltaIndex,
         Timestamp,
         UInt8Dtype,
         UInt16Dtype,
@@ -87,11 +85,17 @@ with warnings.catch_warnings():
         timedelta_range,
     )
 
-# TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
-from modin.pandas import Series  # type: ignore[import]
-from modin.pandas import plotting  # type: ignore[import]
+import modin.pandas
 
-from snowflake.snowpark.modin.pandas.dataframe import DataFrame
+# TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
+from modin.pandas import plotting  # type: ignore[import]
+from modin.pandas.series import _SERIES_EXTENSIONS_, Series
+
+from snowflake.snowpark.modin.pandas.api.extensions import (
+    register_dataframe_accessor,
+    register_series_accessor,
+)
+from snowflake.snowpark.modin.pandas.dataframe import _DATAFRAME_EXTENSIONS_, DataFrame
 from snowflake.snowpark.modin.pandas.general import (
     concat,
     crosstab,
@@ -144,19 +148,34 @@ from snowflake.snowpark.modin.pandas.io import (
     to_pickle,
 )
 from snowflake.snowpark.modin.plugin._internal.session import SnowpandasSessionHolder
+from snowflake.snowpark.modin.plugin._internal.telemetry import (
+    try_add_telemetry_to_attribute,
+)
 
 # The extensions assigned to this module
 _PD_EXTENSIONS_: dict = {}
 
-# base needs to be re-exported in order to properly override docstrings for BasePandasDataset
-# moving this import higher prevents sphinx from building documentation (??)
-from snowflake.snowpark.modin.pandas import base  # isort: skip  # noqa: E402,F401
 
 import snowflake.snowpark.modin.plugin.extensions.pd_extensions as pd_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.pd_overrides  # isort: skip  # noqa: E402,F401
 from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: skip  # noqa: E402,F401
     Index,
+    DatetimeIndex,
+    TimedeltaIndex,
 )
+
+# this must occur before overrides are applied
+_attrs_defined_on_modin_base = set(dir(modin.pandas.base.BasePandasDataset))
+_attrs_defined_on_series = set(
+    dir(Series)
+)  # TODO: SNOW-1063347 revisit when series.py is removed
+_attrs_defined_on_dataframe = set(
+    dir(DataFrame)
+)  # TODO: SNOW-1063346 revisit when dataframe.py is removed
+
+# base overrides occur before subclass overrides in case subclasses override a base method
+import snowflake.snowpark.modin.plugin.extensions.base_extensions  # isort: skip  # noqa: E402,F401
+import snowflake.snowpark.modin.plugin.extensions.base_overrides  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.dataframe_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.dataframe_overrides  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_extensions  # isort: skip  # noqa: E402,F401
@@ -167,6 +186,53 @@ import snowflake.snowpark.modin.plugin.extensions.base_overrides  # isort: skip 
 from snowflake.snowpark.modin.pandas.series import (  # isort: skip  # noqa: E402,F401
     DONOTEXPORTMESeries,
 )
+
+# For any method defined on Series/DF, add telemetry to it if it meets all of the following conditions:
+# 1. The method was defined directly on upstream BasePandasDataset (_attrs_defined_on_modin_base)
+# 2. The method is not overridden by a child class (this will change)
+# 3. The method is not overridden by an extensions module
+# 4. The method name does not start with an _
+#
+# TODO: SNOW-1063347
+# Since we still use the vendored version of Series and the overrides for the top-level
+# namespace haven't been performed yet, we need to set properties on the vendored version
+_base_telemetry_added_attrs = set()
+
+_series_ext = _SERIES_EXTENSIONS_.copy()
+for attr_name in dir(Series):
+    if (
+        attr_name in _attrs_defined_on_modin_base
+        and attr_name in _attrs_defined_on_series
+        and attr_name not in _series_ext
+        and not attr_name.startswith("_")
+    ):
+        register_series_accessor(attr_name)(
+            try_add_telemetry_to_attribute(attr_name, getattr(Series, attr_name))
+        )
+        _base_telemetry_added_attrs.add(attr_name)
+
+# TODO: SNOW-1063346
+# Since we still use the vendored version of DataFrame and the overrides for the top-level
+# namespace haven't been performed yet, we need to set properties on the vendored version
+_dataframe_ext = _DATAFRAME_EXTENSIONS_.copy()
+for attr_name in dir(DataFrame):
+    if (
+        attr_name in _attrs_defined_on_modin_base
+        and attr_name in _attrs_defined_on_dataframe
+        and attr_name not in _dataframe_ext
+        and not attr_name.startswith("_")
+    ):
+        # If telemetry was already added via Series, register the override but don't re-wrap
+        # the method in the telemetry annotation. If we don't do this check, we will end up
+        # double-reporting telemetry on some methods.
+        original_attr = getattr(DataFrame, attr_name)
+        new_attr = (
+            original_attr
+            if attr_name in _base_telemetry_added_attrs
+            else try_add_telemetry_to_attribute(attr_name, original_attr)
+        )
+        register_dataframe_accessor(attr_name)(new_attr)
+        _base_telemetry_added_attrs.add(attr_name)
 
 
 def __getattr__(name: str) -> Any:
@@ -225,7 +291,6 @@ __all__ = [  # noqa: F405
     "date_range",
     "Index",
     "MultiIndex",
-    "Series",
     "bdate_range",
     "period_range",
     "DatetimeIndex",
@@ -326,8 +391,7 @@ _SKIP_TOP_LEVEL_ATTRS = [
 # Manually re-export the members of the pd_extensions namespace, which are not declared in __all__.
 _EXTENSION_ATTRS = ["read_snowflake", "to_snowflake", "to_snowpark", "to_pandas"]
 # We also need to re-export native_pd.offsets, since modin.pandas doesn't re-export it.
-# snowflake.snowpark.pandas.base also needs to be re-exported to make docstring overrides for BasePandasDataset work.
-_ADDITIONAL_ATTRS = ["offsets", "base"]
+_ADDITIONAL_ATTRS = ["offsets"]
 
 # This code should eventually be moved into the `snowflake.snowpark.modin.plugin` module instead.
 # Currently, trying to do so would result in incorrect results because `snowflake.snowpark.modin.pandas`

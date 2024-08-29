@@ -12,6 +12,7 @@ GroupBy
 
     DataFrameGroupBy.__iter__
     SeriesGroupBy.__iter__
+    DataFrameGroupBy.get_group
     DataFrameGroupBy.groups
     SeriesGroupBy.groups
     DataFrameGroupBy.indices

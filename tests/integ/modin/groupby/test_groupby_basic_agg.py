@@ -58,7 +58,6 @@ def eval_groupby_result(
     return snowpark_pandas_groupby, pandas_groupby
 
 
-@pytest.mark.modin_sp_short_regress
 @pytest.mark.parametrize("by", ["col1", ["col3"], ["col5"]])
 @sql_count_checker(query_count=2)
 def test_basic_single_group_row_groupby(
@@ -1094,4 +1093,32 @@ def test_valid_func_valid_kwarg_should_work(basic_snowpark_pandas_df):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         basic_snowpark_pandas_df.groupby("col1").agg(max, min_count=2),
         basic_snowpark_pandas_df.to_pandas().groupby("col1").max(min_count=2),
+    )
+
+
+@pytest.mark.parametrize(
+    "agg_func",
+    [
+        "count",
+        "sum",
+        "mean",
+        "median",
+        "std",
+    ],
+)
+@pytest.mark.parametrize("by", ["A", "B"])
+@sql_count_checker(query_count=1)
+def test_timedelta(agg_func, by):
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(
+                ["1 days 06:05:01.00003", "15.5us", "nan", "16us"]
+            ),
+            "B": [8, 8, 12, 10],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: getattr(df.groupby(by), agg_func)()
     )

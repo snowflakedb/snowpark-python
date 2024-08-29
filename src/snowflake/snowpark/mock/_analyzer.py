@@ -45,9 +45,9 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join, SetOperation
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
+    numeric_to_sql_without_cast,
     str_to_sql,
     to_sql,
-    to_sql_without_cast,
 )
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
@@ -83,8 +83,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     Range,
     SnowflakeCreateTable,
+    SnowflakeTable,
     SnowflakeValues,
-    UnresolvedRelation,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
@@ -188,6 +188,9 @@ class MockAnalyzer:
             return regexp_expression(
                 self.analyze(expr.expr, expr_to_alias, parse_local_name),
                 self.analyze(expr.pattern, expr_to_alias, parse_local_name),
+                self.analyze(expr.parameters, expr_to_alias, parse_local_name)
+                if expr.parameters is not None
+                else None,
             )
 
         if isinstance(expr, Collate):
@@ -221,20 +224,44 @@ class MockAnalyzer:
             )
 
         if isinstance(expr, MultipleExpression):
-            return block_expression(
-                [
-                    self.analyze(expression, expr_to_alias, parse_local_name)
-                    for expression in expr.expressions
-                ]
-            )
+            block_expressions = []
+            for expression in expr.expressions:
+                if self.session.eliminate_numeric_sql_value_cast_enabled:
+                    resolved_expr = self.to_sql_try_avoid_cast(
+                        expression,
+                        expr_to_alias,
+                        parse_local_name,
+                    )
+                else:
+                    resolved_expr = self.analyze(
+                        expression,
+                        expr_to_alias,
+                        parse_local_name,
+                    )
+
+                block_expressions.append(resolved_expr)
+            return block_expression(block_expressions)
 
         if isinstance(expr, InExpression):
+            in_values = []
+            for expression in expr.values:
+                if self.session.eliminate_numeric_sql_value_cast_enabled:
+                    in_value = self.to_sql_try_avoid_cast(
+                        expression,
+                        expr_to_alias,
+                        parse_local_name,
+                    )
+                else:
+                    in_value = self.analyze(
+                        expression,
+                        expr_to_alias,
+                        parse_local_name,
+                    )
+
+                in_values.append(in_value)
             return in_expression(
                 self.analyze(expr.columns, expr_to_alias, parse_local_name),
-                [
-                    self.analyze(expression, expr_to_alias, parse_local_name)
-                    for expression in expr.values
-                ],
+                in_values,
             )
 
         if isinstance(expr, GroupingSet):
@@ -274,8 +301,8 @@ class MockAnalyzer:
         if isinstance(expr, SpecifiedWindowFrame):
             return specified_window_frame_expression(
                 expr.frame_type.sql,
-                self.window_frame_boundary(self.to_sql_avoid_offset(expr.lower, {})),
-                self.window_frame_boundary(self.to_sql_avoid_offset(expr.upper, {})),
+                self.window_frame_boundary(self.to_sql_try_avoid_cast(expr.lower, {})),
+                self.window_frame_boundary(self.to_sql_try_avoid_cast(expr.upper, {})),
             )
 
         if isinstance(expr, UnspecifiedFrame):
@@ -305,7 +332,7 @@ class MockAnalyzer:
 
             children = []
             for c in expr.children:
-                extracted = self.to_sql_avoid_offset(c, expr_to_alias)
+                extracted = self.to_sql_try_avoid_cast(c, expr_to_alias)
                 if isinstance(extracted, list):
                     children.extend(extracted)
                 else:
@@ -526,35 +553,32 @@ class MockAnalyzer:
         expr_to_alias: Dict[str, str],
         parse_local_name=False,
     ) -> str:
+        if self.session.eliminate_numeric_sql_value_cast_enabled:
+            left_sql_expr = self.to_sql_try_avoid_cast(
+                expr.left, expr_to_alias, parse_local_name
+            )
+            right_sql_expr = self.to_sql_try_avoid_cast(
+                expr.right,
+                expr_to_alias,
+                parse_local_name,
+            )
+        else:
+            left_sql_expr = self.analyze(expr.left, expr_to_alias, parse_local_name)
+            right_sql_expr = self.analyze(expr.right, expr_to_alias, parse_local_name)
+
         operator = expr.sql_operator.lower()
         if isinstance(expr, BinaryArithmeticExpression):
             return binary_arithmetic_expression(
                 operator,
-                self.analyze(
-                    expr.left,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
-                self.analyze(
-                    expr.right,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
+                left_sql_expr,
+                right_sql_expr,
             )
         else:
             return function_expression(
                 operator,
                 [
-                    self.analyze(
-                        expr.left,
-                        expr_to_alias,
-                        parse_local_name,
-                    ),
-                    self.analyze(
-                        expr.right,
-                        expr_to_alias,
-                        parse_local_name,
-                    ),
+                    left_sql_expr,
+                    right_sql_expr,
                 ],
                 False,
             )
@@ -578,13 +602,13 @@ class MockAnalyzer:
         except Exception:
             return offset
 
-    def to_sql_avoid_offset(
+    def to_sql_try_avoid_cast(
         self, expr: Expression, expr_to_alias: Dict[str, str], parse_local_name=False
     ) -> str:
         # if expression is a numeric literal, return the number without casting,
         # otherwise process as normal
         if isinstance(expr, Literal) and isinstance(expr.datatype, _NumericType):
-            return to_sql_without_cast(expr.value, expr.datatype)
+            return numeric_to_sql_without_cast(expr.value, expr.datatype)
         else:
             return self.analyze(expr, expr_to_alias, parse_local_name)
 
@@ -703,7 +727,7 @@ class MockAnalyzer:
         if isinstance(logical_plan, SnowflakeValues):
             return MockExecutionPlan(logical_plan, self.session)
 
-        if isinstance(logical_plan, UnresolvedRelation):
+        if isinstance(logical_plan, SnowflakeTable):
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, SnowflakeCreateTable):
@@ -714,8 +738,8 @@ class MockAnalyzer:
                 logical_plan.child, SnowflakePlan
             ) and isinstance(logical_plan.child.source_plan, Sort)
             return self.plan_builder.limit(
-                self.to_sql_avoid_offset(logical_plan.limit_expr, expr_to_alias),
-                self.to_sql_avoid_offset(logical_plan.offset_expr, expr_to_alias),
+                self.to_sql_try_avoid_cast(logical_plan.limit_expr, expr_to_alias),
+                self.to_sql_try_avoid_cast(logical_plan.offset_expr, expr_to_alias),
                 resolved_children[logical_plan.child],
                 on_top_of_order_by,
                 logical_plan,
@@ -743,6 +767,7 @@ class MockAnalyzer:
             return self.plan_builder.copy_into_location(
                 query=resolved_children[logical_plan.child],
                 stage_location=logical_plan.stage_location,
+                source_plan=logical_plan,
                 partition_by=self.analyze(logical_plan.partition_by, expr_to_alias)
                 if logical_plan.partition_by
                 else None,

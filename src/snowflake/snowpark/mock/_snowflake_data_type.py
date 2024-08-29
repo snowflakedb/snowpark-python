@@ -19,6 +19,7 @@ from snowflake.snowpark.types import (
     MapType,
     NullType,
     StringType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     VariantType,
@@ -31,6 +32,17 @@ from snowflake.snowpark.types import (
 # not installed, here we redefine the base class to avoid ImportError
 PandasDataframeType = object if not installed_pandas else pd.DataFrame
 PandasSeriesType = object if not installed_pandas else pd.Series
+
+# https://docs.snowflake.com/en/sql-reference/parameters#label-timestamp-type-mapping
+# SNOW-1630258 for local testing session parameters support
+_TIMESTAMP_TYPE_MAPPING = "TIMESTAMP_NTZ"
+
+
+_TIMESTAMP_TYPE_TIMEZONE_MAPPING = {
+    "TIMESTAMP_NTZ": TimestampTimeZone.NTZ,
+    "TIMESTAMP_LTZ": TimestampTimeZone.LTZ,
+    "TIMESTAMP_TZ": TimestampTimeZone.TZ,
+}
 
 
 class Operator:
@@ -250,9 +262,9 @@ def coerce_t1_into_t2(t1: DataType, t2: DataType) -> Optional[DataType]:
         return t2
     if isinstance(t1, StringType):
         if isinstance(t2, StringType):
-            l1 = t1.length or StringType._MAX_LENGTH
-            l2 = t2.length or StringType._MAX_LENGTH
-            return StringType(max(l1, l2))
+            if t1.length is None or t2.length is None:
+                return StringType()
+            return StringType(max(t1.length, t2.length))
         elif isinstance(
             t2,
             (
@@ -302,6 +314,13 @@ def coerce_t1_into_t2(t1: DataType, t2: DataType) -> Optional[DataType]:
     elif isinstance(t1, (TimeType, TimestampType, MapType, ArrayType)):
         if isinstance(t2, VariantType):
             return t2
+        if isinstance(t1, TimestampType) and isinstance(t2, TimestampType):
+            if (
+                t1.tz is TimestampTimeZone.DEFAULT
+                and t2.tz is TimestampTimeZone.NTZ
+                and _TIMESTAMP_TYPE_MAPPING == "TIMESTAMP_NTZ"
+            ):
+                return t2
     return None
 
 
@@ -315,7 +334,12 @@ def get_coerce_result_type(c1: ColumnType, c2: ColumnType):
 
 
 class TableEmulator(PandasDataframeType):
-    _metadata = ["sf_types", "sf_types_by_col_index", "_null_rows_idxs_map"]
+    _metadata = [
+        "sf_types",
+        "sf_types_by_col_index",
+        "_null_rows_idxs_map",
+        "sorted_by",
+    ]
 
     @property
     def _constructor(self):
@@ -344,6 +368,7 @@ class TableEmulator(PandasDataframeType):
             {} if not sf_types_by_col_index else sf_types_by_col_index
         )
         self._null_rows_idxs_map = {}
+        self.sorted_by = []
 
     def __getitem__(self, item):
         result = super().__getitem__(item)

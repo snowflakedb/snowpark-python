@@ -49,3 +49,10 @@ def sum_node_complexities(
         (Counter(complexity) for complexity in node_complexities), Counter()
     )
     return dict(counter_sum)
+
+
+def get_complexity_score(
+    cumulative_node_complexity: Dict[PlanNodeCategory, int]
+) -> int:
+    """Calculates the complexity score based on the cumulative node complexity"""
+    return sum(cumulative_node_complexity.values())

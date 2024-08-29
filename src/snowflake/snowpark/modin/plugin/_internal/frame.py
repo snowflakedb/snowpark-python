@@ -5,6 +5,7 @@ import functools
 from collections.abc import Hashable
 from dataclasses import dataclass
 from logging import getLogger
+from types import MappingProxyType
 from typing import Any, Callable, NamedTuple, Optional, Union
 
 import pandas as native_pd
@@ -15,11 +16,21 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark.column import Column as SnowparkColumn
-from snowflake.snowpark.functions import col, last_value
-from snowflake.snowpark.modin import pandas as pd
+from snowflake.snowpark.functions import (
+    array_construct,
+    col,
+    count,
+    count_distinct,
+    iff,
+    last_value,
+    max as max_,
+)
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
     OrderingColumn,
+)
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    SnowparkPandasType,
 )
 from snowflake.snowpark.modin.plugin._internal.type_utils import TypeMapper
 from snowflake.snowpark.modin.plugin._internal.utils import (
@@ -51,6 +62,72 @@ logger = getLogger(__name__)
 
 LEFT_PREFIX = "left"
 RIGHT_PREFIX = "right"
+
+
+def _create_snowflake_quoted_identifier_to_snowpark_pandas_type(
+    data_column_snowflake_quoted_identifiers: list[str],
+    index_column_snowflake_quoted_identifiers: list[str],
+    data_column_types: Optional[list[Optional[SnowparkPandasType]]],
+    index_column_types: Optional[list[Optional[SnowparkPandasType]]],
+) -> MappingProxyType[str, Optional[SnowparkPandasType]]:
+    """
+    Helper method to create map from Snowflake quoted identifier to Snowpark pandas type.
+
+    Args:
+        data_column_snowflake_quoted_identifiers: Snowflake quoted identifiers of data columns.
+        index_column_snowflake_quoted_identifiers: Snowflake quoted identifiers of index columns.
+        data_column_types: Snowpark pandas types of data columns.
+        index_column_types: Snowpark pandas types of index columns.
+
+    Returns:
+        dict mapping each column's Snowflake quoted identifier to the column's Snowpark pandas type.
+    """
+    if data_column_types is not None:
+        assert len(data_column_types) == len(
+            data_column_snowflake_quoted_identifiers
+        ), (
+            f"The length of data_column_types {data_column_types} is different from the length of "
+            f"data_column_snowflake_quoted_identifiers {data_column_snowflake_quoted_identifiers}"
+        )
+        for t in data_column_types:
+            assert t is None or isinstance(
+                t, SnowparkPandasType
+            ), f"wrong data_column_types value {t}"
+    if index_column_types is not None:
+        assert len(index_column_types) == len(
+            index_column_snowflake_quoted_identifiers
+        ), (
+            f"The length of index_column_types {index_column_types} is different from the length of "
+            f"index_column_snowflake_quoted_identifiers {index_column_snowflake_quoted_identifiers}"
+        )
+        for t in index_column_types:
+            assert t is None or isinstance(
+                t, SnowparkPandasType
+            ), f"wrong index_column_types value {t}"
+
+    return MappingProxyType(
+        {
+            k: v
+            for k, v in zip(
+                (
+                    *data_column_snowflake_quoted_identifiers,
+                    *index_column_snowflake_quoted_identifiers,
+                ),
+                (
+                    *(
+                        data_column_types
+                        if data_column_types is not None
+                        else [None] * len(data_column_snowflake_quoted_identifiers)
+                    ),
+                    *(
+                        index_column_types
+                        if index_column_types is not None
+                        else [None] * len(index_column_snowflake_quoted_identifiers)
+                    ),
+                ),
+            )
+        }
+    )
 
 
 class UpdatedInternalFrameResult(NamedTuple):
@@ -86,6 +163,14 @@ class InternalFrame:
     # The length of data_column_index_names equals to number of multiindex levels.
     # For a 3-level MultiIndex, the value can be like ['A', 'B', 'C']
     data_column_index_names: tuple[LabelTuple, ...]
+    # Map from snowflake identifier to cached Snowpark pandas data type.
+    # The type is None if we don't know the Snowpark data type.
+    # n.b. that we map to SnowparkPandasType rather than to DataType, because
+    # we don't want to try tracking regular Snowpark Python types at all.
+    # This map is a MappingProxyType so that it's immutable.
+    snowflake_quoted_identifier_to_snowpark_pandas_type: MappingProxyType[
+        str, Optional[SnowparkPandasType]
+    ]
 
     @classmethod
     def create(
@@ -97,6 +182,8 @@ class InternalFrame:
         data_column_snowflake_quoted_identifiers: list[str],
         index_column_pandas_labels: list[Hashable],
         index_column_snowflake_quoted_identifiers: list[str],
+        data_column_types: Optional[list[Optional[SnowparkPandasType]]],
+        index_column_types: Optional[list[Optional[SnowparkPandasType]]],
     ) -> "InternalFrame":
         """
         Args:
@@ -106,10 +193,11 @@ class InternalFrame:
             data_column_snowflake_quoted_identifiers: A list of snowflake quoted identifiers for pandas data columns,
                 represented by str. These identifiers are used to refer columns in underlying snowpark dataframe to
                 access data in snowflake.
+            data_column_types: An optional list of optional Snowpark pandas types for the data columns.
             index_column_pandas_labels: A list of pandas index column labels.
             index_column_snowflake_quoted_identifiers: A list of snowflake quoted identifiers for pandas index columns.
+            index_column_types: An optional list of optional Snowpark pandas types for the index columns.
         """
-
         assert len(data_column_snowflake_quoted_identifiers) == len(
             data_column_pandas_labels
         ), f"data column label identifier length mismatch, labels {data_column_pandas_labels}, identifiers {data_column_snowflake_quoted_identifiers}"
@@ -155,6 +243,12 @@ class InternalFrame:
                 # data_column_index_names is always flat with only one level
                 from_pandas_label(name, num_levels=1)
                 for name in data_column_pandas_index_names
+            ),
+            snowflake_quoted_identifier_to_snowpark_pandas_type=_create_snowflake_quoted_identifier_to_snowpark_pandas_type(
+                data_column_snowflake_quoted_identifiers,
+                index_column_snowflake_quoted_identifiers,
+                data_column_types,
+                index_column_types,
             ),
         )
 
@@ -263,11 +357,65 @@ class InternalFrame:
             ]
         ]
 
-    def quoted_identifier_to_snowflake_type(self) -> dict[str, DataType]:
-        return {
-            f.column_identifier.quoted_name: f.datatype
-            for f in self.ordered_dataframe.schema.fields
-        }
+    def get_snowflake_type(
+        self, identifier: Union[str, list[str]]
+    ) -> Union[DataType, list[DataType]]:
+        """
+        Get the Snowflake type.
+
+        Args:
+            identifier: one or a list of Snowflake quoted identifiers
+
+        Returns:
+             The one or a list of Snowflake types.
+
+        """
+        if isinstance(identifier, list):
+            return list(self.quoted_identifier_to_snowflake_type(identifier).values())
+        return list(self.quoted_identifier_to_snowflake_type([identifier]).values())[0]
+
+    def quoted_identifier_to_snowflake_type(
+        self, identifiers: Optional[list[str]] = None
+    ) -> dict[str, DataType]:
+        """
+        Get a map from Snowflake quoted identifier to Snowflake types.
+
+        Args:
+            identifiers: if identifiers is given, only return the mapping for those inputs. Otherwise, the map will
+            include all identifiers in the frame.
+
+        Return:
+            A mapping from Snowflake quoted identifier to Snowflake types.
+        """
+        snowpark_pandas_type_mapping = (
+            self.snowflake_quoted_identifier_to_snowpark_pandas_type
+        )
+        if identifiers is not None:
+            # ordered dataframe may include columns that are not index or data
+            # columns of this InternalFrame, so don't assume that each
+            # identifier is in snowflake_quoted_identifier_to_snowflake_type.
+            cached_types = {
+                id: snowpark_pandas_type_mapping.get(id, None) for id in identifiers
+            }
+            if None not in cached_types.values():
+                # if all types are cached, then we don't need to call schema
+                return cached_types
+
+        all_identifier_to_type = {}
+
+        for f in self.ordered_dataframe.schema.fields:
+            id = f.column_identifier.quoted_name
+            cached_type = snowpark_pandas_type_mapping.get(id, None)
+            all_identifier_to_type[id] = cached_type or f.datatype
+
+        if identifiers is not None:
+            # Python dict's keys and values are iterated over in insertion order. This make sense result dict
+            # `identifier_to_type`'s order matches with the input `identifier`
+            identifier_to_type = {id: all_identifier_to_type[id] for id in identifiers}
+        else:
+            identifier_to_type = all_identifier_to_type
+
+        return identifier_to_type
 
     @property
     def index_column_pandas_labels(self) -> list[Hashable]:
@@ -370,7 +518,7 @@ class InternalFrame:
         )
 
     @property
-    def data_columns_index(self) -> "pd.Index":
+    def data_columns_index(self) -> native_pd.Index:
         """
         Returns Snowpark pandas Index object for column index (df.columns).
         Note this object will still hold an internal pandas index (i.e., not lazy) to avoid unnecessary pulling data from Snowflake.
@@ -381,22 +529,19 @@ class InternalFrame:
                 names=self.data_column_pandas_index_names,
             )
         else:
-            return pd.Index(
+            return native_pd.Index(
                 self.data_column_pandas_labels,
                 name=self.data_column_pandas_index_names[0],
                 # setting tupleize_cols=False to avoid creating a MultiIndex
                 # otherwise, when labels are tuples (e.g., [("A", "a"), ("B", "b")]),
                 # a MultiIndex will be created incorrectly
                 tupleize_cols=False,
-                # setting is_lazy as false because we want to store the columns locally
-                convert_to_lazy=False,
             )
 
-    @property
-    def index_columns_pandas_index(self) -> native_pd.Index:
+    def index_columns_pandas_index(self, **kwargs: Any) -> native_pd.Index:
         """
         Get pandas index. The method eagerly pulls the values from Snowflake because index requires the values to be
-        filled
+        filled.
 
         Returns:
             The index (row labels) of the DataFrame.
@@ -404,7 +549,9 @@ class InternalFrame:
         index_values = snowpark_to_pandas_helper(
             self.ordered_dataframe.select(
                 self.index_column_snowflake_quoted_identifiers
-            )
+            ),
+            cached_snowpark_pandas_types=self.cached_index_column_snowpark_pandas_types,
+            **kwargs,
         ).values
         if self.is_multiindex(axis=0):
             value_tuples = [tuple(row) for row in index_values]
@@ -414,9 +561,7 @@ class InternalFrame:
         else:
             # We have one index column. Fill in the type correctly.
             index_identifier = self.index_column_snowflake_quoted_identifiers[0]
-            index_type = TypeMapper.to_pandas(
-                self.quoted_identifier_to_snowflake_type()[index_identifier]
-            )
+            index_type = TypeMapper.to_pandas(self.get_snowflake_type(index_identifier))
             ret = native_pd.Index(
                 [row[0] for row in index_values],
                 name=self.index_column_pandas_labels[0],
@@ -547,7 +692,14 @@ class InternalFrame:
 
     def get_snowflake_identifiers_and_pandas_labels_from_levels(
         self, levels: list[int]
-    ) -> tuple[list[Hashable], list[str], list[Hashable], list[str]]:
+    ) -> tuple[
+        list[Hashable],
+        list[str],
+        list[Optional[SnowparkPandasType]],
+        list[Hashable],
+        list[str],
+        list[Optional[SnowparkPandasType]],
+    ]:
         """
         Selects snowflake identifiers and pandas labels from index columns in `levels`.
         Also returns snowflake identifiers and pandas labels not in `levels`.
@@ -556,36 +708,45 @@ class InternalFrame:
             levels: A list of integers represents levels in pandas Index.
 
         Returns:
-            A tuple contains 4 lists:
+            A tuple contains 6 lists:
             1. The first list contains snowflake identifiers of index columns in `levels`.
             2. The second list contains pandas labels of index columns in `levels`.
-            3. The third list contains snowflake identifiers of index columns not in `levels`.
-            4. The fourth list contains pandas labels of index columns not in `levels`.
+            3. The third list contains Snowpark pandas types of index columns in `levels`.
+            4. The fourth list contains snowflake identifiers of index columns not in `levels`.
+            5. The fifth list contains pandas labels of index columns not in `levels`.
+            6. The sixth list contains Snowpark pandas types of index columns not in `levels`.
         """
         index_column_pandas_labels_in_levels = []
         index_column_snowflake_quoted_identifiers_in_levels = []
+        index_column_types_in_levels = []
         index_column_pandas_labels_not_in_levels = []
         index_column_snowflake_quoted_identifiers_not_in_levels = []
-        for idx, (identifier, label) in enumerate(
+        index_column_types_not_in_levels = []
+        for idx, (identifier, label, type) in enumerate(
             zip(
                 self.index_column_snowflake_quoted_identifiers,
                 self.index_column_pandas_labels,
+                self.cached_index_column_snowpark_pandas_types,
             )
         ):
             if idx in levels:
                 index_column_pandas_labels_in_levels.append(label)
                 index_column_snowflake_quoted_identifiers_in_levels.append(identifier)
+                index_column_types_in_levels.append(type)
             else:
                 index_column_pandas_labels_not_in_levels.append(label)
                 index_column_snowflake_quoted_identifiers_not_in_levels.append(
                     identifier
                 )
+                index_column_types_not_in_levels.append(type)
 
         return (
             index_column_pandas_labels_in_levels,
             index_column_snowflake_quoted_identifiers_in_levels,
+            index_column_types_in_levels,
             index_column_pandas_labels_not_in_levels,
             index_column_snowflake_quoted_identifiers_not_in_levels,
+            index_column_types_not_in_levels,
         )
 
     @functools.cached_property
@@ -609,16 +770,25 @@ class InternalFrame:
         if axis == 1:
             return self.data_columns_index.is_unique
         else:
-            # Note: We can't use 'count_distinct' because it ignores null values.
-            total_rows = self.num_rows
-            distinct_rows = count_rows(
-                get_distinct_rows(
-                    self.ordered_dataframe.select(
-                        self.index_column_snowflake_quoted_identifiers
+            if self.num_index_columns == 1:
+                index_col = col(self.index_column_snowflake_quoted_identifiers[0])
+                # COUNT(DISTINCT) ignores NULL values, so if there is a NULL value in the column,
+                # we include it via IFF(MAX(<col> IS NULL), 1, 0) which will return 1 if there is
+                # at least one NULL contained within a column, and 0 if there are no NULL values.
+                return self.ordered_dataframe._dataframe_ref.snowpark_dataframe.select(
+                    (count_distinct(index_col) + iff(max_(index_col.is_null()), 1, 0))
+                    == count("*")
+                ).collect()[0][0]
+            else:
+                # Note: We can't use 'count_distinct' directly on columns because it
+                # ignores null values. As a workaround we first create an ARRAY and
+                # call 'count_distinct' on ARRAY column.
+                return self.ordered_dataframe._dataframe_ref.snowpark_dataframe.select(
+                    count_distinct(
+                        array_construct(*self.index_column_snowflake_quoted_identifiers)
                     )
-                )
-            )
-            return total_rows == distinct_rows
+                    == count("*"),
+                ).collect()[0][0]
 
     def validate_no_duplicated_data_columns_mapped_for_labels(
         self,
@@ -658,6 +828,96 @@ class InternalFrame:
                 message += f" {user_frame_identifier}"
             raise ValueError(message)
 
+    @property
+    def cached_data_column_snowpark_pandas_types(
+        self,
+    ) -> list[Optional[SnowparkPandasType]]:
+        """
+        Return the cached Snowpark pandas types for this frame's data columns.
+
+        The cached Snowpark types may be different from the Snowpark types in
+        the OrderedDataframe for types that don't exist in Snowpark Python, like
+        TimedeltaType.
+
+        The cached type is None for a data column if the type is unknown.
+
+        Returns:
+            A list of Snowpark types for this frame's data columns.
+        """
+        return [
+            self.snowflake_quoted_identifier_to_snowpark_pandas_type[
+                v.snowflake_quoted_identifier
+            ]
+            for v in self.label_to_snowflake_quoted_identifier[self.num_index_columns :]
+        ]
+
+    @property
+    def cached_index_column_snowpark_pandas_types(
+        self,
+    ) -> list[Optional[SnowparkPandasType]]:
+        """
+        Return the cached Snowpark pandas types for this frame's index columns.
+
+        The cached Snowpark types may be different from the Snowpark types in
+        the OrderedDataframe for types that don't exist in Snowpark Python, like
+        TimedeltaType.
+
+        The cached type is None for a index column if the type is unknown.
+
+        Returns:
+            A list of Snowpark types for this frame's index columns.
+        """
+        return [
+            self.snowflake_quoted_identifier_to_snowpark_pandas_type[
+                v.snowflake_quoted_identifier
+            ]
+            for v in self.label_to_snowflake_quoted_identifier[: self.num_index_columns]
+        ]
+
+    def to_pandas(
+        self, statement_params: Optional[dict[str, str]] = None, **kwargs: Any
+    ) -> native_pd.DataFrame:
+        """
+        Convert this InternalFrame to ``pandas.DataFrame``.
+
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+        Returns:
+        pandas.DataFrame
+            The InternalFrame converted to pandas.
+        """
+        ordered_dataframe = self.ordered_dataframe.select(
+            self.index_column_snowflake_quoted_identifiers
+            + self.data_column_snowflake_quoted_identifiers
+        )
+
+        native_df = snowpark_to_pandas_helper(
+            ordered_dataframe,
+            statement_params=statement_params,
+            cached_snowpark_pandas_types=self.cached_index_column_snowpark_pandas_types
+            + self.cached_data_column_snowpark_pandas_types,
+            **kwargs,
+        )
+
+        # to_pandas() does not preserve the index information and will just return a
+        # RangeIndex. Therefore, we need to set the index column manually
+        native_df.set_index(
+            [
+                extract_pandas_label_from_snowflake_quoted_identifier(identifier)
+                for identifier in self.index_column_snowflake_quoted_identifiers
+            ],
+            inplace=True,
+        )
+        # set index name
+        native_df.index = native_df.index.set_names(self.index_column_pandas_labels)
+
+        from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+
+        # set column names and potential casting
+        native_df.columns = try_convert_index_to_native(self.data_columns_index)
+        return native_df
+
     ###########################################################################
     # START: Internal Frame mutation APIs.
     # APIs that creates a new InternalFrame instance, should only be added below
@@ -673,8 +933,10 @@ class InternalFrame:
             data_column_pandas_labels=self.data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=self.data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=self.data_column_pandas_index_names,
+            data_column_types=self.cached_data_column_snowpark_pandas_types,
             index_column_pandas_labels=self.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=self.index_column_snowflake_quoted_identifiers,
+            index_column_types=self.cached_index_column_snowpark_pandas_types,
         )
 
     def ensure_row_count_column(self) -> "InternalFrame":
@@ -691,6 +953,8 @@ class InternalFrame:
             data_column_pandas_index_names=self.data_column_pandas_index_names,
             index_column_pandas_labels=self.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=self.index_column_snowflake_quoted_identifiers,
+            data_column_types=self.cached_data_column_snowpark_pandas_types,
+            index_column_types=self.cached_index_column_snowpark_pandas_types,
         )
 
     def persist_to_temporary_table(self) -> "InternalFrame":
@@ -704,13 +968,18 @@ class InternalFrame:
             ordered_dataframe=cache_result(self.ordered_dataframe),
             data_column_pandas_labels=self.data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=self.data_column_snowflake_quoted_identifiers,
+            data_column_types=self.cached_data_column_snowpark_pandas_types,
             data_column_pandas_index_names=self.data_column_pandas_index_names,
             index_column_pandas_labels=self.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=self.index_column_snowflake_quoted_identifiers,
+            index_column_types=self.cached_index_column_snowpark_pandas_types,
         )
 
     def append_column(
-        self, pandas_label: Hashable, value: SnowparkColumn
+        self,
+        pandas_label: Hashable,
+        value: SnowparkColumn,
+        value_type: Optional[SnowparkPandasType] = None,
     ) -> "InternalFrame":
         """
         Append a column to this frame. The column is added at the end. For a frame with multiindex column, it
@@ -721,6 +990,7 @@ class InternalFrame:
         Args:
             pandas_label: pandas label for column to be inserted.
             value: SnowparkColumn.
+            value_type: The optional SnowparkPandasType for the new column.
 
         Returns:
             A new InternalFrame with new column.
@@ -761,12 +1031,16 @@ class InternalFrame:
             data_column_pandas_index_names=self.data_column_pandas_index_names,
             index_column_pandas_labels=self.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=self.index_column_snowflake_quoted_identifiers,
+            data_column_types=self.cached_data_column_snowpark_pandas_types
+            + [value_type],
+            index_column_types=self.cached_index_column_snowpark_pandas_types,
         )
 
     def project_columns(
         self,
         pandas_labels: list[Hashable],
         column_objects: list[SnowparkColumn],
+        column_types: Optional[list[Optional[SnowparkPandasType]]] = None,
     ) -> "InternalFrame":
         """
         Project new columns with column_objects as the new data columns for the new Internal Frame.
@@ -780,10 +1054,15 @@ class InternalFrame:
         Args:
             pandas_labels: The pandas labels for the newly projected data columns
             column_objects: the Snowpark columns used to project the new data columns
+            column_types: The optional SnowparkPandasType for the new column.
 
         Returns:
             A new InternalFrame with the newly projected columns as data column
         """
+        if column_types is None:
+            column_types = [None] * len(pandas_labels)
+        else:
+            assert len(column_types) == len(pandas_labels)
         new_column_identifiers = (
             self.ordered_dataframe.generate_snowflake_quoted_identifiers(
                 pandas_labels=pandas_labels,
@@ -799,6 +1078,8 @@ class InternalFrame:
             data_column_pandas_index_names=self.data_column_pandas_index_names,
             index_column_pandas_labels=self.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=self.index_column_snowflake_quoted_identifiers,
+            data_column_types=column_types,
+            index_column_types=self.cached_index_column_snowpark_pandas_types,
         )
 
     def rename_snowflake_identifiers(
@@ -884,11 +1165,16 @@ class InternalFrame:
             index_column_snowflake_quoted_identifiers=get_updated_identifiers(
                 self.index_column_snowflake_quoted_identifiers
             ),
+            data_column_types=self.cached_data_column_snowpark_pandas_types,
+            index_column_types=self.cached_index_column_snowpark_pandas_types,
         )
 
     def update_snowflake_quoted_identifiers_with_expressions(
         self,
         quoted_identifier_to_column_map: dict[str, SnowparkColumn],
+        data_column_snowpark_pandas_types: Optional[
+            list[Optional[SnowparkPandasType]]
+        ] = None,
     ) -> UpdatedInternalFrameResult:
         """
         Points Snowflake quoted identifiers to column expression given by `quoted_identifier_to_column_map`.
@@ -896,7 +1182,7 @@ class InternalFrame:
         This function takes a mapping from existing snowflake quoted identifiers to
         new Snowpark column expressions and points the existing quoted identifiers to the
         column expressions provided by the mapping. For optimization purposes,
-        existing expressions are kept as columns. This does not change pandas labels.
+        existing expressions are kept as columns. This does not change pandas labels and cached Snwopark pandas types.
 
         The process involves the following steps:
 
@@ -914,9 +1200,11 @@ class InternalFrame:
                 existing snowflake quoted identifiers to new Snowpark columns.
                 As keys of a dictionary, all snowflake column identifiers are unique here and
                 must be index columns and data columns in the original internal frame.
+            data_column_snowpark_pandas_types: The optional Snowpark pandas types for the new
+                expressions, in the order of the keys of quoted_identifier_to_column_map.
 
         Returns:
-            UpdatedInternalFrameResult: A tuple contaning the new InternalFrame with updated column references, and a mapping
+            UpdatedInternalFrameResult: A tuple containing the new InternalFrame with updated column references, and a mapping
                                         of the old column ids to the new column ids.
 
         Raises:
@@ -948,10 +1236,16 @@ class InternalFrame:
 
         existing_id_to_new_id_mapping = {}
         new_columns = []
-        for (
-            existing_identifier,
-            column_expression,
-        ) in quoted_identifier_to_column_map.items():
+        new_type_mapping = dict(
+            self.snowflake_quoted_identifier_to_snowpark_pandas_type
+        )
+        if data_column_snowpark_pandas_types is None:
+            data_column_snowpark_pandas_types = [None] * len(
+                quoted_identifier_to_column_map
+            )
+        for ((existing_identifier, column_expression,), data_column_type) in zip(
+            quoted_identifier_to_column_map.items(), data_column_snowpark_pandas_types
+        ):
             new_identifier = (
                 self.ordered_dataframe.generate_snowflake_quoted_identifiers(
                     pandas_labels=[
@@ -963,6 +1257,7 @@ class InternalFrame:
             )
             existing_id_to_new_id_mapping[existing_identifier] = new_identifier
             new_columns.append(column_expression)
+            new_type_mapping[new_identifier] = data_column_type
         new_ordered_dataframe = append_columns(
             self.ordered_dataframe,
             list(existing_id_to_new_id_mapping.values()),
@@ -988,30 +1283,42 @@ class InternalFrame:
                 data_column_pandas_index_names=self.data_column_pandas_index_names,
                 index_column_pandas_labels=self.index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=new_index_column_snowflake_quoted_identifiers,
+                data_column_types=[
+                    new_type_mapping[k]
+                    for k in new_data_column_snowflake_quoted_identifiers
+                ],
+                index_column_types=[
+                    new_type_mapping[k]
+                    for k in new_index_column_snowflake_quoted_identifiers
+                ],
             ),
             existing_id_to_new_id_mapping,
         )
 
-    def apply_snowpark_function_to_data_columns(
-        self, snowpark_func: Callable[[Any], SnowparkColumn]
+    def apply_snowpark_function_to_columns(
+        self,
+        snowpark_func: Callable[[Any], SnowparkColumn],
+        include_index: bool = False,
     ) -> "InternalFrame":
         """
-        Apply snowpark function callable to data columns of an InternalFrame.  The snowflake quoted identifiers
-        are preserved.
+        Apply snowpark function callable to all data columns of an InternalFrame. If
+        include_index is True also apply this function to all index columns. The
+        snowflake quoted identifiers are preserved.
 
         Arguments:
-            snowpark_func: Snowpark function to apply to data columns of underlying snowpark df.
+            snowpark_func: Snowpark function to apply to columns of underlying snowpark df.
+            include_index: Whether to apply the function to index columns as well.
 
         Returns:
-            InternalFrame with snowpark_func applies to data columns of original frame, all other columns remain unchanged.
+            InternalFrame with snowpark_func applies to columns of original frame, all other columns remain unchanged.
         """
-        new_internal_frame = self.update_snowflake_quoted_identifiers_with_expressions(
-            {
-                snowflake_quoted_identifier: snowpark_func(snowflake_quoted_identifier)
-                for snowflake_quoted_identifier in self.data_column_snowflake_quoted_identifiers
-            }
+        snowflake_ids = self.data_column_snowflake_quoted_identifiers
+        if include_index:
+            snowflake_ids.extend(self.index_column_snowflake_quoted_identifiers)
+
+        return self.update_snowflake_quoted_identifiers_with_expressions(
+            {col_id: snowpark_func(col(col_id)) for col_id in snowflake_ids}
         ).frame
-        return new_internal_frame
 
     def select_active_columns(self) -> "InternalFrame":
         """
@@ -1055,6 +1362,8 @@ class InternalFrame:
             data_column_pandas_labels=self.data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=self.data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=self.data_column_pandas_index_names,
+            data_column_types=self.cached_data_column_snowpark_pandas_types,
+            index_column_types=self.cached_index_column_snowpark_pandas_types,
         )
 
     def strip_duplicates(
@@ -1121,6 +1430,8 @@ class InternalFrame:
             data_column_pandas_index_names=frame.data_column_pandas_index_names,
             index_column_pandas_labels=frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=frame.cached_index_column_snowpark_pandas_types,
         )
 
     def filter(
@@ -1141,6 +1452,8 @@ class InternalFrame:
             data_column_pandas_index_names=self.data_column_pandas_index_names,
             index_column_pandas_labels=self.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=self.index_column_snowflake_quoted_identifiers,
+            data_column_types=self.cached_data_column_snowpark_pandas_types,
+            index_column_types=self.cached_index_column_snowpark_pandas_types,
         )
 
     def normalize_snowflake_quoted_identifiers_with_pandas_label(

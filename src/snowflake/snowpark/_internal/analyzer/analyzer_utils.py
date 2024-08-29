@@ -70,6 +70,10 @@ GROUP_BY = " GROUP BY "
 PARTITION_BY = " PARTITION BY "
 ORDER_BY = " ORDER BY "
 CLUSTER_BY = " CLUSTER BY "
+REFRESH_MODE = " REFRESH_MODE "
+INITIALIZE = " INITIALIZE "
+DATA_RETENTION_TIME_IN_DAYS = " DATA_RETENTION_TIME_IN_DAYS "
+MAX_DATA_EXTENSION_TIME_IN_DAYS = " MAX_DATA_EXTENSION_TIME_IN_DAYS "
 OVER = " OVER "
 SELECT = " SELECT "
 FROM = " FROM "
@@ -94,6 +98,7 @@ DYNAMIC = " DYNAMIC "
 LAG = " LAG "
 WAREHOUSE = " WAREHOUSE "
 TEMPORARY = " TEMPORARY "
+TRANSIENT = " TRANSIENT "
 IF = " If "
 INSERT = " INSERT "
 OVERWRITE = " OVERWRITE "
@@ -123,6 +128,11 @@ LOCATION = " LOCATION "
 FILE_FORMAT = " FILE_FORMAT "
 FORMAT_NAME = " FORMAT_NAME "
 COPY = " COPY "
+COPY_GRANTS = " COPY GRANTS "
+ENABLE_SCHEMA_EVOLUTION = " ENABLE_SCHEMA_EVOLUTION "
+DATA_RETENTION_TIME_IN_DAYS = " DATA_RETENTION_TIME_IN_DAYS "
+MAX_DATA_EXTENSION_TIME_IN_DAYS = " MAX_DATA_EXTENSION_TIME_IN_DAYS "
+CHANGE_TRACKING = " CHANGE_TRACKING "
 REG_EXP = " REGEXP "
 COLLATE = " COLLATE "
 RESULT_SCAN = " RESULT_SCAN"
@@ -270,8 +280,11 @@ def in_expression(column: str, values: List[str]) -> str:
     return column + IN + block_expression(values)
 
 
-def regexp_expression(expr: str, pattern: str) -> str:
-    return expr + REG_EXP + pattern
+def regexp_expression(expr: str, pattern: str, parameters: Optional[str] = None) -> str:
+    if parameters is not None:
+        return function_expression("RLIKE", [expr, pattern, parameters], False)
+    else:
+        return expr + REG_EXP + pattern
 
 
 def collate_expression(expr: str, collation_spec: str) -> str:
@@ -757,6 +770,11 @@ def create_table_statement(
     table_type: str = EMPTY_STRING,
     clustering_key: Optional[Iterable[str]] = None,
     comment: Optional[str] = None,
+    enable_schema_evolution: Optional[bool] = None,
+    data_retention_time: Optional[int] = None,
+    max_data_extension_time: Optional[int] = None,
+    change_tracking: Optional[bool] = None,
+    copy_grants: bool = False,
     *,
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
@@ -767,12 +785,20 @@ def create_table_statement(
         else EMPTY_STRING
     )
     comment_sql = get_comment_sql(comment)
+    options_statement = get_options_statement(
+        {
+            ENABLE_SCHEMA_EVOLUTION: enable_schema_evolution,
+            DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
+            MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
+            CHANGE_TRACKING: change_tracking,
+        }
+    )
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
         f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
-        f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}"
-        f"{cluster_by_clause}{comment_sql}"
+        f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}{cluster_by_clause}"
+        f"{options_statement}{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql}"
     )
 
 
@@ -819,24 +845,42 @@ def batch_insert_into_statement(
 def create_table_as_select_statement(
     table_name: str,
     child: str,
-    column_definition: str,
+    column_definition: Optional[str],
     replace: bool = False,
     error: bool = True,
     table_type: str = EMPTY_STRING,
     clustering_key: Optional[Iterable[str]] = None,
     comment: Optional[str] = None,
+    enable_schema_evolution: Optional[bool] = None,
+    data_retention_time: Optional[int] = None,
+    max_data_extension_time: Optional[int] = None,
+    change_tracking: Optional[bool] = None,
+    copy_grants: bool = False,
 ) -> str:
+    column_definition_sql = (
+        f"{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
+        if column_definition
+        else EMPTY_STRING
+    )
     cluster_by_clause = (
         (CLUSTER_BY + LEFT_PARENTHESIS + COMMA.join(clustering_key) + RIGHT_PARENTHESIS)
         if clustering_key
         else EMPTY_STRING
     )
     comment_sql = get_comment_sql(comment)
+    options_statement = get_options_statement(
+        {
+            ENABLE_SCHEMA_EVOLUTION: enable_schema_evolution,
+            DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
+            MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
+            CHANGE_TRACKING: change_tracking,
+        }
+    )
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"
-        f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING}"
-        f" {table_name}{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
-        f"{cluster_by_clause} {comment_sql} {AS}{project_statement([], child)}"
+        f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
+        f"{table_name}{column_definition_sql}{cluster_by_clause}{options_statement}"
+        f"{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql} {AS}{project_statement([], child)}"
     )
 
 
@@ -879,7 +923,10 @@ def create_file_format_statement(
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
 ) -> str:
-    options_str = TYPE + EQUALS + file_type + SPACE + get_options_statement(options)
+    type_str = TYPE + EQUALS + file_type + SPACE
+    options_str = (
+        type_str if "TYPE" not in options else EMPTY_STRING
+    ) + get_options_statement(options)
     return (
         CREATE
         + (
@@ -895,7 +942,9 @@ def create_file_format_statement(
     )
 
 
-def infer_schema_statement(path: str, file_format_name: str) -> str:
+def infer_schema_statement(
+    path: str, file_format_name: str, options: Optional[Dict[str, str]] = None
+) -> str:
     return (
         SELECT
         + STAR
@@ -913,6 +962,11 @@ def infer_schema_statement(path: str, file_format_name: str) -> str:
         + SINGLE_QUOTE
         + file_format_name
         + SINGLE_QUOTE
+        + (
+            ", " + ", ".join(f"{k} => {v}" for k, v in options.items())
+            if options
+            else ""
+        )
         + RIGHT_PARENTHESIS
         + RIGHT_PARENTHESIS
     )
@@ -1019,7 +1073,7 @@ def rank_related_function_expression(
         func_name
         + LEFT_PARENTHESIS
         + expr
-        + (COMMA + str(offset) if offset else EMPTY_STRING)
+        + (COMMA + str(offset) if offset is not None else EMPTY_STRING)
         + (COMMA + default if default else EMPTY_STRING)
         + RIGHT_PARENTHESIS
         + (IGNORE_NULLS if ignore_nulls else EMPTY_STRING)
@@ -1059,21 +1113,45 @@ def create_or_replace_view_statement(
 
 
 def create_or_replace_dynamic_table_statement(
-    name: str, warehouse: str, lag: str, comment: Optional[str], child: str
+    name: str,
+    warehouse: str,
+    lag: str,
+    comment: Optional[str],
+    replace: bool,
+    if_not_exists: bool,
+    refresh_mode: Optional[str],
+    initialize: Optional[str],
+    clustering_keys: Iterable[str],
+    is_transient: bool,
+    data_retention_time: Optional[int],
+    max_data_extension_time: Optional[int],
+    child: str,
 ) -> str:
+    cluster_by_sql = (
+        f"{CLUSTER_BY}{LEFT_PARENTHESIS}{COMMA.join(clustering_keys)}{RIGHT_PARENTHESIS}"
+        if clustering_keys
+        else EMPTY_STRING
+    )
     comment_sql = get_comment_sql(comment)
+    refresh_and_initialize_options = get_options_statement(
+        {
+            REFRESH_MODE: refresh_mode,
+            INITIALIZE: initialize,
+        }
+    )
+    data_retention_options = get_options_statement(
+        {
+            DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
+            MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
+        }
+    )
+
     return (
-        CREATE
-        + OR
-        + REPLACE
-        + DYNAMIC
-        + TABLE
-        + name
-        + f"{LAG + EQUALS + convert_value_to_sql_option(lag)}"
-        + f"{WAREHOUSE + EQUALS + warehouse}"
-        + comment_sql
-        + AS
-        + project_statement([], child)
+        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}{TRANSIENT if is_transient else EMPTY_STRING}"
+        f"{DYNAMIC}{TABLE}{IF + NOT + EXISTS if if_not_exists else EMPTY_STRING}{name}{LAG}{EQUALS}"
+        f"{convert_value_to_sql_option(lag)}{WAREHOUSE}{EQUALS}{warehouse}"
+        f"{refresh_and_initialize_options}{cluster_by_sql}{data_retention_options}"
+        f"{comment_sql}{AS}{project_statement([], child)}"
     )
 
 

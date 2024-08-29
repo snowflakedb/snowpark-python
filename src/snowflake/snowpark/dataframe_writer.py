@@ -10,6 +10,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     SaveMode,
     SnowflakeCreateTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -19,6 +20,7 @@ from snowflake.snowpark._internal.telemetry import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName, ColumnOrSqlExpr
 from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
+    get_aliased_option_name,
     normalize_remote_file_or_dir,
     parse_table_name,
     str_to_enum,
@@ -37,6 +39,15 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+WRITER_OPTIONS_ALIAS_MAP = {
+    "SEP": "FIELD_DELIMITER",
+    "LINESEP": "RECORD_DELIMITER",
+    "QUOTE": "FIELD_OPTIONALLY_ENCLOSED_BY",
+    "NULLVALUE": "NULL_IF",
+    "DATEFORMAT": "DATE_FORMAT",
+    "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
+}
 
 
 class DataFrameWriter:
@@ -123,6 +134,11 @@ class DataFrameWriter:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         comment: Optional[str] = None,
+        enable_schema_evolution: Optional[bool] = None,
+        data_retention_time: Optional[int] = None,
+        max_data_extension_time: Optional[int] = None,
+        change_tracking: Optional[bool] = None,
+        copy_grants: bool = False,
     ) -> Optional[AsyncJob]:
         """Writes the data to the specified table in a Snowflake database.
 
@@ -158,6 +174,14 @@ class DataFrameWriter:
             comment: Adds a comment for the created table. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_. This argument is ignored if a
                 table already exists and save mode is ``append`` or ``truncate``.
+            enable_schema_evolution: Enables or disables automatic changes to the table schema from data loaded into the table from source files. Setting
+                to ``True`` enables automatic schema evolution and setting to ``False`` disables it. If not set, the default behavior is used.
+            data_retention_time: Specifies the retention period for the table in days so that Time Travel actions (SELECT, CLONE, UNDROP) can be performed
+                on historical data in the table.
+            max_data_extension_time: Specifies the maximum number of days for which Snowflake can extend the data retention period for the table to prevent
+                streams on the table from becoming stale.
+            change_tracking: Specifies whether to enable change tracking for the table. If not set, the default behavior is used.
+            copy_grants: When true, retain the access privileges from the original table when a new table is created with "overwrite" mode.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
@@ -223,9 +247,15 @@ class DataFrameWriter:
                 column_names,
                 save_mode,
                 self._dataframe._plan,
+                TableCreationSource.OTHERS,
                 table_type,
                 clustering_exprs,
                 comment,
+                enable_schema_evolution,
+                data_retention_time,
+                max_data_extension_time,
+                change_tracking,
+                copy_grants,
             )
             session = self._dataframe._session
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
@@ -332,6 +362,15 @@ class DataFrameWriter:
             raise TypeError(  # pragma: no cover
                 f"'partition_by' is expected to be a column name, a Column object, or a sql expression. Got type {type(partition_by)}"
             )
+
+        # apply writer option alias mapping
+        format_type_aliased_options = None
+        if format_type_options:
+            format_type_aliased_options = {}
+            for key, value in format_type_options.items():
+                aliased_key = get_aliased_option_name(key, WRITER_OPTIONS_ALIAS_MAP)
+                format_type_aliased_options[aliased_key] = value
+
         df = self._dataframe._with_plan(
             CopyIntoLocationNode(
                 self._dataframe._plan,
@@ -339,7 +378,7 @@ class DataFrameWriter:
                 partition_by=partition_by,
                 file_format_name=file_format_name,
                 file_format_type=file_format_type,
-                format_type_options=format_type_options,
+                format_type_options=format_type_aliased_options,
                 copy_options=copy_options,
                 header=header,
             )

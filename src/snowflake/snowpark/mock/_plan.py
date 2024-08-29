@@ -94,15 +94,20 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldInt,
     SubfieldString,
     UnresolvedAttribute,
+    WithinGroup,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    PlanQueryType,
+    Query,
+    SnowflakePlan,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     Range,
     SaveMode,
     SnowflakeCreateTable,
+    SnowflakeTable,
     SnowflakeValues,
-    UnresolvedRelation,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -217,6 +222,13 @@ class MockExecutionPlan(LogicalPlan):
     def post_actions(self):
         return []
 
+    @property
+    def execution_queries(self) -> Dict[PlanQueryType, List[Query]]:
+        return {
+            PlanQueryType.QUERIES: self.queries,
+            PlanQueryType.POST_ACTIONS: self.post_actions,
+        }
+
 
 class MockFileOperation(MockExecutionPlan):
     class Operator(str, Enum):
@@ -248,11 +260,19 @@ class MockFileOperation(MockExecutionPlan):
         self.options = options
 
 
+def coerce_order_by_arguments(order_by: List[Expression]):
+    return [
+        order if isinstance(order, SortOrder) else SortOrder(order, Ascending())
+        for order in order_by
+    ]
+
+
 def handle_order_by_clause(
     order_by: List[SortOrder],
     result_df: TableEmulator,
     analyzer: "MockAnalyzer",
     expr_to_alias: Optional[Dict[str, str]],
+    keep_added_columns: bool = False,
 ) -> TableEmulator:
     """Given an input dataframe `result_df` and a list of SortOrder expressions `order_by`, return the sorted dataframe."""
     sort_columns_array = []
@@ -276,7 +296,11 @@ def handle_order_by_clause(
     ):
         comparator = partial(custom_comparator, ascending, null_first)
         result_df = result_df.sort_values(by=column, key=comparator)
-    result_df = result_df.drop(columns=added_columns)
+
+    result_df.sorted_by = sort_columns_array
+    if not keep_added_columns:
+        result_df = result_df.drop(columns=added_columns)
+
     return result_df
 
 
@@ -463,29 +487,21 @@ def handle_udf_expression(
                 child, input_data, analyzer, expr_to_alias
             )
 
-            # SNOW-929218: Once proper type coercion is supported use that instead.
-            if isinstance(expected_type, VariantType) and not isinstance(
-                column_data.sf_type.datatype, VariantType
-            ):
-                column_data.sf_type = ColumnType(
-                    VariantType(), column_data.sf_type.nullable
-                )
-
             # Variant Data is often cast to specific python types when passed to a udf.
             if isinstance(expected_type, VariantType):
                 column_data = column_data.apply(coerce_variant_input)
 
-            function_input[col_name] = column_data
-
-            if (
-                get_coerce_result_type(
-                    column_data.sf_type, ColumnType(expected_type, False)
-                )
-                is None
-            ):
+            coerce_result = get_coerce_result_type(
+                column_data.sf_type, ColumnType(expected_type, False)
+            )
+            if coerce_result is None:
                 raise SnowparkLocalTestingException(
                     f"UDF received input type {column_data.sf_type.datatype} for column {child.name}, but expected input type of {expected_type}"
                 )
+
+            function_input[col_name] = cast_column_to(
+                column_data, ColumnType(expected_type, False)
+            )
 
         try:
             # we do not use pd.apply here because pd.apply will auto infer dtype for the output column
@@ -711,7 +727,7 @@ def execute_mock_plan(
                 )
         return res_df
     if isinstance(source_plan, MockSelectableEntity):
-        entity_name = source_plan.entity_name
+        entity_name = source_plan.entity.name
         if entity_registry.is_existing_table(entity_name):
             return entity_registry.read_table(entity_name)
         elif entity_registry.is_existing_view(entity_name):
@@ -750,6 +766,16 @@ def execute_mock_plan(
         for i in range(len(intermediate_mapped_column)):
             agg_expr = source_plan.aggregate_expressions[i]
             if isinstance(agg_expr, Alias):
+                # Pop wthin group clause and reorder data if needed
+                if isinstance(agg_expr.child, WithinGroup):
+                    order_by_cols = coerce_order_by_arguments(
+                        agg_expr.child.order_by_cols
+                    )
+                    child_rf = handle_order_by_clause(
+                        order_by_cols, child_rf, analyzer, expr_to_alias, False
+                    )
+                    agg_expr = agg_expr.child
+
                 if isinstance(agg_expr.child, Literal) and isinstance(
                     agg_expr.child.datatype, _NumericType
                 ):
@@ -1076,18 +1102,14 @@ def execute_mock_plan(
     if isinstance(source_plan, MockFileOperation):
         return execute_file_operation(source_plan, analyzer)
     if isinstance(source_plan, SnowflakeCreateTable):
-        if source_plan.column_names is not None:
-            analyzer.session._conn.log_not_supported_error(
-                external_feature_name="Inserting data into table by matching columns",
-                internal_feature_name=type(source_plan).__name__,
-                parameters_info={"source_plan.column_names": "True"},
-                raise_error=NotImplementedError,
-            )
         res_df = execute_mock_plan(source_plan.query, expr_to_alias)
         return entity_registry.write_table(
-            source_plan.table_name, res_df, source_plan.mode
+            source_plan.table_name,
+            res_df,
+            source_plan.mode,
+            column_names=source_plan.column_names,
         )
-    if isinstance(source_plan, UnresolvedRelation):
+    if isinstance(source_plan, SnowflakeTable):
         entity_name = source_plan.name
         if entity_registry.is_existing_table(entity_name):
             return entity_registry.read_table(entity_name)
@@ -1122,9 +1144,11 @@ def execute_mock_plan(
             )
 
         return res_df.sample(
-            n=None
-            if source_plan.row_count is None
-            else min(source_plan.row_count, len(res_df)),
+            n=(
+                None
+                if source_plan.row_count is None
+                else min(source_plan.row_count, len(res_df))
+            ),
             frac=source_plan.probability_fraction,
             random_state=source_plan.seed,
         )
@@ -1344,7 +1368,7 @@ def execute_mock_plan(
 
                 # Calculate rows to insert
                 rows_to_insert = TableEmulator(
-                    [], columns=target.drop(ROW_ID, axis=1).columns
+                    [], columns=target.drop(ROW_ID, axis=1).columns, dtype=object
                 )
                 rows_to_insert.sf_types = target.sf_types
                 if clause.keys:
@@ -1360,7 +1384,13 @@ def execute_mock_plan(
                         new_val = calculate_expression(
                             v, unmatched_rows_in_source, analyzer, expr_to_alias
                         )
-                        rows_to_insert[column_name] = new_val
+                        # pandas could do implicit type conversion, e.g. from datetime to timestamp
+                        # reconstructing ColumnEmulator helps preserve the original date type
+                        rows_to_insert[column_name] = ColumnEmulator(
+                            new_val.values,
+                            dtype=object,
+                            sf_type=rows_to_insert[column_name].sf_type,
+                        )
 
                     # For unspecified columns, use None as default value
                     for unspecified_col in set(rows_to_insert.columns).difference(
@@ -1544,9 +1574,10 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
                 data_type = LongType()
             elif isinstance(data_type, StringType):
                 data_type.length = (
-                    StringType._MAX_LENGTH
-                    if data_type.length is None
-                    else data_type.length
+                    data_type.length or plan.session._conn.max_string_size
+                )
+                data_type._is_max_size = (
+                    data_type.length == plan.session._conn.max_string_size
                 )
 
             ret.append(
@@ -1608,6 +1639,12 @@ def calculate_expression(
             is_distinct=exp.is_distinct,
             delimiter=exp.delimiter,
         )
+    if isinstance(exp, WithinGroup):
+        order_by_cols = coerce_order_by_arguments(exp.order_by_cols)
+        ordered_data = handle_order_by_clause(
+            order_by_cols, input_data, analyzer, expr_to_alias, False
+        )
+        return calculate_expression(exp.child, ordered_data, analyzer, expr_to_alias)
     if isinstance(exp, IsNull):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
@@ -1756,11 +1793,36 @@ def calculate_expression(
         raw_pattern = calculate_expression(
             exp.pattern, input_data, analyzer, expr_to_alias
         )
-        arguments = TableEmulator({"LHS": lhs, "PATTERN": raw_pattern})
+        flags = (
+            None
+            if exp.parameters is None
+            else calculate_expression(
+                exp.parameters, input_data, analyzer, expr_to_alias
+            )
+        )
+        arguments = TableEmulator({"LHS": lhs, "PATTERN": raw_pattern, "FLAGS": flags})
 
         def _match_pattern(row) -> bool:
             input_str = row["LHS"]
             raw_pattern = row["PATTERN"]
+            flag_string = row["FLAGS"]
+            flags = 0
+
+            if flag_string:
+                case = multiline = newline = 0
+                for c in flag_string.lower():
+                    if c == "c":
+                        case = 0
+                    elif c == "i":
+                        case = re.I
+                    elif c == "m":
+                        # Multi-line mode does not appear to work correctly on the server side
+                        # multiline = re.M
+                        pass
+                    elif c == "s":
+                        newline = re.S
+                flags = case | multiline | newline
+
             _pattern = (
                 f"^{raw_pattern}" if not raw_pattern.startswith("^") else raw_pattern
             )
@@ -1773,7 +1835,7 @@ def calculate_expression(
                     f"Invalid regular expression {raw_pattern}"
                 )
 
-            return bool(re.match(_pattern, input_str))
+            return bool(re.match(_pattern, input_str, flags=flags))
 
         result = arguments.apply(_match_pattern, axis=1)
         result.sf_type = ColumnType(BooleanType(), True)
@@ -1890,17 +1952,29 @@ def calculate_expression(
         window_spec = exp.window_spec
 
         # Process order by clause
-        if window_spec.order_spec:
-            res = handle_order_by_clause(
-                window_spec.order_spec, input_data, analyzer, expr_to_alias
+        if window_spec.order_spec or isinstance(window_function, WithinGroup):
+            order_spec = window_spec.order_spec
+            if isinstance(window_function, WithinGroup):
+                order_spec = coerce_order_by_arguments(window_function.order_by_cols)
+                window_function = window_function.child
+
+            # If the window function is a function expression then any intermediate
+            # columns that are used for ordering may be needed later and should be retained.
+            ordered = handle_order_by_clause(
+                order_spec,
+                input_data,
+                analyzer,
+                expr_to_alias,
+                isinstance(window_function, (FunctionExpression)),
             )
         elif is_rank_related_window_function(window_function):
             raise SnowparkLocalTestingException(
                 f"Window function type [{str(window_function)}] requires ORDER BY in window specification"
             )
         else:
-            res = input_data
+            ordered = input_data
 
+        res = ordered
         res_index = res.index  # List of row indexes of the result
 
         # Process partition_by clause
@@ -1931,8 +2005,8 @@ def calculate_expression(
                 )
             else:
                 indexer = EntireWindowIndexer()
-                res = res.rolling(indexer)
-                windows = [input_data.loc[w.index] for w in res]
+                rolling = res.rolling(indexer)
+                windows = [ordered.loc[w.index] for w in rolling]
 
         elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
             indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
@@ -2075,29 +2149,52 @@ def calculate_expression(
                     delta = 1 if offset > 0 else -1
                     cur_idx = row_idx + delta
                     cur_count = 0
+                    # default calc_expr is None for the case of cur_idx < 0 or cur_idx >= len(w)
+                    # if cur_idx is within the value, it will be overwritten by the following valid value
+                    calc_expr = ColumnEmulator(
+                        [None], sf_type=ColumnType(NullType(), True), dtype=object
+                    )
+                    target_value = calc_expr.iloc[0]
                     while 0 <= cur_idx < len(w):
-                        target_expr = calculate_expression(
+                        calc_expr = calculate_expression(
                             window_function.expr,
                             w.iloc[[cur_idx]],
                             analyzer,
                             expr_to_alias,
-                        ).iloc[0]
-                        if target_expr is not None:
+                        )
+                        target_value = calc_expr.iloc[0]
+                        if target_value is not None:
                             cur_count += 1
                             if cur_count == abs(offset):
                                 break
                         cur_idx += delta
-                    if cur_idx < 0 or cur_idx >= len(w):
-                        res_cols.append(
-                            calculate_expression(
-                                window_function.default,
-                                w,
-                                analyzer,
-                                expr_to_alias,
-                            ).iloc[0]
-                        )
-                    else:
-                        res_cols.append(target_expr)
+                    if not calculated_sf_type:
+                        calculated_sf_type = calc_expr.sf_type
+                    elif calculated_sf_type.datatype != calc_expr.sf_type.datatype:
+                        if isinstance(calculated_sf_type.datatype, NullType):
+                            calculated_sf_type = calc_expr.sf_type
+                        # the result calculated upon a windows can be None, this is still valid and we can keep
+                        # the calculation
+                        elif not isinstance(  # pragma: no cover
+                            calc_expr.sf_type.datatype, NullType
+                        ):
+                            analyzer.session._conn.log_not_supported_error(  # pragma: no cover
+                                external_feature_name=f"Coercion of detected type"
+                                f" {type(calculated_sf_type.datatype).__name__}"
+                                f" and type {type(calc_expr.sf_type.datatype).__name__}",
+                                internal_feature_name=type(exp).__name__,
+                                parameters_info={
+                                    "window_function": type(window_function).__name__,
+                                    "calc_expr.sf_type.datatype": str(
+                                        type(calc_expr.sf_type.datatype).__name__
+                                    ),
+                                    "calculated_sf_type.datatype": str(
+                                        type(calculated_sf_type.datatype).__name__
+                                    ),
+                                },
+                                raise_error=SnowparkLocalTestingException,
+                            )
+                    res_cols.append(target_value)
             res_col = ColumnEmulator(
                 data=res_cols, dtype=object
             )  # dtype=object prevents implicit converting None to Nan

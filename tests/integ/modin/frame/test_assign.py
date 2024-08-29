@@ -238,3 +238,24 @@ def test_overwrite_columns_via_assign():
     eval_snowpark_pandas_result(
         snow_df, native_df, lambda df: df.assign(a=df["b"], last_col=[10, 11, 12])
     )
+
+
+@sql_count_checker(query_count=2, join_count=1)
+def test_assign_basic_timedelta_series():
+    snow_df, native_df = create_test_dfs(
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+        columns=native_pd.Index(list("abc"), name="columns"),
+        index=native_pd.Index([0, 1, 2], name="index"),
+    )
+    native_df.columns.names = ["columns"]
+    native_df.index.names = ["index"]
+
+    native_td = native_pd.timedelta_range("1 day", periods=3)
+
+    def assign_func(df):
+        if isinstance(df, pd.DataFrame):
+            return df.assign(new_col=pd.Series(native_td))
+        else:
+            return df.assign(new_col=native_pd.Series(native_td))
+
+    eval_snowpark_pandas_result(snow_df, native_df, assign_func)

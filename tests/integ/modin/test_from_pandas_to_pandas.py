@@ -157,7 +157,9 @@ def test_type_mismatch_index_type(name, indices_dict):
 
 @pytest.mark.parametrize("name", FROM_TO_PANDAS_VALUE_TYPE_MISMATCH_INDICES)
 def test_value_type_mismatch_index_type(name, indices_dict):
-    expected_query_count = 6 if "datetime" in name else 0
+    # We can create a pandas dataframe out of the datetime and timedelta
+    # values, so we execute some queries for those cases.
+    expected_query_count = 6 if ("datetime" in name or "timedelta" in name) else 0
     with SqlCounter(query_count=expected_query_count):
         index = indices_dict[name]
         size = len(index)
@@ -252,7 +254,7 @@ def test_column_index_names(pandas_label):
 def test_to_pandas_column_index_names(name):
     df = pd.DataFrame(
         data=[[1] * 2, [2] * 2],
-        columns=pd.Index([1, 2], name=name, convert_to_lazy=False),
+        columns=native_pd.Index([1, 2], name=name),
     )
     assert df.columns.names == [name]
     pdf = df.to_pandas()

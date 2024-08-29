@@ -36,6 +36,12 @@ class TelemetryField(Enum):
     TYPE_SESSION_CREATED = "snowpark_session_created"
     TYPE_SQL_SIMPLIFIER_ENABLED = "snowpark_sql_simplifier_enabled"
     TYPE_CTE_OPTIMIZATION_ENABLED = "snowpark_cte_optimization_enabled"
+    # telemetry for optimization that eliminates the extra cast expression generated for expressions
+    TYPE_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
+        "snowpark_eliminate_numeric_sql_value_cast_enabled"
+    )
+    TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = "snowpark_auto_clean_up_temp_table_enabled"
+    TYPE_LARGE_QUERY_BREAKDOWN_ENABLED = "snowpark_large_query_breakdown_enabled"
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
     KEY_START_TIME = "start_time"
@@ -61,10 +67,11 @@ class TelemetryField(Enum):
     FUNC_CAT_CREATE = "create"
     # performance categories
     PERF_CAT_UPLOAD_FILE = "upload_file"
-    # sql simplifier
+    # optimizations
     SESSION_ID = "session_id"
     SQL_SIMPLIFIER_ENABLED = "sql_simplifier_enabled"
     CTE_OPTIMIZATION_ENABLED = "cte_optimization_enabled"
+    LARGE_QUERY_BREAKDOWN_ENABLED = "large_query_breakdown_enabled"
     # dataframe query stats
     QUERY_PLAN_HEIGHT = "query_plan_height"
     QUERY_PLAN_NUM_DUPLICATE_NODES = "query_plan_num_duplicate_nodes"
@@ -157,6 +164,10 @@ def df_collect_api_telemetry(func):
             0
         ]._session.sql_simplifier_enabled
         try:
+            api_calls[0][TelemetryField.QUERY_PLAN_HEIGHT.value] = plan.plan_height
+            api_calls[0][
+                TelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
+            ] = plan.num_duplicate_nodes
             api_calls[0][TelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
                 key.value: value
                 for key, value in plan.cumulative_node_complexity.items()
@@ -368,6 +379,48 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.CTE_OPTIMIZATION_ENABLED.value: True,
+            },
+        }
+        self.send(message)
+
+    def send_eliminate_numeric_sql_value_cast_telemetry(
+        self, session_id: str, value: bool
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.TYPE_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED.value: value,
+            },
+        }
+        self.send(message)
+
+    def send_auto_clean_up_temp_table_telemetry(
+        self, session_id: str, value: bool
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED.value: value,
+            },
+        }
+        self.send(message)
+
+    def send_large_query_breakdown_telemetry(
+        self, session_id: str, value: bool
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_ENABLED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: True,
             },
         }
         self.send(message)

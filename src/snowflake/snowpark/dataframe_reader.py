@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     TempObjectType,
+    get_aliased_option_name,
     get_copy_into_table_options,
     random_name_for_temp_object,
 )
@@ -43,6 +44,19 @@ else:
 logger = getLogger(__name__)
 
 LOCAL_TESTING_SUPPORTED_FILE_FORMAT = ("JSON",)
+READER_OPTIONS_ALIAS_MAP = {
+    "DELIMITER": "FIELD_DELIMITER",
+    "HEADER": "PARSE_HEADER",
+    "PATHGLOBFILTER": "PATTERN",
+    "FILENAMEPATTERN": "PATTERN",
+    "INFERSCHEMA": "INFER_SCHEMA",
+    "SEP": "FIELD_DELIMITER",
+    "LINESEP": "RECORD_DELIMITER",
+    "QUOTE": "FIELD_OPTIONALLY_ENCLOSED_BY",
+    "NULLVALUE": "NULL_IF",
+    "DATEFORMAT": "DATE_FORMAT",
+    "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
+}
 
 
 class DataFrameReader:
@@ -569,7 +583,8 @@ class DataFrameReader:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
         """
-        self._cur_options[key.upper()] = value
+        aliased_key = get_aliased_option_name(key, READER_OPTIONS_ALIAS_MAP)
+        self._cur_options[aliased_key] = value
         return self
 
     def options(self, configs: Dict) -> "DataFrameReader":
@@ -596,7 +611,10 @@ class DataFrameReader:
         drop_tmp_file_format_if_exists_query: Optional[str] = None
         use_temp_file_format = "FORMAT_NAME" not in self._cur_options
         file_format_name = self._cur_options.get("FORMAT_NAME", temp_file_format_name)
-        infer_schema_query = infer_schema_statement(path, file_format_name)
+        infer_schema_options = self._cur_options.get("INFER_SCHEMA_OPTIONS", None)
+        infer_schema_query = infer_schema_statement(
+            path, file_format_name, infer_schema_options
+        )
         try:
             if use_temp_file_format:
                 self._session._conn.run_query(
@@ -614,6 +632,7 @@ class DataFrameReader:
                 drop_tmp_file_format_if_exists_query = (
                     drop_file_format_if_exists_statement(file_format_name)
                 )
+            # SNOW-1628625: Schema inference should be done lazily
             results = self._session._conn.run_query(infer_schema_query)["data"]
             if len(results) == 0:
                 raise FileNotFoundError(
@@ -641,7 +660,13 @@ class DataFrameReader:
                 new_schema.append(
                     Attribute(
                         name,
-                        convert_sf_to_sp_type(data_type, precision, scale, 0),
+                        convert_sf_to_sp_type(
+                            data_type,
+                            precision,
+                            scale,
+                            0,
+                            self._session._conn.max_string_size,
+                        ),
                         r[2],
                     )
                 )

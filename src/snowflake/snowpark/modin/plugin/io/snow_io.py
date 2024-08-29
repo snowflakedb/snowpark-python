@@ -30,7 +30,10 @@ from pandas._typing import (
 from pandas.core.dtypes.common import is_list_like
 
 from snowflake.snowpark.modin.core.execution.dispatching.factories.baseio import BaseIO
-from snowflake.snowpark.modin.plugin._internal.io_utils import is_local_filepath
+from snowflake.snowpark.modin.plugin._internal.io_utils import (
+    is_local_filepath,
+    is_snowflake_stage_path,
+)
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -597,11 +600,6 @@ class PandasOnSnowflakeIO(BaseIO):
 
     @classmethod
     @pandas_module_level_function_not_implemented()
-    def read_excel(cls, **kwargs):
-        pass  # pragma: no cover
-
-    @classmethod
-    @pandas_module_level_function_not_implemented()
     def read_hdf(
         cls,
         path_or_buf,
@@ -733,3 +731,19 @@ class PandasOnSnowflakeIO(BaseIO):
         **kwargs,
     ):
         pass  # pragma: no cover
+
+    @classmethod
+    def to_csv(cls, obj, **kwargs) -> Optional[str]:
+        """
+        Write object to a comma-separated values (CSV) file using pandas.
+
+        For parameters description please refer to pandas API.
+        """
+        path_or_buf = kwargs.get("path_or_buf", None)
+        # Use snowflake DataFrameWriter if write location is snowflake stage.
+        if is_snowflake_stage_path(path_or_buf) and isinstance(
+            obj, SnowflakeQueryCompiler
+        ):
+            return obj.to_csv_with_snowflake(**kwargs)
+        # Default to base implementation for local path.
+        return BaseIO.to_csv(obj, **kwargs)

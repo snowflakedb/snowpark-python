@@ -19,6 +19,7 @@ def test_dropna_df():
             "name": ["Alfred", "Batman", "Catwoman"],
             "toy": [np.nan, "Batmobile", "Bullwhip"],
             "born": [pd.NaT, pd.Timestamp("1940-04-25"), pd.NaT],
+            "dt": [pd.NaT, pd.Timedelta(1), pd.NaT],
         }
     )
 
