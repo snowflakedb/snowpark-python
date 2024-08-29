@@ -1464,10 +1464,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_internal_frame)
 
     # TODO SNOW-837664: add more tests for df.columns
-    def _get_columns(self) -> native_pd.Index:
+    def get_columns(self) -> native_pd.Index:
         return self._modin_frame.data_columns_index
 
-    columns: native_pd.Index = property(_get_columns, set_columns)
+    columns: native_pd.Index = property(get_columns, set_columns)
 
     def _shift_values(
         self, periods: int, axis: Union[Literal[0], Literal[1]], fill_value: Hashable

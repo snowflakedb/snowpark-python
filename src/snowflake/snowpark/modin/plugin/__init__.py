@@ -63,7 +63,8 @@ DocModule.put(docstrings.__name__)
 import modin.utils  # type: ignore[import]  # isort: skip  # noqa: E402
 import modin.pandas.series_utils  # type: ignore[import]  # isort: skip  # noqa: E402
 
-# TODO: https://github.com/modin-project/modin/issues/7113 and https://github.com/modin-project/modin/issues/7134
+# TODO: SNOW-1643979 pull in fixes for
+# https://github.com/modin-project/modin/issues/7113 and https://github.com/modin-project/modin/issues/7134
 # Upstream Modin has issues with certain docstring generation edge cases, so we should use our version instead
 _inherit_docstrings = snowflake.snowpark.modin.utils._inherit_docstrings
 

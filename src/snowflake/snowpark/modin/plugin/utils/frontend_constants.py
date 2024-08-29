@@ -4,6 +4,7 @@
 
 # Do not look up certain attributes in columns or index, as they're used for some
 # special purposes, like serving remote context
+# TODO: SNOW-1643986 examine whether to update upstream modin to follow this
 _ATTRS_NO_LOOKUP = {
     "____id_pack__",
     "__name__",
