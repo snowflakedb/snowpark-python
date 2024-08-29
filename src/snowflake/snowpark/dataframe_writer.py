@@ -178,12 +178,18 @@ class DataFrameWriter:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
             iceberg_config: A dictionary that can contain the following iceberg confiration values:
-                external_volume: specifies the identifier for the external volume where
+
+                * external_volume: specifies the identifier for the external volume where
                     the Iceberg table stores its metadata files and data in Parquet format
-                catalog: specifies either Snowflake or a catalog integration to use for this table
-                base_location: the base directory that snowflake can write iceberg metadata and files to
-                catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
-                storage_serialization_policy: specifies the storage serialization policy for the table
+
+                * catalog: specifies either Snowflake or a catalog integration to use for this table
+
+                * base_location: the base directory that snowflake can write iceberg metadata and files to
+
+                * catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
+
+                * storage_serialization_policy: specifies the storage serialization policy for the table
+
         Examples::
 
             >>> df = session.create_dataframe([[1,2],[3,4]], schema=["a", "b"])
