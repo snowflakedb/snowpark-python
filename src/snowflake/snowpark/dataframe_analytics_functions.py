@@ -790,14 +790,18 @@ class DataFrameAnalyticsFunctions:
                 window, "window"
             )
             # Perform self-join on DataFrame for aggregation within each group and time window.
-            left_df = sliding_windows_df.alias("A")
-            right_df = sliding_windows_df.alias("B")
+            left_df = sliding_windows_df.alias("A", _emit_ast=False)
+            right_df = sliding_windows_df.alias("B", _emit_ast=False)
 
             for column in right_df.columns:
                 if column not in group_by:
-                    right_df = right_df.with_column_renamed(column, f"{column}B")
+                    right_df = right_df.with_column_renamed(
+                        column, f"{column}B", _emit_ast=False
+                    )
 
-            self_joined_df = left_df.join(right_df, on=group_by, how="leftouter")
+            self_joined_df = left_df.join(
+                right_df, on=group_by, how="leftouter", _emit_ast=False
+            )
 
             window_frame = dateadd(
                 window_unit, lit(window_duration), f"{sliding_point_col}"
@@ -812,8 +816,8 @@ class DataFrameAnalyticsFunctions:
 
             # Filter rows to include only those within the specified time window for aggregation.
             self_joined_df = self_joined_df.filter(
-                col(f"{sliding_point_col}B") >= window_start
-            ).filter(col(f"{sliding_point_col}B") <= window_end)
+                col(f"{sliding_point_col}B") >= window_start, _emit_ast=False
+            ).filter(col(f"{sliding_point_col}B") <= window_end, _emit_ast=False)
 
             # Peform final aggregations.
             group_by_cols = group_by + [sliding_point_col]
