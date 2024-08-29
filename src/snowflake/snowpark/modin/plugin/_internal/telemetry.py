@@ -9,7 +9,6 @@ from contextlib import nullcontext
 from enum import Enum, unique
 from typing import Any, Callable, Optional, TypeVar, Union, cast
 
-import modin
 from typing_extensions import ParamSpec
 
 import snowflake.snowpark.session
@@ -496,6 +495,49 @@ TELEMETRY_PRIVATE_METHODS = {
 }
 
 
+def try_add_telemetry_to_attribute(attr_name: str, attr_value: Any) -> Any:
+    """
+    Attempts to add telemetry to an attribute.
+
+    If the attribute is callable with name in TELEMETRY_PRIVATE_METHODS, or is a callable that
+    starts with an underscore, the original attribute will be returned as-is. Otherwise, a version
+    of the method/property annotated with Snowpark pandas telemetry is returned.
+    """
+    if callable(attr_value) and (
+        not attr_name.startswith("_") or (attr_name in TELEMETRY_PRIVATE_METHODS)
+    ):
+        return snowpark_pandas_telemetry_method_decorator(attr_value)
+    elif isinstance(attr_value, property):
+        # wrap on getter and setter
+        return property(
+            snowpark_pandas_telemetry_method_decorator(
+                cast(
+                    # add a cast because mypy doesn't recognize that
+                    # non-None fget and __get__ are both callable
+                    # arguments to snowpark_pandas_telemetry_method_decorator.
+                    Callable,
+                    attr_value.__get__  # pragma: no cover: we don't encounter this case in pandas or modin because every property has an fget method.
+                    if attr_value.fget is None
+                    else attr_value.fget,
+                ),
+                property_name=attr_name,
+                property_method_type=PropertyMethodType.FGET,
+            ),
+            snowpark_pandas_telemetry_method_decorator(
+                attr_value.__set__ if attr_value.fset is None else attr_value.fset,
+                property_name=attr_name,
+                property_method_type=PropertyMethodType.FSET,
+            ),
+            snowpark_pandas_telemetry_method_decorator(
+                attr_value.__delete__ if attr_value.fdel is None else attr_value.fdel,
+                property_name=attr_name,
+                property_method_type=PropertyMethodType.FDEL,
+            ),
+            doc=attr_value.__doc__,
+        )
+    return attr_value
+
+
 class TelemetryMeta(type):
     def __new__(
         cls, name: str, bases: tuple, attrs: dict[str, Any]
@@ -536,59 +578,6 @@ class TelemetryMeta(type):
                 snowflake.snowpark.modin.pandas.window.Rolling]:
                 The modified class with decorated methods.
         """
-        attr_dict = dict(attrs.items())
-        # If BasePandasDataset, defined exclusively by upstream modin, is a parent of this class,
-        # then apply the telemetry decorator to it.
-        # https://stackoverflow.com/a/71105206
-        # TODO figure out solution for dataframe/series when those directly use modin frontend
-        for base in bases:
-            if base is modin.pandas.base.BasePandasDataset:
-                # Newly defined attrs should take precedence over those defined in base,
-                # so the keys in attr_dict should overwrite those in base_dict
-                base_dict = dict(vars(base).items())
-                base_dict.update(attr_dict)
-                attr_dict = base_dict
-        new_attrs = {}
-        for attr_name, attr_value in attr_dict.items():
-            if callable(attr_value) and (
-                not attr_name.startswith("_")
-                or (attr_name in TELEMETRY_PRIVATE_METHODS)
-            ):
-                new_attrs[attr_name] = snowpark_pandas_telemetry_method_decorator(
-                    attr_value
-                )
-            elif isinstance(attr_value, property):
-                # wrap on getter and setter
-                new_attrs[attr_name] = property(
-                    snowpark_pandas_telemetry_method_decorator(
-                        cast(
-                            # add a cast because mypy doesn't recognize that
-                            # non-None fget and __get__ are both callable
-                            # arguments to snowpark_pandas_telemetry_method_decorator.
-                            Callable,
-                            attr_value.__get__  # pragma: no cover: we don't encounter this case in pandas or modin because every property has an fget method.
-                            if attr_value.fget is None
-                            else attr_value.fget,
-                        ),
-                        property_name=attr_name,
-                        property_method_type=PropertyMethodType.FGET,
-                    ),
-                    snowpark_pandas_telemetry_method_decorator(
-                        attr_value.__set__
-                        if attr_value.fset is None
-                        else attr_value.fset,
-                        property_name=attr_name,
-                        property_method_type=PropertyMethodType.FSET,
-                    ),
-                    snowpark_pandas_telemetry_method_decorator(
-                        attr_value.__delete__
-                        if attr_value.fdel is None
-                        else attr_value.fdel,
-                        property_name=attr_name,
-                        property_method_type=PropertyMethodType.FDEL,
-                    ),
-                    doc=attr_value.__doc__,
-                )
-            else:
-                new_attrs[attr_name] = attr_value
-        return type.__new__(cls, name, bases, new_attrs)
+        for attr_name, attr_value in attrs.items():
+            attrs[attr_name] = try_add_telemetry_to_attribute(attr_name, attr_value)
+        return type.__new__(cls, name, bases, attrs)

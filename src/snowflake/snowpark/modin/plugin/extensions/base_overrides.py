@@ -15,7 +15,7 @@ from __future__ import annotations
 import pickle as pkl
 import warnings
 from collections.abc import Sequence
-from typing import Any, Callable, Hashable, Literal, Mapping, cast, get_args
+from typing import Any, Callable, Hashable, Literal, Mapping, get_args
 
 import modin.pandas as pd
 import numpy as np
@@ -73,9 +73,8 @@ from snowflake.snowpark.modin.pandas.utils import (
     validate_and_try_convert_agg_func_arg_func_to_str,
 )
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
-    TELEMETRY_PRIVATE_METHODS,
-    PropertyMethodType,
     snowpark_pandas_telemetry_method_decorator,
+    try_add_telemetry_to_attribute,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
@@ -97,44 +96,7 @@ def register_base_override(method_name: str):
     """
 
     def decorator(base_method: Any):
-        if callable(base_method) and (
-            not method_name.startswith("_")
-            or (method_name in TELEMETRY_PRIVATE_METHODS)
-        ):
-            base_method = snowpark_pandas_telemetry_method_decorator(base_method)
-        elif isinstance(base_method, property):
-            base_method = property(
-                snowpark_pandas_telemetry_method_decorator(
-                    cast(
-                        # add a cast because mypy doesn't recognize that
-                        # non-None fget and __get__ are both callable
-                        # arguments to snowpark_pandas_telemetry_method_decorator.
-                        Callable,
-                        base_method.fget,  # all properties defined in this file have an fget
-                    ),
-                    property_name=method_name,
-                    property_method_type=PropertyMethodType.FGET,
-                ),
-                snowpark_pandas_telemetry_method_decorator(
-                    (
-                        base_method.__set__
-                        if base_method.fset is None
-                        else base_method.fset
-                    ),
-                    property_name=method_name,
-                    property_method_type=PropertyMethodType.FSET,
-                ),
-                snowpark_pandas_telemetry_method_decorator(
-                    (
-                        base_method.__delete__
-                        if base_method.fdel is None
-                        else base_method.fdel
-                    ),
-                    property_name=method_name,
-                    property_method_type=PropertyMethodType.FDEL,
-                ),
-                doc=base_method.__doc__,
-            )
+        base_method = try_add_telemetry_to_attribute(method_name, base_method)
         parent_method = getattr(BasePandasDataset, method_name, None)
         if isinstance(parent_method, property):
             parent_method = parent_method.fget
