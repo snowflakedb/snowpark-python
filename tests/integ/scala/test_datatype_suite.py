@@ -15,6 +15,7 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     array_construct,
     col,
+    current_role,
     lit,
     object_construct,
     udf,
@@ -130,6 +131,12 @@ STRUCTURED_TYPES_EXAMPLES = {
             ]
         ),
     ),
+}
+
+ICEBERG_CONFIG = {
+    "catalog": "SNOWFLAKE",
+    "external_volume": "python_connector_iceberg_exvol",
+    "base_location": "python_connector_merge_gate",
 }
 
 
@@ -439,6 +446,7 @@ def test_structured_dtypes_iceberg(
     query, expected_dtypes, expected_schema = STRUCTURED_TYPES_EXAMPLES[True]
 
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
+    save_table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
     try:
         structured_type_session.sql(
             f"""
@@ -461,8 +469,25 @@ def test_structured_dtypes_iceberg(
         df = structured_type_session.table(table_name)
         assert df.schema == expected_schema
         assert df.dtypes == expected_dtypes
+
+        # Try to save_as_table
+        structured_type_session.table(table_name).write.save_as_table(
+            save_table_name, iceberg_config=ICEBERG_CONFIG
+        )
+
+        save_ddl = structured_type_session._run_query(
+            f"select get_ddl('table', '{save_table_name}')"
+        )
+        assert save_ddl[0][0] == (
+            f"create or replace ICEBERG TABLE {save_table_name.upper()} (\n\t"
+            "MAP MAP(STRING, LONG),\n\tOBJ OBJECT(A STRING, B DOUBLE),\n\tARR ARRAY(DOUBLE)\n)\n "
+            "EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n "
+            "BASE_LOCATION = 'python_connector_merge_gate/';"
+        )
+
     finally:
         structured_type_session.sql(f"drop table if exists {table_name}")
+        structured_type_session.sql(f"drop table if exists {save_table_name}")
 
 
 @pytest.mark.skipif(
@@ -527,6 +552,14 @@ def test_structured_dtypes_iceberg_udf(
             df.select(
                 nop_map_udf(col("map")).alias("map"),
             ).collect()
+    except SnowparkSQLException:
+        raise ValueError(
+            str(
+                structured_type_session.create_dataframe([1])
+                .select(current_role())
+                .collect()
+            )
+        )
     finally:
         structured_type_session.sql(f"drop table if exists {table_name}")
 
