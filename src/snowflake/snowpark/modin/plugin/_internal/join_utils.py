@@ -204,6 +204,7 @@ def join(
     # in the join operation, and unnecessary columns are dropped from the projected columns.
     left = left.select_active_columns()
     right = right.select_active_columns()
+
     joined_ordered_dataframe = left.ordered_dataframe.join(
         right=right.ordered_dataframe,
         left_on_cols=left_on,
