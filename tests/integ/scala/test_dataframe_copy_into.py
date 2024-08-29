@@ -25,7 +25,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils, iceberg_supported
 
 test_file_csv = "testCSV.csv"
 test_file2_csv = "test2CSV.csv"
@@ -245,7 +245,11 @@ def test_copy_csv_basic(session, tmp_stage_name1, tmp_table_name):
     )
 
 
-def test_copy_into_csv_iceberg(session, tmp_stage_name1, tmp_table_name):
+def test_copy_into_csv_iceberg(
+    session, tmp_stage_name1, tmp_table_name, local_testing_mode
+):
+    if not iceberg_supported(session, local_testing_mode):
+        pytest.skip("Test requires iceberg support.")
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
     df = session.read.schema(user_schema).csv(test_file_on_stage)
 

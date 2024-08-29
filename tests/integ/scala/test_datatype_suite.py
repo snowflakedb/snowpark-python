@@ -14,15 +14,7 @@ from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     array_construct,
-    builtin,
     col,
-    current_account,
-    current_database,
-    current_region,
-    current_role,
-    current_schema,
-    current_user,
-    current_warehouse,
     lit,
     object_construct,
     udf,
@@ -449,7 +441,7 @@ def test_structured_dtypes_iceberg(
         structured_type_support
         and iceberg_supported(structured_type_session, local_testing_mode)
     ):
-        pytest.mark.skip("Test requires iceberg support and structured type support.")
+        pytest.skip("Test requires iceberg support and structured type support.")
     query, expected_dtypes, expected_schema = STRUCTURED_TYPES_EXAMPLES[True]
 
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
@@ -508,7 +500,7 @@ def test_structured_dtypes_iceberg_udf(
         structured_type_support
         and iceberg_supported(structured_type_session, local_testing_mode)
     ):
-        pytest.mark.skip("Test requires iceberg support and structured type support.")
+        pytest.skip("Test requires iceberg support and structured type support.")
     query, expected_dtypes, expected_schema = STRUCTURED_TYPES_EXAMPLES[True]
 
     table_name = f"snowpark_structured_dtypes_udf_test{uuid.uuid4().hex[:5]}"
@@ -559,23 +551,6 @@ def test_structured_dtypes_iceberg_udf(
             df.select(
                 nop_map_udf(col("map")).alias("map"),
             ).collect()
-    except SnowparkSQLException:
-        raise ValueError(
-            str(
-                structured_type_session.create_dataframe([1])
-                .select(
-                    current_account(),
-                    current_database(),
-                    current_region(),
-                    current_role(),
-                    current_schema(),
-                    current_user(),
-                    current_warehouse(),
-                    builtin("current_account_name")(),
-                )
-                .collect()
-            )
-        )
     finally:
         structured_type_session.sql(f"drop table if exists {table_name}")
 
