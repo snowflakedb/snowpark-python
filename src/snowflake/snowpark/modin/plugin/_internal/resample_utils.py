@@ -24,8 +24,14 @@ from snowflake.snowpark.functions import (
     row_number,
     to_timestamp_ntz,
 )
+from snowflake.snowpark.modin.plugin._internal import join_utils
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
-from snowflake.snowpark.modin.plugin._internal.join_utils import InheritJoinIndex, join
+from snowflake.snowpark.modin.plugin._internal.join_utils import (
+    InheritJoinIndex,
+    JoinKeyCoalesceConfig,
+    MatchComparator,
+    join,
+)
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     DataFrameReference,
     OrderedDataFrame,
@@ -727,63 +733,38 @@ def perform_asof_join_on_frame(
         )[0][0]
     )
 
-    # 3. Convert both preserved_frame and right_frame to Snowpark DataFrames to perform
-    # a non-equi-join.
-    left_snowpark_df = (
-        preserving_frame.ordered_dataframe.to_projected_snowpark_dataframe()
-    )
-    right_snowpark_df = right_frame.ordered_dataframe.to_projected_snowpark_dataframe()
-
-    # 4. Join left_snowpark_df and right_snowpark_df using the following logic:
+    # 3. Join left_snowpark_df and right_snowpark_df using the following logic:
     # For each element left_frame's __resample_index__, join it with a single row
     # in right_frame whose __index__ value is less/greater than or equal to it and is closest in time.
     # If a row cannot be found, pad the joined columns from right_frame with null.
-    if fill_method == "bfill":
-        on_expr = (
-            left_snowpark_df[left_timecol_snowflake_quoted_identifier]
-            <= right_snowpark_df[interval_start_snowflake_quoted_identifier]
-        ) & (
-            left_snowpark_df[left_timecol_snowflake_quoted_identifier]
-            > right_snowpark_df[interval_end_snowflake_quoted_identifier]
-        )
-    else:
-        assert fill_method == "ffill", f"invalid fill_method {fill_method}"
-        on_expr = (
-            left_snowpark_df[left_timecol_snowflake_quoted_identifier]
-            >= right_snowpark_df[interval_start_snowflake_quoted_identifier]
-        ) & (
-            left_snowpark_df[left_timecol_snowflake_quoted_identifier]
-            < right_snowpark_df[interval_end_snowflake_quoted_identifier]
-        )
-    joined_snowpark_df = left_snowpark_df.join(
-        right=right_snowpark_df,
-        on=on_expr,
+    output_frame, _ = join_utils.join(
+        left=preserving_frame,
+        right=right_frame,
         how="left",
-    )
-    # joined_snowpark_df:
-    #
-    #  __resample_index__             __index__     a      interval_end_col
-    # 2023-01-03 00:00:00                  NULL  NULL   NULL
-    # 2023-01-05 00:00:00   2023-01-04 00:00:00     2   2023-01-05 23:00:00
-    # 2023-01-07 00:00:00   2023-01-06 00:00:00     4   2023-01-07 02:00:00
-    # 2023-01-09 00:00:00   2023-01-07 02:00:00  NULL   2023-01-10 00:00:00
-
-    # 5. Construct a final result with correct frame metadata.
-    #                         a
-    # __resample_index__
-    # 2023-01-03 00:00:00   NaN
-    # 2023-01-05 00:00:00     2
-    # 2023-01-07 00:00:00     4
-    # 2023-01-09 00:00:00   NaN
-    return InternalFrame.create(
-        ordered_dataframe=OrderedDataFrame(DataFrameReference(joined_snowpark_df)),
-        data_column_pandas_labels=referenced_frame.data_column_pandas_labels,
-        data_column_snowflake_quoted_identifiers=referenced_frame.data_column_snowflake_quoted_identifiers,
-        index_column_pandas_labels=referenced_frame.index_column_pandas_labels,
-        index_column_snowflake_quoted_identifiers=[
-            left_timecol_snowflake_quoted_identifier
+        left_on=[
+            left_timecol_snowflake_quoted_identifier,
+            left_timecol_snowflake_quoted_identifier,
         ],
-        data_column_pandas_index_names=referenced_frame.data_column_pandas_index_names,
-        data_column_types=referenced_frame.cached_data_column_snowpark_pandas_types,
-        index_column_types=referenced_frame.cached_index_column_snowpark_pandas_types,
+        right_on=[
+            interval_start_snowflake_quoted_identifier,
+            interval_end_snowflake_quoted_identifier,
+        ],
+        on_comparators=(
+            [MatchComparator.GREATER_THAN_OR_EQUAL_TO, MatchComparator.LESS_THAN]
+            if fill_method == "ffill"
+            else [MatchComparator.LESS_THAN_OR_EQUAL_TO, MatchComparator.GREATER_THAN]
+        ),
+        sort=True,
+        join_key_coalesce_config=[
+            JoinKeyCoalesceConfig.LEFT,
+            JoinKeyCoalesceConfig.LEFT,
+        ],
     )
+    # output_frame:
+    #                            a
+    #  __resample_index__
+    # 2023-01-03 00:00:00     NULL
+    # 2023-01-05 00:00:00        2
+    # 2023-01-07 00:00:00        4
+    # 2023-01-09 00:00:00     NULL
+    return output_frame

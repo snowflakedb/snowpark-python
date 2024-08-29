@@ -11374,7 +11374,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # a single row is selected from the input frame, where its date is the closest match in time based on
             # the filling method. We perform an ASOF join to accomplish this.
             frame = perform_asof_join_on_frame(expected_frame, frame, resample_method)
-
+            return SnowflakeQueryCompiler(frame).set_index_names([None])
         elif resample_method in IMPLEMENTED_AGG_METHODS:
             frame = perform_resample_binning_on_frame(frame, start_date, rule)
             if resample_method == "size":
