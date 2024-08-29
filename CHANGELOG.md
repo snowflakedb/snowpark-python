@@ -83,6 +83,11 @@
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 - Fixed AssertionError in tree of binary operations.
 
+#### Behavior Change
+
+- When calling `DataFrame.set_index`, or setting `DataFrame.index` or `Series.index`, with a new index that does not match the current length of the `Series`/`DataFrame` object, a `ValueError` is no longer raised. When the `Series`/`DataFrame` object is longer than the new index, the `Series`/`DataFrame`'s new index is filled with `NaN` values for the "extra" elements. When the `Series`/`DataFrame` object is shorter than the new index, the extra values in the new index are ignored—`Series` and `DataFrame` stay the same length `n`, and use only the first `n` values of the new index.
+
+
 ## 1.21.0 (2024-08-19)
 
 ### Snowpark Python API Updates
@@ -185,10 +190,6 @@
 - Fixed a bug where some Index docstrings are ignored.
 - Fixed a bug in `Series.reset_index(drop=True)` where the result name may be wrong.
 - Fixed a bug in `Groupby.first/last` ordering by the correct columns in the underlying window expression.
-
-#### Behavior Change
-
-- When calling `DataFrame.set_index`, or setting `DataFrame.index` or `Series.index`, with a new index that does match the current length of the `Series`/`DataFrame` object does not match with the new index's length, a `ValueError` is no longer raised. When the `Series`/`DataFrame` object is longer than the new index, the `Series`/`DataFrame`'s new index is filled with `NaN` values for the "extra" elements. When the `Series`/`DataFrame` object is shorter than the new index, the extra values in the new index are ignored—`Series` and `DataFrame` stay the same length `n`, and use only the first `n` values of the new index.
 
 ## 1.20.0 (2024-07-17)
 
