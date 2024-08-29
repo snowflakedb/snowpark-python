@@ -908,7 +908,7 @@ def create_table_as_select_statement(
             }
         )
     options_statement = get_options_statement(options)
-    raise ValueError(
+    return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} "
         f"{ICEBERG if iceberg_config is not None else EMPTY_STRING}{TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
