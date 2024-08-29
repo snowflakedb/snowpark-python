@@ -32,6 +32,7 @@ requirements:
     # This might no longer hold true but keep it just to avoid it from biting us again
     - libffi <=3.4.4
     - pyyaml
+    - sortedcontainers
 
 test:
   imports:
