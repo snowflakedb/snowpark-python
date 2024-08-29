@@ -308,7 +308,11 @@ class RelationalGroupedDataFrame:
                         "contain only Column objects, or pairs of Column object (or column name) and strings."
                     )
 
-        return self._to_df(agg_exprs, _ast_stmt=stmt)
+        df = self._to_df(agg_exprs, _emit_ast=False)
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
+        return df
 
     def apply_in_pandas(
         self,
