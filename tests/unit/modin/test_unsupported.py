@@ -48,7 +48,6 @@ def test_unsupported_io(io_method, kwargs):
         ["crosstab", {"index": "", "columns": ""}],
         ["lreshape", {"data": "", "groups": ""}],
         ["wide_to_long", {"df": "", "stubnames": "", "i": "", "j": ""}],
-        ["to_timedelta", {"arg": ""}],
     ],
 )
 def test_unsupported_general(general_method, kwargs):

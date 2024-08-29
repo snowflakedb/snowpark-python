@@ -150,6 +150,23 @@ def test_value_scalar(test_fillna_df):
     )
 
 
+@sql_count_checker(query_count=2)
+def test_timedelta_value_scalar(test_fillna_df):
+    timedelta_df = test_fillna_df.astype("timedelta64[ns]")
+    eval_snowpark_pandas_result(
+        pd.DataFrame(timedelta_df),
+        timedelta_df,
+        lambda df: df.fillna(pd.Timedelta(1)),  # dtype keeps to be timedelta64[ns]
+    )
+
+    # Snowpark pandas dtype will be changed to int in this case
+    eval_snowpark_pandas_result(
+        pd.DataFrame(timedelta_df),
+        test_fillna_df,
+        lambda df: df.fillna(1),
+    )
+
+
 @sql_count_checker(query_count=1)
 def test_value_scalar_none_index(test_fillna_df_none_index):
     # note: none in index should not be filled

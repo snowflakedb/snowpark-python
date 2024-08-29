@@ -249,10 +249,10 @@ def assert_snowpark_pandas_equal_to_pandas(
     Raises:
         AssertionError if the converted dataframe does not match with the original one
     """
-    assert isinstance(snow, (DataFrame, Series, Index))
+    assert isinstance(snow, (DataFrame, Series, Index)), f"Got type: {type(snow)}"
     assert isinstance(
         expected_pandas, (native_pd.DataFrame, native_pd.Series, native_pd.Index)
-    )
+    ), f"Got type: {type(expected_pandas)}"
     # Due to server-side compression, only check that index values are equivalent and ignore the
     # index types. Snowpark pandas will use the smallest possible dtype (typically int8), while
     # native pandas will default to int64.

@@ -89,8 +89,16 @@ class QueryGenerator(Analyzer):
             plan_queries = get_snowflake_plan_queries(
                 snowflake_plan, self.resolved_with_query_block
             )
-            queries.extend(plan_queries[PlanQueryType.QUERIES])
-            post_actions.extend(plan_queries[PlanQueryType.POST_ACTIONS])
+            # we deduplicate the queries and post actions generated across the logical
+            # plans because it is possible for large query breakdown to partition
+            # original plan into multiple plans that may contain the same nodes which
+            # generate the same queries and post actions.
+            for query in plan_queries[PlanQueryType.QUERIES]:
+                if query not in queries:
+                    queries.append(query)
+            for action in plan_queries[PlanQueryType.POST_ACTIONS]:
+                if action not in post_actions:
+                    post_actions.append(action)
 
         return {
             PlanQueryType.QUERIES: queries,
