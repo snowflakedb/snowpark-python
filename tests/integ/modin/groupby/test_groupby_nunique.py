@@ -6,7 +6,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.pandas as pd
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
@@ -79,4 +79,32 @@ def test_groupby_nunique(df, groupby_columns, dropna):
             lambda df: df.groupby(groupby_columns).agg(
                 {"value1": "count", "value2": "nunique"}, dropna=dropna
             ),
+        )
+
+
+def test_groupby_nunique_timedelta():
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(
+                ["1 days 06:05:01.00003", "15.5us", "nan", "16us"]
+            ),
+            "B": [8, 8, 12, 10],
+            "C": ["the", "name", "is", "bond"],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.groupby("A").nunique(),
+        )
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: df.groupby("A").nunique()
+        )
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: df.groupby(["A", "B"]).nunique()
         )

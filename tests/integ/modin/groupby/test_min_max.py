@@ -9,7 +9,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     MIXED_NUMERIC_STR_DATA_AND_TYPE,
     assert_frame_equal,
@@ -175,3 +175,30 @@ def test_min_max_with_mixed_str_numeric_type():
     )
     expected_df = expected_df.set_index("col_grp")
     assert_frame_equal(result_min, expected_df, check_dtype=False)
+
+
+@pytest.mark.parametrize("agg_func", ["min", "max"])
+def test_groupby_min_max_timedelta(agg_func):
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(
+                ["1 days 06:05:01.00003", "15.5us", "nan", "16us"]
+            ),
+            "B": [8, 8, 12, 10],
+            "C": ["the", "name", "is", "bond"],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: getattr(df.groupby("A"), agg_func)()
+        )
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: getattr(df.groupby("B"), agg_func)()
+        )
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: getattr(df.groupby(["A", "B"]), agg_func)()
+        )

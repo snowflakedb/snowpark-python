@@ -8,11 +8,12 @@ import re
 
 import modin.pandas as pd
 import numpy as np
+import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
 
@@ -35,6 +36,26 @@ def test_all_any_basic(data):
     eval_snowpark_pandas_result(
         *create_test_dfs(data), lambda df: df.groupby("nn").any()
     )
+
+
+@pytest.mark.parametrize("agg_func", ["all", "any"])
+def test_groupby_all_any_timedelta(agg_func):
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(["1 days 06:05:01.00003", "15.5us", "10"]),
+            "B": [10, 8, 12],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: getattr(df.groupby("A"), agg_func)()
+        )
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: getattr(df.groupby("B"), agg_func)()
+        )
 
 
 @sql_count_checker(query_count=2)

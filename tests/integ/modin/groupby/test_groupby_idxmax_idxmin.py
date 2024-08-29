@@ -8,7 +8,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.groupby.conftest import multiindex_data
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     create_test_dfs,
@@ -158,3 +158,25 @@ def test_df_groupby_idxmax_idxmin_on_groupby_axis_1_default_to_pandas(func):
     native_res = df.groupby(by=grouper, axis=1).idxmax(axis=0)
     snow_res = pd.DataFrame(df).groupby(by=grouper, axis=1).idxmax(axis=0)
     assert_frame_equal(native_res, snow_res, check_index_type=False)
+
+
+@pytest.mark.parametrize("agg_func", ["idxmin", "idxmax"])
+def test_groupby_idxmin_idxmax_timedelta(agg_func):
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(
+                ["1 days 06:05:01.00003", "15.5us", "nan", "16us"]
+            ),
+            "B": [8, 8, 12, 10],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: getattr(df.groupby("A"), agg_func)()
+        )
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: getattr(df.groupby("B"), agg_func)()
+        )

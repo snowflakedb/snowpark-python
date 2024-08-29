@@ -1094,3 +1094,34 @@ def test_valid_func_valid_kwarg_should_work(basic_snowpark_pandas_df):
         basic_snowpark_pandas_df.groupby("col1").agg(max, min_count=2),
         basic_snowpark_pandas_df.to_pandas().groupby("col1").max(min_count=2),
     )
+
+
+@pytest.mark.parametrize(
+    "agg_func",
+    [
+        "count",
+        "sum",
+        "mean",
+        "median",
+        "std",
+    ],
+)
+def test_groupby_basic_agg_timedelta(agg_func):
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(
+                ["1 days 06:05:01.00003", "15.5us", "nan", "16us"]
+            ),
+            "B": [8, 8, 12, 10],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: getattr(df.groupby("A"), agg_func)()
+        )
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: getattr(df.groupby("B"), agg_func)()
+        )
