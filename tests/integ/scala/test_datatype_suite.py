@@ -15,7 +15,6 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     array_construct,
     col,
-    current_role,
     lit,
     object_construct,
     udf,
@@ -528,14 +527,6 @@ def test_structured_dtypes_iceberg_udf(
             df.select(
                 nop_map_udf(col("map")).alias("map"),
             ).collect()
-    except SnowparkSQLException:
-        raise ValueError(
-            str(
-                structured_type_session.create_dataframe([1])
-                .select(current_role())
-                .collect()
-            )
-        )
     finally:
         structured_type_session.sql(f"drop table if exists {table_name}")
 

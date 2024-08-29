@@ -253,9 +253,9 @@ def test_copy_into_csv_iceberg(session, tmp_stage_name1, tmp_table_name):
     df.copy_into_table(
         test_table_name,
         iceberg_config={
-            "external_volume": "example_volume",
-            "catalog": "example_catalog",
-            "base_location": "root",
+            "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+            "catalog": "SNOWFLAKE",
+            "base_location": "snowpark_python_tests",
         },
     )
     try:
