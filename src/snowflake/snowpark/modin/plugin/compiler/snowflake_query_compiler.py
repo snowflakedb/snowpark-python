@@ -5170,10 +5170,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ascending_cols.append(ascending)
         if groupby_sort:
             # When groupby_sort=True, also sort by the non-grouping columns before sorting by
-            # the count/proportion column
-            # Exclude the grouping columns (always the first) from the sort
-            non_grouping_cols = result._modin_frame.index_column_pandas_labels[
-                len(by) :
+            # the count/proportion column. The left-most column (nearest to the grouping columns
+            # is sorted on last).
+            # Exclude the grouping columns (always the first) from the sort.
+            non_grouping_cols = [
+                col_label
+                for col_label in result._modin_frame.index_column_pandas_labels
+                if col_label not in by
             ]
             sort_cols.extend(non_grouping_cols)
             ascending_cols.extend([True] * len(non_grouping_cols))
