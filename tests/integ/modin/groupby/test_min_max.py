@@ -175,3 +175,23 @@ def test_min_max_with_mixed_str_numeric_type():
     )
     expected_df = expected_df.set_index("col_grp")
     assert_frame_equal(result_min, expected_df, check_dtype=False)
+
+
+@pytest.mark.parametrize("agg_func", ["min", "max"])
+@pytest.mark.parametrize("by", ["A", "B"])
+@sql_count_checker(query_count=1)
+def test_timedelta(agg_func, by):
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(
+                ["1 days 06:05:01.00003", "15.5us", "nan", "16us"]
+            ),
+            "B": [8, 8, 12, 10],
+            "C": ["the", "name", "is", "bond"],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: getattr(df.groupby(by), agg_func)()
+    )

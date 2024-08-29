@@ -418,7 +418,7 @@ def test_astype_to_timedelta(data):
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_astype_to_timedelta_negative():
     native_datetime_series = native_pd.Series(
         data=[pd.to_datetime("2000-01-01"), pd.to_datetime("2001-01-01")]

@@ -51,7 +51,7 @@ class WarningMessage:
     @classmethod
     def mismatch_with_pandas(cls, operation: str, message: str) -> None:
         cls.single_warning(
-            f"`{operation}` implementation has mismatches with pandas:\n{message}."
+            f"`{operation}` implementation may have mismatches with pandas:\n{message}."
         )
 
     @classmethod
