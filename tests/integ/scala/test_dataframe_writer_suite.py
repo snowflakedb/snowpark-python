@@ -170,9 +170,9 @@ def test_iceberg(session, local_testing_mode):
     df.write.save_as_table(
         table_name,
         iceberg_config={
-            "external_volume": "example_volume",
-            "catalog": "example_catalog",
-            "base_location": "/root",
+            "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+            "catalog": "SNOWFLAKE",
+            "base_location": "snowpark_python_tests",
         },
     )
     try:
