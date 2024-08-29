@@ -163,7 +163,8 @@ Top-level dealing with datetime-like data
 |                             |                                 |                                  | - or ``arg`` is DataFrame and data type is not int |
 |                             |                                 |                                  | - or ``arg`` is Series and data type is string     |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``to_timedelta``            | N                               |                                  |                                                    |
+| ``to_timedelta``            | P                               | ``errors``                       | ``N`` if ``errors`` is given or converting from    |
+|                             |                                 |                                  | string type                                        |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 
 Top-level dealing with Interval data

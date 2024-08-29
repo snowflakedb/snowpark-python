@@ -2624,9 +2624,11 @@ class Index(metaclass=TelemetryMeta):
         name_repr = f", name='{self.name}'" if self.name else ""
         # Length is displayed only when the number of elements is greater than the number of elements to display.
         length_repr = f", length={length_of_index}" if too_many_elem else ""
-        # The frequency is displayed only for DatetimeIndex.
+        # The frequency is displayed for DatetimeIndex and TimedeltaIndex
         # TODO: SNOW-1625233 update freq_repr; replace None with the correct value.
-        freq_repr = ", freq=None" if "DatetimeIndex" in class_name else ""
+        freq_repr = (
+            ", freq=None" if class_name in ("DatetimeIndex", "TimedeltaIndex") else ""
+        )
 
         repr = (
             class_name

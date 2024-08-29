@@ -21,6 +21,7 @@ from snowflake.snowpark.functions import (
     cast,
     convert_timezone,
     date_part,
+    floor,
     iff,
     to_decimal,
 )
@@ -38,6 +39,57 @@ from snowflake.snowpark.types import (
     VariantType,
     _FractionalType,
 )
+
+# Reference: https://github.com/pandas-dev/pandas/blob/ef3368a8046f3c2e98c773be179f0a49a51d4bdc/pandas/_libs/tslibs/timedeltas.pyx#L109
+# Note: this does not include deprecated units 'M' and 'Y'.
+VALID_PANDAS_TIMEDELTA_ABBREVS = {
+    "W": "W",
+    "w": "W",
+    "D": "D",
+    "d": "D",
+    "days": "D",
+    "day": "D",
+    "hours": "h",
+    "hour": "h",
+    "hr": "h",
+    "h": "h",
+    "m": "m",
+    "minute": "m",
+    "min": "m",
+    "minutes": "m",
+    "s": "s",
+    "seconds": "s",
+    "sec": "s",
+    "second": "s",
+    "ms": "ms",
+    "milliseconds": "ms",
+    "millisecond": "ms",
+    "milli": "ms",
+    "millis": "ms",
+    "us": "us",
+    "microseconds": "us",
+    "microsecond": "us",
+    "µs": "us",
+    "micro": "us",
+    "micros": "us",
+    "ns": "ns",
+    "nanoseconds": "ns",
+    "nano": "ns",
+    "nanos": "ns",
+    "nanosecond": "ns",
+}
+
+# multipliers to convert the timedelta unit to nanoseconds
+TIMEDELTA_UNIT_MULTIPLIER = {
+    "W": 7 * 24 * 3600 * (10**9),
+    "D": 24 * 3600 * (10**9),
+    "h": 3600 * (10**9),
+    "m": 60 * (10**9),
+    "s": (10**9),
+    "ms": (10**6),
+    "us": (10**3),
+    "ns": 1,
+}
 
 VALID_TO_DATETIME_DF_KEYS = {
     "year": "year",
@@ -69,6 +121,11 @@ VALID_TO_DATETIME_DF_KEYS = {
 Map of valid column names of a dataframe passed to `to_datetime` to a normalized version that
 we can check against in code. Valid column names include plural and abbreviated versions of
 the specified time units.
+"""
+
+AUTO_FORMAT_WARNING_MSG = """Snowflake automatic format detection is used when a format is not provided.
+In this case Snowflake's auto format may yield different result values compared to pandas.
+See https://docs.snowflake.com/en/sql-reference/date-time-input-output#supported-formats-for-auto-detection for details
 """
 
 # TODO: SNOW-1127160: support other units
@@ -109,6 +166,17 @@ def col_to_s(col: Column, unit: Literal["D", "s", "ms", "us", "ns"]) -> Column:
     else:
         assert unit == "ns", f"unit {unit} is not ns"
         return col / 10**9
+
+
+def col_to_timedelta(col: Column, unit: str) -> Column:
+    """
+    Converts ``col`` (stored in the specified units) to timedelta nanoseconds.
+    """
+    td_unit = VALID_PANDAS_TIMEDELTA_ABBREVS.get(unit)
+    if not td_unit:
+        # Same error as native pandas.
+        raise ValueError(f"invalid unit abbreviation: {unit}")
+    return cast(floor(col * TIMEDELTA_UNIT_MULTIPLIER[td_unit]), LongType())
 
 
 PANDAS_DATETIME_FORMAT_TO_SNOWFLAKE_MAPPING = {
@@ -241,9 +309,7 @@ def generate_timestamp_col(
         if isinstance(datatype, (StringType, VariantType)):
             WarningMessage.mismatch_with_pandas(
                 "to_datetime",
-                "Snowpark pandas to_datetime uses Snowflake's automatic format "
-                "detection to convert string to datetime when a format is not provided. "
-                "In this case Snowflake's auto format may yield different result values compared to pandas.",
+                AUTO_FORMAT_WARNING_MSG.replace("\n", ""),
             )
 
         from snowflake.snowpark.modin.plugin._internal.type_utils import (
