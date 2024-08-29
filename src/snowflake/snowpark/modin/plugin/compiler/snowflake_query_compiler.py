@@ -2272,84 +2272,63 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             return self._reindex_axis_1(labels=labels, **kwargs)
 
-    def is_monotonic_decreasing(self, index: bool) -> "SnowflakeQueryCompiler":
+    def is_monotonic_decreasing(self) -> "SnowflakeQueryCompiler":
         """
         Returns a QueryCompiler containing only a column that checks for monotonically
-        decreasing values.
-
-        Parameters
-        ----------
-        index: bool
-            Whether or not this is called by an `Index` object. If False, it is assumed
-            that this method is called by a `Series` object, and monotonicity is checked
-            for the first data column. If True, monotonicity is checked for the first index
-            column.
+        decreasing values in the first data column of this QueryCompiler.
 
         Returns
         -------
         SnowflakeQueryCompiler
             QueryCompiler with column to ascertain whether data is monotonically decreasing.
         """
-        col_to_check = (
-            self._modin_frame.index_column_snowflake_quoted_identifiers[0]
-            if index
-            else self._modin_frame.data_column_snowflake_quoted_identifiers[0]
-        )
-        (
-            new_qc,
-            _,
-            monotonic_decreasing_snowflake_quoted_identifier,
-        ) = self._add_columns_for_monotonicity_checks(
-            col_to_check=col_to_check, columns_to_add="decreasing"
-        )
-        new_modin_frame = new_qc._modin_frame
-        return SnowflakeQueryCompiler(
-            InternalFrame.create(
-                ordered_dataframe=new_modin_frame.ordered_dataframe.limit(
-                    n=1, sort=False
-                ),
-                data_column_pandas_index_names=new_modin_frame.data_column_pandas_index_names,
-                data_column_pandas_labels=["monotonic_column"],
-                data_column_snowflake_quoted_identifiers=[
-                    monotonic_decreasing_snowflake_quoted_identifier
-                ],
-                index_column_pandas_labels=new_modin_frame.index_column_pandas_labels,
-                index_column_snowflake_quoted_identifiers=new_modin_frame.index_column_snowflake_quoted_identifiers,
-                data_column_types=None,
-                index_column_types=None,
-            )
-        )
+        return self._check_monotonic(increasing=False)
 
-    def is_monotonic_increasing(self, index: bool) -> "SnowflakeQueryCompiler":
+    def is_monotonic_increasing(self) -> "SnowflakeQueryCompiler":
         """
         Returns a QueryCompiler containing only a column that checks for monotonically
-        increasing values.
-
-        Parameters
-        ----------
-        index: bool
-            Whether or not this is called by an `Index` object. If False, it is assumed
-            that this method is called by a `Series` object, and monotonicity is checked
-            for the first data column. If True, monotonicity is checked for the first index
-            column.
+        increasing values in the first data column of this QueryCompiler.
 
         Returns
         -------
         SnowflakeQueryCompiler
             QueryCompiler with column to ascertain whether data is monotonically increasing.
         """
-        col_to_check = (
-            self._modin_frame.index_column_snowflake_quoted_identifiers[0]
-            if index
-            else self._modin_frame.data_column_snowflake_quoted_identifiers[0]
-        )
+        return self._check_monotonic(increasing=True)
+
+    def _check_monotonic(self, increasing: bool) -> "SnowflakeQueryCompiler":
+        """
+        Returns a QueryCompiler containing only a column that checks for monotonically
+        decreasing or increasing values (depending on `increasing`) in the first data column of this QueryCompiler.
+
+        Parameters
+        ----------
+        increasing: bool
+            Whether to check for monotonically increasing or decreasing values.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            QueryCompiler with column to ascertain whether data is monotonically decreasing/increasing.
+        """
+        col_to_check = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
         (
             new_qc,
             monotonic_increasing_snowflake_quoted_identifier,
-            _,
+            monotonic_decreasing_snowflake_quoted_identifier,
         ) = self._add_columns_for_monotonicity_checks(
-            col_to_check=col_to_check, columns_to_add="increasing"
+            col_to_check=col_to_check,
+            columns_to_add="increasing" if increasing else "decreasing",
         )
+        data_column_snowflake_quoted_identifiers = []
+        if increasing:
+            data_column_snowflake_quoted_identifiers.append(
+                monotonic_increasing_snowflake_quoted_identifier
+            )
+        else:
+            data_column_snowflake_quoted_identifiers.append(
+                monotonic_decreasing_snowflake_quoted_identifier
+            )
         new_modin_frame = new_qc._modin_frame
         return SnowflakeQueryCompiler(
             InternalFrame.create(
@@ -2358,9 +2337,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ),
                 data_column_pandas_index_names=new_modin_frame.data_column_pandas_index_names,
                 data_column_pandas_labels=["monotonic_column"],
-                data_column_snowflake_quoted_identifiers=[
-                    monotonic_increasing_snowflake_quoted_identifier
-                ],
+                data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
                 index_column_pandas_labels=new_modin_frame.index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=new_modin_frame.index_column_snowflake_quoted_identifiers,
                 data_column_types=None,

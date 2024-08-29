@@ -2482,6 +2482,22 @@ class Series(BasePandasDataset):
         return super().isnull()
 
     @property
+    def is_monotonic_increasing(self):  # noqa: RT01, D200
+        """
+        Return True if values in the Series are monotonic_increasing.
+        """
+        # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+        return self._reduce_dimension(self._query_compiler.is_monotonic_increasing())
+
+    @property
+    def is_monotonic_decreasing(self):  # noqa: RT01, D200
+        """
+        Return True if values in the Series are monotonic_decreasing.
+        """
+        # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+        return self._reduce_dimension(self._query_compiler.is_monotonic_decreasing())
+
+    @property
     def is_unique(self):  # noqa: RT01, D200
         """
         Return True if values in the Series are unique.

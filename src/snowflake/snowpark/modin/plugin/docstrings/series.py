@@ -3660,9 +3660,14 @@ class Series:
         """
 
     @property
-    def is_monotonic_increasing():
+    def is_monotonic_decreasing():
         """
         Return boolean if values in the object are monotonically decreasing.
+
+        Returns
+        -------
+        bool
+            Whether or not the Series is monotonically decreasing.
 
         Examples
         --------
@@ -3676,9 +3681,14 @@ class Series:
         """
 
     @property
-    def is_monotonic_decreasing():
+    def is_monotonic_increasing():
         """
         Return boolean if values in the object are monotonically increasing.
+
+        Returns
+        -------
+        bool
+            Whether or not the Series is monotonically increasing.
 
         Examples
         --------

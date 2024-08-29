@@ -398,7 +398,7 @@ class Index(metaclass=TelemetryMeta):
         return self.to_pandas().values
 
     @property
-    def is_monotonic_increasing(self) -> None:
+    def is_monotonic_increasing(self) -> bool:
         """
         Return a boolean if the values are equal or increasing.
 
@@ -420,14 +420,10 @@ class Index(metaclass=TelemetryMeta):
         >>> pd.Index([1, 3, 2]).is_monotonic_increasing
         False
         """
-        return (
-            self._query_compiler.is_monotonic_increasing(index=True)
-            .to_pandas()
-            .squeeze()
-        )
+        return self.to_series().is_monotonic_increasing
 
     @property
-    def is_monotonic_decreasing(self) -> None:
+    def is_monotonic_decreasing(self) -> bool:
         """
         Return a boolean if the values are equal or decreasing.
 
@@ -449,11 +445,7 @@ class Index(metaclass=TelemetryMeta):
         >>> pd.Index([3, 1, 2]).is_monotonic_decreasing
         False
         """
-        return (
-            self._query_compiler.is_monotonic_decreasing(index=True)
-            .to_pandas()
-            .squeeze()
-        )
+        return self.to_series().is_monotonic_decreasing
 
     @property
     def is_unique(self) -> bool:
