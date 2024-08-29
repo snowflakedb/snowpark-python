@@ -12,7 +12,7 @@
 
 #### Improvements
 
-- Added support for `ln` in `snowflake.snowpark.functions`
+- Improved documentation for `Session.write_pandas` by making `use_logical_type` option more explicit.
 - Added support for specifying the following to `DataFrameWriter.save_as_table`:
   - `enable_schema_evolution`
   - `data_retention_time`
