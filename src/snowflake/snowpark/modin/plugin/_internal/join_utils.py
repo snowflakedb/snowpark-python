@@ -320,12 +320,43 @@ def _create_internal_frame_with_join_or_align_result(
         )
         index_column_types.extend(right.cached_index_column_snowpark_pandas_types)
 
+    # If the result ordering column has the same ordering columns as the original left ordering columns,
+    # that means the original left and right shares the same base, and no actual snowpark join is applied because
+    # the join is applied on the ordering column or align on the same column.
+    # This behavior is guaranteed by the align and join methods provided by the OrderingDataframe, when the
+    # snowpark join is actually applied, the result ordering column will be a combination of
+    # left.ordering_column and right.ordering_column, plus some assist column. For example, the ordering column
+    # of left join is left.ordering_column + right.ordering_column.
+    no_join_applied = (
+        result_ordered_frame.ordering_columns == left.ordered_dataframe.ordering_columns
+    )
+
     if key_coalesce_config:
         coalesce_column_identifiers = []
         coalesce_column_values = []
         for origin_left_col, origin_right_col, coalesce_config in zip(
             left_on, right_on, key_coalesce_config
         ):
+            left_col = result_helper.map_left_quoted_identifiers([origin_left_col])[0]
+            right_col = result_helper.map_right_quoted_identifiers([origin_right_col])[
+                0
+            ]
+            if no_join_applied and origin_left_col == origin_right_col:
+                # if no join is applied, that means the result dataframe, left dataframe and right dataframe
+                # shares the same base dataframe. If the original left column and original right column are the
+                # same column, no coalesce is needed, and we always tries to keep the left column to stay align
+                # with the original dataframe as much as possible to increase the chance for optimization for
+                # later operations, especially when the later operations are applied with dfs coming from
+                # the ame dataframe.
+                # Keep left column can help stay aligned with the original dataframe is because when there are
+                # conflict between left and right, deduplication always happens at right. For example, when join
+                # or align left dataframe [col1, col2] and right dataframe [col1, col2], the result dataframe will
+                # have columns [col1, col2, col1_a12b, col2_de3b], where col1_a12b, col2_de3b are just alias of
+                # col1 and col2 in right dataframe.
+                coalesce_config = JoinKeyCoalesceConfig.NONE
+            if coalesce_config == JoinKeyCoalesceConfig.NONE:
+                continue
+
             coalesce_col_type = None
             origin_left_col_type = (
                 left.snowflake_quoted_identifier_to_snowpark_pandas_type[
@@ -337,68 +368,43 @@ def _create_internal_frame_with_join_or_align_result(
                     origin_right_col
                 ]
             )
-            if coalesce_config == JoinKeyCoalesceConfig.NONE:
-                continue
-            left_col = result_helper.map_left_quoted_identifiers([origin_left_col])[0]
-            right_col = result_helper.map_right_quoted_identifiers([origin_right_col])[
-                0
-            ]
-            # if the result ordering column has the same ordering columns as the original left ordering columns,
-            # that means the original left and right shares the same base, and no actual join is applied.
-            no_join_applied = (
-                result_ordered_frame.ordering_columns
-                == left.ordered_dataframe.ordering_columns
-            )
-            if no_join_applied and origin_left_col == origin_right_col:
-                # if no join is applied, that means the result dataframe, left dataframe and right dataframe
-                # shares the same base dataframe. If the original left column and original right column are the
-                # same column, we always tries to keep the left column to stay align with the original dataframe
-                # as much as possible to increase the chance for optimization for later operations, especially
-                # when the later operations are applied with dfs coming from the ame dataframe.
-                # Keep left column can help stay aligned with the original dataframe is because when there are
-                # conflict between left and right, deduplication always happens at right. For example, when join
-                # or align left dataframe [col1, col2] and right dataframe [col1, col2], the result dataframe will
-                # have columns [col1, col2, col1_a12b, col2_de3b], where col1_a12b, col2_de3b are just alias of
-                # col1 and col2 in right dataframe.
+
+            # Coalescing is only required for 'outer' or 'asof' joins or align.
+            # For 'inner' and 'left' join we use left join keys and for 'right' join we
+            # use right join keys.
+            # For 'left' and 'coalesce' align we use left join keys.
+            if how in ("asof", "outer"):
+                # Generate an expression equivalent of
+                # "COALESCE('left_col', 'right_col') as 'left_col'"
+                coalesce_column_identifier = (
+                    result_ordered_frame.generate_snowflake_quoted_identifiers(
+                        pandas_labels=[
+                            extract_pandas_label_from_snowflake_quoted_identifier(
+                                left_col
+                            )
+                        ],
+                    )[0]
+                )
+                coalesce_column_identifiers.append(coalesce_column_identifier)
+                coalesce_column_values.append(coalesce(left_col, right_col))
+                if origin_left_col_type == origin_right_col_type:
+                    coalesce_col_type = origin_left_col_type
+            elif how == "right":
+                # No coalescing required for 'right' join. Simply use right join key
+                # as output column.
+                coalesce_column_identifier = right_col
+                coalesce_col_type = origin_right_col_type
+            elif how in ("inner", "left", "coalesce"):
+                # No coalescing required for 'left' or 'inner' join and for 'left' or
+                # 'coalesce' align. Simply use left join key as output column.
                 coalesce_column_identifier = left_col
                 coalesce_col_type = origin_left_col_type
             else:
-                # Coalescing is only required for 'outer' or 'asof' joins or align.
-                # For 'inner' and 'left' join we use left join keys and for 'right' join we
-                # use right join keys.
-                # For 'left' and 'coalesce' align we use left join keys.
-                if how in ("asof", "outer"):
-                    # Generate an expression equivalent of
-                    # "COALESCE('left_col', 'right_col') as 'left_col'"
-                    coalesce_column_identifier = (
-                        result_ordered_frame.generate_snowflake_quoted_identifiers(
-                            pandas_labels=[
-                                extract_pandas_label_from_snowflake_quoted_identifier(
-                                    left_col
-                                )
-                            ],
-                        )[0]
-                    )
-                    coalesce_column_identifiers.append(coalesce_column_identifier)
-                    coalesce_column_values.append(coalesce(left_col, right_col))
-                    if origin_left_col_type == origin_right_col_type:
-                        coalesce_col_type = origin_left_col_type
-                elif how == "right":
-                    # No coalescing required for 'right' join. Simply use right join key
-                    # as output column.
-                    coalesce_column_identifier = right_col
-                    coalesce_col_type = origin_right_col_type
-                elif how in ("inner", "left", "coalesce"):
-                    # No coalescing required for 'left' or 'inner' join and for 'left' or
-                    # 'coalesce' align. Simply use left join key as output column.
-                    coalesce_column_identifier = left_col
-                    coalesce_col_type = origin_left_col_type
-                else:
-                    raise AssertionError(f"Unsupported join/align type {how}")
+                raise AssertionError(f"Unsupported join/align type {how}")
 
-                if coalesce_config == JoinKeyCoalesceConfig.RIGHT:
-                    # swap left_col and right_col
-                    left_col, right_col = right_col, left_col
+            if coalesce_config == JoinKeyCoalesceConfig.RIGHT:
+                # swap left_col and right_col
+                left_col, right_col = right_col, left_col
 
             # To provide same behavior as native pandas, remove duplicate join column.
             if right_col in data_column_snowflake_quoted_identifiers:
@@ -1207,15 +1213,7 @@ def align(
     # NULL  NULL 2             NULL      4   e  2
     coalesce_key_config = None
     inherit_join_index = InheritJoinIndex.FROM_LEFT
-    # When it is `outer` align, we need to coalesce the align columns. However, if the
-    # ordering columns of aligned result is the same as the left frame, that means the
-    # join columns of left and right matches, then there is no need to coalesce the join
-    # keys, simply inherent from left gives the correct result.
-    # Retaining the original columns also helps avoid unnecessary join in later steps.
-    # if (
-    #    how == "outer"
-    # and aligned_ordered_frame.ordering_columns != left.ordering_columns
-    # ):
+    # When it is `outer` align, we need to coalesce the align columns.
     if how == "outer":
         coalesce_key_config = [JoinKeyCoalesceConfig.LEFT] * len(left_on)
         inherit_join_index = InheritJoinIndex.FROM_BOTH
