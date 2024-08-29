@@ -255,7 +255,7 @@ def test_copy_into_csv_iceberg(session, tmp_stage_name1, tmp_table_name):
         iceberg_config={
             "external_volume": "example_volume",
             "catalog": "example_catalog",
-            "base_location": "/root",
+            "base_location": "root",
         },
     )
     try:
