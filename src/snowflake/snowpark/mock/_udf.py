@@ -118,41 +118,48 @@ class MockUDFRegistration(UDFRegistration):
                 raise_error=NotImplementedError,
             )
 
-        # get the udf name, return and input types
-        (
-            udf_name,
-            is_pandas_udf,
-            is_dataframe_input,
-            return_type,
-            input_types,
-            opt_arg_defaults,
-        ) = process_registration_inputs(
-            self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
-        )
-
-        current_schema = self._session.get_current_schema()
-        current_database = self._session.get_current_database()
-        udf_name = get_fully_qualified_name(udf_name, current_schema, current_database)
-
-        # allow registering pandas UDF from udf(),
-        # but not allow registering non-pandas UDF from pandas_udf()
-        if from_pandas_udf_function and not is_pandas_udf:
-            raise ValueError(
-                "You cannot create a non-vectorized UDF using pandas_udf(). "
-                "Use udf() instead."
-            )
-
-        custom_python_runtime_version_allowed = False
-
-        if not custom_python_runtime_version_allowed:
-            check_python_runtime_version(
-                self._session._runtime_version_from_requirement
-            )
-
-        if replace and if_not_exists:
-            raise ValueError("options replace and if_not_exists are incompatible")
-
         with self._lock:
+            # get the udf name, return and input types
+            (
+                udf_name,
+                is_pandas_udf,
+                is_dataframe_input,
+                return_type,
+                input_types,
+                opt_arg_defaults,
+            ) = process_registration_inputs(
+                self._session,
+                TempObjectType.FUNCTION,
+                func,
+                return_type,
+                input_types,
+                name,
+            )
+
+            current_schema = self._session.get_current_schema()
+            current_database = self._session.get_current_database()
+            udf_name = get_fully_qualified_name(
+                udf_name, current_schema, current_database
+            )
+
+            # allow registering pandas UDF from udf(),
+            # but not allow registering non-pandas UDF from pandas_udf()
+            if from_pandas_udf_function and not is_pandas_udf:
+                raise ValueError(
+                    "You cannot create a non-vectorized UDF using pandas_udf(). "
+                    "Use udf() instead."
+                )
+
+            custom_python_runtime_version_allowed = False
+
+            if not custom_python_runtime_version_allowed:
+                check_python_runtime_version(
+                    self._session._runtime_version_from_requirement
+                )
+
+            if replace and if_not_exists:
+                raise ValueError("options replace and if_not_exists are incompatible")
+
             if udf_name in self._registry and if_not_exists:
                 return self._registry[udf_name]
 
