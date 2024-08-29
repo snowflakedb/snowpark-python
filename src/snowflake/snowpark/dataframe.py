@@ -1064,6 +1064,7 @@ class DataFrame:
             ast = with_src_position(stmt.expr.sp_dataframe_to_df, stmt)
             ast.col_names.extend(col_names)
             ast.variadic = is_variadic
+            self.set_ast_ref(ast.df)
 
         new_cols = []
         for attr, name in zip(self._output, col_names):
@@ -3453,6 +3454,7 @@ class DataFrame:
             expr = with_src_position(ast_stmt.expr.sp_dataframe_with_column, ast_stmt)
             expr.col_name = col_name
             build_expr_from_snowpark_column_or_table_fn(expr.col, col)
+            self.set_ast_ref(expr.df)
 
         df = self.with_columns([col_name], [col], ast_stmt=ast_stmt, _emit_ast=False)
 

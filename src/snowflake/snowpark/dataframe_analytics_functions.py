@@ -26,6 +26,7 @@ from snowflake.snowpark.functions import (
     unix_timestamp,
     year,
 )
+from snowflake.snowpark.types import IntegerType, StructField, StructType
 from snowflake.snowpark.window import Window
 
 # "s" (seconds), "m" (minutes), "h" (hours), "d" (days), "w" (weeks), "mm" (months), "y" (years)
@@ -544,6 +545,7 @@ class DataFrameAnalyticsFunctions:
             ast.lags.extend(lags)
             ast.group_by.extend(group_by)
             ast.order_by.extend(order_by)
+            self._df.set_ast_ref(ast.df)
 
         for c in cols:
             for _lag in lags:
@@ -734,6 +736,7 @@ class DataFrameAnalyticsFunctions:
             ast.windows.extend(windows)
             ast.group_by.extend(group_by)
             ast.sliding_interval = sliding_interval
+            self._df.set_ast_ref(ast.df)
 
             for window in windows:
                 for column, funcs in aggs.items():
@@ -752,7 +755,15 @@ class DataFrameAnalyticsFunctions:
             isinstance(self._df._session._conn, MockServerConnection)
             and self._df._session._conn._suppress_not_implemented_error
         ):
-            return self._df._session.createDataFrame([])
+            # TODO: Snowpark does not allow empty dataframes (no schema, no data). Have a dummy schema here
+            ans = self._df._session.createDataFrame(
+                [],
+                schema=StructType([StructField("row", IntegerType())]),
+                _emit_ast=False,
+            )
+            if _emit_ast:
+                ans._ast_id = stmt.var_id.bitfield1
+            return ans
 
         slide_duration, slide_unit = self._validate_and_extract_time_unit(
             sliding_interval, "sliding_interval", allow_negative=False
