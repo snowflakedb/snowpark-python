@@ -218,6 +218,14 @@ def compute_bin_indices(
         ),
     )
 
+    bucket_frame = cuts_frame.append_columns(
+        ["b_data", "b_row_pos"],
+        [col(cuts_frame.data_column_snowflake_quoted_identifiers[0]), col(cuts_frame.row_position_snowflake_quoted_identifier)])
+
+    bucket_data_identifier = bucket_frame.data_column_snowflake_quoted_identifiers[-1]
+    bucket_row_position_identifier = bucket_frame.data_column_snowflake_quoted_identifiers[-2]
+    
+
     value_snowpark_frame = value_snowpark_frame.select(
         *tuple(value_index_identifiers),
         col(value_frame.data_column_snowflake_quoted_identifiers[0]).as_(
@@ -227,6 +235,7 @@ def compute_bin_indices(
             value_row_position_identifier
         ),
     )
+
 
     # Perform a left join. The idea is to find all values which fall into an interval
     # defined by the cuts/bins in the bucket frame. The closest can be then identified using the
