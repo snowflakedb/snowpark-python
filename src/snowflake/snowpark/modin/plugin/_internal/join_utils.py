@@ -1213,7 +1213,8 @@ def align(
     # keys, simply inherent from left gives the correct result.
     # Retaining the original columns also helps avoid unnecessary join in later steps.
     if (
-        how == "outer"
+        how
+        == "outer"
         # and aligned_ordered_frame.ordering_columns != left.ordering_columns
     ):
         coalesce_key_config = [JoinKeyCoalesceConfig.LEFT] * len(left_on)
