@@ -86,6 +86,7 @@
 
 - Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
 - Improved `pd.to_datetime` to handle all local input cases. 
+- Create a lazy index from another lazy index without pulling data to client.
 
 #### Bug Fixes
 

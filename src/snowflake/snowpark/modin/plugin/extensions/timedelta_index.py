@@ -55,17 +55,65 @@ class TimedeltaIndex(Index):
     # Equivalent index type in native pandas
     _NATIVE_INDEX_TYPE = native_pd.TimedeltaIndex
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(
+        cls,
+        data: ArrayLike | native_pd.Index | Series | None = None,
+        unit: str | lib.NoDefault = _CONSTRUCTOR_DEFAULTS["unit"],
+        freq: Frequency | lib.NoDefault = _CONSTRUCTOR_DEFAULTS["freq"],
+        dtype: Dtype | None = _CONSTRUCTOR_DEFAULTS["dtype"],
+        copy: bool = _CONSTRUCTOR_DEFAULTS["copy"],
+        name: Hashable | None = _CONSTRUCTOR_DEFAULTS["name"],
+        query_compiler: SnowflakeQueryCompiler = None,
+    ) -> TimedeltaIndex:
         """
         Create new instance of TimedeltaIndex. This overrides behavior of Index.__new__.
-        Args:
-            *args: arguments.
-            **kwargs: keyword arguments.
+
+        Parameters
+        ----------
+        data : array-like (1-dimensional), optional
+            Optional timedelta-like data to construct index with.
+        unit : {'D', 'h', 'm', 's', 'ms', 'us', 'ns'}, optional
+            The unit of ``data``.
+
+            .. deprecated:: 2.2.0
+             Use ``pd.to_timedelta`` instead.
+
+        freq : str or pandas offset object, optional
+            One of pandas date offset strings or corresponding objects. The string
+            ``'infer'`` can be passed in order to set the frequency of the index as
+            the inferred frequency upon creation.
+        dtype : numpy.dtype or str, default None
+            Valid ``numpy`` dtypes are ``timedelta64[ns]``, ``timedelta64[us]``,
+            ``timedelta64[ms]``, and ``timedelta64[s]``.
+        copy : bool
+            Make a copy of input array.
+        name : object
+            Name to be stored in the index.
 
         Returns:
             New instance of TimedeltaIndex.
         """
-        return object.__new__(cls)
+        if query_compiler:
+            # Raise error if underlying type is not a Timedelta type.
+            current_dtype = query_compiler.index_dtypes[0]
+            if not is_timedelta64_dtype(current_dtype):
+                raise ValueError(
+                    f"TimedeltaIndex can only be created from a query compiler with TimedeltaType, found {current_dtype}"
+                )
+        kwargs = {
+            "unit": unit,
+            "freq": freq,
+            "dtype": dtype,
+            "copy": copy,
+            "name": name,
+        }
+        tdi = object.__new__(cls)
+        tdi._query_compiler = TimedeltaIndex._init_query_compiler(
+            data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs
+        )
+        # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
+        tdi._parent = None
+        return tdi
 
     def __init__(
         self,
@@ -114,21 +162,8 @@ class TimedeltaIndex(Index):
         >>> pd.TimedeltaIndex(np.arange(5) * 24 * 3600 * 1e9, freq='infer')
         TimedeltaIndex(['0 days', '1 days', '2 days', '3 days', '4 days'], dtype='timedelta64[ns]', freq=None)
         """
-        if query_compiler:
-            # Raise error if underlying type is not a Timedelta type.
-            current_dtype = query_compiler.index_dtypes[0]
-            if not is_timedelta64_dtype(current_dtype):
-                raise ValueError(
-                    f"TimedeltaIndex can only be created from a query compiler with TimedeltaType, found {current_dtype}"
-                )
-        kwargs = {
-            "unit": unit,
-            "freq": freq,
-            "dtype": dtype,
-            "copy": copy,
-            "name": name,
-        }
-        self._init_index(data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs)
+        # TimedeltaIndex is already initialized in __new__ method. We keep this method
+        # only for docstring generation.
 
     @property
     def days(self) -> Index:
