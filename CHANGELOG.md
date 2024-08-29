@@ -78,6 +78,7 @@
 #### Improvements
 
 - Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
+- Refactored `resample.fillna` implementation to use `OrderedDataFrame` join utility.
 
 #### Bug Fixes
 
