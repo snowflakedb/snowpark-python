@@ -131,6 +131,21 @@ def test_value_counts_normalize(
     )
 
 
+@pytest.mark.parametrize("test_data", TEST_DATA)
+@pytest.mark.parametrize("by", ["by", ["value1", "by"], ["by", "value2"]])
+@pytest.mark.parametrize("groupby_sort", [True, False])
+@pytest.mark.parametrize("sort", [True, False])
+@pytest.mark.parametrize("as_index", [True, False])
+@sql_count_checker(query_count=1)
+def test_value_counts_as_index(test_data, by, groupby_sort, sort, as_index):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(test_data),
+        lambda df: df.groupby(by=by, sort=groupby_sort, as_index=as_index).value_counts(
+            sort=sort
+        ),
+    )
+
+
 @pytest.mark.parametrize(
     "subset, exception_cls",
     [

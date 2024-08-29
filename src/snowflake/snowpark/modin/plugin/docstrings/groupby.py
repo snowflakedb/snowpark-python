@@ -257,8 +257,8 @@ class DataFrameGroupBy:
 
         >>> df.groupby('gender').value_counts()  # doctest: +NORMALIZE_WHITESPACE
         gender  education  country
-        female  high       US         1
-                           FR         1
+        female  high       FR         1
+                           US         1
         male    low        FR         2
                            US         1
                 medium     FR         1
@@ -266,8 +266,8 @@ class DataFrameGroupBy:
 
         >>> df.groupby('gender').value_counts(ascending=True)  # doctest: +NORMALIZE_WHITESPACE
         gender  education  country
-        female  high       US         1
-                           FR         1
+        female  high       FR         1
+                           US         1
         male    low        US         1
                 medium     FR         1
                 low        FR         2
@@ -275,8 +275,8 @@ class DataFrameGroupBy:
 
         >>> df.groupby('gender').value_counts(normalize=True)  # doctest: +NORMALIZE_WHITESPACE
         gender  education  country
-        female  high       US         0.50
-                           FR         0.50
+        female  high       FR         0.50
+                           US         0.50
         male    low        FR         0.50
                            US         0.25
                 medium     FR         0.25

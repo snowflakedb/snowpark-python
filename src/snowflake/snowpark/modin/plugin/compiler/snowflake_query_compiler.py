@@ -5063,10 +5063,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # unlike pandas, we do not include the offending labels in the error message.
             raise ValueError("Keys in subset cannot be in the groupby column keys")
         if subset is not None:
-            if not isinstance(subset, (list, tuple)):
-                subset_list = [subset]
-            else:
-                subset_list = subset
+            subset_list = subset
         else:
             # If subset is unspecified, then all columns should be included.
             subset_list = self._modin_frame.data_column_pandas_labels
@@ -5173,10 +5170,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # the count/proportion column. The left-most column (nearest to the grouping columns
             # is sorted on last).
             # Exclude the grouping columns (always the first) from the sort.
+            if as_index:
+                # When as_index is true, the non-grouping columns are part of the index columns
+                columns_to_filter = result._modin_frame.index_column_pandas_labels
+            else:
+                # When as_index is false, the non-grouping columns are part of the data columns
+                columns_to_filter = result._modin_frame.data_column_pandas_labels
             non_grouping_cols = [
-                col_label
-                for col_label in result._modin_frame.index_column_pandas_labels
-                if col_label not in by
+                col_label for col_label in columns_to_filter if col_label not in by
             ]
             sort_cols.extend(non_grouping_cols)
             ascending_cols.extend([True] * len(non_grouping_cols))
