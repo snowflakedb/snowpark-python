@@ -15,7 +15,13 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     array_construct,
     col,
+    current_account,
+    current_database,
+    current_region,
     current_role,
+    current_schema,
+    current_user,
+    current_warehouse,
     lit,
     object_construct,
     udf,
@@ -556,7 +562,15 @@ def test_structured_dtypes_iceberg_udf(
         raise ValueError(
             str(
                 structured_type_session.create_dataframe([1])
-                .select(current_role())
+                .select(
+                    current_account(),
+                    current_database(),
+                    current_region(),
+                    current_role(),
+                    current_schema(),
+                    current_user(),
+                    current_warehouse(),
+                )
                 .collect()
             )
         )
