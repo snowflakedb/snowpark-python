@@ -123,6 +123,11 @@ we can check against in code. Valid column names include plural and abbreviated 
 the specified time units.
 """
 
+AUTO_FORMAT_WARNING_MSG = """Snowflake automatic format detection is used when a format is not provided. 
+In this case Snowflake's auto format may yield different result values compared to pandas.
+See https://docs.snowflake.com/en/sql-reference/date-time-input-output#supported-formats-for-auto-detection for details
+"""
+
 # TODO: SNOW-1127160: support other units
 VALID_TO_DATETIME_UNIT = ["D", "s", "ms", "us", "ns"]
 
@@ -304,9 +309,7 @@ def generate_timestamp_col(
         if isinstance(datatype, (StringType, VariantType)):
             WarningMessage.mismatch_with_pandas(
                 "to_datetime",
-                "Snowpark pandas to_datetime uses Snowflake's automatic format "
-                "detection to convert string to datetime when a format is not provided. "
-                "In this case Snowflake's auto format may yield different result values compared to pandas.",
+                AUTO_FORMAT_WARNING_MSG.replace("\n", ""),
             )
 
         from snowflake.snowpark.modin.plugin._internal.type_utils import (
