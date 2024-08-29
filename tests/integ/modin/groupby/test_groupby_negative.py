@@ -558,6 +558,7 @@ def test_groupby_agg_invalid_min_count(
         )
 
 
+@sql_count_checker(query_count=0)
 def test_groupby_negative_var():
     native_df = native_pd.DataFrame(
         {

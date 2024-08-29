@@ -41,6 +41,25 @@ BaseInternalKeyType = Union[
 ]
 
 NO_GROUPKEY_ERROR = ValueError("No group keys passed!")
+GROUPBY_AGG_SAME_INPUT_AND_OUTPUT_DATA_TYPES = [
+    "min",
+    "max",
+    "sum",
+    "mean",
+    "median",
+    "std",
+    "first",
+    "last",
+]
+GROUPBY_AGG_DIFFERENT_INPUT_AND_OUTPUT_DATA_TYPES = [
+    "any",
+    "all",
+    "count",
+    "idxmax",
+    "idxmin",
+    "size",
+    "nunique",
+]
 
 
 def is_groupby_value_label_like(val: Any) -> bool:

@@ -88,23 +88,3 @@ def test_timedelta_precision_insufficient_with_nulls_SNOW_1628925():
     eval_snowpark_pandas_result(
         pd, native_pd, lambda lib: lib.Series([None, timedelta])
     )
-
-
-@sql_count_checker(query_count=0)
-def test_timedelta_not_supported():
-    df = pd.DataFrame(
-        {
-            "a": ["one", "two", "three"],
-            "b": ["abc", "pqr", "xyz"],
-            "dt": [
-                pd.Timedelta("1 days"),
-                pd.Timedelta("2 days"),
-                pd.Timedelta("3 days"),
-            ],
-        }
-    )
-    with pytest.raises(
-        NotImplementedError,
-        match="validate_groupby is not yet implemented for Timedelta Type",
-    ):
-        df.groupby("a").count()

@@ -198,6 +198,8 @@ from snowflake.snowpark.modin.plugin._internal.cut_utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
+    GROUPBY_AGG_DIFFERENT_INPUT_AND_OUTPUT_DATA_TYPES,
+    GROUPBY_AGG_SAME_INPUT_AND_OUTPUT_DATA_TYPES,
     check_is_groupby_supported_by_snowflake,
     extract_groupby_column_pandas_labels,
     get_frame_with_groupby_columns_as_index,
@@ -3426,30 +3428,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             new_data_column_quoted_identifiers.append(
                 col_agg_op.agg_snowflake_quoted_identifier
             )
-            if agg_func in (
-                "min",
-                "max",
-                "sum",
-                "mean",
-                "median",
-                "std",
-                "first",
-                "last",
-            ):
+            if agg_func in GROUPBY_AGG_SAME_INPUT_AND_OUTPUT_DATA_TYPES:
                 new_data_column_snowpark_pandas_types.append(
                     col_agg_op.data_type
                     if isinstance(col_agg_op.data_type, SnowparkPandasType)
                     else None
                 )
-            elif agg_func in (
-                "any",
-                "all",
-                "count",
-                "idxmax",
-                "idxmin",
-                "size",
-                "nunique",
-            ):
+            elif agg_func in GROUPBY_AGG_DIFFERENT_INPUT_AND_OUTPUT_DATA_TYPES:
                 # In the case where the aggregation overrides the type of the output data column
                 # (e.g. any always returns boolean data columns), set the output Snowpark pandas type to None
                 new_data_column_snowpark_pandas_types = None  # type: ignore
