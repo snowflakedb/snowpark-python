@@ -204,7 +204,9 @@ class MockExecutionPlan(LogicalPlan):
     def attributes(self) -> List[Attribute]:
         output = describe(self)
 
-        # special case: TableFunctionJoin, the logic is currently written to expect input + output columns joined.
+        # Special case: TableFunctionJoin, the logic is currently written to expect to return
+        #               both input + output columns joined together. Else, code in select() crashes
+        #               for local testing mode.
         if isinstance(self.source_plan, TableFunctionJoin):
             # prepend arguments.
             return self.source_plan.table_function.args + output
@@ -556,6 +558,9 @@ def handle_udtf_expression(
     expr_to_alias: Dict[str, str],
     current_row=None,
 ):
+
+    # TODO: handle and support imports + other udtf attributes.
+
     udtf_registry = analyzer.session.udtf
     udtf_name = exp.func_name
     udtf = udtf_registry.get_udtf(udtf_name)
@@ -575,6 +580,14 @@ def handle_udtf_expression(
 
         return data
     else:
+
+        res = ColumnEmulator(
+            data=[],
+            sf_type=ColumnType(exp.datatype, exp.nullable),
+            name=quote_name(f"{exp.udf_name}({', '.join(input_data.columns)})".upper()),
+            dtype=object,
+        )
+
         # Process each row
         if hasattr(handler, "process"):
             data = []
@@ -599,80 +612,6 @@ def handle_udtf_expression(
             handler.end_partition()
 
         return res
-
-    #
-    # with ImportContext(udf_registry.get_udf_imports(udf_name)):
-    #     # Resolve handler callable
-    #     if type(udf.func) is tuple:
-    #         module_name, handler_name = udf.func
-    #         exec(f"from {module_name} import {handler_name}")
-    #         udf_handler = eval(handler_name)
-    #     else:
-    #         udf_handler = udf.func
-    #
-    #     # Compute input data and validate typing
-    #     if len(exp.children) != len(udf._input_types):
-    #         raise SnowparkLocalTestingException(
-    #             f"Expected {len(udf._input_types)} arguments, but received {len(exp.children)}"
-    #         )
-    #
-    #     function_input = TableEmulator(index=input_data.index)
-    #     for child, expected_type in zip(exp.children, udf._input_types):
-    #         col_name = analyzer.analyze(child, expr_to_alias)
-    #         column_data = calculate_expression(
-    #             child, input_data, analyzer, expr_to_alias
-    #         )
-    #
-    #         # Variant Data is often cast to specific python types when passed to a udf.
-    #         if isinstance(expected_type, VariantType):
-    #             column_data = column_data.apply(coerce_variant_input)
-    #
-    #         coerce_result = get_coerce_result_type(
-    #             column_data.sf_type, ColumnType(expected_type, False)
-    #         )
-    #         if coerce_result is None:
-    #             raise SnowparkLocalTestingException(
-    #                 f"UDF received input type {column_data.sf_type.datatype} for column {child.name}, but expected input type of {expected_type}"
-    #             )
-    #
-    #         function_input[col_name] = cast_column_to(
-    #             column_data, ColumnType(expected_type, False)
-    #         )
-    #
-    #     try:
-    #         # we do not use pd.apply here because pd.apply will auto infer dtype for the output column
-    #         # this will lead to NaN or None information loss, think about the following case of a udf definition:
-    #         #    def udf(x): return numpy.sqrt(x) if x is not None else None
-    #         # calling udf(-1) and udf(None), pd.apply will infer the column dtype to be int which returns NaT for both
-    #         # however, we want NaT for the former case and None for the latter case.
-    #         # using dtype object + function execution does not have the limitation
-    #         # In the future maybe we could call fix_drift_between_column_sf_type_and_dtype in methods like set_sf_type.
-    #         # And these code would look like:
-    #         # res=input.apply(...)
-    #         # res.set_sf_type(ColumnType(exp.datatype, exp.nullable))  # fixes the drift and removes NaT
-    #
-    #         data = []
-    #         for _, row in function_input.iterrows():
-    #             if udf.strict and any([v is None for v in row]):
-    #                 result = None
-    #             else:
-    #                 result = remove_null_wrapper(udf_handler(*row))
-    #             data.append(result)
-    #
-    #         res = ColumnEmulator(
-    #             data=data,
-    #             sf_type=ColumnType(exp.datatype, exp.nullable),
-    #             name=quote_name(
-    #                 f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
-    #             ),
-    #             dtype=object,
-    #         )
-    #     except Exception as err:
-    #         SnowparkLocalTestingException.raise_from_error(
-    #             err, error_message=f"Python Interpreter Error: {err}"
-    #         )
-    #
-    #     return res
 
 
 def execute_mock_plan(

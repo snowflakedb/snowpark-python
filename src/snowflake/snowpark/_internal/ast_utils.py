@@ -742,6 +742,7 @@ def build_proto_from_pivot_values(
     expr_builder: proto.SpPivotValue,
     values: Optional[Union[Iterable["LiteralType"], "DataFrame"]],  # noqa: F821
 ):
+    """Helper function to encode Snowpark pivot values that are used in various pivot operations to AST."""
     if not values:
         return
 

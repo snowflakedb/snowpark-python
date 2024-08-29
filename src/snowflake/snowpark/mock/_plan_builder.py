@@ -86,10 +86,3 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         use_constant_subquery_alias: bool,
     ) -> MockExecutionPlan:
         return MockExecutionPlan(source_plan=source_plan, session=self.session)
-        # return self.build(
-        #     lambda x: join_table_function_statement(
-        #         func, x, left_cols, right_cols, use_constant_subquery_alias
-        #     ),
-        #     child,
-        #     source_plan,
-        # )

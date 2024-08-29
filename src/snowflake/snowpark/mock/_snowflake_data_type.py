@@ -41,7 +41,11 @@ PandasDataframeType = object if not installed_pandas else pd.DataFrame
 PandasSeriesType = object if not installed_pandas else pd.Series
 
 
-def get_type(p: Any) -> DataType:
+def infer_sp_type_from_python_type(p: Any) -> DataType:
+    """helper function to map python types (using pandas) to Snowpark types."""
+
+    # TODO: refactor this with Snowpark pandas to avoid redundancy.
+
     if is_object_dtype(p):
         return VariantType()
     if is_string_dtype(p):
@@ -177,7 +181,8 @@ def reset_nan_to_none_if_necessary(col_a, col_b, res_col):
     return res_col
 
 
-def get_column_type(obj: Any) -> ColumnType:
+def infer_column_type_from_python_object(obj: Any) -> ColumnType:
+    """Helper to map the type of an underlying python object to a ColumnType to be used in the ColumnEmulator."""
 
     if isinstance(obj, ColumnEmulator):
         return obj.sf_type
@@ -185,7 +190,7 @@ def get_column_type(obj: Any) -> ColumnType:
     if obj is None:
         ColumnType(VariantType(), True)
 
-    return ColumnType(get_type(type(obj)), False)
+    return ColumnType(infer_sp_type_from_python_type(type(obj)), False)
 
 
 def calculate_type(c1: ColumnType, c2: ColumnType, op: Union[str]):
@@ -449,9 +454,12 @@ def add_date_and_number(
 
 
 def broadcast_value(value: Any, len: int) -> "ColumnEmulator":
+    """Helper function to create a ColumnEmulator out of a single scalar object of length len."""
+
     if isinstance(value, ColumnEmulator):
         return value
-    # Create Series with length len
+
+    # Create Series with length len.
     return ColumnEmulator([value] * len)
 
 
@@ -489,17 +497,20 @@ class ColumnEmulator(PandasSeriesType):
         if self._sf_type is not None:
             return self._sf_type
 
-        # TODO: happens in UDTF local testing.
-        # If not explicitly set, infer from underlying pandas series
+        # TODO: Else branch is taken when using UDTFs.
+        # If a snowflake type has not been explicitly set before, infer one from the underlying pandas Series.
         else:
-            # Can not use short cut self.isna().any() as this leads to endless recursion.
+            # Can not use short cut self.isna().any() as this leads to endless recursion
+            # due to ColumnEmulator inheriting from a pandas Series.
             nullable = any([pd.isna(obj) for obj in self.values])
 
             if is_object_dtype(self.dtype) and len(self) != 0:
-                # infer from data when object type to be more specific.
-                return ColumnType(get_type(type(self.iloc[0])), nullable)
+                # Infer from data when object type for the type to become more specific.
+                return ColumnType(
+                    infer_sp_type_from_python_type(type(self.iloc[0])), nullable
+                )
             else:
-                return ColumnType(get_type(self.dtype), nullable)
+                return ColumnType(infer_sp_type_from_python_type(self.dtype), nullable)
 
     @sf_type.setter
     def sf_type(self, value: ColumnType):

@@ -1323,7 +1323,7 @@ class DataFrame:
                     temp_join_plan = self._session._analyzer.resolve(
                         TableFunctionJoin(self._plan, func_expr)
                     )
-                    old_cols, new_cols, alias_cols = _get_cols_after_join_table(
+                    _, new_cols, alias_cols = _get_cols_after_join_table(
                         func_expr, self._plan, temp_join_plan
                     )
 
@@ -3757,7 +3757,8 @@ class DataFrame:
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
 
-        # TODO: This should be an eval operation, not only an assign.
+        # TODO: This should be an eval operation, not an assign only as implemented here. Rather, the AST should be
+        #       issued as query similar to collect().
 
         # AST.
         stmt = None
@@ -5108,7 +5109,8 @@ Query List:
             )
         )
 
-        # Remove UnresolvedAttributes.
+        # Remove UnresolvedAttributes. This is an artifact of the analyzer for regular Snowpark and local test mode
+        # being largely incompatible and not adhering to the same protocols when defining input and output schemas.
         cols = list(
             filter(lambda attr: not isinstance(attr, UnresolvedAttribute), cols)
         )

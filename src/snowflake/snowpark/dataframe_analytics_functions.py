@@ -755,7 +755,7 @@ class DataFrameAnalyticsFunctions:
             isinstance(self._df._session._conn, MockServerConnection)
             and self._df._session._conn._suppress_not_implemented_error
         ):
-            # TODO: Snowpark does not allow empty dataframes (no schema, no data). Have a dummy schema here
+            # TODO: Snowpark does not allow empty dataframes (no schema, no data). Have a dummy schema here.
             ans = self._df._session.createDataFrame(
                 [],
                 schema=StructType([StructField("row", IntegerType())]),
