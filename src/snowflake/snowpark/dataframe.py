@@ -2594,6 +2594,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_except, stmt)
             other.set_ast_ref(ast.other)
+            self.set_ast_ref(ast.df)
 
         if self._select_statement:
             df = self._with_plan(
@@ -3754,6 +3755,9 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
+
+        # TODO: This should be an eval operation, not only an assign.
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -3790,6 +3794,7 @@ class DataFrame:
                     entry = expr.copy_options.add()
                     entry._1 = k
                     build_expr_from_python_val(entry._2, copy_options[k])
+            self.set_ast_ref(expr.df)
 
         # TODO: Support copy_into_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
