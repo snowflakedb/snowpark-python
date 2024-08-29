@@ -2511,12 +2511,13 @@ class Session:
                     + (schema + "." if schema else "")
                     + (table_name)
                 )
-            signature = inspect.signature(write_pandas)
-            use_logical_type_supported = "use_logical_type" in signature.parameters
-            if use_logical_type_supported:
-                kwargs["use_logical_type"] = use_logical_type
-            else:
-                if use_logical_type is not None:
+
+            if use_logical_type is not None:
+                signature = inspect.signature(write_pandas)
+                use_logical_type_supported = "use_logical_type" in signature.parameters
+                if use_logical_type_supported:
+                    kwargs["use_logical_type"] = use_logical_type
+                else:
                     # raise warning to upgrade python connector
                     warnings.warn(
                         "use_logical_type will be ignored because current python "
