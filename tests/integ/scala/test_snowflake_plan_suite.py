@@ -317,7 +317,7 @@ def test_create_scoped_temp_table(session):
             )
             .queries[0]
             .sql
-            == f" CREATE  TEMP  TABLE  {temp_table_name}    AS  SELECT  *  FROM ( SELECT  *  FROM ({table_name}))"
+            == f" CREATE  TEMPORARY  TABLE  {temp_table_name}    AS  SELECT  *  FROM ( SELECT  *  FROM ({table_name}))"
         )
         expected_sql = f' CREATE  TEMPORARY  TABLE  {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         assert expected_sql in (
@@ -342,7 +342,9 @@ def test_create_scoped_temp_table(session):
             .queries[0]
             .sql
         )
-        expected_sql = f" CREATE  TEMPORARY  TABLE  {temp_table_name}    AS  SELECT"
+        expected_sql = (
+            f" CREATE  SCOPED TEMPORARY  TABLE  {temp_table_name}    AS  SELECT"
+        )
         assert expected_sql in (
             session._plan_builder.save_as_table(
                 table_name=[temp_table_name],
