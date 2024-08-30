@@ -647,16 +647,17 @@ class StageEntityRegistry:
         self._root_dir = tempfile.TemporaryDirectory()
         self._stage_registry = {}
         self._conn = conn
+        self._lock = conn._lock
 
     def create_or_replace_stage(self, stage_name):
-        with self.conn._lock:
+        with self._lock:
             self._stage_registry[stage_name] = StageEntity(
                 self._root_dir.name, stage_name, self._conn
             )
 
     def __getitem__(self, stage_name: str):
         # the assumption here is that stage always exists
-        with self.conn._lock:
+        with self._lock:
             if stage_name not in self._stage_registry:
                 self.create_or_replace_stage(stage_name)
             return self._stage_registry[stage_name]
@@ -666,7 +667,7 @@ class StageEntityRegistry:
     ) -> TableEmulator:
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         # the assumption here is that stage always exists
-        with self.conn._lock:
+        with self._lock:
             if stage_name not in self._stage_registry:
                 self.create_or_replace_stage(stage_name)
             return self._stage_registry[stage_name].put_file(
@@ -684,7 +685,7 @@ class StageEntityRegistry:
     ) -> Dict:
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         # the assumption here is that stage always exists
-        with self.conn._lock:
+        with self._lock:
             if stage_name not in self._stage_registry:
                 self.create_or_replace_stage(stage_name)
             return self._stage_registry[stage_name].upload_stream(
@@ -705,7 +706,7 @@ class StageEntityRegistry:
                 f"Invalid stage {stage_location}, stage name should start with character '@'"
             )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
-        with self.conn._lock:
+        with self._lock:
             if stage_name not in self._stage_registry:
                 self.create_or_replace_stage(stage_name)
 
@@ -728,7 +729,7 @@ class StageEntityRegistry:
                 f"Invalid stage {stage_location}, stage name should start with character '@'"
             )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
-        with self.conn._lock:
+        with self._lock:
             if stage_name not in self._stage_registry:
                 self.create_or_replace_stage(stage_name)
 

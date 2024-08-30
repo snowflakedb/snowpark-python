@@ -92,9 +92,10 @@ class MockServerConnection:
             self.table_registry = {}
             self.view_registry = {}
             self.conn = conn
+            self._lock = self.conn._lock
 
         def is_existing_table(self, name: Union[str, Iterable[str]]) -> bool:
-            with self.conn._lock:
+            with self._lock:
                 current_schema = self.conn._get_current_parameter("schema")
                 current_database = self.conn._get_current_parameter("database")
                 qualified_name = get_fully_qualified_name(
@@ -103,7 +104,7 @@ class MockServerConnection:
                 return qualified_name in self.table_registry
 
         def is_existing_view(self, name: Union[str, Iterable[str]]) -> bool:
-            with self.conn._lock:
+            with self._lock:
                 current_schema = self.conn._get_current_parameter("schema")
                 current_database = self.conn._get_current_parameter("database")
                 qualified_name = get_fully_qualified_name(
@@ -112,7 +113,7 @@ class MockServerConnection:
                 return qualified_name in self.view_registry
 
         def read_table(self, name: Union[str, Iterable[str]]) -> TableEmulator:
-            with self.conn._lock:
+            with self._lock:
                 current_schema = self.conn._get_current_parameter("schema")
                 current_database = self.conn._get_current_parameter("database")
                 qualified_name = get_fully_qualified_name(
@@ -132,9 +133,12 @@ class MockServerConnection:
             mode: SaveMode,
             column_names: Optional[List[str]] = None,
         ) -> List[Row]:
-            with self.conn._lock:
+            with self._lock:
                 for column in table.columns:
-                    if not table[column].sf_type.nullable and table[column].isnull().any():
+                    if (
+                        not table[column].sf_type.nullable
+                        and table[column].isnull().any()
+                    ):
                         raise SnowparkLocalTestingException(
                             "NULL result in a non-nullable column"
                         )
@@ -196,7 +200,9 @@ class MockServerConnection:
                     self.table_registry[name] = table
                 elif mode == SaveMode.ERROR_IF_EXISTS:
                     if name in self.table_registry:
-                        raise SnowparkLocalTestingException(f"Table {name} already exists")
+                        raise SnowparkLocalTestingException(
+                            f"Table {name} already exists"
+                        )
                     else:
                         self.table_registry[name] = table
                 elif mode == SaveMode.TRUNCATE:
@@ -229,7 +235,7 @@ class MockServerConnection:
                 ]  # TODO: match message
 
         def drop_table(self, name: Union[str, Iterable[str]]) -> None:
-            with self.conn._lock:
+            with self._lock:
                 current_schema = self.conn._get_current_parameter("schema")
                 current_database = self.conn._get_current_parameter("database")
                 name = get_fully_qualified_name(name, current_schema, current_database)
@@ -239,14 +245,14 @@ class MockServerConnection:
         def create_or_replace_view(
             self, execution_plan: MockExecutionPlan, name: Union[str, Iterable[str]]
         ):
-            with self.conn._lock:
+            with self._lock:
                 current_schema = self.conn._get_current_parameter("schema")
                 current_database = self.conn._get_current_parameter("database")
                 name = get_fully_qualified_name(name, current_schema, current_database)
                 self.view_registry[name] = execution_plan
 
         def get_review(self, name: Union[str, Iterable[str]]) -> MockExecutionPlan:
-            with self.conn._lock:
+            with self._lock:
                 current_schema = self.conn._get_current_parameter("schema")
                 current_database = self.conn._get_current_parameter("database")
                 name = get_fully_qualified_name(name, current_schema, current_database)
@@ -310,7 +316,7 @@ class MockServerConnection:
         warning_logger: Optional[logging.Logger] = None,
     ):
         """
-        send telemetry to oob servie, can raise error or logging a warning based upon the input
+        send telemetry to oob service, can raise error or logging a warning based upon the input
 
         Args:
             external_feature_name: customer facing feature name, this information is used to raise error
@@ -332,25 +338,28 @@ class MockServerConnection:
 
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
         # mock implementation
-        return (
-            self._conn._session_parameters.get(name, default_value)
-            if self._conn._session_parameters
-            else default_value
-        )
+        with self._lock:
+            return (
+                self._conn._session_parameters.get(name, default_value)
+                if self._conn._session_parameters
+                else default_value
+            )
 
     def get_session_id(self) -> int:
         return 1
 
     def close(self) -> None:
-        if self._conn:
-            self._conn.close()
+        with self._lock:
+            if self._conn:
+                self._conn.close()
 
     def is_closed(self) -> bool:
         return self._conn.is_closed()
 
     def _get_current_parameter(self, param: str, quoted: bool = True) -> Optional[str]:
         try:
-            name = getattr(self, f"_active_{param}", None)
+            with self._lock:
+                name = getattr(self, f"_active_{param}", None)
             if name and len(name) >= 2 and name[0] == name[-1] == '"':
                 # it is a quoted identifier, return the original value
                 return name
