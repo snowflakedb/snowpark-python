@@ -929,6 +929,8 @@ class SnowflakePlanBuilder:
                     max_data_extension_time=max_data_extension_time,
                     change_tracking=change_tracking,
                     copy_grants=copy_grants,
+                    use_scoped_temp_objects=use_scoped_temp_objects,
+                    is_generated=is_generated,
                 ),
                 child,
                 source_plan,
