@@ -2043,7 +2043,6 @@ class BasePandasDataset:
 
         Examples
         --------
-        >>> import snowflake.snowpark.modin.pandas as pd
         >>> df = pd.DataFrame({'A': [4, 5, 6], 'B': [4, 1, 1]})
         >>> df.nunique()
         A    3

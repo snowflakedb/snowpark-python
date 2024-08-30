@@ -308,7 +308,8 @@ def read_csv(
     >>> with open(f'{temp_dir_name}/data.csv', 'w') as f:
     ...     writer = csv.writer(f)
     ...     writer.writerows([['c1','c2','c3'], [1,2,3], [4,5,6], [7,8,9]])
-    >>> import snowflake.snowpark.modin.pandas as pd
+    >>> import modin.pandas as pd
+    >>> import snowflake.snowpark.modin.plugin
     >>> df = pd.read_csv(f'{temp_dir_name}/data.csv')
     >>> df
        c1  c2  c3
@@ -489,7 +490,8 @@ def read_json(
     >>> with open(f'{temp_dir_name}/snowpark_pandas.json', 'w') as f:
     ...     json.dump(data, f)
 
-    >>> import snowflake.snowpark.modin.pandas as pd
+    >>> import modin.pandas as pd
+    >>> import snowflake.snowpark.modin.plugin
     >>> df = pd.read_json(f'{temp_dir_name}/snowpark_pandas.json')
     >>> df
                A  B       C
