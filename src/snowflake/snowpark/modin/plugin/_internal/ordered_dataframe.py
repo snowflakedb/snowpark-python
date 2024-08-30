@@ -1075,7 +1075,8 @@ class OrderedDataFrame:
             left_on_cols: A list of column names from self OrderedDataFrame to be used for the join.
             right_on_cols: A list of column names from right OrderedDataFrame to be used for the join.
             on_comparators: list of MatchComparator {"__ge__", "__gt__", "__le__", "__lt__", "equal_null"}
-                Comparing the 'left_on' and 'right_on' columns.
+                Comparing the 'left_on' and 'right_on' columns. Defaults to list of "equal_null"
+                of the same length as 'left_on' and 'right_on'.
             left_match_col: Snowflake identifier to match condition on from 'left' frame.
                 Only applicable for 'asof' join.
             right_match_col: Snowflake identifier to match condition on from 'right' frame.
