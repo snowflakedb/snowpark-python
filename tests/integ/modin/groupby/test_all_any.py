@@ -8,6 +8,7 @@ import re
 
 import modin.pandas as pd
 import numpy as np
+import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -34,6 +35,23 @@ def test_all_any_basic(data):
     )
     eval_snowpark_pandas_result(
         *create_test_dfs(data), lambda df: df.groupby("nn").any()
+    )
+
+
+@pytest.mark.parametrize("agg_func", ["all", "any"])
+@pytest.mark.parametrize("by", ["A", "B"])
+@sql_count_checker(query_count=1)
+def test_timedelta(agg_func, by):
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(["1 days 06:05:01.00003", "15.5us", "10"]),
+            "B": [10, 8, 12],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: getattr(df.groupby(by), agg_func)()
     )
 
 

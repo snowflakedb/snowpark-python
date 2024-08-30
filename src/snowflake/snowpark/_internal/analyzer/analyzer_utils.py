@@ -856,6 +856,9 @@ def create_table_as_select_statement(
     max_data_extension_time: Optional[int] = None,
     change_tracking: Optional[bool] = None,
     copy_grants: bool = False,
+    *,
+    use_scoped_temp_objects: bool = False,
+    is_generated: bool = False,
 ) -> str:
     column_definition_sql = (
         f"{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
@@ -877,8 +880,9 @@ def create_table_as_select_statement(
         }
     )
     return (
-        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"
-        f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
+        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}"
+        f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
+        f"{TABLE}{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
         f"{table_name}{column_definition_sql}{cluster_by_clause}{options_statement}"
         f"{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql} {AS}{project_statement([], child)}"
     )

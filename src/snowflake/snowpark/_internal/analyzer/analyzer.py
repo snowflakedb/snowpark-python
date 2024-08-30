@@ -151,7 +151,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.utils import quote_name
-from snowflake.snowpark.types import _NumericType
+from snowflake.snowpark.types import BooleanType, _NumericType
 
 ARRAY_BIND_THRESHOLD = 512
 
@@ -605,7 +605,7 @@ class Analyzer:
             sql = named_arguments_function(
                 expr.func_name,
                 {
-                    key: self.analyze(
+                    key: self.to_sql_try_avoid_cast(
                         value, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
                     for key, value in expr.args.items()
@@ -745,6 +745,12 @@ class Analyzer:
         # otherwise process as normal
         if isinstance(expr, Literal) and isinstance(expr.datatype, _NumericType):
             return numeric_to_sql_without_cast(expr.value, expr.datatype)
+        elif (
+            isinstance(expr, Literal)
+            and isinstance(expr.datatype, BooleanType)
+            and isinstance(expr.value, bool)
+        ):
+            return str(expr.value).upper()
         else:
             return self.analyze(
                 expr, df_aliased_col_name_to_real_col_name, parse_local_name
