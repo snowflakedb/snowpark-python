@@ -11,19 +11,30 @@ from __future__ import annotations
 
 from typing import Any
 
+import modin.pandas as pd
 import pandas as native_pd
 from modin.pandas import Series
 from pandas._libs.lib import no_default
 
 from snowflake.snowpark.modin import pandas as spd  # noqa: F401
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
+from snowflake.snowpark.modin.pandas.utils import (
+    from_pandas,
+    try_convert_index_to_native,
+)
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike
-from snowflake.snowpark.modin.plugin.utils.error_message import series_not_implemented
+from snowflake.snowpark.modin.plugin.utils.error_message import (
+    ErrorMessage,
+    series_not_implemented,
+)
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-from snowflake.snowpark.modin.utils import _inherit_docstrings
+from snowflake.snowpark.modin.utils import (
+    MODIN_UNNAMED_SERIES_LABEL,
+    _inherit_docstrings,
+)
 
 
 def register_series_not_implemented():
@@ -242,11 +253,74 @@ def __reduce__(self):  # noqa: PR01, RT01, D200
 #    https://github.com/modin-project/modin/issues/7104
 
 
+# Snowpark pandas overrides the constructor for two reasons:
+# 1. To support the Snowpark pandas lazy index object
+# 2. To avoid raising "UserWarning: Distributing <class 'list'> object. This may take some time."
+#    when a literal is passed in as data.
+@register_series_accessor("__init__")
+def __init__(
+    self,
+    data=None,
+    index=None,
+    dtype=None,
+    name=None,
+    copy=False,
+    fastpath=False,
+    query_compiler=None,
+) -> None:
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    # Siblings are other dataframes that share the same query compiler. We
+    # use this list to update inplace when there is a shallow copy.
+    self._siblings = []
+
+    # modified:
+    # Engine.subscribe(_update_engine)
+
+    # Convert lazy index to Series without pulling the data to client.
+    if isinstance(data, pd.Index):
+        query_compiler = data.to_series(index=index, name=name)._query_compiler
+        query_compiler = query_compiler.reset_index(drop=True)
+    elif isinstance(data, type(self)):
+        query_compiler = data._query_compiler.copy()
+        if index is not None:
+            if any(i not in data.index for i in index):
+                ErrorMessage.not_implemented(
+                    "Passing non-existent columns or index values to constructor "
+                    + "not yet implemented."
+                )  # pragma: no cover
+            query_compiler = data.loc[index]._query_compiler
+    if query_compiler is None:
+        # Defaulting to pandas
+        if name is None:
+            name = MODIN_UNNAMED_SERIES_LABEL
+            if (
+                isinstance(data, (native_pd.Series, native_pd.Index, pd.Index))
+                and data.name is not None
+            ):
+                name = data.name
+
+        query_compiler = from_pandas(
+            native_pd.DataFrame(
+                native_pd.Series(
+                    data=try_convert_index_to_native(data),
+                    index=try_convert_index_to_native(index),
+                    dtype=dtype,
+                    name=name,
+                    copy=copy,
+                    fastpath=fastpath,
+                )
+            )
+        )._query_compiler
+    self._query_compiler = query_compiler.columnarize()
+    if name is not None:
+        self.name = name
+
+
 # Since Snowpark pandas leaves all data on the warehouse, memory_usage's report of local memory
 # usage isn't meaningful and is set to always return 0.
 @_inherit_docstrings(native_pd.Series.memory_usage, apilink="pandas.Series")
 @register_series_accessor("memory_usage")
-@snowpark_pandas_telemetry_method_decorator()
+@snowpark_pandas_telemetry_method_decorator
 def memory_usage(self, index: bool = True, deep: bool = False) -> int:
     """
     Return zero bytes for memory_usage
@@ -258,7 +332,7 @@ def memory_usage(self, index: bool = True, deep: bool = False) -> int:
 # Snowpark pandas has slightly different type validation from upstream modin.
 @_inherit_docstrings(native_pd.Series.isin, apilink="pandas.Series")
 @register_series_accessor("isin")
-@snowpark_pandas_telemetry_method_decorator()
+@snowpark_pandas_telemetry_method_decorator
 def isin(self, values: set | ListLike) -> Series:
     """
     Whether elements in Series are contained in `values`.
@@ -391,7 +465,7 @@ _old_empty_fget = Series.empty.fget
 
 @register_series_accessor("empty")
 @property
-@snowpark_pandas_telemetry_method_decorator()
+@snowpark_pandas_telemetry_method_decorator
 def empty(self) -> bool:
     return _old_empty_fget(self)
 
@@ -403,3 +477,34 @@ def empty(self) -> bool:
 def _prepare_inter_op(self, other):
     # override prevents extra queries from occurring during binary operations
     return self, other
+
+
+# Snowpark pandas has the extra `statement_params` argument.
+@register_series_accessor("_to_pandas")
+@snowpark_pandas_telemetry_method_decorator
+def _to_pandas(
+    self,
+    *,
+    statement_params: dict[str, str] | None = None,
+    **kwargs: Any,
+):
+    """
+    Convert Snowpark pandas Series to pandas Series
+
+    Args:
+        statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+    Returns:
+        pandas series
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    df = self._query_compiler.to_pandas(statement_params=statement_params, **kwargs)
+    if len(df.columns) == 0:
+        return native_pd.Series([])
+    series = df[df.columns[0]]
+    # special case when series is wrapped as dataframe, but has not label.
+    # This is indicated with MODIN_UNNAMED_SERIES_LABEL
+    if self._query_compiler.columns[0] == MODIN_UNNAMED_SERIES_LABEL:
+        series.name = None
+
+    return series
