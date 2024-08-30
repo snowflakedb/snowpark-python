@@ -10596,16 +10596,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return self.dt_property("freq")
 
     def dt_seconds(self) -> "SnowflakeQueryCompiler":
-        return self.dt_property("seconds")
+        return self.timedelta_property("seconds")
 
     def dt_days(self) -> "SnowflakeQueryCompiler":
-        return self.dt_property("days")
+        return self.timedelta_property("days")
 
     def dt_microseconds(self) -> "SnowflakeQueryCompiler":
-        return self.dt_property("microseconds")
+        return self.timedelta_property("microseconds")
 
     def dt_nanoseconds(self) -> "SnowflakeQueryCompiler":
-        return self.dt_property("nanoseconds")
+        return self.timedelta_property("nanoseconds")
 
     def dt_components(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("components")
