@@ -19,8 +19,14 @@ from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
+from snowflake.snowpark._internal.ast_utils import (
+    _set_fn_name,
+    build_expr_from_python_val,
+    build_udf_apply,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import (
     open_telemetry_udf_context_manager,
@@ -88,9 +94,11 @@ class UserDefinedFunction:
         self._is_return_nullable = is_return_nullable
         self._packages = packages
 
+        # If None, no ast will be emitted. Else, passed whenever udf is invoked.
+        self._ast = None
+
     def __call__(
-        self,
-        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+        self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]], _emit_ast: bool = True
     ) -> Column:
         if len(cols) >= 1 and isinstance(cols[0], (list, tuple)):
             warning(
@@ -110,9 +118,16 @@ class UserDefinedFunction:
                     f"The input of UDF {self.name} must be Column, column name, or a list of them"
                 )
 
-        raise NotImplementedError("TODO SNOW-1514712: support UDxFs")
+        udf_expr = None
+        if _emit_ast:
+            assert (
+                self._ast is not None
+            ), "Need to ensure _emit_ast is True when registering UDF."
+            udf_expr = proto.Expr()
+            build_udf_apply(udf_expr, "", *cols)
+            udf_expr.apply_expr.fn.udf.CopyFrom(self._ast)
 
-        return Column(self._create_udf_expression(exprs))
+        return Column(self._create_udf_expression(exprs), ast=udf_expr)
 
     def _create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
         # len(exprs) can be less than len(self._input_types) if udf has
@@ -510,6 +525,7 @@ class UDFRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
+        _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedFunction:
         """
@@ -639,6 +655,7 @@ class UDFRegistration:
                 api_call_source="UDFRegistration.register"
                 + ("[pandas_udf]" if _from_pandas else ""),
                 is_permanent=is_permanent,
+                _emit_ast=_emit_ast,
             )
 
     def register_from_file(
@@ -665,6 +682,7 @@ class UDFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         skip_upload_on_content_match: bool = False,
+        _emit_ast: bool = True,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF from a Python or zip file,
@@ -794,6 +812,7 @@ class UDFRegistration:
                 api_call_source="UDFRegistration.register_from_file",
                 skip_upload_on_content_match=skip_upload_on_content_match,
                 is_permanent=is_permanent,
+                _emit_ast=_emit_ast,
             )
 
     def _do_register_udf(
@@ -823,7 +842,71 @@ class UDFRegistration:
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
+        _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedFunction:
+
+        # AST. Capture original parameters, before any pre-processing.
+        ast = None
+        if _emit_ast:
+            ast = proto.Udf()
+            if name is not None:
+                _set_fn_name(name, ast)
+            else:
+                # infer from callable, i.e. done for an anonymous function
+                _set_fn_name(repr(func), ast)
+
+            if return_type is not None:
+                return_type._fill_ast(ast.return_type)
+            if input_types is not None and len(input_types) != 0:
+                for input_type in input_types:
+                    input_type._fill_ast(ast.input_types.list.add())
+            ast.is_permanent = is_permanent
+            if stage_location is not None:
+                ast.stage_location = stage_location
+            if imports is not None and len(imports) != 0:
+                raise NotImplementedError
+            if packages is not None and len(packages) != 0:
+                for package in packages:
+                    if isinstance(package, ModuleType):
+                        raise NotImplementedError
+                    p = ast.packages.add()  # noqa: F841
+                    p = package  # noqa: F841
+            ast.replace = replace
+            ast.if_not_exists = if_not_exists
+            ast.parallel = parallel
+            if max_batch_size is not None:
+                ast.max_batch_size = max_batch_size
+
+            if statement_params is not None and len(statement_params) != 0:
+                for k, v in statement_params.items():
+                    t = ast.statement_params.add()
+                    t._1 = k
+                    t._2 = v
+
+            ast.source_code_display = source_code_display
+            ast.strict = strict
+            ast.secure = secure
+            if (
+                external_access_integrations is not None
+                and len(external_access_integrations) != 0
+            ):
+                for e in external_access_integrations:
+                    p_e = ast.external_access_integrations.add()  # noqa: F841
+                    p_e = e  # noqa: F841
+            if secrets is not None and len(secrets) != 0:
+                for k, v in secrets.items():
+                    t = ast.secrets.add()
+                    t._1 = k
+                    t._2 = v
+            ast.immutable = immutable
+            if comment is not None:
+                ast.comment = comment
+            for k, v in kwargs.items():
+                t = ast.kwargs.add()
+                t._1 = k
+                build_expr_from_python_val(t._2, v)
+
         # get the udf name, return and input types
         (
             udf_name,
@@ -928,6 +1011,10 @@ class UDFRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return UserDefinedFunction(
+        udf = UserDefinedFunction(
             func, return_type, input_types, udf_name, packages=packages
         )
+
+        udf._ast = ast
+
+        return udf

@@ -7331,6 +7331,7 @@ def udf(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     comment: Optional[str] = None,
+    _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
@@ -7519,6 +7520,7 @@ def udf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            _emit_ast=_emit_ast,
             **kwargs,
         )
     else:
@@ -7543,6 +7545,7 @@ def udf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            _emit_ast=_emit_ast,
             **kwargs,
         )
 
