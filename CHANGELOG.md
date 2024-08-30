@@ -81,6 +81,7 @@
 - Added support for `Series.is_monotonic_increasing` and `Series.is_monotonic_decreasing`.
 - Added support for `Index.is_monotonic_increasing` and `Index.is_monotonic_decreasing`.
 - Added support for `pd.crosstab`.
+- Added support for `pd.bdate_range` and included business frequency support (B, BME, BMS, BQE, BQS, BYE, BYS) for both `pd.date_range` and `pd.bdate_range`.
 
 #### Improvements
 
