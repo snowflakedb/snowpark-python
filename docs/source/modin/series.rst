@@ -26,6 +26,8 @@ Series
     Series.equals
     Series.empty
     Series.hasnans
+    Series.is_monotonic_increasing
+    Series.is_monotonic_decreasing
     Series.name
     Series.ndim
     Series.shape
