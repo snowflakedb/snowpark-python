@@ -393,6 +393,17 @@ def truncate(
 
 
 @register_base_not_implemented()
+def xs(
+    self,
+    key,
+    axis=0,
+    level=None,
+    drop_level: bool = True,
+):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
 def __finalize__(self, other, method=None, **kwargs):
     pass  # pragma: no cover
 
