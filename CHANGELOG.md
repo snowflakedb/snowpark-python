@@ -60,6 +60,7 @@
   - support indexing with Timedelta data columns.
   - support for adding or subtracting timestamps and `Timedelta`.
   - support for binary arithmetic between two `Timedelta` values.
+  - support for binary arithmetic and comparisons between `Timedelta` values and numeric values.
   - support for lazy `TimedeltaIndex`.
   - support for `pd.to_timedelta`.
   - support for `GroupBy` aggregations `min`, `max`, `mean`, `idxmax`, `idxmin`, `std`, `sum`, `median`, `count`, `any`, `all`, `size`, `nunique`.
