@@ -158,3 +158,22 @@ def test_df_groupby_idxmax_idxmin_on_groupby_axis_1_default_to_pandas(func):
     native_res = df.groupby(by=grouper, axis=1).idxmax(axis=0)
     snow_res = pd.DataFrame(df).groupby(by=grouper, axis=1).idxmax(axis=0)
     assert_frame_equal(native_res, snow_res, check_index_type=False)
+
+
+@pytest.mark.parametrize("agg_func", ["idxmin", "idxmax"])
+@pytest.mark.parametrize("by", ["A", "B"])
+@sql_count_checker(query_count=1)
+def test_timedelta(agg_func, by):
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(
+                ["1 days 06:05:01.00003", "15.5us", "nan", "16us"]
+            ),
+            "B": [8, 8, 12, 10],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: getattr(df.groupby(by), agg_func)()
+    )

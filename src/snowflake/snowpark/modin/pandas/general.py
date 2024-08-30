@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any, Literal, Union
 import numpy as np
 import pandas
 import pandas.core.common as common
+from modin.pandas.base import BasePandasDataset
 from pandas import IntervalIndex, NaT, Timedelta, Timestamp
 from pandas._libs import NaTType, lib
 from pandas._libs.tslibs import to_offset
@@ -61,7 +62,6 @@ from pandas.util._validators import validate_inclusive
 
 # add this line to make doctests runnable
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
-from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.pandas.series import Series
 from snowflake.snowpark.modin.pandas.utils import (
@@ -1742,16 +1742,13 @@ def to_datetime(
 
     The default behaviour (``utc=False``) is as follows:
 
-    - Timezone-naive inputs are converted to timezone-naive :class:`~snowflake.snowpark.modin.pandas.Series`:
+    - Timezone-naive inputs are kept as timezone-naive :class:`~snowflake.snowpark.modin.pandas.DatetimeIndex`:
 
-    >>> pd.to_datetime(['2018-10-26 12:00', '2018-10-26 13:00:15'])
+    >>> pd.to_datetime(['2018-10-26 12:00:00', '2018-10-26 13:00:15'])
     DatetimeIndex(['2018-10-26 12:00:00', '2018-10-26 13:00:15'], dtype='datetime64[ns]', freq=None)
 
-    - Timezone-aware inputs *with constant time offset* are still converted to
-      timezone-naive :class:`~snowflake.snowpark.modin.pandas.Series` by default.
-
     >>> pd.to_datetime(['2018-10-26 12:00:00 -0500', '2018-10-26 13:00:00 -0500'])
-    DatetimeIndex(['2018-10-26 12:00:00', '2018-10-26 13:00:00'], dtype='datetime64[ns]', freq=None)
+    DatetimeIndex(['2018-10-26 10:00:00-07:00', '2018-10-26 11:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
 
     - Use right format to convert to timezone-aware type (Note that when call Snowpark
       pandas API to_pandas() the timezone-aware output will always be converted to session timezone):
@@ -1763,17 +1760,17 @@ def to_datetime(
       issued from a timezone with daylight savings, such as Europe/Paris):
 
     >>> pd.to_datetime(['2020-10-25 02:00:00 +0200', '2020-10-25 04:00:00 +0100'])
-    DatetimeIndex(['2020-10-25 02:00:00', '2020-10-25 04:00:00'], dtype='datetime64[ns]', freq=None)
+    Index(['2020-10-24 17:00:00-07:00', '2020-10-24 20:00:00-07:00'], dtype='datetime64[ns]')
 
     >>> pd.to_datetime(['2020-10-25 02:00:00 +0200', '2020-10-25 04:00:00 +0100'], format="%Y-%m-%d %H:%M:%S %z")
-    DatetimeIndex(['2020-10-24 17:00:00-07:00', '2020-10-24 20:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
+    Index(['2020-10-24 17:00:00-07:00', '2020-10-24 20:00:00-07:00'], dtype='datetime64[ns]')
 
     Setting ``utc=True`` makes sure always convert to timezone-aware outputs:
 
     - Timezone-naive inputs are *localized* based on the session timezone
 
     >>> pd.to_datetime(['2018-10-26 12:00', '2018-10-26 13:00'], utc=True)
-    DatetimeIndex(['2018-10-26 12:00:00-07:00', '2018-10-26 13:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
+    DatetimeIndex(['2018-10-26 05:00:00-07:00', '2018-10-26 06:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
 
     - Timezone-aware inputs are *converted* to session timezone
 
@@ -1784,8 +1781,28 @@ def to_datetime(
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
     raise_if_native_pandas_objects(arg)
 
-    if arg is None:
-        return None  # same as pandas
+    if not isinstance(arg, (DataFrame, Series, pd.Index)):
+        # use pandas.to_datetime to convert local data to datetime
+        res = pandas.to_datetime(
+            arg,
+            errors,
+            dayfirst,
+            yearfirst,
+            utc,
+            format,
+            exact,
+            unit,
+            infer_datetime_format,
+            origin,
+            cache,
+        )
+        if isinstance(res, pandas.Series):
+            res = pd.Series(res)
+        elif not is_scalar(res):
+            res = pd.Index(res)
+        return res
+
+    # handle modin objs
     if unit and unit not in VALID_TO_DATETIME_UNIT:
         raise ValueError(f"Unrecognized unit {unit}")
 
@@ -1795,15 +1812,8 @@ def to_datetime(
             argument="cache",
             message="cache parameter is ignored with Snowflake backend, i.e., no caching will be applied",
         )
-    arg_is_scalar = is_scalar(arg)
 
-    if not isinstance(arg, (DataFrame, Series, pd.Index)):
-        # Turn dictionary like arg into pd.DataFrame and list-like or scalar to
-        # pd.Index.
-        arg = [arg] if arg_is_scalar else arg
-        arg = DataFrame(arg) if isinstance(arg, dict) else pd.Index(arg)
-
-    series_or_index = arg._to_datetime(
+    return arg._to_datetime(
         errors=errors,
         dayfirst=dayfirst,
         yearfirst=yearfirst,
@@ -1814,13 +1824,6 @@ def to_datetime(
         infer_datetime_format=infer_datetime_format,
         origin=origin,
     )
-    if arg_is_scalar:
-        # Calling squeeze directly on Snowpark pandas Series makes an unnecessary
-        # count sql call. To avoid that we convert Snowpark pandas Series to Native
-        # pandas series first.
-        # Note: When arg_is_scalar is True 'series_or_index' is always an Index.
-        return series_or_index.to_series().to_pandas().squeeze()
-    return series_or_index
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator

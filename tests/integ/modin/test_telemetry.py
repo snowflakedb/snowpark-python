@@ -398,7 +398,7 @@ def test_telemetry_getitem_setitem():
     s = df["a"]
     assert len(df._query_compiler.snowpark_pandas_api_calls) == 0
     assert s._query_compiler.snowpark_pandas_api_calls == [
-        {"name": "DataFrame.BasePandasDataset.__getitem__"}
+        {"name": "DataFrame.__getitem__"}
     ]
     df["a"] = 0
     df["b"] = 0
@@ -412,12 +412,12 @@ def test_telemetry_getitem_setitem():
     # the telemetry log from the connector to validate
     _ = s[0]
     data = _extract_snowpark_pandas_telemetry_log_data(
-        expected_func_name="Series.BasePandasDataset.__getitem__",
+        expected_func_name="Series.__getitem__",
         session=s._query_compiler._modin_frame.ordered_dataframe.session,
     )
     assert data["api_calls"] == [
-        {"name": "DataFrame.BasePandasDataset.__getitem__"},
-        {"name": "Series.BasePandasDataset.__getitem__"},
+        {"name": "DataFrame.__getitem__"},
+        {"name": "Series.__getitem__"},
     ]
 
 
@@ -546,4 +546,19 @@ def test_telemetry_repr():
     assert data["api_calls"] == [
         {"name": "Series.property.name_set"},
         {"name": "Series.Series.__repr__"},
+    ]
+
+
+@sql_count_checker(query_count=0)
+def test_telemetry_copy():
+    # copy() is defined in upstream modin's BasePandasDataset class, and not overridden by any
+    # child class or the extensions module.
+    s = pd.Series([1, 2, 3, 4])
+    copied = s.copy()
+    assert s._query_compiler.snowpark_pandas_api_calls == [
+        {"name": "Series.property.name_set"}
+    ]
+    assert copied._query_compiler.snowpark_pandas_api_calls == [
+        {"name": "Series.property.name_set"},
+        {"name": "Series.BasePandasDataset.copy"},
     ]
