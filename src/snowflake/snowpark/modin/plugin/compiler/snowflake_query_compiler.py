@@ -135,6 +135,7 @@ from snowflake.snowpark.functions import (
     to_variant,
     translate,
     trim,
+    trunc,
     uniform,
     upper,
     when,
@@ -384,6 +385,12 @@ _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE = "does not yet support pd.Grouper, axis =
 QUARTER_START_MONTHS = [1, 4, 7, 10]
 
 SUPPORTED_DT_FLOOR_CEIL_FREQS = ["day", "hour", "minute", "second"]
+
+SECONDS_PER_DAY = 86400
+NANOSECONDS_PER_SECOND = 10**9
+NANOSECONDS_PER_MICROSECOND = 10**3
+MICROSECONDS_PER_SECOND = 10**6
+NANOSECONDS_PER_DAY = SECONDS_PER_DAY * NANOSECONDS_PER_SECOND
 
 
 class SnowflakeQueryCompiler(BaseQueryCompiler):
@@ -17526,3 +17533,45 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def tz_localize(self, *args: Any, **kwargs: Any) -> None:
         ErrorMessage.method_not_implemented_error("tz_convert", "BasePandasDataset")
+
+    def timedelta_property(
+        self, property_name: str, include_index: bool = False
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Extract a specified component of from Timedelta.
+
+        Parameters
+        ----------
+        property : {'days', 'seconds', 'microseconds', 'nanoseconds'}
+            The component to extract.
+        include_index: Whether to include the index columns in the operation.
+
+        Returns
+        -------
+        A new SnowflakeQueryCompiler with the extracted component.
+        """
+        if not include_index:
+            assert (
+                len(self.columns) == 1
+            ), "dt only works for series"  # pragma: no cover
+
+        # mapping from the property name to the corresponding snowpark function
+        property_to_func_map = {
+            "days": lambda column: trunc(column / NANOSECONDS_PER_DAY),
+            "seconds": lambda column: trunc(column / NANOSECONDS_PER_SECOND)
+            % SECONDS_PER_DAY,
+            "microseconds": lambda column: trunc(column / NANOSECONDS_PER_MICROSECOND)
+            % MICROSECONDS_PER_SECOND,
+            "nanoseconds": lambda column: column % NANOSECONDS_PER_MICROSECOND,
+        }
+        func = property_to_func_map.get(property_name)
+        if not func:
+            class_prefix = (
+                "TimedeltaIndex" if include_index else "Series.dt"
+            )  # pragma: no cover
+            raise ErrorMessage.not_implemented(
+                f"Snowpark pandas doesn't yet support the property '{class_prefix}.{property_name}'"
+            )  # pragma: no cover
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(func, include_index)
+        )
