@@ -3832,6 +3832,18 @@ class DataFrame:
         DataFrame or None
             Changed row labels or None if ``inplace=True``.
 
+        Note
+        ----
+        When performing ``DataFrame.set_index`` where the length of the
+        :class:`DataFrame` object does not match with the new index's length,
+        a ``ValueError`` is not raised. When the :class:`DataFrame` object is
+        longer than the new index, the :class:`DataFrame`'s new index is filled
+        with ``NaN`` values for the "extra" elements.  When the :class:`DataFrame`
+        object is shorter than the new index, the extra values in the new index
+        are ignored—the :class:`DataFrame` stays the same length ``n``,
+        and uses only the first ``n`` values of the new index.
+
+
         See Also
         --------
         DataFrame.reset_index : Opposite of set_index.
