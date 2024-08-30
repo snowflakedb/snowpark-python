@@ -7,11 +7,12 @@ File containing Series APIs defined in the Modin API layer, but with different b
 pandas, such as `Series.memory_usage`.
 """
 
-from typing import Union
+from __future__ import annotations
 
 import pandas as native_pd
+from modin.pandas import Series
 
-from snowflake.snowpark.modin.pandas import Series
+from snowflake.snowpark.modin import pandas as spd  # noqa: F401
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
@@ -21,10 +22,85 @@ from snowflake.snowpark.modin.plugin.utils.error_message import series_not_imple
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import _inherit_docstrings
 
+# These methods are not implemented by Snowpark pandas and raise errors at the frontend layer
+frontend_not_implemented = [
+    "argmax",
+    "argmin",
+    "argsort",
+    "array",
+    "asfreq",
+    "asof",
+    "at",
+    "at_time",
+    "autocorr",
+    "backfill",
+    "between",
+    "between_time",
+    "bfill",
+    "bool",
+    "clip",
+    "combine",
+    "combine_first",
+    "compare",
+    "divmod",
+    "dot",
+    "droplevel",
+    "ewm",
+    "explode",
+    "factorize",
+    "filter",
+    "hist",
+    "infer_objects",
+    "interpolate",
+    "item",
+    "kurt",
+    "kurtosis",
+    "mode",
+    "nbytes",
+    "nlargest",
+    "nsmallest",
+    "nsmallest",
+    "pipe",
+    "plot",
+    "pop",
+    "prod",
+    "ravel",
+    "reindex_like",
+    "reorder_levels",
+    "repeat",
+    "rdivmod",
+    "searchsorted",
+    "sem",
+    "set_flags",
+    "swapaxes",
+    "swaplevel",
+    "to_clipboard",
+    "to_csv",
+    "to_excel",
+    "to_hdf",
+    "to_json",
+    "to_latex",
+    "to_markdown",
+    "to_period",
+    "to_sql",
+    "to_string",
+    "to_timestamp",
+    "to_xarray",
+    "transform",
+    "truncate",
+    "tz_convert",
+    "tz_localize",
+    "unstack",
+    "view",
+    "xs",
+]
+
+for name in frontend_not_implemented:
+    register_series_accessor(name)(series_not_implemented()(getattr(spd.Series, name)))
+
 
 @_inherit_docstrings(native_pd.Series.memory_usage, apilink="pandas.Series")
 @register_series_accessor("memory_usage")
-@snowpark_pandas_telemetry_method_decorator
 def memory_usage(self, index: bool = True, deep: bool = False) -> int:
     """
     Return zero bytes for memory_usage
@@ -35,8 +111,7 @@ def memory_usage(self, index: bool = True, deep: bool = False) -> int:
 
 @_inherit_docstrings(native_pd.Series.isin, apilink="pandas.Series")
 @register_series_accessor("isin")
-@snowpark_pandas_telemetry_method_decorator
-def isin(self, values: Union[set, ListLike]) -> Series:
+def isin(self, values: set | ListLike) -> Series:
     """
     Whether elements in Series are contained in `values`.
 
@@ -165,3 +240,20 @@ def plot(
 @series_not_implemented()
 def transform(self, func, axis=0, *args, **kwargs):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
+
+
+# modin 0.28.1 doesn't define type annotations on properties, so we override this
+# to satisfy test_type_annotations.py
+_old_empty_fget = Series.empty.fget
+
+
+@register_series_accessor("empty")
+@property
+def empty(self) -> bool:
+    return _old_empty_fget(self)
+
+
+@register_series_accessor("_prepare_inter_op")
+def _prepare_inter_op(self, other):
+    # override prevents extra queries from occurring during binary operations
+    return self, other

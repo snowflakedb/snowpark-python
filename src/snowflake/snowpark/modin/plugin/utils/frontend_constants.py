@@ -25,3 +25,20 @@ _ATTRS_NO_LOOKUP = {
     "__array_interface__",
     "_typ",
 }
+
+
+SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE = (
+    "Currently do not support Series or list-like keys with range-like values"
+)
+
+SERIES_SETITEM_SLICE_AS_SCALAR_VALUE_ERROR_MESSAGE = (
+    "Currently do not support assigning a slice value as if it's a scalar value"
+)
+
+SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SERIES_ERROR_MESSAGE = (
+    "Snowpark pandas DataFrame cannot be used as an indexer with Series"
+)
+
+SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SCALAR_ERROR_MESSAGE = (
+    "Scalar key incompatible with {} value"
+)
