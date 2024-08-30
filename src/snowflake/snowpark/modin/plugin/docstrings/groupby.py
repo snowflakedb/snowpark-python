@@ -214,6 +214,13 @@ class DataFrameGroupBy:
         normalize : bool, default False
             Return proportions rather than frequencies.
 
+            Note that when `normalize=True`, `groupby` is called with `sort=False`, and `value_counts`
+            is called with `sort=True`, Snowpark pandas will order results differently from
+            native pandas. This occurs because native pandas sorts on frequencies before converting
+            them to proportions, while Snowpark pandas computes proportions within groups before sorting.
+
+            See issue for details: https://github.com/pandas-dev/pandas/issues/59307
+
         sort : bool, default True
             Sort by frequencies.
 
@@ -2214,6 +2221,13 @@ class SeriesGroupBy:
 
         normalize : bool, default False
             Return proportions rather than frequencies.
+
+            Note that when `normalize=True`, `groupby` is called with `sort=False`, and `value_counts`
+            is called with `sort=True`, Snowpark pandas will order results differently from
+            native pandas. This occurs because native pandas sorts on frequencies before converting
+            them to proportions, while Snowpark pandas computes proportions within groups before sorting.
+
+            See issue for details: https://github.com/pandas-dev/pandas/issues/59307
 
         sort : bool, default True
             Sort by frequencies.
