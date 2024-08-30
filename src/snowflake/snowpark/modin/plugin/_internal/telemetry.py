@@ -9,6 +9,7 @@ from contextlib import nullcontext
 from enum import Enum, unique
 from typing import Any, Callable, Optional, TypeVar, Union, cast
 
+import modin.pandas
 from typing_extensions import ParamSpec
 
 import snowflake.snowpark.session
@@ -542,7 +543,7 @@ class TelemetryMeta(type):
     def __new__(
         cls, name: str, bases: tuple, attrs: dict[str, Any]
     ) -> Union[
-        "snowflake.snowpark.modin.pandas.series.Series",
+        "modin.pandas.Series",
         "snowflake.snowpark.modin.pandas.dataframe.DataFrame",
         "snowflake.snowpark.modin.pandas.groupby.DataFrameGroupBy",
         "snowflake.snowpark.modin.pandas.resample.Resampler",
@@ -556,7 +557,7 @@ class TelemetryMeta(type):
         This metaclass decorates callable class/instance methods which are public or are ``TELEMETRY_PRIVATE_METHODS``
         with ``snowpark_pandas_telemetry_api_usage`` telemetry decorator.
         Method arguments returned by _get_kwargs_telemetry are collected otherwise set telemetry_args=list().
-        TelemetryMeta is only set as the metaclass of: snowflake.snowpark.modin.pandas.series.Series,
+        TelemetryMeta is only set as the metaclass of:
          snowflake.snowpark.modin.pandas.dataframe.DataFrame,
          snowflake.snowpark.modin.pandas.groupby.DataFrameGroupBy,
          snowflake.snowpark.modin.pandas.resample.Resampler,

@@ -153,7 +153,7 @@ class Resampler(metaclass=TelemetryMeta):
             resampler = type(self)(subset, **self.resample_kwargs)
             return resampler
 
-        from snowflake.snowpark.modin.pandas.series import Series
+        from modin.pandas import Series
 
         if isinstance(key, (list, tuple, Series, pandas.Index, np.ndarray)):
             if len(self._dataframe.columns.intersection(key)) != len(set(key)):
@@ -472,11 +472,9 @@ class Resampler(metaclass=TelemetryMeta):
 
     def size(self):
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        from .series import Series
-
         is_series = not self._dataframe._is_dataframe
 
-        output_series = Series(
+        output_series = pd.Series(
             query_compiler=self._query_compiler.resample(
                 self.resample_kwargs,
                 "size",
@@ -485,7 +483,7 @@ class Resampler(metaclass=TelemetryMeta):
                 is_series,
             )
         )
-        if not isinstance(self._dataframe, Series):
+        if not isinstance(self._dataframe, pd.Series):
             # If input is a DataFrame, rename output Series to None
             return output_series.rename(None)
         return output_series

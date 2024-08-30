@@ -110,7 +110,7 @@ _SERIES_EXTENSIONS_ = {}
     ],
     apilink="pandas.Series",
 )
-class Series(BasePandasDataset, metaclass=TelemetryMeta):
+class DONOTEXPORTMESeries(BasePandasDataset, metaclass=TelemetryMeta):
     _pandas_class = pandas.Series
     __array_priority__ = pandas.Series.__array_priority__
 
@@ -586,11 +586,11 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
         # Error Checking:
         # Currently do not support Series[scalar key] = Series item/DataFrame item since this results in a nested series
         # or df.
-        if is_scalar(key) and isinstance(value, BasePandasDataset):
+        if is_scalar(key) and isinstance(value, (BasePandasDataset, pd.Series)):
             raise ValueError(
                 SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SCALAR_ERROR_MESSAGE.format(
                     "Snowpark pandas " + value.__class__.__name__
-                    if isinstance(value, BasePandasDataset)
+                    if isinstance(value, (BasePandasDataset, pd.Series))
                     else value.__class__.__name__
                 )
             )
@@ -620,7 +620,7 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
                 # TODO: SNOW-976232 once the slice test is added to test_setitem, code here should be covered.
                 self.loc[key] = value  # pragma: no cover
 
-        elif isinstance(value, Series):
+        elif isinstance(value, pd.Series):
             # If value is a Series, value's index doesn't matter/is ignored. However, loc setitem matches the key's
             # index with value's index. To emulate this behavior, treat the Series as if it is matching by position.
             #
@@ -662,7 +662,9 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
                 index_is_bool_indexer = True  # pragma: no cover
 
             new_qc = self._query_compiler.set_2d_labels(
-                key._query_compiler if isinstance(key, BasePandasDataset) else key,
+                key._query_compiler
+                if isinstance(key, (BasePandasDataset, pd.Series))
+                else key,
                 slice(None),  # column key is not applicable to Series objects
                 value._query_compiler,
                 matching_item_columns_by_label=False,
@@ -741,7 +743,7 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
         level: Level | None = None,
         inplace: bool = False,
         errors: IgnoreRaise = "raise",
-    ) -> Series | None:
+    ) -> DONOTEXPORTMESeries | None:
         """
         Drop specified labels from `BasePandasDataset`.
         """
@@ -856,7 +858,7 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
         keep_shape: bool = False,
         keep_equal: bool = False,
         result_names: tuple = ("self", "other"),
-    ) -> Series:  # noqa: PR01, RT01, D200
+    ) -> DONOTEXPORTMESeries:  # noqa: PR01, RT01, D200
         """
         Compare to another Series and show the differences.
         """
@@ -996,7 +998,7 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
         percentiles: ListLike | None = None,
         include: ListLike | Literal["all"] | None = None,
         exclude: ListLike | None = None,
-    ) -> Series:
+    ) -> DONOTEXPORTMESeries:
         """
         Generate descriptive statistics.
         """
@@ -1030,7 +1032,7 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
         Compute the dot product between the Series and the columns of `other`.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        if isinstance(other, BasePandasDataset):
+        if isinstance(other, (BasePandasDataset, pd.Series)):
             common = self.index.union(other.index)
             if len(common) > len(self) or len(common) > len(other):  # pragma: no cover
                 raise ValueError("Matrices are not aligned")
@@ -1153,7 +1155,7 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
             use_na_sentinel=use_na_sentinel,
         )
 
-    def case_when(self, caselist) -> Series:  # noqa: PR01, RT01, D200
+    def case_when(self, caselist) -> DONOTEXPORTMESeries:  # noqa: PR01, RT01, D200
         """
         Replace values where the conditions are True.
         """
@@ -1178,9 +1180,11 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
         inplace: bool = False,
         limit: int | None = None,
         downcast: dict | None = None,
-    ) -> Series | None:
+    ) -> DONOTEXPORTMESeries | None:
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        if isinstance(value, BasePandasDataset) and not isinstance(value, Series):
+        if isinstance(value, (BasePandasDataset, pd.Series)) and not isinstance(
+            value, Series
+        ):
             raise TypeError(
                 '"value" parameter must be a scalar, dict or Series, but '
                 + f'you passed a "{type(value).__name__}"'
@@ -1454,7 +1458,7 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
         self,
         arg: Callable | Mapping | Series,
         na_action: Literal["ignore"] | None = None,
-    ) -> Series:
+    ) -> DONOTEXPORTMESeries:
         """
         Map values of Series according to input correspondence.
         """
@@ -1775,7 +1779,7 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
         axis=0,
         copy=True,
         inplace=False,
-    ) -> Series | None:  # noqa: PR01, RT01, D200
+    ) -> DONOTEXPORTMESeries | None:  # noqa: PR01, RT01, D200
         """
         Set the name of the axis for the index or columns.
         """
@@ -1792,7 +1796,7 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
         inplace: bool = False,
         level: Level | None = None,
         errors: IgnoreRaise = "ignore",
-    ) -> Series | None:
+    ) -> DONOTEXPORTMESeries | None:
         """
         Alter Series index labels or name.
         """
@@ -2425,12 +2429,6 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
 
         from modin.pandas.series_utils import DatetimeProperties
 
-        if DatetimeProperties._Series is not Series:
-            del (
-                DatetimeProperties._Series
-            )  # Replace modin's Series class with Snowpark pandas Series
-            DatetimeProperties._Series = Series
-
         return DatetimeProperties(self)
 
     @property
@@ -2564,12 +2562,6 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
 
         from modin.pandas.series_utils import StringMethods
 
-        if StringMethods._Series is not Series:
-            del (
-                StringMethods._Series
-            )  # Replace modin's Series class with Snowpark pandas Series
-            StringMethods._Series = Series
-
         return StringMethods(self)
 
     def _to_pandas(
@@ -2619,7 +2611,7 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
             query_compiler=self._query_compiler.series_to_datetime(**kwargs)
         )
 
-    def _to_numeric(self, **kwargs: Any) -> Series:
+    def _to_numeric(self, **kwargs: Any) -> DONOTEXPORTMESeries:
         """
         Convert `self` to numeric.
 
@@ -2644,7 +2636,7 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
         q: int | ListLike,
         retbins: bool = False,
         duplicates: Literal["raise", "drop"] = "raise",
-    ) -> Series:
+    ) -> DONOTEXPORTMESeries:
         """
         Quantile-based discretization function.
 
