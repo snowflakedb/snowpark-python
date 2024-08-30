@@ -8,7 +8,8 @@ import itertools
 import json
 import sys
 import uuid
-from typing import Any, Sequence, Tuple
+from dataclasses import dataclass
+from typing import Any, Callable, Sequence, Tuple
 
 from google.protobuf.json_format import ParseDict
 
@@ -120,11 +121,20 @@ def decode_ast_response_from_snowpark(res: dict, session_parameters: Any) -> Any
         )
 
 
+@dataclass
+class TrackedCallable:
+    var_id: int
+    func: Callable
+
+
 class AstBatch:
     def __init__(self, session) -> None:
         self._session = session
         self._id_gen = itertools.count(start=1)
         self._init_batch()
+
+        # Track callables in this dict (memory id -> TrackedCallable).
+        self._callables = {}
 
     def assign(self, symbol=None):
         stmt = self._request.body.add()
@@ -161,3 +171,14 @@ class AstBatch:
         self._request.client_language.python_language.version.label = releaselevel
 
         self._request.client_ast_version = CLIENT_AST_VERSION
+
+    def register_callable(self, func: Callable) -> int:
+        """tracks client-side an actual callable and returns an id."""
+        k = id(func)
+
+        if k in self._callables.keys():
+            return self._callables[k].var_id
+
+        next_id = len(self._callables)
+        self._callables[k] = TrackedCallable(var_id=next_id, func=func)
+        return next_id

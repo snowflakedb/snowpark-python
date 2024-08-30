@@ -4,8 +4,7 @@
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
-from snowflake.snowpark._internal.ast_utils import build_udf
+from snowflake.snowpark._internal.ast_utils import build_udf, with_src_position
 from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,
     process_registration_inputs,
@@ -112,8 +111,10 @@ class MockUDFRegistration(UDFRegistration):
     ) -> UserDefinedFunction:
 
         ast = None
+        stmt = None
         if _emit_ast:
-            ast = proto.Udf()
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.udf, stmt)
             build_udf(
                 ast,
                 func,
@@ -136,6 +137,7 @@ class MockUDFRegistration(UDFRegistration):
                 statement_params=statement_params,
                 source_code_display=source_code_display,
                 is_permanent=is_permanent,
+                session=self._session,
                 **kwargs,
             )
 
@@ -183,6 +185,7 @@ class MockUDFRegistration(UDFRegistration):
         if udf_name in self._registry and if_not_exists:
             ans = self._registry[udf_name]
             ans._ast = ast
+            ans._ast_id = stmt.var_id.bitfield1
             return ans
 
         if udf_name in self._registry and not replace:
@@ -204,6 +207,7 @@ class MockUDFRegistration(UDFRegistration):
             packages=packages,
             use_session_imports=imports is None,
             _ast=ast,
+            _ast_id=stmt.var_id.bitfield1,
         )
 
         if type(func) is tuple:  # update file registration

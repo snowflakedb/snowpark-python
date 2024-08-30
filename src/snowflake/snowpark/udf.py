@@ -22,7 +22,11 @@ import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
-from snowflake.snowpark._internal.ast_utils import build_udf, build_udf_apply
+from snowflake.snowpark._internal.ast_utils import (
+    build_udf,
+    build_udf_apply,
+    with_src_position,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import (
     open_telemetry_udf_context_manager,
@@ -80,6 +84,7 @@ class UserDefinedFunction:
         is_return_nullable: bool = False,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         _ast: Optional[proto.Udf] = None,
+        _ast_id: Optional[int] = None,
     ) -> None:
         #: The Python function or a tuple containing the Python file path and the function name.
         self.func: Union[Callable, Tuple[str, str]] = func
@@ -93,6 +98,7 @@ class UserDefinedFunction:
 
         # If None, no ast will be emitted. Else, passed whenever udf is invoked.
         self._ast = _ast
+        self._ast_id = _ast_id
 
     def __call__(
         self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]], _emit_ast: bool = True
@@ -121,8 +127,7 @@ class UserDefinedFunction:
                 self._ast is not None
             ), "Need to ensure _emit_ast is True when registering UDF."
             udf_expr = proto.Expr()
-            build_udf_apply(udf_expr, "", *cols)
-            udf_expr.apply_expr.fn.udf.CopyFrom(self._ast)
+            build_udf_apply(udf_expr, self._ast_id, *cols)
 
         return Column(self._create_udf_expression(exprs), ast=udf_expr)
 
@@ -846,7 +851,8 @@ class UDFRegistration:
         # AST. Capture original parameters, before any pre-processing.
         ast = None
         if _emit_ast:
-            ast = proto.Udf()
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(proto.Udf(), stmt)
             build_udf(
                 ast,
                 func,
@@ -873,6 +879,7 @@ class UDFRegistration:
                 api_call_source,
                 skip_upload_on_content_match,
                 is_permanent,
+                session=self._session,
                 **kwargs,
             )
 

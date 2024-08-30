@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
+from snowflake.snowpark._internal.ast import AstBatch
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
@@ -251,12 +252,11 @@ def build_builtin_fn_apply(
 
 def build_udf_apply(
     ast: proto.Expr,
-    udf_name: str,
+    udf_id: int,
     *args: Tuple[Union[proto.Expr, Any]],
 ) -> None:
     expr = with_src_position(ast.apply_expr)
-    _set_fn_name(udf_name, expr.fn.udf)
-    with_src_position(expr.fn.udf)
+    expr.fn.sp_fn_ref.id.bitfield1 = udf_id
     build_fn_apply_args(ast, *args)
 
 
@@ -729,6 +729,30 @@ def fill_sp_write_file(
             build_expr_from_python_val(t._2, v)
 
 
+def build_proto_from_callable(
+    expr_builder: proto.SpCallable, func: Callable, ast_batch: Optional[AstBatch] = None
+):
+    """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as SpCallable protobuf."""
+
+    udf_id = None
+    if ast_batch is not None:
+        udf_id = ast_batch.register_callable(func)
+        expr_builder.id = udf_id
+
+    if callable(func) and func.__name__ == "<lambda>":
+        # Won't be able to extract name, unless there is <sym> = <lambda>
+        # use string rep.
+        expr_builder.name = "<lambda>"
+
+        # If it is not the first tracked lambda, use a unique ref name.
+        if udf_id is not None and udf_id != 0:
+            expr_builder.name = f"<lambda [{udf_id}]>"
+
+    else:
+        # Use the actual function name. Note: We do not support different scopes yet, need to be careful with this then.
+        expr_builder.name = func.__name__
+
+
 def build_udf(
     ast: proto.Udf,
     func: Union[Callable, Tuple[str, str]],
@@ -752,14 +776,19 @@ def build_udf(
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = True,
     is_permanent: bool = False,
+    session=None,
     **kwargs,
 ):
     """Helper function to encode UDF parameters (used in both regular and mock UDFRegistration)."""
+    # This is the name the UDF is registered to. Not the name to display when unaparsing, that name is captured in callable.
+
     if name is not None:
         _set_fn_name(name, ast)
-    else:
-        # infer from callable, i.e. done for an anonymous function
-        _set_fn_name(repr(func), ast)
+
+    # TODO: to unparse/reference callables client-side - track them in ast_batch.
+    build_proto_from_callable(
+        ast.func, func, session._ast_batch if session is not None else None
+    )
 
     if return_type is not None:
         return_type._fill_ast(ast.return_type)
