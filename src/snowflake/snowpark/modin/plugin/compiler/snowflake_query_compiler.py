@@ -17543,7 +17543,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )  # pragma: no cover
             raise ErrorMessage.not_implemented(
                 f"Snowpark pandas doesn't yet support the property '{class_prefix}.{property_name}'"
-            )
+            )  # pragma: no cover
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(func, include_index)
         )

@@ -68,7 +68,7 @@ def test_property_not_implemented(property):
 @sql_count_checker(query_count=1)
 def test_timedelta_index_properties(attr):
     native_index = native_pd.TimedeltaIndex(
-        ["1d", "1h", "60s", "1s", "800ms", "5us", "6ns", "1d 3s", "9m 15s 8us"]
+        ["1d", "1h", "60s", "1s", "800ms", "5us", "6ns", "1d 3s", "9m 15s 8us", None]
     )
     snow_index = pd.Index(native_index)
     assert_index_equal(
