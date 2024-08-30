@@ -359,16 +359,18 @@ def handle_function_expression(
     func = MockedFunctionRegistry.get_or_create().get_function(exp)
 
     if func is None:
-        current_schema = analyzer.session.get_current_schema()
-        current_database = analyzer.session.get_current_database()
+        with analyzer.session._conn._lock:
+            current_schema = analyzer.session.get_current_schema()
+            current_database = analyzer.session.get_current_database()
         udf_name = get_fully_qualified_name(exp.name, current_schema, current_database)
 
         # If udf name in the registry then this is a udf, not an actual function
-        if udf_name in analyzer.session.udf._registry:
-            exp.udf_name = udf_name
-            return handle_udf_expression(
-                exp, input_data, analyzer, expr_to_alias, current_row
-            )
+        with analyzer.session._conn._lock:
+            if udf_name in analyzer.session.udf._registry:
+                exp.udf_name = udf_name
+                return handle_udf_expression(
+                    exp, input_data, analyzer, expr_to_alias, current_row
+                )
 
         if exp.api_call_source == "functions.call_udf":
             raise SnowparkLocalTestingException(
@@ -463,9 +465,11 @@ def handle_udf_expression(
 ):
     udf_registry = analyzer.session.udf
     udf_name = exp.udf_name
-    udf = udf_registry.get_udf(udf_name)
+    with analyzer.session._conn._lock:
+        udf = udf_registry.get_udf(udf_name)
+        udf_imports = udf_registry.get_udf_imports(udf_name)
 
-    with ImportContext(udf_registry.get_udf_imports(udf_name)):
+    with ImportContext(udf_imports):
         # Resolve handler callable
         if type(udf.func) is tuple:
             module_name, handler_name = udf.func
@@ -728,18 +732,19 @@ def execute_mock_plan(
         return res_df
     if isinstance(source_plan, MockSelectableEntity):
         entity_name = source_plan.entity.name
-        if entity_registry.is_existing_table(entity_name):
-            return entity_registry.read_table(entity_name)
-        elif entity_registry.is_existing_view(entity_name):
-            execution_plan = entity_registry.get_review(entity_name)
+        table = entity_registry.read_table_if_exists(entity_name)
+        if table is not None:
+            return table
+        execution_plan = entity_registry.read_view_if_exists(entity_name)
+        if execution_plan is not None:
             res_df = execute_mock_plan(execution_plan, expr_to_alias)
             return res_df
-        else:
-            db_schme_table = parse_table_name(entity_name)
-            table = ".".join([part.strip("\"'") for part in db_schme_table[:3]])
-            raise SnowparkLocalTestingException(
-                f"Object '{table}' does not exist or not authorized."
-            )
+
+        db_schme_table = parse_table_name(entity_name)
+        table = ".".join([part.strip("\"'") for part in db_schme_table[:3]])
+        raise SnowparkLocalTestingException(
+            f"Object '{table}' does not exist or not authorized."
+        )
     if isinstance(source_plan, Aggregate):
         child_rf = execute_mock_plan(source_plan.child, expr_to_alias)
         if (
@@ -1111,28 +1116,30 @@ def execute_mock_plan(
         )
     if isinstance(source_plan, SnowflakeTable):
         entity_name = source_plan.name
-        if entity_registry.is_existing_table(entity_name):
-            return entity_registry.read_table(entity_name)
-        elif entity_registry.is_existing_view(entity_name):
-            execution_plan = entity_registry.get_review(entity_name)
+        table = entity_registry.read_table_if_exists(entity_name)
+        if table is not None:
+            return table
+
+        execution_plan = entity_registry.read_view_if_exists(entity_name)
+        if execution_plan is not None:
             res_df = execute_mock_plan(execution_plan, expr_to_alias)
             return res_df
-        else:
-            obj_name_tuple = parse_table_name(entity_name)
-            obj_name = obj_name_tuple[-1]
-            obj_schema = (
-                obj_name_tuple[-2]
-                if len(obj_name_tuple) > 1
-                else analyzer.session.get_current_schema()
-            )
-            obj_database = (
-                obj_name_tuple[-3]
-                if len(obj_name_tuple) > 2
-                else analyzer.session.get_current_database()
-            )
-            raise SnowparkLocalTestingException(
-                f"Object '{obj_database[1:-1]}.{obj_schema[1:-1]}.{obj_name[1:-1]}' does not exist or not authorized."
-            )
+
+        obj_name_tuple = parse_table_name(entity_name)
+        obj_name = obj_name_tuple[-1]
+        obj_schema = (
+            obj_name_tuple[-2]
+            if len(obj_name_tuple) > 1
+            else analyzer.session.get_current_schema()
+        )
+        obj_database = (
+            obj_name_tuple[-3]
+            if len(obj_name_tuple) > 2
+            else analyzer.session.get_current_database()
+        )
+        raise SnowparkLocalTestingException(
+            f"Object '{obj_database[1:-1]}.{obj_schema[1:-1]}.{obj_name[1:-1]}' does not exist or not authorized."
+        )
     if isinstance(source_plan, Sample):
         res_df = execute_mock_plan(source_plan.child, expr_to_alias)
 
@@ -1159,6 +1166,7 @@ def execute_mock_plan(
         return from_df
 
     if isinstance(source_plan, TableUpdate):
+        # TODO: make this thread safe
         target = entity_registry.read_table(source_plan.table_name)
         ROW_ID = "row_id_" + generate_random_alphanumeric()
         target.insert(0, ROW_ID, range(len(target)))
@@ -1219,6 +1227,7 @@ def execute_mock_plan(
         entity_registry.write_table(source_plan.table_name, target, SaveMode.OVERWRITE)
         return [Row(len(rows_to_update), multi_joins)]
     elif isinstance(source_plan, TableDelete):
+        # TODO: make this thread safe
         target = entity_registry.read_table(source_plan.table_name)
 
         if source_plan.source_data:
@@ -1251,6 +1260,7 @@ def execute_mock_plan(
         )
         return [Row(len(target) - len(rows_to_keep))]
     elif isinstance(source_plan, TableMerge):
+        # TODO: make this thread safe
         target = entity_registry.read_table(source_plan.table_name)
         ROW_ID = "row_id_" + generate_random_alphanumeric()
         SOURCE_ROW_ID = "source_row_id_" + generate_random_alphanumeric()
