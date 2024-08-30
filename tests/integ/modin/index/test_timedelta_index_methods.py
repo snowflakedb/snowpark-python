@@ -8,6 +8,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.utils import assert_index_equal
 
 
 @sql_count_checker(query_count=3)
@@ -54,12 +55,22 @@ def test_non_default_args(kwargs):
         pd.TimedeltaIndex(query_compiler=idx._query_compiler, **kwargs)
 
 
-@pytest.mark.parametrize(
-    "property", ["days", "seconds", "microseconds", "nanoseconds", "inferred_freq"]
-)
+@pytest.mark.parametrize("property", ["components", "inferred_freq"])
 @sql_count_checker(query_count=0)
 def test_property_not_implemented(property):
     snow_index = pd.TimedeltaIndex(["1 days", "2 days"])
     msg = f"Snowpark pandas does not yet support the property TimedeltaIndex.{property}"
     with pytest.raises(NotImplementedError, match=msg):
         getattr(snow_index, property)
+
+
+@pytest.mark.parametrize("attr", ["days", "seconds", "microseconds", "nanoseconds"])
+@sql_count_checker(query_count=1)
+def test_timedelta_index_properties(attr):
+    native_index = native_pd.TimedeltaIndex(
+        ["1d", "1h", "60s", "1s", "800ms", "5us", "6ns", "1d 3s", "9m 15s 8us", None]
+    )
+    snow_index = pd.Index(native_index)
+    assert_index_equal(
+        getattr(snow_index, attr), getattr(native_index, attr), exact=False
+    )
