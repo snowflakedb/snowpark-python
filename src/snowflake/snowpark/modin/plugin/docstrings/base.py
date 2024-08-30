@@ -386,6 +386,25 @@ True
 Series([], dtype: bool)
 """
 
+_get_set_index_doc = """
+{desc}
+
+{parameters_or_returns}
+
+Note
+----
+When setting `DataFrame.index` or `Series.index` where the length of the
+`Series`/`DataFrame` object does not match with the new index's length,
+pandas raises a ValueError. Snowpark pandas does not raise this error;
+this operation is valid.
+When the `Series`/`DataFrame` object is longer than the new index,
+the `Series`/`DataFrame`'s new index is filled with `NaN` values for
+the "extra" elements. When the `Series`/`DataFrame` object is shorter than
+the new index, the extra values in the new index are ignored—`Series` and
+`DataFrame` stay the same length `n`, and use only the first `n` values of
+the new index.
+"""
+
 
 class BasePandasDataset:
     """
@@ -3594,3 +3613,21 @@ class BasePandasDataset:
         BasePandasDataset
             The result of the ufunc applied to the `BasePandasDataset`.
         """
+
+    @doc(
+        _get_set_index_doc,
+        desc="Get the index for this `Series`/`DataFrame`.",
+        parameters_or_returns="Returns\n-------\nIndex\n    The index for this `Series`/`DataFrame`.",
+    )
+    def _get_index():
+        pass
+
+    @doc(
+        _get_set_index_doc,
+        desc="Set the index for this `Series`/`DataFrame`.",
+        parameters_or_returns="Parameters\n----------\nnew_index : Index\n    The new index to set.",
+    )
+    def _set_index():
+        pass
+
+    index = property(_get_index, _set_index)

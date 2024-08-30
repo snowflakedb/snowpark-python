@@ -604,14 +604,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             return [pd.Series(index)]
 
     def _set_index(self, new_index: Axes) -> None:
-        """
-        Set the index for this DataFrame.
-
-        Parameters
-        ----------
-        new_index : pandas.Index
-            The new index to set this.
-        """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         self._update_inplace(
             new_query_compiler=self._query_compiler.set_index(
@@ -655,14 +647,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         return obj
 
     def _get_index(self):
-        """
-        Get the index for this DataFrame.
-
-        Returns
-        -------
-        pandas.Index
-            The union of all indexes across the partitions.
-        """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         from snowflake.snowpark.modin.plugin.extensions.index import Index
 
