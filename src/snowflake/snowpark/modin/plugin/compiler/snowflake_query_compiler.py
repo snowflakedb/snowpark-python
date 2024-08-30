@@ -2283,9 +2283,82 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             return self._reindex_axis_1(labels=labels, **kwargs)
 
+    def is_monotonic_decreasing(self) -> "SnowflakeQueryCompiler":
+        """
+        Returns a QueryCompiler containing only a column that checks for monotonically
+        decreasing values in the first data column of this QueryCompiler.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            QueryCompiler with column to ascertain whether data is monotonically decreasing.
+        """
+        return self._check_monotonic(increasing=False)
+
+    def is_monotonic_increasing(self) -> "SnowflakeQueryCompiler":
+        """
+        Returns a QueryCompiler containing only a column that checks for monotonically
+        increasing values in the first data column of this QueryCompiler.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            QueryCompiler with column to ascertain whether data is monotonically increasing.
+        """
+        return self._check_monotonic(increasing=True)
+
+    def _check_monotonic(self, increasing: bool) -> "SnowflakeQueryCompiler":
+        """
+        Returns a QueryCompiler containing only a column that checks for monotonically
+        decreasing or increasing values (depending on `increasing`) in the first data column of this QueryCompiler.
+
+        Parameters
+        ----------
+        increasing: bool
+            Whether to check for monotonically increasing or decreasing values.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            QueryCompiler with column to ascertain whether data is monotonically decreasing/increasing.
+        """
+        col_to_check = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
+        (
+            new_qc,
+            monotonic_increasing_snowflake_quoted_identifier,
+            monotonic_decreasing_snowflake_quoted_identifier,
+        ) = self._add_columns_for_monotonicity_checks(
+            col_to_check=col_to_check,
+            columns_to_add="increasing" if increasing else "decreasing",
+        )
+        data_column_snowflake_quoted_identifiers = []
+        if increasing:
+            data_column_snowflake_quoted_identifiers.append(
+                monotonic_increasing_snowflake_quoted_identifier
+            )
+        else:
+            data_column_snowflake_quoted_identifiers.append(
+                monotonic_decreasing_snowflake_quoted_identifier
+            )
+        new_modin_frame = new_qc._modin_frame
+        return SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=new_modin_frame.ordered_dataframe.limit(
+                    n=1, sort=False
+                ),
+                data_column_pandas_index_names=new_modin_frame.data_column_pandas_index_names,
+                data_column_pandas_labels=["monotonic_column"],
+                data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
+                index_column_pandas_labels=new_modin_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=new_modin_frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=None,
+                index_column_types=None,
+            )
+        )
+
     def _add_columns_for_monotonicity_checks(
-        self, col_to_check: str
-    ) -> tuple["SnowflakeQueryCompiler", str, str]:
+        self, col_to_check: str, columns_to_add: Optional[str] = None
+    ) -> tuple["SnowflakeQueryCompiler", Optional[str], Optional[str]]:
         """
         Adds columns that check for monotonicity (increasing or decreasing) in the
         specified column.
@@ -2294,6 +2367,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ----------
         col_to_check : str
             The Snowflake quoted identifier for the column whose monotonicity to check.
+        columns_to_add : str, optional
+            Whether or not to add all columns, and if not, which columns to add.
 
         Returns
         -------
@@ -2304,9 +2379,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         self._raise_not_implemented_error_for_timedelta()
 
+        assert columns_to_add in [
+            None,
+            "increasing",
+            "decreasing",
+        ], "Invalid value passed to function"
         modin_frame = self._modin_frame
         modin_frame = modin_frame.ensure_row_position_column()
         row_position_column = modin_frame.row_position_snowflake_quoted_identifier
+        monotonic_decreasing_snowflake_quoted_id = None
+        monotonic_increasing_snowflake_quoted_id = None
         modin_frame = modin_frame.append_column(
             "_index_lag_col",
             lag(col_to_check).over(Window.order_by(row_position_column)),
@@ -2314,26 +2396,28 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         lag_col_snowflake_quoted_id = (
             modin_frame.data_column_snowflake_quoted_identifiers[-1]
         )
-        modin_frame = modin_frame.append_column(
-            "_is_monotonic_decreasing",
-            coalesce(
-                min_(col(col_to_check) < col(lag_col_snowflake_quoted_id)).over(),
-                pandas_lit(False),
-            ),
-        )
-        monotonic_decreasing_snowflake_quoted_id = (
-            modin_frame.data_column_snowflake_quoted_identifiers[-1]
-        )
-        modin_frame = modin_frame.append_column(
-            "_is_monotonic_increasing",
-            coalesce(
-                min_(col(col_to_check) > col(lag_col_snowflake_quoted_id)).over(),
-                pandas_lit(False),
-            ),
-        )
-        monotonic_increasing_snowflake_quoted_id = (
-            modin_frame.data_column_snowflake_quoted_identifiers[-1]
-        )
+        if columns_to_add in [None, "decreasing"]:
+            modin_frame = modin_frame.append_column(
+                "_is_monotonic_decreasing",
+                coalesce(
+                    min_(col(col_to_check) <= col(lag_col_snowflake_quoted_id)).over(),
+                    pandas_lit(False),
+                ),
+            )
+            monotonic_decreasing_snowflake_quoted_id = (
+                modin_frame.data_column_snowflake_quoted_identifiers[-1]
+            )
+        if columns_to_add in [None, "increasing"]:
+            modin_frame = modin_frame.append_column(
+                "_is_monotonic_increasing",
+                coalesce(
+                    min_(col(col_to_check) >= col(lag_col_snowflake_quoted_id)).over(),
+                    pandas_lit(False),
+                ),
+            )
+            monotonic_increasing_snowflake_quoted_id = (
+                modin_frame.data_column_snowflake_quoted_identifiers[-1]
+            )
         data_column_pandas_labels = modin_frame.data_column_pandas_labels
         data_column_snowflake_quoted_identifiers = (
             modin_frame.data_column_snowflake_quoted_identifiers
