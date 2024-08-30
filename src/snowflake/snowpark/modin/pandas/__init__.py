@@ -351,7 +351,6 @@ __all__ = [  # noqa: F405
     "Float32Dtype",
     "Float64Dtype",
     "from_dummies",
-    "DONOTEXPORTMESeries",
 ]
 
 del pandas
