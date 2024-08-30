@@ -99,7 +99,7 @@ def test_large_query_breakdown_with_cte_optimization(session):
     check_result_with_and_without_breakdown(session, df4)
 
     assert len(df4.queries["queries"]) == 2
-    assert df4.queries["queries"][0].startswith("CREATE  TEMP  TABLE")
+    assert df4.queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
     assert df4.queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
 
     assert len(df4.queries["post_actions"]) == 1
@@ -115,7 +115,7 @@ def test_save_as_table(session, large_query_df):
 
     assert len(history.queries) == 4
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
-    assert history.queries[1].sql_text.startswith("CREATE  TEMP  TABLE")
+    assert history.queries[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
     assert history.queries[2].sql_text.startswith(
         f"CREATE  OR  REPLACE    TABLE  {table_name}"
     )
@@ -135,7 +135,7 @@ def test_update_delete_merge(session, large_query_df):
         t.update({"B": 0}, t.a == large_query_df.a, large_query_df)
     assert len(history.queries) == 4
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
-    assert history.queries[1].sql_text.startswith("CREATE  TEMP  TABLE")
+    assert history.queries[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
     assert history.queries[2].sql_text.startswith(f"UPDATE {table_name}")
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
@@ -144,7 +144,7 @@ def test_update_delete_merge(session, large_query_df):
         t.delete(t.a == large_query_df.a, large_query_df)
     assert len(history.queries) == 4
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
-    assert history.queries[1].sql_text.startswith("CREATE  TEMP  TABLE")
+    assert history.queries[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
     assert history.queries[2].sql_text.startswith(f"DELETE  FROM {table_name} USING")
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
@@ -157,7 +157,7 @@ def test_update_delete_merge(session, large_query_df):
         )
     assert len(history.queries) == 4
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
-    assert history.queries[1].sql_text.startswith("CREATE  TEMP  TABLE")
+    assert history.queries[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
     assert history.queries[2].sql_text.startswith(f"MERGE  INTO {table_name} USING")
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
@@ -176,7 +176,7 @@ def test_copy_into_location(session, large_query_df):
         )
     assert len(history.queries) == 4, history.queries
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
-    assert history.queries[1].sql_text.startswith("CREATE  TEMP  TABLE")
+    assert history.queries[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
     assert history.queries[2].sql_text.startswith(f"COPY  INTO '{remote_file_path}'")
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
@@ -215,7 +215,7 @@ def test_pivot_unpivot(session):
 
     plan_queries = final_df.queries
     assert len(plan_queries["queries"]) == 2
-    assert plan_queries["queries"][0].startswith("CREATE  TEMP  TABLE")
+    assert plan_queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
 
     assert len(plan_queries["post_actions"]) == 1
     assert plan_queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
@@ -239,7 +239,7 @@ def test_sort(session):
 
     plan_queries = final_df.queries
     assert len(plan_queries["queries"]) == 2
-    assert plan_queries["queries"][0].startswith("CREATE  TEMP  TABLE")
+    assert plan_queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
 
     assert len(plan_queries["post_actions"]) == 1
     assert plan_queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
@@ -283,7 +283,7 @@ def test_multiple_query_plan(session, large_query_df):
             "CREATE  OR  REPLACE  SCOPED TEMPORARY  TABLE"
         )
         assert plan_queries["queries"][1].startswith("INSERT  INTO")
-        assert plan_queries["queries"][2].startswith("CREATE  TEMP  TABLE")
+        assert plan_queries["queries"][2].startswith("CREATE  SCOPED TEMPORARY  TABLE")
 
         assert len(plan_queries["post_actions"]) == 2
         for query in plan_queries["post_actions"]:
@@ -349,7 +349,9 @@ def test_async_job_with_large_query_breakdown(session, large_query_df):
     result = job.result()
     assert result == large_query_df.collect()
     assert len(large_query_df.queries["queries"]) == 2
-    assert large_query_df.queries["queries"][0].startswith("CREATE  TEMP  TABLE")
+    assert large_query_df.queries["queries"][0].startswith(
+        "CREATE  SCOPED TEMPORARY  TABLE"
+    )
 
     assert len(large_query_df.queries["post_actions"]) == 1
     assert large_query_df.queries["post_actions"][0].startswith(
@@ -365,7 +367,9 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     session._large_query_breakdown_enabled = True
     assert len(large_query_df.queries["queries"]) == 2
     assert len(large_query_df.queries["post_actions"]) == 1
-    assert large_query_df.queries["queries"][0].startswith("CREATE  TEMP  TABLE")
+    assert large_query_df.queries["queries"][0].startswith(
+        "CREATE  SCOPED TEMPORARY  TABLE"
+    )
     assert large_query_df.queries["post_actions"][0].startswith(
         "DROP  TABLE  If  EXISTS"
     )
@@ -374,8 +378,12 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     session._large_query_breakdown_enabled = True
     assert len(large_query_df.queries["queries"]) == 3
     assert len(large_query_df.queries["post_actions"]) == 2
-    assert large_query_df.queries["queries"][0].startswith("CREATE  TEMP  TABLE")
-    assert large_query_df.queries["queries"][1].startswith("CREATE  TEMP  TABLE")
+    assert large_query_df.queries["queries"][0].startswith(
+        "CREATE  SCOPED TEMPORARY  TABLE"
+    )
+    assert large_query_df.queries["queries"][1].startswith(
+        "CREATE  SCOPED TEMPORARY  TABLE"
+    )
     assert large_query_df.queries["post_actions"][0].startswith(
         "DROP  TABLE  If  EXISTS"
     )
