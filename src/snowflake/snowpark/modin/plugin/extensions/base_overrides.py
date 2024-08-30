@@ -2072,7 +2072,7 @@ def abs(self):  # noqa: RT01, D200
     Return a `BasePandasDataset` with absolute numeric value of each element.
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    return self.__constructor__(query_compiler=self._query_compiler.unary_op("abs"))
+    return self.__constructor__(query_compiler=self._query_compiler.abs())
 
 
 # Modin does dtype validation on unary ops that Snowpark pandas does not.
@@ -2101,7 +2101,7 @@ def __neg__(self):
     BasePandasDataset
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    return self.__constructor__(query_compiler=self._query_compiler.unary_op("__neg__"))
+    return self.__constructor__(query_compiler=self._query_compiler.negative())
 
 
 # Modin needs to add a check for mapper is not None, which changes query counts in test_concat.py
@@ -2199,7 +2199,7 @@ def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs, **kwargs):
     # Use pandas version of ufunc if it exists
     if method != "__call__":
         # Return sentinel value NotImplemented
-        return NotImplemented
+        return NotImplemented  # pragma: no cover
     from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
         numpy_to_pandas_universal_func_map,
     )
@@ -2208,7 +2208,7 @@ def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs, **kwargs):
         ufunc = numpy_to_pandas_universal_func_map[ufunc.__name__]
         return ufunc(self, inputs[1:], kwargs)
     # return the sentinel NotImplemented if we do not support this function
-    return NotImplemented
+    return NotImplemented  # pragma: no cover
 
 
 # Snowpark pandas does extra argument validation.
