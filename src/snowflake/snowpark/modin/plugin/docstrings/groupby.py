@@ -203,7 +203,108 @@ class DataFrameGroupBy:
         pass
 
     def value_counts():
-        pass
+        """
+        Return a Series or DataFrame containing counts of unique rows.
+
+        Parameters
+        ----------
+        subset : list-like, optional
+            Columns to use when counting unique combinations.
+
+        normalize : bool, default False
+            Return proportions rather than frequencies.
+
+            Note that when `normalize=True`, `groupby` is called with `sort=False`, and `value_counts`
+            is called with `sort=True`, Snowpark pandas will order results differently from
+            native pandas. This occurs because native pandas sorts on frequencies before converting
+            them to proportions, while Snowpark pandas computes proportions within groups before sorting.
+
+            See issue for details: https://github.com/pandas-dev/pandas/issues/59307
+
+        sort : bool, default True
+            Sort by frequencies.
+
+        ascending : bool, default False
+            Sort in ascending order.
+
+        dropna : bool, default True
+            Don't include counts of rows that contain NA values.
+
+        Returns
+        -------
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            Series if the groupby as_index is True, otherwise DataFrame.
+
+        Notes
+        -----
+        - If the groupby as_index is True then the returned Series will have a MultiIndex with one level per input column.
+        - If the groupby as_index is False then the returned DataFrame will have an additional column with the value_counts.
+          The column is labelled 'count' or 'proportion', depending on the normalize parameter.
+
+        By default, rows that contain any NA values are omitted from the result.
+
+        By default, the result will be in descending order so that the first element of each group is the most frequently-occurring row.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({
+        ...     'gender': ['male', 'male', 'female', 'male', 'female', 'male'],
+        ...     'education': ['low', 'medium', 'high', 'low', 'high', 'low'],
+        ...     'country': ['US', 'FR', 'US', 'FR', 'FR', 'FR']
+        ... })
+
+        >>> df  # doctest: +NORMALIZE_WHITESPACE
+                gender  education   country
+        0       male    low         US
+        1       male    medium      FR
+        2       female  high        US
+        3       male    low         FR
+        4       female  high        FR
+        5       male    low         FR
+
+        >>> df.groupby('gender').value_counts()  # doctest: +NORMALIZE_WHITESPACE
+        gender  education  country
+        female  high       FR         1
+                           US         1
+        male    low        FR         2
+                           US         1
+                medium     FR         1
+        Name: count, dtype: int64
+
+        >>> df.groupby('gender').value_counts(ascending=True)  # doctest: +NORMALIZE_WHITESPACE
+        gender  education  country
+        female  high       FR         1
+                           US         1
+        male    low        US         1
+                medium     FR         1
+                low        FR         2
+        Name: count, dtype: int64
+
+        >>> df.groupby('gender').value_counts(normalize=True)  # doctest: +NORMALIZE_WHITESPACE
+        gender  education  country
+        female  high       FR         0.50
+                           US         0.50
+        male    low        FR         0.50
+                           US         0.25
+                medium     FR         0.25
+        Name: proportion, dtype: float64
+
+        >>> df.groupby('gender', as_index=False).value_counts()  # doctest: +NORMALIZE_WHITESPACE
+           gender education country  count
+        0  female      high      FR      1
+        1  female      high      US      1
+        2    male       low      FR      2
+        3    male       low      US      1
+        4    male    medium      FR      1
+
+        >>> df.groupby('gender', as_index=False).value_counts(normalize=True)  # doctest: +NORMALIZE_WHITESPACE
+           gender education country  proportion
+        0  female      high      FR        0.50
+        1  female      high      US        0.50
+        2    male       low      FR        0.50
+        3    male       low      US        0.25
+        4    male    medium      FR        0.25
+        """
 
     def mean():
         """
@@ -2103,8 +2204,45 @@ class SeriesGroupBy:
         """
         pass
 
-    def unique(self):
+    def unique():
         pass
 
     def apply():
         pass
+
+    def value_counts():
+        """
+        Return a Series or DataFrame containing counts of unique rows.
+
+        Parameters
+        ----------
+        subset : list-like, optional
+            Columns to use when counting unique combinations.
+
+        normalize : bool, default False
+            Return proportions rather than frequencies.
+
+            Note that when `normalize=True`, `groupby` is called with `sort=False`, and `value_counts`
+            is called with `sort=True`, Snowpark pandas will order results differently from
+            native pandas. This occurs because native pandas sorts on frequencies before converting
+            them to proportions, while Snowpark pandas computes proportions within groups before sorting.
+
+            See issue for details: https://github.com/pandas-dev/pandas/issues/59307
+
+        sort : bool, default True
+            Sort by frequencies.
+
+        ascending : bool, default False
+            Sort in ascending order.
+
+        bins : int, optional
+            Rather than count values, group them into half-open bins, a convenience for `pd.cut`, only works with numeric data.
+            This parameter is not yet supported in Snowpark pandas.
+
+        dropna : bool, default True
+            Don't include counts of rows that contain NA values.
+
+        Returns
+        -------
+        :class:`~snowflake.snowpark.modin.pandas.Series`
+        """
