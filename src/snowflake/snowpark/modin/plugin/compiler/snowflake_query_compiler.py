@@ -11359,8 +11359,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # The output frame's DatetimeIndex is identical to expected_frame's. For each date in the DatetimeIndex,
             # a single row is selected from the input frame, where its date is the closest match in time based on
             # the filling method. We perform an ASOF join to accomplish this.
-            frame = perform_asof_join_on_frame(expected_frame, frame, resample_method)
-            return SnowflakeQueryCompiler(frame).set_index_names([None])
+            index_name = frame.index_column_pandas_labels
+            output_frame = perform_asof_join_on_frame(
+                expected_frame, frame, resample_method
+            )
+            return SnowflakeQueryCompiler(output_frame).set_index_names(index_name)
         elif resample_method in IMPLEMENTED_AGG_METHODS:
             frame = perform_resample_binning_on_frame(frame, start_date, rule)
             if resample_method == "size":
