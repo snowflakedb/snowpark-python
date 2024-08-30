@@ -735,13 +735,14 @@ def execute_mock_plan(
         table = entity_registry.read_table_if_exists(entity_name)
         if table is not None:
             return table
+
         execution_plan = entity_registry.read_view_if_exists(entity_name)
         if execution_plan is not None:
             res_df = execute_mock_plan(execution_plan, expr_to_alias)
             return res_df
 
-        db_schme_table = parse_table_name(entity_name)
-        table = ".".join([part.strip("\"'") for part in db_schme_table[:3]])
+        db_schema_table = parse_table_name(entity_name)
+        table = ".".join([part.strip("\"'") for part in db_schema_table[:3]])
         raise SnowparkLocalTestingException(
             f"Object '{table}' does not exist or not authorized."
         )
@@ -1166,7 +1167,6 @@ def execute_mock_plan(
         return from_df
 
     if isinstance(source_plan, TableUpdate):
-        # TODO: make this thread safe
         target = entity_registry.read_table(source_plan.table_name)
         ROW_ID = "row_id_" + generate_random_alphanumeric()
         target.insert(0, ROW_ID, range(len(target)))
@@ -1227,7 +1227,6 @@ def execute_mock_plan(
         entity_registry.write_table(source_plan.table_name, target, SaveMode.OVERWRITE)
         return [Row(len(rows_to_update), multi_joins)]
     elif isinstance(source_plan, TableDelete):
-        # TODO: make this thread safe
         target = entity_registry.read_table(source_plan.table_name)
 
         if source_plan.source_data:
@@ -1260,7 +1259,6 @@ def execute_mock_plan(
         )
         return [Row(len(target) - len(rows_to_keep))]
     elif isinstance(source_plan, TableMerge):
-        # TODO: make this thread safe
         target = entity_registry.read_table(source_plan.table_name)
         ROW_ID = "row_id_" + generate_random_alphanumeric()
         SOURCE_ROW_ID = "source_row_id_" + generate_random_alphanumeric()
