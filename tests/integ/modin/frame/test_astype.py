@@ -126,7 +126,7 @@ def test_astype_to_timedelta(dtype):
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.astype(dtype))
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_astype_to_timedelta_negative():
     native_datetime_df = native_pd.DataFrame(
         data={"col1": [pd.to_datetime("2000-01-01"), pd.to_datetime("2001-01-01")]}
