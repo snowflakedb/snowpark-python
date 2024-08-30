@@ -10189,7 +10189,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         periods: int,
         column_position: int,
         axis: int,
-    ) -> SnowparkColumn:
+    ) -> SnowparkPandasColumn:
         """
         Helper function to generate Columns for discrete difference.
 
@@ -10207,9 +10207,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Returns
         -------
-        SnowparkColumn
-            An expression to generate the discrete difference along the specified axis, with the
-            specified period, for the column specified by `column_position`.
+        SnowparkPandasColumn
+            An column representing the discrete difference along the specified
+            axis, with the specified period, for the column specified by
+            `column_position`.
         """
         # If periods is 0, we are doing a subtraction with self (or XOR in case of bool
         # dtype). In this case, even if axis is 0, we prefer to use the col-wise code,
@@ -10239,15 +10240,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         self._modin_frame.ordering_column_snowflake_quoted_identifiers
                     )
                 )
-                return (col1 | col2) & (not_(col1 & col2))
-            else:
-                return col(snowflake_quoted_identifier) - func_for_other(
-                    snowflake_quoted_identifier, offset=abs(periods)
-                ).over(
-                    Window.order_by(
-                        self._modin_frame.ordering_column_snowflake_quoted_identifiers
-                    )
+                return SnowparkPandasColumn(
+                    snowpark_column=(col1 | col2) & (not_(col1 & col2)),
+                    snowpark_pandas_type=None,
                 )
+            else:
+                return compute_binary_op_between_snowpark_columns(
+                    "sub",
+                    col(snowflake_quoted_identifier),
+                    lambda: column_datatype,
+                    func_for_other(
+                        snowflake_quoted_identifier, offset=abs(periods)
+                    ).over(
+                        Window.order_by(
+                            self._modin_frame.ordering_column_snowflake_quoted_identifiers
+                        )
+                    ),
+                    lambda: column_datatype,
+                )
+
         else:
             # periods is the number of columns to *go back*.
             periods *= -1
@@ -10258,7 +10269,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if other_column_position < 0 or other_column_position >= len(
                 self._modin_frame.data_column_snowflake_quoted_identifiers
             ):
-                return pandas_lit(np.nan)
+                return SnowparkPandasColumn(
+                    snowpark_column=pandas_lit(np.nan), snowpark_pandas_type=None
+                )
             # In this case, we are at a column that does have a match, so we must do dtype checking
             # and then generate the expression.
             else:
@@ -10285,13 +10298,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 if isinstance(col1_dtype, BooleanType) and isinstance(
                     col2_dtype, BooleanType
                 ):
-                    return (col1 | col2) & (not_(col1 & col2))
+                    return SnowparkPandasColumn(
+                        (col1 | col2) & (not_(col1 & col2)), snowpark_pandas_type=None
+                    )
                 else:
                     if isinstance(col1_dtype, BooleanType):
                         col1 = cast(col1, IntegerType())
                     if isinstance(col2_dtype, BooleanType):
                         col2 = cast(col2, IntegerType())
-                    return col1 - col2
+                    return compute_binary_op_between_snowpark_columns(
+                        "sub",
+                        col1,
+                        lambda: col1_dtype,
+                        col2,
+                        lambda: col2_dtype,
+                    )
 
     def diff(self, periods: int, axis: int) -> "SnowflakeQueryCompiler":
         """
@@ -10312,8 +10333,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         }
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
-                diff_label_to_value_map,
-                self._modin_frame.cached_data_column_snowpark_pandas_types,
+                quoted_identifier_to_column_map={
+                    k: v.snowpark_column for k, v in diff_label_to_value_map.items()
+                },
+                data_column_snowpark_pandas_types=[
+                    a.snowpark_pandas_type for a in diff_label_to_value_map.values()
+                ],
             ).frame
         )
 
