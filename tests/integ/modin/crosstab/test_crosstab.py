@@ -202,7 +202,7 @@ class TestCrosstab:
             assert_exception_equal=False,  # Our error message is a little different.
         )
 
-    def test_basic_crosstab_with_df_and_series_objs_pandas_errors(
+    def test_basic_crosstab_with_df_and_series_objs_pandas_errors_columns(
         self, dropna, a, b, c
     ):
         query_count = 4
@@ -237,6 +237,52 @@ class TestCrosstab:
             else:
                 return pd.crosstab(
                     a, b, rownames=["a"], colnames=["b", "c"], dropna=dropna
+                )
+
+        with SqlCounter(query_count=query_count, join_count=join_count):
+            native_args = [a, b]
+            snow_args = [pd.Series(a), pd.DataFrame(b)]
+            eval_snowpark_pandas_result(
+                snow_args,
+                native_args,
+                eval_func,
+            )
+
+    def test_basic_crosstab_with_df_and_series_objs_pandas_errors_index(
+        self, dropna, a, b, c
+    ):
+        query_count = 4
+        join_count = 1 if dropna else 3
+        a = native_pd.Series(
+            a,
+            dtype=object,
+        )
+        b = native_pd.DataFrame(
+            {
+                "0": b,
+                "1": c,
+            }
+        )
+        # pandas expects only Series objects, or DataFrames that have only a single column, while
+        # we support accepting DataFrames with multiple columns.
+        with pytest.raises(
+            AssertionError, match="arrays and names must have the same length"
+        ):
+            native_pd.crosstab(b, a, rownames=["a", "b"], colnames=["c"], dropna=dropna)
+
+        def eval_func(args_list):
+            a, b = args_list
+            if isinstance(a, native_pd.Series):
+                return native_pd.crosstab(
+                    [b[c] for c in b.columns],
+                    a,
+                    rownames=["a", "b"],
+                    colnames=["c"],
+                    dropna=dropna,
+                )
+            else:
+                return pd.crosstab(
+                    b, a, rownames=["a", "b"], colnames=["c"], dropna=dropna
                 )
 
         with SqlCounter(query_count=query_count, join_count=join_count):
@@ -556,3 +602,38 @@ def test_values_series_like_unsupported_aggfunc(basic_crosstab_dfs):
             aggfunc="median",
             dropna=False,
         )
+
+
+@sql_count_checker(query_count=0)
+def test_values_aggfunc_one_supplied_should_error(a, b, c):
+    eval_snowpark_pandas_result(
+        pd,
+        native_pd,
+        lambda lib: lib.crosstab(index=a, columns=b, aggfunc="sum"),
+        expect_exception=True,
+        expect_exception_match="aggfunc cannot be used without values.",
+        expect_exception_type=ValueError,
+        assert_exception_equal=True,
+    )
+    eval_snowpark_pandas_result(
+        pd,
+        native_pd,
+        lambda lib: lib.crosstab(index=a, columns=b, values=c),
+        expect_exception=True,
+        expect_exception_match="values cannot be used without an aggfunc.",
+        expect_exception_type=ValueError,
+        assert_exception_equal=True,
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_invalid_normalize(a, b):
+    eval_snowpark_pandas_result(
+        pd,
+        native_pd,
+        lambda lib: lib.crosstab(index=a, columns=b, normalize="invalid_value"),
+        expect_exception=True,
+        expect_exception_match="Not a valid normalize argument: invalid_value",
+        expect_exception_type=ValueError,
+        assert_exception_equal=True,
+    )
