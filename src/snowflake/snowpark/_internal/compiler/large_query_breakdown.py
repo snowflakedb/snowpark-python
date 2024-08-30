@@ -6,8 +6,6 @@ import logging
 from collections import defaultdict
 from typing import List, Optional, Tuple
 
-from sortedcontainers import SortedList
-
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_table_if_exists_statement,
 )
@@ -205,7 +203,7 @@ class LargeQueryBreakdown:
             4. Return the node with the highest complexity score.
         """
         current_level = [root]
-        pipeline_breaker_list = SortedList(key=lambda x: x[0])
+        pipeline_breaker_list = []
 
         while current_level:
             next_level = []
@@ -218,7 +216,7 @@ class LargeQueryBreakdown:
                         # Append score and child to the pipeline breaker sorted list
                         # so that the valid child with the highest complexity score
                         # is at the end of the list.
-                        pipeline_breaker_list.add((score, child))
+                        pipeline_breaker_list.append((score, child))
                     else:
                         # don't traverse subtrees if parent is a valid candidate
                         next_level.append(child)
@@ -230,7 +228,8 @@ class LargeQueryBreakdown:
             return None
 
         # Get the node with the highest complexity score
-        _, child = pipeline_breaker_list.pop()
+        sorted_pipeline_breaker_list = sorted(pipeline_breaker_list, key=lambda x: x[0])
+        _, child = sorted_pipeline_breaker_list.pop()
         return child
 
     def _get_partitioned_plan(self, root: TreeNode, child: TreeNode) -> SnowflakePlan:
