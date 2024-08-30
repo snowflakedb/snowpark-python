@@ -31,6 +31,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas
 from modin.pandas.accessor import CachedAccessor, SparseAccessor
+from modin.pandas.base import BasePandasDataset
 from modin.pandas.iterator import PartitionIterator
 from pandas._libs.lib import NoDefault, is_integer, no_default
 from pandas._typing import (
@@ -51,17 +52,18 @@ from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
 from pandas.core.series import _coerce_method
 from pandas.util._validators import validate_bool_kwarg
 
-from snowflake.snowpark.modin.pandas.base import _ATTRS_NO_LOOKUP, BasePandasDataset
 from snowflake.snowpark.modin.pandas.utils import (
     from_pandas,
     is_scalar,
     try_convert_index_to_native,
 )
+from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     series_not_implemented,
 )
+from snowflake.snowpark.modin.plugin.utils.frontend_constants import _ATTRS_NO_LOOKUP
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import (
     MODIN_UNNAMED_SERIES_LABEL,
@@ -108,7 +110,7 @@ _SERIES_EXTENSIONS_ = {}
     ],
     apilink="pandas.Series",
 )
-class Series(BasePandasDataset):
+class Series(BasePandasDataset, metaclass=TelemetryMeta):
     _pandas_class = pandas.Series
     __array_priority__ = pandas.Series.__array_priority__
 

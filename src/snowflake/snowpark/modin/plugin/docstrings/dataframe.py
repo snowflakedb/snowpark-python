@@ -13,6 +13,8 @@ from snowflake.snowpark.modin.plugin.docstrings.shared_docs import (
     _shared_docs,
 )
 
+from .base import BasePandasDataset
+
 _doc_binary_op_kwargs = {"returns": "BasePandasDataset", "left": "BasePandasDataset"}
 
 
@@ -49,7 +51,7 @@ axis : int or str, optional
 }
 
 
-class DataFrame:
+class DataFrame(BasePandasDataset):
     """
     Snowpark pandas representation of ``pandas.DataFrame`` with a lazily-evaluated relational dataset.
 
