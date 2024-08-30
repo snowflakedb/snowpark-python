@@ -260,6 +260,24 @@ class MockServerConnection:
                     return self.view_registry[name]
                 raise SnowparkLocalTestingException(f"View {name} does not exist")
 
+        def read_view_if_exists(
+            self, name: Union[str, Iterable[str]]
+        ) -> Optional[MockExecutionPlan]:
+            """Method to atomically read a view if it exists. Returns None if the view does not exist."""
+            with self._lock:
+                if self.is_existing_view(name):
+                    return self.get_review(name)
+                return None
+
+        def read_table_if_exists(
+            self, name: Union[str, Iterable[str]]
+        ) -> Optional[TableEmulator]:
+            """Method to atomically read a table if it exists. Returns None if the table does not exist."""
+            with self._lock:
+                if self.is_existing_table(name):
+                    return self.read_table(name)
+                return None
+
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         self._conn = MockedSnowflakeConnection()
         self._cursor = Mock()
