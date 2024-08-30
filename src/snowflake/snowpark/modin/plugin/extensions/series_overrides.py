@@ -14,12 +14,17 @@ from typing import Any
 import modin.pandas as pd
 import pandas as native_pd
 from modin.pandas import Series
-from pandas._libs.lib import no_default
+from modin.pandas.base import BasePandasDataset
+from pandas._libs.lib import NoDefault, is_integer, no_default
+from pandas._typing import Axis, IndexLabel
+from pandas.core.common import apply_if_callable, is_bool_indexer
+from pandas.core.dtypes.common import is_bool_dtype, is_list_like
 
 from snowflake.snowpark.modin import pandas as spd  # noqa: F401
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
 from snowflake.snowpark.modin.pandas.utils import (
     from_pandas,
+    is_scalar,
     try_convert_index_to_native,
 )
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
@@ -29,6 +34,12 @@ from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     series_not_implemented,
+)
+from snowflake.snowpark.modin.plugin.utils.frontend_constants import (
+    SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SCALAR_ERROR_MESSAGE,
+    SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SERIES_ERROR_MESSAGE,
+    SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE,
+    SERIES_SETITEM_SLICE_AS_SCALAR_VALUE_ERROR_MESSAGE,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import (
@@ -458,6 +469,65 @@ def plot(
     return self._to_pandas().plot
 
 
+# Snowpark pandas does not yet support Categorical types. Return a dummy object instead of immediately
+# erroring out so we get error messages describing which method a user tried to access.
+class CategoryMethods:
+    category_not_supported_message = "CategoricalDType and corresponding methods is not available in Snowpark pandas API yet!"
+
+    def __init__(self, series) -> None:
+        self._series = series
+        self._query_compiler = series._query_compiler
+
+    @property
+    def categories(self):
+        ErrorMessage.not_implemented(self.category_not_supported_message)
+
+    @categories.setter
+    def categories(self, categories):
+        ErrorMessage.not_implemented(
+            self.category_not_supported_message
+        )  # pragma: no cover
+
+    @property
+    def ordered(self):
+        ErrorMessage.not_implemented(self.category_not_supported_message)
+
+    @property
+    def codes(self):
+        ErrorMessage.not_implemented(self.category_not_supported_message)
+
+    def rename_categories(self, new_categories, inplace=False):
+        ErrorMessage.not_implemented(self.category_not_supported_message)
+
+    def reorder_categories(self, new_categories, ordered=None, inplace=False):
+        ErrorMessage.not_implemented(self.category_not_supported_message)
+
+    def add_categories(self, new_categories, inplace=False):
+        ErrorMessage.not_implemented(self.category_not_supported_message)
+
+    def remove_categories(self, removals, inplace=False):
+        ErrorMessage.not_implemented(self.category_not_supported_message)
+
+    def remove_unused_categories(self, inplace=False):
+        ErrorMessage.not_implemented(self.category_not_supported_message)
+
+    def set_categories(self, new_categories, ordered=None, rename=False, inplace=False):
+        ErrorMessage.not_implemented(self.category_not_supported_message)
+
+    def as_ordered(self, inplace=False):
+        ErrorMessage.not_implemented(self.category_not_supported_message)
+
+    def as_unordered(self, inplace=False):
+        ErrorMessage.not_implemented(self.category_not_supported_message)
+
+
+@register_series_accessor("cat")
+@property
+@snowpark_pandas_telemetry_method_decorator
+def cat(self) -> CategoryMethods:
+    return CategoryMethods(self)
+
+
 # modin 0.28.1 doesn't define type annotations on properties, so we override this
 # to satisfy test_type_annotations.py
 _old_empty_fget = Series.empty.fget
@@ -470,13 +540,82 @@ def empty(self) -> bool:
     return _old_empty_fget(self)
 
 
-# Upstream modin performs name change and copy operations on binary operators that Snowpark
+# Snowpark pandas defines a custom GroupBy object
+@register_series_accessor("groupby")
+@property
+@snowpark_pandas_telemetry_method_decorator
+def groupby(
+    self,
+    by=None,
+    axis: Axis = 0,
+    level: IndexLabel | None = None,
+    as_index: bool = True,
+    sort: bool = True,
+    group_keys: bool = True,
+    observed: bool | NoDefault = no_default,
+    dropna: bool = True,
+):
+    """
+    Group Series using a mapper or by a Series of columns.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    from snowflake.snowpark.modin.pandas.groupby import (
+        SeriesGroupBy,
+        validate_groupby_args,
+    )
+
+    validate_groupby_args(by, level, observed)
+
+    if not as_index:
+        raise TypeError("as_index=False only valid with DataFrame")
+
+    axis = self._get_axis_number(axis)
+    return SeriesGroupBy(
+        self,
+        by,
+        axis,
+        level,
+        as_index,
+        sort,
+        group_keys,
+        idx_name=None,
+        observed=observed,
+        dropna=dropna,
+    )
+
+
+# Upstream Modin performs name change and copy operations on binary operators that Snowpark
 # pandas avoids.
-# Don't put telemetry on this method.
+# Don't put telemetry on this method since it's an internal helper.
 @register_series_accessor("_prepare_inter_op")
 def _prepare_inter_op(self, other):
     # override prevents extra queries from occurring during binary operations
     return self, other
+
+
+# Upstream Modin has a single _to_datetime QC method for both Series and DF, while Snowpark
+# pandas distinguishes between the two.
+# Don't put telemetry on this method since it's an internal helper.
+@register_series_accessor("_to_datetime")
+def _to_datetime(self, **kwargs):
+    """
+    Convert `self` to datetime.
+
+    Parameters
+    ----------
+    **kwargs : dict
+        Optional arguments to use during query compiler's
+        `to_datetime` invocation.
+
+    Returns
+    -------
+    datetime
+        Series of datetime64 dtype.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.__constructor__(
+        query_compiler=self._query_compiler.series_to_datetime(**kwargs)
+    )
 
 
 # Snowpark pandas has the extra `statement_params` argument.
@@ -508,3 +647,204 @@ def _to_pandas(
         series.name = None
 
     return series
+
+
+# Snowpark pandas does more validation and error checking than upstream Modin.
+@register_series_accessor("__setitem__")
+@snowpark_pandas_telemetry_method_decorator
+def __setitem__(self, key, value):
+    """
+    Set `value` identified by `key` in the Series.
+
+    Parameters
+    ----------
+    key : hashable
+        Key to set.
+    value : Any
+        Value to set.
+
+    Examples
+    --------
+    Using the following series to set values on. __setitem__ is an inplace operation, so copies of `series`are made
+    in the examples to highlight the different behaviors produced.
+    >>> series = pd.Series([1, "b", 3], index=["a", "b", "c"])
+
+    Using a scalar as the value to set a particular element.
+    >>> s = series.copy()
+    >>> s["c"] = "a"
+    >>> s
+    a    1
+    b    b
+    c    a
+    dtype: object
+
+    Using list-like objects as the key and value to set multiple elements.
+    >>> s = series.copy()
+    >>> s[["c", "a"]] = ["foo", "bar"]
+    >>> s  # doctest: +SKIP
+    a    bar
+    b      2
+    c    foo
+    dtype: object
+
+    Having a duplicate label in the key.
+    >>> s = series.copy()
+    >>> s[["c", "a", "c"]] = pd.Index(["foo", "bar", "baz"])
+    >>> s  # doctest: +SKIP
+    a    bar
+    b      2
+    c    baz
+    dtype: object
+
+    When using a Series as the value, its index does not matter.
+    >>> s = series.copy()  # doctest: +SKIP
+    >>> s[["a", "b"]] = pd.Series([9, 8], index=["foo", "bar"])
+    >>> s  # doctest: +SKIP
+    a    9
+    b    8
+    c    3
+    dtype: int64
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    key = apply_if_callable(key, self)
+
+    # Error Checking:
+    # Currently do not support Series[scalar key] = Series item/DataFrame item since this results in a nested series
+    # or df.
+    if is_scalar(key) and isinstance(value, BasePandasDataset):
+        raise ValueError(
+            SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SCALAR_ERROR_MESSAGE.format(
+                "Snowpark pandas " + value.__class__.__name__
+                if isinstance(value, BasePandasDataset)
+                else value.__class__.__name__
+            )
+        )
+    if isinstance(key, pd.DataFrame):
+        raise ValueError(SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SERIES_ERROR_MESSAGE)
+    elif (isinstance(key, pd.Series) or is_list_like(key)) and (
+        isinstance(value, range)
+    ):
+        raise NotImplementedError(
+            SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE
+        )
+    elif isinstance(value, slice):
+        # Here, the whole slice is assigned as a scalar variable, i.e., a spot at an index gets a slice value.
+        raise NotImplementedError(SERIES_SETITEM_SLICE_AS_SCALAR_VALUE_ERROR_MESSAGE)
+
+    if isinstance(key, (slice, range)):
+        if (key.start is None or is_integer(key.start)) and (  # pragma: no cover
+            key.stop is None or is_integer(key.stop)
+        ):
+            # integer slice behaves the same as iloc slice
+            self.iloc[key] = value  # pragma: no cover
+        else:
+            # TODO: SNOW-976232 once the slice test is added to test_setitem, code here should be covered.
+            self.loc[key] = value  # pragma: no cover
+
+    elif isinstance(value, Series):
+        # If value is a Series, value's index doesn't matter/is ignored. However, loc setitem matches the key's
+        # index with value's index. To emulate this behavior, treat the Series as if it is matching by position.
+        #
+        # For example,
+        # With __setitem__, the index of value does not matter.
+        # >>> series = pd.Series([1, 2, 3], index=["a", "b", "c"])
+        # >>> series[["a", "b"]] = pd.Series([9, 8])
+        # a    9
+        # b    8
+        # c    3
+        # dtype: int64
+        # value = pd.Series([9, 8], index=["foo", "bar"]) also produces same result as above.
+        #
+        # However, with loc setitem, index matters.
+        # >>> series.loc[["a", "b"]] = pd.Series([9, 8])
+        # a    NaN
+        # b    NaN
+        # c    3.0
+        # dtype: float64
+        #
+        # >>> series.loc[["a", "b"]] = pd.Series([9, 8], index=["a", "b"])
+        # a    9
+        # b    8
+        # c    3
+        # dtype: int64
+        # Due to the behavior above, loc setitem can work with any kind of value regardless of length.
+        # With __setitem__, the length of the value must match length of the key. Currently, loc setitem can
+        # handle this with boolean keys.
+
+        # Convert list-like keys to Series.
+        if not isinstance(key, pd.Series) and is_list_like(key):
+            key = pd.Series(key)
+
+        index_is_bool_indexer = False
+
+        if isinstance(key, pd.Series) and is_bool_dtype(key.dtype):
+            index_is_bool_indexer = True  # pragma: no cover
+        elif is_bool_indexer(key):
+            index_is_bool_indexer = True  # pragma: no cover
+
+        new_qc = self._query_compiler.set_2d_labels(
+            key._query_compiler if isinstance(key, BasePandasDataset) else key,
+            slice(None),  # column key is not applicable to Series objects
+            value._query_compiler,
+            matching_item_columns_by_label=False,
+            matching_item_rows_by_label=False,
+            index_is_bool_indexer=index_is_bool_indexer,
+        )
+        self._update_inplace(new_query_compiler=new_qc)
+
+    else:
+        self.loc[key] = value
+
+
+# Snowpark pandas uses the query compiler build_repr_df method to minimize queries, while upstream
+# modin calls BasePandasDataset.build_repr_df
+@register_series_accessor("__repr__")
+@snowpark_pandas_telemetry_method_decorator
+def __repr__(self):
+    """
+    Return a string representation for a particular Series.
+
+    Returns
+    -------
+    str
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    num_rows = native_pd.get_option("display.max_rows") or 60
+    num_cols = native_pd.get_option("display.max_columns") or 20
+
+    (
+        row_count,
+        col_count,
+        temp_df,
+    ) = self._query_compiler.build_repr_df(num_rows, num_cols)
+    if isinstance(temp_df, native_pd.DataFrame) and not temp_df.empty:
+        temp_df = temp_df.iloc[:, 0]
+    temp_str = repr(temp_df)
+    freq_str = (
+        f"Freq: {temp_df.index.freqstr}, "
+        if isinstance(temp_df.index, native_pd.DatetimeIndex)
+        else ""
+    )
+    if self.name is not None:
+        name_str = f"Name: {str(self.name)}, "
+    else:
+        name_str = ""
+    if row_count > num_rows:
+        len_str = f"Length: {row_count}, "
+    else:
+        len_str = ""
+    dtype_str = "dtype: {}".format(
+        str(self.dtype) + ")" if temp_df.empty else temp_str.rsplit("dtype: ", 1)[-1]
+    )
+    if row_count == 0:
+        return f"Series([], {freq_str}{name_str}{dtype_str}"
+    maxsplit = 1
+    if (
+        isinstance(temp_df, native_pd.Series)
+        and temp_df.name is not None
+        and temp_df.dtype == "category"
+    ):
+        maxsplit = 2
+    return temp_str.rsplit("\n", maxsplit)[0] + "\n{}{}{}{}".format(
+        freq_str, name_str, len_str, dtype_str
+    )
