@@ -2235,7 +2235,7 @@ def crosstab(
     # as a valid value of normalize is `0` (for normalizing index).
     if normalize is not False:
         if normalize not in [0, 1, "index", "columns", "all", True]:
-            raise ValueError(f"Not a valid normalize argument: {normalize}")
+            raise ValueError("Not a valid normalize argument")
         if normalize is True:
             normalize = "all"
         normalize = {0: "index", 1: "columns"}.get(normalize, normalize)

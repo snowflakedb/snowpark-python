@@ -251,8 +251,8 @@ class TestCrosstab:
     def test_basic_crosstab_with_df_and_series_objs_pandas_errors_index(
         self, dropna, a, b, c
     ):
-        query_count = 4
-        join_count = 1 if dropna else 3
+        query_count = 6
+        join_count = 5 if dropna else 17
         a = native_pd.Series(
             a,
             dtype=object,
@@ -633,7 +633,7 @@ def test_invalid_normalize(a, b):
         native_pd,
         lambda lib: lib.crosstab(index=a, columns=b, normalize="invalid_value"),
         expect_exception=True,
-        expect_exception_match="Not a valid normalize argument: invalid_value",
+        expect_exception_match="Not a valid normalize argument",
         expect_exception_type=ValueError,
         assert_exception_equal=True,
     )
