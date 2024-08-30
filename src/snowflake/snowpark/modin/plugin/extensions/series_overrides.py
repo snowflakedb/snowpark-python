@@ -246,6 +246,7 @@ def __reduce__(self):  # noqa: PR01, RT01, D200
 # usage isn't meaningful and is set to always return 0.
 @_inherit_docstrings(native_pd.Series.memory_usage, apilink="pandas.Series")
 @register_series_accessor("memory_usage")
+@snowpark_pandas_telemetry_method_decorator()
 def memory_usage(self, index: bool = True, deep: bool = False) -> int:
     """
     Return zero bytes for memory_usage
@@ -257,6 +258,7 @@ def memory_usage(self, index: bool = True, deep: bool = False) -> int:
 # Snowpark pandas has slightly different type validation from upstream modin.
 @_inherit_docstrings(native_pd.Series.isin, apilink="pandas.Series")
 @register_series_accessor("isin")
+@snowpark_pandas_telemetry_method_decorator()
 def isin(self, values: set | ListLike) -> Series:
     """
     Whether elements in Series are contained in `values`.
@@ -389,12 +391,14 @@ _old_empty_fget = Series.empty.fget
 
 @register_series_accessor("empty")
 @property
+@snowpark_pandas_telemetry_method_decorator()
 def empty(self) -> bool:
     return _old_empty_fget(self)
 
 
 # Upstream modin performs name change and copy operations on binary operators that Snowpark
 # pandas avoids.
+# Don't put telemetry on this method.
 @register_series_accessor("_prepare_inter_op")
 def _prepare_inter_op(self, other):
     # override prevents extra queries from occurring during binary operations
