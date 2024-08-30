@@ -7493,6 +7493,7 @@ def udf(
     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
         session
     )
+
     if session is None:
         udf_registration_method = UDFRegistration(session=session).register
     else:

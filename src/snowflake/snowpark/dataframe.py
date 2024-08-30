@@ -5117,6 +5117,10 @@ Query List:
         """
         df = DataFrame(self._session, plan, ast_stmt=ast_stmt)
         df._statement_params = self._statement_params
+
+        if ast_stmt is not None:
+            df._ast_id = ast_stmt.var_id.bitfield1
+
         return df
 
     def _get_column_names_from_column_or_name_list(

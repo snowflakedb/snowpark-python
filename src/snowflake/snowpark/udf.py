@@ -22,11 +22,7 @@ import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
-from snowflake.snowpark._internal.ast_utils import (
-    _set_fn_name,
-    build_expr_from_python_val,
-    build_udf_apply,
-)
+from snowflake.snowpark._internal.ast_utils import build_udf, build_udf_apply
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import (
     open_telemetry_udf_context_manager,
@@ -83,6 +79,7 @@ class UserDefinedFunction:
         name: str,
         is_return_nullable: bool = False,
         packages: Optional[List[Union[str, ModuleType]]] = None,
+        _ast: Optional[proto.Udf] = None,
     ) -> None:
         #: The Python function or a tuple containing the Python file path and the function name.
         self.func: Union[Callable, Tuple[str, str]] = func
@@ -95,7 +92,7 @@ class UserDefinedFunction:
         self._packages = packages
 
         # If None, no ast will be emitted. Else, passed whenever udf is invoked.
-        self._ast = None
+        self._ast = _ast
 
     def __call__(
         self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]], _emit_ast: bool = True
@@ -850,62 +847,34 @@ class UDFRegistration:
         ast = None
         if _emit_ast:
             ast = proto.Udf()
-            if name is not None:
-                _set_fn_name(name, ast)
-            else:
-                # infer from callable, i.e. done for an anonymous function
-                _set_fn_name(repr(func), ast)
-
-            if return_type is not None:
-                return_type._fill_ast(ast.return_type)
-            if input_types is not None and len(input_types) != 0:
-                for input_type in input_types:
-                    input_type._fill_ast(ast.input_types.list.add())
-            ast.is_permanent = is_permanent
-            if stage_location is not None:
-                ast.stage_location = stage_location
-            if imports is not None and len(imports) != 0:
-                raise NotImplementedError
-            if packages is not None and len(packages) != 0:
-                for package in packages:
-                    if isinstance(package, ModuleType):
-                        raise NotImplementedError
-                    p = ast.packages.add()  # noqa: F841
-                    p = package  # noqa: F841
-            ast.replace = replace
-            ast.if_not_exists = if_not_exists
-            ast.parallel = parallel
-            if max_batch_size is not None:
-                ast.max_batch_size = max_batch_size
-
-            if statement_params is not None and len(statement_params) != 0:
-                for k, v in statement_params.items():
-                    t = ast.statement_params.add()
-                    t._1 = k
-                    t._2 = v
-
-            ast.source_code_display = source_code_display
-            ast.strict = strict
-            ast.secure = secure
-            if (
-                external_access_integrations is not None
-                and len(external_access_integrations) != 0
-            ):
-                for e in external_access_integrations:
-                    p_e = ast.external_access_integrations.add()  # noqa: F841
-                    p_e = e  # noqa: F841
-            if secrets is not None and len(secrets) != 0:
-                for k, v in secrets.items():
-                    t = ast.secrets.add()
-                    t._1 = k
-                    t._2 = v
-            ast.immutable = immutable
-            if comment is not None:
-                ast.comment = comment
-            for k, v in kwargs.items():
-                t = ast.kwargs.add()
-                t._1 = k
-                build_expr_from_python_val(t._2, v)
+            build_udf(
+                ast,
+                func,
+                return_type,
+                input_types,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                max_batch_size,
+                from_pandas_udf_function,
+                strict,
+                secure,
+                external_access_integrations,
+                secrets,
+                immutable,
+                comment,
+                native_app_params,
+                statement_params,
+                source_code_display,
+                api_call_source,
+                skip_upload_on_content_match,
+                is_permanent,
+                **kwargs,
+            )
 
         # get the udf name, return and input types
         (

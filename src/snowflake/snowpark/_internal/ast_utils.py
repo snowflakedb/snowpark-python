@@ -9,7 +9,8 @@ import re
 import sys
 from functools import reduce
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from types import ModuleType
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -31,6 +32,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrSqlExpr,
 )
 from snowflake.snowpark._internal.utils import str_to_enum
+from snowflake.snowpark.types import DataType
 
 # This flag causes an explicit error to be raised if any Snowpark object instance is missing an AST or field, when this
 # AST or field is required to populate the AST field of a different Snowpark object instance.
@@ -725,3 +727,87 @@ def fill_sp_write_file(
             t = expr.copy_options.add()
             t._1 = k
             build_expr_from_python_val(t._2, v)
+
+
+def build_udf(
+    ast: proto.Udf,
+    func: Union[Callable, Tuple[str, str]],
+    return_type: Optional[DataType],
+    input_types: Optional[List[DataType]],
+    name: Optional[str],
+    stage_location: Optional[str] = None,
+    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    packages: Optional[List[Union[str, ModuleType]]] = None,
+    replace: bool = False,
+    if_not_exists: bool = False,
+    parallel: int = 4,
+    max_batch_size: Optional[int] = None,
+    strict: bool = False,
+    secure: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
+    comment: Optional[str] = None,
+    *,
+    statement_params: Optional[Dict[str, str]] = None,
+    source_code_display: bool = True,
+    is_permanent: bool = False,
+    **kwargs,
+):
+    """Helper function to encode UDF parameters (used in both regular and mock UDFRegistration)."""
+    if name is not None:
+        _set_fn_name(name, ast)
+    else:
+        # infer from callable, i.e. done for an anonymous function
+        _set_fn_name(repr(func), ast)
+
+    if return_type is not None:
+        return_type._fill_ast(ast.return_type)
+    if input_types is not None and len(input_types) != 0:
+        for input_type in input_types:
+            input_type._fill_ast(ast.input_types.list.add())
+    ast.is_permanent = is_permanent
+    if stage_location is not None:
+        ast.stage_location = stage_location
+    if imports is not None and len(imports) != 0:
+        raise NotImplementedError
+    if packages is not None and len(packages) != 0:
+        for package in packages:
+            if isinstance(package, ModuleType):
+                raise NotImplementedError
+            p = ast.packages.add()  # noqa: F841
+            p = package  # noqa: F841
+    ast.replace = replace
+    ast.if_not_exists = if_not_exists
+    ast.parallel = parallel
+    if max_batch_size is not None:
+        ast.max_batch_size = max_batch_size
+
+    if statement_params is not None and len(statement_params) != 0:
+        for k, v in statement_params.items():
+            t = ast.statement_params.add()
+            t._1 = k
+            t._2 = v
+
+    ast.source_code_display = source_code_display
+    ast.strict = strict
+    ast.secure = secure
+    if (
+        external_access_integrations is not None
+        and len(external_access_integrations) != 0
+    ):
+        for e in external_access_integrations:
+            p_e = ast.external_access_integrations.add()  # noqa: F841
+            p_e = e  # noqa: F841
+    if secrets is not None and len(secrets) != 0:
+        for k, v in secrets.items():
+            t = ast.secrets.add()
+            t._1 = k
+            t._2 = v
+    ast.immutable = immutable
+    if comment is not None:
+        ast.comment = comment
+    for k, v in kwargs.items():
+        t = ast.kwargs.add()
+        t._1 = k
+        build_expr_from_python_val(t._2, v)
