@@ -1831,6 +1831,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             else self._modin_frame.data_column_pandas_index_names
         )
 
+    def rdivmod(self, other: "SnowflakeQueryCompiler", **kwargs: Any) -> None:
+        ErrorMessage.method_not_implemented_error(
+            name="rdivmod", class_="Series"
+        )  # pragma: no cover
+
     def _binary_op_scalar_rhs(
         self, op: str, other: Scalar, fill_value: Scalar
     ) -> "SnowflakeQueryCompiler":
@@ -6661,6 +6666,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 to_datetime_cols
             ).frame
         )
+
+    def series_view(self, dtype: npt.DTypeLike) -> None:
+        ErrorMessage.method_not_implemented_error(
+            name="view", class_="Series"
+        )  # pragma: no cover
 
     def concat(
         self,
@@ -12364,6 +12374,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         return SnowflakeQueryCompiler(internal_frame)
+
+    def mode(
+        self, axis: Axis = 0, numeric_only: bool = False, dropna: bool = True
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(
+            name="mode", class_="Series"
+        )  # pragma: no cover
+
+    def repeat(self, repeats: Union[int, ListLike], axis: Axis) -> None:
+        ErrorMessage.method_not_implemented_error(
+            name="repeat", class_="Series"
+        )  # pragma: no cover
 
     def skew(
         self,
