@@ -91,6 +91,9 @@
 
 - When calling `DataFrame.set_index`, or setting `DataFrame.index` or `Series.index`, with a new index that does not match the current length of the `Series`/`DataFrame` object, a `ValueError` is no longer raised. When the `Series`/`DataFrame` object is longer than the new index, the `Series`/`DataFrame`'s new index is filled with `NaN` values for the "extra" elements. When the `Series`/`DataFrame` object is shorter than the new index, the extra values in the new index are ignored—`Series` and `DataFrame` stay the same length `n`, and use only the first `n` values of the new index.
 
+#### Improvements
+
+- Improve concat, join performance when operations are performed on series coming from the same dataframe by avoiding unnecessary joins.
 
 ## 1.21.0 (2024-08-19)
 
@@ -143,7 +146,6 @@
 #### Improvements
 
 - Fix pandas FutureWarning about integer indexing.
-- Improve concat, join performance when operations are performed on series coming from the same dataframe.
 
 ### Snowpark pandas API Updates
 
