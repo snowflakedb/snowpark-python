@@ -2431,7 +2431,7 @@ class Session:
                 and ``transient``. An empty string means to create a permanent table. Learn more about table types
                 `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
             use_logical_type: Boolean that specifies whether to use Parquet logical types when reading the parquet files
-                for the unloaded pandas dataframe. With this file format option, Snowflake can interpret Parquet logical
+                for the uploaded pandas dataframe. With this file format option, Snowflake can interpret Parquet logical
                 types during data loading. To enable Parquet logical types, set use_logical_type as True. Set to None to
                 use Snowflakes default. For more information, see:
                 `file format options: <https://docs.snowflake.com/en/sql-reference/sql/create-file-format#type-parquet>`_.
