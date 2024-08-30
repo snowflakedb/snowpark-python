@@ -102,10 +102,7 @@ def register_base_override(method_name: str):
             parent_method = parent_method.fget
         # If the method was not defined on Series/DataFrame and instead inherited from the superclass
         # we need to override it as well because the MRO was already determined or something?
-        # TODO: SNOW-1063347
-        # Since we still use the vendored version of Series and the overrides for the top-level
-        # namespace haven't been performed yet, we need to set properties on the vendored version
-        series_method = getattr(spd.series.Series, method_name, None)
+        series_method = getattr(pd.Series, method_name, None)
         if isinstance(series_method, property):
             series_method = series_method.fget
         if series_method is None or series_method is parent_method:
