@@ -10,11 +10,11 @@ import numbers
 import operator
 import re
 import string
+import threading
 from decimal import Decimal
 from functools import partial, reduce
 from numbers import Real
 from random import randint
-import threading
 from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 
 import pytz
