@@ -1295,26 +1295,30 @@ class InternalFrame:
             existing_id_to_new_id_mapping,
         )
 
-    def apply_snowpark_function_to_data_columns(
-        self, snowpark_func: Callable[[Any], SnowparkColumn]
+    def apply_snowpark_function_to_columns(
+        self,
+        snowpark_func: Callable[[Any], SnowparkColumn],
+        include_index: bool = False,
     ) -> "InternalFrame":
         """
-        Apply snowpark function callable to data columns of an InternalFrame.  The snowflake quoted identifiers
-        are preserved.
+        Apply snowpark function callable to all data columns of an InternalFrame. If
+        include_index is True also apply this function to all index columns. The
+        snowflake quoted identifiers are preserved.
 
         Arguments:
-            snowpark_func: Snowpark function to apply to data columns of underlying snowpark df.
+            snowpark_func: Snowpark function to apply to columns of underlying snowpark df.
+            include_index: Whether to apply the function to index columns as well.
 
         Returns:
-            InternalFrame with snowpark_func applies to data columns of original frame, all other columns remain unchanged.
+            InternalFrame with snowpark_func applies to columns of original frame, all other columns remain unchanged.
         """
-        new_internal_frame = self.update_snowflake_quoted_identifiers_with_expressions(
-            {
-                snowflake_quoted_identifier: snowpark_func(snowflake_quoted_identifier)
-                for snowflake_quoted_identifier in self.data_column_snowflake_quoted_identifiers
-            }
+        snowflake_ids = self.data_column_snowflake_quoted_identifiers
+        if include_index:
+            snowflake_ids.extend(self.index_column_snowflake_quoted_identifiers)
+
+        return self.update_snowflake_quoted_identifiers_with_expressions(
+            {col_id: snowpark_func(col(col_id)) for col_id in snowflake_ids}
         ).frame
-        return new_internal_frame
 
     def select_active_columns(self) -> "InternalFrame":
         """

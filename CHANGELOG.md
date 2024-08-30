@@ -34,6 +34,7 @@
 - Fixed a bug in query generation from set operations that allowed generation of duplicate queries when children have common subqueries.
 - Fixed a bug in `session.get_session_stage` that referenced a non-existing stage after switching database or schema.
 - Fixed a bug where calling `DataFrame.to_snowpark_pandas_dataframe` without explicitly initializing the Snowpark pandas plugin caused an error.
+- Fixed a bug where using the `explode` function in dynamic table creation caused a SQL compilation error due to improper boolean type casting on the `outer` parameter.
 
 ### Snowpark Local Testing Updates
 
@@ -61,6 +62,7 @@
   - support for binary arithmetic between two `Timedelta` values.
   - support for lazy `TimedeltaIndex`.
   - support for `pd.to_timedelta`.
+  - support for `GroupBy` aggregations `min`, `max`, `mean`, `idxmax`, `idxmin`, `std`, `sum`, `median`, `count`, `any`, `all`, `size`, `nunique`.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
@@ -79,6 +81,7 @@
 #### Improvements
 
 - Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
+- Improved `pd.to_datetime` to handle all local input cases. 
 
 #### Bug Fixes
 

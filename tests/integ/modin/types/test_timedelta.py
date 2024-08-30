@@ -105,6 +105,6 @@ def test_timedelta_not_supported():
     )
     with pytest.raises(
         NotImplementedError,
-        match="validate_groupby is not yet implemented for Timedelta Type",
+        match="SnowflakeQueryCompiler::groupby_first is not yet implemented for Timedelta Type",
     ):
-        df.groupby("a").count()
+        df.groupby("a").first()

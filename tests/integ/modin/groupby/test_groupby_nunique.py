@@ -80,3 +80,24 @@ def test_groupby_nunique(df, groupby_columns, dropna):
                 {"value1": "count", "value2": "nunique"}, dropna=dropna
             ),
         )
+
+
+@pytest.mark.parametrize("by", ["A", "B", ["A", "B"]])
+@sql_count_checker(query_count=1)
+def test_timedelta(by):
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(
+                ["1 days 06:05:01.00003", "15.5us", "nan", "16us"]
+            ),
+            "B": [8, 8, 12, 10],
+            "C": ["the", "name", "is", "bond"],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.groupby(by).nunique(),
+    )
