@@ -1050,21 +1050,26 @@ class InternalFrame:
         ]
 
         # Generate snowflake quoted identifier for new column to be added.
-        new_column_identifiers = self.ordered_dataframe.generate_snowflake_quoted_identifiers(pandas_labels=pandas_labels)
+        new_column_identifiers = (
+            self.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                pandas_labels=pandas_labels
+            )
+        )
         new_ordered_dataframe = append_columns(
             self.ordered_dataframe, new_column_identifiers, values
         )
         return InternalFrame.create(
             ordered_dataframe=new_ordered_dataframe,
             data_column_pandas_labels=self.data_column_pandas_labels + pandas_labels,
-            data_column_snowflake_quoted_identifiers=self.data_column_snowflake_quoted_identifiers + new_column_identifiers,
+            data_column_snowflake_quoted_identifiers=self.data_column_snowflake_quoted_identifiers
+            + new_column_identifiers,
             data_column_pandas_index_names=self.data_column_pandas_index_names,
             index_column_pandas_labels=self.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=self.index_column_snowflake_quoted_identifiers,
-            data_column_types=self.cached_data_column_snowpark_pandas_types + value_types,
+            data_column_types=self.cached_data_column_snowpark_pandas_types
+            + value_types,
             index_column_types=self.cached_index_column_snowpark_pandas_types,
         )
-
 
     def project_columns(
         self,
