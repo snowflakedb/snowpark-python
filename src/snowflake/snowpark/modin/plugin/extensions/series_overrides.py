@@ -9,14 +9,15 @@ pandas, such as `Series.memory_usage`.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import modin.pandas as pd
+import numpy as np
 import pandas as native_pd
 from modin.pandas import Series
 from modin.pandas.base import BasePandasDataset
 from pandas._libs.lib import NoDefault, is_integer, no_default
-from pandas._typing import AggFuncType, Axis, IndexLabel
+from pandas._typing import AggFuncType, AnyArrayLike, Axis, IndexLabel, Level, Scalar
 from pandas.core.common import apply_if_callable, is_bool_indexer
 from pandas.core.dtypes.common import is_bool_dtype, is_list_like
 
@@ -46,6 +47,9 @@ from snowflake.snowpark.modin.utils import (
     MODIN_UNNAMED_SERIES_LABEL,
     _inherit_docstrings,
 )
+
+if TYPE_CHECKING:
+    from modin.pandas import DataFrame
 
 
 def register_series_not_implemented():
@@ -819,6 +823,48 @@ def aggregate(
 register_series_accessor("agg")(aggregate)
 
 
+# Snowpark pandas does different validation than upstream Modin.
+@register_series_accessor("argmax")
+@snowpark_pandas_telemetry_method_decorator
+def argmax(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, D200
+    """
+    Return int position of the largest value in the Series.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    if self._query_compiler.has_multiindex():
+        # The index is a MultiIndex, current logic does not support this.
+        ErrorMessage.not_implemented(
+            "Series.argmax is not yet supported when the index is a MultiIndex."
+        )
+    result = self.reset_index(drop=True).idxmax(
+        axis=axis, skipna=skipna, *args, **kwargs
+    )
+    if not is_integer(result):  # if result is None, return -1
+        result = -1
+    return result
+
+
+# Snowpark pandas does different validation than upstream Modin.
+@register_series_accessor("argmin")
+@snowpark_pandas_telemetry_method_decorator
+def argmin(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, D200
+    """
+    Return int position of the smallest value in the Series.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    if self._query_compiler.has_multiindex():
+        # The index is a MultiIndex, current logic does not support this.
+        ErrorMessage.not_implemented(
+            "Series.argmin is not yet supported when the index is a MultiIndex."
+        )
+    result = self.reset_index(drop=True).idxmin(
+        axis=axis, skipna=skipna, *args, **kwargs
+    )
+    if not is_integer(result):  # if result is None, return -1
+        result = -1
+    return result
+
+
 # Snowpark pandas does not yet support Categorical types. Return a dummy object instead of immediately
 # erroring out so we get error messages describing which method a user tried to access.
 class CategoryMethods:
@@ -954,6 +1000,30 @@ def groupby(
         idx_name=None,
         observed=observed,
         dropna=dropna,
+    )
+
+
+# Upstream Modin defaults at the frontend layer.
+@register_series_accessor("where")
+@snowpark_pandas_telemetry_method_decorator
+def where(
+    self,
+    cond: DataFrame | Series | Callable | AnyArrayLike,
+    other: DataFrame | Series | Callable | Scalar | None = np.nan,
+    inplace: bool = False,
+    axis: Axis | None = None,
+    level: Level | None = None,
+):
+    """
+    Replace values where the condition is False.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).where(
+        cond,
+        other=other,
+        inplace=inplace,
+        axis=axis,
+        level=level,
     )
 
 
