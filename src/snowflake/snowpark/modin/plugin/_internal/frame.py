@@ -1058,6 +1058,9 @@ class InternalFrame:
         new_ordered_dataframe = append_columns(
             self.ordered_dataframe, new_column_identifiers, values
         )
+        value_types = (
+            value_types if value_types is not None else [None] * len(pandas_labels)
+        )
         return InternalFrame.create(
             ordered_dataframe=new_ordered_dataframe,
             data_column_pandas_labels=self.data_column_pandas_labels + pandas_labels,
