@@ -80,6 +80,7 @@
 - Added support for `DataFrameGroupBy.value_counts` and `SeriesGroupBy.value_counts`.
 - Added support for `Series.is_monotonic_increasing` and `Series.is_monotonic_decreasing`.
 - Added support for `Index.is_monotonic_increasing` and `Index.is_monotonic_decreasing`.
+- Added support for `pd.crosstab`.
 
 #### Improvements
 
