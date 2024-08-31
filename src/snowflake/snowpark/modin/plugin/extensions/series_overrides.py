@@ -469,6 +469,343 @@ def plot(
     return self._to_pandas().plot
 
 
+# Upstream Modin has a bug binary operators (except add/radd, ) don't respect fill_value:
+# https://github.com/modin-project/modin/issues/7381
+@register_series_accessor("sub")
+@snowpark_pandas_telemetry_method_decorator
+def sub(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
+    """
+    Return subtraction of Series and `other`, element-wise (binary operator `sub`).
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).sub(other, level=level, fill_value=fill_value, axis=axis)
+
+
+subtract = register_series_accessor("subtract")(sub)
+
+
+@register_series_accessor("rsub")
+@snowpark_pandas_telemetry_method_decorator
+def rsub(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
+    """
+    Return subtraction of series and `other`, element-wise (binary operator `rsub`).
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).rsub(
+        other, level=level, fill_value=fill_value, axis=axis
+    )
+
+
+@register_series_accessor("mul")
+@snowpark_pandas_telemetry_method_decorator
+def mul(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
+    """
+    Return multiplication of series and `other`, element-wise (binary operator `mul`).
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).mul(other, level=level, fill_value=fill_value, axis=axis)
+
+
+multiply = register_series_accessor("multiply")(mul)
+
+
+@register_series_accessor("rmul")
+@snowpark_pandas_telemetry_method_decorator
+def rmul(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
+    """
+    Return multiplication of series and `other`, element-wise (binary operator `mul`).
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).rmul(
+        other, level=level, fill_value=fill_value, axis=axis
+    )
+
+
+@register_series_accessor("truediv")
+@snowpark_pandas_telemetry_method_decorator
+def truediv(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
+    """
+    Return floating division of series and `other`, element-wise (binary operator `truediv`).
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).truediv(
+        other, level=level, fill_value=fill_value, axis=axis
+    )
+
+
+div = register_series_accessor("div")(truediv)
+divide = register_series_accessor("divide")(truediv)
+
+
+@register_series_accessor("rtruediv")
+@snowpark_pandas_telemetry_method_decorator
+def rtruediv(
+    self, other, level=None, fill_value=None, axis=0
+):  # noqa: PR01, RT01, D200
+    """
+    Return floating division of series and `other`, element-wise (binary operator `rtruediv`).
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).rtruediv(
+        other, level=level, fill_value=fill_value, axis=axis
+    )
+
+
+rdiv = register_series_accessor("rdiv")(rtruediv)
+
+
+@register_series_accessor("floordiv")
+@snowpark_pandas_telemetry_method_decorator
+def floordiv(
+    self, other, level=None, fill_value=None, axis=0
+):  # noqa: PR01, RT01, D200
+    """
+    Get Integer division of dataframe and `other`, element-wise (binary operator `floordiv`).
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).floordiv(
+        other, level=level, fill_value=fill_value, axis=axis
+    )
+
+
+@register_series_accessor("rfloordiv")
+@snowpark_pandas_telemetry_method_decorator
+def rfloordiv(
+    self, other, level=None, fill_value=None, axis=0
+):  # noqa: PR01, RT01, D200
+    """
+    Return integer division of series and `other`, element-wise (binary operator `rfloordiv`).
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).rfloordiv(
+        other, level=level, fill_value=fill_value, axis=axis
+    )
+
+
+@register_series_accessor("mod")
+@snowpark_pandas_telemetry_method_decorator
+def mod(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
+    """
+    Return Modulo of series and `other`, element-wise (binary operator `mod`).
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).mod(other, level=level, fill_value=fill_value, axis=axis)
+
+
+@register_series_accessor("rmod")
+@snowpark_pandas_telemetry_method_decorator
+def rmod(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
+    """
+    Return modulo of series and `other`, element-wise (binary operator `rmod`).
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).rmod(
+        other, level=level, fill_value=fill_value, axis=axis
+    )
+
+
+@register_series_accessor("pow")
+@snowpark_pandas_telemetry_method_decorator
+def pow(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
+    """
+    Return exponential power of series and `other`, element-wise (binary operator `pow`).
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).pow(other, level=level, fill_value=fill_value, axis=axis)
+
+
+@register_series_accessor("rpow")
+@snowpark_pandas_telemetry_method_decorator
+def rpow(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
+    """
+    Return exponential power of series and `other`, element-wise (binary operator `rpow`).
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).rpow(
+        other, level=level, fill_value=fill_value, axis=axis
+    )
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__add__")
+@snowpark_pandas_telemetry_method_decorator
+def __add__(self, right):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.add(right)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__radd__")
+@snowpark_pandas_telemetry_method_decorator
+def __radd__(self, left):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.radd(left)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__and__")
+@snowpark_pandas_telemetry_method_decorator
+def __and__(self, other):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).__and__(other)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__rand__")
+@snowpark_pandas_telemetry_method_decorator
+def __rand__(self, other):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).__rand__(other)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__divmod__")
+@snowpark_pandas_telemetry_method_decorator
+def __divmod__(self, right):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.divmod(right)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__rdivmod__")
+@snowpark_pandas_telemetry_method_decorator
+def __rdivmod__(self, left):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.rdivmod(left)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__floordiv__")
+@snowpark_pandas_telemetry_method_decorator
+def __floordiv__(self, right):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.floordiv(right)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__rfloordiv__")
+@snowpark_pandas_telemetry_method_decorator
+def __rfloordiv__(self, right):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.rfloordiv(right)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__mod__")
+@snowpark_pandas_telemetry_method_decorator
+def __mod__(self, right):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.mod(right)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__rmod__")
+@snowpark_pandas_telemetry_method_decorator
+def __rmod__(self, left):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.rmod(left)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__mul__")
+@snowpark_pandas_telemetry_method_decorator
+def __mul__(self, right):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.mul(right)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__rmul__")
+@snowpark_pandas_telemetry_method_decorator
+def __rmul__(self, left):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.rmul(left)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__or__")
+@snowpark_pandas_telemetry_method_decorator
+def __or__(self, other):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).__or__(other)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__ror__")
+@snowpark_pandas_telemetry_method_decorator
+def __ror__(self, other):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).__ror__(other)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__xor__")
+@snowpark_pandas_telemetry_method_decorator
+def __xor__(self, other):  # pragma: no cover
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).__xor__(other)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__rxor__")
+@snowpark_pandas_telemetry_method_decorator
+def __rxor__(self, other):  # pragma: no cover
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return super(Series, self).__rxor__(other)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__pow__")
+@snowpark_pandas_telemetry_method_decorator
+def __pow__(self, right):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.pow(right)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__rpow__")
+@snowpark_pandas_telemetry_method_decorator
+def __rpow__(self, left):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.rpow(left)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__sub__")
+@snowpark_pandas_telemetry_method_decorator
+def __sub__(self, right):
+    return self.sub(right)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__rsub__")
+@snowpark_pandas_telemetry_method_decorator
+def __rsub__(self, left):
+    return self.rsub(left)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__truediv__")
+@snowpark_pandas_telemetry_method_decorator
+def __truediv__(self, right):
+    return self.truediv(right)
+
+
+# Modin defaults to pandas for binary operators against native pandas/list objects.
+@register_series_accessor("__rtruediv__")
+@snowpark_pandas_telemetry_method_decorator
+def __rtruediv__(self, left):
+    return self.rtruediv(left)
+
+
+register_series_accessor("__iadd__")(__add__)
+# In upstream modin, imul is typo'd to be __add__ instead of __mul__
+register_series_accessor("__imul__")(__mul__)
+register_series_accessor("__ipow__")(__pow__)
+register_series_accessor("__isub__")(__sub__)
+register_series_accessor("__itruediv__")(__truediv__)
+
+
 # Snowpark pandas does not yet support Categorical types. Return a dummy object instead of immediately
 # erroring out so we get error messages describing which method a user tried to access.
 class CategoryMethods:
