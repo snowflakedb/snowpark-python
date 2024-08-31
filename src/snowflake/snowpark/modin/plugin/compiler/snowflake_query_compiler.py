@@ -765,7 +765,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Only called if the frontend object was a Series.
         """
-        return native_pd.Series(self.to_pandas()).to_list()
+        return self.to_pandas().squeeze().to_list()
+
+    def series_to_dict(self, into=dict) -> dict:  # type: ignore
+        """
+        Convert the Series to a dictionary.
+
+        Returns
+        -------
+        dict or `into` instance
+        """
+        return self.to_pandas().squeeze().to_dict(into=into)
 
     def to_pandas(
         self,
