@@ -146,6 +146,18 @@ class LocalTestOOBTelemetryService(TelemetryService):
                     return
                 self._upload_payload(payload)
 
+    def flush(self) -> None:
+        """Flushes all telemetry events in the queue and submit them to the back-end."""
+        if not self.enabled:
+            return
+
+        with self._lock:
+            if not self.queue.empty():
+                payload = self.export_queue_to_string()
+                if payload is None:
+                    return
+                self._upload_payload(payload)
+
     @property
     def enabled(self) -> bool:
         """Whether the Telemetry service is enabled or not."""
@@ -161,8 +173,9 @@ class LocalTestOOBTelemetryService(TelemetryService):
 
     def export_queue_to_string(self):
         logs = list()
-        while not self.queue.empty():
-            logs.append(self.queue.get())
+        with self._lock:
+            while not self.queue.empty():
+                logs.append(self.queue.get())
         # We may get an exception trying to serialize a python object to JSON
         try:
             payload = json.dumps(logs)
