@@ -166,7 +166,7 @@ from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: 
 
 # this must occur before overrides are applied
 _attrs_defined_on_modin_base = set(dir(modin.pandas.base.BasePandasDataset))
-_attrs_defined_on_series = set(dir(Series))
+_attrs_defined_on_modin_series = set(dir(Series))
 _attrs_defined_on_dataframe = set(
     dir(DataFrame)
 )  # TODO: SNOW-1063346 revisit when dataframe.py is removed
@@ -180,24 +180,27 @@ import snowflake.snowpark.modin.plugin.extensions.series_extensions  # isort: sk
 import snowflake.snowpark.modin.plugin.extensions.series_overrides  # isort: skip  # noqa: E402,F401
 
 # For any method defined on Series/DF, add telemetry to it if it meets all of the following conditions:
-# 1. The method was defined directly on upstream BasePandasDataset (_attrs_defined_on_modin_base)
-# 2. The method is not overridden by a child class (this will change)
-# 3. The method is not overridden by an extensions module
-# 4. The method name does not start with an _
+# 1. The method was defined directly on an upstream class (_attrs_defined_on_modin_base, _attrs_defined_on_modin_series)
+#   1a. (DataFrame only): The method is not overridden by DataFrame (not applicable to Series, since we use the upstream version)
+# 2. The method is not overridden by an extensions module
+# 3. The method name does not start with an _
 _base_telemetry_added_attrs = set()
 
 _series_ext = _SERIES_EXTENSIONS_.copy()
 for attr_name in dir(Series):
     if (
-        attr_name in _attrs_defined_on_modin_base
-        and attr_name in _attrs_defined_on_series
+        (
+            attr_name in _attrs_defined_on_modin_series
+            or attr_name in _attrs_defined_on_modin_base
+        )
         and attr_name not in _series_ext
         and not attr_name.startswith("_")
     ):
         register_series_accessor(attr_name)(
             try_add_telemetry_to_attribute(attr_name, getattr(Series, attr_name))
         )
-        _base_telemetry_added_attrs.add(attr_name)
+        if attr_name in _attrs_defined_on_modin_base:
+            _base_telemetry_added_attrs.add(attr_name)
 
 
 # TODO: SNOW-1063346
@@ -207,7 +210,7 @@ _dataframe_ext = _DATAFRAME_EXTENSIONS_.copy()
 for attr_name in dir(DataFrame):
     if (
         attr_name in _attrs_defined_on_modin_base
-        and attr_name in _attrs_defined_on_dataframe
+        and attr_name not in _attrs_defined_on_dataframe
         and attr_name not in _dataframe_ext
         and not attr_name.startswith("_")
     ):
