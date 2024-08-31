@@ -16,7 +16,7 @@ import pandas as native_pd
 from modin.pandas import Series
 from modin.pandas.base import BasePandasDataset
 from pandas._libs.lib import NoDefault, is_integer, no_default
-from pandas._typing import Axis, IndexLabel
+from pandas._typing import AggFuncType, Axis, IndexLabel
 from pandas.core.common import apply_if_callable, is_bool_indexer
 from pandas.core.dtypes.common import is_bool_dtype, is_list_like
 
@@ -481,7 +481,7 @@ def sub(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, 
     return super(Series, self).sub(other, level=level, fill_value=fill_value, axis=axis)
 
 
-subtract = register_series_accessor("subtract")(sub)
+register_series_accessor("subtract")(sub)
 
 
 @register_series_accessor("rsub")
@@ -506,7 +506,7 @@ def mul(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, 
     return super(Series, self).mul(other, level=level, fill_value=fill_value, axis=axis)
 
 
-multiply = register_series_accessor("multiply")(mul)
+register_series_accessor("multiply")(mul)
 
 
 @register_series_accessor("rmul")
@@ -533,8 +533,8 @@ def truediv(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT
     )
 
 
-div = register_series_accessor("div")(truediv)
-divide = register_series_accessor("divide")(truediv)
+register_series_accessor("div")(truediv)
+register_series_accessor("divide")(truediv)
 
 
 @register_series_accessor("rtruediv")
@@ -551,7 +551,7 @@ def rtruediv(
     )
 
 
-rdiv = register_series_accessor("rdiv")(rtruediv)
+register_series_accessor("rdiv")(rtruediv)
 
 
 @register_series_accessor("floordiv")
@@ -806,6 +806,19 @@ register_series_accessor("__isub__")(__sub__)
 register_series_accessor("__itruediv__")(__truediv__)
 
 
+# Upstream Modin does validation on func that Snowpark pandas does not.
+@register_series_accessor("aggregate")
+@snowpark_pandas_telemetry_method_decorator
+def aggregate(
+    self, func: AggFuncType = None, axis: Axis = 0, *args: Any, **kwargs: Any
+):
+    result = super(Series, self).aggregate(func, axis, *args, **kwargs)
+    return result
+
+
+register_series_accessor("agg")(aggregate)
+
+
 # Snowpark pandas does not yet support Categorical types. Return a dummy object instead of immediately
 # erroring out so we get error messages describing which method a user tried to access.
 class CategoryMethods:
@@ -863,6 +876,29 @@ class CategoryMethods:
 @snowpark_pandas_telemetry_method_decorator
 def cat(self) -> CategoryMethods:
     return CategoryMethods(self)
+
+
+# Snowpark pandas uses an update_in_place call that upstream Modin does not.
+def _set_name(self, name):
+    """
+    Set the value of the `name` property.
+
+    Parameters
+    ----------
+    name : hashable
+        Name value to set.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    if name is None:
+        name = MODIN_UNNAMED_SERIES_LABEL
+    if isinstance(name, tuple):
+        columns = pd.MultiIndex.from_tuples(tuples=[name])
+    else:
+        columns = [name]
+    self._update_inplace(new_query_compiler=self._query_compiler.set_columns(columns))
+
+
+register_series_accessor("name")(property(Series._get_name, _set_name))
 
 
 # modin 0.28.1 doesn't define type annotations on properties, so we override this
@@ -953,6 +989,17 @@ def _to_datetime(self, **kwargs):
     return self.__constructor__(
         query_compiler=self._query_compiler.series_to_datetime(**kwargs)
     )
+
+
+# Modin uses the query compiler to_list method, which we should try to implement instead of calling self.values.
+@register_series_accessor("to_list")
+@snowpark_pandas_telemetry_method_decorator
+def to_list(self) -> list:
+    """
+    Return a list of the values.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.values.tolist()
 
 
 # Snowpark pandas has the extra `statement_params` argument.

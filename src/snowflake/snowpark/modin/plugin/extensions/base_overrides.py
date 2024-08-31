@@ -21,6 +21,7 @@ import modin.pandas as pd
 import numpy as np
 import numpy.typing as npt
 import pandas
+from modin.pandas import Series
 from modin.pandas.base import BasePandasDataset
 from pandas._libs import lib
 from pandas._libs.lib import NoDefault, is_bool, no_default
@@ -433,8 +434,6 @@ def aggregate(
     Aggregate using one or more operations over the specified axis.
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    from snowflake.snowpark.modin.pandas import Series
-
     origin_axis = axis
     axis = self._get_axis_number(axis)
 
@@ -1546,8 +1545,6 @@ def where(
     if isinstance(cond, Callable):
         raise NotImplementedError("Do not support callable for 'cond' parameter.")
 
-    from snowflake.snowpark.modin.pandas import Series
-
     if isinstance(cond, Series):
         cond._query_compiler._shape_hint = "column"
     if isinstance(self, Series):
@@ -1608,8 +1605,6 @@ def mask(
 
     if isinstance(cond, Callable):
         raise NotImplementedError("Do not support callable for 'cond' parameter.")
-
-    from snowflake.snowpark.modin.pandas import Series
 
     if isinstance(cond, Series):
         cond._query_compiler._shape_hint = "column"
@@ -1820,7 +1815,6 @@ def astype(
     # dtype can be a series, a dict, or a scalar. If it's series or scalar,
     # convert it to a dict before passing it to the query compiler.
     raise_if_native_pandas_objects(dtype)
-    from snowflake.snowpark.modin.pandas import Series
 
     if isinstance(dtype, Series):
         dtype = dtype.to_pandas()

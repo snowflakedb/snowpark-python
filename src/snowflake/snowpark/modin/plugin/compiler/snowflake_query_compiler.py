@@ -759,6 +759,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         qc.snowpark_pandas_api_calls = self.snowpark_pandas_api_calls.copy()
         return qc
 
+    def to_list(self) -> list:
+        """
+        Return a native Python list of the values.
+
+        Only called if the frontend object was a Series.
+        """
+        return native_pd.Series(self.to_pandas()).to_list()
+
     def to_pandas(
         self,
         *,
