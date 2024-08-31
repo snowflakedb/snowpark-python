@@ -451,17 +451,11 @@ def compute_binary_op_between_snowpark_columns(
     elif op == "eq" and (
         _op_is_between_timedelta_and_numeric(first_datatype, second_datatype)
     ):
-        if not are_equal_types(first_datatype(), second_datatype()):
-            binary_op_result_column = pandas_lit(False)
-        else:
-            binary_op_result_column = first_operand == second_operand
+        binary_op_result_column = pandas_lit(False)
     elif op == "ne" and _op_is_between_timedelta_and_numeric(
         first_datatype, second_datatype
     ):
-        if not are_equal_types(first_datatype(), second_datatype()):
-            binary_op_result_column = pandas_lit(True)
-        else:
-            binary_op_result_column = first_operand != second_operand
+        binary_op_result_column = pandas_lit(True)
     elif (
         op in ("truediv", "floordiv")
         and isinstance(first_datatype(), TimedeltaType)
