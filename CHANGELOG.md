@@ -91,7 +91,7 @@
 
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 - Fixed AssertionError in tree of binary operations.
-- Fixed `inplace` argument for Series objects derived from DataFrames.
+- Fixed `inplace` argument for Series objects derived from DataFrame columns.
 
 #### Behavior Change
 
