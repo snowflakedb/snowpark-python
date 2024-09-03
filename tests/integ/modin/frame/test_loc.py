@@ -3946,3 +3946,49 @@ def test_df_loc_set_row_from_series(index):
         native_df,
         locset,
     )
+
+
+@sql_count_checker(query_count=2, join_count=1)
+@pytest.mark.parametrize("index", [[3, 4, 5], [0, 1, 2]])
+def test_df_loc_full_set_row_from_series_pandas_errors(index):
+    native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]])
+    snow_df = pd.DataFrame(native_df)
+
+    with pytest.raises(ValueError, match="setting an array element with a sequence."):
+        native_df.loc[:] = native_pd.Series([1, 4, 9], index=index)
+
+    def locset(df):
+        series = (
+            pd.Series([1, 4, 9], index=index)
+            if isinstance(df, pd.DataFrame)
+            else native_pd.Series([1, 4, 9], index=index)
+        )
+        if isinstance(df, pd.DataFrame):
+            df.loc[:] = series
+        else:
+            if index == [0, 1, 2]:
+                df.loc[0] = series
+                df.loc[1] = None
+            else:
+                df.loc[[0, 1]] = None
+        return df
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        locset,
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_df_loc_full_set_row_from_series_errors():
+    # We error here because our join columns are an int (item.index)
+    # and a string (value.index) column respectively, and we do not
+    # support joins between those.
+    snow_df = pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
+
+    with pytest.raises(
+        SnowparkSQLException, match="Numeric value 'A' is not recognized"
+    ):
+        snow_df.loc[:] = pd.Series([1, 4, 9], index=list("ABC"))
+        snow_df.to_pandas()  # Force materialization.
