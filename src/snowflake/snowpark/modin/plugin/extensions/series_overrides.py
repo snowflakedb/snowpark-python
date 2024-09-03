@@ -866,6 +866,21 @@ def apply(
     return self.__constructor__(query_compiler=new_query_compiler)
 
 
+# Upstream modin calls to_pandas on the series.
+@register_series_accessor("map")
+@snowpark_pandas_telemetry_method_decorator
+def map(
+    self,
+    arg: Callable | Mapping | Series,
+    na_action: Literal["ignore"] | None = None,
+) -> Series:
+    """
+    Map values of Series according to input correspondence.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.__constructor__(query_compiler=self._query_compiler.map(arg, na_action))
+
+
 # Snowpark pandas does different validation than upstream Modin.
 @register_series_accessor("argmax")
 @snowpark_pandas_telemetry_method_decorator
