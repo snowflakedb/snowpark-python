@@ -189,18 +189,17 @@ _base_telemetry_added_attrs = set()
 _series_ext = _SERIES_EXTENSIONS_.copy()
 for attr_name in dir(Series):
     if (
-        (
-            attr_name in _attrs_defined_on_modin_series
-            or attr_name in _attrs_defined_on_modin_base
-        )
+        # TODO fix this check for properties defined on series but not base
+        # (may need to use __dict__ instead of dir)
+        attr_name in _attrs_defined_on_modin_base
+        and attr_name in _attrs_defined_on_modin_series
         and attr_name not in _series_ext
         and not attr_name.startswith("_")
     ):
         register_series_accessor(attr_name)(
             try_add_telemetry_to_attribute(attr_name, getattr(Series, attr_name))
         )
-        if attr_name in _attrs_defined_on_modin_base:
-            _base_telemetry_added_attrs.add(attr_name)
+        _base_telemetry_added_attrs.add(attr_name)
 
 
 # TODO: SNOW-1063346
