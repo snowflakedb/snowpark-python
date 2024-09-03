@@ -1401,6 +1401,28 @@ def to_list(self) -> list:
     return self.values.tolist()
 
 
+# TODO: SNOW-1063346
+# Modin does a relative import (from .dataframe import DataFrame), so until we stop using the vendored
+# version of DataFrame, we must keep this override.
+@register_series_accessor("to_frame")
+@snowpark_pandas_telemetry_method_decorator
+def to_frame(self, name: Hashable = no_default) -> DataFrame:  # noqa: PR01, RT01, D200
+    """
+    Convert Series to {label -> value} dict or dict-like object.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    from snowflake.snowpark.modin.pandas.dataframe import DataFrame
+
+    if name is None:
+        name = no_default
+
+    self_cp = self.copy()
+    if name is not no_default:
+        self_cp.name = name
+
+    return DataFrame(self_cp)
+
+
 # Snowpark pandas has the extra `statement_params` argument.
 @register_series_accessor("_to_pandas")
 @snowpark_pandas_telemetry_method_decorator
