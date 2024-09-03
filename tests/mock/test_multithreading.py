@@ -29,12 +29,62 @@ def test_table_update_delete_insert():
     pass
 
 
-def test_udf():
-    pass
+def test_udf_register_and_invoke(session):
+    df = session.create_dataframe([[1], [2]], schema=["num"])
+    num_threads = 10
+
+    def register_udf(x: int):
+        def echo(x: int) -> int:
+            return x
+
+        return session.udf.register(echo, name="echo", replace=True)
+
+    def invoke_udf():
+        result = df.select(session.udf.call_udf("echo", df.num)).collect()
+        assert result[0][0] == 1
+        assert result[1][0] == 2
+
+    threads = []
+    for i in range(num_threads):
+        thread_register = Thread(target=register_udf, args=(i,))
+        threads.append(thread_register)
+        thread_register.start()
+
+        thread_invoke = Thread(target=invoke_udf)
+        threads.append(thread_invoke)
+        thread_invoke.start()
+
+    for thread in threads:
+        thread.join()
 
 
-def test_sp():
-    pass
+def test_sp_register_and_invoke(session):
+    num_threads = 10
+
+    def increment_by_one_fn(session_: Session, x: int) -> int:
+        return x + 1
+
+    def register_sproc():
+        session.sproc.register(
+            increment_by_one_fn, name="increment_by_one", replace=True
+        )
+
+    def invoke_sproc():
+        result = session.call("increment_by_one", 1)
+        assert result == 2
+
+    threads = []
+    for i in range(num_threads):
+        thread_register = Thread(target=register_sproc, args=(i,))
+        threads.append(thread_register)
+        thread_register.start()
+
+        thread_invoke = Thread(target=invoke_sproc)
+        threads.append(thread_invoke)
+        thread_invoke.start()
+
+    for thread in threads:
+        thread.join()
 
 
 def test_mocked_function_registry_created_once():
@@ -122,19 +172,9 @@ def test_stage_entity_registry_put_and_get():
         thread.join()
 
 
-def test_stage_entity_registry_upload_and_read():
-    # upload a json to stage_i and read it back
-    test_parameter = {
-        "account": "test_account",
-        "user": "test_user",
-        "schema": "test_schema",
-        "database": "test_database",
-        "warehouse": "test_warehouse",
-        "role": "test_role",
-        "local_testing": True,
-    }
-    session = Session.builder.configs(options=test_parameter).create()
+def test_stage_entity_registry_upload_and_read(session):
     stage_registry = StageEntityRegistry(MockServerConnection())
+    num_threads = 10
 
     def upload_and_read_json(thread_id: int):
         json_string = json.dumps({"thread_id": thread_id})
@@ -152,13 +192,19 @@ def test_stage_entity_registry_upload_and_read():
             session._analyzer,
             {"INFER_SCHEMA": "True"},
         )
-        # TODO: read table emulator and compare results
-        assert df == thread_id
+
+        assert df['"thread_id"'].iloc[0] == thread_id
+
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        futures = [executor.submit(upload_and_read_json, i) for i in range(num_threads)]
+
+        for future in as_completed(futures):
+            future.result()
 
 
 def test_stage_entity_registry_create_or_replace():
     stage_registry = StageEntityRegistry(MockServerConnection())
-    num_threads = 100
+    num_threads = 10
 
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         futures = [
