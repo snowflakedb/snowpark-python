@@ -39,6 +39,7 @@ from snowflake.snowpark.modin.pandas.utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
+    try_add_telemetry_to_attribute,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
@@ -1029,7 +1030,12 @@ def _set_name(self, name):
     self._update_inplace(new_query_compiler=self._query_compiler.set_columns(columns))
 
 
-register_series_accessor("name")(property(Series._get_name, _set_name))
+register_series_accessor("name")(
+    try_add_telemetry_to_attribute(
+        "name",
+        property(Series._get_name, _set_name),
+    )
+)
 
 
 # modin 0.28.1 doesn't define type annotations on properties, so we override this
@@ -1250,6 +1256,34 @@ def where(
         inplace=inplace,
         axis=axis,
         level=level,
+    )
+
+
+# Upstream modin defaults to pandas for some arguments.
+@register_series_accessor("value_counts")
+@snowpark_pandas_telemetry_method_decorator
+def value_counts(
+    self,
+    normalize: bool = False,
+    sort: bool = True,
+    ascending: bool = False,
+    bins: int | None = None,
+    dropna: bool = True,
+):
+    """
+    Return a Series containing counts of unique values.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self.__constructor__(
+        query_compiler=self._query_compiler.value_counts(
+            subset=None,
+            normalize=normalize,
+            sort=sort,
+            ascending=ascending,
+            bins=bins,
+            dropna=dropna,
+        ).set_index_names([self.name]),
+        name="proportion" if normalize else "count",
     )
 
 
