@@ -187,7 +187,7 @@ class DataFrameWriter:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
-            iceberg_config: A dictionary that can contain the following iceberg confiration values:
+            iceberg_config: A dictionary that can contain the following iceberg configuration values:
 
                 * external_volume: specifies the identifier for the external volume where
                     the Iceberg table stores its metadata files and data in Parquet format

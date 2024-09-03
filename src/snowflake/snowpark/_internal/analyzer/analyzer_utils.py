@@ -189,12 +189,12 @@ TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
 
 def validate_iceberg_config(iceberg_config: Optional[dict]) -> Dict[str, str]:
-    if not iceberg_config:
+    if iceberg_config is None:
         return dict()
 
     iceberg_config = {k.lower(): v for k, v in iceberg_config.items()}
-    if "external_volume" not in iceberg_config:
-        return dict()
+    if "base_location" not in iceberg_config:
+        raise ValueError("Iceberg table configuration requires base_location be set.")
 
     return {
         EXTERNAL_VOLUME: iceberg_config.get("external_volume", None),
