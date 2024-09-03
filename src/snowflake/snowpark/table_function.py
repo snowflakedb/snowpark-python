@@ -60,6 +60,7 @@ class TableFunctionCall:
         *,
         partition_by: Optional[Union[ColumnOrName, Iterable[ColumnOrName]]] = None,
         order_by: Optional[Union[ColumnOrName, Iterable[ColumnOrName]]] = None,
+        _emit_ast: bool = True,
     ) -> "TableFunctionCall":
         """Specify the partitioning plan for this table function call when you lateral join this table function.
 
