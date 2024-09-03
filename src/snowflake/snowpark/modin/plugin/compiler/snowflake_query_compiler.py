@@ -197,7 +197,10 @@ from snowflake.snowpark.modin.plugin._internal.cut_utils import (
     compute_bin_indices,
     preprocess_bins_for_cut,
 )
-from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
+from snowflake.snowpark.modin.plugin._internal.frame import (
+    InternalFrame,
+    LabelIdentifierPair,
+)
 from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
     GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE,
     GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES,
@@ -5698,11 +5701,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     )
                     for agg_arg in agg_args
                 }
+                pandas_labels = list(agg_col_map.keys())
+                if self.is_multiindex(axis=1):
+                    pandas_labels = [
+                        (label,) * len(self.columns.names) for label in pandas_labels
+                    ]
                 single_agg_func_query_compilers.append(
                     SnowflakeQueryCompiler(
-                        frame.project_columns(
-                            list(agg_col_map.keys()), list(agg_col_map.values())
-                        )
+                        frame.project_columns(pandas_labels, list(agg_col_map.values()))
                     )
                 )
         else:  # axis == 0
@@ -14165,7 +14171,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         assert len(right_result_data_identifiers) == 1, "other must be a Series"
         right = right_result_data_identifiers[0]
         right_datatype = right_datatypes[0]
-
         # now replace in result frame identifiers with binary op result
         replace_mapping = {}
         snowpark_pandas_types = []
@@ -14187,10 +14192,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         identifiers_to_keep = set(
             new_frame.index_column_snowflake_quoted_identifiers
         ) | set(update_result.old_id_to_new_id_mappings.values())
+        self_is_column_mi = len(self._modin_frame.data_column_pandas_index_names)
         label_to_snowflake_quoted_identifier = []
         snowflake_quoted_identifier_to_snowpark_pandas_type = {}
         for pair in new_frame.label_to_snowflake_quoted_identifier:
             if pair.snowflake_quoted_identifier in identifiers_to_keep:
+                if (
+                    self_is_column_mi
+                    and isinstance(pair.label, tuple)
+                    and isinstance(pair.label[0], tuple)
+                ):
+                    pair = LabelIdentifierPair(
+                        pair.label[0], pair.snowflake_quoted_identifier
+                    )
                 label_to_snowflake_quoted_identifier.append(pair)
                 snowflake_quoted_identifier_to_snowpark_pandas_type[
                     pair.snowflake_quoted_identifier
@@ -14204,7 +14218,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 label_to_snowflake_quoted_identifier
             ),
             num_index_columns=new_frame.num_index_columns,
-            data_column_index_names=new_frame.data_column_index_names,
+            data_column_index_names=self._modin_frame.data_column_index_names,
             snowflake_quoted_identifier_to_snowpark_pandas_type=snowflake_quoted_identifier_to_snowpark_pandas_type,
         )
 
@@ -14615,9 +14629,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             new_frame = InternalFrame.create(
                 ordered_dataframe=expanded_ordered_frame,
                 data_column_pandas_labels=sorted_column_labels,
-                data_column_pandas_index_names=[
-                    None
-                ],  # operation removes column index name always.
+                data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
                 data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers
                 + new_identifiers,
                 index_column_pandas_labels=index_column_pandas_labels,
@@ -14664,7 +14676,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         new_frame = InternalFrame.create(
             ordered_dataframe=expanded_ordered_frame,
             data_column_pandas_labels=expanded_data_column_pandas_labels,
-            data_column_pandas_index_names=[None],  # operation removes names
+            data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
             data_column_snowflake_quoted_identifiers=expanded_data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,

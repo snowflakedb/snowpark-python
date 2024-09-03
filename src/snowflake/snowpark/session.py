@@ -2393,6 +2393,7 @@ class Session:
         create_temp_table: bool = False,
         overwrite: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
+        use_logical_type: Optional[bool] = None,
         **kwargs: Dict[str, Any],
     ) -> Table:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
@@ -2429,6 +2430,11 @@ class Session:
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
                 and ``transient``. An empty string means to create a permanent table. Learn more about table types
                 `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
+            use_logical_type: Boolean that specifies whether to use Parquet logical types when reading the parquet files
+                for the uploaded pandas dataframe. With this file format option, Snowflake can interpret Parquet logical
+                types during data loading. To enable Parquet logical types, set use_logical_type as True. Set to None to
+                use Snowflakes default. For more information, see:
+                `file format options: <https://docs.snowflake.com/en/sql-reference/sql/create-file-format#type-parquet>`_.
 
         Example::
 
@@ -2505,12 +2511,13 @@ class Session:
                     + (schema + "." if schema else "")
                     + (table_name)
                 )
-            signature = inspect.signature(write_pandas)
-            if not ("use_logical_type" in signature.parameters):
-                # do not pass use_logical_type if write_pandas does not support it
-                use_logical_type_passed = kwargs.pop("use_logical_type", None)
 
-                if use_logical_type_passed is not None:
+            if use_logical_type is not None:
+                signature = inspect.signature(write_pandas)
+                use_logical_type_supported = "use_logical_type" in signature.parameters
+                if use_logical_type_supported:
+                    kwargs["use_logical_type"] = use_logical_type
+                else:
                     # raise warning to upgrade python connector
                     warnings.warn(
                         "use_logical_type will be ignored because current python "
