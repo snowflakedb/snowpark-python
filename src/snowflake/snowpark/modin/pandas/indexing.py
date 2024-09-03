@@ -907,7 +907,11 @@ class _LocIndexer(_LocationIndexerBase):
         )
         if isinstance(result, Series):
             result._parent = self.df
-            result._parent_axis = 0
+            # We need to determine which axis this Series was extracted from. We can do so
+            # by checking which axis' locator is slice(None). If row_loc == slice(None),
+            # that means that we are extracting from axis=1, and if col_loc == slice(None),
+            # that means we are extracting from axis=0.
+            result._parent_axis = int(row_loc == slice(None))
 
         return result
 
@@ -1181,7 +1185,11 @@ class _iLocIndexer(_LocationIndexerBase):
 
         if isinstance(result, Series):
             result._parent = self.df
-            result._parent_axis = 0
+            # We need to determine which axis this Series was extracted from. We can do so
+            # by checking which axis' locator is slice(None). If row_loc == slice(None),
+            # that means that we are extracting from axis=1, and if col_loc == slice(None),
+            # that means we are extracting from axis=0.
+            result._parent_axis = int(row_loc == slice(None))
         return result
 
     def _get_pandas_object_from_qc_view(
