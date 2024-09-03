@@ -59,6 +59,7 @@ GroupBy
     DataFrameGroupBy.std
     DataFrameGroupBy.sum
     DataFrameGroupBy.tail
+    DataFrameGroupBy.value_counts
     DataFrameGroupBy.var
 
 .. rubric:: `SeriesGroupBy` computations / descriptive stats
@@ -90,4 +91,5 @@ GroupBy
     SeriesGroupBy.std
     SeriesGroupBy.sum
     SeriesGroupBy.tail
+    SeriesGroupBy.value_counts
     SeriesGroupBy.var
