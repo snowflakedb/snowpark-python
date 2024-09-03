@@ -282,6 +282,8 @@ def test_oob_telemetry_add():
             )
 
     # set batch_size to 101
+    is_enabled = oob_service.enabled
+    oob_service.enable()
     original_batch_size = oob_service.batch_size
     oob_service.batch_size = num_threads * num_events_per_thread + 1
     try:
@@ -300,25 +302,34 @@ def test_oob_telemetry_add():
         assert oob_service.queue.qsize() == num_threads * num_events_per_thread
     finally:
         oob_service.batch_size = original_batch_size
+        if not is_enabled:
+            oob_service.disable()
 
 
 def test_oob_telemetry_flush():
     oob_service = LocalTestOOBTelemetryService.get_instance()
     # clean up queue first
     oob_service.export_queue_to_string()
+
+    is_enabled = oob_service.enabled
+    oob_service.enable()
     # add a dummy event
     oob_service.add({"event": "dummy_event"})
 
-    # flush the queue in multiple threads
-    num_threads = 10
-    threads = []
-    for _ in range(num_threads):
-        thread = Thread(target=oob_service.flush)
-        threads.append(thread)
-        thread.start()
+    try:
+        # flush the queue in multiple threads
+        num_threads = 10
+        threads = []
+        for _ in range(num_threads):
+            thread = Thread(target=oob_service.flush)
+            threads.append(thread)
+            thread.start()
 
-    for thread in threads:
-        thread.join()
+        for thread in threads:
+            thread.join()
 
-    # assert that the queue is empty
-    assert oob_service.queue.qsize() == 0
+        # assert that the queue is empty
+        assert oob_service.size() == 0
+    finally:
+        if not is_enabled:
+            oob_service.disable()
