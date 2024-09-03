@@ -151,6 +151,7 @@ from snowflake.snowpark.modin.plugin._internal.session import SnowpandasSessionH
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     try_add_telemetry_to_attribute,
 )
+from snowflake.snowpark.modin.plugin.utils.frontend_constants import _ATTRS_NO_LOOKUP
 
 # The extensions assigned to this module
 _PD_EXTENSIONS_: dict = {}
@@ -178,6 +179,14 @@ import snowflake.snowpark.modin.plugin.extensions.dataframe_extensions  # isort:
 import snowflake.snowpark.modin.plugin.extensions.dataframe_overrides  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_overrides  # isort: skip  # noqa: E402,F401
+
+
+# dt and str accessors raise AttributeErrors that get caught by Modin __getitem__. Whitelist
+# them in _ATTRS_NO_LOOKUP here to avoid this.
+modin.pandas.base._ATTRS_NO_LOOKUP.add("dt")
+modin.pandas.base._ATTRS_NO_LOOKUP.add("str")
+modin.pandas.base._ATTRS_NO_LOOKUP.update(_ATTRS_NO_LOOKUP)
+
 
 # For any method defined on Series/DF, add telemetry to it if it meets all of the following conditions:
 # 1. The method was defined directly on an upstream class (_attrs_defined_on_modin_base, _attrs_defined_on_modin_series)
