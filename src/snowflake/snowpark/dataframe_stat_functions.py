@@ -330,10 +330,11 @@ class DataFrameStatFunctions:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
 
+        stmt = None
         if _emit_ast:
             # Add an assign node that applies SpDataframeStatsCrossTab() to the input, followed by its Eval.
-            repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_stat_cross_tab, repr)
+            stmt = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_stat_cross_tab, stmt)
             expr.id.bitfield1 = self._dataframe._ast_id
 
             build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
@@ -345,23 +346,11 @@ class DataFrameStatFunctions:
                     t._1 = k
                     t._2 = v
 
-            self._dataframe._session._ast_batch.eval(repr)
-
-        if self._dataframe._session._conn.is_phase1_enabled():
-            # TODO: Logic here should be
-            # ast = self._dataframe._session._ast_batch.flush()
-            # res = self._dataframe._session._conn.ast_query(ast)
-            raise NotImplementedError(
-                "TODO: Implement corr() with EvalResult in Phase1."
-            )
-
-            # Phase 0 flushes AST and encodes it as part of the query.
-        kwargs = {}
-        _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+        # Note: In phase1 this will be shifted server-side, the API is not an eval but an assign.
 
         row_count = self._dataframe.select(
             count_distinct(col2), _emit_ast=False
-        )._internal_collect_with_tag(statement_params=statement_params, **kwargs)[0][0]
+        )._internal_collect_with_tag(statement_params=statement_params)[0][0]
         if row_count > _MAX_COLUMNS_PER_TABLE:
             raise SnowparkClientExceptionMessages.DF_CROSS_TAB_COUNT_TOO_LARGE(
                 row_count, _MAX_COLUMNS_PER_TABLE
@@ -380,6 +369,10 @@ class DataFrameStatFunctions:
             .agg(count(col2), _emit_ast=False)
         )
         adjust_api_subcalls(df, "DataFrameStatFunctions.crosstab", len_subcalls=3)
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
+
         return df
 
     def sample_by(

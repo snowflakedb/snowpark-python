@@ -62,11 +62,7 @@ df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 1), (2, 3), (3, 2), (
 
 ct = df.stat.crosstab("key", "value")
 
-ct
-
 ct2 = df.stat.crosstab("key", "value", statement_params={"a": "b"})
-
-ct2
 
 df = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=["name", "age"])
 
