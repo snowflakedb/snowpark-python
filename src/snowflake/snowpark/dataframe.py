@@ -1064,6 +1064,7 @@ class DataFrame:
             ast = with_src_position(stmt.expr.sp_dataframe_to_df, stmt)
             ast.col_names.extend(col_names)
             ast.variadic = is_variadic
+            self.set_ast_ref(ast.df)
 
         new_cols = []
         for attr, name in zip(self._output, col_names):
@@ -1325,6 +1326,7 @@ class DataFrame:
                     _, new_cols, alias_cols = _get_cols_after_join_table(
                         func_expr, self._plan, temp_join_plan
                     )
+
                 # when generating join table expression, we inculcate aliased column into the initial
                 # query like so,
                 #
@@ -1631,6 +1633,7 @@ class DataFrame:
             for c in _cols:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
             ast.cols_variadic = is_variadic
+            self.set_ast_ref(ast.df)
 
         orders = []
         # `ascending` is represented by Expr in the AST.
@@ -1686,11 +1689,16 @@ class DataFrame:
                     SortOrder(exprs[idx], orders[idx] if orders else Ascending())
                 )
 
-        if self._select_statement:
-            return self._with_plan(
-                self._select_statement.sort(sort_exprs), ast_stmt=stmt
-            )
-        return self._with_plan(Sort(sort_exprs, self._plan), ast_stmt=stmt)
+        df = (
+            self._with_plan(self._select_statement.sort(sort_exprs))
+            if self._select_statement
+            else self._with_plan(Sort(sort_exprs, self._plan))
+        )
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
+
+        return df
 
     @experimental(version="1.5.0")
     def alias(self, name: str, _emit_ast: bool = True):
@@ -1731,6 +1739,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_alias, stmt)
             ast.name = name
+            self.set_ast_ref(ast.df)
 
         # TODO: Support alias in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -1830,6 +1839,7 @@ class DataFrame:
             for e in exprs:
                 build_expr_from_python_val(expr.exprs.args.add(), e)
             expr.exprs.variadic = is_variadic
+            self.set_ast_ref(expr.df)
 
         df = self.group_by(_emit_ast=False).agg(*exprs, _emit_ast=False)
 
@@ -1916,6 +1926,8 @@ class DataFrame:
                 )
                 for c in col_list:
                     build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+
+                expr.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
             else:
                 stmt = _ast_stmt
 
@@ -2319,6 +2331,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_union, stmt)
             other.set_ast_ref(ast.other)
+            self.set_ast_ref(ast.df)
 
         df = (
             self._with_plan(
@@ -2369,6 +2382,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_union_all, stmt)
             other.set_ast_ref(ast.other)
+            self.set_ast_ref(ast.df)
 
         df = (
             self._with_plan(
@@ -2531,6 +2545,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_intersect, stmt)
             other.set_ast_ref(ast.other)
+            self.set_ast_ref(ast.df)
 
         df = (
             self._with_plan(
@@ -2579,6 +2594,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_except, stmt)
             other.set_ast_ref(ast.other)
+            self.set_ast_ref(ast.df)
 
         if self._select_statement:
             df = self._with_plan(
@@ -3023,9 +3039,7 @@ class DataFrame:
                 elif isinstance(join_type, LeftAnti):
                     ast.join_type.sp_join_type__left_anti = True
                 elif isinstance(join_type, AsOf):
-                    raise NotImplementedError(
-                        "TODO SNOW-1638064: Add support for asof join to IR."
-                    )
+                    ast.join_type.sp_join_type__asof = True
                 else:
                     raise ValueError(f"Unsupported join type {join_type}")
 
@@ -3444,6 +3458,7 @@ class DataFrame:
             expr = with_src_position(ast_stmt.expr.sp_dataframe_with_column, ast_stmt)
             expr.col_name = col_name
             build_expr_from_snowpark_column_or_table_fn(expr.col, col)
+            self.set_ast_ref(expr.df)
 
         df = self.with_columns([col_name], [col], ast_stmt=ast_stmt, _emit_ast=False)
 
@@ -3558,6 +3573,7 @@ class DataFrame:
                 expr.col_names.append(col_name)
             for value in values:
                 build_expr_from_snowpark_column_or_table_fn(expr.values.add(), value)
+            self.set_ast_ref(expr.df)
 
         # Put it all together
         df = self.select([*old_cols, *new_cols], _ast_stmt=ast_stmt, _emit_ast=False)
@@ -3738,6 +3754,10 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
+
+        # TODO: This should be an eval operation, not an assign only as implemented here. Rather, the AST should be
+        #       issued as query similar to collect().
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -3774,6 +3794,7 @@ class DataFrame:
                     entry = expr.copy_options.add()
                     entry._1 = k
                     build_expr_from_python_val(entry._2, copy_options[k])
+            self.set_ast_ref(expr.df)
 
         # TODO: Support copy_into_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -4069,7 +4090,7 @@ class DataFrame:
             # Phase 0 code where string gets formatted.
             if is_sql_select_statement(query):
                 result, meta = self._session._conn.get_result_and_metadata(
-                    self.limit(n)._plan, **kwargs
+                    self.limit(n, _emit_ast=False)._plan, **kwargs
                 )
             else:
                 res, meta = self._session._conn.get_result_and_metadata(
@@ -5080,7 +5101,18 @@ Query List:
 
     def _resolve(self, col_name: str) -> Union[Expression, NamedExpression]:
         normalized_col_name = quote_name(col_name)
-        cols = list(filter(lambda attr: attr.name == normalized_col_name, self._output))
+        cols = list(
+            filter(
+                lambda attr: quote_name(attr.name) == normalized_col_name, self._output
+            )
+        )
+
+        # Remove UnresolvedAttributes. This is an artifact of the analyzer for regular Snowpark and local test mode
+        # being largely incompatible and not adhering to the same protocols when defining input and output schemas.
+        cols = list(
+            filter(lambda attr: not isinstance(attr, UnresolvedAttribute), cols)
+        )
+
         if len(cols) == 1:
             return cols[0].with_name(normalized_col_name)
         else:
