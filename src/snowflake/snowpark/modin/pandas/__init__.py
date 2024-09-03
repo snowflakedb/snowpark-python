@@ -183,8 +183,11 @@ import snowflake.snowpark.modin.plugin.extensions.series_overrides  # isort: ski
 
 # dt and str accessors raise AttributeErrors that get caught by Modin __getitem__. Whitelist
 # them in _ATTRS_NO_LOOKUP here to avoid this.
+# In upstream Modin, we should change __getitem__ to perform a direct getitem call rather than
+# calling self.index[].
 modin.pandas.base._ATTRS_NO_LOOKUP.add("dt")
 modin.pandas.base._ATTRS_NO_LOOKUP.add("str")
+modin.pandas.base._ATTRS_NO_LOOKUP.add("columns")
 modin.pandas.base._ATTRS_NO_LOOKUP.update(_ATTRS_NO_LOOKUP)
 
 
