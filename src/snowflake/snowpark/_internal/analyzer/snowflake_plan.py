@@ -873,7 +873,7 @@ class SnowflakePlanBuilder:
             child_attributes: child attributes will be none in the case of large query breakdown
                 where we use ctas query to create the table which does not need to know the column
                 metadata.
-            iceberg_config: A dictionary that can contain the following iceberg confiration values:
+            iceberg_config: A dictionary that can contain the following iceberg configuration values:
                 external_volume: specifies the identifier for the external volume where
                     the Iceberg table stores its metadata files and data in Parquet format
                 catalog: specifies either Snowflake or a catalog integration to use for this table

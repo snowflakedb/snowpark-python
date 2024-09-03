@@ -3080,7 +3080,7 @@ class DataFrame:
             transformations: A list of column transformations.
             format_type_options: A dict that contains the ``formatTypeOptions`` of the ``COPY INTO <table>`` command.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            iceberg_config: A dictionary that can contain the following iceberg confiration values:
+            iceberg_config: A dictionary that can contain the following iceberg configuration values:
 
                 * external_volume: specifies the identifier for the external volume where
                     the Iceberg table stores its metadata files and data in Parquet format
