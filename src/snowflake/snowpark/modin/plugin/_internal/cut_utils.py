@@ -186,36 +186,6 @@ def compute_bin_indices(
     cuts_frame = cuts_frame.ensure_row_position_column()
     value_frame = values_frame.ensure_row_position_column()
 
-    """
-    (
-        bucket_data_identifier,
-        bucket_row_position_identifier,
-        value_data_identifier,
-        value_row_position_identifier,
-    ) = value_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
-        pandas_labels=["b_data", "b_row_pos", "v_data", "v_row_pos"]
-    )
-
-    value_index_identifiers = value_frame.index_column_snowflake_quoted_identifiers
-
-    bucket_snowpark_frame = (
-        cuts_frame.ordered_dataframe.to_projected_snowpark_dataframe(True, True, True)
-    )
-    value_snowpark_frame = (
-        value_frame.ordered_dataframe.to_projected_snowpark_dataframe(True, True, True)
-    )
-
-    # relabel to new identifiers to reference within range join below.
-    bucket_snowpark_frame = bucket_snowpark_frame.select(
-        col(cuts_frame.data_column_snowflake_quoted_identifiers[0]).as_(
-            bucket_data_identifier
-        ),
-        col(cuts_frame.row_position_snowflake_quoted_identifier).as_(
-            bucket_row_position_identifier
-        ),
-    )
-    """
-
     bucket_frame = cuts_frame.append_columns(
         ["b_data", "b_row_pos"],
         [
@@ -224,38 +194,26 @@ def compute_bin_indices(
         ],
     )
 
-    bucket_data_identifier = bucket_frame.data_column_snowflake_quoted_identifiers[-1]
+    bucket_data_identifier = bucket_frame.data_column_snowflake_quoted_identifiers[-2]
     bucket_row_position_identifier = (
-        bucket_frame.data_column_snowflake_quoted_identifiers[-2]
+        bucket_frame.data_column_snowflake_quoted_identifiers[-1]
     )
 
     value_index_identifiers = value_frame.index_column_snowflake_quoted_identifiers
     value_frame = values_frame.append_columns(
         ["v_data", "v_row_pos"],
         [
-            col(cuts_frame.data_column_snowflake_quoted_identifiers[0]),
-            col(cuts_frame.row_position_snowflake_quoted_identifier),
+            col(value_frame.data_column_snowflake_quoted_identifiers[0]),
+            col(value_frame.row_position_snowflake_quoted_identifier),
         ],
     )
-    value_data_identifier = value_frame.data_column_snowflake_quoted_identifiers[-1]
+    value_data_identifier = value_frame.data_column_snowflake_quoted_identifiers[-2]
     value_row_position_identifier = (
-        value_frame.data_column_snowflake_quoted_identifiers[-2]
+        value_frame.data_column_snowflake_quoted_identifiers[-1]
     )
     value_ordered_frame = value_frame.ordered_dataframe.select(
         value_index_identifiers + [value_data_identifier, value_row_position_identifier]
     )
-
-    """
-    value_snowpark_frame = value_snowpark_frame.select(
-        *tuple(value_index_identifiers),
-        col(value_frame.data_column_snowflake_quoted_identifiers[0]).as_(
-            value_data_identifier
-        ),
-        col(value_frame.row_position_snowflake_quoted_identifier).as_(
-            value_row_position_identifier
-        ),
-    )
-    """
 
     # Perform a left join. The idea is to find all values which fall into an interval
     # defined by the cuts/bins in the bucket frame. The closest can be then identified using the
@@ -270,16 +228,6 @@ def compute_bin_indices(
             match_comparator=MatchComparator.LESS_THAN_OR_EQUAL_TO,
             how="asof",
         )
-        """
-        ans = value_snowpark_frame.join(
-            bucket_snowpark_frame,
-            value_snowpark_frame[value_data_identifier]
-            <= bucket_snowpark_frame[bucket_data_identifier],
-            how="left",
-            lsuffix="_L",
-            rsuffix="_R",
-        )
-        """
 
         # Result will be v_row_pos and min(b_row_pos) - 1. However, to deal with the edge cases we need to correct
         # for the case when the result is in the left-most interval.
@@ -297,34 +245,15 @@ def compute_bin_indices(
             match_comparator=MatchComparator.GREATER_THAN_OR_EQUAL_TO,
             how="asof",
         )
-        ans = ans.group_by(
-            value_index_identifiers
-            + [value_data_identifier, value_row_position_identifier],
-            max_(bucket_row_position_identifier).as_(bucket_row_position_identifier),
-        )
-
-        """
-        ans = value_snowpark_frame.join(
-            bucket_snowpark_frame,
-            value_snowpark_frame[value_data_identifier]
-            >= bucket_snowpark_frame[bucket_data_identifier],
-            how="left",
-            lsuffix="_L",
-            rsuffix="_R",
-        )
 
         # Result will be v_row_pos and max(q_row_pos) - 1. However, to deal with the edge cases we need to correct
         # for the case when the result is in the left-most interval.
         ans = ans.group_by(
             value_index_identifiers
             + [value_data_identifier, value_row_position_identifier],
-        ).max(bucket_row_position_identifier)
-        """
+            max_(bucket_row_position_identifier).as_(bucket_row_position_identifier),
+        )
 
-    """
-    column_names = ans.columns
-    bin_index_col = col(ans.projected_column_snowflake_quoted_identifiers[-1])
-    """
     bin_index_col = col(bucket_row_position_identifier)
 
     if right:
@@ -349,39 +278,11 @@ def compute_bin_indices(
         value_index_identifiers
         + [value_row_position_identifier, correct_index_expr.as_(new_data_identifier)]
     )
-    """
-    ans = ans.select(
-        *tuple(value_index_identifiers),
-        col(value_row_position_identifier),
-        correct_index_expr,
-    )
-    column_names = ans.columns
-    new_data_identifier = column_names[-1]
 
-    # Create OrderedDataFrame and InternalFrame and QC out of this.
-    # Need to restore index as well which has been passed through.
-    new_ordered_dataframe = OrderedDataFrame(
-        DataFrameReference(ans),
-        projected_column_snowflake_quoted_identifiers=value_index_identifiers
-        + [new_data_identifier],
-        ordering_columns=[OrderingColumn(value_row_position_identifier)],
-        row_position_snowflake_quoted_identifier=value_row_position_identifier,
-    )
-
-    new_frame = InternalFrame.create(
-        ordered_dataframe=new_ordered_dataframe,
-        data_column_pandas_labels=value_frame.data_column_pandas_labels,
-        data_column_pandas_index_names=value_frame.data_column_index_names,
-        data_column_snowflake_quoted_identifiers=[new_data_identifier],
-        index_column_pandas_labels=value_frame.index_column_pandas_labels,
-        index_column_snowflake_quoted_identifiers=value_index_identifiers,
-        data_column_types=None,
-        index_column_types=None,
-    )
-    """
     new_frame = InternalFrame.create(
         ordered_dataframe=ans,
-        data_column_pandas_labels=value_frame.data_column_pandas_labels,
+        # keep th pandas label from the original value frame
+        data_column_pandas_labels=[value_frame.data_column_pandas_labels[0]],
         data_column_pandas_index_names=value_frame.data_column_index_names,
         data_column_snowflake_quoted_identifiers=[new_data_identifier],
         index_column_pandas_labels=value_frame.index_column_pandas_labels,
