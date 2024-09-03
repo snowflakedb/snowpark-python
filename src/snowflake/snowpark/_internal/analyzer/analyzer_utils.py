@@ -188,7 +188,7 @@ ICEBERG = " ICEBERG "
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
 
-def validate_iceberg_config(iceberg_config: Optional[Dict[str, str]]) -> Dict[str, str]:
+def validate_iceberg_config(iceberg_config: Optional[dict]) -> Dict[str, str]:
     if not iceberg_config:
         return dict()
 
