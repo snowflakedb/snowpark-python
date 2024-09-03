@@ -27,7 +27,8 @@ from pandas._typing import (
     Scalar,
 )
 from pandas.core.common import apply_if_callable, is_bool_indexer
-from pandas.core.dtypes.common import is_bool_dtype, is_list_like
+from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
+from pandas.util._validators import validate_bool_kwarg
 
 from snowflake.snowpark.modin import pandas as spd  # noqa: F401
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
@@ -999,7 +1000,6 @@ def fillna(
 
 # Snowpark pandas defines a custom GroupBy object
 @register_series_accessor("groupby")
-@property
 @snowpark_pandas_telemetry_method_decorator
 def groupby(
     self,
@@ -1039,6 +1039,40 @@ def groupby(
         observed=observed,
         dropna=dropna,
     )
+
+
+# Snowpark pandas ignores `inplace` (possibly an error?) and performs additional validation.
+@register_series_accessor("replace")
+@snowpark_pandas_telemetry_method_decorator
+def replace(
+    self,
+    to_replace=None,
+    value=no_default,
+    inplace=False,
+    limit=None,
+    regex=False,
+    method: str | NoDefault = no_default,
+):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    inplace = validate_bool_kwarg(inplace, "inplace")
+    # The following errors cannot be raised by query compiler because we don't know
+    # if frontend object is Series or DataFrame.
+    if to_replace is not None and is_dict_like(value):
+        raise ValueError(
+            "In Series.replace 'to_replace' must be None if the 'value' is dict-like"
+        )
+    if is_dict_like(to_replace) and value != no_default:
+        raise ValueError(
+            "In Series.replace 'to_replace' cannot be dict-like if 'value' is provided"
+        )
+    new_query_compiler = self._query_compiler.replace(
+        to_replace=to_replace,
+        value=value,
+        limit=limit,
+        regex=regex,
+        method=method,
+    )
+    return self._create_or_update_from_compiler(new_query_compiler, inplace)
 
 
 # Upstream Modin reset_index produces an extra query.
