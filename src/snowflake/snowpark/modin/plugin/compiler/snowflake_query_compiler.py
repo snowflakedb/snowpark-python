@@ -10634,6 +10634,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         if not include_index:
             assert len(self.columns) == 1, "dt only works for series"
+            if not is_datetime64_any_dtype(self.dtypes[0]):
+                raise AttributeError(
+                    f"'TimedeltaProperties' object has no attribute '{property_name}'"
+                )
 
         # mapping from the property name to the corresponding snowpark function
         dt_property_to_function_map = {
@@ -17542,6 +17546,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             assert (
                 len(self.columns) == 1
             ), "dt only works for series"  # pragma: no cover
+            if is_datetime64_any_dtype(self.dtypes[0]):
+                raise AttributeError(
+                    f"'DatetimeProperties' object has no attribute '{property_name}'"
+                )
 
         # mapping from the property name to the corresponding snowpark function
         property_to_func_map = {
