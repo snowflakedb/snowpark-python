@@ -144,8 +144,6 @@ def test_unsupported_df(df_method, kwargs):
         ["prod", {}],
         ["ravel", {}],
         ["reorder_levels", {"order": ""}],
-        ["repeat", {"repeats": ""}],
-        ["rdivmod", {"other": ""}],
         ["searchsorted", {"value": ""}],
         ["set_flags", {}],
         ["swapaxes", {"axis1": "", "axis2": ""}],
@@ -163,7 +161,6 @@ def test_unsupported_df(df_method, kwargs):
         ["to_timestamp", {}],
         ["to_xarray", {}],
         ["truncate", {}],
-        ["view", {}],
         ["xs", {"key": ""}],
     ],
 )

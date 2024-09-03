@@ -82,11 +82,13 @@ UNSUPPORTED_DATAFRAME_METHODS = [
 # This set triggers SeriesDefault.register
 UNSUPPORTED_SERIES_METHODS = [
     (lambda df: df.transform(lambda x: x + 1), "transform"),
+    (lambda df: df.repeat(2), "repeat"),
+    (lambda df: df.view(), "view"),
 ]
 
 # unsupported binary operations that can be applied on both dataframe and series
 # this set triggers default_to_pandas test with Snowpark pandas objects in arguments
-UNSUPPORTED_BINARY_METHODS = [
+UNSUPPORTED_DATAFRAME_SERIES_BINARY_METHODS = [
     # TODO SNOW-862664, support together with combine
     # (lambda dfs: dfs[0].combine(dfs[1], np.minimum, fill_value=1), "combine"),
     (lambda dfs: dfs[0].align(dfs[1]), "align"),
@@ -94,6 +96,11 @@ UNSUPPORTED_BINARY_METHODS = [
     (lambda dfs: dfs[0].combine_first(dfs[1]), "combine_first"),
     (lambda dfs: dfs[0].reindex_like(dfs[1]), "reindex_like"),
     (lambda dfs: dfs[0].update(dfs[1]), "update"),
+]
+
+# unsupported binary operations that are only series
+UNSUPPORTED_SERIES_BINARY_METHODS = [
+    (lambda dfs: dfs[0].rdivmod(dfs[1]), "rdivmod"),
 ]
 
 
@@ -124,7 +131,7 @@ def test_unsupported_series_methods(func, func_name, caplog) -> None:
 
 @pytest.mark.parametrize(
     "func, func_name",
-    UNSUPPORTED_BINARY_METHODS,
+    UNSUPPORTED_DATAFRAME_SERIES_BINARY_METHODS,
 )
 @sql_count_checker(query_count=0)
 def test_unsupported_dataframe_binary_methods(func, func_name, caplog) -> None:
@@ -143,7 +150,7 @@ def test_unsupported_dataframe_binary_methods(func, func_name, caplog) -> None:
 
 @pytest.mark.parametrize(
     "func, func_name",
-    UNSUPPORTED_BINARY_METHODS,
+    UNSUPPORTED_DATAFRAME_SERIES_BINARY_METHODS + UNSUPPORTED_SERIES_BINARY_METHODS,
 )
 @sql_count_checker(query_count=0)
 def test_unsupported_series_binary_methods(func, func_name, caplog) -> None:
