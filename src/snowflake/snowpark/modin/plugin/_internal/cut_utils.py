@@ -12,7 +12,7 @@ from pandas.core.dtypes.common import is_numeric_dtype
 from pandas.core.dtypes.inference import is_scalar
 from pandas.core.reshape.tile import _is_dt_or_td
 
-from snowflake.snowpark.functions import col, iff, max as max_, min as min_
+from snowflake.snowpark.functions import col, iff
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.join_utils import MatchComparator
 from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
@@ -215,11 +215,7 @@ def compute_bin_indices(
         value_index_identifiers + [value_data_identifier, value_row_position_identifier]
     )
 
-    # Perform a left join. The idea is to find all values which fall into an interval
-    # defined by the cuts/bins in the bucket frame. The closest can be then identified using the
-    # row position. An alternative to this
-    # was to use an ASOF join with a proper matching condition.
-
+    # perform asof join to find the closet to the bucket frame.
     if right:
         ans = value_ordered_frame.join(
             bucket_frame.ordered_dataframe,
@@ -229,29 +225,13 @@ def compute_bin_indices(
             how="asof",
         )
 
-        # Result will be v_row_pos and min(b_row_pos) - 1. However, to deal with the edge cases we need to correct
-        # for the case when the result is in the left-most interval.
-        ans = ans.group_by(
-            value_index_identifiers
-            + [value_data_identifier, value_row_position_identifier],
-            min_(bucket_row_position_identifier).as_(bucket_row_position_identifier),
-        )
     else:
-        # For right=False, perform a >= join and use max(b_row_pos) - 1.
         ans = value_ordered_frame.join(
             bucket_frame.ordered_dataframe,
             left_match_col=value_data_identifier,
             right_match_col=bucket_data_identifier,
             match_comparator=MatchComparator.GREATER_THAN_OR_EQUAL_TO,
             how="asof",
-        )
-
-        # Result will be v_row_pos and max(q_row_pos) - 1. However, to deal with the edge cases we need to correct
-        # for the case when the result is in the left-most interval.
-        ans = ans.group_by(
-            value_index_identifiers
-            + [value_data_identifier, value_row_position_identifier],
-            max_(bucket_row_position_identifier).as_(bucket_row_position_identifier),
         )
 
     bin_index_col = col(bucket_row_position_identifier)
