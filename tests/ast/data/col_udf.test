@@ -2,7 +2,7 @@
 
 from snowflake.snowpark.functions import col, udf
 
-from snowflake.snowpark.types import IntegerType
+from snowflake.snowpark.types import IntegerType, FloatType
 
 add_one = udf(lambda x: x + 1, return_type=IntegerType(), input_types=[IntegerType()])
 
@@ -16,6 +16,21 @@ add_two = udf(lambda x: x + 2, return_type=IntegerType(), input_types=[IntegerTy
 
 df.select(call_udf("add_two", col("A")).as_("a_Ans")).collect()
 
+param_udf = udf(lambda x, y: str(y + x**2), return_type=VariantType(), input_types=[IntegerType(), FloatType()],
+    name="param_udf", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"],
+     replace=True, if_not_exists=False, parallel=8, max_batch_size=2, source_code_display=False,
+      strict=True, secure=True, external_access_integrations=["s3"], secrets={'a':'b', 'c':'d'},
+       immutable=True, comment="some udf", force_inline_code=True)
+
+# Another test udf because if_not_exists and replace need to be xor.
+param_udf2 = udf(lambda x, y: str(y + x**2), return_type=VariantType(), input_types=[IntegerType(), FloatType()],
+    name="param_udf2", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"],
+     replace=False, if_not_exists=True, parallel=8, max_batch_size=2, source_code_display=False,
+      strict=True, secure=True, external_access_integrations=["s3"], secrets={'a':'b', 'c':'d'},
+       immutable=True, comment="some udf", force_inline_code=True)
+
+df.select(param_udf(col("A"), col("A")))
+
 ## EXPECTED OUTPUT
 
 add_one = udf(<lambda>, return_type=IntegerType(), input_types=[IntegerType()])
@@ -27,3 +42,9 @@ df.select(add_one(col("a")).as_("ans")).collect()
 add_two = udf(<lambda [1]>, return_type=IntegerType(), input_types=[IntegerType()], name="add_two", replace=True)
 
 df.select(call_udf("add_two", col("A")).as_("a_Ans")).collect()
+
+param_udf = udf(<lambda [2]>, return_type=VariantType(), input_types=[IntegerType()]FloatType()], name="param_udf", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], replace=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b"}{"c": "d"}, immutable=True, comment="some udf")
+
+param_udf2 = udf(<lambda [3]>, return_type=VariantType(), input_types=[IntegerType()]FloatType()], name="param_udf2", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], if_not_exists=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b"}{"c": "d"}, immutable=True, comment="some udf")
+
+res5 = df.select(param_udf(col("A"), col("A")))

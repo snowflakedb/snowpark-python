@@ -815,18 +815,20 @@ def build_udf(
     if stage_location is not None:
         ast.stage_location = stage_location
     if imports is not None and len(imports) != 0:
-        raise NotImplementedError
+        for import_ in imports:
+            import_expr = proto.SpTableName()
+            build_sp_table_name(import_expr, import_)
+            ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
         for package in packages:
             if isinstance(package, ModuleType):
                 raise NotImplementedError
-            p = ast.packages.add()  # noqa: F841
-            p = package  # noqa: F841
+            ast.packages.append(package)
     ast.replace = replace
     ast.if_not_exists = if_not_exists
     ast.parallel = parallel
     if max_batch_size is not None:
-        ast.max_batch_size = max_batch_size
+        ast.max_batch_size.value = max_batch_size
 
     if statement_params is not None and len(statement_params) != 0:
         for k, v in statement_params.items():
@@ -841,9 +843,7 @@ def build_udf(
         external_access_integrations is not None
         and len(external_access_integrations) != 0
     ):
-        for e in external_access_integrations:
-            p_e = ast.external_access_integrations.add()  # noqa: F841
-            p_e = e  # noqa: F841
+        ast.external_access_integrations.extend(external_access_integrations)
     if secrets is not None and len(secrets) != 0:
         for k, v in secrets.items():
             t = ast.secrets.add()
@@ -851,7 +851,7 @@ def build_udf(
             t._2 = v
     ast.immutable = immutable
     if comment is not None:
-        ast.comment = comment
+        ast.comment.value = comment
     for k, v in kwargs.items():
         t = ast.kwargs.add()
         t._1 = k
