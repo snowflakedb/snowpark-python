@@ -1052,7 +1052,6 @@ class OrderedDataFrame:
         right: "OrderedDataFrame",
         left_on_cols: Optional[list[str]] = None,
         right_on_cols: Optional[list[str]] = None,
-        on_comparators: Optional[list["MatchComparator"]] = None,  # type: ignore[name-defined]  # noqa: F821
         left_match_col: Optional[str] = None,
         right_match_col: Optional[str] = None,
         match_comparator: Optional[  # type: ignore[name-defined]
@@ -1074,14 +1073,11 @@ class OrderedDataFrame:
             right: The other OrderedDataFrame to join.
             left_on_cols: A list of column names from self OrderedDataFrame to be used for the join.
             right_on_cols: A list of column names from right OrderedDataFrame to be used for the join.
-            on_comparators: list of MatchComparator {"__ge__", "__gt__", "__le__", "__lt__", "equal_null"}
-                Comparing the 'left_on' and 'right_on' columns. Defaults to list of "equal_null"
-                of the same length as 'left_on' and 'right_on'.
             left_match_col: Snowflake identifier to match condition on from 'left' frame.
                 Only applicable for 'asof' join.
             right_match_col: Snowflake identifier to match condition on from 'right' frame.
                 Only applicable for 'asof' join.
-            match_comparator: MatchComparator {"__ge__", "__gt__", "__le__", "__lt__", "equal_null"}
+            match_comparator: MatchComparator {"__ge__", "__gt__", "__le__", "__lt__"}
                 Only applicable for 'asof' join, the operation to compare 'left_match_condition'
                 and 'right_match_condition'.
             how: We support the following join types:
@@ -1201,24 +1197,11 @@ class OrderedDataFrame:
         # get the new mapped right on identifier
         right_on_cols = [right_identifiers_rename_map[key] for key in right_on_cols]
 
+        # Generate sql ON clause 'EQUAL_NULL(col1, col2) and EQUAL_NULL(col3, col4) ...'
         on = None
-
-        from snowflake.snowpark.modin.plugin._internal.join_utils import MatchComparator
-
-        # Use EQUAL_NULL as default to compare left and right "on" columns
-        on_comparators = (
-            [MatchComparator.EQUAL_NULL] * len(left_on_cols)
-            if not on_comparators
-            else on_comparators
-        )
-        # Generate sql ON clause comparing left and right columns
-        for left_col, right_col, on_comparator in zip(
-            left_on_cols, right_on_cols, on_comparators
-        ):
-            column_comparison = getattr(Column(left_col), on_comparator.value)(
-                Column(right_col)
-            )
-            on = column_comparison if on is None else on & column_comparison
+        for left_col, right_col in zip(left_on_cols, right_on_cols):
+            eq = Column(left_col).equal_null(Column(right_col))
+            on = eq if on is None else on & eq
 
         if how == "asof":
             assert left_match_col, "left_match_col was not provided to ASOF Join"
