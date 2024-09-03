@@ -735,7 +735,8 @@ def build_proto_from_callable(
 ):
     """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as SpCallable protobuf."""
 
-    expr_builder.name = "test"
+    # TODO SNOW-1514712: This will be filled in as part of UDF ticket.
+    pass
 
 
 def build_proto_from_pivot_values(

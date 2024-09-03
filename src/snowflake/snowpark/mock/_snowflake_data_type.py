@@ -50,7 +50,6 @@ def infer_sp_type_from_python_type(p: Any) -> DataType:
         return VariantType()
     if is_string_dtype(p):
         return StringType()
-
     if is_bool_dtype(p):
         return BooleanType()
     if is_integer_dtype(p):
