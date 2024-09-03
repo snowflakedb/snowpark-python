@@ -672,20 +672,20 @@ def perform_asof_join_on_frame(
     # 2023-01-07 02:00:00   NaN
     # 2023-01-10 00:00:00     6
 
-    interval_start_snowflake_quoted_identifier = (
-        get_snowflake_quoted_identifier_for_resample_index_col(referenced_frame)
-    )
     left_timecol_snowflake_quoted_identifier = (
         get_snowflake_quoted_identifier_for_resample_index_col(preserving_frame)
+    )
+    right_timecol_snowflake_quoted_identifier = (
+        get_snowflake_quoted_identifier_for_resample_index_col(referenced_frame)
     )
     output_frame, _ = join_utils.join(
         left=preserving_frame,
         right=referenced_frame,
         how="asof",
         left_on=[left_timecol_snowflake_quoted_identifier],
-        right_on=[interval_start_snowflake_quoted_identifier],
+        right_on=[right_timecol_snowflake_quoted_identifier],
         left_match_col=left_timecol_snowflake_quoted_identifier,
-        right_match_col=interval_start_snowflake_quoted_identifier,
+        right_match_col=right_timecol_snowflake_quoted_identifier,
         match_comparator=(
             MatchComparator.GREATER_THAN_OR_EQUAL_TO
             if fill_method == "ffill"
