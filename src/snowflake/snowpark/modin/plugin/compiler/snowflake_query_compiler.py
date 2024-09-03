@@ -10577,6 +10577,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame.data_column_snowflake_quoted_identifiers
             )
         }
+        # diff() between two timestamp columns on axis=1, or on a single
+        # timestamp column on axis 0, will change type to timedelta.
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
                 quoted_identifier_to_column_map={
