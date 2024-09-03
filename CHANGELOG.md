@@ -81,7 +81,7 @@
 
 - Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
 - Improved `pd.to_datetime` to handle all local input cases. 
-- Refactored `resample.fillna` implementation to use `OrderedDataFrame` join utility.
+- Refactored `resample.fillna` implementation to use ASOF Join.
 
 #### Bug Fixes
 
