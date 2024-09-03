@@ -63,15 +63,23 @@ DocModule.put(docstrings.__name__)
 import modin.utils  # type: ignore[import]  # isort: skip  # noqa: E402
 import modin.pandas.series_utils  # type: ignore[import]  # isort: skip  # noqa: E402
 
-modin.utils._inherit_docstrings(
-    docstrings.series_utils.StringMethods,
-    overwrite_existing=True,
-)(modin.pandas.series_utils.StringMethods)
+# TODO: SNOW-1643979 pull in fixes for
+# https://github.com/modin-project/modin/issues/7113 and https://github.com/modin-project/modin/issues/7134
+# Upstream Modin has issues with certain docstring generation edge cases, so we should use our version instead
+_inherit_docstrings = snowflake.snowpark.modin.utils._inherit_docstrings
 
-modin.utils._inherit_docstrings(
-    docstrings.series_utils.CombinedDatetimelikeProperties,
-    overwrite_existing=True,
-)(modin.pandas.series_utils.DatetimeProperties)
+inherit_modules = [
+    (docstrings.base.BasePandasDataset, modin.pandas.base.BasePandasDataset),
+    (docstrings.series_utils.StringMethods, modin.pandas.series_utils.StringMethods),
+    (
+        docstrings.series_utils.CombinedDatetimelikeProperties,
+        modin.pandas.series_utils.DatetimeProperties,
+    ),
+]
+
+for (doc_module, target_object) in inherit_modules:
+    _inherit_docstrings(doc_module, overwrite_existing=True)(target_object)
+
 
 # Don't warn the user about our internal usage of private preview pivot
 # features. The user should have already been warned that Snowpark pandas

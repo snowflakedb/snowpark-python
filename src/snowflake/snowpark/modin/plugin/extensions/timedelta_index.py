@@ -130,7 +130,6 @@ class TimedeltaIndex(Index):
         }
         self._init_index(data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs)
 
-    @timedelta_index_not_implemented()
     @property
     def days(self) -> Index:
         """
@@ -142,15 +141,18 @@ class TimedeltaIndex(Index):
 
         Examples
         --------
-        >>> idx = pd.to_timedelta(["0 days", "10 days", "20 days"])  # doctest: +SKIP
-        >>> idx  # doctest: +SKIP
-        TimedeltaIndex(['0 days', '10 days', '20 days'],
-                        dtype='timedelta64[ns]', freq=None)
-        >>> idx.days  # doctest: +SKIP
+        >>> idx = pd.to_timedelta(["0 days", "10 days", "20 days"])
+        >>> idx
+        TimedeltaIndex(['0 days', '10 days', '20 days'], dtype='timedelta64[ns]', freq=None)
+        >>> idx.days
         Index([0, 10, 20], dtype='int64')
         """
+        return Index(
+            query_compiler=self._query_compiler.timedelta_property(
+                "days", include_index=True
+            )
+        )
 
-    @timedelta_index_not_implemented()
     @property
     def seconds(self) -> Index:
         """
@@ -162,15 +164,18 @@ class TimedeltaIndex(Index):
 
         Examples
         --------
-        >>> idx = pd.to_timedelta([1, 2, 3], unit='s')  # doctest: +SKIP
-        >>> idx  # doctest: +SKIP
-        TimedeltaIndex(['0 days 00:00:01', '0 days 00:00:02', '0 days 00:00:03'],
-                       dtype='timedelta64[ns]', freq=None)
-        >>> idx.seconds  # doctest: +SKIP
-        Index([1, 2, 3], dtype='int32')
+        >>> idx = pd.to_timedelta([1, 2, 3], unit='s')
+        >>> idx
+        TimedeltaIndex(['0 days 00:00:01', '0 days 00:00:02', '0 days 00:00:03'], dtype='timedelta64[ns]', freq=None)
+        >>> idx.seconds
+        Index([1, 2, 3], dtype='int64')
         """
+        return Index(
+            query_compiler=self._query_compiler.timedelta_property(
+                "seconds", include_index=True
+            )
+        )
 
-    @timedelta_index_not_implemented()
     @property
     def microseconds(self) -> Index:
         """
@@ -182,16 +187,20 @@ class TimedeltaIndex(Index):
 
         Examples
         --------
-        >>> idx = pd.to_timedelta([1, 2, 3], unit='us')  # doctest: +SKIP
-        >>> idx  # doctest: +SKIP
+        >>> idx = pd.to_timedelta([1, 2, 3], unit='us')
+        >>> idx
         TimedeltaIndex(['0 days 00:00:00.000001', '0 days 00:00:00.000002',
                         '0 days 00:00:00.000003'],
                        dtype='timedelta64[ns]', freq=None)
-        >>> idx.microseconds  # doctest: +SKIP
-        Index([1, 2, 3], dtype='int32')
+        >>> idx.microseconds
+        Index([1, 2, 3], dtype='int64')
         """
+        return Index(
+            query_compiler=self._query_compiler.timedelta_property(
+                "microseconds", include_index=True
+            )
+        )
 
-    @timedelta_index_not_implemented()
     @property
     def nanoseconds(self) -> Index:
         """
@@ -203,14 +212,19 @@ class TimedeltaIndex(Index):
 
         Examples
         --------
-        >>> idx = pd.to_timedelta([1, 2, 3], unit='ns')  # doctest: +SKIP
-        >>> idx  # doctest: +SKIP
+        >>> idx = pd.to_timedelta([1, 2, 3], unit='ns')
+        >>> idx
         TimedeltaIndex(['0 days 00:00:00.000000001', '0 days 00:00:00.000000002',
                         '0 days 00:00:00.000000003'],
                        dtype='timedelta64[ns]', freq=None)
-        >>> idx.nanoseconds  # doctest: +SKIP
-        Index([1, 2, 3], dtype='int32')
+        >>> idx.nanoseconds
+        Index([1, 2, 3], dtype='int64')
         """
+        return Index(
+            query_compiler=self._query_compiler.timedelta_property(
+                "nanoseconds", include_index=True
+            )
+        )
 
     @timedelta_index_not_implemented()
     @property
