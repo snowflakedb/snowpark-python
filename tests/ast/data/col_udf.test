@@ -19,4 +19,8 @@ df.select(add_one(col("a")).as_("ans")).collect()
 
 ## EXPECTED OUTPUT
 
+add_one = udf(<lambda>, return_type=IntegerType(), input_types=[IntegerType()])
+
 df = session.create_dataframe([1, 2, 3], schema=["a"])
+
+df.select(add_one(col("a")).as_("ans")).collect()
