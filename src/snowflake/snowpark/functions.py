@@ -264,8 +264,10 @@ def col(df_alias: str, col_name: str) -> Column:
     ...  # pragma: no cover
 
 
-def col(name1: str, name2: Optional[str] = None) -> Column:
-    ast = create_ast_for_column(name1, name2, "col")
+def col(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> Column:
+    ast = None
+    if _emit_ast:
+        ast = create_ast_for_column(name1, name2, "col")
 
     if name2 is None:
         return Column(name1, ast=ast)

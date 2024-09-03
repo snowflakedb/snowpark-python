@@ -1,0 +1,54 @@
+## TEST CASE
+
+df = session.create_dataframe([(1, 1),(1, 2),(2, 1),(2, 2),(3, 1),(3, 2)], schema=["a", "b"])
+
+df.group_by("a").median("b").collect()
+
+df.group_by("a").function("avg")("b").collect()
+
+df.group_by("a").count()
+
+import pandas as pd
+
+from snowflake.snowpark.types import StructType, StructField, StringType, FloatType
+
+def convert(pandas_df):
+    return pandas_df.assign(TEMP_F = lambda x: x.TEMP_C * 9 / 5 + 32)
+
+df = session.createDataFrame([('SF', 21.0), ('SF', 17.5), ('SF', 24.0), ('NY', 30.9), ('NY', 33.6)],
+        schema=['location', 'temp_c'])
+
+df.group_by("location").apply_in_pandas(convert,
+    output_schema=StructType([StructField("location", StringType()),
+                              StructField("temp_c", FloatType()),
+                              StructField("temp_f", FloatType())])).order_by("temp_c").collect()
+
+
+df = session.create_dataframe([(1, 'A', 10000, 'JAN'), (1, 'B', 400, 'JAN'), (1, 'B', 5000, 'FEB')], schema=['empid', 'team', 'amount', 'month'])
+
+# Does not work because __getitem__ is missing.
+# df.group_by("empid").pivot("month", ['JAN', 'FEB']).sum("amount").sort(df["empid"]).show()
+
+df.group_by("empid").pivot("month", ['JAN', 'FEB']).sum("amount").show()
+
+df.group_by(["empid", "team"]).pivot("month").sum("amount").sort("empid", "team").show()
+
+## EXPECTED OUTPUT
+
+df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 2), (3, 1), (3, 2)], schema=["a", "b"])
+
+df.group_by("a").median("b").collect()
+
+df.group_by("a").avg("b").collect()
+
+res8 = df.group_by("a").count()
+
+df = session.create_dataframe([("SF", 21.0), ("SF", 17.5), ("SF", 24.0), ("NY", 30.9), ("NY", 33.6)], schema=["location", "temp_c"])
+
+df.group_by("location").apply_in_pandas(convert, StructType([StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(16777216), DoubleType()], input_names=["LOCATION", "TEMP_C"]).sort("temp_c").collect()
+
+df = session.create_dataframe([(1, "A", 10000, "JAN"), (1, "B", 400, "JAN"), (1, "B", 5000, "FEB")], schema=["empid", "team", "amount", "month"])
+
+df.group_by("empid").pivot("month", values=["JAN", "FEB"]).sum("amount").show()
+
+df.group_by(["empid", "team"]).pivot("month").sum("amount").sort("empid", "team").show()
