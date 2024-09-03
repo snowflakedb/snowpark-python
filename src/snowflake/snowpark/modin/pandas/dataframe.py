@@ -3032,7 +3032,6 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
         matching_item_rows_by_label = not is_2d_array(value)
         if is_2d_array(value):
             value = DataFrame(value)
-        is_item_series = isinstance(value, pd.Series)
         item = value._query_compiler if isinstance(value, BasePandasDataset) else value
         new_qc = self._query_compiler.set_2d_labels(
             index,
@@ -3049,7 +3048,6 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
             # "A", "B", "X", while if we call df.loc[:, ["X", "X"]] = item, then df will have four columns "A", "B",
             # "X", "X".
             deduplicate_columns=True,
-            is_item_series=is_item_series,
         )
         return self._update_inplace(new_query_compiler=new_qc)
 
