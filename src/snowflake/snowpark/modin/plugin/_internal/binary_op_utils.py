@@ -427,15 +427,15 @@ def compute_binary_op_between_snowpark_columns(
         raise np.core._exceptions._UFuncBinaryResolutionError(  # type: ignore[attr-defined]
             np.multiply, (np.dtype("timedelta64[ns]"), np.dtype("timedelta64[ns]"))
         )
-    elif _op_is_between_two_timedeltas_or_timedelta_and_null(
-        first_datatype(), second_datatype()
-    ) and op in (
+    elif op in (
         "eq",
         "ne",
         "gt",
         "ge",
         "lt",
         "le",
+    ) and _op_is_between_two_timedeltas_or_timedelta_and_null(
+        first_datatype(), second_datatype()
     ):
         # These operations, when done between timedeltas, work without any
         # extra handling in `snowpark_pandas_type` or `binary_op_result_column`.
