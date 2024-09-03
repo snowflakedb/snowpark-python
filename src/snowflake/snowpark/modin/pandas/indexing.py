@@ -912,7 +912,7 @@ class _LocIndexer(_LocationIndexerBase):
             # that means that we are extracting from axis=1, and if col_loc == slice(None),
             # that means we are extracting from axis=0. If `row_loc` is a BasePandasDataset
             # then it is also an extraction along axis=0.
-            if isinstance(row_loc, BasePandasDataset):
+            if isinstance(row_loc, (BasePandasDataset, pd.Index)):
                 result._parent_axis = 0
             else:
                 result._parent_axis = int(row_loc == slice(None))
