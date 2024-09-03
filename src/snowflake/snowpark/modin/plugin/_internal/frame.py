@@ -1008,33 +1008,7 @@ class InternalFrame:
         # | . . .         | . . .         | . . .         | . . .         | . . .         |
         # +---------------+---------------+---------------+---------------+---------------+
 
-        # Generate label for the column to be appended.
-        nlevels = self.num_index_levels(axis=1)
-        pandas_label = fill_missing_levels_for_pandas_label(
-            pandas_label, nlevels, 0, None
-        )
-
-        # Generate snowflake quoted identifier for new column to be added.
-        new_column_identifier = (
-            self.ordered_dataframe.generate_snowflake_quoted_identifiers(
-                pandas_labels=[pandas_label],
-            )[0]
-        )
-        new_ordered_dataframe = append_columns(
-            self.ordered_dataframe, new_column_identifier, value
-        )
-        return InternalFrame.create(
-            ordered_dataframe=new_ordered_dataframe,
-            data_column_pandas_labels=self.data_column_pandas_labels + [pandas_label],
-            data_column_snowflake_quoted_identifiers=self.data_column_snowflake_quoted_identifiers
-            + [new_column_identifier],
-            data_column_pandas_index_names=self.data_column_pandas_index_names,
-            index_column_pandas_labels=self.index_column_pandas_labels,
-            index_column_snowflake_quoted_identifiers=self.index_column_snowflake_quoted_identifiers,
-            data_column_types=self.cached_data_column_snowpark_pandas_types
-            + [value_type],
-            index_column_types=self.cached_index_column_snowpark_pandas_types,
-        )
+        return self.append_columns([pandas_label], [value], [value_type])
 
     def append_columns(
         self,
@@ -1042,6 +1016,33 @@ class InternalFrame:
         values: list[SnowparkColumn],
         value_types: Optional[list[Optional[SnowparkPandasType]]] = None,
     ) -> "InternalFrame":
+        """
+        Append columns to this frame. The columns are added at the end. For a frame with multiindex column, it
+        automatically fills the missing levels with None. For example, in a table with MultiIndex columns like
+        ("A", "col1"), ("A", "col2"), ("B", "col1"), ("B", "col2"), appending a count column "cnt" will produce
+        a column labelled ("cnt", None).
+
+        Args:
+            pandas_labels: pandas labels for columns to be appended.
+            values: List[SnowparkColumn]. List of Snowpark columns used to produce the new columns to append.
+            value_types: The optional SnowparkPandasType for the new columns.
+
+        Returns:
+            A new InternalFrame with new columns appended at the end.
+        """
+        # +---------------+---------------+---------------+---------------+       +---------------+---------------+
+        # | ("A", "col1") | ("A", "col2") | ("B", "col1") | ("B", "col2") |       | "cnt1"        | "cnt2"        |
+        # +---------------+---------------+---------------+---------------+   +   +---------------+
+        # | . . .         | . . .         | . . .         | . . .         |       | . . .         | . . .         |
+        # +---------------+---------------+---------------+---------------+       +---------------+---------------
+        #
+        # Appending a column "cnt" to the table below will produce the following table:
+        # +---------------+---------------+---------------+---------------+---------------+---------------+
+        # | ("A", "col1") | ("A", "col2") | ("B", "col1") | ("B", "col2") | ("cnt1", None)|("cnt2", None) |
+        # +---------------+---------------+---------------+---------------+---------------+
+        # | . . .         | . . .         | . . .         | . . .         | . . .         |. . .         |
+        # +---------------+---------------+---------------+---------------+---------------+---------------+
+
         # Generate label for the column to be appended.
         nlevels = self.num_index_levels(axis=1)
         pandas_labels = [
