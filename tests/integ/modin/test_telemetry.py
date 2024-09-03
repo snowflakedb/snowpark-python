@@ -540,12 +540,12 @@ def test_telemetry_repr():
     s = pd.Series([1, 2, 3, 4])
     s.__repr__()
     data = _extract_snowpark_pandas_telemetry_log_data(
-        expected_func_name="Series.Series.__repr__",
+        expected_func_name="Series.__repr__",
         session=s._query_compiler._modin_frame.ordered_dataframe.session,
     )
     assert data["api_calls"] == [
         {"name": "Series.property.name_set"},
-        {"name": "Series.Series.__repr__"},
+        {"name": "Series.__repr__"},
     ]
 
 
