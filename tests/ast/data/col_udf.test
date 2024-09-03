@@ -10,12 +10,11 @@ df = session.create_dataframe([1, 2, 3], schema=["a"])
 
 df.select(add_one(col("a")).as_("ans")).collect()
 
-
 # call_udf should be encoded as builtin applexpr. It only works for named (& permanently) registered udfs.
 
-#add_two = udf(lambda x: x + 2, return_type=IntegerType(), input_types=[IntegerType()], name="add_two", replace=True)
+add_two = udf(lambda x: x + 2, return_type=IntegerType(), input_types=[IntegerType()], name="add_two", replace=True)
 
-#df.select(call_udf("add_two", col("A")).as_("a_Ans")).collect()
+df.select(call_udf("add_two", col("A")).as_("a_Ans")).collect()
 
 ## EXPECTED OUTPUT
 
@@ -24,3 +23,7 @@ add_one = udf(<lambda>, return_type=IntegerType(), input_types=[IntegerType()])
 df = session.create_dataframe([1, 2, 3], schema=["a"])
 
 df.select(add_one(col("a")).as_("ans")).collect()
+
+add_two = udf(<lambda [1]>, return_type=IntegerType(), input_types=[IntegerType()], name="add_two", replace=True)
+
+df.select(call_udf("add_two", col("A")).as_("a_Ans")).collect()
