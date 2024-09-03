@@ -81,8 +81,6 @@ UNSUPPORTED_DATAFRAME_METHODS = [
 # unsupported methods that can only be applied on series
 # This set triggers SeriesDefault.register
 UNSUPPORTED_SERIES_METHODS = [
-    (lambda se: se.is_monotonic_increasing, "property fget:is_monotonic_increasing"),
-    (lambda se: se.is_monotonic_decreasing, "property fget:is_monotonic_decreasing"),
     (lambda df: df.transform(lambda x: x + 1), "transform"),
 ]
 
@@ -180,8 +178,6 @@ def test_unsupported_str_methods(func, func_name, caplog) -> None:
 
 # unsupported methods for Index
 UNSUPPORTED_INDEX_METHODS = [
-    lambda idx: idx.is_monotonic_increasing(),
-    lambda idx: idx.is_monotonic_decreasing(),
     lambda idx: idx.nbytes(),
     lambda idx: idx.memory_usage(),
     lambda idx: idx.delete(),

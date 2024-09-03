@@ -938,6 +938,8 @@ class SnowflakePlanBuilder:
                     change_tracking=change_tracking,
                     copy_grants=copy_grants,
                     iceberg_config=iceberg_config,
+                    use_scoped_temp_objects=use_scoped_temp_objects,
+                    is_generated=is_generated,
                 ),
                 child,
                 source_plan,
