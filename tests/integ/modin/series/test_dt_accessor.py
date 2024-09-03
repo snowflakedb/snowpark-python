@@ -393,3 +393,42 @@ def test_dt_invalid_dtypes(data, data_type):
         expect_exception=True,
         expect_exception_match="Can only use .dt accessor with datetimelike values",
     )
+
+
+@pytest.mark.parametrize(
+    "data, data_type, property_name",
+    [
+        (
+            [
+                datetime.datetime(2019, 12, 4, 11, 12, 13),
+                datetime.datetime(2019, 12, 5, 12, 21, 5),
+                datetime.datetime(2019, 12, 6, 5, 2, 6),
+            ],
+            None,
+            "seconds",
+        ),
+        (
+            [
+                datetime.timedelta(11, 12, 13),
+                datetime.timedelta(12, 21, 5),
+                datetime.timedelta(5, 2, 6),
+            ],
+            None,
+            "second",
+        ),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_dt_invalid_dtype_property_combo(data, data_type, property_name):
+    native_ser = native_pd.Series(data)
+    if data_type:
+        native_ser.astype(data_type)
+    snow_ser = pd.Series(native_ser)
+
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: getattr(ser.dt, property_name),
+        expect_exception=True,
+        expect_exception_match="object has no attribute",
+    )
