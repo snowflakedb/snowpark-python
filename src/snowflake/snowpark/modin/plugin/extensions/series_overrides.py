@@ -9,7 +9,7 @@ pandas, such as `Series.memory_usage`.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Hashable, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Hashable, Literal, Mapping
 
 import modin.pandas as pd
 import numpy as np
@@ -1038,6 +1038,24 @@ def groupby(
         idx_name=None,
         observed=observed,
         dropna=dropna,
+    )
+
+
+# Modin defaults to pandas for _qcut.
+@register_series_accessor("_qcut")
+def _qcut(
+    self,
+    q: int | ListLike,
+    retbins: bool = False,
+    duplicates: Literal["raise", "drop"] = "raise",
+) -> Series:
+    """
+    Quantile-based discretization function.
+
+    See SnowflakeQueryCompiler.qcut for details.
+    """
+    return self.__constructor__(
+        query_compiler=self._query_compiler.qcut(q, retbins, duplicates)
     )
 
 
