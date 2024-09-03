@@ -33,7 +33,7 @@ import pandas
 from modin.pandas.accessor import CachedAccessor, SparseAccessor
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.iterator import PartitionIterator
-from pandas._libs.lib import NoDefault, is_integer, no_default
+from pandas._libs.lib import NoDefault, is_bool, is_integer, no_default
 from pandas._typing import (
     AggFuncType,
     AnyArrayLike,
@@ -2489,7 +2489,10 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
         Return True if values in the Series are monotonic_increasing.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        return self._reduce_dimension(self._query_compiler.is_monotonic_increasing())
+        res = self._reduce_dimension(self._query_compiler.is_monotonic_increasing())
+        return (
+            res if is_bool(res) else True
+        )  # when self series is empty, res is an empty series
 
     @property
     def is_monotonic_decreasing(self):  # noqa: RT01, D200
@@ -2497,7 +2500,10 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
         Return True if values in the Series are monotonic_decreasing.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        return self._reduce_dimension(self._query_compiler.is_monotonic_decreasing())
+        res = self._reduce_dimension(self._query_compiler.is_monotonic_decreasing())
+        return (
+            res if is_bool(res) else True
+        )  # when self series is empty, res is an empty series
 
     @property
     def is_unique(self):  # noqa: RT01, D200

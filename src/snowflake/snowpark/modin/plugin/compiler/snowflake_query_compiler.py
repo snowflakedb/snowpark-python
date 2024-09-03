@@ -2371,7 +2371,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         col_to_check : str
             The Snowflake quoted identifier for the column whose monotonicity to check.
         columns_to_add : str, optional
-            Whether or not to add all columns, and if not, which columns to add.
+            Whether to add all columns, and if not, which columns to add.
 
         Returns
         -------
@@ -2402,9 +2402,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if columns_to_add in [None, "decreasing"]:
             modin_frame = modin_frame.append_column(
                 "_is_monotonic_decreasing",
-                coalesce(
-                    min_(col(col_to_check) <= col(lag_col_snowflake_quoted_id)).over(),
-                    pandas_lit(False),
+                iff(
+                    count("*").over() <= 1,
+                    pandas_lit(True),
+                    coalesce(
+                        min_(
+                            col(col_to_check) <= col(lag_col_snowflake_quoted_id)
+                        ).over(),
+                        pandas_lit(False),
+                    ),
                 ),
             )
             monotonic_decreasing_snowflake_quoted_id = (
@@ -2413,9 +2419,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if columns_to_add in [None, "increasing"]:
             modin_frame = modin_frame.append_column(
                 "_is_monotonic_increasing",
-                coalesce(
-                    min_(col(col_to_check) >= col(lag_col_snowflake_quoted_id)).over(),
-                    pandas_lit(False),
+                iff(
+                    count("*").over() <= 1,
+                    pandas_lit(True),
+                    coalesce(
+                        min_(
+                            col(col_to_check) >= col(lag_col_snowflake_quoted_id)
+                        ).over(),
+                        pandas_lit(False),
+                    ),
                 ),
             )
             monotonic_increasing_snowflake_quoted_id = (
