@@ -27,6 +27,8 @@ set -euxo pipefail
 
 SCRIPT_DIR=$(dirname "$0")
 
+# Note: If changes are not reflected, run `bazel clean --expunge` first.
+
 # Step 1: Build the python proto file from scratch via bazel
 ssh $HOST "bash -c 'cd Snowflake/trunk;bazel build //Snowpark:ast && bazel build //Snowpark:py_proto'"
 

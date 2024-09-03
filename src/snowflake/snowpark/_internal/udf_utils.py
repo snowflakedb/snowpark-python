@@ -408,10 +408,13 @@ def get_opt_arg_defaults(
                 for value, tp in zip(default_values, input_types_for_default_args)
             ]
 
-        default_values_to_sql_str = [
-            to_sql(value, datatype)
-            for value, datatype in zip(default_values, input_types_for_default_args)
-        ]
+        if num_optional_args != 0:
+            default_values_to_sql_str = [
+                to_sql(value, datatype)
+                for value, datatype in zip(default_values, input_types_for_default_args)
+            ]
+        else:
+            default_values_to_sql_str = []
         return [None] * num_positional_args + default_values_to_sql_str
 
     def get_opt_arg_defaults_from_callable():
