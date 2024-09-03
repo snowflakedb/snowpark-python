@@ -3041,7 +3041,8 @@ class Session:
                     # we do not validate here
                     object_type = match.group(1)
                     object_name = match.group(2)
-                    setattr(self._conn, f"_active_{object_type}", object_name)
+                    with self._conn._lock:
+                        setattr(self._conn, f"_active_{object_type}", object_name)
                 else:
                     self._run_query(query)
             else:
