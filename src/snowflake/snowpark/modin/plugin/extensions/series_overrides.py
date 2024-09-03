@@ -930,6 +930,54 @@ def case_when(self, caselist) -> Series:  # noqa: PR01, RT01, D200
     )
 
 
+# Upstream Modin has a bug:
+# https://github.com/modin-project/modin/issues/7334
+@register_series_accessor("compare")
+@snowpark_pandas_telemetry_method_decorator
+def compare(
+    self,
+    other: Series,
+    align_axis: str | int = 1,
+    keep_shape: bool = False,
+    keep_equal: bool = False,
+    result_names: tuple = ("self", "other"),
+) -> Series:  # noqa: PR01, RT01, D200
+    """
+    Compare to another Series and show the differences.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    if not isinstance(other, Series):
+        raise TypeError(f"Cannot compare Series to {type(other)}")
+    result = self.to_frame().compare(
+        # TODO(https://github.com/modin-project/modin/issues/7334):
+        # upstream this fix for differently named Series.
+        other.rename(self.name).to_frame(),
+        align_axis=align_axis,
+        keep_shape=keep_shape,
+        keep_equal=keep_equal,
+        result_names=result_names,
+    )
+    if align_axis == "columns" or align_axis == 1:
+        # pandas.DataFrame.Compare returns a dataframe with a multidimensional index object as the
+        # columns so we have to change column object back.
+        if len(result.columns) == 2:
+            result.columns = native_pd.Index(result_names)
+        else:
+            # even if the DataFrame.compare() result has no columns, the
+            # Series.compare() result always has the `result_names` as two
+            # columns.
+            # TODO(https://github.com/modin-project/modin/issues/5697):
+            # upstream this fix to modin.
+
+            # we have compared only one column, so DataFrame.compare()
+            # should only produce 0 or 2 columns.
+            assert len(result.columns) == 0
+            result = pd.DataFrame([], columns=result_names, index=result.index)
+    else:
+        result = result.squeeze().rename(None)
+    return result
+
+
 # Snowpark pandas does not respect `ignore_index`, and upstream Modin does not respect `how`.
 @register_series_accessor("dropna")
 @snowpark_pandas_telemetry_method_decorator
