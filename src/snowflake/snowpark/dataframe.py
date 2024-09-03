@@ -3039,9 +3039,7 @@ class DataFrame:
                 elif isinstance(join_type, LeftAnti):
                     ast.join_type.sp_join_type__left_anti = True
                 elif isinstance(join_type, AsOf):
-                    raise NotImplementedError(
-                        "TODO SNOW-1638064: Add support for asof join to IR."
-                    )
+                    ast.join_type.sp_join_type__asof = True
                 else:
                     raise ValueError(f"Unsupported join type {join_type}")
 
