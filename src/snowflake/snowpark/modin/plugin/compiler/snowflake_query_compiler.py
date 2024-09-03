@@ -12400,7 +12400,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             name="mode", class_="Series"
         )  # pragma: no cover
 
-    def repeat(self, repeats: Union[int, ListLike], axis: Axis) -> None:
+    def repeat(self, repeats: Union[int, ListLike], axis: Axis = None) -> None:
         ErrorMessage.method_not_implemented_error(
             name="repeat", class_="Series"
         )  # pragma: no cover
