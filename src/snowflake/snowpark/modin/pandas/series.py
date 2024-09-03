@@ -668,6 +668,7 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
                 matching_item_columns_by_label=False,
                 matching_item_rows_by_label=False,
                 index_is_bool_indexer=index_is_bool_indexer,
+                is_item_series=True,
             )
             self._update_inplace(new_query_compiler=new_qc)
 
