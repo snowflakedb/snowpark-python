@@ -256,7 +256,7 @@ class Index(metaclass=TelemetryMeta):
     def _binary_ops(self, method: str, other: Any) -> Index:
         if isinstance(other, Index):
             other = other.to_series().reset_index(drop=True)
-        series = self.to_series().reset_index(drop=True).__getattr__(method)(other)
+        series = getattr(self.to_series().reset_index(drop=True), method)(other)
         qc = series._query_compiler
         qc = qc.set_index_from_columns(qc.columns, include_index=False)
         # Use base constructor to ensure that the correct type is returned.
@@ -266,7 +266,7 @@ class Index(metaclass=TelemetryMeta):
 
     def _unary_ops(self, method: str) -> Index:
         return self.__constructor__(
-            self.to_series().reset_index(drop=True).__getattr__(method)()
+            getattr(self.to_series().reset_index(drop=True), method)()
         )
 
     def __add__(self, other: Any) -> Index:
