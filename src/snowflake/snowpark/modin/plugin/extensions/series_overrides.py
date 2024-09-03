@@ -1287,6 +1287,23 @@ def value_counts(
     )
 
 
+# Snowpark pandas uses len(self) instead of len(index), saving a query in some cases.
+@register_series_accessor("squeeze")
+@snowpark_pandas_telemetry_method_decorator
+def squeeze(self, axis: Axis | None = None):
+    """
+    Squeeze 1 dimensional axis objects into scalars.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    if axis is not None:
+        # Validate `axis`
+        native_pd.Series._get_axis_number(axis)
+    if len(self) == 1:
+        return self._reduce_dimension(self._query_compiler)
+    else:
+        return self.copy()
+
+
 # Upstream Modin performs name change and copy operations on binary operators that Snowpark
 # pandas avoids.
 # Don't put telemetry on this method since it's an internal helper.
