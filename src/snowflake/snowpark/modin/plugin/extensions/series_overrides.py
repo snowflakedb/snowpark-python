@@ -55,6 +55,7 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import (
     MODIN_UNNAMED_SERIES_LABEL,
     _inherit_docstrings,
+    validate_int_kwarg,
 )
 
 if TYPE_CHECKING:
@@ -872,6 +873,81 @@ def argmin(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, 
     if not is_integer(result):  # if result is None, return -1
         result = -1
     return result
+
+
+# Upstream Modin defines sum differently for series/DF, but we use the same implementation for both.
+# Even though we already override sum in base_overrides, we need to do another override here because
+# Modin has a separate definition in both series.py and base.py. In general, we cannot force base_overrides
+# to override both methods in case the series.py version calls the superclass method.
+@register_series_accessor("sum")
+@snowpark_pandas_telemetry_method_decorator
+def sum(
+    self,
+    axis: Axis | None = None,
+    skipna: bool = True,
+    numeric_only: bool = False,
+    min_count: int = 0,
+    **kwargs: Any,
+):
+    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+    min_count = validate_int_kwarg(min_count, "min_count")
+    kwargs.update({"min_count": min_count})
+    return self._agg_helper(
+        func="sum",
+        axis=axis,
+        skipna=skipna,
+        numeric_only=numeric_only,
+        **kwargs,
+    )
+
+
+# Snowpark pandas handles kwargs differently than modin.
+@register_series_accessor("std")
+@snowpark_pandas_telemetry_method_decorator
+def std(
+    self,
+    axis: Axis | None = None,
+    skipna: bool = True,
+    ddof: int = 1,
+    numeric_only: bool = False,
+    **kwargs,
+):
+    """
+    Return sample standard deviation over requested axis.
+    """
+    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+    kwargs.update({"ddof": ddof})
+    return self._agg_helper(
+        func="std",
+        axis=axis,
+        skipna=skipna,
+        numeric_only=numeric_only,
+        **kwargs,
+    )
+
+
+# Snowpark pandas handles kwargs differently than modin.
+@register_series_accessor("var")
+@snowpark_pandas_telemetry_method_decorator
+def var(
+    self,
+    axis: Axis | None = None,
+    skipna: bool = True,
+    ddof: int = 1,
+    numeric_only: bool = False,
+    **kwargs: Any,
+):
+    """
+    Return unbiased variance over requested axis.
+    """
+    kwargs.update({"ddof": ddof})
+    return self._agg_helper(
+        func="var",
+        axis=axis,
+        skipna=skipna,
+        numeric_only=numeric_only,
+        **kwargs,
+    )
 
 
 # Snowpark pandas does not yet support Categorical types. Return a dummy object instead of immediately

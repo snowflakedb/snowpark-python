@@ -728,28 +728,6 @@ def std(
 
 
 # See _agg_helper
-@register_base_override("sum")
-def sum(
-    self,
-    axis: Axis | None = None,
-    skipna: bool = True,
-    numeric_only: bool = False,
-    min_count: int = 0,
-    **kwargs: Any,
-):
-    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    min_count = validate_int_kwarg(min_count, "min_count")
-    kwargs.update({"min_count": min_count})
-    return self._agg_helper(
-        func="sum",
-        axis=axis,
-        skipna=skipna,
-        numeric_only=numeric_only,
-        **kwargs,
-    )
-
-
-# See _agg_helper
 @register_base_override("var")
 def var(
     self,
