@@ -2717,15 +2717,15 @@ def date_range(
 
 
 def bdate_range(
-    start=None,
-    end=None,
+    start: VALID_DATE_TYPE | None = None,
+    end: VALID_DATE_TYPE | None = None,
     periods: int | None = None,
-    freq: Frequency | dt.timedelta = "B",
-    tz=None,
+    freq: Frequency | str | pd.DateOffset | dt.timedelta | None = None,
+    tz: str | tzinfo | None = None,
     normalize: bool = True,
     name: Hashable | None = None,
-    weekmask=None,
-    holidays=None,
+    weekmask: str | None = None,
+    holidays: ListLike | None = None,
     inclusive: IntervalClosedType = "both",
     **kwargs,
 ) -> pd.DatetimeIndex:
