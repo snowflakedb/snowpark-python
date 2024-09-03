@@ -16,17 +16,64 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
 )
 from snowflake.snowpark._internal.utils import normalize_local_file
+from snowflake.snowpark.functions import lit, when_matched
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.mock._functions import MockedFunctionRegistry
 from snowflake.snowpark.mock._plan import MockExecutionPlan
 from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
+from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
+from tests.utils import Utils
 
 
-def test_table_update_delete_insert():
-    pass
+def test_table_update_merge_delete(session):
+    table_name = Utils.random_table_name()
+    num_threads = 10
+    data = [[v, 11 * v] for v in range(10)]
+    df = session.create_dataframe(data, schema=["a", "b"])
+    df.write.save_as_table(table_name, table_type="temp")
+
+    source_df = df
+    t = session.table(table_name)
+
+    def update_table(thread_id: int):
+        t.update({"b": 0}, t.a == lit(thread_id))
+
+    def merge_table(thread_id: int):
+        t.merge(
+            source_df, t.a == source_df.a, [when_matched().update({"b": source_df.b})]
+        )
+
+    def delete_table(thread_id: int):
+        t.delete(t.a == lit(thread_id))
+
+    # all threads will update column b to 0 where a = thread_id
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        # update
+        futures = [executor.submit(update_table, i) for i in range(num_threads)]
+        for future in as_completed(futures):
+            future.result()
+
+        # all threads will set column b to 0
+        Utils.check_answer(t.select(t.b), [Row(B=0) for _ in range(10)])
+
+        # merge
+        futures = [executor.submit(merge_table, i) for i in range(num_threads)]
+        for future in as_completed(futures):
+            future.result()
+
+        # all threads will set column b to 11 * a
+        Utils.check_answer(t.select(t.b), [Row(B=11 * i) for i in range(10)])
+
+        # delete
+        futures = [executor.submit(delete_table, i) for i in range(num_threads)]
+        for future in as_completed(futures):
+            future.result()
+
+        # all threads will delete their row
+        assert t.count() == 0
 
 
 def test_udf_register_and_invoke(session):
@@ -227,9 +274,6 @@ def test_oob_telemetry_add():
     num_threads = 10
     num_events_per_thread = 10
 
-    # set batch_size to 101
-    oob_service.batch_size = num_threads * num_events_per_thread + 1
-
     # create a function that adds 10 events to the queue
     def add_events(thread_id: int):
         for i in range(num_events_per_thread):
@@ -237,19 +281,25 @@ def test_oob_telemetry_add():
                 {f"thread_{thread_id}_event_{i}": f"dummy_event_{thread_id}_{i}"}
             )
 
-    # create 10 threads
-    threads = []
-    for thread_id in range(num_threads):
-        thread = Thread(target=add_events, args=(thread_id,))
-        threads.append(thread)
-        thread.start()
+    # set batch_size to 101
+    original_batch_size = oob_service.batch_size
+    oob_service.batch_size = num_threads * num_events_per_thread + 1
+    try:
+        # create 10 threads
+        threads = []
+        for thread_id in range(num_threads):
+            thread = Thread(target=add_events, args=(thread_id,))
+            threads.append(thread)
+            thread.start()
 
-    # wait for all threads to finish
-    for thread in threads:
-        thread.join()
+        # wait for all threads to finish
+        for thread in threads:
+            thread.join()
 
-    # assert that the queue size is 100
-    assert oob_service.queue.qsize() == num_threads * num_events_per_thread
+        # assert that the queue size is 100
+        assert oob_service.queue.qsize() == num_threads * num_events_per_thread
+    finally:
+        oob_service.batch_size = original_batch_size
 
 
 def test_oob_telemetry_flush():
