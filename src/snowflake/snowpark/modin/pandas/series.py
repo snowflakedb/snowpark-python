@@ -2752,8 +2752,6 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
         # Propagate changes back to parent so that column in dataframe had the same contents
         if self._parent is not None:
             if self._parent_axis == 0:
-                self._parent.loc[self.name] = self
-            else:
                 self._parent[self.name] = self
 
     def _create_or_update_from_compiler(self, new_query_compiler, inplace=False):
