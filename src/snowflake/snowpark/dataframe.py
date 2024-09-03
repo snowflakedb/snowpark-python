@@ -1643,6 +1643,7 @@ class DataFrame:
             for c in _cols:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
             ast.cols_variadic = is_variadic
+            self.set_ast_ref(ast.df)
 
         orders = []
         # `ascending` is represented by Expr in the AST.
@@ -3036,9 +3037,7 @@ class DataFrame:
                 elif isinstance(join_type, LeftAnti):
                     ast.join_type.sp_join_type__left_anti = True
                 elif isinstance(join_type, AsOf):
-                    raise NotImplementedError(
-                        "TODO SNOW-1638064: Add support for asof join to IR."
-                    )
+                    ast.join_type.sp_join_type__asof = True
                 else:
                     raise ValueError(f"Unsupported join type {join_type}")
 
@@ -4096,7 +4095,7 @@ class DataFrame:
             # Phase 0 code where string gets formatted.
             if is_sql_select_statement(query):
                 result, meta = self._session._conn.get_result_and_metadata(
-                    self.limit(n)._plan, **kwargs
+                    self.limit(n, _emit_ast=False)._plan, **kwargs
                 )
             else:
                 res, meta = self._session._conn.get_result_and_metadata(

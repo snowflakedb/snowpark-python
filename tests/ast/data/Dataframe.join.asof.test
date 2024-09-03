@@ -1,0 +1,22 @@
+## TEST CASE
+
+df1 = session.create_dataframe([['A', 1, 15, 3.21],
+                               ['A', 2, 16, 3.22],
+                               ['B', 1, 17, 3.23],
+                               ['B', 2, 18, 4.23]],
+                              schema=["c1", "c2", "c3", "c4"])
+df2 = session.create_dataframe([['A', 1, 14, 3.19],
+                                ['B', 2, 16, 3.04]],
+                               schema=["c1", "c2", "c3", "c4"])
+
+df1.join(df2, on=(df1.c1 == df2.c1) & (df1.c2 == df2.c2), how="asof",
+         match_condition=(df1.c3 >= df2.c3), lsuffix="_L", rsuffix="_R") \
+         .order_by("C1_L", "C2_L").collect()
+
+## EXPECTED OUTPUT
+
+df1 = session.create_dataframe([["A", 1, 15, 3.21], ["A", 2, 16, 3.22], ["B", 1, 17, 3.23], ["B", 2, 18, 4.23]], schema=["c1", "c2", "c3", "c4"])
+
+df2 = session.create_dataframe([["A", 1, 14, 3.19], ["B", 2, 16, 3.04]], schema=["c1", "c2", "c3", "c4"])
+
+df1.join(df2, on=(df1["c1"] == df2["c1"]) & (df1["c2"] == df2["c2"]), how="asof").sort("C1_L", "C2_L").collect()
