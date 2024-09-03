@@ -1166,7 +1166,9 @@ def is_snowpark_pandas_dataframe_or_series_type(obj: Any) -> bool:
     # Note: Native pandas.DataFrame/Series return False
     # Checking type name instead of using isinstance because of circle import.
     class_type = type(obj)
-    if not class_type.__module__.startswith("snowflake.snowpark.modin.pandas"):
+    if not class_type.__module__.startswith(
+        "snowflake.snowpark.modin.pandas"
+    ) and not class_type.__module__.startswith("modin.pandas"):
         return False
     return class_type.__name__ in {
         "DataFrame",
