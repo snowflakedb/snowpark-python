@@ -1476,10 +1476,6 @@ def test_nested_join_diamond_shape_workaround(session):
     Utils.check_answer(df5, [Row(1, 1)])
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1373887: Support basic diamond shaped joins in Local Testing",
-)
 def test_dataframe_basic_diamond_shaped_join(session):
     df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
     df2 = df1.filter(col("a") > 1).with_column("c", lit(7))
