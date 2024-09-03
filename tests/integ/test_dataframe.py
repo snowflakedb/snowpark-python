@@ -4057,10 +4057,6 @@ def test_select_star_select_columns(session):
     Utils.check_answer(df3, [Row(1, 2)])
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1373887 Basic diamond shaped joins are not supported",
-)
 def test_select_star_join(session):
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     df_star = df.select("*")

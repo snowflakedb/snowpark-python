@@ -311,7 +311,7 @@ class MockSelectStatement(MockSelectable):
                     ColumnChangeState.NEW,
                 ):
                     can_be_flattened = can_projection_dependent_columns_be_flattened(
-                        dependent_columns, subquery_column_states
+                        dependent_columns, new_column_states
                     )
                     if not can_be_flattened:
                         break

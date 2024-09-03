@@ -1031,16 +1031,10 @@ def execute_mock_plan(
                 ]
                 result_df = result_df[reordered_cols]
 
-        common_columns = set(L_expr_to_alias.keys()).intersection(
-            R_expr_to_alias.keys()
-        )
+        # If both sides have a column with shared lineage the left side alias is prefered
         new_expr_to_alias = {
-            k: v
-            for k, v in {
-                **L_expr_to_alias,
-                **R_expr_to_alias,
-            }.items()
-            if k not in common_columns
+            **L_expr_to_alias,
+            **R_expr_to_alias,
         }
         expr_to_alias.update(new_expr_to_alias)
 
