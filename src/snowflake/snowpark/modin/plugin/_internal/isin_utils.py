@@ -272,6 +272,7 @@ def compute_isin_with_dataframe(
         True,
         False,
         False,
+        False,
     )
 
     isin_identifiers = [
