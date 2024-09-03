@@ -173,7 +173,7 @@ class AstBatch:
         self._request.client_ast_version = CLIENT_AST_VERSION
 
     def register_callable(self, func: Callable) -> int:
-        """tracks client-side an actual callable and returns an id."""
+        """Tracks client-side an actual callable and returns an ID."""
         k = id(func)
 
         if k in self._callables.keys():
