@@ -168,7 +168,9 @@ from snowflake.snowpark.mock._pandas_util import (
 )
 from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.mock._stored_procedure import MockStoredProcedureRegistration
+from snowflake.snowpark.mock._udaf import MockUDAFRegistration
 from snowflake.snowpark.mock._udf import MockUDFRegistration
+from snowflake.snowpark.mock._udtf import MockUDTFRegistration
 from snowflake.snowpark.query_history import AstListener, QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
@@ -183,8 +185,10 @@ from snowflake.snowpark.types import (
     DecimalType,
     GeographyType,
     GeometryType,
+    IntegerType,
     MapType,
     StringType,
+    StructField,
     StructType,
     TimestampTimeZone,
     TimestampType,
@@ -520,13 +524,14 @@ class Session:
 
         if isinstance(conn, MockServerConnection):
             self._udf_registration = MockUDFRegistration(self)
+            self._udtf_registration = MockUDTFRegistration(self)
+            self._udaf_registration = MockUDAFRegistration(self)
             self._sp_registration = MockStoredProcedureRegistration(self)
         else:
             self._udf_registration = UDFRegistration(self)
             self._sp_registration = StoredProcedureRegistration(self)
-
-        self._udtf_registration = UDTFRegistration(self)
-        self._udaf_registration = UDAFRegistration(self)
+            self._udtf_registration = UDTFRegistration(self)
+            self._udaf_registration = UDAFRegistration(self)
 
         self._plan_builder = (
             SnowflakePlanBuilder(self)
@@ -2016,6 +2021,7 @@ class Session:
         self,
         func_name: Union[str, List[str], Callable[..., Any], TableFunctionCall],
         *func_arguments: ColumnOrName,
+        _emit_ast: bool = True,
         **func_named_arguments: ColumnOrName,
     ) -> DataFrame:
         """Creates a new DataFrame from the given snowflake SQL table function.
@@ -2104,7 +2110,16 @@ class Session:
         # TODO: Support table_function in MockServerConnection.
         if isinstance(self._conn, MockServerConnection):
             if self._conn._suppress_not_implemented_error:
-                return self.create_dataframe([])
+
+                # TODO: Snowpark does not allow empty dataframes (no schema, no data). Have a dummy schema here.
+                ans = self.createDataFrame(
+                    [],
+                    schema=StructType([StructField("row", IntegerType())]),
+                    _emit_ast=False,
+                )
+                if _emit_ast:
+                    ans._ast_id = stmt.var_id.bitfield1
+                return ans
             else:
                 self._conn.log_not_supported_error(
                     external_feature_name="Session.table_function",
@@ -2204,7 +2219,15 @@ class Session:
             isinstance(self._conn, MockServerConnection)
             and self._conn._suppress_not_implemented_error
         ):
-            return self.createDataFrame([])
+            # TODO: Snowpark does not allow empty dataframes (no schema, no data). Have a dummy schema here.
+            ans = self.createDataFrame(
+                [],
+                schema=StructType([StructField("row", IntegerType())]),
+                _emit_ast=False,
+            )
+            if _emit_ast:
+                ans._ast_id = stmt.var_id.bitfield1
+            return ans
 
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
@@ -3378,10 +3401,7 @@ class Session:
         Returns a :class:`udtf.UDTFRegistration` object that you can use to register UDTFs.
         See details of how to use this object in :class:`udtf.UDTFRegistration`.
         """
-        if isinstance(self._conn, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.udtf", raise_error=NotImplementedError
-            )
+        # TODO: Test udtf support properly.
         return self._udtf_registration
 
     @property

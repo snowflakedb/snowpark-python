@@ -732,6 +732,14 @@ class MockServerConnection:
                 values.append(value)
             rows.append(Row(*values))
 
+        # This should be internally backed by get_result_set. Need to notify query listeners here manually.
+        notify_kwargs = {"requestId": str(uuid.uuid4())}
+        if "_dataframe_ast" in kwargs:
+            notify_kwargs["dataframeAst"] = kwargs["_dataframe_ast"]
+        from snowflake.snowpark.query_history import QueryRecord
+
+        self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)
+
         return rows, attrs
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:

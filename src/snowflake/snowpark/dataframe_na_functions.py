@@ -179,6 +179,7 @@ class DataFrameNaFunctions:
                 ast.subset.list.append(subset)
             elif isinstance(subset, Iterable):
                 ast.subset.list.extend(subset)
+            self._df.set_ast_ref(ast.df)
 
         # if subset is not provided, drop will be applied to all columns
         if subset is None:

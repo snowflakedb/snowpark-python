@@ -17,6 +17,7 @@ from unittest.mock import MagicMock
 
 import pandas
 
+from snowflake.snowpark._internal.analyzer.table_function import TableFunctionJoin
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     DeleteMergeExpression,
     InsertMergeExpression,
@@ -202,6 +203,14 @@ class MockExecutionPlan(LogicalPlan):
     @property
     def attributes(self) -> List[Attribute]:
         output = describe(self)
+
+        # Special case: TableFunctionJoin, the logic is currently written to expect to return
+        #               both input + output columns joined together. Else, code in select() crashes
+        #               for local testing mode.
+        if isinstance(self.source_plan, TableFunctionJoin):
+            # prepend arguments.
+            return self.source_plan.table_function.args + output
+
         return output
 
     @cached_property
@@ -538,6 +547,69 @@ def handle_udf_expression(
             SnowparkLocalTestingException.raise_from_error(
                 err, error_message=f"Python Interpreter Error: {err}"
             )
+
+        return res
+
+
+def handle_udtf_expression(
+    exp: FunctionExpression,
+    input_data: Union[TableEmulator, ColumnEmulator],
+    analyzer: "MockAnalyzer",
+    expr_to_alias: Dict[str, str],
+    current_row=None,
+):
+
+    # TODO: handle and support imports + other udtf attributes.
+
+    udtf_registry = analyzer.session.udtf
+    udtf_name = exp.func_name
+    udtf = udtf_registry.get_udtf(udtf_name)
+
+    # calls __init__ in UDTF handler.
+    handler = udtf.handler()
+
+    # Vectorized or non-vectorized UDTF?
+    if hasattr(handler, "end_partition") and hasattr(
+        handler.end_partition, "_sf_vectorized_input"
+    ):
+        # vectorized
+        df = input_data.copy()
+        df.columns = [c.strip('"') for c in df.columns]
+
+        data = handler.end_partition(df)
+
+        return data
+    else:
+
+        res = ColumnEmulator(
+            data=[],
+            sf_type=ColumnType(exp.datatype, exp.nullable),
+            name=quote_name(f"{exp.udf_name}({', '.join(input_data.columns)})".upper()),
+            dtype=object,
+        )
+
+        # Process each row
+        if hasattr(handler, "process"):
+            data = []
+            for _, row in input_data.iterrows():
+                if udtf.strict and any([v is None for v in row]):
+                    result = None
+                else:
+                    result = remove_null_wrapper(handler.process(*row))
+                data.append(result)
+
+            res = ColumnEmulator(
+                data=data,
+                sf_type=ColumnType(exp.datatype, exp.nullable),
+                name=quote_name(
+                    f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
+                ),
+                dtype=object,
+            )
+
+        # Finish partition
+        if hasattr(handler, "end_partition"):
+            handler.end_partition()
 
         return res
 
@@ -1547,6 +1619,15 @@ def execute_mock_plan(
         }
 
         return result
+    elif isinstance(source_plan, TableFunctionJoin):
+
+        child_rf = execute_mock_plan(source_plan.children[0], expr_to_alias)
+
+        output = handle_udtf_expression(
+            source_plan.table_function, child_rf, analyzer, expr_to_alias
+        )
+
+        return output
 
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking SnowflakePlan {type(source_plan).__name__}",
@@ -2058,9 +2139,9 @@ def calculate_expression(
             res_col = pd.concat(res_cols) if res_cols else ColumnEmulator([])
             res_col.index = res_index
             if res_cols:
-                res_col.set_sf_type(res_cols[0].sf_type)
+                res_col.sf_type = res_cols[0].sf_type
             else:
-                res_col.set_sf_type(ColumnType(NullType(), True))
+                res_col.sf_type = ColumnType(NullType(), True)
             return res_col.sort_index()
         elif isinstance(window_function, (Lead, Lag)):
             calculated_sf_type = None
@@ -2307,12 +2388,12 @@ def calculate_expression(
             and col[index][field] is None
         ]
         res = col.apply(lambda x: None if x is None or field not in x else x[field])
-        res.set_sf_type(ColumnType(VariantType(), col.sf_type.nullable))
+        res.sf_type = ColumnType(VariantType(), col.sf_type.nullable)
         return res
     elif isinstance(exp, SubfieldInt):
         col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
         res = col.apply(lambda x: None if x is None else x[exp.field])
-        res.set_sf_type(ColumnType(VariantType(), col.sf_type.nullable))
+        res.sf_type = ColumnType(VariantType(), col.sf_type.nullable)
         return res
     elif isinstance(exp, SnowflakeUDF):
         return handle_udf_expression(exp, input_data, analyzer, expr_to_alias)

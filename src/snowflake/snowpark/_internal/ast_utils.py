@@ -9,7 +9,7 @@ import re
 import sys
 from functools import reduce
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, Optional, Tuple, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
+from snowflake.snowpark._internal.ast import AstBatch
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
@@ -172,6 +173,11 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
         raise NotImplementedError(
             "TODO SNOW-1629946: Implement TableFunctionCall with args."
         )
+    elif isinstance(obj, snowflake.snowpark._internal.type_utils.DataType):
+        ast = with_src_position(expr_builder.sp_datatype_val)
+        obj._fill_ast(ast.datatype)
+    elif isinstance(obj, snowflake.snowpark._internal.analyzer.expression.Literal):
+        build_expr_from_python_val(expr_builder, obj.value)
     else:
         raise NotImplementedError("not supported type: %s" % type(obj))
 
@@ -722,3 +728,26 @@ def fill_sp_write_file(
             t = expr.copy_options.add()
             t._1 = k
             build_expr_from_python_val(t._2, v)
+
+
+def build_proto_from_callable(
+    expr_builder: proto.SpCallable, func: Callable, ast_batch: Optional[AstBatch] = None
+):
+    """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as SpCallable protobuf."""
+
+    # TODO SNOW-1514712: This will be filled in as part of UDF ticket.
+    pass
+
+
+def build_proto_from_pivot_values(
+    expr_builder: proto.SpPivotValue,
+    values: Optional[Union[Iterable["LiteralType"], "DataFrame"]],  # noqa: F821
+):
+    """Helper function to encode Snowpark pivot values that are used in various pivot operations to AST."""
+    if not values:
+        return
+
+    if isinstance(values, snowflake.snowpark.dataframe.DataFrame):
+        expr_builder.sp_pivot_value__dataframe.v.id.bitfield1 = values._ast_id
+    else:
+        build_expr_from_python_val(expr_builder.sp_pivot_value__expr.v, values)
