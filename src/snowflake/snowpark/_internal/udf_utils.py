@@ -397,7 +397,7 @@ def get_opt_arg_defaults(
         input_types: List[DataType],
         convert_python_str_to_object: bool,
     ) -> List[Optional[str]]:
-        num_optional_args = len(default_values)
+        num_optional_args = len(default_values) if default_values is not None else 0
         num_positional_args = len(input_types) - num_optional_args
         input_types_for_default_args = input_types[-num_optional_args:]
         if convert_python_str_to_object:
@@ -406,10 +406,13 @@ def get_opt_arg_defaults(
                 for value, tp in zip(default_values, input_types_for_default_args)
             ]
 
-        default_values_to_sql_str = [
-            to_sql(value, datatype)
-            for value, datatype in zip(default_values, input_types_for_default_args)
-        ]
+        if num_optional_args != 0:
+            default_values_to_sql_str = [
+                to_sql(value, datatype)
+                for value, datatype in zip(default_values, input_types_for_default_args)
+            ]
+        else:
+            default_values_to_sql_str = []
         return [None] * num_positional_args + default_values_to_sql_str
 
     def get_opt_arg_defaults_from_callable():

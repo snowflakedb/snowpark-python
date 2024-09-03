@@ -189,7 +189,6 @@ from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_snowpark_column_or_python_val,
     build_expr_from_snowpark_column_or_sql_str,
     build_table_fn_apply,
-    build_udf_apply,
     create_ast_for_column,
     set_builtin_fn_alias,
     snowpark_expression_to_ast,
@@ -7333,6 +7332,7 @@ def udf(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     comment: Optional[str] = None,
+    _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
@@ -7494,6 +7494,7 @@ def udf(
     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
         session
     )
+
     if session is None:
         udf_registration_method = UDFRegistration(session=session).register
     else:
@@ -7521,6 +7522,7 @@ def udf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            _emit_ast=_emit_ast,
             **kwargs,
         )
     else:
@@ -7545,6 +7547,7 @@ def udf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            _emit_ast=_emit_ast,
             **kwargs,
         )
 
@@ -8321,10 +8324,7 @@ def pandas_udtf(
         )
 
 
-def call_udf(
-    udf_name: str,
-    *args: ColumnOrLiteral,
-) -> Column:
+def call_udf(udf_name: str, *args: ColumnOrLiteral, _emit_ast: bool = True) -> Column:
     """Calls a user-defined function (UDF) by name.
 
     Args:
@@ -8346,13 +8346,36 @@ def call_udf(
         -------------------------------
         <BLANKLINE>
     """
-    # AST
-    ast = proto.Expr()
-    build_udf_apply(ast, udf_name, *args)
-
     validate_object_name(udf_name)
+
+    ast = None
+    # AST.
+    if _emit_ast:
+        args_list = parse_positional_args_to_list(*args)
+        ast = proto.Expr()
+        # Note: The type hint says ColumnOrLiteral, but in Snowpark sometimes arbitrary
+        #       Python objects are passed.
+        build_builtin_fn_apply(
+            ast,
+            "call_udf",
+            *(
+                (udf_name,)
+                + tuple(
+                    snowpark_expression_to_ast(arg)
+                    if isinstance(arg, Expression)
+                    else arg
+                    for arg in args_list
+                )
+            ),
+        )
+
     return _call_function(
-        udf_name, False, *args, api_call_source="functions.call_udf", _ast=ast
+        udf_name,
+        False,
+        *args,
+        api_call_source="functions.call_udf",
+        _ast=ast,
+        _emit_ast=_emit_ast,
     )
 
 
@@ -8479,11 +8502,12 @@ def _call_function(
     api_call_source: Optional[str] = None,
     is_data_generator: bool = False,
     _ast: proto.Expr = None,
+    _emit_ast: bool = True,
 ) -> Column:
 
     args_list = parse_positional_args_to_list(*args)
     ast = _ast
-    if ast is None:
+    if ast is None and _emit_ast:
         ast = proto.Expr()
         # Note: The type hint says ColumnOrLiteral, but in Snowpark sometimes arbitrary
         #       Python objects are passed.
@@ -8506,6 +8530,7 @@ def _call_function(
             is_data_generator=is_data_generator,
         ),
         ast=ast,
+        _emit_ast=_emit_ast,
     )
 
 

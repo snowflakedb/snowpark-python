@@ -19,8 +19,14 @@ from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
+from snowflake.snowpark._internal.ast_utils import (
+    build_udf,
+    build_udf_apply,
+    with_src_position,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import (
     open_telemetry_udf_context_manager,
@@ -77,6 +83,8 @@ class UserDefinedFunction:
         name: str,
         is_return_nullable: bool = False,
         packages: Optional[List[Union[str, ModuleType]]] = None,
+        _ast: Optional[proto.Udf] = None,
+        _ast_id: Optional[int] = None,
     ) -> None:
         #: The Python function or a tuple containing the Python file path and the function name.
         self.func: Union[Callable, Tuple[str, str]] = func
@@ -88,9 +96,12 @@ class UserDefinedFunction:
         self._is_return_nullable = is_return_nullable
         self._packages = packages
 
+        # If None, no ast will be emitted. Else, passed whenever udf is invoked.
+        self._ast = _ast
+        self._ast_id = _ast_id
+
     def __call__(
-        self,
-        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+        self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]], _emit_ast: bool = True
     ) -> Column:
         if len(cols) >= 1 and isinstance(cols[0], (list, tuple)):
             warning(
@@ -110,9 +121,15 @@ class UserDefinedFunction:
                     f"The input of UDF {self.name} must be Column, column name, or a list of them"
                 )
 
-        raise NotImplementedError("TODO SNOW-1514712: support UDxFs")
+        udf_expr = None
+        if _emit_ast:
+            assert (
+                self._ast is not None
+            ), "Need to ensure _emit_ast is True when registering UDF."
+            udf_expr = proto.Expr()
+            build_udf_apply(udf_expr, self._ast_id, *cols)
 
-        return Column(self._create_udf_expression(exprs))
+        return Column(self._create_udf_expression(exprs), ast=udf_expr)
 
     def _create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
         # len(exprs) can be less than len(self._input_types) if udf has
@@ -510,6 +527,7 @@ class UDFRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
+        _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedFunction:
         """
@@ -639,6 +657,7 @@ class UDFRegistration:
                 api_call_source="UDFRegistration.register"
                 + ("[pandas_udf]" if _from_pandas else ""),
                 is_permanent=is_permanent,
+                _emit_ast=_emit_ast,
             )
 
     def register_from_file(
@@ -665,6 +684,7 @@ class UDFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         skip_upload_on_content_match: bool = False,
+        _emit_ast: bool = True,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF from a Python or zip file,
@@ -794,6 +814,7 @@ class UDFRegistration:
                 api_call_source="UDFRegistration.register_from_file",
                 skip_upload_on_content_match=skip_upload_on_content_match,
                 is_permanent=is_permanent,
+                _emit_ast=_emit_ast,
             )
 
     def _do_register_udf(
@@ -823,7 +844,45 @@ class UDFRegistration:
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
+        _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedFunction:
+
+        # AST. Capture original parameters, before any pre-processing.
+        ast = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(proto.Udf(), stmt)
+            build_udf(
+                ast,
+                func,
+                return_type,
+                input_types,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                max_batch_size,
+                from_pandas_udf_function,
+                strict,
+                secure,
+                external_access_integrations,
+                secrets,
+                immutable,
+                comment,
+                native_app_params,
+                statement_params,
+                source_code_display,
+                api_call_source,
+                skip_upload_on_content_match,
+                is_permanent,
+                session=self._session,
+                **kwargs,
+            )
+
         # get the udf name, return and input types
         (
             udf_name,
@@ -928,6 +987,10 @@ class UDFRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return UserDefinedFunction(
+        udf = UserDefinedFunction(
             func, return_type, input_types, udf_name, packages=packages
         )
+
+        udf._ast = ast
+
+        return udf
