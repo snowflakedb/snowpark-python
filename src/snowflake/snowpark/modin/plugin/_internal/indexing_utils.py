@@ -1891,6 +1891,7 @@ def _set_2d_labels_helper_for_frame_item(
     assert len(index.data_column_snowflake_quoted_identifiers) == len(
         item.index_column_snowflake_quoted_identifiers
     ), "TODO: SNOW-966427 handle it well in multiindex case"
+
     if not matching_item_rows_by_label:
         index = index.ensure_row_position_column()
         left_on = [index.row_position_snowflake_quoted_identifier]
@@ -2127,6 +2128,7 @@ def set_frame_2d_labels(
     matching_item_rows_by_label: bool,
     index_is_bool_indexer: bool,
     deduplicate_columns: bool,
+    item_is_series: bool,
 ) -> InternalFrame:
     """
     Helper function to handle the general loc set functionality. The general idea here is to join the key from ``index``
@@ -2153,6 +2155,7 @@ def set_frame_2d_labels(
         index_is_bool_indexer: if True, the index is a boolean indexer. Note we only handle boolean indexer with
                 item is a SnowflakeQueryCompiler here.
         deduplicate_columns: if True, deduplicate columns from ``columns``.
+        item_is_series: if item is from a Series
     Returns:
         New frame where values have been set
     """
@@ -2215,6 +2218,36 @@ def set_frame_2d_labels(
     index_is_frame = isinstance(index, InternalFrame)
     item_is_frame = isinstance(item, InternalFrame)
     item_is_scalar = is_scalar(item)
+    original_index = index
+    # If item is Series (rather than a Dataframe), then we need to flip the series item values so they apply across
+    # columns rather than rows.
+    if item_is_series and (columns == slice(None) or len(columns) > 1):  # type: ignore[arg-type]
+        # If we columns is slice(None), we are setting all columns in the InternalFrame.
+        matching_item_columns_by_label = True
+        col_len = (
+            len(internal_frame.data_column_snowflake_quoted_identifiers)
+            if columns == slice(None)
+            else len(columns)  # type: ignore[arg-type]
+        )
+        item = get_item_series_as_single_row_frame(
+            item, col_len, move_index_to_cols=True
+        )
+
+        if is_scalar(index):
+            new_item = item.append_column("__index__", pandas_lit(index))
+            item = InternalFrame.create(
+                ordered_dataframe=new_item.ordered_dataframe,
+                data_column_pandas_labels=item.data_column_pandas_labels,
+                data_column_snowflake_quoted_identifiers=item.data_column_snowflake_quoted_identifiers,
+                data_column_pandas_index_names=item.data_column_pandas_index_names,
+                index_column_pandas_labels=item.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=[
+                    new_item.data_column_snowflake_quoted_identifiers[-1]
+                ],
+                data_column_types=item.cached_data_column_snowpark_pandas_types,
+                index_column_types=[item.cached_data_column_snowpark_pandas_types[-1]],
+            )
+            index = pd.Series([index])._query_compiler._modin_frame
 
     assert not isinstance(index, slice) or index == slice(
         None
@@ -2411,7 +2444,7 @@ def set_frame_2d_labels(
 
         if index_is_scalar:
             col_obj = iff(
-                result_frame_index_col.equal_null(pandas_lit(index)),
+                result_frame_index_col.equal_null(pandas_lit(original_index)),
                 col_obj,
                 original_col,
             )
@@ -2466,7 +2499,7 @@ def set_frame_2d_labels(
             return SnowparkPandasColumn(pandas_lit(None), None)
         if index_is_scalar:
             new_column = iff(
-                result_frame_index_col.equal_null(pandas_lit(index)),
+                result_frame_index_col.equal_null(pandas_lit(original_index)),
                 new_column,
                 pandas_lit(None),
             )
@@ -2602,7 +2635,6 @@ def set_frame_2d_positional(
         index = _get_adjusted_key_frame_by_row_pos_int_frame(internal_frame, index)
 
     assert isinstance(index_data_type, (_IntegralType, BooleanType))
-
     if isinstance(item, InternalFrame):
         # If item is Series (rather than a Dataframe), then we need to flip the series item values so they apply across
         # columns rather than rows.
@@ -2916,7 +2948,9 @@ def get_kv_frame_from_index_and_item_frames(
 
 
 def get_item_series_as_single_row_frame(
-    item: InternalFrame, num_columns: int
+    item: InternalFrame,
+    num_columns: int,
+    move_index_to_cols: Optional[bool] = False,
 ) -> InternalFrame:
     """
     Get an internal frame that transpose single data column into frame with single row.  For example, if the
@@ -2938,13 +2972,18 @@ def get_item_series_as_single_row_frame(
     ----------
         num_columns: Number of columns in the return frame
         item: Item frame that contains a single column of values.
+        move_index_to_cols: Whether to use the index as the column names.
 
     Returns
     -------
         Frame containing single row with columns for each row.
     """
     item = item.ensure_row_position_column()
-    item_series_pandas_labels = list(range(num_columns))
+    item_series_pandas_labels = (
+        list(range(num_columns))
+        if not move_index_to_cols
+        else item.index_columns_pandas_index().values
+    )
 
     # This is a 2 step process.
     #
