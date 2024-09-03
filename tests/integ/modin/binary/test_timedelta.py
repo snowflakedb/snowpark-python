@@ -14,6 +14,7 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
+    assert_frame_equal,
     assert_series_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
@@ -308,6 +309,9 @@ def op_between_numeric_and_timedelta(request) -> list[str]:
 
 @pytest.fixture(
     params=[
+        -2.5,
+        -2,
+        -1,
         1,
         0.5,
         1.5,
@@ -512,6 +516,35 @@ class TestInvalid:
 
     @sql_count_checker(query_count=0)
     @pytest.mark.parametrize(
+        "op,error_message_type",
+        [
+            ("pow", "Numeric"),
+            ("rpow", "Numeric"),
+            ("__and__", "Boolean"),
+            ("__rand__", "Boolean"),
+            ("__or__", "Boolean"),
+            ("__ror__", "Boolean"),
+        ],
+    )
+    def test_invalid_ops_between_timedelta_dataframe_and_string_scalar(
+        self, op, timedelta_dataframes_1, error_message_type
+    ):
+        eval_snowpark_pandas_result(
+            *timedelta_dataframes_1,
+            lambda df: getattr(df, op)("4 days"),
+            expect_exception=True,
+            expect_exception_type=SnowparkSQLException,
+            expect_exception_match=f"{error_message_type} value '.*' is not recognized",
+            # pandas raises errors like "TypeError: ufunc 'power' not supported
+            # for the input types, and the inputs could not be safely coerced
+            # to any supported types according to the casting rule ''safe''."
+            # We follow the general pattern for binary operations of not trying
+            # to match pandas exactly.
+            assert_exception_equal=False,
+        )
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.parametrize(
         "op,error_pattern",
         [
             ("__or__", "__or__"),
@@ -543,7 +576,7 @@ class TestNumericEdgeCases:
         "lhs,rhs,expected_pandas,expected_snow",
         [(3, -2, -1, 1), (-3, -2, -1, -1), (-3, 2, 1, -1)],
     )
-    def test_timedelta_mod_with_negative(
+    def test_timedelta_mod_with_negative_timedelta(
         self, lhs, rhs, expected_pandas, expected_snow
     ):
         """Snowflake sometimes has different behavior for mod with negative numbers."""
@@ -554,6 +587,25 @@ class TestNumericEdgeCases:
         )
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
             snow_series % pd.Timedelta(rhs),
+            native_pd.Series(pd.Timedelta(expected_snow)),
+        )
+
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "lhs,rhs,expected_pandas,expected_snow",
+        [(3, -2, 1, 1), (-3, -2, -1, -1), (-3, 2, -1, -1)],
+    )
+    def test_timedelta_mod_with_negative_numeric(
+        self, lhs, rhs, expected_pandas, expected_snow
+    ):
+        """Snowflake sometimes has different behavior for mod with negative numbers."""
+        snow_series, pandas_series = create_test_series(pd.Timedelta(lhs))
+        assert_series_equal(
+            pandas_series % rhs,
+            native_pd.Series(pd.Timedelta(expected_pandas)),
+        )
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            snow_series % rhs,
             native_pd.Series(pd.Timedelta(expected_snow)),
         )
 
@@ -827,6 +879,68 @@ class TestDataFrameAndScalar:
             *numeric_dataframes_postive_no_nulls_1_2x2,
             lambda df: getattr(df, op_between_numeric_and_timedelta)(
                 timedelta_scalar_positive
+            ),
+        )
+
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize("op", ["mul", "rmul"])
+    def test_datetime_timedelta_scalar_multiply_with_numeric_dataframe(
+        self,
+        numeric_dataframes_postive_no_nulls_1_2x2,
+        op,
+    ):
+        """
+        Test valid multiplication between numeric dataframe and datetime.timedelta scalar
+
+        We test this case separately from other timedelta scalar cases due to
+        https://github.com/pandas-dev/pandas/issues/59656
+        """
+        eval_snowpark_pandas_result(
+            *numeric_dataframes_postive_no_nulls_1_2x2,
+            lambda df: getattr(df, op)(datetime.timedelta(microseconds=2)),
+        )
+
+    @sql_count_checker(query_count=1)
+    def test_datetime_timedelta_scalar_divide_by_numeric_dataframe(
+        self,
+    ):
+        """
+        Test valid division between numeric dataframe and datetime.timedelta scalar
+
+        We test this case separately from other timedelta scalar cases due to
+        https://github.com/pandas-dev/pandas/issues/59656
+        """
+        modin_df, pandas_df = create_test_dfs([[1.5, 1001]])
+        scalar = datetime.timedelta(microseconds=2)
+        # Due to https://github.com/pandas-dev/pandas/issues/59656, pandas
+        # produces a result with microsecond precision, i.e. dtype
+        # timedelt64[us], so it represents pd.Timedelta(microseconds=2) /
+        # 1.5 as pd.Timedelta(microseconds=1) instead of as
+        # pd.Timedelta(nanoseconds=1333). Likewise, it represents
+        # pd.Timedelta(microseconds=2) / 1001 as
+        # pd.Timedelta(microseconds=0) instead of as
+        # pd.Timedelta(nanoseconds=1).
+        assert_frame_equal(
+            scalar / pandas_df,
+            native_pd.DataFrame(
+                [
+                    [
+                        pd.Timedelta(microseconds=1),
+                        pd.Timedelta(microseconds=0),
+                    ],
+                ],
+                dtype="timedelta64[us]",
+            ),
+        )
+        assert_frame_equal(
+            scalar / modin_df,
+            native_pd.DataFrame(
+                [
+                    [
+                        pd.Timedelta(nanoseconds=1333),
+                        pd.Timedelta(nanoseconds=1),
+                    ],
+                ]
             ),
         )
 
