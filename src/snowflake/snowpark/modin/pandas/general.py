@@ -2720,7 +2720,7 @@ def bdate_range(
     start: VALID_DATE_TYPE | None = None,
     end: VALID_DATE_TYPE | None = None,
     periods: int | None = None,
-    freq: Frequency | str | pd.DateOffset | dt.timedelta | None = None,
+    freq: Frequency | str | pd.DateOffset | dt.timedelta | None = "B",
     tz: str | tzinfo | None = None,
     normalize: bool = True,
     name: Hashable | None = None,
