@@ -442,7 +442,7 @@ class TestInvalid:
     @pytest.mark.parametrize("op", ["add", "radd", "sub", "rsub"])
     @pytest.mark.parametrize("value", [1, 1.5])
     @sql_count_checker(query_count=0)
-    def test_timedelta_addition_and_subtraction_with_non_timedelta_numeric(
+    def test_timedelta_addition_and_subtraction_with_numeric(
         self, timedelta_dataframes_1, op, value
     ):
         eval_snowpark_pandas_result(
