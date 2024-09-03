@@ -12,7 +12,7 @@
 
 #### Improvements
 
-- Added support for `ln` in `snowflake.snowpark.functions`
+- Improved documentation for `Session.write_pandas` by making `use_logical_type` option more explicit.
 - Added support for specifying the following to `DataFrameWriter.save_as_table`:
   - `enable_schema_evolution`
   - `data_retention_time`
@@ -63,6 +63,7 @@
   - support for lazy `TimedeltaIndex`.
   - support for `pd.to_timedelta`.
   - support for `GroupBy` aggregations `min`, `max`, `mean`, `idxmax`, `idxmin`, `std`, `sum`, `median`, `count`, `any`, `all`, `size`, `nunique`.
+  - support for `TimedeltaIndex` attributes: `days`, `seconds`, `microseconds` and `nanoseconds`.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
@@ -76,6 +77,10 @@
 - Added support for `Index.is_boolean`, `Index.is_integer`, `Index.is_floating`, `Index.is_numeric`, and `Index.is_object`.
 - Added support for `DatetimeIndex.round`, `DatetimeIndex.floor` and `DatetimeIndex.ceil`.
 - Added support for `Series.dt.days_in_month` and `Series.dt.daysinmonth`.
+- Added support for `DataFrameGroupBy.value_counts` and `SeriesGroupBy.value_counts`.
+- Added support for `Series.is_monotonic_increasing` and `Series.is_monotonic_decreasing`.
+- Added support for `Index.is_monotonic_increasing` and `Index.is_monotonic_decreasing`.
+- Added support for `pd.crosstab`.
 - Added support for lazy `Index` objects  as `labels` in `DataFrame.reindex` and `Series.reindex`.
 
 #### Improvements
