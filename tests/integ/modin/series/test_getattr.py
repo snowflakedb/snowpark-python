@@ -16,7 +16,8 @@ from tests.integ.modin.utils import assert_index_equal, assert_series_equal
 @pytest.mark.parametrize(
     "name, expected_query_count, expected_join_count",
     [
-        ("a", 2, 2),
+        # Upstream Modin performs a check against self.index["a"] rather than self["a"], incurring an additional query.
+        ("a", 3, 2),
         ("index", 1, 0),
         ("mean", 0, 0),
     ],
@@ -43,7 +44,8 @@ def test_getattr(name, expected_query_count, expected_join_count):
 @pytest.mark.parametrize(
     "name, expected_query_count",
     [
-        ("columns", 1),
+        # columns is whitelisted
+        ("columns", 0),
         ("unknown", 1),
         ("____id_pack__", 0),
         ("__name__", 0),
