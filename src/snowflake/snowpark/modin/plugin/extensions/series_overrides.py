@@ -9,7 +9,7 @@ pandas, such as `Series.memory_usage`.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Hashable, Literal, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Hashable, Literal, Mapping, Sequence
 
 import modin.pandas as pd
 import numpy as np
@@ -834,6 +834,34 @@ def aggregate(
 register_series_accessor("agg")(aggregate)
 
 
+# Upstream Modin does a significant amount of frontend manipulation and may default to pandas.
+@register_series_accessor("apply")
+@snowpark_pandas_telemetry_method_decorator
+def apply(
+    self,
+    func: AggFuncType,
+    convert_dtype: bool = True,
+    args: tuple[Any, ...] = (),
+    **kwargs: Any,
+):
+    """
+    Apply a function along an axis of the `BasePandasDataset`.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    self._validate_function(func)
+    new_query_compiler = self._query_compiler.apply_on_series(func, args, **kwargs)
+
+    if convert_dtype:
+        # TODO SNOW-810614: call convert_dtypes for consistency
+        WarningMessage.ignored_argument(
+            operation="apply",
+            argument="convert_dtype",
+            message="convert_dtype is ignored in Snowflake backend",
+        )
+
+    return self.__constructor__(query_compiler=new_query_compiler)
+
+
 # Snowpark pandas does different validation than upstream Modin.
 @register_series_accessor("argmax")
 @snowpark_pandas_telemetry_method_decorator
@@ -1285,6 +1313,30 @@ def value_counts(
         ).set_index_names([self.name]),
         name="proportion" if normalize else "count",
     )
+
+
+# The `suffix` parameter is documented but according to pandas maintainers, "not public."
+# https://github.com/pandas-dev/pandas/issues/54806
+# The parameter is ignored in upstream modin, but Snowpark pandas wants to error if the parameter is given.
+@register_series_accessor("shift")
+@snowpark_pandas_telemetry_method_decorator
+def shift(
+    self,
+    periods: int | Sequence[int] = 1,
+    freq=None,
+    axis: Axis = 0,
+    fill_value: Hashable = no_default,
+    suffix: str | None = None,
+):
+    """
+    Shift index by desired number of periods with an optional time `freq`.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    if axis == 1:
+        # pandas compatible error.
+        raise ValueError("No axis named 1 for object type Series")
+
+    return super(Series, self).shift(periods, freq, axis, fill_value, suffix)
 
 
 # Snowpark pandas uses len(self) instead of len(index), saving a query in some cases.
