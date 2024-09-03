@@ -7,7 +7,6 @@ import os
 import pytest
 
 from snowflake.snowpark import Session
-from snowflake.snowpark.mock._connection import MockServerConnection
 
 
 def default_unparser_path():
@@ -41,7 +40,9 @@ def pytest_configure(config):
 
 @pytest.fixture(scope="function")
 def session():
-    with Session(MockServerConnection()) as s:
+    # Note: Do NOT use Session(MockServerConnection()), as this doesn't setup the correct registrations throughout snowpark.
+    # Need to use the Session.builder to properly register this as active session etc.
+    with Session.builder.config("local_testing", True).create() as s:
         yield s
 
 
