@@ -174,17 +174,18 @@ def test_normalize():
     )
 
 
-def test_isocalendar():
+@pytest.mark.parametrize("name", [None, "hello"])
+def test_isocalendar(name):
     with SqlCounter(query_count=1):
         date_range = native_pd.date_range("2020-05-01", periods=5, freq="4D")
-        native_ser = native_pd.Series(date_range)
+        native_ser = native_pd.Series(date_range, name=name)
         snow_ser = pd.Series(native_ser)
         eval_snowpark_pandas_result(
             snow_ser, native_ser, lambda ser: ser.dt.isocalendar()
         )
     with SqlCounter(query_count=1):
         native_ser = native_pd.to_datetime(
-            native_pd.Series(["2010-01-01", None], name="hello")
+            native_pd.Series(["2010-01-01", None], name=name)
         )
         snow_ser = pd.Series(native_ser)
         eval_snowpark_pandas_result(
