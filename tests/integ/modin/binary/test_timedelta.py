@@ -319,7 +319,7 @@ def op_between_numeric_and_timedelta(request) -> list[str]:
         1001,
     ]
 )
-def numeric_scalar_positive(request) -> list:
+def numeric_scalar_non_null(request) -> list:
     return request.param
 
 
@@ -859,12 +859,12 @@ class TestDataFrameAndScalar:
         self,
         timedelta_dataframes_postive_no_nulls_1_2x2,
         op_between_timedelta_and_numeric,
-        numeric_scalar_positive,
+        numeric_scalar_non_null,
     ):
         eval_snowpark_pandas_result(
             *timedelta_dataframes_postive_no_nulls_1_2x2,
             lambda df: getattr(df, op_between_timedelta_and_numeric)(
-                numeric_scalar_positive
+                numeric_scalar_non_null
             ),
         )
 
@@ -1007,12 +1007,12 @@ class TestSeriesAndScalar:
         self,
         timedelta_series_positive_no_nulls_1_length_6,
         op_between_timedelta_and_numeric,
-        numeric_scalar_positive,
+        numeric_scalar_non_null,
     ):
         eval_snowpark_pandas_result(
             *timedelta_series_positive_no_nulls_1_length_6,
             lambda series: getattr(series, op_between_timedelta_and_numeric)(
-                numeric_scalar_positive
+                numeric_scalar_non_null
             ),
         )
 
