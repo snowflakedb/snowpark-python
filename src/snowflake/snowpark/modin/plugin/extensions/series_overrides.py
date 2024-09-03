@@ -1096,7 +1096,7 @@ def cat(self) -> CategoryMethods:
     return CategoryMethods(self)
 
 
-# Snowpark pandas performs type validation that Modin does not
+# Snowpark pandas performs type validation that Modin does not.
 @register_series_accessor("dt")
 @property
 @snowpark_pandas_telemetry_method_decorator
@@ -1114,8 +1114,12 @@ def dt(self):  # noqa: RT01, D200
     return DatetimeProperties(self)
 
 
+# Snowpark pandas performs type validation that Modin does not.
+# Avoid naming the object "str" to avoid overwriting Python built-in "str".
+@register_series_accessor("str")
 @property
-def str(self):  # noqa: RT01, D200
+@snowpark_pandas_telemetry_method_decorator
+def _str(self):  # noqa: RT01, D200
     """
     Vectorized string functions for Series and Index.
     """

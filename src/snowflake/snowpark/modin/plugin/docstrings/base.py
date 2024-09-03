@@ -1491,7 +1491,7 @@ class BasePandasDataset:
         With a scalar integer.
 
         >>> type(df.iloc[0])
-        <class 'snowflake.snowpark.modin.pandas.series.Series'>
+        <class 'modin.pandas.series.Series'>
         >>> df.iloc[0]
         a    1
         b    2
