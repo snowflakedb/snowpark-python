@@ -183,7 +183,9 @@ def test_isocalendar():
             snow_ser, native_ser, lambda ser: ser.dt.isocalendar()
         )
     with SqlCounter(query_count=1):
-        native_ser = native_pd.to_datetime(native_pd.Series(["2010-01-01", None]))
+        native_ser = native_pd.to_datetime(
+            native_pd.Series(["2010-01-01", None], name="hello")
+        )
         snow_ser = pd.Series(native_ser)
         eval_snowpark_pandas_result(
             snow_ser, native_ser, lambda ser: ser.dt.isocalendar()
