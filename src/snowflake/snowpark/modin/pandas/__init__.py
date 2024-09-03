@@ -88,6 +88,7 @@ import modin.pandas
 
 # TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
 from modin.pandas import plotting  # type: ignore[import]
+from modin.pandas.base import BasePandasDataset
 from modin.pandas.series import _SERIES_EXTENSIONS_, Series
 
 from snowflake.snowpark.modin.pandas.api.extensions import (
@@ -166,11 +167,20 @@ from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: 
 )
 
 # this must occur before overrides are applied
-_attrs_defined_on_modin_base = set(dir(modin.pandas.base.BasePandasDataset))
-_attrs_defined_on_modin_series = set(dir(Series))
-_attrs_defined_on_dataframe = set(
-    dir(DataFrame)
+_attrs_defined_on_modin_series = set()
+for attr_name, attr_value in Series.__dict__.items():
+    base_value = BasePandasDataset.__dict__.get(attr_name, None)
+    if base_value is None or attr_value != base_value:
+        _attrs_defined_on_modin_series.add(attr_name)
+
+_attrs_defined_on_dataframe = (
+    set()
 )  # TODO: SNOW-1063346 revisit when dataframe.py is removed
+for attr_name, attr_value in DataFrame.__dict__.items():
+    base_value = BasePandasDataset.__dict__.get(attr_name, None)
+    if base_value is None or attr_value != base_value:
+        _attrs_defined_on_dataframe.add(attr_name)
+
 
 # base overrides occur before subclass overrides in case subclasses override a base method
 import snowflake.snowpark.modin.plugin.extensions.base_extensions  # isort: skip  # noqa: E402,F401
@@ -200,18 +210,16 @@ _base_telemetry_added_attrs = set()
 
 _series_ext = _SERIES_EXTENSIONS_.copy()
 for attr_name in dir(Series):
-    if (
-        # TODO fix this check for properties defined on series but not base
-        # (may need to use __dict__ instead of dir)
-        attr_name in _attrs_defined_on_modin_base
-        and attr_name in _attrs_defined_on_modin_series
-        and attr_name not in _series_ext
-        and not attr_name.startswith("_")
-    ):
+    # Since Series is defined in upstream Modin, all of its members were either defined upstream
+    # or overridden by extension.
+    if attr_name not in _series_ext and not attr_name.startswith("_"):
         register_series_accessor(attr_name)(
             try_add_telemetry_to_attribute(attr_name, getattr(Series, attr_name))
         )
-        _base_telemetry_added_attrs.add(attr_name)
+        if attr_name not in _attrs_defined_on_modin_series:
+            # attribute was defined on BasePandasDataset and inherited, so don't override it again
+            # for DataFrame
+            _base_telemetry_added_attrs.add(attr_name)
 
 
 # TODO: SNOW-1063346
@@ -220,14 +228,13 @@ for attr_name in dir(Series):
 _dataframe_ext = _DATAFRAME_EXTENSIONS_.copy()
 for attr_name in dir(DataFrame):
     if (
-        attr_name in _attrs_defined_on_modin_base
-        and attr_name not in _attrs_defined_on_dataframe
+        attr_name not in _attrs_defined_on_dataframe
         and attr_name not in _dataframe_ext
         and not attr_name.startswith("_")
     ):
-        # If telemetry was already added via Series, register the override but don't re-wrap
-        # the method in the telemetry annotation. If we don't do this check, we will end up
-        # double-reporting telemetry on some methods.
+        # If this method was inherited from BasePandasDataset and telemetry was already added via
+        # Series, register the override but don't re-wrap the method in the telemetry annotation.
+        # If we don't do this check, we will end up double-reporting telemetry on some methods.
         original_attr = getattr(DataFrame, attr_name)
         new_attr = (
             original_attr
