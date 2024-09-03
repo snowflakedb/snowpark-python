@@ -98,13 +98,15 @@ def register_base_override(method_name: str):
 
     def decorator(base_method: Any):
         base_method = try_add_telemetry_to_attribute(method_name, base_method)
+        parent_method = getattr(BasePandasDataset, method_name, None)
+        if isinstance(parent_method, property):
+            parent_method = parent_method.fget
         # If the method was not defined on Series/DataFrame and instead inherited from the superclass
         # we need to override it as well.
-        # If the attribute is not in Series.__dict__, then it was defined on the parent and inherited.
         series_method = getattr(pd.Series, method_name, None)
         if isinstance(series_method, property):
             series_method = series_method.fget
-        if series_method is None or method_name not in pd.Series.__dict__:
+        if series_method is None or series_method is parent_method:
             register_series_accessor(method_name)(base_method)
         # TODO: SNOW-1063346
         # Since we still use the vendored version of DataFrame and the overrides for the top-level
@@ -112,7 +114,7 @@ def register_base_override(method_name: str):
         df_method = getattr(spd.dataframe.DataFrame, method_name, None)
         if isinstance(df_method, property):
             df_method = df_method.fget
-        if df_method is None or method_name not in spd.dataframe.DataFrame.__dict__:
+        if df_method is None or df_method is parent_method:
             register_dataframe_accessor(method_name)(base_method)
         # Replace base method
         setattr(BasePandasDataset, method_name, base_method)
