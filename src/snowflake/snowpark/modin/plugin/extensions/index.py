@@ -29,6 +29,7 @@ from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 import modin
 import numpy as np
 import pandas as native_pd
+from modin.pandas.base import BasePandasDataset
 from pandas import get_option
 from pandas._libs import lib
 from pandas._libs.lib import is_list_like, is_scalar
@@ -48,7 +49,6 @@ from pandas.core.dtypes.common import (
 from pandas.core.dtypes.inference import is_hashable
 
 from snowflake.snowpark.modin.pandas import DataFrame, Series
-from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import DateTimeOrigin
@@ -398,8 +398,7 @@ class Index(metaclass=TelemetryMeta):
         return self.to_pandas().values
 
     @property
-    @index_not_implemented()
-    def is_monotonic_increasing(self) -> None:
+    def is_monotonic_increasing(self) -> bool:
         """
         Return a boolean if the values are equal or increasing.
 
@@ -411,12 +410,20 @@ class Index(metaclass=TelemetryMeta):
         See Also
         --------
         Index.is_monotonic_decreasing : Check if the values are equal or decreasing
+
+        Examples
+        --------
+        >>> pd.Index([1, 2, 3]).is_monotonic_increasing
+        True
+        >>> pd.Index([1, 2, 2]).is_monotonic_increasing
+        True
+        >>> pd.Index([1, 3, 2]).is_monotonic_increasing
+        False
         """
-        # TODO: SNOW-1458134 implement is_monotonic_increasing
+        return self.to_series().is_monotonic_increasing
 
     @property
-    @index_not_implemented()
-    def is_monotonic_decreasing(self) -> None:
+    def is_monotonic_decreasing(self) -> bool:
         """
         Return a boolean if the values are equal or decreasing.
 
@@ -428,8 +435,17 @@ class Index(metaclass=TelemetryMeta):
         See Also
         --------
         Index.is_monotonic_increasing : Check if the values are equal or increasing
+
+        Examples
+        --------
+        >>> pd.Index([3, 2, 1]).is_monotonic_decreasing
+        True
+        >>> pd.Index([3, 2, 2]).is_monotonic_decreasing
+        True
+        >>> pd.Index([3, 1, 2]).is_monotonic_decreasing
+        False
         """
-        # TODO: SNOW-1458134 implement is_monotonic_decreasing
+        return self.to_series().is_monotonic_decreasing
 
     @property
     def is_unique(self) -> bool:

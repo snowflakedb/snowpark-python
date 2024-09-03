@@ -12,7 +12,7 @@ import typing
 import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
-from typing import Any, Callable, List, Literal, Optional, Tuple, Union, get_args
+from typing import Any, Callable, List, Literal, Optional, Union, get_args
 
 import numpy as np
 import numpy.typing as npt
@@ -135,6 +135,7 @@ from snowflake.snowpark.functions import (
     to_variant,
     translate,
     trim,
+    trunc,
     uniform,
     upper,
     when,
@@ -196,7 +197,10 @@ from snowflake.snowpark.modin.plugin._internal.cut_utils import (
     compute_bin_indices,
     preprocess_bins_for_cut,
 )
-from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
+from snowflake.snowpark.modin.plugin._internal.frame import (
+    InternalFrame,
+    LabelIdentifierPair,
+)
 from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
     GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE,
     GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES,
@@ -382,11 +386,19 @@ QUARTER_START_MONTHS = [1, 4, 7, 10]
 
 SUPPORTED_DT_FLOOR_CEIL_FREQS = ["day", "hour", "minute", "second"]
 
+SECONDS_PER_DAY = 86400
+NANOSECONDS_PER_SECOND = 10**9
+NANOSECONDS_PER_MICROSECOND = 10**3
+MICROSECONDS_PER_SECOND = 10**6
+NANOSECONDS_PER_DAY = SECONDS_PER_DAY * NANOSECONDS_PER_SECOND
+
 
 class SnowflakeQueryCompiler(BaseQueryCompiler):
     """based on: https://modin.readthedocs.io/en/0.11.0/flow/modin/backends/base/query_compiler.html
     this class is best explained by looking at https://github.com/modin-project/modin/blob/a8be482e644519f2823668210cec5cf1564deb7e/modin/experimental/core/storage_formats/hdk/query_compiler.py
     """
+
+    lazy_execution = True
 
     def __init__(self, frame: InternalFrame) -> None:
         """this stores internally a local pandas object (refactor this)"""
@@ -767,6 +779,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def to_numpy(
         self,
         dtype: Optional[npt.DTypeLike] = None,
+        copy: Optional[bool] = False,
         na_value: object = lib.no_default,
         **kwargs: Any,
     ) -> np.ndarray:
@@ -774,6 +787,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # i.e., for something like df.values internally to_numpy().flatten() is called
         # with flatten being another query compiler call into the numpy frontend layer.
         # here it's overwritten to actually perform numpy conversion, i.e. return an actual numpy object
+        if copy:
+            WarningMessage.ignored_argument(
+                operation="to_numpy",
+                argument="copy",
+                message="copy is ignored in Snowflake backend",
+            )
         return self.to_pandas().to_numpy(dtype=dtype, na_value=na_value, **kwargs)
 
     def repartition(self, axis: Any = None) -> "SnowflakeQueryCompiler":
@@ -1400,17 +1419,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         return SnowflakeQueryCompiler(self._modin_frame.persist_to_temporary_table())
 
-    @property
-    def columns(self) -> native_pd.Index:
-        """
-        Get pandas column labels.
-
-        Returns:
-            an index containing all pandas column labels
-        """
-        # TODO SNOW-837664: add more tests for df.columns
-        return self._modin_frame.data_columns_index
-
     @snowpark_pandas_type_immutable_check
     def set_columns(self, new_pandas_labels: Axes) -> "SnowflakeQueryCompiler":
         """
@@ -1464,6 +1472,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_column_types=renamed_frame.cached_index_column_snowpark_pandas_types,
         )
         return SnowflakeQueryCompiler(new_internal_frame)
+
+    # TODO SNOW-837664: add more tests for df.columns
+    def get_columns(self) -> native_pd.Index:
+        return self._modin_frame.data_columns_index
+
+    columns: native_pd.Index = property(get_columns, set_columns)
 
     def _shift_values(
         self, periods: int, axis: Union[Literal[0], Literal[1]], fill_value: Hashable
@@ -2272,9 +2286,82 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             return self._reindex_axis_1(labels=labels, **kwargs)
 
+    def is_monotonic_decreasing(self) -> "SnowflakeQueryCompiler":
+        """
+        Returns a QueryCompiler containing only a column that checks for monotonically
+        decreasing values in the first data column of this QueryCompiler.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            QueryCompiler with column to ascertain whether data is monotonically decreasing.
+        """
+        return self._check_monotonic(increasing=False)
+
+    def is_monotonic_increasing(self) -> "SnowflakeQueryCompiler":
+        """
+        Returns a QueryCompiler containing only a column that checks for monotonically
+        increasing values in the first data column of this QueryCompiler.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            QueryCompiler with column to ascertain whether data is monotonically increasing.
+        """
+        return self._check_monotonic(increasing=True)
+
+    def _check_monotonic(self, increasing: bool) -> "SnowflakeQueryCompiler":
+        """
+        Returns a QueryCompiler containing only a column that checks for monotonically
+        decreasing or increasing values (depending on `increasing`) in the first data column of this QueryCompiler.
+
+        Parameters
+        ----------
+        increasing: bool
+            Whether to check for monotonically increasing or decreasing values.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            QueryCompiler with column to ascertain whether data is monotonically decreasing/increasing.
+        """
+        col_to_check = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
+        (
+            new_qc,
+            monotonic_increasing_snowflake_quoted_identifier,
+            monotonic_decreasing_snowflake_quoted_identifier,
+        ) = self._add_columns_for_monotonicity_checks(
+            col_to_check=col_to_check,
+            columns_to_add="increasing" if increasing else "decreasing",
+        )
+        data_column_snowflake_quoted_identifiers = []
+        if increasing:
+            data_column_snowflake_quoted_identifiers.append(
+                monotonic_increasing_snowflake_quoted_identifier
+            )
+        else:
+            data_column_snowflake_quoted_identifiers.append(
+                monotonic_decreasing_snowflake_quoted_identifier
+            )
+        new_modin_frame = new_qc._modin_frame
+        return SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=new_modin_frame.ordered_dataframe.limit(
+                    n=1, sort=False
+                ),
+                data_column_pandas_index_names=new_modin_frame.data_column_pandas_index_names,
+                data_column_pandas_labels=["monotonic_column"],
+                data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
+                index_column_pandas_labels=new_modin_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=new_modin_frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=None,
+                index_column_types=None,
+            )
+        )
+
     def _add_columns_for_monotonicity_checks(
-        self, col_to_check: str
-    ) -> tuple["SnowflakeQueryCompiler", str, str]:
+        self, col_to_check: str, columns_to_add: Optional[str] = None
+    ) -> tuple["SnowflakeQueryCompiler", Optional[str], Optional[str]]:
         """
         Adds columns that check for monotonicity (increasing or decreasing) in the
         specified column.
@@ -2283,6 +2370,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ----------
         col_to_check : str
             The Snowflake quoted identifier for the column whose monotonicity to check.
+        columns_to_add : str, optional
+            Whether or not to add all columns, and if not, which columns to add.
 
         Returns
         -------
@@ -2293,9 +2382,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         self._raise_not_implemented_error_for_timedelta()
 
+        assert columns_to_add in [
+            None,
+            "increasing",
+            "decreasing",
+        ], "Invalid value passed to function"
         modin_frame = self._modin_frame
         modin_frame = modin_frame.ensure_row_position_column()
         row_position_column = modin_frame.row_position_snowflake_quoted_identifier
+        monotonic_decreasing_snowflake_quoted_id = None
+        monotonic_increasing_snowflake_quoted_id = None
         modin_frame = modin_frame.append_column(
             "_index_lag_col",
             lag(col_to_check).over(Window.order_by(row_position_column)),
@@ -2303,26 +2399,28 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         lag_col_snowflake_quoted_id = (
             modin_frame.data_column_snowflake_quoted_identifiers[-1]
         )
-        modin_frame = modin_frame.append_column(
-            "_is_monotonic_decreasing",
-            coalesce(
-                min_(col(col_to_check) < col(lag_col_snowflake_quoted_id)).over(),
-                pandas_lit(False),
-            ),
-        )
-        monotonic_decreasing_snowflake_quoted_id = (
-            modin_frame.data_column_snowflake_quoted_identifiers[-1]
-        )
-        modin_frame = modin_frame.append_column(
-            "_is_monotonic_increasing",
-            coalesce(
-                min_(col(col_to_check) > col(lag_col_snowflake_quoted_id)).over(),
-                pandas_lit(False),
-            ),
-        )
-        monotonic_increasing_snowflake_quoted_id = (
-            modin_frame.data_column_snowflake_quoted_identifiers[-1]
-        )
+        if columns_to_add in [None, "decreasing"]:
+            modin_frame = modin_frame.append_column(
+                "_is_monotonic_decreasing",
+                coalesce(
+                    min_(col(col_to_check) <= col(lag_col_snowflake_quoted_id)).over(),
+                    pandas_lit(False),
+                ),
+            )
+            monotonic_decreasing_snowflake_quoted_id = (
+                modin_frame.data_column_snowflake_quoted_identifiers[-1]
+            )
+        if columns_to_add in [None, "increasing"]:
+            modin_frame = modin_frame.append_column(
+                "_is_monotonic_increasing",
+                coalesce(
+                    min_(col(col_to_check) >= col(lag_col_snowflake_quoted_id)).over(),
+                    pandas_lit(False),
+                ),
+            )
+            monotonic_increasing_snowflake_quoted_id = (
+                modin_frame.data_column_snowflake_quoted_identifiers[-1]
+            )
         data_column_pandas_labels = modin_frame.data_column_pandas_labels
         data_column_snowflake_quoted_identifiers = (
             modin_frame.data_column_snowflake_quoted_identifiers
@@ -2807,6 +2905,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A new SnowflakeQueryCompiler instance with updated index.
         """
+        if allow_duplicates is no_default:
+            allow_duplicates = False
         # These levels will be moved from index columns to data columns
         levels_to_be_reset = self._modin_frame.parse_levels_to_integer_levels(
             level, allow_duplicates=False
@@ -3007,9 +3107,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def sort_index(
         self,
+        *,
         axis: int,
         level: Optional[list[Union[str, int]]],
         ascending: Union[bool, list[bool]],
+        inplace: bool = False,
         kind: SortKind,
         na_position: NaPosition,
         sort_remaining: bool,
@@ -3025,6 +3127,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             level: If not None, sort on values in specified index level(s).
             ascending: A list of bools to represent ascending vs descending sort. Defaults to True.
                 When the index is a MultiIndex the sort direction can be controlled for each level individually.
+            inplace: Whether or not the sort occurs in-place. This argument is ignored and only provided
+                for compatibility with Modin.
             kind: Choice of sorting algorithm. Perform stable sort if 'stable'. Defaults to unstable sort.
                 Snowpark pandas ignores choice of sorting algorithm except 'stable'.
             na_position: Puts NaNs at the beginning if 'first'; 'last' puts NaNs at the end. Defaults to 'last'
@@ -5024,6 +5128,161 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             drop=drop,
         )
 
+    def groupby_value_counts(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        subset: Optional[list[str]],
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        bins: Optional[int] = None,
+        dropna: bool = True,
+    ) -> "SnowflakeQueryCompiler":
+        level = groupby_kwargs.get("level", None)
+        as_index = groupby_kwargs.get("as_index", True)
+        groupby_sort = groupby_kwargs.get("sort", True)
+        is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
+        if not is_supported:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas GroupBy.value_counts {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
+            )
+        if bins is not None:
+            raise ErrorMessage.not_implemented("bins argument is not yet supported")
+        if not is_list_like(by):
+            by = [by]
+        if len(set(by) & set(subset or [])):
+            # Check for overlap between by and subset. Since column names may contain customer data,
+            # unlike pandas, we do not include the offending labels in the error message.
+            raise ValueError("Keys in subset cannot be in the groupby column keys")
+        if subset is not None:
+            subset_list = subset
+        else:
+            # If subset is unspecified, then all columns should be included.
+            subset_list = self._modin_frame.data_column_pandas_labels
+        # The grouping columns are always included in the subset.
+        # Furthermore, the columns of the output must have the grouping columns first, in the order
+        # that they were specified.
+        subset_list = by + list(filter(lambda label: label not in by, subset_list))
+
+        if as_index:
+            # When as_index=True, the result is a Series with a MultiIndex index.
+            result = self._value_counts_groupby(
+                by=subset_list,
+                # Use sort=False to preserve the original order
+                sort=False,
+                normalize=normalize,
+                ascending=False,
+                dropna=dropna,
+                normalize_within_groups=by,
+            )
+        else:
+            # When as_index=False, the result is a DataFrame where count/proportion is appended as a new named column.
+            result = self._value_counts_groupby(
+                by=subset_list,
+                # Use sort=False to preserve the original order
+                sort=False,
+                normalize=normalize,
+                ascending=False,
+                dropna=dropna,
+                normalize_within_groups=by,
+            ).reset_index()
+            result = result.set_columns(
+                result._modin_frame.data_column_pandas_labels[:-1]
+                + ["proportion" if normalize else "count"]
+            )
+        # pandas currently provides the following behaviors based on the different sort flags.
+        # These behaviors are not entirely consistent with documentation; see this issue for discussion:
+        # https://github.com/pandas-dev/pandas/issues/59307
+        #
+        # Example data (using pandas 2.2.1 behavior):
+        # >>> df = pd.DataFrame({"X": ["B", "A", "A", "B", "B", "B"], "Y": [4, 1, 3, -2, -1, -1]})
+        #
+        # 1. groupby(sort=True).value_counts(sort=True)
+        #   Sort on non-grouping columns, then sort on frequencies, then sort on grouping columns.
+        # >>> df.groupby("X", sort=True).value_counts(sort=True)
+        # X  Y
+        # A   1    1
+        #     3    1
+        # B  -1    2
+        #    -2    1
+        #     4    1
+        # Name: count, dtype: int64
+        #
+        # 2. groupby(sort=True).value_counts(sort=False)
+        #   Sort on non-grouping columns, then sort on grouping columns.
+        # >>> df.groupby("X", sort=True).value_counts(sort=True)
+        # X  Y
+        # X  Y
+        # A   1    1
+        #     3    1
+        # B  -2    1
+        #    -1    2
+        #     4    1
+        # Name: count, dtype: int64
+        #
+        # 3. groupby(sort=False).value_counts(sort=True)
+        #   Sort on frequencies.
+        # >>> df.groupby("X", sort=False).value_counts(sort=True)
+        # X  Y
+        # B  -1    2
+        #     4    1
+        # A   1    1
+        #     3    1
+        # B  -2    1
+        # Name: count, dtype: int64
+        #
+        # 4. groupby(sort=False).value_counts(sort=False)
+        #   Sort on nothing (entries match the order of the original frame).
+        # X  Y
+        # B   4    1
+        # A   1    1
+        #     3    1
+        # B  -2    1
+        #    -1    2
+        # Name: count, dtype: int64
+        #
+        # Lastly, when `normalize` is set with groupby(sort=False).value_counts(sort=True, normalize=True),
+        # pandas will sort by the pre-normalization counts rather than the resulting proportions. As this
+        # is an uncommon edge case, we cannot handle this using existing QC methods efficiently, so we just
+        # update our testing code to account for this.
+        # See comment on issue: https://github.com/pandas-dev/pandas/issues/59307#issuecomment-2313767856
+        sort_cols = []
+        if groupby_sort:
+            # When groupby(sort=True), sort the result on the grouping columns
+            sort_cols = by
+        ascending_cols = [True] * len(sort_cols)
+        if sort:
+            # When sort=True, also sort on the count/proportion column (always the last)
+            sort_cols.append(
+                result._modin_frame.data_column_pandas_labels[-1],
+            )
+            ascending_cols.append(ascending)
+        if groupby_sort:
+            # When groupby_sort=True, also sort by the non-grouping columns before sorting by
+            # the count/proportion column. The left-most column (nearest to the grouping columns
+            # is sorted on last).
+            # Exclude the grouping columns (always the first) from the sort.
+            if as_index:
+                # When as_index is true, the non-grouping columns are part of the index columns
+                columns_to_filter = result._modin_frame.index_column_pandas_labels
+            else:
+                # When as_index is false, the non-grouping columns are part of the data columns
+                columns_to_filter = result._modin_frame.data_column_pandas_labels
+            non_grouping_cols = [
+                col_label for col_label in columns_to_filter if col_label not in by
+            ]
+            sort_cols.extend(non_grouping_cols)
+            ascending_cols.extend([True] * len(non_grouping_cols))
+        return result.sort_rows_by_column_values(
+            columns=sort_cols,
+            ascending=ascending_cols,
+            kind="stable",
+            na_position="last",
+            ignore_index=not as_index,  # When as_index=False, take the default positional index
+        )
+
     def _get_dummies_helper(
         self,
         column: Hashable,
@@ -5442,11 +5701,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     )
                     for agg_arg in agg_args
                 }
+                pandas_labels = list(agg_col_map.keys())
+                if self.is_multiindex(axis=1):
+                    pandas_labels = [
+                        (label,) * len(self.columns.names) for label in pandas_labels
+                    ]
                 single_agg_func_query_compilers.append(
                     SnowflakeQueryCompiler(
-                        frame.project_columns(
-                            list(agg_col_map.keys()), list(agg_col_map.values())
-                        )
+                        frame.project_columns(pandas_labels, list(agg_col_map.values()))
                     )
                 )
         else:  # axis == 0
@@ -10859,6 +11121,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         return self._modin_frame.is_multiindex(axis=axis)
 
+    def abs(self) -> "SnowflakeQueryCompiler":
+        return self.unary_op("abs")
+
+    def negative(self) -> "SnowflakeQueryCompiler":
+        return self.unary_op("__neg__")
+
     def unary_op(self, op: str) -> "SnowflakeQueryCompiler":
         """
         Applies a unary operation `op` on each element of the `SnowflakeQueryCompiler`.
@@ -11502,11 +11770,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _value_counts_groupby(
         self,
-        by: Union[List[Hashable], Tuple[Hashable, ...]],
+        by: Sequence[Hashable],
         normalize: bool,
         sort: bool,
         ascending: bool,
         dropna: bool,
+        *,
+        normalize_within_groups: Optional[list[str]] = None,
     ) -> "SnowflakeQueryCompiler":
         """
         Helper method to obtain the frequency or number of unique values
@@ -11528,6 +11798,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 Sort in ascending order.
             dropna : bool
                 Don't include counts of NaN.
+            normalize_within_groups : list[str], optional
+                If set, the normalize parameter will normalize based on the specified groups
+                rather than the entire dataset. This parameter is exclusive to the Snowpark pandas
+                query compiler and is only used internally to implement groupby_value_counts.
         """
         self._raise_not_implemented_error_for_timedelta()
 
@@ -11557,9 +11831,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # they are normalized to percentages as [2/(2+1+1), 1/(2+1+1), 1/(2+1+1)] = [0.5, 0.25, 0.25]
         # by default, ratio_to_report returns a decimal column, whereas pandas returns a float column
         if normalize:
+            if normalize_within_groups:
+                # If normalize_within_groups is set, then the denominator for ratio_to_report should
+                # be the size of each group instead.
+                normalize_snowflake_quoted_identifiers = [
+                    entry[0]
+                    for entry in internal_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                        normalize_within_groups
+                    )
+                ]
+                window = Window.partition_by(normalize_snowflake_quoted_identifiers)
+            else:
+                window = None
             internal_frame = query_compiler._modin_frame.project_columns(
                 [COUNT_LABEL],
-                builtin("ratio_to_report")(col(count_identifier)).over(),
+                builtin("ratio_to_report")(col(count_identifier)).over(window),
             )
             count_identifier = internal_frame.data_column_snowflake_quoted_identifiers[
                 0
@@ -13858,7 +14144,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         assert len(right_result_data_identifiers) == 1, "other must be a Series"
         right = right_result_data_identifiers[0]
         right_datatype = right_datatypes[0]
-
         # now replace in result frame identifiers with binary op result
         replace_mapping = {}
         snowpark_pandas_types = []
@@ -13880,10 +14165,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         identifiers_to_keep = set(
             new_frame.index_column_snowflake_quoted_identifiers
         ) | set(update_result.old_id_to_new_id_mappings.values())
+        self_is_column_mi = len(self._modin_frame.data_column_pandas_index_names)
         label_to_snowflake_quoted_identifier = []
         snowflake_quoted_identifier_to_snowpark_pandas_type = {}
         for pair in new_frame.label_to_snowflake_quoted_identifier:
             if pair.snowflake_quoted_identifier in identifiers_to_keep:
+                if (
+                    self_is_column_mi
+                    and isinstance(pair.label, tuple)
+                    and isinstance(pair.label[0], tuple)
+                ):
+                    pair = LabelIdentifierPair(
+                        pair.label[0], pair.snowflake_quoted_identifier
+                    )
                 label_to_snowflake_quoted_identifier.append(pair)
                 snowflake_quoted_identifier_to_snowpark_pandas_type[
                     pair.snowflake_quoted_identifier
@@ -13897,7 +14191,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 label_to_snowflake_quoted_identifier
             ),
             num_index_columns=new_frame.num_index_columns,
-            data_column_index_names=new_frame.data_column_index_names,
+            data_column_index_names=self._modin_frame.data_column_index_names,
             snowflake_quoted_identifier_to_snowpark_pandas_type=snowflake_quoted_identifier_to_snowpark_pandas_type,
         )
 
@@ -14308,9 +14602,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             new_frame = InternalFrame.create(
                 ordered_dataframe=expanded_ordered_frame,
                 data_column_pandas_labels=sorted_column_labels,
-                data_column_pandas_index_names=[
-                    None
-                ],  # operation removes column index name always.
+                data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
                 data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers
                 + new_identifiers,
                 index_column_pandas_labels=index_column_pandas_labels,
@@ -14357,7 +14649,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         new_frame = InternalFrame.create(
             ordered_dataframe=expanded_ordered_frame,
             data_column_pandas_labels=expanded_data_column_pandas_labels,
-            data_column_pandas_index_names=[None],  # operation removes names
+            data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
             data_column_snowflake_quoted_identifiers=expanded_data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
@@ -17498,3 +17790,45 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def tz_localize(self, *args: Any, **kwargs: Any) -> None:
         ErrorMessage.method_not_implemented_error("tz_convert", "BasePandasDataset")
+
+    def timedelta_property(
+        self, property_name: str, include_index: bool = False
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Extract a specified component of from Timedelta.
+
+        Parameters
+        ----------
+        property : {'days', 'seconds', 'microseconds', 'nanoseconds'}
+            The component to extract.
+        include_index: Whether to include the index columns in the operation.
+
+        Returns
+        -------
+        A new SnowflakeQueryCompiler with the extracted component.
+        """
+        if not include_index:
+            assert (
+                len(self.columns) == 1
+            ), "dt only works for series"  # pragma: no cover
+
+        # mapping from the property name to the corresponding snowpark function
+        property_to_func_map = {
+            "days": lambda column: trunc(column / NANOSECONDS_PER_DAY),
+            "seconds": lambda column: trunc(column / NANOSECONDS_PER_SECOND)
+            % SECONDS_PER_DAY,
+            "microseconds": lambda column: trunc(column / NANOSECONDS_PER_MICROSECOND)
+            % MICROSECONDS_PER_SECOND,
+            "nanoseconds": lambda column: column % NANOSECONDS_PER_MICROSECOND,
+        }
+        func = property_to_func_map.get(property_name)
+        if not func:
+            class_prefix = (
+                "TimedeltaIndex" if include_index else "Series.dt"
+            )  # pragma: no cover
+            raise ErrorMessage.not_implemented(
+                f"Snowpark pandas doesn't yet support the property '{class_prefix}.{property_name}'"
+            )  # pragma: no cover
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(func, include_index)
+        )

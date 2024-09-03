@@ -6,8 +6,6 @@ import logging
 from collections import defaultdict
 from typing import List, Optional, Tuple
 
-from sortedcontainers import SortedList
-
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_table_if_exists_statement,
 )
@@ -201,11 +199,11 @@ class LargeQueryBreakdown:
 
             1. Traverse the plan tree and find the valid nodes for partitioning.
             2. If no valid node is found, return None.
-            3. Keep valid nodes in a sorted list based on the complexity score.
-            4. Return the node with the highest complexity score.
+            3. Return the node with the highest complexity score.
         """
         current_level = [root]
-        pipeline_breaker_list = SortedList(key=lambda x: x[0])
+        candidate_node = None
+        candidate_score = -1  # start with -1 since score is always > 0
 
         while current_level:
             next_level = []
@@ -215,23 +213,20 @@ class LargeQueryBreakdown:
                     self._parent_map[child].add(node)
                     valid_to_breakdown, score = self._is_node_valid_to_breakdown(child)
                     if valid_to_breakdown:
-                        # Append score and child to the pipeline breaker sorted list
-                        # so that the valid child with the highest complexity score
-                        # is at the end of the list.
-                        pipeline_breaker_list.add((score, child))
+                        # If the score for valid node is higher than the last candidate,
+                        # update the candidate node and score.
+                        if score > candidate_score:
+                            candidate_score = score
+                            candidate_node = child
                     else:
                         # don't traverse subtrees if parent is a valid candidate
                         next_level.append(child)
 
             current_level = next_level
 
-        if not pipeline_breaker_list:
-            # Return None if no valid node is found for partitioning.
-            return None
-
-        # Get the node with the highest complexity score
-        _, child = pipeline_breaker_list.pop()
-        return child
+        # If no valid node is found, candidate_node will be None.
+        # Otherwise, return the node with the highest complexity score.
+        return candidate_node
 
     def _get_partitioned_plan(self, root: TreeNode, child: TreeNode) -> SnowflakePlan:
         """This method takes cuts the child out from the root, creates a temp table plan for the
