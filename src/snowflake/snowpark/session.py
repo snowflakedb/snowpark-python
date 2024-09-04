@@ -168,7 +168,9 @@ from snowflake.snowpark.mock._pandas_util import (
 )
 from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.mock._stored_procedure import MockStoredProcedureRegistration
+from snowflake.snowpark.mock._udaf import MockUDAFRegistration
 from snowflake.snowpark.mock._udf import MockUDFRegistration
+from snowflake.snowpark.mock._udtf import MockUDTFRegistration
 from snowflake.snowpark.query_history import AstListener, QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
@@ -183,8 +185,10 @@ from snowflake.snowpark.types import (
     DecimalType,
     GeographyType,
     GeometryType,
+    IntegerType,
     MapType,
     StringType,
+    StructField,
     StructType,
     TimestampTimeZone,
     TimestampType,
@@ -520,13 +524,14 @@ class Session:
 
         if isinstance(conn, MockServerConnection):
             self._udf_registration = MockUDFRegistration(self)
+            self._udtf_registration = MockUDTFRegistration(self)
+            self._udaf_registration = MockUDAFRegistration(self)
             self._sp_registration = MockStoredProcedureRegistration(self)
         else:
             self._udf_registration = UDFRegistration(self)
             self._sp_registration = StoredProcedureRegistration(self)
-
-        self._udtf_registration = UDTFRegistration(self)
-        self._udaf_registration = UDAFRegistration(self)
+            self._udtf_registration = UDTFRegistration(self)
+            self._udaf_registration = UDAFRegistration(self)
 
         self._plan_builder = (
             SnowflakePlanBuilder(self)
@@ -2016,6 +2021,7 @@ class Session:
         self,
         func_name: Union[str, List[str], Callable[..., Any], TableFunctionCall],
         *func_arguments: ColumnOrName,
+        _emit_ast: bool = True,
         **func_named_arguments: ColumnOrName,
     ) -> DataFrame:
         """Creates a new DataFrame from the given snowflake SQL table function.
@@ -2101,14 +2107,24 @@ class Session:
                 expr, func_name, *func_arguments, **func_named_arguments
             )
 
+        # TODO: Support table_function in MockServerConnection.
         if isinstance(self._conn, MockServerConnection):
-            if not self._conn._suppress_not_implemented_error:
+            if self._conn._suppress_not_implemented_error:
+
+                # TODO: Snowpark does not allow empty dataframes (no schema, no data). Have a dummy schema here.
+                ans = self.createDataFrame(
+                    [],
+                    schema=StructType([StructField("row", IntegerType())]),
+                    _emit_ast=False,
+                )
+                if _emit_ast:
+                    ans._ast_id = stmt.var_id.bitfield1
+                return ans
+            else:
                 self._conn.log_not_supported_error(
                     external_feature_name="Session.table_function",
                     raise_error=NotImplementedError,
                 )
-            else:
-                return None
 
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
@@ -2133,7 +2149,11 @@ class Session:
         return d
 
     def generator(
-        self, *columns: Column, rowcount: int = 0, timelimit: int = 0
+        self,
+        *columns: Column,
+        rowcount: int = 0,
+        timelimit: int = 0,
+        _emit_ast: bool = True,
     ) -> DataFrame:
         """Creates a new DataFrame using the Generator table function.
 
@@ -2181,17 +2201,33 @@ class Session:
             A new :class:`DataFrame` with data from calling the generator table function.
         """
         # AST.
-        stmt = self._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_generator, stmt)
-        col_names, is_variadic = parse_positional_args_to_list_variadic(*columns)
-        for col_name in col_names:
-            ast.columns.append(col_name._ast)
-        ast.row_count = rowcount
-        ast.time_limit_seconds = timelimit
-        ast.variadic = is_variadic
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_generator, stmt)
+            col_names, is_variadic = parse_positional_args_to_list_variadic(*columns)
+            for col_name in col_names:
+                ast.columns.append(col_name._ast)
+            ast.row_count = rowcount
+            ast.time_limit_seconds = timelimit
+            ast.variadic = is_variadic
 
-        if self._conn._suppress_not_implemented_error:
-            return None
+        # TODO: Support generator in MockServerConnection.
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
+        if (
+            isinstance(self._conn, MockServerConnection)
+            and self._conn._suppress_not_implemented_error
+        ):
+            # TODO: Snowpark does not allow empty dataframes (no schema, no data). Have a dummy schema here.
+            ans = self.createDataFrame(
+                [],
+                schema=StructType([StructField("row", IntegerType())]),
+                _emit_ast=False,
+            )
+            if _emit_ast:
+                ans._ast_id = stmt.var_id.bitfield1
+            return ans
 
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
@@ -2218,11 +2254,15 @@ class Session:
                     ),
                     analyzer=self._analyzer,
                 ),
+                ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
             d = DataFrame(
                 self,
                 TableFunctionRelation(func_expr),
+                ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         set_api_call_source(d, "Session.generator")
         return d
@@ -2785,7 +2825,7 @@ class Session:
                 )
                 sf_schema = self._conn._get_current_parameter("schema", quoted=False)
 
-                t = self.write_pandas(
+                table = self.write_pandas(
                     data,
                     temp_table_name,
                     database=sf_database,
@@ -2795,14 +2835,23 @@ class Session:
                     table_type="temporary",
                     use_logical_type=self._use_logical_type_for_create_df,
                 )
-                set_api_call_source(t, "Session.create_dataframe[pandas]")
+                set_api_call_source(table, "Session.create_dataframe[pandas]")
 
                 if _emit_ast:
-                    raise NotImplementedError(
-                        "TODO SNOW-1554591: Support pandas.DataFrame ServerConnection."
+                    stmt = self._ast_batch.assign()
+                    ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
+
+                    # Save temp table and schema of it in AST (dataframe).
+                    ast.data.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (
+                        temp_table_name
                     )
 
-                return t
+                    build_proto_from_struct_type(
+                        table.schema, ast.schema.sp_dataframe_schema__struct.v
+                    )
+                    table._ast_id = stmt.var_id.bitfield1
+
+                return table
 
         # infer the schema based on the data
         names = None
@@ -3077,7 +3126,13 @@ class Session:
 
         return df
 
-    def range(self, start: int, end: Optional[int] = None, step: int = 1) -> DataFrame:
+    def range(
+        self,
+        start: int,
+        end: Optional[int] = None,
+        step: int = 1,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
         """
         Creates a new DataFrame from a range of numbers. The resulting DataFrame has
         single column named ``ID``, containing elements in a range from ``start`` to
@@ -3101,12 +3156,14 @@ class Session:
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
 
         # AST.
-        stmt = self._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_range, stmt)
-        ast.start = start
-        if end:
-            ast.end.value = end
-        ast.step.value = step
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_range, stmt)
+            ast.start = start
+            if end:
+                ast.end.value = end
+            ast.step.value = step
 
         if self.sql_simplifier_enabled:
             df = DataFrame(
@@ -3121,6 +3178,10 @@ class Session:
         else:
             df = DataFrame(self, range_plan)
         set_api_call_source(df, "Session.range")
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
+
         return df
 
     def create_async_job(self, query_id: str) -> AsyncJob:
@@ -3340,10 +3401,7 @@ class Session:
         Returns a :class:`udtf.UDTFRegistration` object that you can use to register UDTFs.
         See details of how to use this object in :class:`udtf.UDTFRegistration`.
         """
-        if isinstance(self._conn, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.udtf", raise_error=NotImplementedError
-            )
+        # TODO: Test udtf support properly.
         return self._udtf_registration
 
     @property

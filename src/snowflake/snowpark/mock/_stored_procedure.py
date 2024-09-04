@@ -322,8 +322,14 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             sproc_name, current_schema, current_database
         )
 
+        # TODO: Support call in MockServerConnection.
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
         if sproc_name not in self._registry:
-            if self._session._conn._suppress_not_implemented_error:
+            if (
+                isinstance(self._session._conn, MockServerConnection)
+                and self._session._conn._suppress_not_implemented_error
+            ):
                 return None
             else:
                 raise SnowparkLocalTestingException(

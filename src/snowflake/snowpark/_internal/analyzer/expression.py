@@ -521,6 +521,9 @@ class WithinGroup(Expression):
         self.expr = expr
         self.order_by_cols = order_by_cols
         self.datatype = expr.datatype
+        assert all(
+            isinstance(order_by_col, Expression) for order_by_col in order_by_cols
+        )
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, *self.order_by_cols)

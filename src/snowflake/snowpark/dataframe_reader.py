@@ -7,6 +7,7 @@ from logging import getLogger
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     create_file_format_statement,
     drop_file_format_if_exists_statement,
@@ -15,6 +16,12 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
+from snowflake.snowpark._internal.ast_utils import (
+    build_expr_from_python_val,
+    build_proto_from_struct_type,
+    build_sp_table_name,
+    with_src_position,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_sp_type
@@ -22,6 +29,7 @@ from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     TempObjectType,
     get_copy_into_table_options,
+    parse_positional_args_to_list_variadic,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
@@ -291,7 +299,9 @@ class DataFrameReader:
             <BLANKLINE>
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+    def __init__(
+        self, session: "snowflake.snowpark.session.Session", _emit_ast: bool = True
+    ) -> None:
         self._session = session
         self._user_schema: Optional[StructType] = None
         self._cur_options: dict[str, Any] = {}
@@ -303,6 +313,12 @@ class DataFrameReader:
             List["snowflake.snowpark.column.Column"]
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
+
+        self._ast = None
+        if _emit_ast:
+            reader = proto.SpDataframeReader()
+            with_src_position(reader.sp_dataframe_reader_init)
+            self._ast = reader
 
     @property
     def _infer_schema(self):
@@ -344,7 +360,7 @@ class DataFrameReader:
 
         return metadata_project, metadata_schema
 
-    def table(self, name: Union[str, Iterable[str]]) -> Table:
+    def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
         """Returns a Table that points to the specified table.
 
         This method is an alias of :meth:`~snowflake.snowpark.session.Session.table`.
@@ -352,9 +368,23 @@ class DataFrameReader:
         Args:
             name: Name of the table to use.
         """
-        return self._session.table(name)
 
-    def schema(self, schema: StructType) -> "DataFrameReader":
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_read_table, stmt)
+            ast.reader.CopyFrom(self._ast)
+            build_sp_table_name(ast.name, name)
+
+        table = self._session.table(name)
+
+        if _emit_ast:
+            table._ast_id = stmt.var_id.bitfield1
+
+        return table
+
+    def schema(self, schema: StructType, _emit_ast: bool = True) -> "DataFrameReader":
         """Define the schema for CSV files that you want to read.
 
         Args:
@@ -363,11 +393,20 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
         """
+
+        # AST.
+        if _emit_ast:
+            reader = proto.SpDataframeReader()
+            ast = with_src_position(reader.sp_dataframe_reader_schema)
+            ast.reader.CopyFrom(self._ast)
+            build_proto_from_struct_type(schema, ast.schema)
+            self._ast = reader
+
         self._user_schema = schema
         return self
 
     def with_metadata(
-        self, *metadata_cols: Iterable[ColumnOrName]
+        self, *metadata_cols: Iterable[ColumnOrName], _emit_ast: bool = True
     ) -> "DataFrameReader":
         """Define the metadata columns that need to be selected from stage files.
 
@@ -382,13 +421,27 @@ class DataFrameReader:
                 external_feature_name="DataFrameReader.with_metadata",
                 raise_error=NotImplementedError,
             )
+
+        # AST.
+        if _emit_ast:
+            reader = proto.SpDataframeReader()
+            ast = with_src_position(reader.sp_dataframe_reader_with_metadata)
+            ast.reader.CopyFrom(self._ast)
+            col_names, is_variadic = parse_positional_args_to_list_variadic(
+                *metadata_cols
+            )
+            ast.metadata_columns.variadic = is_variadic
+            for e in col_names:
+                build_expr_from_python_val(ast.metadata_columns.args.add(), e)
+            self._ast = reader
+
         self._metadata_cols = [
             _to_col_if_str(col, "DataFrameReader.with_metadata")
             for col in metadata_cols
         ]
         return self
 
-    def csv(self, path: str) -> DataFrame:
+    def csv(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the CSV file(s) to load.
 
         Args:
@@ -477,9 +530,18 @@ class DataFrameReader:
             )
         df._reader = self
         set_api_call_source(df, "DataFrameReader.csv")
+
+        # AST.
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_read_csv, stmt)
+            ast.path = path
+            ast.reader.CopyFrom(self._ast)
+            df._ast_id = stmt.var_id.bitfield1
+
         return df
 
-    def json(self, path: str) -> DataFrame:
+    def json(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the JSON file(s) to load.
 
         Args:
@@ -491,9 +553,19 @@ class DataFrameReader:
         # infer_schema is set to false by default for JSON
         if "INFER_SCHEMA" not in self._cur_options:
             self._cur_options["INFER_SCHEMA"] = False
-        return self._read_semi_structured_file(path, "JSON")
+        df = self._read_semi_structured_file(path, "JSON")
 
-    def avro(self, path: str) -> DataFrame:
+        # AST.
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_read_json, stmt)
+            ast.path = path
+            ast.reader.CopyFrom(self._ast)
+            df._ast_id = stmt.var_id.bitfield1
+
+        return df
+
+    def avro(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the AVRO file(s) to load.
 
         Args:
@@ -508,9 +580,19 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified AVRO file(s) in a Snowflake stage.
         """
-        return self._read_semi_structured_file(path, "AVRO")
+        df = self._read_semi_structured_file(path, "AVRO")
 
-    def parquet(self, path: str) -> DataFrame:
+        # AST.
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_read_avro, stmt)
+            ast.path = path
+            ast.reader.CopyFrom(self._ast)
+            df._ast_id = stmt.var_id.bitfield1
+
+        return df
+
+    def parquet(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the PARQUET file(s) to load.
 
         Args:
@@ -525,9 +607,20 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified PARQUET file(s) in a Snowflake stage.
         """
-        return self._read_semi_structured_file(path, "PARQUET")
 
-    def orc(self, path: str) -> DataFrame:
+        df = self._read_semi_structured_file(path, "PARQUET")
+
+        # AST.
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_read_parquet, stmt)
+            ast.path = path
+            ast.reader.CopyFrom(self._ast)
+            df._ast_id = stmt.var_id.bitfield1
+
+        return df
+
+    def orc(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the ORC file(s) to load.
 
         Args:
@@ -542,9 +635,19 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified ORC file(s) in a Snowflake stage.
         """
-        return self._read_semi_structured_file(path, "ORC")
+        df = self._read_semi_structured_file(path, "ORC")
 
-    def xml(self, path: str) -> DataFrame:
+        # AST.
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_read_orc, stmt)
+            ast.path = path
+            ast.reader.CopyFrom(self._ast)
+            df._ast_id = stmt.var_id.bitfield1
+
+        return df
+
+    def xml(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the XML file(s) to load.
 
         Args:
@@ -553,9 +656,19 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified XML file(s) in a Snowflake stage.
         """
-        return self._read_semi_structured_file(path, "XML")
+        df = self._read_semi_structured_file(path, "XML")
 
-    def option(self, key: str, value: Any) -> "DataFrameReader":
+        # AST.
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_read_xml, stmt)
+            ast.path = path
+            ast.reader.CopyFrom(self._ast)
+            df._ast_id = stmt.var_id.bitfield1
+
+        return df
+
+    def option(self, key: str, value: Any, _emit_ast: bool = True) -> "DataFrameReader":
         """Sets the specified option in the DataFrameReader.
 
         Use this method to configure any
@@ -569,10 +682,20 @@ class DataFrameReader:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
         """
+
+        # AST.
+        if _emit_ast:
+            reader = proto.SpDataframeReader()
+            ast = with_src_position(reader.sp_dataframe_reader_option)
+            ast.reader.CopyFrom(self._ast)
+            ast.key = key
+            build_expr_from_python_val(ast.value, value)
+            self._ast = reader
+
         self._cur_options[key.upper()] = value
         return self
 
-    def options(self, configs: Dict) -> "DataFrameReader":
+    def options(self, configs: Dict, _emit_ast: bool = True) -> "DataFrameReader":
         """Sets multiple specified options in the DataFrameReader.
 
         This method is the same as the :meth:`option` except that you can set multiple options in one call.
@@ -581,8 +704,20 @@ class DataFrameReader:
             configs: Dictionary of the names of options (e.g. ``compression``,
                 ``skip_header``, etc.) and their corresponding values.
         """
+
+        # AST.
+        if _emit_ast:
+            reader = proto.SpDataframeReader()
+            ast = with_src_position(reader.sp_dataframe_reader_options)
+            ast.reader.CopyFrom(self._ast)
+            for k, v in configs.items():
+                t = ast.configs.add()
+                t._1 = k
+                build_expr_from_python_val(t._2, v)
+            self._ast = reader
+
         for k, v in configs.items():
-            self.option(k, v)
+            self.option(k, v, _emit_ast=False)
         return self
 
     def _infer_schema_for_file_format(
