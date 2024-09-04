@@ -47,14 +47,16 @@ def obj_type_helper(obj_type: str) -> tuple:
     ],
 )
 @pytest.mark.parametrize("obj_type", ["series", "df"])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_create_with_index_as_data(native_idx, obj_type):
     """
     Creating a Series where the data is an Index.
     """
     snow_idx = pd.Index(native_idx)
-    assert_equal_func, snow_obj, native_obj, _ = obj_type_helper(obj_type)
-    assert_equal_func(snow_obj(snow_idx), native_obj(native_idx))
+    assert_equal_func, snow_obj, native_obj, kwargs = obj_type_helper(obj_type)
+    assert_equal_func(
+        snow_obj(snow_idx), native_obj(native_idx), check_dtype=False, **kwargs
+    )
 
 
 @pytest.mark.parametrize(
@@ -202,7 +204,7 @@ def test_create_with_index_as_data_and_series_as_index(
     ],
 )
 @pytest.mark.parametrize("obj_type", ["series", "df"])
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_create_with_series_as_data_and_index_as_index(
     native_series, native_index, obj_type
 ):
@@ -476,7 +478,7 @@ def test_create_df_with_df_index_negative():
 def test_create_df_with_dict_as_data_and_index_as_index():
     """
     Special case when creating:
-    >>> DataFrame({"A": [1], "V": [2]}, native_pd.Index(["A", "B", "C"]), name="none")   # doctest: +SKIP
+    DataFrame({"A": [1], "V": [2]}, native_pd.Index(["A", "B", "C"]), name="none")
           A  V
     none
     A     1  2

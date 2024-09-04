@@ -84,7 +84,6 @@ from snowflake.snowpark.modin.pandas.snow_partition_iterator import (
 )
 from snowflake.snowpark.modin.pandas.utils import (
     create_empty_native_pandas_frame,
-    from_non_pandas,
     from_pandas,
     is_scalar,
     raise_if_native_pandas_objects,
@@ -159,101 +158,67 @@ class DataFrame(BasePandasDataset):
         if isinstance(index, DataFrame):  # pandas raises the same error
             raise ValueError("Index data must be 1-dimensional")
 
-        # Engine.subscribe(_update_engine)
+        if query_compiler is not None:
+            # CASE 1: query_compiler
+            # If a query_compiler is passed in, only use the query_compiler and name fields to create a new Series.
+            self._query_compiler = query_compiler
+            return
+
+        # The logic followed here is:
+        # 1. Create a query_compiler from the provided data. If columns are provided, add/select the columns.
+        # 2. If an index is provided, set the index through reindex.
+        # 3. If the data is a DataFrame, perform loc to select the required index and columns from the DataFrame.
+        # 4. The resultant query_compiler is then set as the query_compiler for the DataFrame.
+
         if isinstance(data, Index):
-            # If the data is an Index object, we need to convert it to a DataFrame to make sure
-            # that the values are in the correct format -- as a data column, not an index column.
-            # Additionally, if an index is provided, converting it to an Index object ensures that
-            # its values are an index column.
-            # We set the column name if it is not in the provided Index `data`.
+            # CASE 2: data is a Snowpark pandas Index
+            # If the data is an Index object, convert it to a DataFrame to make sure that the values are in the
+            # correct format: the values are a data column, not an index column.
             if data.name is None:
                 new_name = 0 if columns is None else columns[0]
             else:
                 new_name = data.name
             query_compiler = data.to_frame(index=False, name=new_name)._query_compiler
-            if index is not None:
-                index = index if isinstance(index, Index) else Index(index)
-                query_compiler = query_compiler.create_qc_with_index_data_and_qc_index(
-                    index._query_compiler
-                )
 
-        if isinstance(data, (DataFrame, Series)):
-            self._query_compiler = data._query_compiler.copy()
-            if isinstance(data, Series):
-                # We set the column name if it is not in the provided Series `data`.
-                if data.name is None:
-                    self.columns = [0] if columns is None else columns
+        elif isinstance(data, Series):
+            # CASE 3: data is a Snowpark pandas Series
+            query_compiler = data._query_compiler.copy()
+            # We set the column name if it is not in the provided Series `data`.
+            if data.name is None:
+                self.columns = [0] if columns is None else columns
+            elif columns is not None and data.name not in columns:
                 # If the columns provided are not in the named Series, pandas clears
                 # the DataFrame and sets columns to the columns provided.
-                elif columns is not None and data.name not in columns:
-                    self._query_compiler = from_pandas(
-                        self.__constructor__(columns=columns)
-                    )._query_compiler
-                if index is not None:
-                    # The `index` parameter is used to select the rows from `data` that will be in the resultant
-                    # DataFrame. If a value in `index` is not present in `data`'s index, it will be filled with a
-                    # NaN value.
-                    # 1. The `index` is converted to an Index object so that the index values are in an index column.
-                    index = index if isinstance(index, Index) else Index(index)
-                    # 2. A right outer join is performed between `data` and `index` to create a Series object where
-                    #    any index values in `data`'s index that are not in `index` are filled with NaN.
-                    data = Series(
-                        query_compiler=data._query_compiler.create_qc_with_data_and_index_joined_on_index(
-                            index._query_compiler
-                        ),
-                        name=0 if data.name is None else data.name,
-                    )
-                    # 3. Perform .loc[] on `data` to select the rows that are in the `index`.
-                    self._query_compiler = data.loc[index]._query_compiler
+                query_compiler = from_pandas(
+                    self.__constructor__(columns=columns)
+                )._query_compiler
 
-            elif columns is None and index is None:
+        elif isinstance(data, DataFrame):
+            # CASE 5: data is a Snowpark pandas DataFrame
+            query_compiler = data._query_compiler.copy()
+
+            if columns is None and index is None:
+                # If the new DataFrame has the same columns and index as the original DataFrame,
+                # the query compiler is shared and kept track of as a sibling.
+                self._query_compiler = query_compiler
                 data._add_sibling(self)
-
-            else:
-                # The `columns` parameter is used to select the columns from `data` that will be in the resultant
-                # DataFrame. If a value in `columns` is not present in `data`'s columns, it will be added as a
-                # new column filled with NaN values. These columns are tracked by the `extra_columns` variable.
-                extra_columns = None
-                if columns is None:
-                    # In case `columns` is not provided, `columns` is set to slice(None) to select all columns.
-                    columns = slice(None)
-                else:
-                    extra_columns = [col for col in columns if col not in data.columns]
-
-                # The `index` parameter is used to select the rows from `data` that will be in the resultant DataFrame.
-                # If a value in `index` is not present in `data`'s index, it will be filled with a NaN value.
-                if index is None:
-                    # In case `index` is not provided, `index` is set to slice(None) to select all rows.
-                    index = slice(None)
-                    data = DataFrame(
-                        query_compiler=data._query_compiler.create_qc_with_data_and_index_joined_on_index(
-                            extra_columns=extra_columns
-                        )
-                    )
-                else:
-                    # The `index` is converted to an Index object so that the index values are in an index column.
-                    index = index if isinstance(index, Index) else Index(index)
-                    # A right outer join is performed between `data` and `index` to create a DataFrame object where any
-                    # index values in `data`'s index that are not in `index` are filled with NaN.
-                    data = DataFrame(
-                        query_compiler=data._query_compiler.create_qc_with_data_and_index_joined_on_index(
-                            index._query_compiler,
-                            extra_columns=extra_columns,
-                        )
-                    )
-                # 3. Perform .loc[] on `data` to select the rows and columns that are in `index` and `columns`.
-                self._query_compiler = data.loc[index, columns]._query_compiler
-
-        # Check the type of data and use the appropriate constructor
-        elif query_compiler is None:
-            distributed_frame = from_non_pandas(data, index, columns, dtype)
-            if distributed_frame is not None:
-                self._query_compiler = distributed_frame._query_compiler
                 return
+            # The `columns` parameter is used to select the columns from `data` that will be in the resultant
+            # DataFrame. If a value in `columns` is not present in `data`'s columns, it will be added as a
+            # new column filled with NaN values. These columns are tracked by the `extra_columns` variable.
+            extra_columns = [col for col in columns if col not in data.columns]
+            query_compiler = data._query_compiler.create_qc_with_extra_columns(
+                extra_columns
+            )
 
+        else:
+            # CASE 5: Non-Snowpark pandas data
             if isinstance(data, pandas.Index):
+                # CASE 5.B: data is a pandas Index
                 pass
+
             elif is_list_like(data) and not is_dict_like(data):
+                # CASE 5.C: data is list-like
                 old_dtype = getattr(data, "dtype", None)
                 values = [
                     obj._to_pandas() if isinstance(obj, Series) else obj for obj in data
@@ -265,30 +230,33 @@ class DataFrame(BasePandasDataset):
                         data = type(data)(values, dtype=old_dtype)
                     except TypeError:
                         data = values
+
             elif is_dict_like(data) and not isinstance(
-                data, (pandas.Series, Series, pandas.DataFrame, DataFrame)
+                data, (pandas.Series, pandas.DataFrame)
             ):
+                # CASE 5.D: data is dict-like
                 if columns is not None:
                     data = {key: value for key, value in data.items() if key in columns}
 
                 if len(data) and all(isinstance(v, Series) for v in data.values()):
+                    # Special case: data is a dictionary where all the values are Snowpark pandas Series
                     from .general import concat
 
                     new_qc = concat(
                         data.values(), axis=1, keys=data.keys()
                     )._query_compiler
-
                     if dtype is not None:
                         new_qc = new_qc.astype({col: dtype for col in new_qc.columns})
                     if index is not None:
-                        new_qc = new_qc.reindex(
-                            axis=0, labels=try_convert_index_to_native(index)
-                        )
+                        if isinstance(index, Index):
+                            index = index.to_series()._query_compiler
+                        elif isinstance(index, Series):
+                            index = index._query_compiler
+                        new_qc = new_qc.reindex(axis=0, labels=index)
                     if columns is not None:
                         new_qc = new_qc.reindex(
                             axis=1, labels=try_convert_index_to_native(columns)
                         )
-
                     self._query_compiler = new_qc
                     return
 
@@ -301,10 +269,10 @@ class DataFrame(BasePandasDataset):
                     all(not is_scalar(v) and len(v) == 1 for v in data.values())
                     and index is not None
                 ):
-                    # Special case when creating:
-                    # >>> DataFrame({"A": [1], "V": [2]}, native_pd.Index(["A", "B", "C"]), name="none")
+                    # Special case: the values in the dictionary are all non-scalar objects of length 1
+                    # >>> DataFrame({"A": [1], "V": [2]}, native_pd.Index(["A", "B", "C"]), name="cake")
                     #       A  V
-                    # none
+                    # cake
                     # A     1  2
                     # B     1  2  <--- the first row is copied into the rest of the rows.
                     # C     1  2
@@ -316,26 +284,36 @@ class DataFrame(BasePandasDataset):
                     )._query_compiler
                     return
 
-            new_index = index
-            if isinstance(index, Index):
-                # Skip turning this into a native pandas object here since this issues an extra query.
-                # Instead, first get the query compiler from native pandas and then add the index column.
-                new_index = None
-            pandas_df = pandas.DataFrame(
-                data=try_convert_index_to_native(data),
-                index=try_convert_index_to_native(new_index),
-                columns=try_convert_index_to_native(columns),
-                dtype=dtype,
-                copy=copy,
-            )
-            query_compiler = from_pandas(pandas_df)._query_compiler
-            if isinstance(index, Index):
-                query_compiler = query_compiler.create_qc_with_index_data_and_qc_index(
-                    index._query_compiler
+            query_compiler = from_pandas(
+                pandas.DataFrame(
+                    data=data,
+                    columns=try_convert_index_to_native(columns),
+                    dtype=dtype,
+                    copy=copy,
                 )
-            self._query_compiler = query_compiler
-        else:
-            self._query_compiler = query_compiler
+            )._query_compiler
+
+        if index is not None:
+            # The `index` parameter is used to select the rows from `data` that will be in the resultant DataFrame.
+            # If a value in `index` is not present in `data`'s index, it will be filled with a NaN value.
+            if isinstance(index, Index):
+                index = index.to_series()._query_compiler
+            elif isinstance(index, Series):
+                index = index._query_compiler
+            query_compiler = query_compiler.reindex(axis=0, labels=index)
+
+        if isinstance(data, DataFrame):
+            # To select the required index and columns for the resultant DataFrame,
+            # perform .loc[] on the created query compiler.
+            index = slice(None) if index is None else index
+            columns = slice(None) if columns is None else columns
+            query_compiler = (
+                DataFrame(query_compiler=query_compiler)
+                .loc[index, columns]
+                ._query_compiler
+            )
+
+        self._query_compiler = query_compiler
 
     def __repr__(self):
         """

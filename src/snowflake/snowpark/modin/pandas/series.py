@@ -52,11 +52,7 @@ from pandas.core.series import _coerce_method
 from pandas.util._validators import validate_bool_kwarg
 
 from snowflake.snowpark.modin.pandas.base import _ATTRS_NO_LOOKUP, BasePandasDataset
-from snowflake.snowpark.modin.pandas.utils import (
-    from_pandas,
-    is_scalar,
-    try_convert_index_to_native,
-)
+from snowflake.snowpark.modin.pandas.utils import from_pandas, is_scalar
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -131,45 +127,43 @@ class Series(BasePandasDataset):
         # Engine.subscribe(_update_engine)
         from snowflake.snowpark.modin.plugin.extensions.index import Index
 
-        # Convert lazy index to Series without pulling the data to client.
+        if query_compiler:
+            # CASE 1: query_compiler
+            # If a query_compiler is passed in, only use the query_compiler and name fields to create a new Series.
+            self._query_compiler = query_compiler.columnarize()
+            if name is not None:
+                self.name = name
+            return
+
+        # The logic followed here is:
+        # 1. Create a query_compiler from the provided data.
+        # 2. If an index is provided, set the index. This is either through set_index or reindex.
+        # 3. The resultant query_compiler is columnarized and set as the query_compiler for the Series.
+        # 4. If a name is provided, set the name.
+
         if isinstance(data, Index):
-            # If the data is an Index object, we need to convert it to a Series to make sure
-            # that the values are in the correct format -- as a data column, not an index column.
-            # Additionally, if an index is provided, converting it to an Index object ensures that
-            # its values are an index column.
+            # CASE 2: Index
+            # If the data is an Index object, convert it to a Series, and get the query_compiler.
             query_compiler = (
                 data.to_series(index=None, name=name)
                 .reset_index(drop=True)
                 ._query_compiler
             )
 
-            if index is not None:
-                index = index if isinstance(index, Index) else Index(index)
-                query_compiler = query_compiler.create_qc_with_index_data_and_qc_index(
-                    index._query_compiler
-                )
         elif isinstance(data, type(self)):
+            # CASE 3: Series
+            # If the data is a Series object, copy the query_compiler.
             query_compiler = data._query_compiler.copy()
-            if index is not None:
-                # The `index` parameter is used to select the rows from `data` that will be in the resultant Series.
-                # If a value in `index` is not present in `data`'s index, it will be filled with a NaN value.
-                # 1. The `index` is converted to an Index object so that the index values are in an index column.
-                index = index if isinstance(index, Index) else Index(index)
-                # 2. A right outer join is performed between `data` and `index` to create a Series object where any
-                #    index values in `data`'s index that are not in `index` are filled with NaN.
-                data = Series(
-                    query_compiler=data._query_compiler.create_qc_with_data_and_index_joined_on_index(
-                        index._query_compiler
-                    ),
-                    name=data.name,
-                )
-                # 3. Perform .loc[] on `data` to select the rows that are in `index`.
-                query_compiler = data.loc[index]._query_compiler
 
-        elif is_dict_like(data) and not isinstance(data, (pandas.Series, Series)):
-            if name is None:
-                name = MODIN_UNNAMED_SERIES_LABEL
-            # If the data is a dictionary, we need to convert it to a query compiler and set the index.
+        else:
+            # CASE 4: Non-Snowpark pandas data
+            # If the data is not a Snowpark pandas object, convert it to a query compiler.
+            name = MODIN_UNNAMED_SERIES_LABEL if name is None else name
+            if (
+                isinstance(data, (pandas.Series, pandas.Index))
+                and data.name is not None
+            ):
+                name = data.name
             query_compiler = from_pandas(
                 pandas.DataFrame(
                     pandas.Series(
@@ -177,48 +171,25 @@ class Series(BasePandasDataset):
                     )
                 )
             )._query_compiler
-            if index is not None:
-                index = index if isinstance(index, Index) else Index(index)
-                data = Series(
-                    query_compiler=query_compiler.create_qc_with_data_and_index_joined_on_index(
-                        index._query_compiler
-                    )
-                )
-                # Perform .loc[] on `data` to select the rows that are in `index`.
-                query_compiler = data.loc[index]._query_compiler
 
-        if query_compiler is None:
-            # Defaulting to pandas
-            if name is None:
-                name = MODIN_UNNAMED_SERIES_LABEL
-                if (
-                    isinstance(data, (pandas.Series, pandas.Index, pd.Index))
-                    and data.name is not None
-                ):
-                    name = data.name
-            new_index = index
-            if isinstance(index, Index):
-                # Skip turning this into a native pandas object here since this issues an extra query.
-                # Instead, first get the query compiler from native pandas and then add the index column.
-                new_index = None
-            query_compiler = from_pandas(
-                pandas.DataFrame(
-                    pandas.Series(
-                        data=try_convert_index_to_native(data),
-                        index=new_index,
-                        dtype=dtype,
-                        name=name,
-                        copy=copy,
-                        fastpath=fastpath,
-                    )
-                )
-            )._query_compiler
-            if isinstance(index, Index):
+        if index is not None:
+            if is_dict_like(data) or isinstance(data, (type(self))):
+                # The `index` parameter is used to select the rows from `data` that will be in the resultant Series.
+                # If a value in `index` is not present in `data`'s index, it will be filled with a NaN value.
+                if isinstance(index, Index):
+                    index = index.to_series()._query_compiler
+                elif isinstance(index, Series):
+                    index = index._query_compiler
+                query_compiler = query_compiler.reindex(axis=0, labels=index)
+
+            else:
                 # Performing set index to directly set the index column (joining on row-position instead of index).
-                query_compiler = query_compiler.set_index_from_series(
-                    index.to_series()._query_compiler
-                )
+                index_qc = (
+                    index if isinstance(index, Series) else Series(index)
+                )._query_compiler
+                query_compiler = query_compiler.set_index_from_series(index_qc)
 
+        # Set the query compiler and name fields.
         self._query_compiler = query_compiler.columnarize()
         if name is not None:
             self.name = name
