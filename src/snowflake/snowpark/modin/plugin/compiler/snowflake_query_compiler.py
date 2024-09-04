@@ -26,7 +26,7 @@ from pandas import Timedelta
 from pandas._libs import lib
 from pandas._libs.lib import no_default
 from pandas._libs.tslibs import Tick
-from pandas._libs.tslibs.offsets import Day
+from pandas._libs.tslibs.offsets import BusinessDay, CustomBusinessDay, Day
 from pandas._typing import (
     AggFuncType,
     AnyArrayLike,
@@ -686,7 +686,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # TODO: SNOW-879476 support tz with other tz APIs
             ErrorMessage.not_implemented("tz is not supported.")
 
+        remove_non_business_days = False
+
         if freq is not None:
+            if isinstance(freq, CustomBusinessDay):
+                ErrorMessage.not_implemented("CustomBusinessDay is not supported.")
+            if isinstance(freq, BusinessDay):
+                freq = Day()
+                remove_non_business_days = True
             # We break Day arithmetic (fixed 24 hour) here and opt for
             # Day to mean calendar day (23/24/25 hour). Therefore, strip
             # tz info from start and day to avoid DST arithmetic
@@ -726,6 +733,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             dt_values = ns_values.series_to_datetime()
 
         dt_series = pd.Series(query_compiler=dt_values)
+        if remove_non_business_days:
+            dt_series = dt_series[dt_series.dt.dayofweek < 5]
         if not left_inclusive or not right_inclusive:
             if not left_inclusive and start is not None:
                 dt_series = dt_series[dt_series != start].reset_index(drop=True)

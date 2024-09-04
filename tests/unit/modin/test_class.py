@@ -60,7 +60,6 @@ def test_class_equivalence():
     # structure, we also overwrite this export.
     # assert pd.api is native_pd.api
     assert pd.array is native_pd.array
-    assert pd.bdate_range is native_pd.bdate_range
     assert pd.eval is native_pd.eval
     assert pd.factorize is native_pd.factorize
     assert pd.from_dummies is native_pd.from_dummies
