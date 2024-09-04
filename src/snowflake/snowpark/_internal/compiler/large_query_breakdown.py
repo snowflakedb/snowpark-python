@@ -4,7 +4,6 @@
 
 import logging
 from collections import defaultdict
-from enum import Enum
 from typing import List, Optional, Tuple
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -44,6 +43,9 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
 )
 from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
+from snowflake.snowpark._internal.compiler.telemetry_constants import (
+    SkipLargeQueryBreakdownCategory,
+)
 from snowflake.snowpark._internal.compiler.utils import (
     TreeNode,
     is_active_transaction,
@@ -62,12 +64,6 @@ COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
 COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 
 _logger = logging.getLogger(__name__)
-
-
-class SkipLargeQueryBreakdownCategory(Enum):
-    ACTIVE_TRANSACTION = "active transaction"
-    VIEW_DYNAMIC_TABLE = "view or dynamic table command"
-    NO_ACTIVE_DB_SCHEMA = "no active database or schema"
 
 
 class LargeQueryBreakdown:
