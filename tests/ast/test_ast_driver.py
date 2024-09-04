@@ -45,7 +45,8 @@ def parse_file(file):
         expected_ast_unparsed_start = src.index("## EXPECTED UNPARSER OUTPUT\n")
     except ValueError:
         raise ValueError(
-            "Required header ## EXPECTED UNPARSER OUTPUT missing in the file: " + file.name
+            "Required header ## EXPECTED UNPARSER OUTPUT missing in the file: "
+            + file.name
         )
 
     try:
@@ -56,10 +57,17 @@ def parse_file(file):
         )
 
     test_case = "".join(src[test_case_start + 1 : expected_ast_unparsed_start])
-    expected_ast_unparsed = "".join(src[expected_ast_unparsed_start + 1 : expected_ast_base64_start])
+    expected_ast_unparsed = "".join(
+        src[expected_ast_unparsed_start + 1 : expected_ast_base64_start]
+    )
     expected_ast_base64 = "".join(src[expected_ast_base64_start + 1 :])
 
-    return TestCase(os.path.basename(file.name), test_case, expected_ast_base64, expected_ast_unparsed)
+    return TestCase(
+        os.path.basename(file.name),
+        test_case,
+        expected_ast_base64,
+        expected_ast_unparsed,
+    )
 
 
 def load_test_cases():
@@ -244,7 +252,7 @@ def test_ast(session, test_case):
                     "## EXPECTED UNPARSER OUTPUT\n\n",
                     actual.strip(),
                     "\n\n## EXPECTED ENCODED AST\n\n",
-                    base64.strip(), 
+                    base64.strip(),
                     "\n",
                 ]
             )
