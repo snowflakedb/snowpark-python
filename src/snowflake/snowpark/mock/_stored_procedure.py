@@ -154,7 +154,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         )  # maps name to either the callable or a pair of str (module_name, callable_name)
         self._sproc_level_imports = dict()  # maps name to a set of file paths
         self._session_level_imports = set()
-        self._lock = self._session._conn._lock
+        self._lock = self._session._conn.get_lock()
 
     def _clear_session_imports(self):
         with self._lock:

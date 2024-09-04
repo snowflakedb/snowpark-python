@@ -357,15 +357,16 @@ def handle_function_expression(
     current_row=None,
 ):
     func = MockedFunctionRegistry.get_or_create().get_function(exp)
+    connection_lock = analyzer.session._conn.get_lock()
 
     if func is None:
-        with analyzer.session._conn._lock:
+        with connection_lock:
             current_schema = analyzer.session.get_current_schema()
             current_database = analyzer.session.get_current_database()
         udf_name = get_fully_qualified_name(exp.name, current_schema, current_database)
 
         # If udf name in the registry then this is a udf, not an actual function
-        with analyzer.session._conn._lock:
+        with connection_lock:
             if udf_name in analyzer.session.udf._registry:
                 exp.udf_name = udf_name
                 return handle_udf_expression(
@@ -465,7 +466,8 @@ def handle_udf_expression(
 ):
     udf_registry = analyzer.session.udf
     udf_name = exp.udf_name
-    with analyzer.session._conn._lock:
+    connection_lock = analyzer.session._conn.get_lock()
+    with connection_lock:
         udf = udf_registry.get_udf(udf_name)
         udf_imports = udf_registry.get_udf_imports(udf_name)
 
@@ -560,6 +562,7 @@ def execute_mock_plan(
         analyzer = plan.analyzer
 
     entity_registry = analyzer.session._conn.entity_registry
+    connection_lock = analyzer.session._conn.get_lock()
 
     if isinstance(source_plan, SnowflakeValues):
         table = TableEmulator(
@@ -1169,7 +1172,7 @@ def execute_mock_plan(
     if isinstance(source_plan, TableUpdate):
         # since we are modifying the table, we need to ensure that no other thread
         # reads the table until it is updated
-        with analyzer.session._conn._lock:
+        with connection_lock:
             target = entity_registry.read_table(source_plan.table_name)
             ROW_ID = "row_id_" + generate_random_alphanumeric()
             target.insert(0, ROW_ID, range(len(target)))
@@ -1234,7 +1237,7 @@ def execute_mock_plan(
     elif isinstance(source_plan, TableDelete):
         # since we are modifying the table, we need to ensure that no other thread
         # reads the table until it is updated
-        with analyzer.session._conn._lock:
+        with connection_lock:
             target = entity_registry.read_table(source_plan.table_name)
 
             if source_plan.source_data:
@@ -1269,7 +1272,7 @@ def execute_mock_plan(
     elif isinstance(source_plan, TableMerge):
         # since we are modifying the table, we need to ensure that no other thread
         # reads the table until it is updated
-        with analyzer.session._conn._lock:
+        with connection_lock:
             target = entity_registry.read_table(source_plan.table_name)
             ROW_ID = "row_id_" + generate_random_alphanumeric()
             SOURCE_ROW_ID = "source_row_id_" + generate_random_alphanumeric()
