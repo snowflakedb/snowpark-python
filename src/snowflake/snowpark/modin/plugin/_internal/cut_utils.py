@@ -14,7 +14,7 @@ from pandas.core.reshape.tile import _is_dt_or_td
 
 from snowflake.snowpark.functions import col, iff
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
-from snowflake.snowpark.modin.plugin._internal.join_utils import MatchComparator
+from snowflake.snowpark.modin.plugin._internal.join_utils import MatchComparator, join
 from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.types import LongType
@@ -184,57 +184,37 @@ def compute_bin_indices(
     # consequences when it comes to building lazy graphs, as both cut and qcut are materializing operations.
 
     cuts_frame = cuts_frame.ensure_row_position_column()
-    value_frame = values_frame.ensure_row_position_column()
-
-    bucket_frame = cuts_frame.append_columns(
-        ["b_data", "b_row_pos"],
-        [
-            col(cuts_frame.data_column_snowflake_quoted_identifiers[0]),
-            col(cuts_frame.row_position_snowflake_quoted_identifier),
-        ],
-    )
-
-    bucket_data_identifier = bucket_frame.data_column_snowflake_quoted_identifiers[-2]
-    bucket_row_position_identifier = (
-        bucket_frame.data_column_snowflake_quoted_identifiers[-1]
-    )
-
-    value_index_identifiers = value_frame.index_column_snowflake_quoted_identifiers
-    value_frame = values_frame.append_columns(
-        ["v_data", "v_row_pos"],
-        [
-            col(value_frame.data_column_snowflake_quoted_identifiers[0]),
-            col(value_frame.row_position_snowflake_quoted_identifier),
-        ],
-    )
-    value_data_identifier = value_frame.data_column_snowflake_quoted_identifiers[-2]
-    value_row_position_identifier = (
-        value_frame.data_column_snowflake_quoted_identifiers[-1]
-    )
-    value_ordered_frame = value_frame.ordered_dataframe.select(
-        value_index_identifiers + [value_data_identifier, value_row_position_identifier]
-    )
-
-    # perform asof join to find the closet to the bucket frame.
+    # perform asof join to find the closet to the cut frame data.
     if right:
-        ans = value_ordered_frame.join(
-            bucket_frame.ordered_dataframe,
-            left_match_col=value_data_identifier,
-            right_match_col=bucket_data_identifier,
+        asof_result = join(
+            values_frame,
+            cuts_frame,
+            how="asof",
+            left_on=[],
+            right_on=[],
+            left_match_col=values_frame.data_column_snowflake_quoted_identifiers[0],
+            right_match_col=cuts_frame.data_column_snowflake_quoted_identifiers[0],
             match_comparator=MatchComparator.LESS_THAN_OR_EQUAL_TO,
-            how="asof",
+            sort=False,
         )
-
     else:
-        ans = value_ordered_frame.join(
-            bucket_frame.ordered_dataframe,
-            left_match_col=value_data_identifier,
-            right_match_col=bucket_data_identifier,
-            match_comparator=MatchComparator.GREATER_THAN_OR_EQUAL_TO,
+        asof_result = join(
+            values_frame,
+            cuts_frame,
             how="asof",
+            left_on=[],
+            right_on=[],
+            left_match_col=values_frame.data_column_snowflake_quoted_identifiers[0],
+            right_match_col=cuts_frame.data_column_snowflake_quoted_identifiers[0],
+            match_comparator=MatchComparator.GREATER_THAN_OR_EQUAL_TO,
+            sort=False,
         )
-
-    bin_index_col = col(bucket_row_position_identifier)
+    assert cuts_frame.row_position_snowflake_quoted_identifier is not None
+    bin_index_col = col(
+        asof_result.result_column_mapper.map_right_quoted_identifiers(
+            [cuts_frame.row_position_snowflake_quoted_identifier]
+        )[0]
+    )
 
     if right:
         # An index value of 0 means the data is outside of the first bucket. Set to NULL. All others, perform -1.
@@ -251,24 +231,8 @@ def compute_bin_indices(
             bin_index_col >= pandas_lit(n_cuts - 1), pandas_lit(None), bin_index_col
         ).astype(LongType())
 
-    new_data_identifier = ans.generate_snowflake_quoted_identifiers(
-        pandas_labels=["bin_data"]
-    )[0]
-    ans = ans.select(
-        value_index_identifiers
-        + [value_row_position_identifier, correct_index_expr.as_(new_data_identifier)]
-    )
-
-    new_frame = InternalFrame.create(
-        ordered_dataframe=ans,
-        # keep th pandas label from the original value frame
-        data_column_pandas_labels=[value_frame.data_column_pandas_labels[0]],
-        data_column_pandas_index_names=value_frame.data_column_index_names,
-        data_column_snowflake_quoted_identifiers=[new_data_identifier],
-        index_column_pandas_labels=value_frame.index_column_pandas_labels,
-        index_column_snowflake_quoted_identifiers=value_index_identifiers,
-        data_column_types=None,
-        index_column_types=None,
+    new_frame = asof_result.result_frame.project_columns(
+        [values_frame.data_column_pandas_labels[0]], [correct_index_expr]
     )
 
     return new_frame
