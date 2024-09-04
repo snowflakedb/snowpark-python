@@ -129,7 +129,7 @@ class TrackedCallable:
 
 class AstBatch:
     # Function used to generate request IDs. This is overridden in some tests.
-    request_id_gen_fn = uuid.uuid4
+    generate_request_id = uuid.uuid4
 
     def __init__(self, session) -> None:
         self._session = session
@@ -159,7 +159,7 @@ class AstBatch:
         return (str(self._request_id), batch)
 
     def _init_batch(self):
-        self._request_id = AstBatch.request_id_gen_fn()  # Generate a new unique ID.
+        self._request_id = AstBatch.generate_request_id()  # Generate a new unique ID.
         self._request = proto.Request()
 
         (major, minor, patch) = VERSION

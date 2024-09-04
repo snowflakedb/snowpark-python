@@ -125,7 +125,7 @@ import snowflake.snowpark._internal.ast_utils as ast_utils
 import uuid
 
 # Set up the request ID generator.
-AstBatch.request_id_gen_fn = lambda: uuid.uuid5(uuid.NAMESPACE_DNS, "id-gen")
+AstBatch.generate_request_id = lambda: uuid.uuid5(uuid.NAMESPACE_DNS, "id-gen")
 
 ast_utils.SRC_POSITION_TEST_MODE = True
 
