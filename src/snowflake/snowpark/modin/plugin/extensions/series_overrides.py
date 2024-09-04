@@ -1917,6 +1917,7 @@ def __setitem__(self, key, value):
 # Snowpark pandas uses the query compiler build_repr_df method to minimize queries, while upstream
 # modin calls BasePandasDataset.build_repr_df
 @register_series_accessor("__repr__")
+@snowpark_pandas_telemetry_method_decorator
 def __repr__(self):
     """
     Return a string representation for a particular Series.
