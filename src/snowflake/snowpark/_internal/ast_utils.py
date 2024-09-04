@@ -42,6 +42,9 @@ FAIL_ON_MISSING_AST = True
 # The path to the snowpark package.
 SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
 
+# Test mode. In test mode, the source filename is ignored.
+SRC_POSITION_TEST_MODE = False
+
 
 def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
     """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance
@@ -435,7 +438,7 @@ def with_src_position(
         # If IO performance is an issue, this can be set to 0 but this will disable symbol capture. Some
         # potential alternatives to consider here are the linecache and traceback modules.
         frame_info = inspect.getframeinfo(frame, context=1)
-        src.file = frame_info.filename
+        src.file = frame_info.filename if not SRC_POSITION_TEST_MODE else "SRC_POSITION_TEST_MODE"
         src.start_line = frame_info.lineno
         if sys.version_info >= (3, 11):
             pos = frame_info.positions

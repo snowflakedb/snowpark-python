@@ -3,8 +3,12 @@
 df = session.table("mock_database.mock_schema.\"the#qui.ck#bro.wn#\"\"Fox\"\"won't#jump!\"")
 df = df.select("num")
 
-## EXPECTED OUTPUT
+## EXPECTED UNPARSER OUTPUT
 
 df = session.table("mock_database.mock_schema.\"the#qui.ck#bro.wn#\"\"Fox\"\"won't#jump!\"")
 
 df = df.select(col("num"))
+
+## EXPECTED ENCODED AST
+
+CnkKdwppogtmEkQKQgpAbW9ja19kYXRhYmFzZS5tb2NrX3NjaGVtYS4idGhlI3F1aS5jayNicm8ud24jIiJGb3giIndvbid0I2p1bXAhIhoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFQiAggBEgQKAmRmGB0iAggdCqwBCqkBCpoB4giWAQptemsKJwolCgcKBQoDY29sEhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoVRok6gshChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoVRIDbnVtIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoVRIHigIECgIIHRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFUgARIECgJkZhgeIgIIHhABGhESDwoNCgVmaW5hbBADGAggEyIEEAEYFQ==
