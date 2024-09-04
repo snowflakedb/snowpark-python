@@ -185,30 +185,20 @@ def compute_bin_indices(
 
     cuts_frame = cuts_frame.ensure_row_position_column()
     # perform asof join to find the closet to the cut frame data.
-    if right:
-        asof_result = join(
-            values_frame,
-            cuts_frame,
-            how="asof",
-            left_on=[],
-            right_on=[],
-            left_match_col=values_frame.data_column_snowflake_quoted_identifiers[0],
-            right_match_col=cuts_frame.data_column_snowflake_quoted_identifiers[0],
-            match_comparator=MatchComparator.LESS_THAN_OR_EQUAL_TO,
-            sort=False,
-        )
-    else:
-        asof_result = join(
-            values_frame,
-            cuts_frame,
-            how="asof",
-            left_on=[],
-            right_on=[],
-            left_match_col=values_frame.data_column_snowflake_quoted_identifiers[0],
-            right_match_col=cuts_frame.data_column_snowflake_quoted_identifiers[0],
-            match_comparator=MatchComparator.GREATER_THAN_OR_EQUAL_TO,
-            sort=False,
-        )
+    asof_result = join(
+        values_frame,
+        cuts_frame,
+        how="asof",
+        left_on=[],
+        right_on=[],
+        left_match_col=values_frame.data_column_snowflake_quoted_identifiers[0],
+        right_match_col=cuts_frame.data_column_snowflake_quoted_identifiers[0],
+        match_comparator=MatchComparator.LESS_THAN_OR_EQUAL_TO
+        if right
+        else MatchComparator.GREATER_THAN_OR_EQUAL_TO,
+        sort=False,
+    )
+
     assert cuts_frame.row_position_snowflake_quoted_identifier is not None
     bin_index_col = col(
         asof_result.result_column_mapper.map_right_quoted_identifiers(
