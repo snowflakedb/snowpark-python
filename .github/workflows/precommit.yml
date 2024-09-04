@@ -503,6 +503,8 @@ jobs:
           src_dir = Path("artifacts")
           dst_dir = Path(".") / ".tox"
           dst_dir.mkdir()
+          for item in src_dir.rglob('*'):
+              print(item)
           for src_file in src_dir.glob("*/.coverage"):
               dst_file = dst_dir / ".coverage.{}".format(src_file.parent.name[9:])
               print("{} copy to {}".format(src_file, dst_file))
