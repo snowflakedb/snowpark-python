@@ -10790,14 +10790,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return self.dt_property("dayofweek")
 
     def dt_isocalendar(self) -> "SnowflakeQueryCompiler":
+        col_name = self.columns[0]
         year_col = self.dt_property("yearofweekiso").rename(
-            columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "year"}
+            columns_renamer={col_name: "year"}
         )
         week_col = self.dt_property("weekiso").rename(
-            columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "week"}
+            columns_renamer={col_name: "week"}
         )
         day_col = self.dt_property("dayofweekiso").rename(
-            columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "day"}
+            columns_renamer={col_name: "day"}
         )
         return year_col.concat(axis=1, other=[week_col, day_col])
 
