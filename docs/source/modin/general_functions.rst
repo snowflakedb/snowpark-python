@@ -11,6 +11,7 @@ General functions
     :toctree: pandas_api/
 
     melt
+    crosstab
     pivot
     pivot_table
     cut
@@ -45,4 +46,5 @@ General functions
     :toctree: pandas_api/
 
     date_range
+    bdate_range
     to_datetime

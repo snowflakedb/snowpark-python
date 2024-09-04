@@ -12,7 +12,7 @@
 
 #### Improvements
 
-- Added support for `ln` in `snowflake.snowpark.functions`
+- Improved documentation for `Session.write_pandas` by making `use_logical_type` option more explicit.
 - Added support for specifying the following to `DataFrameWriter.save_as_table`:
   - `enable_schema_evolution`
   - `data_retention_time`
@@ -35,6 +35,7 @@
 - Fixed a bug in `session.get_session_stage` that referenced a non-existing stage after switching database or schema.
 - Fixed a bug where calling `DataFrame.to_snowpark_pandas_dataframe` without explicitly initializing the Snowpark pandas plugin caused an error.
 - Fixed a bug where using the `explode` function in dynamic table creation caused a SQL compilation error due to improper boolean type casting on the `outer` parameter.
+- Fixed a bug where using `to_pandas_batches` with async jobs caused an error due to improper handling of waiting for asynchronous query completion.
 
 ### Snowpark Local Testing Updates
 
@@ -63,6 +64,8 @@
   - support for lazy `TimedeltaIndex`.
   - support for `pd.to_timedelta`.
   - support for `GroupBy` aggregations `min`, `max`, `mean`, `idxmax`, `idxmin`, `std`, `sum`, `median`, `count`, `any`, `all`, `size`, `nunique`.
+  - support for `TimedeltaIndex` attributes: `days`, `seconds`, `microseconds` and `nanoseconds`.
+  - support for `diff` with timestamp columns on `axis=0` and `axis=1`
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
@@ -76,17 +79,25 @@
 - Added support for `Index.is_boolean`, `Index.is_integer`, `Index.is_floating`, `Index.is_numeric`, and `Index.is_object`.
 - Added support for `DatetimeIndex.round`, `DatetimeIndex.floor` and `DatetimeIndex.ceil`.
 - Added support for `Series.dt.days_in_month` and `Series.dt.daysinmonth`.
+- Added support for `DataFrameGroupBy.value_counts` and `SeriesGroupBy.value_counts`.
+- Added support for `Series.is_monotonic_increasing` and `Series.is_monotonic_decreasing`.
+- Added support for `Index.is_monotonic_increasing` and `Index.is_monotonic_decreasing`.
+- Added support for `pd.crosstab`.
+- Added support for `pd.bdate_range` and included business frequency support (B, BME, BMS, BQE, BQS, BYE, BYS) for both `pd.date_range` and `pd.bdate_range`.
 - Added support for partial string indexing with `Timedelta` objects.
 
 #### Improvements
 
 - Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
 - Improved `pd.to_datetime` to handle all local input cases. 
+- Create a lazy index from another lazy index without pulling data to client.
 
 #### Bug Fixes
 
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 - Fixed AssertionError in tree of binary operations.
+- Fixed bug in `Series.dt.isocalendar` using a named Series
+- Fixed `inplace` argument for Series objects derived from DataFrame columns.
 
 #### Behavior Change
 
