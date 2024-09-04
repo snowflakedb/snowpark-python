@@ -43,6 +43,9 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
 )
 from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
+from snowflake.snowpark._internal.compiler.telemetry_constants import (
+    SkipLargeQueryBreakdownCategory,
+)
 from snowflake.snowpark._internal.compiler.utils import (
     TreeNode,
     is_active_transaction,
@@ -127,6 +130,10 @@ class LargeQueryBreakdown:
             _logger.debug(
                 "Skipping large query breakdown optimization due to active transaction."
             )
+            self.session._conn._telemetry_client.send_large_query_optimization_skipped_telemetry(
+                self.session.session_id,
+                SkipLargeQueryBreakdownCategory.ACTIVE_TRANSACTION.value,
+            )
             return self.logical_plans
 
         resulting_plans = []
@@ -166,6 +173,10 @@ class LargeQueryBreakdown:
             # Skip optimization if the root is a view or a dynamic table.
             _logger.debug(
                 "Skipping large query breakdown optimization for view/dynamic table plan."
+            )
+            self.session._conn._telemetry_client.send_large_query_optimization_skipped_telemetry(
+                self.session.session_id,
+                SkipLargeQueryBreakdownCategory.VIEW_DYNAMIC_TABLE.value,
             )
             return [root]
 
