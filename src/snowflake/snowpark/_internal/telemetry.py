@@ -14,6 +14,9 @@ from snowflake.connector.telemetry import (
     TelemetryField as PCTelemetryField,
 )
 from snowflake.connector.time_util import get_time_millis
+from snowflake.snowpark._internal.compiler.telemetry_constants import (
+    CompilationStageTelemetryField,
+)
 from snowflake.snowpark._internal.utils import (
     get_application_name,
     get_os_name,
@@ -42,9 +45,6 @@ class TelemetryField(Enum):
     )
     TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = "snowpark_auto_clean_up_temp_table_enabled"
     TYPE_LARGE_QUERY_BREAKDOWN_ENABLED = "snowpark_large_query_breakdown_enabled"
-    TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED = (
-        "snowpark_large_query_breakdown_optimization_skipped"
-    )
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
     KEY_START_TIME = "start_time"
@@ -62,7 +62,6 @@ class TelemetryField(Enum):
     KEY_API_CALLS = "api_calls"
     KEY_SFQIDS = "sfqids"
     KEY_SUBCALLS = "subcalls"
-    KEY_REASON = "reason"
     # function categories
     FUNC_CAT_ACTION = "action"
     FUNC_CAT_USAGE = "usage"
@@ -434,11 +433,11 @@ class TelemetryClient:
     ) -> None:
         message = {
             **self._create_basic_telemetry_data(
-                TelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED.value
+                CompilationStageTelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED.value
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
-                TelemetryField.KEY_REASON.value: reason,
+                CompilationStageTelemetryField.KEY_REASON.value: reason,
             },
         }
         self.send(message)
