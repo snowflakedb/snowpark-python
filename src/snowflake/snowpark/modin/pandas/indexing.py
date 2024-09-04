@@ -39,6 +39,7 @@ https://github.com/ray-project/ray/pull/1955#issuecomment-386781826
 
 import itertools
 import numbers
+from datetime import timedelta
 from typing import Any, Callable, Optional, Union
 
 import numpy as np
@@ -59,6 +60,7 @@ from pandas.core.indexing import IndexingError
 
 import snowflake.snowpark.modin.pandas as pd
 import snowflake.snowpark.modin.pandas.utils as frontend_utils
+from snowflake.snowpark._internal.type_utils import NoneType
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.pandas.series import (
     SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE,
@@ -74,6 +76,7 @@ from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
+from snowflake.snowpark.modin.plugin.extensions.timedelta_index import TimedeltaIndex
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 
 INDEXING_KEY_TYPE = Union[Scalar, list, slice, Callable, tuple, AnyArrayLike]
@@ -833,6 +836,14 @@ class _LocIndexer(_LocationIndexerBase):
                 slice or the original `row_loc`
             """
             # TODO: SNOW-1063352: Modin upgrade - modin.pandas.indexing._LocIndexer
+            # Check if self or its index is a TimedeltaIndex.
+            if isinstance(self.df, TimedeltaIndex) or (
+                isinstance(self.df, (DataFrame, Series))
+                and isinstance(self.df.index, TimedeltaIndex)
+            ):
+                res = pd.to_timedelta(row_loc)
+                return res
+
             try:
                 parsed, reso_str = parsing.parse_datetime_string_with_reso(row_loc)
             except ValueError:
@@ -856,7 +867,7 @@ class _LocIndexer(_LocationIndexerBase):
         if isinstance(row_loc, str):
             return _try_partial_string_indexing_for_string(row_loc)
 
-        if isinstance(row_loc, slice):
+        elif isinstance(row_loc, slice):
             start, stop = row_loc.start, row_loc.stop
             if isinstance(row_loc.start, str):
                 start = _try_partial_string_indexing_for_string(row_loc.start)
@@ -868,6 +879,16 @@ class _LocIndexer(_LocationIndexerBase):
                     stop = stop.stop
             # partial string indexing only updates start and stop, and should keep using the original step.
             row_loc = slice(start, stop, row_loc.step)
+
+        else:
+            # Partial string indexing for timedelta can also be performed on list-like row_loc.
+            # Check if self or its index is a TimedeltaIndex.
+            if isinstance(self.df, TimedeltaIndex) or (
+                isinstance(self.df, (DataFrame, Series))
+                and isinstance(self.df.index, TimedeltaIndex)
+            ):
+                res = pd.to_timedelta(row_loc)
+                return res
 
         return row_loc
 
@@ -894,6 +915,20 @@ class _LocIndexer(_LocationIndexerBase):
         # TODO: SNOW-1063352: Modin upgrade - modin.pandas.indexing._LocIndexer
         row_loc, col_loc = self._parse_get_row_and_column_locators(key)
         row_loc = self._try_partial_string_indexing(row_loc)
+
+        # In case the row_loc is None, but self is a TimedeltaIndex or has a TimedeltaIndex index, we should return an
+        # empty result. Native pandas raises a KeyError in this case since None is not present in the index. (If None
+        # were present in the index, the index type would simply be object, not TimedeltaIndex.)
+        # Check if self or its index is a TimedeltaIndex.
+        if isinstance(row_loc, NoneType) and (
+            isinstance(self.df, TimedeltaIndex)
+            or (
+                isinstance(self.df, (DataFrame, Series))
+                and isinstance(self.df.index, TimedeltaIndex)
+            )
+        ):
+            return self.df.__constructor__()
+
         squeeze_row, squeeze_col = self._should_squeeze(
             locator=row_loc, axis=0
         ), self._should_squeeze(locator=col_loc, axis=1)
@@ -906,6 +941,9 @@ class _LocIndexer(_LocationIndexerBase):
             qc_view, squeeze_row=squeeze_row, squeeze_col=squeeze_col
         )
         if isinstance(result, Series):
+            if isinstance(row_loc, timedelta):
+                # squeeze() incorrectly sets the Series name as an int64 number.
+                result.name = row_loc
             result._parent = self.df
             result._parent_axis = 0
 

@@ -3924,3 +3924,66 @@ def test_raise_set_cell_with_list_like_value_error():
         s.loc[0] = [0, 0]
     with pytest.raises(NotImplementedError):
         s.to_frame().loc[0, 0] = [0, 0]
+
+
+@pytest.mark.parametrize(
+    "key, query_count, join_count",
+    [
+        ("1 day", 2, 3),  # 1 join from squeeze, 2 joins from to_pandas during eval
+        (
+            native_pd.to_timedelta("1 day"),
+            2,
+            3,
+        ),  # 1 join from squeeze, 2 joins from to_pandas during eval
+        (["1 day", "3 days"], 1, 1),
+        (slice(None, "4 days"), 1, 0),
+        (slice(None, "4 days", 2), 1, 0),
+    ],
+)
+def test_df_loc_get_with_timedelta(key, query_count, join_count):
+    data = {
+        "A": [1, 2, 3],
+        "B": [4, 5, 6],
+        "C": [7, 8, 9],
+    }
+    idx = ["1 days", "2 days", "3 days"]
+    native_df = native_pd.DataFrame(data, index=native_pd.to_timedelta(idx))
+    snow_df = pd.DataFrame(data, index=pd.to_timedelta(idx))
+    with SqlCounter(query_count=query_count, join_count=join_count):
+        eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.loc[key])
+
+
+@sql_count_checker(query_count=2, join_count=1)
+def test_df_loc_get_with_timedeltaindex_key():
+    data = {
+        "A": [1, 2, 3],
+        "B": [4, 5, 6],
+        "C": [7, 8, 9],
+    }
+    idx = ["1 days", "2 days", "3 days"]
+    native_df = native_pd.DataFrame(data, index=native_pd.to_timedelta(idx))
+    snow_df = pd.DataFrame(data, index=pd.to_timedelta(idx))
+    key = ["1 days", "3 days"]
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.loc[
+            native_pd.to_timedelta(key)
+            if isinstance(df, native_pd.DataFrame)
+            else pd.to_timedelta(key)
+        ],
+    )
+
+
+@sql_count_checker(query_count=2)
+def test_df_loc_get_with_timedelta_and_none_key():
+    data = {
+        "A": [1, 2, 3],
+        "B": [4, 5, 6],
+        "C": [7, 8, 9],
+    }
+    idx = ["1 days", "2 days", "3 days"]
+    snow_df = pd.DataFrame(data, index=pd.to_timedelta(idx))
+    # Compare with an empty DataFrame, since native pandas raises a KeyError.
+    expected_df = native_pd.DataFrame()
+    assert_frame_equal(snow_df.loc[None], expected_df, check_column_type=False)

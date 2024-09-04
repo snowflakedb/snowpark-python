@@ -1787,3 +1787,57 @@ def test_series_loc_set_none():
     eval_snowpark_pandas_result(
         pd.Series(native_s), native_s, loc_set_helper, inplace=True
     )
+
+
+@pytest.mark.parametrize(
+    "key, query_count, join_count",
+    [
+        ("1 day", 2, 2),  # 1 join from squeeze, 1 join from to_pandas during eval
+        (
+            native_pd.to_timedelta("1 day"),
+            2,
+            2,
+        ),  # 1 join from squeeze, 1 join from to_pandas during eval
+        (["1 day", "3 days"], 1, 1),
+        (slice(None, "4 days"), 1, 0),
+        (slice(None, "4 days", 2), 1, 0),
+    ],
+)
+def test_series_loc_get_with_timedelta(key, query_count, join_count):
+    data = ["A", "B", "C"]
+    idx = ["1 days", "2 days", "3 days"]
+    native_ser = native_pd.Series(data, index=native_pd.to_timedelta(idx))
+    snow_ser = pd.Series(data, index=pd.to_timedelta(idx))
+
+    # Perform loc.
+    with SqlCounter(query_count=query_count, join_count=join_count):
+        snow_res = snow_ser.loc[key]
+        native_res = native_ser.loc[key]
+        if is_scalar(key):
+            assert snow_res == native_res
+        else:
+            assert_series_equal(snow_res, native_res)
+
+
+@sql_count_checker(query_count=2, join_count=1)
+def test_series_loc_get_with_timedeltaindex_key():
+    data = ["A", "B", "C"]
+    idx = ["1 days", "2 days", "3 days"]
+    native_ser = native_pd.Series(data, index=native_pd.to_timedelta(idx))
+    snow_ser = pd.Series(data, index=pd.to_timedelta(idx))
+
+    # Perform loc.
+    key = ["1 days", "3 days"]
+    snow_res = snow_ser.loc[pd.to_timedelta(key)]
+    native_res = native_ser.loc[native_pd.to_timedelta(key)]
+    assert_series_equal(snow_res, native_res)
+
+
+@sql_count_checker(query_count=2)
+def test_series_loc_get_with_timedelta_and_none_key():
+    data = ["A", "B", "C"]
+    idx = ["1 days", "2 days", "3 days"]
+    snow_ser = pd.Series(data, index=pd.to_timedelta(idx))
+    # Compare with an empty Series, since native pandas raises a KeyError.
+    expected_ser = native_pd.Series()
+    assert_series_equal(snow_ser.loc[None], expected_ser)

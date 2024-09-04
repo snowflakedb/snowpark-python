@@ -76,6 +76,7 @@
 - Added support for `Index.is_boolean`, `Index.is_integer`, `Index.is_floating`, `Index.is_numeric`, and `Index.is_object`.
 - Added support for `DatetimeIndex.round`, `DatetimeIndex.floor` and `DatetimeIndex.ceil`.
 - Added support for `Series.dt.days_in_month` and `Series.dt.daysinmonth`.
+- Added support for partial string indexing with `Timedelta` objects.
 
 #### Improvements
 
