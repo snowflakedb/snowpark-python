@@ -487,3 +487,16 @@ def test_async_job_result_wait_no_result(session):
     t1 = time()
     assert t1 - t0 >= 3.0
     assert result is None
+
+
+@pytest.mark.parametrize(
+    "action",
+    [
+        lambda df: df.to_local_iterator(block=False),
+        lambda df: df.to_pandas_batches(block=False),
+    ],
+)
+def test_iter_cursor_wait_for_result(session, action):
+    df = session.sql("call system$wait(5)")
+    async_job = action(df)
+    assert async_job.result() is not None
