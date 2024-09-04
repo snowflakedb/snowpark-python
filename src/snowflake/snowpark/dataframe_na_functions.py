@@ -172,7 +172,6 @@ class DataFrameNaFunctions:
         if _emit_ast:
             stmt = self._df._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_na_drop__python, stmt)
-            self._df.set_ast_ref(ast.df)
             ast.how = how
             if thresh is not None:
                 ast.thresh.value = thresh
@@ -180,6 +179,7 @@ class DataFrameNaFunctions:
                 ast.subset.list.append(subset)
             elif isinstance(subset, Iterable):
                 ast.subset.list.extend(subset)
+            self._df.set_ast_ref(ast.df)
 
         # if subset is not provided, drop will be applied to all columns
         if subset is None:
@@ -206,8 +206,10 @@ class DataFrameNaFunctions:
         # if thresh is greater than the number of columns,
         # drop a row only if all its values are null
         elif thresh > len(subset):
-            new_df = self._df.limit(0, _ast_stmt=stmt, _emit_ast=_emit_ast)
+            new_df = self._df.limit(0, _ast_stmt=stmt, _emit_ast=False)
             adjust_api_subcalls(new_df, "DataFrameNaFunctions.drop", len_subcalls=1)
+            if _emit_ast:
+                new_df._ast_id = stmt.var_id.bitfield1
             return new_df
         else:
             df_col_type_dict = {
@@ -236,6 +238,10 @@ class DataFrameNaFunctions:
             )
             new_df = self._df.where(col_counter >= thresh, _emit_ast=False)
             adjust_api_subcalls(new_df, "DataFrameNaFunctions.drop", len_subcalls=1)
+
+            if _emit_ast:
+                new_df._ast_id = stmt.var_id.bitfield1
+
             return new_df
 
     def fill(

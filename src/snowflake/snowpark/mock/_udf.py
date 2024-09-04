@@ -4,6 +4,7 @@
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
+from snowflake.snowpark._internal.ast_utils import build_udf, with_src_position
 from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,
     process_registration_inputs,
@@ -105,7 +106,41 @@ class MockUDFRegistration(UDFRegistration):
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
         native_app_params: Optional[Dict[str, Any]] = None,
+        _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedFunction:
+
+        ast = None
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.udf, stmt)
+            build_udf(
+                ast,
+                func,
+                return_type,
+                input_types,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                max_batch_size,
+                strict,
+                secure,
+                external_access_integrations,
+                secrets,
+                immutable,
+                comment,
+                statement_params=statement_params,
+                source_code_display=source_code_display,
+                is_permanent=is_permanent,
+                session=self._session,
+                **kwargs,
+            )
+
         if is_permanent:
             self._session._conn.log_not_supported_error(
                 external_feature_name="udf",
@@ -148,7 +183,10 @@ class MockUDFRegistration(UDFRegistration):
             raise ValueError("options replace and if_not_exists are incompatible")
 
         if udf_name in self._registry and if_not_exists:
-            return self._registry[udf_name]
+            ans = self._registry[udf_name]
+            ans._ast = ast
+            ans._ast_id = stmt.var_id.bitfield1
+            return ans
 
         if udf_name in self._registry and not replace:
             raise SnowparkSQLException(
@@ -168,6 +206,8 @@ class MockUDFRegistration(UDFRegistration):
             strict=strict,
             packages=packages,
             use_session_imports=imports is None,
+            _ast=ast,
+            _ast_id=stmt.var_id.bitfield1,
         )
 
         if type(func) is tuple:  # update file registration
