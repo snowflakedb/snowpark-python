@@ -206,6 +206,9 @@ _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
 _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = (
     "PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED"
 )
+_PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION = (
+    "PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION"
+)
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
@@ -555,6 +558,11 @@ class Session:
             )
         )
 
+        self._large_query_breakdown_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION, False
+            )
+        )
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
@@ -642,6 +650,10 @@ class Session:
             the target temporary tables will still be cleaned up accordingly.
         """
         return self._auto_clean_up_temp_table_enabled
+
+    @property
+    def large_query_breakdown_enabled(self) -> bool:
+        return self._large_query_breakdown_enabled
 
     @property
     def custom_package_usage_config(self) -> Dict:
@@ -737,6 +749,25 @@ class Session:
         else:
             raise ValueError(
                 "value for auto_clean_up_temp_table_enabled must be True or False!"
+            )
+
+    @large_query_breakdown_enabled.setter
+    @experimental_parameter(version="1.22.0")
+    def large_query_breakdown_enabled(self, value: bool) -> None:
+        """Set the value for large_query_breakdown_enabled. When enabled, the client will
+        automatically detect large query plans and break them down into smaller partitions,
+        materialize the partitions, and then combine them to execute the query to improve
+        overall performance.
+        """
+
+        if value in [True, False]:
+            self._conn._telemetry_client.send_large_query_breakdown_telemetry(
+                self._session_id, value
+            )
+            self._large_query_breakdown_enabled = value
+        else:
+            raise ValueError(
+                "value for large_query_breakdown_enabled must be True or False!"
             )
 
     @custom_package_usage_config.setter
@@ -1117,11 +1148,10 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        _, resolved_result_dict = self._resolve_packages(
+        self._resolve_packages(
             parse_positional_args_to_list(*packages),
             self._packages,
         )
-        self._packages.update(resolved_result_dict)
 
     def remove_package(self, package: str) -> None:
         """
@@ -1482,12 +1512,13 @@ class Session:
         validate_package: bool = True,
         include_pandas: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> Tuple[List[str], Dict[str, str]]:
+    ) -> List[str]:
         """
         Given a list of packages to add, this method will
         1. Check if the packages are supported by Snowflake
         2. Check if the package version if provided is supported by Snowflake
         3. Check if the package is already added
+        4. Update existing packages dictionary with the new packages (*this is required for python sp to work*)
 
         When auto package upload is enabled, this method will also try to upload the packages
         unavailable in Snowflake to the stage.
@@ -1496,7 +1527,6 @@ class Session:
 
         Returns:
             List[str]: List of package specifiers
-            Dict[str, str]: Dictionary of package name -> package specifier
         """
         # Extract package names, whether they are local, and their associated Requirement objects
         package_dict = self._parse_packages(packages)
@@ -1518,7 +1548,9 @@ class Session:
                 raise errors[0]
             elif len(errors) > 0:
                 raise RuntimeError(errors)
-            return list(result_dict.values()), result_dict
+
+            self._packages.update(result_dict)
+            return list(result_dict.values())
 
         package_table = "information_schema.packages"
         if not self.get_current_database():
@@ -1531,7 +1563,7 @@ class Session:
         #  'scikit-learn': 'scikit-learn==1.2.2',
         #  'python-dateutil': 'python-dateutil==2.8.2'}
         # Add to packages dictionary. Make a copy of existing packages
-        # dictionary to avoid modifying it.
+        # dictionary to avoid modifying it during intermediate steps.
         result_dict = (
             existing_packages_dict.copy() if existing_packages_dict is not None else {}
         )
@@ -1567,10 +1599,10 @@ class Session:
         if include_pandas:
             extra_modules.append("pandas")
 
-        return (
-            list(result_dict.values())
-            + self._get_req_identifiers_list(extra_modules, result_dict),
-            result_dict,
+        if existing_packages_dict is not None:
+            existing_packages_dict.update(result_dict)
+        return list(result_dict.values()) + self._get_req_identifiers_list(
+            extra_modules, result_dict
         )
 
     def _upload_unsupported_packages(
@@ -2361,6 +2393,7 @@ class Session:
         create_temp_table: bool = False,
         overwrite: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
+        use_logical_type: Optional[bool] = None,
         **kwargs: Dict[str, Any],
     ) -> Table:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
@@ -2397,6 +2430,11 @@ class Session:
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
                 and ``transient``. An empty string means to create a permanent table. Learn more about table types
                 `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
+            use_logical_type: Boolean that specifies whether to use Parquet logical types when reading the parquet files
+                for the uploaded pandas dataframe. With this file format option, Snowflake can interpret Parquet logical
+                types during data loading. To enable Parquet logical types, set use_logical_type as True. Set to None to
+                use Snowflakes default. For more information, see:
+                `file format options: <https://docs.snowflake.com/en/sql-reference/sql/create-file-format#type-parquet>`_.
 
         Example::
 
@@ -2473,12 +2511,13 @@ class Session:
                     + (schema + "." if schema else "")
                     + (table_name)
                 )
-            signature = inspect.signature(write_pandas)
-            if not ("use_logical_type" in signature.parameters):
-                # do not pass use_logical_type if write_pandas does not support it
-                use_logical_type_passed = kwargs.pop("use_logical_type", None)
 
-                if use_logical_type_passed is not None:
+            if use_logical_type is not None:
+                signature = inspect.signature(write_pandas)
+                use_logical_type_supported = "use_logical_type" in signature.parameters
+                if use_logical_type_supported:
+                    kwargs["use_logical_type"] = use_logical_type
+                else:
                     # raise warning to upgrade python connector
                     warnings.warn(
                         "use_logical_type will be ignored because current python "

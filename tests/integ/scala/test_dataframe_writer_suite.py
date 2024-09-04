@@ -3,6 +3,7 @@
 #
 
 import copy
+import logging
 
 import pytest
 
@@ -535,7 +536,7 @@ def test_write_table_names(session, db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
 )
-def test_writer_csv(session, tmpdir_factory):
+def test_writer_csv(session, caplog):
 
     """Tests for df.write.csv()."""
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [3, 7]], schema=["a", "b"])
@@ -590,6 +591,32 @@ def test_writer_csv(session, tmpdir_factory):
         assert result6[0].rows_unloaded == ROWS_COUNT
         data6 = session.read.schema(schema).csv(f"@{path6}")
         Utils.assert_rows_count(data6, ROWS_COUNT)
+
+        # test option alias case
+        path7 = f"{temp_stage}/test_csv_example7/my_file.csv.gz"
+        with caplog.at_level(logging.WARNING):
+            result7 = df.write.csv(
+                path7,
+                format_type_options={"SEP": ":", "quote": '"'},
+                single=True,
+                header=True,
+            )
+        assert "Option 'SEP' is aliased to 'FIELD_DELIMITER'." in caplog.text
+        assert (
+            "Option 'quote' is aliased to 'FIELD_OPTIONALLY_ENCLOSED_BY'."
+            in caplog.text
+        )
+
+        assert result7[0].rows_unloaded == ROWS_COUNT
+        data7 = (
+            session.read.schema(schema)
+            .option("header", True)
+            .option("inferSchema", True)
+            .option("SEP", ":")
+            .option("quote", '"')
+            .csv(f"@{path7}")
+        )
+        Utils.check_answer(data7, df)
     finally:
         Utils.drop_stage(session, temp_stage)
 

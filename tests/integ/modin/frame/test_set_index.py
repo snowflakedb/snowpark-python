@@ -8,7 +8,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import assert_frame_equal, eval_snowpark_pandas_result
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ def drop(request):
     return request.param
 
 
-@sql_count_checker(query_count=4, join_count=2)
+@sql_count_checker(query_count=1, join_count=2)
 def test_set_index_multiindex(snow_df, native_df):
     index = native_pd.MultiIndex.from_tuples([(5, 4), (4, 5), (5, 5)])
     eval_snowpark_pandas_result(
@@ -80,20 +80,14 @@ def test_set_index_multiindex_columns(snow_df):
     )
 
 
-@sql_count_checker(query_count=2)
-def test_set_index_negative(snow_df, native_df):
+@sql_count_checker(query_count=1, join_count=1)
+def test_set_index_different_index_length(snow_df):
     index = pd.Index([1, 2])
-    native_index = native_pd.Index([1, 2])
-    eval_snowpark_pandas_result(
-        snow_df,
-        native_df,
-        lambda df: df.set_index(native_index)
-        if isinstance(df, native_pd.DataFrame)
-        else df.set_index(index),
-        expect_exception=True,
-        expect_exception_match="Length mismatch: Expected 3 rows, received array of length 2",
-        expect_exception_type=ValueError,
+    actual_df = snow_df.set_index(index)
+    expected_df = native_pd.DataFrame(
+        {"a": [1, 2, 2], "b": [3, 4, 5], ("c", "d"): [0, 0, 1]}, index=[1, 2, np.nan]
     )
+    assert_frame_equal(actual_df, expected_df)
 
 
 @sql_count_checker(query_count=1)
@@ -121,17 +115,17 @@ def test_set_index_names(snow_df):
     # Verify name from input index is set.
     index = pd.Index([1, 2, 0])
     index.names = ["iname"]
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=0):
         assert snow_df.set_index(index).index.names == ["iname"]
 
     # Verify names from input multiindex are set.
     multi_index = native_pd.MultiIndex.from_arrays(
         [[1, 1, 2], [1, 2, 1]], names=["a", "b"]
     )
-    with SqlCounter(query_count=3, join_count=2):
+    with SqlCounter(query_count=1, join_count=2):
         assert snow_df.set_index(multi_index).index.names == ["a", "b"]
 
-    with SqlCounter(query_count=6, join_count=4):
+    with SqlCounter(query_count=2, join_count=4):
         # Verify that [MultiIndex, MultiIndex] yields a MultiIndex rather
         # than a pair of tuples
         multi_index2 = multi_index.rename(["C", "D"])
@@ -227,9 +221,9 @@ def test_set_index_pass_single_array(obj_type, drop, append, native_df):
                 expect_exception=True,
             )
     else:
-        expected_query_count = 3
+        expected_query_count = 1
         if obj_type == pd.Series or obj_type == pd.Index:
-            expected_query_count = 4
+            expected_query_count = 2
         with SqlCounter(query_count=expected_query_count, join_count=1):
             eval_snowpark_pandas_result(
                 snow_df,
@@ -264,7 +258,7 @@ def test_set_index_pass_arrays(obj_type, drop, append, native_df):
         "a",
         key.to_pandas() if isinstance(key, (pd.Series, pd.Index)) else key,
     ]
-    with SqlCounter(query_count=3, join_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -312,7 +306,7 @@ def test_set_index_pass_arrays_duplicate(obj_type1, obj_type2, drop, append, nat
         obj_type2 = native_pd.Index
     native_keys = [obj_type1(array), obj_type2(array)]
 
-    with SqlCounter(query_count=4, join_count=2):
+    with SqlCounter(query_count=1, join_count=2):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -324,7 +318,7 @@ def test_set_index_pass_arrays_duplicate(obj_type1, obj_type2, drop, append, nat
         )
 
 
-@sql_count_checker(query_count=4, join_count=2)
+@sql_count_checker(query_count=1, join_count=2)
 def test_set_index_pass_multiindex(drop, append, native_df):
     snow_df = pd.DataFrame(native_df)
     index_data = [["one", "two", "three"], [9, 3, 7]]
@@ -340,7 +334,7 @@ def test_set_index_pass_multiindex(drop, append, native_df):
     "keys, expected_query_count",
     [
         (["a"], 3),
-        ([[1, 6, 6]], 5),
+        ([[1, 6, 6]], 3),
     ],
 )
 def test_set_index_verify_integrity_negative(native_df, keys, expected_query_count):
@@ -398,66 +392,6 @@ def test_set_index_raise_on_invalid_type_set_negative(keys, drop, append, native
         # https://github.com/pandas-dev/pandas/blob/1.5.x/pandas/core/frame.py#L6005
         assert_exception_equal=False,
     )
-
-
-@pytest.mark.parametrize(
-    "obj_type",
-    [
-        pd.Series,
-        pd.Index,
-        np.array,
-        iter,
-        lambda x: native_pd.MultiIndex.from_arrays([x]),
-    ],
-    ids=["Series", "Index", "np.array", "iter", "MultiIndex"],
-)
-@pytest.mark.parametrize("length", [2, 6], ids=["too_short", "too_long"])
-def test_set_index_raise_on_len(length, obj_type, drop, append, native_df):
-    snow_df = pd.DataFrame(native_df)
-    values = np.random.randint(0, 10, (length,))
-    key = obj_type(values)
-    if obj_type == pd.Series:
-        obj_type = native_pd.Series
-    elif obj_type == pd.Index:
-        obj_type = native_pd.Index
-    native_key = obj_type(values)
-
-    msg = "Length mismatch: Expected 3 rows, received array of length.*"
-    # wrong length directly
-    # one extra query to create the series to set index
-    with SqlCounter(query_count=2):
-        eval_snowpark_pandas_result(
-            snow_df,
-            native_df,
-            lambda df: df.set_index(
-                key if isinstance(df, pd.DataFrame) else native_key,
-                drop=drop,
-                append=append,
-            ),
-            expect_exception=True,
-            expect_exception_type=ValueError,
-            expect_exception_match=msg,
-        )
-
-    # wrong length in list
-    expected_query_count = 1
-    if obj_type == native_pd.Series:
-        expected_query_count = 0
-    keys = ["a", key]
-    native_keys = ["a", native_key]
-    with SqlCounter(query_count=expected_query_count):
-        eval_snowpark_pandas_result(
-            snow_df,
-            native_df,
-            lambda df: df.set_index(
-                keys if isinstance(df, pd.DataFrame) else native_keys,
-                drop=drop,
-                append=append,
-            ),
-            expect_exception=True,
-            expect_exception_type=ValueError,
-            expect_exception_match=msg,
-        )
 
 
 class TestSetIndexCustomLabelType:
@@ -560,7 +494,7 @@ class TestSetIndexCustomLabelType:
             native_pd.Series([1, 2, 3, 4], name="num"),
         ],
     )
-    @sql_count_checker(query_count=3, join_count=1)
+    @sql_count_checker(query_count=1, join_count=1)
     def test_set_index_with_index_series_name(self, sample):
         df = native_pd.DataFrame(
             {

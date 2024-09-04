@@ -357,18 +357,64 @@ class InternalFrame:
             ]
         ]
 
-    def quoted_identifier_to_snowflake_type(self) -> dict[str, DataType]:
-        identifier_to_type = {}
-        for f in self.ordered_dataframe.schema.fields:
+    def get_snowflake_type(
+        self, identifier: Union[str, list[str]]
+    ) -> Union[DataType, list[DataType]]:
+        """
+        Get the Snowflake type.
+
+        Args:
+            identifier: one or a list of Snowflake quoted identifiers
+
+        Returns:
+             The one or a list of Snowflake types.
+
+        """
+        if isinstance(identifier, list):
+            return list(self.quoted_identifier_to_snowflake_type(identifier).values())
+        return list(self.quoted_identifier_to_snowflake_type([identifier]).values())[0]
+
+    def quoted_identifier_to_snowflake_type(
+        self, identifiers: Optional[list[str]] = None
+    ) -> dict[str, DataType]:
+        """
+        Get a map from Snowflake quoted identifier to Snowflake types.
+
+        Args:
+            identifiers: if identifiers is given, only return the mapping for those inputs. Otherwise, the map will
+            include all identifiers in the frame.
+
+        Return:
+            A mapping from Snowflake quoted identifier to Snowflake types.
+        """
+        snowpark_pandas_type_mapping = (
+            self.snowflake_quoted_identifier_to_snowpark_pandas_type
+        )
+        if identifiers is not None:
             # ordered dataframe may include columns that are not index or data
             # columns of this InternalFrame, so don't assume that each
             # identifier is in snowflake_quoted_identifier_to_snowflake_type.
-            cached_type = self.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
-                f.column_identifier.quoted_name, None
-            )
-            identifier_to_type[f.column_identifier.quoted_name] = (
-                cached_type if cached_type is not None else f.datatype
-            )
+            cached_types = {
+                id: snowpark_pandas_type_mapping.get(id, None) for id in identifiers
+            }
+            if None not in cached_types.values():
+                # if all types are cached, then we don't need to call schema
+                return cached_types
+
+        all_identifier_to_type = {}
+
+        for f in self.ordered_dataframe.schema.fields:
+            id = f.column_identifier.quoted_name
+            cached_type = snowpark_pandas_type_mapping.get(id, None)
+            all_identifier_to_type[id] = cached_type or f.datatype
+
+        if identifiers is not None:
+            # Python dict's keys and values are iterated over in insertion order. This make sense result dict
+            # `identifier_to_type`'s order matches with the input `identifier`
+            identifier_to_type = {id: all_identifier_to_type[id] for id in identifiers}
+        else:
+            identifier_to_type = all_identifier_to_type
+
         return identifier_to_type
 
     @property
@@ -515,9 +561,7 @@ class InternalFrame:
         else:
             # We have one index column. Fill in the type correctly.
             index_identifier = self.index_column_snowflake_quoted_identifiers[0]
-            index_type = TypeMapper.to_pandas(
-                self.quoted_identifier_to_snowflake_type()[index_identifier]
-            )
+            index_type = TypeMapper.to_pandas(self.get_snowflake_type(index_identifier))
             ret = native_pd.Index(
                 [row[0] for row in index_values],
                 name=self.index_column_pandas_labels[0],
@@ -1251,26 +1295,30 @@ class InternalFrame:
             existing_id_to_new_id_mapping,
         )
 
-    def apply_snowpark_function_to_data_columns(
-        self, snowpark_func: Callable[[Any], SnowparkColumn]
+    def apply_snowpark_function_to_columns(
+        self,
+        snowpark_func: Callable[[Any], SnowparkColumn],
+        include_index: bool = False,
     ) -> "InternalFrame":
         """
-        Apply snowpark function callable to data columns of an InternalFrame.  The snowflake quoted identifiers
-        are preserved.
+        Apply snowpark function callable to all data columns of an InternalFrame. If
+        include_index is True also apply this function to all index columns. The
+        snowflake quoted identifiers are preserved.
 
         Arguments:
-            snowpark_func: Snowpark function to apply to data columns of underlying snowpark df.
+            snowpark_func: Snowpark function to apply to columns of underlying snowpark df.
+            include_index: Whether to apply the function to index columns as well.
 
         Returns:
-            InternalFrame with snowpark_func applies to data columns of original frame, all other columns remain unchanged.
+            InternalFrame with snowpark_func applies to columns of original frame, all other columns remain unchanged.
         """
-        new_internal_frame = self.update_snowflake_quoted_identifiers_with_expressions(
-            {
-                snowflake_quoted_identifier: snowpark_func(snowflake_quoted_identifier)
-                for snowflake_quoted_identifier in self.data_column_snowflake_quoted_identifiers
-            }
+        snowflake_ids = self.data_column_snowflake_quoted_identifiers
+        if include_index:
+            snowflake_ids.extend(self.index_column_snowflake_quoted_identifiers)
+
+        return self.update_snowflake_quoted_identifiers_with_expressions(
+            {col_id: snowpark_func(col(col_id)) for col_id in snowflake_ids}
         ).frame
-        return new_internal_frame
 
     def select_active_columns(self) -> "InternalFrame":
         """

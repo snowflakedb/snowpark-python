@@ -16,7 +16,14 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
 @pytest.mark.parametrize(
     "dataframe_input, test_case_name",
     [
-        ({"A": [1, 2, 3], "B": [4, 5, 6]}, "simple non-empty"),
+        (
+            {
+                "A": [1, 2, 3],
+                "B": [4, 5, 6],
+                "C": native_pd.timedelta_range(1, periods=3),
+            },
+            "simple non-empty",
+        ),
         ({"A": [], "B": []}, "empty column"),
         ({"A": [np.nan]}, "np nan column"),
     ],

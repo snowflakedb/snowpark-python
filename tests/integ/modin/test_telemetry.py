@@ -5,7 +5,7 @@
 import json
 import sys
 from typing import Any, Optional
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import ANY, patch
 
 import modin.pandas as pd
 import numpy as np
@@ -21,12 +21,9 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (
     _not_equal_to_default,
     _send_snowpark_pandas_telemetry_helper,
     _try_get_kwargs_telemetry,
-    error_to_telemetry_type,
-    snowpark_pandas_telemetry_method_decorator,
 )
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import BASIC_TYPE_DATA1, BASIC_TYPE_DATA2
-from tests.unit.modin.test_telemetry import snowpark_pandas_error_test_helper
 
 
 def _extract_snowpark_pandas_telemetry_log_data(
@@ -345,32 +342,6 @@ def test_telemetry_with_update_inplace():
     )
 
 
-@sql_count_checker(query_count=0)
-def test_telemetry_with_not_implemented_error():
-    # verify api_calls have been collected correctly for Resample APIs
-    mock_arg = MagicMock()
-    mock_arg._query_compiler.snowpark_pandas_api_calls = []
-    mock_arg.__class__.__name__ = "mock_class"
-
-    index = pandas.date_range("1/1/2000", periods=9, freq="min")
-    ser = pd.Series(range(9), index=index)
-    try:
-        ser.resample("3T").fillna(method="nearest")
-    except NotImplementedError:
-        pass
-
-    snowpark_pandas_error_test_helper(
-        func=snowpark_pandas_telemetry_method_decorator,
-        error=NotImplementedError("Method bfill is not implemented for Resampler!"),
-        telemetry_type=error_to_telemetry_type(
-            NotImplementedError("Method bfill is not implemented for Resampler!")
-        ),
-        error_msg="Method bfill is not implemented for Resampler!",
-        loc_pref="mock_class",
-        mock_arg=mock_arg,
-    )
-
-
 @sql_count_checker(query_count=1)
 def test_telemetry_with_resample():
     # verify api_calls have been collected correctly for Resample APIs
@@ -427,7 +398,7 @@ def test_telemetry_getitem_setitem():
     s = df["a"]
     assert len(df._query_compiler.snowpark_pandas_api_calls) == 0
     assert s._query_compiler.snowpark_pandas_api_calls == [
-        {"name": "DataFrame.BasePandasDataset.__getitem__"}
+        {"name": "DataFrame.__getitem__"}
     ]
     df["a"] = 0
     df["b"] = 0
@@ -441,12 +412,12 @@ def test_telemetry_getitem_setitem():
     # the telemetry log from the connector to validate
     _ = s[0]
     data = _extract_snowpark_pandas_telemetry_log_data(
-        expected_func_name="Series.BasePandasDataset.__getitem__",
+        expected_func_name="Series.__getitem__",
         session=s._query_compiler._modin_frame.ordered_dataframe.session,
     )
     assert data["api_calls"] == [
-        {"name": "DataFrame.BasePandasDataset.__getitem__"},
-        {"name": "Series.BasePandasDataset.__getitem__"},
+        {"name": "DataFrame.__getitem__"},
+        {"name": "Series.__getitem__"},
     ]
 
 
@@ -474,7 +445,7 @@ def test_telemetry_private_method(name, method, expected_query_count):
     assert data["api_calls"] == [{"name": f"DataFrame.DataFrame.{name}"}]
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_telemetry_property_index():
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     df._query_compiler.snowpark_pandas_api_calls.clear()
@@ -575,4 +546,19 @@ def test_telemetry_repr():
     assert data["api_calls"] == [
         {"name": "Series.property.name_set"},
         {"name": "Series.Series.__repr__"},
+    ]
+
+
+@sql_count_checker(query_count=0)
+def test_telemetry_copy():
+    # copy() is defined in upstream modin's BasePandasDataset class, and not overridden by any
+    # child class or the extensions module.
+    s = pd.Series([1, 2, 3, 4])
+    copied = s.copy()
+    assert s._query_compiler.snowpark_pandas_api_calls == [
+        {"name": "Series.property.name_set"}
+    ]
+    assert copied._query_compiler.snowpark_pandas_api_calls == [
+        {"name": "Series.property.name_set"},
+        {"name": "Series.BasePandasDataset.copy"},
     ]

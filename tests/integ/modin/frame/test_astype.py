@@ -109,7 +109,6 @@ def test_astype_from_timestamp_ltz(session, to_dtype):
             "float_col": "timedelta64[ns]",
             "boolean_col": bool,
             "object_col": "timedelta64[ns]",
-            "string_col": str,
         },
     ],
 )
@@ -121,29 +120,35 @@ def test_astype_to_timedelta(dtype):
             "float_col": [12345678, 2.3],
             "boolean_col": [True, False],
             "object_col": [1, "2"],
-            "string_col": ["6", "8"],
         },
     )
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.astype(dtype))
 
 
-@sql_count_checker(query_count=2)
-def test_astype_datetime_to_timedelta_negative():
-    native_df = native_pd.DataFrame(
+@sql_count_checker(query_count=0)
+def test_astype_to_timedelta_negative():
+    native_datetime_df = native_pd.DataFrame(
         data={"col1": [pd.to_datetime("2000-01-01"), pd.to_datetime("2001-01-01")]}
     )
-    snow_df = pd.DataFrame(native_df)
+    snow_datetime_df = pd.DataFrame(native_datetime_df)
     with SqlCounter(query_count=0):
         with pytest.raises(
             TypeError,
             match=re.escape("Cannot cast DatetimeArray to dtype timedelta64[ns]"),
         ):
-            native_df.astype("timedelta64[ns]")
+            native_datetime_df.astype("timedelta64[ns]")
         with pytest.raises(
             TypeError,
             match=re.escape(
                 "dtype datetime64[ns] cannot be converted to timedelta64[ns]"
             ),
         ):
-            snow_df.astype("timedelta64[ns]")
+            snow_datetime_df.astype("timedelta64[ns]")
+    with SqlCounter(query_count=0):
+        snow_string_df = pd.DataFrame(data=["2 days, 3 minutes", "4 days, 1 hour"])
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape("dtype object cannot be converted to timedelta64[ns]"),
+        ):
+            snow_string_df.astype("timedelta64[ns]")
