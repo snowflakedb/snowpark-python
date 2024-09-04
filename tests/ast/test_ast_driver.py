@@ -23,7 +23,8 @@ DATA_DIR = TEST_DIR / "data"
 class TestCase:
     filename: str
     source: str
-    expected_output: str
+    expected_ast_base64: str
+    expected_ast_unparsed: str
 
 
 def parse_file(file):
@@ -41,16 +42,24 @@ def parse_file(file):
         )
 
     try:
-        expected_output_start = src.index("## EXPECTED OUTPUT\n")
+        expected_ast_unparsed_start = src.index("## EXPECTED UNPARSER OUTPUT\n")
     except ValueError:
         raise ValueError(
-            "Required header ## EXPECTED OUTPUT missing in the file: " + file.name
+            "Required header ## EXPECTED UNPARSER OUTPUT missing in the file: " + file.name
         )
 
-    test_case = "".join(src[test_case_start + 1 : expected_output_start])
-    expected_output = "".join(src[expected_output_start + 1 :])
+    try:
+        expected_ast_base64_start = src.index("## EXPECTED ENCODED AST\n")
+    except ValueError:
+        raise ValueError(
+            "Required header ## EXPECTED ENCODED AST missing in the file: " + file.name
+        )
 
-    return TestCase(os.path.basename(file.name), test_case, expected_output)
+    test_case = "".join(src[test_case_start + 1 : expected_ast_unparsed_start])
+    expected_ast_unparsed = "".join(src[expected_ast_unparsed_start + 1 : expected_ast_base64_start])
+    expected_ast_base64 = "".join(src[expected_ast_base64_start + 1 :])
+
+    return TestCase(os.path.basename(file.name), test_case, expected_ast_base64, expected_ast_unparsed)
 
 
 def load_test_cases():
@@ -110,8 +119,20 @@ import snowflake.snowpark.functions as functions
 from snowflake.snowpark.functions import *
 from snowflake.snowpark.types import *
 from snowflake.snowpark import Table
+from snowflake.snowpark._internal.ast import AstBatch
+import snowflake.snowpark._internal.ast_utils as ast_utils
+
+import uuid
+
+# Set up the request ID generator.
+AstBatch.generate_request_id = lambda: uuid.uuid5(uuid.NAMESPACE_DNS, "id-gen")
+
+ast_utils.SRC_POSITION_TEST_MODE = True
 
 def run_test(session):
+    # Reset the entity ID generator.
+    session._ast_batch.reset_id_gen()
+
     # Set up mock data.
     mock = session.create_dataframe(
         [
@@ -203,7 +224,8 @@ def run_test(session):
         sys.modules[test_name] = test_module
         spec.loader.exec_module(test_module)
         base64_batches = test_module.run_test(session)
-        return render(base64_batches), "\n".join(base64_batches)
+        unparser_output = render(base64_batches) if pytest.unparser_jar else ""
+        return unparser_output, "\n".join(base64_batches)
     finally:
         os.unlink(test_file.name)
 
@@ -219,14 +241,18 @@ def test_ast(session, test_case):
                 [
                     "## TEST CASE\n",
                     test_case.source,
-                    "## EXPECTED OUTPUT\n\n",
+                    "## EXPECTED UNPARSER OUTPUT\n\n",
                     actual.strip(),
+                    "\n\n## EXPECTED ENCODED AST\n\n",
+                    base64.strip(), 
                     "\n",
                 ]
             )
     else:
         try:
-            assert actual.strip() == test_case.expected_output.strip()
+            assert base64.strip() == test_case.expected_ast_base64.strip()
+            if pytest.unparser_jar:
+                assert actual.strip() == test_case.expected_ast_unparsed.strip()
         except AssertionError as e:
             raise AssertionError(
                 f"If the expectation is incorrect, run pytest --update-expectations:\n\n{base64}\n{e}"
