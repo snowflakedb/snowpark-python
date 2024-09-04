@@ -2196,8 +2196,7 @@ class CombinedDatetimelikeProperties:
 
         >>> tdelta_idx = pd.to_timedelta([1, 2, 3], unit='s')
         >>> tdelta_idx
-        TimedeltaIndex(['0 days 00:00:01', '0 days 00:00:02', '0 days 00:00:03'],
-                    dtype='timedelta64[ns]', freq=None)
+        TimedeltaIndex(['0 days 00:00:01', '0 days 00:00:02', '0 days 00:00:03'], dtype='timedelta64[ns]', freq=None)
         >>> tdelta_idx.seconds
         Index([1, 2, 3], dtype='int32')
         """
@@ -2259,7 +2258,7 @@ class CombinedDatetimelikeProperties:
         >>> tdelta_idx
         TimedeltaIndex(['0 days 00:00:00.000001', '0 days 00:00:00.000002',
                         '0 days 00:00:00.000003'],
-                    dtype='timedelta64[ns]', freq=None)
+                       dtype='timedelta64[ns]', freq=None)
         >>> tdelta_idx.microseconds
         Index([1, 2, 3], dtype='int32')
         """
@@ -2291,7 +2290,7 @@ class CombinedDatetimelikeProperties:
         >>> tdelta_idx
         TimedeltaIndex(['0 days 00:00:00.000000001', '0 days 00:00:00.000000002',
                         '0 days 00:00:00.000000003'],
-                    dtype='timedelta64[ns]', freq=None)
+                       dtype='timedelta64[ns]', freq=None)
         >>> tdelta_idx.nanoseconds
         Index([1, 2, 3], dtype='int32')
         """
