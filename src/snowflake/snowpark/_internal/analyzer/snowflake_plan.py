@@ -260,6 +260,7 @@ class SnowflakePlan(LogicalPlan):
             referenced_ctes.copy() if referenced_ctes else set()
         )
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
+        self._uuid = str(uuid.uuid4())
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         if not isinstance(other, SnowflakePlan):
@@ -271,6 +272,14 @@ class SnowflakePlan(LogicalPlan):
 
     def __hash__(self) -> int:
         return hash(self._id) if self._id else super().__hash__()
+
+    @property
+    def uuid(self) -> str:
+        return self._uuid
+
+    @uuid.setter
+    def uuid(self, value: str) -> None:
+        self._uuid = value
 
     @property
     def execution_queries(self) -> Dict["PlanQueryType", List["Query"]]:
@@ -502,6 +511,7 @@ class SnowflakePlan(LogicalPlan):
         copied_plan._is_valid_for_replacement = True
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
+        copied_plan.uuid = self.uuid
 
         return copied_plan
 
