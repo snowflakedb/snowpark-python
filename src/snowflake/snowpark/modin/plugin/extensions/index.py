@@ -701,6 +701,8 @@ class Index(metaclass=TelemetryMeta):
         ------
         TypeError if each name is not hashable.
         """
+        if not is_list_like(values):
+            raise ValueError("Names must be a list-like")
         self._query_compiler = self._query_compiler.set_index_names(values)
         if self._parent is not None:
             self._parent._update_inplace(
