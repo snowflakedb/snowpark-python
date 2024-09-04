@@ -133,11 +133,14 @@ class AstBatch:
 
     def __init__(self, session) -> None:
         self._session = session
-        self._id_gen = itertools.count(start=1)
+        self.reset_id_gen()
         self._init_batch()
 
         # Track callables in this dict (memory id -> TrackedCallable).
         self._callables = {}
+
+    def reset_id_gen(self):
+        self._id_gen = itertools.count(start=1)
 
     def assign(self, symbol=None):
         stmt = self._request.body.add()

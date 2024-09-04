@@ -8,8 +8,6 @@ df2 = df.random_split(weights)
 
 df3 = df.random_split(weights, seed=24)
 
-## EXPECTED ENCODED AST
-
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("test_table")
@@ -17,3 +15,5 @@ df = session.table("test_table")
 df2 = df.random_split([0.1, 0.2, 0.3], None)
 
 df3 = df.random_split([0.1, 0.2, 0.3], 24)
+
+## EXPECTED ENCODED AST

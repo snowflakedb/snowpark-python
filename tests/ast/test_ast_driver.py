@@ -42,22 +42,22 @@ def parse_file(file):
         )
 
     try:
-        expected_ast_base64_start = src.index("## EXPECTED ENCODED AST\n")
-    except ValueError:
-        raise ValueError(
-            "Required header ## EXPECTED ENCODED AST missing in the file: " + file.name
-        )
-
-    try:
         expected_ast_unparsed_start = src.index("## EXPECTED UNPARSER OUTPUT\n")
     except ValueError:
         raise ValueError(
             "Required header ## EXPECTED UNPARSER OUTPUT missing in the file: " + file.name
         )
 
-    test_case = "".join(src[test_case_start + 1 : expected_ast_base64_start])
-    expected_ast_base64 = "".join(src[expected_ast_base64_start + 1 : expected_ast_unparsed_start])
-    expected_ast_unparsed = "".join(src[expected_ast_unparsed_start + 1 :])
+    try:
+        expected_ast_base64_start = src.index("## EXPECTED ENCODED AST\n")
+    except ValueError:
+        raise ValueError(
+            "Required header ## EXPECTED ENCODED AST missing in the file: " + file.name
+        )
+
+    test_case = "".join(src[test_case_start + 1 : expected_ast_unparsed_start])
+    expected_ast_unparsed = "".join(src[expected_ast_unparsed_start + 1 : expected_ast_base64_start])
+    expected_ast_base64 = "".join(src[expected_ast_base64_start + 1 :])
 
     return TestCase(os.path.basename(file.name), test_case, expected_ast_base64, expected_ast_unparsed)
 
@@ -131,7 +131,7 @@ ast_utils.SRC_POSITION_TEST_MODE = True
 
 def run_test(session):
     # Reset the entity ID generator.
-    session._ast_batch.__init__(session)
+    session._ast_batch.reset_id_gen()
 
     # Set up mock data.
     mock = session.create_dataframe(
@@ -241,10 +241,10 @@ def test_ast(session, test_case):
                 [
                     "## TEST CASE\n",
                     test_case.source,
-                    "## EXPECTED ENCODED AST\n\n",
-                    base64.strip(),
-                    "\n\n## EXPECTED UNPARSER OUTPUT\n\n",
+                    "## EXPECTED UNPARSER OUTPUT\n\n",
                     actual.strip(),
+                    "\n\n## EXPECTED ENCODED AST\n\n",
+                    base64.strip(), 
                     "\n",
                 ]
             )
