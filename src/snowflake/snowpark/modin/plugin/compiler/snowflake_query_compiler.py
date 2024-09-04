@@ -17508,117 +17508,52 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def tz_localize(self, *args: Any, **kwargs: Any) -> None:
         ErrorMessage.method_not_implemented_error("tz_convert", "BasePandasDataset")
 
-    def create_qc_with_index_data_and_qc_index(
-        self, index_qc: "SnowflakeQueryCompiler"
+    def create_qc_with_extra_columns(
+        self, extra_columns: List[Hashable]
     ) -> "SnowflakeQueryCompiler":
         """
-        This is a helper function for creating a DataFrame/Series where the data is an Index
-        and an index is provided.
-        Before this method is called, the provided index is converted to an Index object;
-        the query compilers of the data and index are then joined.
+        This is a helper function for creating a DataFrame where the data is a DataFrame object. Sometimes, columns
+        not present in the `data` DataFrame can be passed as arguments - these are added to the resultant DataFrame
+        as NaN columns.
 
         Parameters
         ----------
-        index_qc : SnowflakeQueryCompiler
-            The query compiler of the index to be joined with the data.
-
-        Returns
-        -------
-        SnowflakeQueryCompiler
-            A new query compiler with the data and index joined.
-        """
-        self_frame = self._modin_frame.ensure_row_position_column()
-        other_frame = index_qc._modin_frame.ensure_row_position_column()
-
-        new_internal_frame, _ = join_utils.join(
-            self_frame,
-            other_frame,
-            how="left",
-            left_on=[self_frame.row_position_snowflake_quoted_identifier],
-            right_on=[other_frame.row_position_snowflake_quoted_identifier],
-            inherit_join_index=InheritJoinIndex.FROM_RIGHT,
-        )
-
-        return SnowflakeQueryCompiler(new_internal_frame)
-
-    def create_qc_with_data_and_index_joined_on_index(
-        self,
-        index_qc: Optional["SnowflakeQueryCompiler"] = None,
-        extra_columns: Optional[List[Hashable]] = None,
-    ) -> "SnowflakeQueryCompiler":
-        """
-        This is a helper function for creating a DataFrame/Series where the data is a DataFrame/Series object.
-        This is a special case since only the values where the index value matches in the `data` and `index` provided
-        take on an actual value from the given `data`. Otherwise, they take on a NaN value.
-
-        For instance,
-
-        >>> data = pd.Series(["A", "B", "C", "D"], index=[1.1, 2.2, 3, 4], name="index series name")
-        >>> index = pd.Index([1, 2, 3, 4], name="some name")
-        >>> df = pd.DataFrame(data=data, index=index)
-        >>> df  # doctest: +SKIP
-                  index series name
-        some name
-        1                       NaN
-        2                       NaN
-        3                         C
-        4                         D
-
-        Notice how only the data for index values 3 and 4 have an actual value while 1 and 2 have a NaN value.
-        3 and 4 are values present in the index of the `data` and `index` provided. 1 and 2 are not present.
-
-        Parameters
-        ----------
-        index_qc : SnowflakeQueryCompiler, default None
-            The query compiler of the index to be joined with the data. If no query compiler is provided,
-            skip this join operation.
         extra_columns : list of hashable, default None
-            If the DataFrame being created has new columns that are not a part of the data, they can be passed here
-            and appended as NaN columns.
+            New columns that are not a part of the original query compiler
 
         Returns
         -------
         SnowflakeQueryCompiler
-            A new query compiler with the data and index joined.
+            A new query compiler with the new columns.
         """
         self_frame = self._modin_frame
 
-        if extra_columns:
-            # Append the new columns to the data's internal frame.
-            new_snowflake_quoted_identifiers = self._modin_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+        if not extra_columns or len(extra_columns) == 0:
+            return self.copy()
+
+        # Append the new columns to the data's internal frame.
+        new_snowflake_quoted_identifiers = (
+            self._modin_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
                 pandas_labels=extra_columns,
                 excluded=self_frame.data_column_snowflake_quoted_identifiers,
             )
-            new_ordered_frame = append_columns(
-                self_frame.ordered_dataframe,
-                new_snowflake_quoted_identifiers,
-                [pandas_lit(np.nan)] * len(extra_columns),
-            )
-            self_frame = InternalFrame.create(
-                ordered_dataframe=new_ordered_frame,
-                data_column_pandas_labels=self_frame.data_column_pandas_labels
-                + extra_columns,
-                data_column_snowflake_quoted_identifiers=self_frame.data_column_snowflake_quoted_identifiers
-                + new_snowflake_quoted_identifiers,
-                data_column_pandas_index_names=self_frame.data_column_pandas_index_names,
-                index_column_pandas_labels=self_frame.index_column_pandas_labels,
-                index_column_snowflake_quoted_identifiers=self_frame.index_column_snowflake_quoted_identifiers,
-                data_column_types=None,
-                index_column_types=None,
-            )
-
-        if index_qc is None:
-            new_internal_frame = self_frame
-        else:
-            # Join the index and data internal frames.
-            other_frame = index_qc._modin_frame
-            new_internal_frame, _ = join_utils.join(
-                other_frame,
-                self_frame,
-                how="outer",
-                left_on=other_frame.index_column_snowflake_quoted_identifiers,
-                right_on=self_frame.index_column_snowflake_quoted_identifiers,
-                inherit_join_index=InheritJoinIndex.FROM_LEFT,
-            )
+        )
+        new_ordered_frame = append_columns(
+            self_frame.ordered_dataframe,
+            new_snowflake_quoted_identifiers,
+            [pandas_lit(np.nan)] * len(extra_columns),
+        )
+        new_internal_frame = InternalFrame.create(
+            ordered_dataframe=new_ordered_frame,
+            data_column_pandas_labels=self_frame.data_column_pandas_labels
+            + extra_columns,
+            data_column_snowflake_quoted_identifiers=self_frame.data_column_snowflake_quoted_identifiers
+            + new_snowflake_quoted_identifiers,
+            data_column_pandas_index_names=self_frame.data_column_pandas_index_names,
+            index_column_pandas_labels=self_frame.index_column_pandas_labels,
+            index_column_snowflake_quoted_identifiers=self_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
+        )
 
         return SnowflakeQueryCompiler(new_internal_frame)
