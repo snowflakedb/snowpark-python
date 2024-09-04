@@ -746,7 +746,9 @@ def build_proto_from_pivot_values(
 
 
 def build_proto_from_callable(
-    expr_builder: proto.SpCallable, func: Callable, ast_batch: Optional[AstBatch] = None
+    expr_builder: proto.SpCallable,
+    func: Union[Callable, Tuple[str, str]],
+    ast_batch: Optional[AstBatch] = None,
 ):
     """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as SpCallable protobuf."""
 
@@ -763,7 +765,10 @@ def build_proto_from_callable(
         # If it is not the first tracked lambda, use a unique ref name.
         if udf_id is not None and udf_id != 0:
             expr_builder.name = f"<lambda [{udf_id}]>"
-
+    elif isinstance(func, tuple) and len(func) == 2:
+        # UDxF has been registered from a file (e.g., via session.udf.register_from_file)
+        # The second argument is the name, the first the file path.
+        expr_builder.name = func[1]
     else:
         # Use the actual function name. Note: We do not support different scopes yet, need to be careful with this then.
         expr_builder.name = func.__name__
