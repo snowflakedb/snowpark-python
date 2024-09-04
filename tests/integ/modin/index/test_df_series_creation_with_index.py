@@ -47,7 +47,7 @@ def obj_type_helper(obj_type: str) -> tuple:
     ],
 )
 @pytest.mark.parametrize("obj_type", ["series", "df"])
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=0)
 def test_create_with_index_as_data(native_idx, obj_type):
     """
     Creating a Series where the data is an Index.
@@ -471,7 +471,7 @@ def test_create_df_with_df_index_negative():
         ValueError,
         match=re.escape("Shape of passed values is (3, 1), indices imply (2, 1)"),
     ):
-        pd.DataFrame([1, 2, 3], index=[[1, 2], [3, 4], [5, 6]])
+        native_pd.DataFrame([1, 2, 3], index=[[1, 2], [3, 4], [5, 6]])
 
 
 @sql_count_checker(query_count=2, join_count=1)

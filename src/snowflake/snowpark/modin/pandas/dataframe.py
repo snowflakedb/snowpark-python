@@ -187,8 +187,10 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
             query_compiler = data._query_compiler.copy()
             # We set the column name if it is not in the provided Series `data`.
             if data.name is None:
-                self.columns = [0] if columns is None else columns
-            elif columns is not None and data.name not in columns:
+                query_compiler = query_compiler.set_columns(
+                    [0] if columns is None else columns
+                )
+            if columns is not None and data.name not in columns:
                 # If the columns provided are not in the named Series, pandas clears
                 # the DataFrame and sets columns to the columns provided.
                 query_compiler = from_pandas(
@@ -208,7 +210,10 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
             # The `columns` parameter is used to select the columns from `data` that will be in the resultant
             # DataFrame. If a value in `columns` is not present in `data`'s columns, it will be added as a
             # new column filled with NaN values. These columns are tracked by the `extra_columns` variable.
-            extra_columns = [col for col in columns if col not in data.columns]
+            if data.columns is not None and columns is not None:
+                extra_columns = [col for col in columns if col not in data.columns]
+            else:
+                extra_columns = []
             query_compiler = data._query_compiler.create_qc_with_extra_columns(
                 extra_columns
             )
@@ -296,13 +301,24 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
             )._query_compiler
 
         if index is not None:
-            # The `index` parameter is used to select the rows from `data` that will be in the resultant DataFrame.
-            # If a value in `index` is not present in `data`'s index, it will be filled with a NaN value.
-            if isinstance(index, Index):
-                index = index.to_series()._query_compiler
-            elif isinstance(index, Series):
-                index = index._query_compiler
-            query_compiler = query_compiler.reindex(axis=0, labels=index)
+            if isinstance(data, (type(self), Series)):
+                # The `index` parameter is used to select the rows from `data` that will be in the resultant DataFrame.
+                # If a value in `index` is not present in `data`'s index, it will be filled with a NaN value.
+                labels = index
+                if isinstance(labels, Index):
+                    labels = labels.to_series()._query_compiler
+                elif isinstance(labels, Series):
+                    labels = labels._query_compiler
+                else:
+                    labels = Index(labels).to_series()._query_compiler
+                query_compiler = query_compiler.reindex(axis=0, labels=labels)
+
+            else:
+                # Performing set index to directly set the index column (joining on row-position instead of index).
+                index_qc = (
+                    index if isinstance(index, Series) else Series(index)
+                )._query_compiler
+                query_compiler = query_compiler.set_index_from_series(index_qc)
 
         if isinstance(data, DataFrame):
             # To select the required index and columns for the resultant DataFrame,

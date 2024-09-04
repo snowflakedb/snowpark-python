@@ -2260,7 +2260,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def reindex(
         self,
         axis: int,
-        labels: Union[pandas.Index, "pd.Index", list[Any]],
+        labels: Union[pandas.Index, "pd.Index", list[Any], "SnowflakeQueryCompiler"],
         **kwargs: dict[str, Any],
     ) -> "SnowflakeQueryCompiler":
         """
@@ -2270,7 +2270,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ----------
         axis : {0, 1}
             Axis to align labels along. 0 is for index, 1 is for columns.
-        labels : list-like
+        labels : list-like, SnowflakeQueryCompiler
             Index-labels to align with.
         method : {None, "backfill"/"bfill", "pad"/"ffill", "nearest"}
             Method to use for filling holes in reindexed frame.
@@ -2468,7 +2468,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _reindex_axis_0(
         self,
-        labels: Union[pandas.Index, "pd.Index", list[Any]],
+        labels: Union[pandas.Index, "pd.Index", list[Any], "SnowflakeQueryCompiler"],
         **kwargs: dict[str, Any],
     ) -> "SnowflakeQueryCompiler":
         """
@@ -2476,7 +2476,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Parameters
         ----------
-        labels : list-like
+        labels : list-like, SnowflakeQueryCompiler
             Index-labels to align with.
         method : {None, "backfill"/"bfill", "pad"/"ffill", "nearest"}
             Method to use for filling holes in reindexed frame.
@@ -2494,12 +2494,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         self._raise_not_implemented_error_for_timedelta()
 
-        if isinstance(labels, native_pd.Index):
-            labels = pd.Index(labels)
-        if isinstance(labels, pd.Index):
-            new_index_qc = labels.to_series()._query_compiler
+        if isinstance(labels, SnowflakeQueryCompiler):
+            new_index_qc = labels
         else:
-            new_index_qc = pd.Series(labels)._query_compiler
+            if isinstance(labels, native_pd.Index):
+                labels = pd.Index(labels)
+            if isinstance(labels, pd.Index):
+                new_index_qc = labels.to_series()._query_compiler
+            else:
+                new_index_qc = pd.Series(labels)._query_compiler
 
         new_index_modin_frame = new_index_qc._modin_frame
         modin_frame = self._modin_frame

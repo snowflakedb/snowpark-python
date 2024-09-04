@@ -49,7 +49,10 @@ from pandas.core.dtypes.common import (
 from pandas.core.dtypes.inference import is_hashable
 
 from snowflake.snowpark.modin.pandas import DataFrame, Series
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.pandas.utils import (
+    from_pandas,
+    try_convert_index_to_native,
+)
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import DateTimeOrigin
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
@@ -214,8 +217,8 @@ class Index(metaclass=TelemetryMeta):
         elif isinstance(data, Index):
             query_compiler = data._query_compiler
         else:
-            query_compiler = DataFrame(
-                index=cls._NATIVE_INDEX_TYPE(data=data, **kwargs)
+            query_compiler = from_pandas(
+                native_pd.DataFrame(index=cls._NATIVE_INDEX_TYPE(data=data, **kwargs))
             )._query_compiler
 
         if len(query_compiler.columns):
