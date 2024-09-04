@@ -27,6 +27,8 @@ for better maintability.
 Manually add documentation for methods which are not presented in pandas.
 """
 
+# TODO SNOW-1650875: remove this file since we define everything in pd_overrides.py
+
 from __future__ import annotations
 
 import csv
