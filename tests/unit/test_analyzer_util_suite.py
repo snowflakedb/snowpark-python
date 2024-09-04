@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
 import pytest
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -353,3 +352,48 @@ def test_join_statement_negative():
         ValueError, match="A join should either have using clause or a join condition"
     ):
         join_statement("", "", join_type, "cond2", "", False)
+
+
+def test_create_iceberg_table_statement():
+    with pytest.raises(
+        ValueError, match="Iceberg table configuration requires base_location be set."
+    ):
+        create_table_statement(
+            table_name="test_table",
+            schema="test_col varchar",
+            iceberg_config={},
+        )
+    assert create_table_statement(
+        table_name="test_table",
+        schema="test_col varchar",
+        iceberg_config={
+            "external_volume": "example_volume",
+            "catalog": "example_catalog",
+            "base_location": "/root",
+            "catalog_sync": "integration_name",
+            "storage_serialization_policy": "OPTIMIZED",
+        },
+    ) == (
+        " CREATE    ICEBERG  TABLE test_table(test_col varchar)  EXTERNAL_VOLUME  = 'example_volume' "
+        " CATALOG  = 'example_catalog'  BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'"
+        "  STORAGE_SERIALIZATION_POLICY  = 'OPTIMIZED' "
+    )
+
+
+def test_create_iceberg_table_as_select_statement():
+    assert create_table_as_select_statement(
+        table_name="test_table",
+        child="select * from foo",
+        column_definition=None,
+        iceberg_config={
+            "external_volume": "example_volume",
+            "catalog": "example_catalog",
+            "base_location": "/root",
+            "catalog_sync": "integration_name",
+            "storage_serialization_policy": "OPTIMIZED",
+        },
+    ) == (
+        " CREATE    ICEBERG  TABLE  test_table  EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = "
+        "'example_catalog'  BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'  "
+        "STORAGE_SERIALIZATION_POLICY  = 'OPTIMIZED'   AS  SELECT  *  FROM (select * from foo)"
+    )

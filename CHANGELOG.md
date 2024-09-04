@@ -19,6 +19,19 @@
   - `max_data_extension_time`
   - `change_tracking`
   - `copy_grants`
+  - `iceberg_config` A dicitionary that can hold the following iceberg configuration options:
+      - `external_volume`
+      - `catalog`
+      - `base_location`
+      - `catalog_sync`
+      - `storage_serialization_policy`
+- Added support for specifying the following to `DataFrameWriter.copy_into_table`:
+  - `iceberg_config` A dicitionary that can hold the following iceberg configuration options:
+      - `external_volume`
+      - `catalog`
+      - `base_location`
+      - `catalog_sync`
+      - `storage_serialization_policy`
 - Added support for specifying the following parameters to `DataFrame.create_or_replace_dynamic_table`:
   - `mode`
   - `refresh_mode`
