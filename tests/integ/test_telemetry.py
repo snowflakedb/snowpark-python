@@ -943,7 +943,9 @@ def test_udf_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, type_, mod5_udf = telemetry_tracker.extract_telemetry_log_data(-1, mod5_udf_partial)
+    data, type_, mod5_udf = telemetry_tracker.extract_telemetry_log_data(
+        -1, mod5_udf_partial
+    )
     assert data == {
         "func_name": "UDFRegistration.register_from_file",
         "category": "create",
@@ -1004,7 +1006,9 @@ def test_sproc_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, type_, add_one_sp = telemetry_tracker.extract_telemetry_log_data(-1, add_one_partial)
+    data, type_, add_one_sp = telemetry_tracker.extract_telemetry_log_data(
+        -1, add_one_partial
+    )
     assert data == {
         "func_name": "StoredProcedureRegistration.register",
         "category": "create",
@@ -1027,7 +1031,9 @@ def test_sproc_call_and_invoke(session, resources_path):
         packages=["snowflake-snowpark-python"],
         replace=True,
     )
-    data, type_, mod5_sp = telemetry_tracker.extract_telemetry_log_data(-1, mod5_sp_partial)
+    data, type_, mod5_sp = telemetry_tracker.extract_telemetry_log_data(
+        -1, mod5_sp_partial
+    )
     assert data == {
         "func_name": "StoredProcedureRegistration.register_from_file",
         "category": "create",
