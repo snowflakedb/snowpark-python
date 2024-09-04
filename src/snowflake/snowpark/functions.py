@@ -7573,6 +7573,7 @@ def udtf(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     comment: Optional[str] = None,
+    _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
@@ -7757,7 +7758,7 @@ def udtf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
-            **kwargs,
+            _emit_ast=_emit_ast**kwargs,
         )
     else:
         return udtf_registration_method(
@@ -7779,6 +7780,7 @@ def udtf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            _emit_ast=_emit_ast,
             **kwargs,
         )
 

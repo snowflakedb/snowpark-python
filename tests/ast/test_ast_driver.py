@@ -119,18 +119,20 @@ def run_test(session):
             [2, "two"],
             [3, "three"],
         ],
-        schema=['num', 'str']
+        schema=['num', 'str'],
+        _emit_ast=False
     )
-    mock.write.save_as_table("test_table")
+    mock.write.save_as_table("test_table", _emit_ast=False)
     mock = session.create_dataframe(
         [
             [1, "one"],
             [2, "two"],
             [3, "three"],
         ],
-        schema=['num', 'Owner\\'s""opinion.s']
+        schema=['num', 'Owner\\'s""opinion.s'],
+        _emit_ast=False
     )
-    mock.write.save_as_table("\\"the#qui.ck#bro.wn#\\"\\"Fox\\"\\"won\\'t#jump!\\"")
+    mock.write.save_as_table("\\"the#qui.ck#bro.wn#\\"\\"Fox\\"\\"won\\'t#jump!\\"", _emit_ast=False)
 
     # Set up data used for set operation tests.
     mock = session.create_dataframe(
@@ -138,38 +140,42 @@ def run_test(session):
             [1, 2],
             [3, 4],
         ],
-        schema=["a", "b"]
+        schema=["a", "b"],
+        _emit_ast=False
     )
-    mock.write.save_as_table("test_df1")
+    mock.write.save_as_table("test_df1", _emit_ast=False)
     mock = session.create_dataframe(
         [
             [0, 1],
             [3, 4],
         ],
-        schema=["c", "d"]
+        schema=["c", "d"],
+        _emit_ast=False
     )
-    mock.write.save_as_table("test_df2")
+    mock.write.save_as_table("test_df2", _emit_ast=False)
     mock = session.create_dataframe(
         [
             [1, 2],
         ],
-        schema=["a", "b"]
+        schema=["a", "b"],
+        _emit_ast=False
     )
-    mock.write.save_as_table("test_df3")
+    mock.write.save_as_table("test_df3", _emit_ast=False)
     mock = session.create_dataframe(
         [
             [2, 1],
         ],
-        schema=["b", "a"]
+        schema=["b", "a"],
+        _emit_ast=False
     )
-    mock.write.save_as_table("test_df4")
+    mock.write.save_as_table("test_df4", _emit_ast=False)
 
     mock = session.create_dataframe(
         [[1, [1, 2, 3], {{"Ashi Garami": "Single Leg X"}}, "Kimura"],
         [2, [11, 22], {{"Sankaku": "Triangle"}}, "Coffee"],
         [3, [], {{}}, "Tea"]],
-        schema=["idx", "lists", "maps", "strs"])
-    mock.write.save_as_table("test_table2")
+        schema=["idx", "lists", "maps", "strs"], _emit_ast=False)
+    mock.write.save_as_table("test_table2", _emit_ast=False)
 
     session._ast_batch.flush()  # Clear the AST.
 
