@@ -70,7 +70,6 @@ with warnings.catch_warnings():
         UInt64Dtype,
         api,
         array,
-        bdate_range,
         eval,
         factorize,
         from_dummies,
@@ -96,6 +95,7 @@ from snowflake.snowpark.modin.pandas.api.extensions import (
 )
 from snowflake.snowpark.modin.pandas.dataframe import _DATAFRAME_EXTENSIONS_, DataFrame
 from snowflake.snowpark.modin.pandas.general import (
+    bdate_range,
     concat,
     crosstab,
     cut,

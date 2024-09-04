@@ -188,3 +188,16 @@ def test_argument_negative(test_fillna_series, test_fillna_df):
         expect_exception_type=TypeError,
         assert_exception_equal=False,
     )
+
+
+@sql_count_checker(query_count=1)
+def test_inplace_fillna_from_df():
+    def inplace_fillna(df):
+        df["B"].fillna(method="ffill", inplace=True)
+        return df
+
+    eval_snowpark_pandas_result(
+        pd.DataFrame([[1, 2, 3], [4, None, 6]], columns=list("ABC")),
+        native_pd.DataFrame([[1, 2, 3], [4, None, 6]], columns=list("ABC")),
+        inplace_fillna,
+    )
