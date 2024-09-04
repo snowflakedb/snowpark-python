@@ -9,10 +9,20 @@ pandas, such as `Series.memory_usage`.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Hashable, Literal, Mapping, Sequence
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Hashable,
+    Literal,
+    Mapping,
+    Sequence,
+)
 
 import modin.pandas as pd
 import numpy as np
+import numpy.typing as npt
 import pandas as native_pd
 from modin.pandas import Series
 from modin.pandas.base import BasePandasDataset
@@ -1295,6 +1305,29 @@ def groupby(
     )
 
 
+# Snowpark pandas should avoid defaulting to pandas (the current Modin upstream version needs
+# Index._is_memory_usage_qualified to be implemented).
+@register_series_accessor("info")
+@snowpark_pandas_telemetry_method_decorator
+def info(
+    self,
+    verbose: bool | None = None,
+    buf: IO[str] | None = None,
+    max_cols: int | None = None,
+    memory_usage: bool | str | None = None,
+    show_counts: bool = True,
+):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self._default_to_pandas(
+        native_pd.Series.info,
+        verbose=verbose,
+        buf=buf,
+        max_cols=max_cols,
+        memory_usage=memory_usage,
+        show_counts=show_counts,
+    )
+
+
 # Modin defaults to pandas for _qcut.
 @register_series_accessor("_qcut")
 def _qcut(
@@ -1735,6 +1768,31 @@ def to_frame(self, name: Hashable = no_default) -> DataFrame:  # noqa: PR01, RT0
         self_cp.name = name
 
     return DataFrame(self_cp)
+
+
+@register_series_accessor("to_numpy")
+@snowpark_pandas_telemetry_method_decorator
+def to_numpy(
+    self,
+    dtype: npt.DTypeLike | None = None,
+    copy: bool = False,
+    na_value: object = no_default,
+    **kwargs: Any,
+) -> np.ndarray:
+    """
+    Return the NumPy ndarray representing the values in this Series or Index.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return (
+        super(Series, self)
+        .to_numpy(
+            dtype=dtype,
+            copy=copy,
+            na_value=na_value,
+            **kwargs,
+        )
+        .flatten()
+    )
 
 
 # Snowpark pandas has the extra `statement_params` argument.

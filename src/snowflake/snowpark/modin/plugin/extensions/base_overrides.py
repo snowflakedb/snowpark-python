@@ -1675,6 +1675,32 @@ def to_csv(
     )
 
 
+# Modin has support for a custom NumPy wrapper module.
+@register_base_override("to_numpy")
+def to_numpy(
+    self,
+    dtype: npt.DTypeLike | None = None,
+    copy: bool = False,
+    na_value: object = no_default,
+    **kwargs: Any,
+) -> np.ndarray:
+    """
+    Convert the `BasePandasDataset` to a NumPy array or a Modin wrapper for NumPy array.
+    """
+    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+    if copy:
+        WarningMessage.ignored_argument(
+            operation="to_numpy",
+            argument="copy",
+            message="copy is ignored in Snowflake backend",
+        )
+    return self._query_compiler.to_numpy(
+        dtype=dtype,
+        na_value=na_value,
+        **kwargs,
+    )
+
+
 # Modin performs extra argument validation and defaults to pandas for some edge cases.
 @register_base_override("sample")
 def sample(
