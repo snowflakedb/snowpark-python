@@ -93,7 +93,6 @@ from snowflake.snowpark.modin.utils import (
 # below logic is to handle circular imports without errors
 if TYPE_CHECKING:  # pragma: no cover
     from .dataframe import DataFrame
-    from .series import Series
 
 # TODO: SNOW-1265551: add inherit_docstrings decorators once docstring overrides are available
 
@@ -359,39 +358,6 @@ def read_parquet(
             **kwargs,
         )
     )
-
-
-# TODO: SNOW-1265551: add inherit_docstrings decorators once docstring overrides are available
-@snowpark_pandas_telemetry_standalone_function_decorator
-@expanduser_path_arg("path_or_buf")
-def read_json(
-    path_or_buf,
-    *,
-    orient: str | None = None,
-    typ: Literal["frame", "series"] = "frame",
-    dtype: DtypeArg | None = None,
-    convert_axes=None,
-    convert_dates: bool | list[str] = True,
-    keep_default_dates: bool = True,
-    precise_float: bool = False,
-    date_unit: str | None = None,
-    encoding: str | None = None,
-    encoding_errors: str | None = "strict",
-    lines: bool = False,
-    chunksize: int | None = None,
-    compression: CompressionOptions = "infer",
-    nrows: int | None = None,
-    storage_options: StorageOptions = None,
-    dtype_backend: DtypeBackend | NoDefault = no_default,
-    engine="ujson",
-) -> DataFrame | Series | pandas.io.json._json.JsonReader:  # pragma: no cover: this function is overridden by plugin/pd_overrides.py
-    _, _, _, kwargs = inspect.getargvalues(inspect.currentframe())
-
-    from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
-        FactoryDispatcher,
-    )
-
-    return ModinObjects.DataFrame(query_compiler=FactoryDispatcher.read_json(**kwargs))
 
 
 @_inherit_docstrings(pandas.read_gbq, apilink="pandas.read_gbq")
@@ -1147,7 +1113,6 @@ __all__ = [
     "read_gbq",
     "read_hdf",
     "read_html",
-    "read_json",
     "read_orc",
     "read_parquet",
     "read_pickle",
