@@ -303,7 +303,6 @@ class TimedeltaIndex(Index):
         '10D'
         """
 
-    @timedelta_index_not_implemented()
     def round(self, freq: Frequency) -> TimedeltaIndex:
         """
         Perform round operation on the data to the specified `freq`.
@@ -323,8 +322,10 @@ class TimedeltaIndex(Index):
         ------
         ValueError if the `freq` cannot be converted.
         """
+        return TimedeltaIndex(
+            query_compiler=self._query_compiler.dt_round(freq, include_index=True)
+        )
 
-    @timedelta_index_not_implemented()
     def floor(self, freq: Frequency) -> TimedeltaIndex:
         """
         Perform floor operation on the data to the specified `freq`.
@@ -344,8 +345,10 @@ class TimedeltaIndex(Index):
         ------
         ValueError if the `freq` cannot be converted.
         """
+        return TimedeltaIndex(
+            query_compiler=self._query_compiler.dt_floor(freq, include_index=True)
+        )
 
-    @timedelta_index_not_implemented()
     def ceil(self, freq: Frequency) -> TimedeltaIndex:
         """
         Perform ceil operation on the data to the specified `freq`.
@@ -365,6 +368,9 @@ class TimedeltaIndex(Index):
         ------
         ValueError if the `freq` cannot be converted.
         """
+        return TimedeltaIndex(
+            query_compiler=self._query_compiler.dt_ceil(freq, include_index=True)
+        )
 
     @timedelta_index_not_implemented()
     def to_pytimedelta(self) -> np.ndarray:

@@ -81,6 +81,7 @@
   - support for `GroupBy` filtrations `first` and `last`.
   - support for `TimedeltaIndex` attributes: `days`, `seconds`, `microseconds` and `nanoseconds`.
   - support for `diff` with timestamp columns on `axis=0` and `axis=1`
+  - support for `TimedeltaIndex` methods: `ceil`, `floor` and `round`.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.

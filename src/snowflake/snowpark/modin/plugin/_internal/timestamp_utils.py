@@ -11,7 +11,8 @@ from typing import Literal, Optional, Union
 import numpy as np
 import pandas as native_pd
 from pandas._libs import lib
-from pandas._typing import DateTimeErrorChoices
+from pandas._libs.tslibs import to_offset
+from pandas._typing import DateTimeErrorChoices, Frequency
 from pandas.api.types import is_datetime64_any_dtype, is_float_dtype, is_integer_dtype
 
 from snowflake.snowpark import Column
@@ -168,11 +169,24 @@ def col_to_s(col: Column, unit: Literal["D", "s", "ms", "us", "ns"]) -> Column:
         return col / 10**9
 
 
+def timedelta_freq_to_nanos(freq: Frequency) -> int:
+    """
+    Convert a pandas frequency string to nanoseconds.
+
+    Args:
+        freq: Timedelta frequency string or offset.
+
+    Returns:
+        int: nanoseconds
+    """
+    return to_offset(freq).nanos
+
+
 def col_to_timedelta(col: Column, unit: str) -> Column:
     """
     Converts ``col`` (stored in the specified units) to timedelta nanoseconds.
     """
-    td_unit = VALID_PANDAS_TIMEDELTA_ABBREVS.get(unit)
+    td_unit = VALID_PANDAS_TIMEDELTA_ABBREVS.get(unit.lower())
     if not td_unit:
         # Same error as native pandas.
         raise ValueError(f"invalid unit abbreviation: {unit}")
