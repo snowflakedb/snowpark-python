@@ -92,7 +92,8 @@ def register_series_not_implemented():
 # when an attribute is not present.
 # Because __getattr__ itself is responsible for resolving extension methods, we cannot override
 # this method via the extensions module, and have to do it with an old-fashioned set.
-def __getattr__(self, key):
+# We cannot name this method __getattr__ because Python will treat this as this file's __getattr__.
+def _fake_getattr(self, key):
     """
     Return item identified by `key`.
 
@@ -129,7 +130,7 @@ def __getattr__(self, key):
         raise err
 
 
-Series.__getattr__ = __getattr__
+Series.__getattr__ = _fake_getattr
 
 
 # === UNIMPLEMENTED METHODS ===
@@ -1264,16 +1265,12 @@ register_series_accessor("name")(
 )
 
 
-# modin 0.28.1 doesn't define type annotations on properties, so we override this
-# to satisfy test_type_annotations.py
-_old_empty_fget = Series.empty.fget
-
-
+# Modin uses len(self.index) instead of len(self), which may incur an extra query.
 @register_series_accessor("empty")
 @property
 @snowpark_pandas_telemetry_method_decorator
 def empty(self) -> bool:
-    return _old_empty_fget(self)
+    return len(self) == 0
 
 
 # Upstream modin uses squeeze_self instead of self_is_series.
