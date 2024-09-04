@@ -11,7 +11,7 @@ from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_index_equal
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=0)
 def test_timedelta_index_construction():
     # create from native pandas timedelta index.
     index = native_pd.TimedeltaIndex(["1 days", "2 days", "3 days"])
