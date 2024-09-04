@@ -40,7 +40,7 @@ engine_kwargs : dict, default None {ek}
 
 Returns
 -------
-:class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+:class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
     Computed {fname} of values within each group.
 
 Examples
@@ -232,7 +232,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Series if the groupby as_index is True, otherwise DataFrame.
 
         Notes
@@ -333,7 +333,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
 
         Examples
         --------
@@ -707,7 +707,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Object shifted within each group.
 
         Examples
@@ -762,7 +762,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
 
         See also
         --------
@@ -857,7 +857,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
 
         See also
         --------
@@ -935,7 +935,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
 
         See Also
         --------
@@ -1034,7 +1034,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
 
         See also
         --------
@@ -1120,7 +1120,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Standard deviation of values within each group.
 
         Examples
@@ -1241,7 +1241,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame` with ranking of values within each group
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame` with ranking of values within each group
 
         Examples
         --------
@@ -1343,7 +1343,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Variance of values within each group.
 
         Examples
@@ -1651,7 +1651,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Median of values within each group.
 
         Examples
@@ -1709,7 +1709,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Subset of the original Series or DataFrame as determined by n.
 
         See also
@@ -1893,7 +1893,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Count of values within each group.
 
         Examples
@@ -2002,7 +2002,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Subset of the original Series or DataFrame as determined by n.
 
         See also
@@ -2092,7 +2092,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Return type determined by caller of GroupBy object.
         """
 

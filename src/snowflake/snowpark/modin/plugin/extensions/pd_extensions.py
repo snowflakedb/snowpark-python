@@ -9,10 +9,10 @@ under the `pd` namespace, such as `pd.read_snowflake`.
 import inspect
 from typing import Any, Iterable, Literal, Optional, Union
 
+from modin.pandas import DataFrame, Series
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark import DataFrame as SnowparkDataFrame
-from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.api.extensions import register_pd_accessor
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_standalone_function_decorator,
@@ -398,7 +398,7 @@ def to_snowflake(
             types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
 
     See also:
-        - :func:`DataFrame.to_snowflake <snowflake.snowpark.modin.pandas.DataFrame.to_snowflake>`
+        - :func:`DataFrame.to_snowflake <modin.pandas.DataFrame.to_snowflake>`
         - :func:`Series.to_snowflake <snowflake.snowpark.modin.pandas.Series.to_snowflake>`
         - :func:`read_snowflake <snowflake.snowpark.modin.pandas.io.read_snowflake>`
     """
@@ -444,7 +444,7 @@ def to_snowpark(
 
     See also:
         - :func:`Snowpark.DataFrame.to_snowpark_pandas <snowflake.snowpark.DataFrame.to_snowpark_pandas>`
-        - :func:`DataFrame.to_snowpark <snowflake.snowpark.modin.pandas.DataFrame.to_snowpark>`
+        - :func:`DataFrame.to_snowpark <modin.pandas.DataFrame.to_snowpark>`
         - :func:`Series.to_snowpark <snowflake.snowpark.modin.pandas.Series.to_snowpark>`
 
     Note:
@@ -578,7 +578,7 @@ def to_pandas(
         pandas DataFrame or Series
 
     See also:
-        - :func:`DataFrame.to_pandas <snowflake.snowpark.modin.pandas.DataFrame.to_pandas>`
+        - :func:`DataFrame.to_pandas <modin.pandas.DataFrame.to_pandas>`
         - :func:`Series.to_pandas <snowflake.snowpark.modin.pandas.Series.to_pandas>`
 
     Examples:

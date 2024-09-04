@@ -517,7 +517,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
+        Snowpark pandas :class:`~modin.pandas.DataFrame` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
 
         Notes
         -----
@@ -585,7 +585,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        same type as caller (Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`)
+        same type as caller (Snowpark pandas :class:`~modin.pandas.DataFrame` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`)
 
         Examples
         --------
@@ -695,7 +695,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        copy : Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        copy : Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~modin.pandas.DataFrame`
             Object type matches caller.
 
         Examples
@@ -1512,7 +1512,7 @@ class BasePandasDataset:
            a  b  c  d
         0  1  2  3  4
         >>> type(df.iloc[[0]])
-        <class 'snowflake.snowpark.modin.pandas.dataframe.DataFrame'>
+        <class 'modin.pandas.DataFrame.DataFrame'>
 
         >>> df.iloc[[0, 1]]
              a    b    c    d
@@ -2834,6 +2834,7 @@ class BasePandasDataset:
         """
         Implement shared functionality between DataFrame and Series for shift. axis argument is only relevant for
         Dataframe, and should be 0 for Series.
+
         Args:
             periods : int | Sequence[int]
                 Number of periods to shift. Can be positive or negative. If an iterable of ints,

@@ -63,7 +63,7 @@ class DataFrame(BasePandasDataset):
 
     Parameters
     ----------
-    data : DataFrame, Series, `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_, ndarray, Iterable or dict, optional
+    data : DataFrame, Series, `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`__, ndarray, Iterable or dict, optional
         Dict can contain ``Series``, arrays, constants, dataclass or list-like objects.
         If data is a dict, column order follows insertion-order.
     index : Index or array-like, optional
@@ -628,7 +628,7 @@ class DataFrame(BasePandasDataset):
         --------
         :func:`Series.apply <snowflake.snowpark.modin.pandas.Series.apply>` : For applying more complex functions on a Series.
 
-        :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
+        :func:`DataFrame.apply <modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
 
         Examples
         --------
@@ -777,7 +777,7 @@ class DataFrame(BasePandasDataset):
         --------
         :func:`Series.apply <snowflake.snowpark.modin.pandas.Series.apply>` : For applying more complex functions on a Series.
 
-        :func:`DataFrame.applymap <snowflake.snowpark.modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
+        :func:`DataFrame.applymap <modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
 
         Notes
         -----
@@ -1307,7 +1307,7 @@ class DataFrame(BasePandasDataset):
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.DataFrame`
             The result of the comparison.
 
 
@@ -1771,7 +1771,7 @@ class DataFrame(BasePandasDataset):
             ...                    'COL2': ['A', 'B', 'C']})
 
             >>> df.info() # doctest: +NORMALIZE_WHITESPACE
-            <class 'snowflake.snowpark.modin.pandas.dataframe.DataFrame'>
+            <class 'modin.pandas.DataFrame.DataFrame'>
             SnowflakeIndex
             Data columns (total 2 columns):
              #   Column  Non-Null Count  Dtype
@@ -2679,7 +2679,7 @@ class DataFrame(BasePandasDataset):
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.DataFrame`
 
         Notes
         -----

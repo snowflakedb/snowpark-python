@@ -9,22 +9,13 @@ pandas, such as `Series.memory_usage`.
 
 from __future__ import annotations
 
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Hashable,
-    Literal,
-    Mapping,
-    Sequence,
-)
+from typing import IO, Any, Callable, Hashable, Literal, Mapping, Sequence
 
 import modin.pandas as pd
 import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
-from modin.pandas import Series
+from modin.pandas import DataFrame, Series
 from modin.pandas.base import BasePandasDataset
 from pandas._libs.lib import NoDefault, is_integer, no_default
 from pandas._typing import (
@@ -76,9 +67,6 @@ from snowflake.snowpark.modin.utils import (
     _inherit_docstrings,
     validate_int_kwarg,
 )
-
-if TYPE_CHECKING:
-    from modin.pandas import DataFrame
 
 
 def register_series_not_implemented():
@@ -211,21 +199,6 @@ def hist(
     figsize=None,
     bins=10,
     **kwds,
-):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_series_not_implemented()
-def interpolate(
-    self,
-    method="linear",
-    axis=0,
-    limit=None,
-    inplace=False,
-    limit_direction: str | None = None,
-    limit_area=None,
-    downcast=None,
-    **kwargs,
 ):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
@@ -1577,54 +1550,6 @@ def rename(
 # TODO: SNOW-1063346
 # Modin does a relative import (from .dataframe import DataFrame). We should revisit this once
 # our vendored copy of DataFrame is removed.
-@register_series_accessor("sort_values")
-@snowpark_pandas_telemetry_method_decorator
-def sort_values(
-    self,
-    axis: Axis = 0,
-    ascending: bool | int | Sequence[bool] | Sequence[int] = True,
-    inplace: bool = False,
-    kind: str = "quicksort",
-    na_position: str = "last",
-    ignore_index: bool = False,
-    key: IndexKeyFunc | None = None,
-):
-    """
-    Sort by the values.
-    """
-    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-
-    if is_list_like(ascending) and len(ascending) != 1:
-        raise ValueError(f"Length of ascending ({len(ascending)}) must be 1 for Series")
-
-    if axis is not None:
-        # Validate `axis`
-        self._get_axis_number(axis)
-
-    # When we convert to a DataFrame, the name is automatically converted to 0 if it
-    # is None, so we do this to avoid a KeyError.
-    by = self.name if self.name is not None else 0
-    result = (
-        DataFrame(self.copy())
-        .sort_values(
-            by=by,
-            ascending=ascending,
-            inplace=False,
-            kind=kind,
-            na_position=na_position,
-            ignore_index=ignore_index,
-            key=key,
-        )
-        .squeeze(axis=1)
-    )
-    result.name = self.name
-    return self._create_or_update_from_compiler(result._query_compiler, inplace=inplace)
-
-
-# TODO: SNOW-1063346
-# Modin does a relative import (from .dataframe import DataFrame). We should revisit this once
-# our vendored copy of DataFrame is removed.
 # Modin also defaults to pandas for some arguments for unstack
 @register_series_accessor("unstack")
 @snowpark_pandas_telemetry_method_decorator
@@ -1638,7 +1563,7 @@ def unstack(
     Unstack, also known as pivot, Series with MultiIndex to produce DataFrame.
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    from snowflake.snowpark.modin.pandas.dataframe import DataFrame
+    from modin.pandas.dataframe import DataFrame
 
     # We can't unstack a Series object, if we don't have a MultiIndex.
     if self._query_compiler.has_multiindex:
@@ -1705,6 +1630,52 @@ def value_counts(
         ).set_index_names([self.name]),
         name="proportion" if normalize else "count",
     )
+
+
+# Snowpark pandas does an extra check on `len(ascending)`.
+@register_series_accessor("sort_values")
+@snowpark_pandas_telemetry_method_decorator
+def sort_values(
+    self,
+    axis: Axis = 0,
+    ascending: bool | int | Sequence[bool] | Sequence[int] = True,
+    inplace: bool = False,
+    kind: str = "quicksort",
+    na_position: str = "last",
+    ignore_index: bool = False,
+    key: IndexKeyFunc | None = None,
+):
+    """
+    Sort by the values.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    from modin.pandas.dataframe import DataFrame
+
+    if is_list_like(ascending) and len(ascending) != 1:
+        raise ValueError(f"Length of ascending ({len(ascending)}) must be 1 for Series")
+
+    if axis is not None:
+        # Validate `axis`
+        self._get_axis_number(axis)
+
+    # When we convert to a DataFrame, the name is automatically converted to 0 if it
+    # is None, so we do this to avoid a KeyError.
+    by = self.name if self.name is not None else 0
+    result = (
+        DataFrame(self.copy())
+        .sort_values(
+            by=by,
+            ascending=ascending,
+            inplace=False,
+            kind=kind,
+            na_position=na_position,
+            ignore_index=ignore_index,
+            key=key,
+        )
+        .squeeze(axis=1)
+    )
+    result.name = self.name
+    return self._create_or_update_from_compiler(result._query_compiler, inplace=inplace)
 
 
 # The `suffix` parameter is documented but according to pandas maintainers, "not public."
@@ -1804,64 +1775,6 @@ def to_dict(self, into: type[dict] = dict) -> dict:
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self._to_pandas().to_dict(into=into)
-
-
-# TODO: SNOW-1063346
-# Modin does a relative import (from .dataframe import DataFrame), so until we stop using the vendored
-# version of DataFrame, we must keep this override.
-@register_series_accessor("_create_or_update_from_compiler")
-def _create_or_update_from_compiler(self, new_query_compiler, inplace=False):
-    """
-    Return or update a Series with given `new_query_compiler`.
-
-    Parameters
-    ----------
-    new_query_compiler : PandasQueryCompiler
-        QueryCompiler to use to manage the data.
-    inplace : bool, default: False
-        Whether or not to perform update or creation inplace.
-
-    Returns
-    -------
-    Series, DataFrame or None
-        None if update was done, Series or DataFrame otherwise.
-    """
-    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    assert (
-        isinstance(new_query_compiler, type(self._query_compiler))
-        or type(new_query_compiler) in self._query_compiler.__class__.__bases__
-    ), f"Invalid Query Compiler object: {type(new_query_compiler)}"
-    if not inplace and new_query_compiler.is_series_like():
-        return self.__constructor__(query_compiler=new_query_compiler)
-    elif not inplace:
-        # This can happen with things like `reset_index` where we can add columns.
-        from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-
-        return DataFrame(query_compiler=new_query_compiler)
-    else:
-        self._update_inplace(new_query_compiler=new_query_compiler)
-
-
-# TODO: SNOW-1063346
-# Modin does a relative import (from .dataframe import DataFrame), so until we stop using the vendored
-# version of DataFrame, we must keep this override.
-@register_series_accessor("to_frame")
-@snowpark_pandas_telemetry_method_decorator
-def to_frame(self, name: Hashable = no_default) -> DataFrame:  # noqa: PR01, RT01, D200
-    """
-    Convert Series to {label -> value} dict or dict-like object.
-    """
-    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-
-    if name is None:
-        name = no_default
-
-    self_cp = self.copy()
-    if name is not no_default:
-        self_cp.name = name
-
-    return DataFrame(self_cp)
 
 
 @register_series_accessor("to_numpy")
