@@ -465,7 +465,7 @@ class ServerConnection:
         qid = results_cursor.sfqid
         if to_iter:
             new_cursor = results_cursor.connection.cursor()
-            new_cursor.execute(f"SELECT * FROM TABLE(RESULT_SCAN('{qid}'))")
+            new_cursor.get_results_from_sfqid(qid)
             results_cursor = new_cursor
 
         if to_pandas:
