@@ -126,6 +126,7 @@ class UserDefinedFunction:
             assert (
                 self._ast is not None
             ), "Need to ensure _emit_ast is True when registering UDF."
+            assert self._ast_id is not None, "Need to assign UDF an ID."
             udf_expr = proto.Expr()
             build_udf_apply(udf_expr, self._ast_id, *cols)
 
@@ -856,29 +857,25 @@ class UDFRegistration:
             build_udf(
                 ast,
                 func,
-                return_type,
-                input_types,
-                name,
-                stage_location,
-                imports,
-                packages,
-                replace,
-                if_not_exists,
-                parallel,
-                max_batch_size,
-                from_pandas_udf_function,
-                strict,
-                secure,
-                external_access_integrations,
-                secrets,
-                immutable,
-                comment,
-                native_app_params,
-                statement_params,
-                source_code_display,
-                api_call_source,
-                skip_upload_on_content_match,
-                is_permanent,
+                return_type=return_type,
+                input_types=input_types,
+                name=name,
+                stage_location=stage_location,
+                imports=imports,
+                packages=packages,
+                replace=replace,
+                if_not_exists=if_not_exists,
+                parallel=parallel,
+                max_batch_size=max_batch_size,
+                strict=strict,
+                secure=secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                comment=comment,
+                statement_params=statement_params,
+                source_code_display=source_code_display,
+                is_permanent=is_permanent,
                 session=self._session,
                 **kwargs,
             )
@@ -992,5 +989,6 @@ class UDFRegistration:
         )
 
         udf._ast = ast
+        udf._ast_id = self._session._ast_batch.register_callable(func)
 
         return udf
