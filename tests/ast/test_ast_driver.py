@@ -255,7 +255,7 @@ def test_ast(session, test_case):
                 assert actual.strip() == test_case.expected_ast_unparsed.strip()
         except AssertionError as e:
             raise AssertionError(
-                f"If the expectation is incorrect, run pytest --update-expectations:\n{e}\nFUFU\n\n\n{base64} FUFU \n\n\n{test_case.expected_ast_base64}"
+                f"If the expectation is incorrect, run pytest --update-expectations:\n\n{base64}\n{e}"
             ) from e
 
 
