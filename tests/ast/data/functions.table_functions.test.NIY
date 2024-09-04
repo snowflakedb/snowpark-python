@@ -4,7 +4,9 @@ df = session.table("test_table2")
 
 df = df.select(explode(df.maps).alias("emk", "emv"))
 
-## EXPECTED OUTPUT
+## EXPECTED ENCODED AST
+
+## EXPECTED UNPARSER OUTPUT
 
 res1 = session.table("test_table2")
 
