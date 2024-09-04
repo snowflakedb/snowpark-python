@@ -88,6 +88,50 @@ def register_series_not_implemented():
     return decorator
 
 
+# Upstream modin has an extra check for `key in self.index`, which produces an extra query
+# when an attribute is not present.
+# Because __getattr__ itself is responsible for resolving extension methods, we cannot override
+# this method via the extensions module, and have to do it with an old-fashioned set.
+def __getattr__(self, key):
+    """
+    Return item identified by `key`.
+
+    Parameters
+    ----------
+    key : hashable
+        Key to get.
+
+    Returns
+    -------
+    Any
+
+    Notes
+    -----
+    First try to use `__getattribute__` method. If it fails
+    try to get `key` from `Series` fields.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    from modin.pandas.base import _ATTRS_NO_LOOKUP
+    from modin.pandas.series import _SERIES_EXTENSIONS_
+
+    try:
+        return _SERIES_EXTENSIONS_.get(key, object.__getattribute__(self, key))
+    except AttributeError as err:
+        if key not in _ATTRS_NO_LOOKUP:
+            try:
+                value = self[key]
+                if isinstance(value, Series) and value.empty:
+                    raise err
+                return value
+            except Exception:
+                # We want to raise err if self[key] raises any kind of exception
+                raise err
+        raise err
+
+
+Series.__getattr__ = __getattr__
+
+
 # === UNIMPLEMENTED METHODS ===
 # The following methods are not implemented in Snowpark pandas, and must be overridden on the
 # frontend. These methods fall into a few categories:

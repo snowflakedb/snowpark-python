@@ -1311,16 +1311,12 @@ class _iLocIndexer(_LocationIndexerBase):
             set_as_coords = is_row_key_df and is_col_key_df
 
         new_qc = self.qc.set_2d_positional(
-            (
-                row_loc._query_compiler
-                if isinstance(row_loc, BasePandasDataset)
-                else row_loc
-            ),
-            (
-                col_loc._query_compiler
-                if isinstance(col_loc, BasePandasDataset)
-                else col_loc
-            ),
+            row_loc._query_compiler
+            if isinstance(row_loc, BasePandasDataset)
+            else row_loc,
+            col_loc._query_compiler
+            if isinstance(col_loc, BasePandasDataset)
+            else col_loc,
             item._query_compiler if isinstance(item, BasePandasDataset) else item,
             set_as_coords,
             is_item_series,
