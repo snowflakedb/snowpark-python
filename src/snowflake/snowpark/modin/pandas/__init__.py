@@ -166,7 +166,9 @@ from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: 
     TimedeltaIndex,
 )
 
-# this must occur before overrides are applied
+# Record which attributes are defined on an upstream object, and which are defined on a vendored
+# object (currently just dataframe.py), and determine when adding telemetry is necessary.
+# This must be checked before overrides are applied.
 _attrs_defined_on_modin_series = set()
 for attr_name, attr_value in Series.__dict__.items():
     base_value = BasePandasDataset.__dict__.get(attr_name, None)
