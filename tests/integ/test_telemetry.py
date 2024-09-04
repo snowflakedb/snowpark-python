@@ -10,7 +10,7 @@ from typing import Any, Dict, Tuple
 
 import pytest
 
-from snowflake.snowpark._internal.compiler.large_query_breakdown import (
+from snowflake.snowpark._internal.compiler.telemetry_constants import (
     SkipLargeQueryBreakdownCategory,
 )
 
