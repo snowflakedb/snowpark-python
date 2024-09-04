@@ -26,7 +26,7 @@ from pandas import Timedelta
 from pandas._libs import lib
 from pandas._libs.lib import no_default
 from pandas._libs.tslibs import Tick
-from pandas._libs.tslibs.offsets import Day
+from pandas._libs.tslibs.offsets import BusinessDay, CustomBusinessDay, Day
 from pandas._typing import (
     AggFuncType,
     AnyArrayLike,
@@ -686,7 +686,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # TODO: SNOW-879476 support tz with other tz APIs
             ErrorMessage.not_implemented("tz is not supported.")
 
+        remove_non_business_days = False
+
         if freq is not None:
+            if isinstance(freq, CustomBusinessDay):
+                ErrorMessage.not_implemented("CustomBusinessDay is not supported.")
+            if isinstance(freq, BusinessDay):
+                freq = Day()
+                remove_non_business_days = True
             # We break Day arithmetic (fixed 24 hour) here and opt for
             # Day to mean calendar day (23/24/25 hour). Therefore, strip
             # tz info from start and day to avoid DST arithmetic
@@ -726,6 +733,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             dt_values = ns_values.series_to_datetime()
 
         dt_series = pd.Series(query_compiler=dt_values)
+        if remove_non_business_days:
+            dt_series = dt_series[dt_series.dt.dayofweek < 5]
         if not left_inclusive or not right_inclusive:
             if not left_inclusive and start is not None:
                 dt_series = dt_series[dt_series != start].reset_index(drop=True)
@@ -2344,7 +2353,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 monotonic_decreasing_snowflake_quoted_identifier
             )
         new_modin_frame = new_qc._modin_frame
-        return SnowflakeQueryCompiler(
+        qc = SnowflakeQueryCompiler(
             InternalFrame.create(
                 ordered_dataframe=new_modin_frame.ordered_dataframe.limit(
                     n=1, sort=False
@@ -2358,6 +2367,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 index_column_types=None,
             )
         )
+        # use agg all to handle empty case
+        return qc.agg(func="all", args=(), kwargs={}, axis=0)
 
     def _add_columns_for_monotonicity_checks(
         self, col_to_check: str, columns_to_add: Optional[str] = None
@@ -2371,7 +2382,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         col_to_check : str
             The Snowflake quoted identifier for the column whose monotonicity to check.
         columns_to_add : str, optional
-            Whether or not to add all columns, and if not, which columns to add.
+            Whether to add all columns, and if not, which columns to add.
 
         Returns
         -------
@@ -2402,9 +2413,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if columns_to_add in [None, "decreasing"]:
             modin_frame = modin_frame.append_column(
                 "_is_monotonic_decreasing",
-                coalesce(
-                    min_(col(col_to_check) <= col(lag_col_snowflake_quoted_id)).over(),
-                    pandas_lit(False),
+                iff(
+                    count("*").over() <= 1,
+                    pandas_lit(True),
+                    coalesce(
+                        min_(
+                            col(col_to_check) <= col(lag_col_snowflake_quoted_id)
+                        ).over(),
+                        pandas_lit(False),
+                    ),
                 ),
             )
             monotonic_decreasing_snowflake_quoted_id = (
@@ -2413,9 +2430,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if columns_to_add in [None, "increasing"]:
             modin_frame = modin_frame.append_column(
                 "_is_monotonic_increasing",
-                coalesce(
-                    min_(col(col_to_check) >= col(lag_col_snowflake_quoted_id)).over(),
-                    pandas_lit(False),
+                iff(
+                    count("*").over() <= 1,
+                    pandas_lit(True),
+                    coalesce(
+                        min_(
+                            col(col_to_check) >= col(lag_col_snowflake_quoted_id)
+                        ).over(),
+                        pandas_lit(False),
+                    ),
                 ),
             )
             monotonic_increasing_snowflake_quoted_id = (
@@ -10447,7 +10470,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         periods: int,
         column_position: int,
         axis: int,
-    ) -> SnowparkColumn:
+    ) -> SnowparkPandasColumn:
         """
         Helper function to generate Columns for discrete difference.
 
@@ -10465,9 +10488,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Returns
         -------
-        SnowparkColumn
-            An expression to generate the discrete difference along the specified axis, with the
-            specified period, for the column specified by `column_position`.
+        SnowparkPandasColumn
+            An column representing the discrete difference along the specified
+            axis, with the specified period, for the column specified by
+            `column_position`.
         """
         # If periods is 0, we are doing a subtraction with self (or XOR in case of bool
         # dtype). In this case, even if axis is 0, we prefer to use the col-wise code,
@@ -10497,15 +10521,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         self._modin_frame.ordering_column_snowflake_quoted_identifiers
                     )
                 )
-                return (col1 | col2) & (not_(col1 & col2))
-            else:
-                return col(snowflake_quoted_identifier) - func_for_other(
-                    snowflake_quoted_identifier, offset=abs(periods)
-                ).over(
-                    Window.order_by(
-                        self._modin_frame.ordering_column_snowflake_quoted_identifiers
-                    )
+                return SnowparkPandasColumn(
+                    snowpark_column=(col1 | col2) & (not_(col1 & col2)),
+                    snowpark_pandas_type=None,
                 )
+            else:
+                return compute_binary_op_between_snowpark_columns(
+                    "sub",
+                    col(snowflake_quoted_identifier),
+                    lambda: column_datatype,
+                    func_for_other(
+                        snowflake_quoted_identifier, offset=abs(periods)
+                    ).over(
+                        Window.order_by(
+                            self._modin_frame.ordering_column_snowflake_quoted_identifiers
+                        )
+                    ),
+                    lambda: column_datatype,
+                )
+
         else:
             # periods is the number of columns to *go back*.
             periods *= -1
@@ -10516,7 +10550,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if other_column_position < 0 or other_column_position >= len(
                 self._modin_frame.data_column_snowflake_quoted_identifiers
             ):
-                return pandas_lit(np.nan)
+                return SnowparkPandasColumn(
+                    snowpark_column=pandas_lit(np.nan), snowpark_pandas_type=None
+                )
             # In this case, we are at a column that does have a match, so we must do dtype checking
             # and then generate the expression.
             else:
@@ -10543,13 +10579,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 if isinstance(col1_dtype, BooleanType) and isinstance(
                     col2_dtype, BooleanType
                 ):
-                    return (col1 | col2) & (not_(col1 & col2))
+                    return SnowparkPandasColumn(
+                        (col1 | col2) & (not_(col1 & col2)), snowpark_pandas_type=None
+                    )
                 else:
                     if isinstance(col1_dtype, BooleanType):
                         col1 = cast(col1, IntegerType())
                     if isinstance(col2_dtype, BooleanType):
                         col2 = cast(col2, IntegerType())
-                    return col1 - col2
+                    return compute_binary_op_between_snowpark_columns(
+                        "sub",
+                        col1,
+                        lambda: col1_dtype,
+                        col2,
+                        lambda: col2_dtype,
+                    )
 
     def diff(self, periods: int, axis: int) -> "SnowflakeQueryCompiler":
         """
@@ -10568,10 +10612,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame.data_column_snowflake_quoted_identifiers
             )
         }
+        # diff() between two timestamp columns on axis=1, or on a single
+        # timestamp column on axis 0, will change type to timedelta.
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
-                diff_label_to_value_map,
-                self._modin_frame.cached_data_column_snowpark_pandas_types,
+                quoted_identifier_to_column_map={
+                    k: v.snowpark_column for k, v in diff_label_to_value_map.items()
+                },
+                data_column_snowpark_pandas_types=[
+                    a.snowpark_pandas_type for a in diff_label_to_value_map.values()
+                ],
             ).frame
         )
 
@@ -10796,14 +10846,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return self.dt_property("dayofweek")
 
     def dt_isocalendar(self) -> "SnowflakeQueryCompiler":
+        col_name = self.columns[0]
         year_col = self.dt_property("yearofweekiso").rename(
-            columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "year"}
+            columns_renamer={col_name: "year"}
         )
         week_col = self.dt_property("weekiso").rename(
-            columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "week"}
+            columns_renamer={col_name: "week"}
         )
         day_col = self.dt_property("dayofweekiso").rename(
-            columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "day"}
+            columns_renamer={col_name: "day"}
         )
         return year_col.concat(axis=1, other=[week_col, day_col])
 
@@ -11633,8 +11684,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # The output frame's DatetimeIndex is identical to expected_frame's. For each date in the DatetimeIndex,
             # a single row is selected from the input frame, where its date is the closest match in time based on
             # the filling method. We perform an ASOF join to accomplish this.
-            frame = perform_asof_join_on_frame(expected_frame, frame, resample_method)
-
+            index_name = frame.index_column_pandas_labels
+            output_frame = perform_asof_join_on_frame(
+                expected_frame, frame, resample_method
+            )
+            return SnowflakeQueryCompiler(output_frame).set_index_names(index_name)
         elif resample_method in IMPLEMENTED_AGG_METHODS:
             frame = perform_resample_binning_on_frame(frame, start_date, rule)
             if resample_method == "size":
