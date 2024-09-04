@@ -8,7 +8,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import assert_frame_equal
+from tests.integ.modin.utils import assert_frame_equal, eval_snowpark_pandas_result
 
 
 @sql_count_checker(query_count=0)
@@ -317,3 +317,26 @@ def test_index_SNOW_1021837():
     native_df_reset = native_df.reset_index()
     snow_df_reset = snow_df.reset_index()
     assert_frame_equal(snow_df_reset, native_df_reset)
+
+
+@sql_count_checker(query_count=0)
+def test_index_non_list_like_names():
+    """
+    Bug SNOW-1650853:
+    Previously, setting names to non-list-like values raised a TypeError: object of type 'int' has no len().
+    That was not a clear error message and therefore has been changed to match native pandas' ValueError:
+    Names must be a list-like.
+    """
+
+    def helper(df):
+        df.index.names = 10
+
+    native_df = native_pd.DataFrame(list(range(10)))
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        helper,
+        expect_exception=True,
+        check_exception_type=ValueError,
+    )
