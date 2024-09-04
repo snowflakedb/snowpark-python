@@ -92,6 +92,7 @@
 
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 - Fixed AssertionError in tree of binary operations.
+- Fixed bug in `Series.dt.isocalendar` using a named Series
 
 #### Behavior Change
 
