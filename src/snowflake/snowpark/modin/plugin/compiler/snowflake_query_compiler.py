@@ -2260,7 +2260,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def reindex(
         self,
         axis: int,
-        labels: Union[pandas.Index, list[Any]],
+        labels: Union[pandas.Index, "pd.Index", list[Any]],
         **kwargs: dict[str, Any],
     ) -> "SnowflakeQueryCompiler":
         """
@@ -2468,7 +2468,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _reindex_axis_0(
         self,
-        labels: Union[pandas.Index, list[Any]],
+        labels: Union[pandas.Index, "pd.Index", list[Any]],
         **kwargs: dict[str, Any],
     ) -> "SnowflakeQueryCompiler":
         """
@@ -2494,7 +2494,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         self._raise_not_implemented_error_for_timedelta()
 
-        new_index_qc = pd.Series(labels)._query_compiler
+        if isinstance(labels, native_pd.Index):
+            labels = pd.Index(labels)
+        if isinstance(labels, pd.Index):
+            new_index_qc = labels.to_series()._query_compiler
+        else:
+            new_index_qc = pd.Series(labels)._query_compiler
+
         new_index_modin_frame = new_index_qc._modin_frame
         modin_frame = self._modin_frame
         method = kwargs.get("method", None)
@@ -2583,7 +2589,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_labels=data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=modin_frame.data_column_pandas_index_names,
-            index_column_pandas_labels=modin_frame.index_column_pandas_labels,
+            index_column_pandas_labels=new_index_modin_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=result_frame_column_mapper.map_left_quoted_identifiers(
                 new_index_modin_frame.data_column_snowflake_quoted_identifiers
             ),
