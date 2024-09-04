@@ -31,6 +31,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas
 from modin.pandas.accessor import CachedAccessor, SparseAccessor
+from modin.pandas.base import _ATTRS_NO_LOOKUP, BasePandasDataset
 from modin.pandas.iterator import PartitionIterator
 from pandas._libs.lib import NoDefault, is_integer, no_default
 from pandas._typing import (
@@ -51,7 +52,6 @@ from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
 from pandas.core.series import _coerce_method
 from pandas.util._validators import validate_bool_kwarg
 
-from snowflake.snowpark.modin.pandas.base import _ATTRS_NO_LOOKUP, BasePandasDataset
 from snowflake.snowpark.modin.pandas.utils import from_pandas, is_scalar
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
@@ -177,11 +177,14 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
             if is_dict_like(data) or isinstance(data, (type(self))):
                 # The `index` parameter is used to select the rows from `data` that will be in the resultant Series.
                 # If a value in `index` is not present in `data`'s index, it will be filled with a NaN value.
-                if isinstance(index, Index):
-                    index = index.to_series()._query_compiler
-                elif isinstance(index, Series):
-                    index = index._query_compiler
-                query_compiler = query_compiler.reindex(axis=0, labels=index)
+                labels = index
+                if isinstance(labels, Index):
+                    labels = labels.to_series()._query_compiler
+                elif isinstance(labels, Series):
+                    labels = labels._query_compiler
+                else:
+                    labels = Index(labels).to_series()._query_compiler
+                query_compiler = query_compiler.reindex(axis=0, labels=labels)
 
             else:
                 # Performing set index to directly set the index column (joining on row-position instead of index).
