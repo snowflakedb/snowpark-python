@@ -853,7 +853,7 @@ class UDFRegistration:
         ast = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(proto.Udf(), stmt)
+            ast = with_src_position(stmt.expr.udf, stmt)
             build_udf(
                 ast,
                 func,

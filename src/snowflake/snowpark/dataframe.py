@@ -3678,7 +3678,7 @@ class DataFrame:
         """
 
         # AST.
-        if _emit_ast:
+        if _emit_ast and self._ast_id is not None:
             stmt = self._session._ast_batch.assign()
             expr = with_src_position(stmt.expr.sp_dataframe_write, stmt)
             self.set_ast_ref(expr.df)
