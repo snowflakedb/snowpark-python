@@ -430,7 +430,7 @@ class TelemetryClient:
         self.send(message)
 
     def send_large_query_optimization_skipped_telemetry(
-        self, session_id: str, reason: str
+        self, session_id: int, reason: str
     ) -> None:
         message = {
             **self._create_basic_telemetry_data(
