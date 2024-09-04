@@ -1299,6 +1299,7 @@ class InternalFrame:
         self,
         snowpark_func: Callable[[Any], SnowparkColumn],
         include_index: bool = False,
+        return_type: Optional[SnowparkPandasType] = None,
     ) -> "InternalFrame":
         """
         Apply snowpark function callable to all data columns of an InternalFrame. If
@@ -1307,6 +1308,7 @@ class InternalFrame:
 
         Arguments:
             snowpark_func: Snowpark function to apply to columns of underlying snowpark df.
+            return_type: The optional SnowparkPandasType for the new column.
             include_index: Whether to apply the function to index columns as well.
 
         Returns:
@@ -1317,7 +1319,8 @@ class InternalFrame:
             snowflake_ids.extend(self.index_column_snowflake_quoted_identifiers)
 
         return self.update_snowflake_quoted_identifiers_with_expressions(
-            {col_id: snowpark_func(col(col_id)) for col_id in snowflake_ids}
+            {col_id: snowpark_func(col(col_id)) for col_id in snowflake_ids},
+            [return_type] * len(snowflake_ids) if return_type else None,
         ).frame
 
     def select_active_columns(self) -> "InternalFrame":
