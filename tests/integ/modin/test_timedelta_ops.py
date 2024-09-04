@@ -6,13 +6,15 @@
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
-import pytest
 from pandas import Timestamp
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import assert_series_equal, eval_snowpark_pandas_result
+from tests.integ.modin.utils import (
+    assert_series_equal,
+    create_test_dfs,
+    eval_snowpark_pandas_result,
+)
 
 TIME_DATA1 = {
     "CREATED_AT": ["2018-8-26 15:09:02", "2018-8-25 11:10:07", "2018-8-27 12:05:00"],
@@ -70,8 +72,8 @@ def test_insert_datetime_difference():
     )
 
 
-@sql_count_checker(query_count=0)
-def test_diff_timestamp_column_to_get_timedelta_negative():
+@sql_count_checker(query_count=1)
+def test_diff_timestamp_column_to_get_timedelta():
     data = {
         "Country": ["A", "B", "C", "D", "E"],
         "Agreement Signing Date": [
@@ -82,14 +84,9 @@ def test_diff_timestamp_column_to_get_timedelta_negative():
             pd.Timestamp("2017-08-09"),
         ],
     }
-    snow_df = pd.DataFrame(data)
-    native_df = native_pd.DataFrame(data)
-    # TODO SNOW-1641729: remove Exception raised when TimeDelta is implemented
-    with pytest.raises(SnowparkSQLException):
-        eval_snowpark_pandas_result(
-            snow_df,
-            native_df,
-            lambda df: df.set_index("Country")
-            .diff()
-            .rename(columns={"Agreement Signing Date": "DiffDaysPrevAggrement"}),
-        )
+    eval_snowpark_pandas_result(
+        *create_test_dfs(data),
+        lambda df: df.set_index("Country")
+        .diff()
+        .rename(columns={"Agreement Signing Date": "DiffDaysPrevAggrement"}),
+    )
