@@ -438,7 +438,11 @@ def with_src_position(
         # If IO performance is an issue, this can be set to 0 but this will disable symbol capture. Some
         # potential alternatives to consider here are the linecache and traceback modules.
         frame_info = inspect.getframeinfo(frame, context=1)
-        src.file = frame_info.filename if not SRC_POSITION_TEST_MODE else "SRC_POSITION_TEST_MODE"
+        src.file = (
+            frame_info.filename
+            if not SRC_POSITION_TEST_MODE
+            else "SRC_POSITION_TEST_MODE"
+        )
         src.start_line = frame_info.lineno
         if sys.version_info >= (3, 11):
             pos = frame_info.positions
