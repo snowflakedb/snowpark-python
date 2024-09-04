@@ -287,6 +287,7 @@ from snowflake.snowpark.modin.plugin._internal.transpose_utils import (
     transpose_empty_df,
 )
 from snowflake.snowpark.modin.plugin._internal.type_utils import (
+    DataTypeGetter,
     TypeMapper,
     column_astype,
     infer_object_type,
@@ -14180,11 +14181,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
-        # Lazify type map here for calling compute_binary_op_between_snowpark_columns,
-        # this enables the optimization to pull datatypes only on-demand if needed.
+        # Lazify type map here for calling compute_binary_op_between_snowpark_columns.
         def create_lazy_type_functions(
             identifiers: list[str],
-        ) -> list[Callable[[], DataType]]:
+        ) -> list[DataTypeGetter]:
             """
             create functions that return datatype on demand for an identifier.
             Args:
