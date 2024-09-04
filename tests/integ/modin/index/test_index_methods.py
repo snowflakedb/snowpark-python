@@ -35,6 +35,13 @@ def test_index_copy(native_index):
     assert_index_equal(snow_index, new_index)
 
 
+@sql_count_checker(query_count=2)
+def test_index_creation_from_lazy_index():
+    i1 = pd.Index([1, 2, 3])
+    i2 = pd.Index(i1)
+    assert_index_equal(i1, i2)
+
+
 @pytest.mark.parametrize("native_df", TEST_DFS)
 @sql_count_checker(query_count=2)
 def test_df_index_copy(native_df):
