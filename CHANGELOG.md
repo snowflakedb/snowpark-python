@@ -87,11 +87,13 @@
 
 - Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
 - Improved `pd.to_datetime` to handle all local input cases. 
+- Create a lazy index from another lazy index without pulling data to client.
 
 #### Bug Fixes
 
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 - Fixed AssertionError in tree of binary operations.
+- Fixed bug in `Series.dt.isocalendar` using a named Series
 
 #### Behavior Change
 
