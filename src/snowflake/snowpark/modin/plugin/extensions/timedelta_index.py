@@ -55,17 +55,65 @@ class TimedeltaIndex(Index):
     # Equivalent index type in native pandas
     _NATIVE_INDEX_TYPE = native_pd.TimedeltaIndex
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(
+        cls,
+        data: ArrayLike | native_pd.Index | Series | None = None,
+        unit: str | lib.NoDefault = _CONSTRUCTOR_DEFAULTS["unit"],
+        freq: Frequency | lib.NoDefault = _CONSTRUCTOR_DEFAULTS["freq"],
+        dtype: Dtype | None = _CONSTRUCTOR_DEFAULTS["dtype"],
+        copy: bool = _CONSTRUCTOR_DEFAULTS["copy"],
+        name: Hashable | None = _CONSTRUCTOR_DEFAULTS["name"],
+        query_compiler: SnowflakeQueryCompiler = None,
+    ) -> TimedeltaIndex:
         """
         Create new instance of TimedeltaIndex. This overrides behavior of Index.__new__.
-        Args:
-            *args: arguments.
-            **kwargs: keyword arguments.
+
+        Parameters
+        ----------
+        data : array-like (1-dimensional), optional
+            Optional timedelta-like data to construct index with.
+        unit : {'D', 'h', 'm', 's', 'ms', 'us', 'ns'}, optional
+            The unit of ``data``.
+
+            .. deprecated:: 2.2.0
+             Use ``pd.to_timedelta`` instead.
+
+        freq : str or pandas offset object, optional
+            One of pandas date offset strings or corresponding objects. The string
+            ``'infer'`` can be passed in order to set the frequency of the index as
+            the inferred frequency upon creation.
+        dtype : numpy.dtype or str, default None
+            Valid ``numpy`` dtypes are ``timedelta64[ns]``, ``timedelta64[us]``,
+            ``timedelta64[ms]``, and ``timedelta64[s]``.
+        copy : bool
+            Make a copy of input array.
+        name : object
+            Name to be stored in the index.
 
         Returns:
             New instance of TimedeltaIndex.
         """
-        return object.__new__(cls)
+        if query_compiler:
+            # Raise error if underlying type is not a Timedelta type.
+            current_dtype = query_compiler.index_dtypes[0]
+            if not is_timedelta64_dtype(current_dtype):
+                raise ValueError(
+                    f"TimedeltaIndex can only be created from a query compiler with TimedeltaType, found {current_dtype}"
+                )
+        kwargs = {
+            "unit": unit,
+            "freq": freq,
+            "dtype": dtype,
+            "copy": copy,
+            "name": name,
+        }
+        tdi = object.__new__(cls)
+        tdi._query_compiler = TimedeltaIndex._init_query_compiler(
+            data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs
+        )
+        # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
+        tdi._parent = None
+        return tdi
 
     def __init__(
         self,
@@ -114,23 +162,9 @@ class TimedeltaIndex(Index):
         >>> pd.TimedeltaIndex(np.arange(5) * 24 * 3600 * 1e9, freq='infer')
         TimedeltaIndex(['0 days', '1 days', '2 days', '3 days', '4 days'], dtype='timedelta64[ns]', freq=None)
         """
-        if query_compiler:
-            # Raise error if underlying type is not a Timedelta type.
-            current_dtype = query_compiler.index_dtypes[0]
-            if not is_timedelta64_dtype(current_dtype):
-                raise ValueError(
-                    f"TimedeltaIndex can only be created from a query compiler with TimedeltaType, found {current_dtype}"
-                )
-        kwargs = {
-            "unit": unit,
-            "freq": freq,
-            "dtype": dtype,
-            "copy": copy,
-            "name": name,
-        }
-        self._init_index(data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs)
+        # TimedeltaIndex is already initialized in __new__ method. We keep this method
+        # only for docstring generation.
 
-    @timedelta_index_not_implemented()
     @property
     def days(self) -> Index:
         """
@@ -142,15 +176,18 @@ class TimedeltaIndex(Index):
 
         Examples
         --------
-        >>> idx = pd.to_timedelta(["0 days", "10 days", "20 days"])  # doctest: +SKIP
-        >>> idx  # doctest: +SKIP
-        TimedeltaIndex(['0 days', '10 days', '20 days'],
-                        dtype='timedelta64[ns]', freq=None)
-        >>> idx.days  # doctest: +SKIP
+        >>> idx = pd.to_timedelta(["0 days", "10 days", "20 days"])
+        >>> idx
+        TimedeltaIndex(['0 days', '10 days', '20 days'], dtype='timedelta64[ns]', freq=None)
+        >>> idx.days
         Index([0, 10, 20], dtype='int64')
         """
+        return Index(
+            query_compiler=self._query_compiler.timedelta_property(
+                "days", include_index=True
+            )
+        )
 
-    @timedelta_index_not_implemented()
     @property
     def seconds(self) -> Index:
         """
@@ -162,15 +199,18 @@ class TimedeltaIndex(Index):
 
         Examples
         --------
-        >>> idx = pd.to_timedelta([1, 2, 3], unit='s')  # doctest: +SKIP
-        >>> idx  # doctest: +SKIP
-        TimedeltaIndex(['0 days 00:00:01', '0 days 00:00:02', '0 days 00:00:03'],
-                       dtype='timedelta64[ns]', freq=None)
-        >>> idx.seconds  # doctest: +SKIP
-        Index([1, 2, 3], dtype='int32')
+        >>> idx = pd.to_timedelta([1, 2, 3], unit='s')
+        >>> idx
+        TimedeltaIndex(['0 days 00:00:01', '0 days 00:00:02', '0 days 00:00:03'], dtype='timedelta64[ns]', freq=None)
+        >>> idx.seconds
+        Index([1, 2, 3], dtype='int64')
         """
+        return Index(
+            query_compiler=self._query_compiler.timedelta_property(
+                "seconds", include_index=True
+            )
+        )
 
-    @timedelta_index_not_implemented()
     @property
     def microseconds(self) -> Index:
         """
@@ -182,16 +222,20 @@ class TimedeltaIndex(Index):
 
         Examples
         --------
-        >>> idx = pd.to_timedelta([1, 2, 3], unit='us')  # doctest: +SKIP
-        >>> idx  # doctest: +SKIP
+        >>> idx = pd.to_timedelta([1, 2, 3], unit='us')
+        >>> idx
         TimedeltaIndex(['0 days 00:00:00.000001', '0 days 00:00:00.000002',
                         '0 days 00:00:00.000003'],
                        dtype='timedelta64[ns]', freq=None)
-        >>> idx.microseconds  # doctest: +SKIP
-        Index([1, 2, 3], dtype='int32')
+        >>> idx.microseconds
+        Index([1, 2, 3], dtype='int64')
         """
+        return Index(
+            query_compiler=self._query_compiler.timedelta_property(
+                "microseconds", include_index=True
+            )
+        )
 
-    @timedelta_index_not_implemented()
     @property
     def nanoseconds(self) -> Index:
         """
@@ -203,14 +247,19 @@ class TimedeltaIndex(Index):
 
         Examples
         --------
-        >>> idx = pd.to_timedelta([1, 2, 3], unit='ns')  # doctest: +SKIP
-        >>> idx  # doctest: +SKIP
+        >>> idx = pd.to_timedelta([1, 2, 3], unit='ns')
+        >>> idx
         TimedeltaIndex(['0 days 00:00:00.000000001', '0 days 00:00:00.000000002',
                         '0 days 00:00:00.000000003'],
                        dtype='timedelta64[ns]', freq=None)
-        >>> idx.nanoseconds  # doctest: +SKIP
-        Index([1, 2, 3], dtype='int32')
+        >>> idx.nanoseconds
+        Index([1, 2, 3], dtype='int64')
         """
+        return Index(
+            query_compiler=self._query_compiler.timedelta_property(
+                "nanoseconds", include_index=True
+            )
+        )
 
     @timedelta_index_not_implemented()
     @property
