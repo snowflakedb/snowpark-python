@@ -2190,7 +2190,7 @@ class CombinedDatetimelikeProperties:
         0    1
         1    2
         2    3
-        dtype: int32
+        dtype: int64
 
         For TimedeltaIndex:
 
@@ -2227,8 +2227,7 @@ class CombinedDatetimelikeProperties:
 
         >>> tdelta_idx = pd.to_timedelta(["0 days", "10 days", "20 days"])
         >>> tdelta_idx
-        TimedeltaIndex(['0 days', '10 days', '20 days'],
-                        dtype='timedelta64[ns]', freq=None)
+        TimedeltaIndex(['0 days', '10 days', '20 days'], dtype='timedelta64[ns]', freq=None)
         >>> tdelta_idx.days
         Index([0, 10, 20], dtype='int64')
         """
@@ -2252,7 +2251,7 @@ class CombinedDatetimelikeProperties:
         0    1
         1    2
         2    3
-        dtype: int32
+        dtype: int64
 
         For TimedeltaIndex:
 
@@ -2284,7 +2283,7 @@ class CombinedDatetimelikeProperties:
         0    1
         1    2
         2    3
-        dtype: int32
+        dtype: int64
 
         For TimedeltaIndex:
 
