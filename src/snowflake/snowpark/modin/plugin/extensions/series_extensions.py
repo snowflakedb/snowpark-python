@@ -55,7 +55,7 @@ def to_snowflake(
 
     See Also:
         - :func:`to_snowflake <snowflake.snowpark.modin.pandas.io.to_snowflake>`
-        - :func:`DataFrame.to_snowflake <snowflake.snowpark.modin.pandas.DataFrame.to_snowflake>`
+        - :func:`DataFrame.to_snowflake <modin.pandas.DataFrame.to_snowflake>`
         - :func:`read_snowflake <snowflake.snowpark.modin.pandas.io.read_snowflake>`
 
     """
@@ -188,7 +188,7 @@ def to_pandas(
 
     See Also:
         - :func:`to_pandas <snowflake.snowpark.modin.pandas.io.to_pandas>`
-        - :func:`DataFrame.to_pandas <snowflake.snowpark.modin.pandas.DataFrame.to_pandas>`
+        - :func:`DataFrame.to_pandas <modin.pandas.DataFrame.to_pandas>`
 
     Returns:
         pandas Series

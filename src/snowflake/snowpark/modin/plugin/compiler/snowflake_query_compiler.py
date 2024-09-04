@@ -2035,8 +2035,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Native pandas does not support binary operations between a Series and a list-like object.
 
         from modin.pandas import Series
+        from modin.pandas.dataframe import DataFrame
 
-        from snowflake.snowpark.modin.pandas.dataframe import DataFrame
         from snowflake.snowpark.modin.pandas.utils import is_scalar
 
         # fail explicitly for unsupported scenarios

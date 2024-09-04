@@ -30,6 +30,7 @@ from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 import modin
 import numpy as np
 import pandas as native_pd
+from modin.pandas import DataFrame, Series
 from modin.pandas.base import BasePandasDataset
 from pandas import get_option
 from pandas._libs import lib
@@ -49,7 +50,6 @@ from pandas.core.dtypes.common import (
 )
 from pandas.core.dtypes.inference import is_hashable
 
-from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import DateTimeOrigin

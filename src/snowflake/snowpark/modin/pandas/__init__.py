@@ -89,13 +89,13 @@ import modin.pandas
 # TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
 from modin.pandas import plotting  # type: ignore[import]
 from modin.pandas.base import BasePandasDataset
+from modin.pandas.dataframe import _DATAFRAME_EXTENSIONS_, DataFrame
 from modin.pandas.series import _SERIES_EXTENSIONS_, Series
 
 from snowflake.snowpark.modin.pandas.api.extensions import (
     register_dataframe_accessor,
     register_series_accessor,
 )
-from snowflake.snowpark.modin.pandas.dataframe import _DATAFRAME_EXTENSIONS_, DataFrame
 from snowflake.snowpark.modin.pandas.general import (
     bdate_range,
     concat,
@@ -149,6 +149,7 @@ from snowflake.snowpark.modin.pandas.io import (  # read_json is provided by ove
 )
 from snowflake.snowpark.modin.plugin._internal.session import SnowpandasSessionHolder
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
+    TELEMETRY_PRIVATE_METHODS,
     try_add_telemetry_to_attribute,
 )
 from snowflake.snowpark.modin.plugin.utils.frontend_constants import _ATTRS_NO_LOOKUP
@@ -166,22 +167,13 @@ from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: 
     read_json,
 )
 
-# Record which attributes are defined on an upstream object, and which are defined on a vendored
-# object (currently just dataframe.py), and determine when adding telemetry is necessary.
+# Record which attributes are defined on an upstream object, and determine when adding telemetry is necessary.
 # This must be checked before overrides are applied.
 _attrs_defined_on_modin_series = set()
 for attr_name, attr_value in Series.__dict__.items():
     base_value = BasePandasDataset.__dict__.get(attr_name, None)
     if base_value is None or attr_value != base_value:
         _attrs_defined_on_modin_series.add(attr_name)
-
-_attrs_defined_on_dataframe = (
-    set()
-)  # TODO: SNOW-1063346 revisit when dataframe.py is removed
-for attr_name, attr_value in DataFrame.__dict__.items():
-    base_value = BasePandasDataset.__dict__.get(attr_name, None)
-    if base_value is None or attr_value != base_value:
-        _attrs_defined_on_dataframe.add(attr_name)
 
 
 # base overrides occur before subclass overrides in case subclasses override a base method
@@ -204,8 +196,7 @@ modin.pandas.base._ATTRS_NO_LOOKUP.update(_ATTRS_NO_LOOKUP)
 
 
 # For any method defined on Series/DF, add telemetry to it if it meets all of the following conditions:
-# 1. The method was defined directly on an upstream class (_attrs_defined_on_modin_base, _attrs_defined_on_modin_series)
-#   1a. (DataFrame only): The method is not overridden by DataFrame (not applicable to Series, since we use the upstream version)
+# 1. The method was defined directly on an upstream class (_attrs_defined_on_* lists)
 # 2. The method is not overridden by an extensions module
 # 3. The method name does not start with an _
 _base_telemetry_added_attrs = set()
@@ -214,7 +205,9 @@ _series_ext = _SERIES_EXTENSIONS_.copy()
 for attr_name in dir(Series):
     # Since Series is defined in upstream Modin, all of its members were either defined upstream
     # or overridden by extension.
-    if attr_name not in _series_ext and not attr_name.startswith("_"):
+    if attr_name not in _series_ext and (
+        not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
+    ):
         register_series_accessor(attr_name)(
             try_add_telemetry_to_attribute(attr_name, getattr(Series, attr_name))
         )
@@ -224,15 +217,12 @@ for attr_name in dir(Series):
             _base_telemetry_added_attrs.add(attr_name)
 
 
-# TODO: SNOW-1063346
-# Since we still use the vendored version of DataFrame and the overrides for the top-level
-# namespace haven't been performed yet, we need to set properties on the vendored version
 _dataframe_ext = _DATAFRAME_EXTENSIONS_.copy()
 for attr_name in dir(DataFrame):
-    if (
-        attr_name not in _attrs_defined_on_dataframe
-        and attr_name not in _dataframe_ext
-        and not attr_name.startswith("_")
+    # Since DataFrame is defined in upstream Modin, all of its members were either defined upstream
+    # or overridden by extension.
+    if attr_name not in _dataframe_ext and (
+        not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
     ):
         # If this method was inherited from BasePandasDataset and telemetry was already added via
         # Series, register the override but don't re-wrap the method in the telemetry annotation.
@@ -244,7 +234,6 @@ for attr_name in dir(DataFrame):
             else try_add_telemetry_to_attribute(attr_name, original_attr)
         )
         register_dataframe_accessor(attr_name)(new_attr)
-        _base_telemetry_added_attrs.add(attr_name)
 
 
 def __getattr__(name: str) -> Any:

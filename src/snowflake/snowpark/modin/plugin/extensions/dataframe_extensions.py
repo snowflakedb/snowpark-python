@@ -208,7 +208,7 @@ def to_pandas(
     **kwargs: Any,
 ) -> pandas.DataFrame:
     """
-    Convert Snowpark pandas DataFrame to `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+    Convert Snowpark pandas DataFrame to `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`__
 
     Args:
         statement_params: Dictionary of statement level parameters to be set while executing this action.

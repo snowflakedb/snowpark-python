@@ -38,7 +38,7 @@ class StringMethods:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series`, Index, :class:`~snowflake.snowpark.modin.pandas.DataFrame` or MultiIndex
+        :class:`~snowflake.snowpark.modin.pandas.Series`, Index, :class:`~modin.pandas.DataFrame` or MultiIndex
             Type matches caller unless expand=True (see Notes).
 
         See also
@@ -1527,7 +1527,7 @@ class CombinedDatetimelikeProperties:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.DataFrame`
             With columns year, week, and day.
 
         Examples
