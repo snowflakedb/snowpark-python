@@ -33,7 +33,9 @@ df.group_by("empid").pivot("month", ['JAN', 'FEB']).sum("amount").show()
 
 df.group_by(["empid", "team"]).pivot("month").sum("amount").sort("empid", "team").show()
 
-## EXPECTED OUTPUT
+## EXPECTED ENCODED AST
+
+## EXPECTED UNPARSER OUTPUT
 
 df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 2), (3, 1), (3, 2)], schema=["a", "b"])
 

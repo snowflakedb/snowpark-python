@@ -594,7 +594,9 @@ df303 = df.select(unix_timestamp("A"), unix_timestamp("A", None), unix_timestamp
 
 df304 = df.select(locate("needle", col("expr")), locate("needle", lit("test string"), 2))
 
-## EXPECTED OUTPUT
+## EXPECTED ENCODED AST
+
+## EXPECTED UNPARSER OUTPUT
 
 df = session.table("test_table")
 
