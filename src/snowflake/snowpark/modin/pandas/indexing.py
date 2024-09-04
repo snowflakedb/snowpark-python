@@ -43,6 +43,7 @@ from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import pandas
+from modin.pandas.base import BasePandasDataset
 from pandas._libs.tslibs import Resolution, parsing
 from pandas._typing import AnyArrayLike, Scalar
 from pandas.api.types import is_bool, is_list_like
@@ -58,7 +59,6 @@ from pandas.core.indexing import IndexingError
 
 import snowflake.snowpark.modin.pandas as pd
 import snowflake.snowpark.modin.pandas.utils as frontend_utils
-from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.pandas.series import (
     SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE,
@@ -907,7 +907,15 @@ class _LocIndexer(_LocationIndexerBase):
         )
         if isinstance(result, Series):
             result._parent = self.df
-            result._parent_axis = 0
+            # We need to determine which axis this Series was extracted from. We can do so
+            # by checking which axis' locator is slice(None). If row_loc == slice(None),
+            # that means that we are extracting from axis=1, and if col_loc == slice(None),
+            # that means we are extracting from axis=0. If `row_loc` is a BasePandasDataset
+            # then it is also an extraction along axis=0.
+            if not isinstance(row_loc, slice):
+                result._parent_axis = 0
+            else:
+                result._parent_axis = int(row_loc == slice(None))
 
         return result
 
@@ -1181,7 +1189,15 @@ class _iLocIndexer(_LocationIndexerBase):
 
         if isinstance(result, Series):
             result._parent = self.df
-            result._parent_axis = 0
+            # We need to determine which axis this Series was extracted from. We can do so
+            # by checking which axis' locator is slice(None). If row_loc == slice(None),
+            # that means that we are extracting from axis=1, and if col_loc == slice(None),
+            # that means we are extracting from axis=0. If `row_loc` is a SnowflakeQueryCompiler
+            # then it is also an extraction along axis=0.
+            if not isinstance(row_loc, slice):
+                result._parent_axis = 0
+            else:
+                result._parent_axis = int(row_loc == slice(None))
         return result
 
     def _get_pandas_object_from_qc_view(

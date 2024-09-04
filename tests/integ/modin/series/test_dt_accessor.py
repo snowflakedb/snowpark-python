@@ -33,6 +33,8 @@ dt_properties = pytest.mark.parametrize(
         "is_year_start",
         "is_year_end",
         "is_leap_year",
+        "days_in_month",
+        "daysinmonth",
     ],
 )
 
@@ -172,16 +174,19 @@ def test_normalize():
     )
 
 
-def test_isocalendar():
+@pytest.mark.parametrize("name", [None, "hello"])
+def test_isocalendar(name):
     with SqlCounter(query_count=1):
         date_range = native_pd.date_range("2020-05-01", periods=5, freq="4D")
-        native_ser = native_pd.Series(date_range)
+        native_ser = native_pd.Series(date_range, name=name)
         snow_ser = pd.Series(native_ser)
         eval_snowpark_pandas_result(
             snow_ser, native_ser, lambda ser: ser.dt.isocalendar()
         )
     with SqlCounter(query_count=1):
-        native_ser = native_pd.to_datetime(native_pd.Series(["2010-01-01", None]))
+        native_ser = native_pd.to_datetime(
+            native_pd.Series(["2010-01-01", None], name=name)
+        )
         snow_ser = pd.Series(native_ser)
         eval_snowpark_pandas_result(
             snow_ser, native_ser, lambda ser: ser.dt.isocalendar()
@@ -254,6 +259,27 @@ def test_is_x_start_end(property):
     date_range = native_pd.date_range("2023-01-01", periods=731, freq="1D")
     native_ser = native_pd.Series(date_range)
     native_ser = native_ser[native_ser.dt.is_month_start | native_ser.dt.is_month_end]
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda s: getattr(s.dt, property),
+    )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize(
+    "property",
+    [
+        "days_in_month",
+        "daysinmonth",
+    ],
+)
+def test_days_in_month(property):
+    # Create a series containing one date in each month
+    #  within both a normal year and a leap year.
+    date_range = native_pd.date_range("2023-01-01", periods=25, freq="1M")
+    native_ser = native_pd.Series(date_range)
     snow_ser = pd.Series(native_ser)
     eval_snowpark_pandas_result(
         snow_ser,

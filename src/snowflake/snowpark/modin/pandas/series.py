@@ -53,6 +53,7 @@ from pandas.util._validators import validate_bool_kwarg
 
 from snowflake.snowpark.modin.pandas.base import _ATTRS_NO_LOOKUP, BasePandasDataset
 from snowflake.snowpark.modin.pandas.utils import from_pandas, is_scalar
+from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -104,7 +105,7 @@ _SERIES_EXTENSIONS_ = {}
     ],
     apilink="pandas.Series",
 )
-class Series(BasePandasDataset):
+class Series(BasePandasDataset, metaclass=TelemetryMeta):
     _pandas_class = pandas.Series
     __array_priority__ = pandas.Series.__array_priority__
 

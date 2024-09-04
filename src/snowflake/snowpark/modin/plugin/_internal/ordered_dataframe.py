@@ -1453,8 +1453,12 @@ class OrderedDataFrame:
         # we have called ensure_row_position_column for the left and right frame above to make sure a
         # row positions column is generated for the left and right frame. Therefore,
         # row_position_snowflake_quoted_identifier can not be None for the left and right frame.
-        assert left.row_position_snowflake_quoted_identifier is not None
-        assert right.row_position_snowflake_quoted_identifier is not None
+        assert (
+            left.row_position_snowflake_quoted_identifier is not None
+        ), "left.row_position_snowflake_quoted_identifier is None"
+        assert (
+            right.row_position_snowflake_quoted_identifier is not None
+        ), "right.row_position_snowflake_quoted_identifier is None"
         left_row_pos = Column(
             result_helper.map_left_quoted_identifiers(
                 [left.row_position_snowflake_quoted_identifier]

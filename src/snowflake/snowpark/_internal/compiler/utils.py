@@ -227,6 +227,9 @@ def update_resolvable_node(
         # re-calculation of the sql query and snowflake plan
         node._sql_query = None
         node._snowflake_plan = None
+        # make sure we also clean up the cached _projection_in_str, so that
+        # the projection expression can be re-analyzed during code generation
+        node._projection_in_str = None
         node.analyzer = query_generator
 
         # update the pre_actions and post_actions for the select statement
@@ -267,12 +270,26 @@ def update_resolvable_node(
         update_resolvable_node(node.snowflake_plan, query_generator)
         node.analyzer = query_generator
 
+        node.pre_actions = node._snowflake_plan.queries[:-1]
+        node.post_actions = node._snowflake_plan.post_actions
+        node._api_calls = node._snowflake_plan.api_calls
+
+        if isinstance(node, SelectSnowflakePlan):
+            node.expr_to_alias.update(node._snowflake_plan.expr_to_alias)
+            node.df_aliased_col_name_to_real_col_name.update(
+                node._snowflake_plan.df_aliased_col_name_to_real_col_name
+            )
+            node._query_params = []
+            for query in node._snowflake_plan.queries:
+                if query.params:
+                    node._query_params.extend(query.params)
+
     elif isinstance(node, Selectable):
         node.analyzer = query_generator
 
 
 def get_snowflake_plan_queries(
-    plan: SnowflakePlan, resolved_with_query_blocks: Dict[str, str]
+    plan: SnowflakePlan, resolved_with_query_blocks: Dict[str, Query]
 ) -> Dict[PlanQueryType, List[Query]]:
 
     from snowflake.snowpark._internal.analyzer.analyzer_utils import cte_statement
@@ -286,14 +303,23 @@ def get_snowflake_plan_queries(
         post_action_queries = copy.deepcopy(plan.post_actions)
         table_names = []
         definition_queries = []
+        final_query_params = []
         for name, definition_query in resolved_with_query_blocks.items():
             if name in plan.referenced_ctes:
                 table_names.append(name)
-                definition_queries.append(definition_query)
+                definition_queries.append(definition_query.sql)
+                final_query_params.extend(definition_query.params)
         with_query = cte_statement(definition_queries, table_names)
         plan_queries[-1].sql = with_query + plan_queries[-1].sql
+        final_query_params.extend(plan_queries[-1].params)
+        plan_queries[-1].params = final_query_params
 
     return {
         PlanQueryType.QUERIES: plan_queries,
         PlanQueryType.POST_ACTIONS: post_action_queries,
     }
+
+
+def is_active_transaction(session):
+    """Check is the session has an active transaction."""
+    return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
