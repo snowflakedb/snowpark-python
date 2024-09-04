@@ -682,8 +682,8 @@ def perform_asof_join_on_frame(
         left=preserving_frame,
         right=referenced_frame,
         how="asof",
-        left_on=[left_timecol_snowflake_quoted_identifier],
-        right_on=[right_timecol_snowflake_quoted_identifier],
+        left_on=[],
+        right_on=[],
         left_match_col=left_timecol_snowflake_quoted_identifier,
         right_match_col=right_timecol_snowflake_quoted_identifier,
         match_comparator=(
