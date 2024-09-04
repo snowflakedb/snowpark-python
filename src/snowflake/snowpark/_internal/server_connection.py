@@ -575,7 +575,7 @@ class ServerConnection:
         action_id = plan.session._generate_new_action_id()
         plan_queries = plan.execution_queries
         result, result_meta = None, None
-        statement_params = kwargs.get("_statement_params", {})
+        statement_params = kwargs.get("_statement_params", None) or {}
         statement_params["_PLAN_UUID"] = plan.uuid
         kwargs["_statement_params"] = statement_params
         try:
