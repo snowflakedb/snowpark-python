@@ -35,6 +35,7 @@
 - Fixed a bug in `session.get_session_stage` that referenced a non-existing stage after switching database or schema.
 - Fixed a bug where calling `DataFrame.to_snowpark_pandas_dataframe` without explicitly initializing the Snowpark pandas plugin caused an error.
 - Fixed a bug where using the `explode` function in dynamic table creation caused a SQL compilation error due to improper boolean type casting on the `outer` parameter.
+- Fixed a bug where using `to_pandas_batches` with async jobs caused an error due to improper handling of waiting for asynchronous query completion.
 
 ### Snowpark Local Testing Updates
 
@@ -81,16 +82,19 @@
 - Added support for `Series.is_monotonic_increasing` and `Series.is_monotonic_decreasing`.
 - Added support for `Index.is_monotonic_increasing` and `Index.is_monotonic_decreasing`.
 - Added support for `pd.crosstab`.
+- Added support for `pd.bdate_range` and included business frequency support (B, BME, BMS, BQE, BQS, BYE, BYS) for both `pd.date_range` and `pd.bdate_range`.
 
 #### Improvements
 
 - Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
 - Improved `pd.to_datetime` to handle all local input cases. 
+- Create a lazy index from another lazy index without pulling data to client.
 
 #### Bug Fixes
 
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 - Fixed AssertionError in tree of binary operations.
+- Fixed bug in `Series.dt.isocalendar` using a named Series
 - Fixed `inplace` argument for Series objects derived from DataFrame columns.
 
 #### Behavior Change

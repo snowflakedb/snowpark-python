@@ -26,7 +26,7 @@ from pandas import Timedelta
 from pandas._libs import lib
 from pandas._libs.lib import no_default
 from pandas._libs.tslibs import Tick
-from pandas._libs.tslibs.offsets import Day
+from pandas._libs.tslibs.offsets import BusinessDay, CustomBusinessDay, Day
 from pandas._typing import (
     AggFuncType,
     AnyArrayLike,
@@ -686,7 +686,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # TODO: SNOW-879476 support tz with other tz APIs
             ErrorMessage.not_implemented("tz is not supported.")
 
+        remove_non_business_days = False
+
         if freq is not None:
+            if isinstance(freq, CustomBusinessDay):
+                ErrorMessage.not_implemented("CustomBusinessDay is not supported.")
+            if isinstance(freq, BusinessDay):
+                freq = Day()
+                remove_non_business_days = True
             # We break Day arithmetic (fixed 24 hour) here and opt for
             # Day to mean calendar day (23/24/25 hour). Therefore, strip
             # tz info from start and day to avoid DST arithmetic
@@ -726,6 +733,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             dt_values = ns_values.series_to_datetime()
 
         dt_series = pd.Series(query_compiler=dt_values)
+        if remove_non_business_days:
+            dt_series = dt_series[dt_series.dt.dayofweek < 5]
         if not left_inclusive or not right_inclusive:
             if not left_inclusive and start is not None:
                 dt_series = dt_series[dt_series != start].reset_index(drop=True)
@@ -10790,14 +10799,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return self.dt_property("dayofweek")
 
     def dt_isocalendar(self) -> "SnowflakeQueryCompiler":
+        col_name = self.columns[0]
         year_col = self.dt_property("yearofweekiso").rename(
-            columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "year"}
+            columns_renamer={col_name: "year"}
         )
         week_col = self.dt_property("weekiso").rename(
-            columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "week"}
+            columns_renamer={col_name: "week"}
         )
         day_col = self.dt_property("dayofweekiso").rename(
-            columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "day"}
+            columns_renamer={col_name: "day"}
         )
         return year_col.concat(axis=1, other=[week_col, day_col])
 
@@ -11627,8 +11637,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # The output frame's DatetimeIndex is identical to expected_frame's. For each date in the DatetimeIndex,
             # a single row is selected from the input frame, where its date is the closest match in time based on
             # the filling method. We perform an ASOF join to accomplish this.
-            frame = perform_asof_join_on_frame(expected_frame, frame, resample_method)
-
+            index_name = frame.index_column_pandas_labels
+            output_frame = perform_asof_join_on_frame(
+                expected_frame, frame, resample_method
+            )
+            return SnowflakeQueryCompiler(output_frame).set_index_names(index_name)
         elif resample_method in IMPLEMENTED_AGG_METHODS:
             frame = perform_resample_binning_on_frame(frame, start_date, rule)
             if resample_method == "size":
