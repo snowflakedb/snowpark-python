@@ -5,6 +5,9 @@
 import copy
 from typing import Dict, List
 
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    get_complexity_score,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
     Query,
@@ -68,6 +71,9 @@ class PlanCompiler:
         if self.should_start_query_compilation():
             # preparation for compilation
             # 1. make a copy of the original plan
+            before_complexity = get_complexity_score(
+                self._plan.cumulative_node_complexity
+            )
             logical_plans: List[LogicalPlan] = [copy.deepcopy(self._plan)]
             # 2. create a code generator with the original plan
             query_generator = create_query_generator(self._plan)
@@ -84,6 +90,16 @@ class PlanCompiler:
                 )
                 logical_plans = large_query_breakdown.apply()
 
+            after_complexities = [
+                get_complexity_score(logical_plan.cumulative_node_complexity)
+                for logical_plan in logical_plans
+            ]
+
+            # log telemetry data
+            session = self._plan.session
+            session._conn._telemetry_client.send_complexity_breakdown_post_compilation_stage(
+                session.session_id, before_complexity, after_complexities
+            )
             # do a final pass of code generation
             return query_generator.generate_queries(logical_plans)
         else:
