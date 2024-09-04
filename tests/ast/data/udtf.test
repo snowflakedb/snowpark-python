@@ -23,8 +23,10 @@ class PrimeSieve:
 
 prime_udtf = udtf(PrimeSieve, output_schema=StructType([StructField("number", IntegerType())]), input_types=[IntegerType()])
 
-# session.table_function(prime_udtf(lit(20))).collect()
+session.table_function(prime_udtf(lit(20))).collect()
 
 ## EXPECTED OUTPUT
 
-prime_udtf = udtf(PrimeSieve, output_schema=StructType([StructField("number", IntegerType())]), input_types=[IntegerType()])
+prime_udtf = udtf(PrimeSieve, output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()])
+
+session.table_function(prime_udtf(lit(20))).collect()

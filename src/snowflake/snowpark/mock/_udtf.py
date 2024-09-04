@@ -148,6 +148,8 @@ class MockUDTFRegistration(UDTFRegistration):
         self._registry[udtf_name] = foo
 
         foo._ast = ast
-        foo._ast_id = self._session._ast_batch.register_callable(handler)
+        foo._ast_id = (
+            stmt.var_id.bitfield1
+        )  # Reference UDTF by its assign/statement id.
 
         return foo
