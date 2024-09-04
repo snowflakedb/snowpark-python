@@ -1147,7 +1147,6 @@ def test_sql_simplifier_enabled(session):
     [
         SkipLargeQueryBreakdownCategory.ACTIVE_TRANSACTION,
         SkipLargeQueryBreakdownCategory.VIEW_DYNAMIC_TABLE,
-        SkipLargeQueryBreakdownCategory.NO_ACTIVE_DB_SCHEMA,
     ],
 )
 def test_large_query_breakdown_skipped_telemetry(reason, session):
