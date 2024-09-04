@@ -46,4 +46,5 @@ General functions
     :toctree: pandas_api/
 
     date_range
+    bdate_range
     to_datetime
