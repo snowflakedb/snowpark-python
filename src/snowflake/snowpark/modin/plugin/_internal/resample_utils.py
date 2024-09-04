@@ -8,6 +8,7 @@ from typing import Any, Literal, NoReturn, Optional, Union
 import pandas as native_pd
 from pandas._libs.lib import no_default
 from pandas._libs.tslibs import to_offset
+from pandas._typing import Frequency
 
 import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark._internal.type_utils import ColumnOrName
@@ -108,15 +109,15 @@ NOT_IMPLEMENTED_DATEOFFSET_STRINGS = list(
 )
 
 
-def rule_to_snowflake_width_and_slice_unit(rule: str) -> tuple[int, str]:
+def rule_to_snowflake_width_and_slice_unit(rule: Frequency) -> tuple[int, str]:
     """
     Converts pandas resample bin rule to Snowflake's slice_width and slice_unit
     format.
 
     Parameters
     ----------
-    rule : str
-        The offset string representing resample bin size. For example: '1D', '2T', etc.
+    rule : Frequency
+        The offset or string representing resample bin size. For example: '1D', '2T', etc.
 
     Returns
     -------
