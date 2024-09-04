@@ -989,6 +989,6 @@ class UDFRegistration:
         )
 
         udf._ast = ast
-        udf._ast_id = self._session._ast_batch.register_callable(func)
+        udf._ast_id = stmt.var_id.bitfield1
 
         return udf

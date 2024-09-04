@@ -113,13 +113,14 @@ class UserDefinedTableFunction:
                 self._ast is not None
             ), "Need to ensure _emit_ast is True when registering UDTF."
             assert self._ast_id is not None, "Need to assign UDTF an ID."
-            udf_expr = proto.Expr()
-            build_udtf_apply(udf_expr, self._ast_id, *arguments, **named_arguments)
+            udtf_expr = proto.Expr()
+            build_udtf_apply(udtf_expr, self._ast_id, *arguments, **named_arguments)
 
         table_function_call = TableFunctionCall(
             self.name, *arguments, **named_arguments, _ast=udtf_expr
         )
         table_function_call._set_api_call_source("UserDefinedTableFunction.__call__")
+
         return table_function_call
 
 
@@ -901,7 +902,7 @@ class UDTFRegistration:
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.udtf, stmt)
-
+            ast_id = stmt.var_id.bitfield1
             build_udtf(
                 ast,
                 handler,
