@@ -10,6 +10,10 @@ from typing import Any, Dict, Tuple
 
 import pytest
 
+from snowflake.snowpark._internal.compiler.large_query_breakdown import (
+    SkipLargeQueryBreakdownCategory,
+)
+
 try:
     import pandas as pd  # noqa: F401
 
@@ -1119,3 +1123,29 @@ def test_sql_simplifier_enabled(session):
         }
     finally:
         session.sql_simplifier_enabled = original_value
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        SkipLargeQueryBreakdownCategory.ACTIVE_TRANSACTION,
+        SkipLargeQueryBreakdownCategory.VIEW_DYNAMIC_TABLE,
+        SkipLargeQueryBreakdownCategory.NO_ACTIVE_DB_SCHEMA,
+    ],
+)
+def test_large_query_breakdown_skipped_telemetry(reason, session):
+    client = session._conn._telemetry_client
+
+    def send_large_query_optimization_skipped_telemetry():
+        client.send_large_query_optimization_skipped_telemetry(
+            session.session_id, reason.value
+        )
+
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    expected_data = {"session_id": session.session_id, "reason": reason.value}
+
+    data, _ = telemetry_tracker.extract_telemetry_log_data(
+        -1, send_large_query_optimization_skipped_telemetry
+    )
+    assert data == expected_data

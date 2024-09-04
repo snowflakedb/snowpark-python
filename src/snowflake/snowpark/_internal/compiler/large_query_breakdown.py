@@ -4,6 +4,7 @@
 
 import logging
 from collections import defaultdict
+from enum import Enum
 from typing import List, Optional, Tuple
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -61,6 +62,12 @@ COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
 COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 
 _logger = logging.getLogger(__name__)
+
+
+class SkipLargeQueryBreakdownCategory(Enum):
+    ACTIVE_TRANSACTION = "active transaction"
+    VIEW_DYNAMIC_TABLE = "view or dynamic table command"
+    NO_ACTIVE_DB_SCHEMA = "no active database or schema"
 
 
 class LargeQueryBreakdown:
@@ -127,6 +134,10 @@ class LargeQueryBreakdown:
             _logger.debug(
                 "Skipping large query breakdown optimization due to active transaction."
             )
+            self.session._conn._telemetry_client.send_large_query_optimization_skipped_telemetry(
+                self.session.session_id,
+                SkipLargeQueryBreakdownCategory.ACTIVE_TRANSACTION.value,
+            )
             return self.logical_plans
 
         resulting_plans = []
@@ -166,6 +177,10 @@ class LargeQueryBreakdown:
             # Skip optimization if the root is a view or a dynamic table.
             _logger.debug(
                 "Skipping large query breakdown optimization for view/dynamic table plan."
+            )
+            self.session._conn._telemetry_client.send_large_query_optimization_skipped_telemetry(
+                self.session.session_id,
+                SkipLargeQueryBreakdownCategory.VIEW_DYNAMIC_TABLE.value,
             )
             return [root]
 
