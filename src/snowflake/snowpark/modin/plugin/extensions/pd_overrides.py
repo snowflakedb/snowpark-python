@@ -370,7 +370,7 @@ def read_json(
     path_or_buf: FilePath,
     *,
     orient: Optional[str] = None,
-    typ: Optional[Literal["frame", "series"]] = None,
+    typ: Optional[Literal["frame", "series"]] = "frame",
     dtype: Optional[DtypeArg] = None,
     convert_axes: Optional[bool] = None,
     convert_dates: Optional[Union[bool, list[str]]] = None,
