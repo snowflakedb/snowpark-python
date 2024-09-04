@@ -155,6 +155,23 @@ def test_df_diff_timedelta_df(periods):
 
 
 @sql_count_checker(query_count=1)
+@pytest.mark.parametrize("periods", [-1, 0, 1])
+@pytest.mark.parametrize("axis", [0, 1])
+def test_df_diff_datetime_df(periods, axis):
+    native_df = native_pd.DataFrame(
+        np.arange(NUM_ROWS_TALL_DF * NUM_COLS_TALL_DF).reshape(
+            (NUM_ROWS_TALL_DF, NUM_COLS_TALL_DF)
+        ),
+        columns=["A", "B", "C", "D"],
+    )
+    native_df = native_df.astype("datetime64[ns]")
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df.diff(periods=periods, axis=axis)
+    )
+
+
+@sql_count_checker(query_count=1)
 @pytest.mark.parametrize("periods", [0, 1])
 def test_df_diff_int_and_bool_df(periods):
     native_df = native_pd.DataFrame(
