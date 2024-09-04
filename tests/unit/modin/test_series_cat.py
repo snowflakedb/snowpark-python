@@ -4,7 +4,7 @@
 import pandas as native_pd
 import pytest
 
-from snowflake.snowpark.modin.pandas.series_utils import CategoryMethods
+from snowflake.snowpark.modin.plugin.extensions.series_overrides import CategoryMethods
 
 
 @pytest.mark.parametrize(
