@@ -21,9 +21,9 @@ from snowflake.snowpark.functions import (
     cast,
     convert_timezone,
     date_part,
-    floor,
     iff,
     to_decimal,
+    trunc,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
@@ -176,7 +176,7 @@ def col_to_timedelta(col: Column, unit: str) -> Column:
     if not td_unit:
         # Same error as native pandas.
         raise ValueError(f"invalid unit abbreviation: {unit}")
-    return cast(floor(col * TIMEDELTA_UNIT_MULTIPLIER[td_unit]), LongType())
+    return trunc(col * TIMEDELTA_UNIT_MULTIPLIER[td_unit])
 
 
 PANDAS_DATETIME_FORMAT_TO_SNOWFLAKE_MAPPING = {

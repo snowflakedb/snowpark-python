@@ -11,7 +11,14 @@ from pandas.core.arrays._ranges import _generate_range_overflow_safe
 
 from snowflake.snowpark import DataFrame
 from snowflake.snowpark.context import get_active_session
-from snowflake.snowpark.functions import builtin, col, to_time
+from snowflake.snowpark.functions import (
+    builtin,
+    col,
+    iff,
+    next_day,
+    previous_day,
+    to_time,
+)
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     DataFrameReference,
@@ -185,6 +192,10 @@ def generate_irregular_range(
         The query compiler containing the generated datetime values
     """
     offset = to_offset(offset)
+    is_business_freq = False
+    if offset.name.startswith("B"):
+        is_business_freq = True
+        offset = to_offset(offset.name.replace("B", ""))
 
     start = Timestamp(start)
     start = start if start is not NaT else None
@@ -212,7 +223,12 @@ def generate_irregular_range(
         while start + periods * offset <= end:
             periods += 1
 
-    num_offsets = get_active_session().range(start=0, end=periods, step=1)
+    # TODO: SNOW-1646883 fix invalid identifier error when sql_simplifier_enabled is True
+    session = get_active_session()
+    sql_simplifier_enabled = session.sql_simplifier_enabled
+    session.sql_simplifier_enabled = False
+    num_offsets = session.range(start=0, end=periods, step=1)
+    session.sql_simplifier_enabled = sql_simplifier_enabled
     sf_date_or_time_part = _offset_name_to_sf_date_or_time_part(offset.name)
     dt_col = builtin("DATEADD")(
         sf_date_or_time_part,
@@ -227,5 +243,13 @@ def generate_irregular_range(
         dt_col = builtin("timestamp_ntz_from_parts")(
             builtin("LAST_DAY")(dt_col, sf_date_or_time_part), to_time(dt_col)
         )
+        if is_business_freq:
+            dt_col = iff(
+                builtin("dayofweekiso")(dt_col) < 6, dt_col, previous_day(dt_col, "fr")
+            ).alias("last_bd")
+    elif is_business_freq:
+        dt_col = iff(
+            builtin("dayofweekiso")(dt_col) < 6, dt_col, next_day(dt_col, "mo")
+        ).alias("first_bd")
     dt_values = num_offsets.select(dt_col)
     return _create_qc_from_snowpark_dataframe(dt_values)
