@@ -647,7 +647,7 @@ class StageEntityRegistry:
         self._root_dir = tempfile.TemporaryDirectory()
         self._stage_registry = {}
         self._conn = conn
-        self._lock = conn._lock
+        self._lock = conn.get_lock()
 
     def create_or_replace_stage(self, stage_name):
         with self._lock:

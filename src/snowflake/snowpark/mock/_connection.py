@@ -92,7 +92,7 @@ class MockServerConnection:
             self.table_registry = {}
             self.view_registry = {}
             self.conn = conn
-            self._lock = self.conn._lock
+            self._lock = self.conn.get_lock()
 
         def is_existing_table(self, name: Union[str, Iterable[str]]) -> bool:
             with self._lock:
@@ -365,6 +365,9 @@ class MockServerConnection:
 
     def get_session_id(self) -> int:
         return 1
+
+    def get_lock(self):
+        return self._lock
 
     def close(self) -> None:
         with self._lock:

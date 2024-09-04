@@ -38,7 +38,7 @@ class MockUDFRegistration(UDFRegistration):
             dict()
         )  # maps udf name to either the callable or a pair of str (module_name, callable_name)
         self._session_level_imports = set()
-        self._lock = self._session._conn._lock
+        self._lock = self._session._conn.get_lock()
 
     def _clear_session_imports(self):
         with self._lock:
