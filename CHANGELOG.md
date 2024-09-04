@@ -35,6 +35,7 @@
 - Fixed a bug in `session.get_session_stage` that referenced a non-existing stage after switching database or schema.
 - Fixed a bug where calling `DataFrame.to_snowpark_pandas_dataframe` without explicitly initializing the Snowpark pandas plugin caused an error.
 - Fixed a bug where using the `explode` function in dynamic table creation caused a SQL compilation error due to improper boolean type casting on the `outer` parameter.
+- Fixed a bug where using `to_pandas_batches` with async jobs caused an error due to improper handling of waiting for asynchronous query completion.
 
 ### Snowpark Local Testing Updates
 
@@ -60,10 +61,12 @@
   - support indexing with Timedelta data columns.
   - support for adding or subtracting timestamps and `Timedelta`.
   - support for binary arithmetic between two `Timedelta` values.
+  - support for binary arithmetic and comparisons between `Timedelta` values and numeric values.
   - support for lazy `TimedeltaIndex`.
   - support for `pd.to_timedelta`.
   - support for `GroupBy` aggregations `min`, `max`, `mean`, `idxmax`, `idxmin`, `std`, `sum`, `median`, `count`, `any`, `all`, `size`, `nunique`.
   - support for `TimedeltaIndex` attributes: `days`, `seconds`, `microseconds` and `nanoseconds`.
+  - support for `diff` with timestamp columns on `axis=0` and `axis=1`
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
@@ -81,6 +84,8 @@
 - Added support for `Series.is_monotonic_increasing` and `Series.is_monotonic_decreasing`.
 - Added support for `Index.is_monotonic_increasing` and `Index.is_monotonic_decreasing`.
 - Added support for `pd.crosstab`.
+- Added support for `pd.bdate_range` and included business frequency support (B, BME, BMS, BQE, BQS, BYE, BYS) for both `pd.date_range` and `pd.bdate_range`.
+- Added support for lazy `Index` objects  as `labels` in `DataFrame.reindex` and `Series.reindex`.
 - Added support for `Series.dt.days`, `Series.dt.seconds`, `Series.dt.microseconds`, and `Series.dt.nanoseconds`.
 
 #### Improvements
@@ -94,6 +99,8 @@
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 - Fixed AssertionError in tree of binary operations.
 - Fixed bug in `Series.dt.isocalendar` using a named Series
+- Fixed `inplace` argument for Series objects derived from DataFrame columns.
+- Fixed a bug where `Series.reindex` and `DataFrame.reindex` did not update the result index's name correctly.
 
 #### Behavior Change
 
