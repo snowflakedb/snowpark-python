@@ -14,6 +14,9 @@ from snowflake.connector.telemetry import (
     TelemetryField as PCTelemetryField,
 )
 from snowflake.connector.time_util import get_time_millis
+from snowflake.snowpark._internal.compiler.telemetry_constants import (
+    CompilationStageTelemetryField,
+)
 from snowflake.snowpark._internal.utils import (
     get_application_name,
     get_os_name,
@@ -421,6 +424,20 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: True,
+            },
+        }
+        self.send(message)
+
+    def send_large_query_optimization_skipped_telemetry(
+        self, session_id: int, reason: str
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                CompilationStageTelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                CompilationStageTelemetryField.KEY_REASON.value: reason,
             },
         }
         self.send(message)

@@ -287,6 +287,7 @@ from snowflake.snowpark.modin.plugin._internal.transpose_utils import (
     transpose_empty_df,
 )
 from snowflake.snowpark.modin.plugin._internal.type_utils import (
+    DataTypeGetter,
     TypeMapper,
     column_astype,
     infer_object_type,
@@ -410,13 +411,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Copying and modifying self.snowpark_pandas_api_calls is taken care of in telemetry decorators
         self.snowpark_pandas_api_calls: list = []
 
-    def _raise_not_implemented_error_for_timedelta(self) -> None:
+    def _raise_not_implemented_error_for_timedelta(
+        self, frame: InternalFrame = None
+    ) -> None:
         """Raise NotImplementedError for SnowflakeQueryCompiler methods which does not support timedelta yet."""
-        for (
-            val
-        ) in (
-            self._modin_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.values()
-        ):
+        if frame is None:
+            frame = self._modin_frame
+        for val in frame.snowflake_quoted_identifier_to_snowpark_pandas_type.values():
             if isinstance(val, TimedeltaType):
                 method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
                 ErrorMessage.not_implemented_for_timedelta(method)
@@ -2260,7 +2261,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def reindex(
         self,
         axis: int,
-        labels: Union[pandas.Index, list[Any]],
+        labels: Union[pandas.Index, "pd.Index", list[Any]],
         **kwargs: dict[str, Any],
     ) -> "SnowflakeQueryCompiler":
         """
@@ -2468,7 +2469,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _reindex_axis_0(
         self,
-        labels: Union[pandas.Index, list[Any]],
+        labels: Union[pandas.Index, "pd.Index", list[Any]],
         **kwargs: dict[str, Any],
     ) -> "SnowflakeQueryCompiler":
         """
@@ -2494,7 +2495,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         self._raise_not_implemented_error_for_timedelta()
 
-        new_index_qc = pd.Series(labels)._query_compiler
+        if isinstance(labels, native_pd.Index):
+            labels = pd.Index(labels)
+        if isinstance(labels, pd.Index):
+            new_index_qc = labels.to_series()._query_compiler
+        else:
+            new_index_qc = pd.Series(labels)._query_compiler
+
         new_index_modin_frame = new_index_qc._modin_frame
         modin_frame = self._modin_frame
         method = kwargs.get("method", None)
@@ -2583,7 +2590,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_labels=data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=modin_frame.data_column_pandas_index_names,
-            index_column_pandas_labels=modin_frame.index_column_pandas_labels,
+            index_column_pandas_labels=new_index_modin_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=result_frame_column_mapper.map_left_quoted_identifiers(
                 new_index_modin_frame.data_column_snowflake_quoted_identifiers
             ),
@@ -6716,13 +6723,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             NOTE: Original column level names are lost and result column index has only
             one level.
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         if levels is not None:
             raise NotImplementedError(
                 "Snowpark pandas doesn't support 'levels' argument in concat API"
             )
         frames = [self._modin_frame] + [o._modin_frame for o in other]
+        for frame in frames:
+            self._raise_not_implemented_error_for_timedelta(frame=frame)
 
         # If index columns differ in size or name, convert all multi-index row labels to
         # tuples with single level index.
@@ -10892,16 +10899,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return self.dt_property("freq")
 
     def dt_seconds(self) -> "SnowflakeQueryCompiler":
-        return self.dt_property("seconds")
+        return self.timedelta_property("seconds")
 
     def dt_days(self) -> "SnowflakeQueryCompiler":
-        return self.dt_property("days")
+        return self.timedelta_property("days")
 
     def dt_microseconds(self) -> "SnowflakeQueryCompiler":
-        return self.dt_property("microseconds")
+        return self.timedelta_property("microseconds")
 
     def dt_nanoseconds(self) -> "SnowflakeQueryCompiler":
-        return self.dt_property("nanoseconds")
+        return self.timedelta_property("nanoseconds")
 
     def dt_components(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("components")
@@ -10930,6 +10937,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         if not include_index:
             assert len(self.columns) == 1, "dt only works for series"
+            if not is_datetime64_any_dtype(self.dtypes[0]):
+                raise AttributeError(
+                    f"'TimedeltaProperties' object has no attribute '{property_name}'"
+                )
 
         # mapping from the property name to the corresponding snowpark function
         dt_property_to_function_map = {
@@ -14171,11 +14182,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
-        # Lazify type map here for calling compute_binary_op_between_snowpark_columns,
-        # this enables the optimization to pull datatypes only on-demand if needed.
+        # Lazify type map here for calling compute_binary_op_between_snowpark_columns.
         def create_lazy_type_functions(
             identifiers: list[str],
-        ) -> list[Callable[[], DataType]]:
+        ) -> list[DataTypeGetter]:
             """
             create functions that return datatype on demand for an identifier.
             Args:
@@ -17865,6 +17875,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             assert (
                 len(self.columns) == 1
             ), "dt only works for series"  # pragma: no cover
+            if is_datetime64_any_dtype(self.dtypes[0]):
+                raise AttributeError(
+                    f"'DatetimeProperties' object has no attribute '{property_name}'"
+                )
 
         # mapping from the property name to the corresponding snowpark function
         property_to_func_map = {

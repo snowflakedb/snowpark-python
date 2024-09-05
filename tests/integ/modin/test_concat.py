@@ -1100,3 +1100,9 @@ def test_df_creation_from_series_from_same_df():
     final_df = pd.DataFrame(df_dict)
 
     assert_frame_equal(df, final_df)
+
+
+@sql_count_checker(query_count=0)
+def test_concat_timedelta_not_implemented(df1):
+    with pytest.raises(NotImplementedError):
+        pd.concat([df1, df1, df1.astype({"C": "timedelta64[ns]"})])
