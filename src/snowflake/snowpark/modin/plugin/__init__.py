@@ -69,6 +69,7 @@ _inherit_docstrings = snowflake.snowpark.modin.utils._inherit_docstrings
 
 inherit_modules = [
     (docstrings.base.BasePandasDataset, modin.pandas.base.BasePandasDataset),
+    (docstrings.dataframe.DataFrame, modin.pandas.dataframe.DataFrame),
     (docstrings.series.Series, modin.pandas.series.Series),
     (docstrings.series_utils.StringMethods, modin.pandas.series_utils.StringMethods),
     (
