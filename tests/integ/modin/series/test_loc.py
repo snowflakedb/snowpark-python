@@ -1801,6 +1801,8 @@ def test_series_loc_set_none():
         (["1 day", "3 days"], 1, 1),
         (slice(None, "4 days"), 1, 0),
         (slice(None, "4 days", 2), 1, 0),
+        (slice("1 day", "2 days"), 1, 0),
+        (slice("1 day 1 hour", "2 days 2 hours", 1), 1, 0),
     ],
 )
 def test_series_loc_get_with_timedelta(key, query_count, join_count):
@@ -1817,6 +1819,53 @@ def test_series_loc_get_with_timedelta(key, query_count, join_count):
             assert snow_res == native_res
         else:
             assert_series_equal(snow_res, native_res)
+
+
+@pytest.mark.parametrize(
+    "key, expected_result",
+    [
+        (
+            slice(None, "4 days"),
+            native_pd.Series(
+                ["A", "B", "C", "D"],
+                index=native_pd.to_timedelta(
+                    ["1 days", "2 days", "3 days", "1 day 1 hour"]
+                ),
+            ),
+        ),
+        (
+            slice(None, "4 days", 2),
+            native_pd.Series(
+                ["A", "C"], index=native_pd.to_timedelta(["1 day", "3 days"])
+            ),
+        ),
+        (
+            slice("1 day", "2 days"),
+            native_pd.Series(
+                ["A", "B"], index=native_pd.to_timedelta(["1 days", "2 days"])
+            ),
+        ),
+        (
+            slice("1 day 1 hour", "2 days 2 hours", -1),
+            native_pd.Series(
+                ["D", "C"], index=native_pd.to_timedelta(["1 day 1 hour", "3 days"])
+            ),
+        ),
+    ],
+)
+@sql_count_checker(query_count=2)
+def test_series_loc_get_with_timedelta_behavior_difference(key, expected_result):
+    data = ["A", "B", "C", "D"]
+    idx = ["1 days", "2 days", "3 days", "25 hours"]
+    native_ser = native_pd.Series(data, index=native_pd.to_timedelta(idx))
+    snow_ser = pd.Series(data, index=pd.to_timedelta(idx))
+
+    with pytest.raises(KeyError):
+        # The error message is usually of the form KeyError: Timedelta('4 days 23:59:59.999999999').
+        native_ser.loc[key]
+
+    actual_result = snow_ser.loc[key]
+    assert_series_equal(actual_result, expected_result)
 
 
 @sql_count_checker(query_count=2, join_count=1)

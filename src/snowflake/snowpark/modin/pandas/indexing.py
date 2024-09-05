@@ -54,6 +54,7 @@ from pandas.core.dtypes.common import (
     is_integer,
     is_integer_dtype,
     is_numeric_dtype,
+    is_timedelta64_dtype,
     pandas_dtype,
 )
 from pandas.core.indexing import IndexingError
@@ -76,7 +77,6 @@ from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
-from snowflake.snowpark.modin.plugin.extensions.timedelta_index import TimedeltaIndex
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 
 INDEXING_KEY_TYPE = Union[Scalar, list, slice, Callable, tuple, AnyArrayLike]
@@ -836,11 +836,8 @@ class _LocIndexer(_LocationIndexerBase):
                 slice or the original `row_loc`
             """
             # TODO: SNOW-1063352: Modin upgrade - modin.pandas.indexing._LocIndexer
-            # Check if self or its index is a TimedeltaIndex.
-            if isinstance(self.df, TimedeltaIndex) or (
-                isinstance(self.df, (DataFrame, Series))
-                and isinstance(self.df.index, TimedeltaIndex)
-            ):
+            # Check if self or its index is a TimedeltaIndex. `index_dtypes` retrieves the dtypes of the index columns.
+            if is_timedelta64_dtype(self.df._query_compiler.index_dtypes[0]):
                 res = pd.to_timedelta(row_loc)
                 return res
 
@@ -882,11 +879,8 @@ class _LocIndexer(_LocationIndexerBase):
 
         else:
             # Partial string indexing for timedelta can also be performed on list-like row_loc.
-            # Check if self or its index is a TimedeltaIndex.
-            if isinstance(self.df, TimedeltaIndex) or (
-                isinstance(self.df, (DataFrame, Series))
-                and isinstance(self.df.index, TimedeltaIndex)
-            ):
+            # Check if self or its index is a TimedeltaIndex. `index_dtypes` retrieves the dtypes of the index columns.
+            if is_timedelta64_dtype(self.df._query_compiler.index_dtypes[0]):
                 res = pd.to_timedelta(row_loc)
                 return res
 
@@ -919,13 +913,9 @@ class _LocIndexer(_LocationIndexerBase):
         # In case the row_loc is None, but self is a TimedeltaIndex or has a TimedeltaIndex index, we should return an
         # empty result. Native pandas raises a KeyError in this case since None is not present in the index. (If None
         # were present in the index, the index type would simply be object, not TimedeltaIndex.)
-        # Check if self or its index is a TimedeltaIndex.
-        if isinstance(row_loc, NoneType) and (
-            isinstance(self.df, TimedeltaIndex)
-            or (
-                isinstance(self.df, (DataFrame, Series))
-                and isinstance(self.df.index, TimedeltaIndex)
-            )
+        # Check if self or its index is a TimedeltaIndex. `index_dtypes` retrieves the dtypes of the index columns.
+        if isinstance(row_loc, NoneType) and is_timedelta64_dtype(
+            self.df._query_compiler.index_dtypes[0]
         ):
             return self.df.__constructor__()
 

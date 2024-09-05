@@ -3938,6 +3938,8 @@ def test_raise_set_cell_with_list_like_value_error():
         (["1 day", "3 days"], 1, 1),
         (slice(None, "4 days"), 1, 0),
         (slice(None, "4 days", 2), 1, 0),
+        (slice("1 day", "2 days"), 1, 0),
+        (slice("1 day 1 hour", "2 days 2 hours", -1), 1, 0),
     ],
 )
 def test_df_loc_get_with_timedelta(key, query_count, join_count):
@@ -3951,6 +3953,77 @@ def test_df_loc_get_with_timedelta(key, query_count, join_count):
     snow_df = pd.DataFrame(data, index=pd.to_timedelta(idx))
     with SqlCounter(query_count=query_count, join_count=join_count):
         eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.loc[key])
+
+
+@pytest.mark.parametrize(
+    "key, expected_result",
+    [
+        (
+            slice(None, "4 days"),
+            native_pd.DataFrame(
+                data={
+                    "A": [1, 2, 3, 10],
+                    "B": [4, 5, 6, 11],
+                    "C": [7, 8, 9, 12],
+                },
+                index=native_pd.to_timedelta(
+                    ["1 days", "2 days", "3 days", "25 hours"]
+                ),
+            ),
+        ),
+        (
+            slice(None, "4 days", 2),
+            native_pd.DataFrame(
+                data={
+                    "A": [1, 3],
+                    "B": [4, 6],
+                    "C": [7, 9],
+                },
+                index=native_pd.to_timedelta(["1 days", "3 days"]),
+            ),
+        ),
+        (
+            slice("1 day", "2 days"),
+            native_pd.DataFrame(
+                data={
+                    "A": [1, 2],
+                    "B": [4, 5],
+                    "C": [7, 8],
+                },
+                index=native_pd.to_timedelta(["1 days", "2 days"]),
+            ),
+        ),
+        (
+            slice("1 day 1 hour", "2 days 2 hours", -1),
+            native_pd.DataFrame(
+                data={
+                    "A": [10, 3],
+                    "B": [11, 6],
+                    "C": [12, 9],
+                },
+                index=native_pd.to_timedelta(["1 days 1 hour", "3 days"]),
+            ),
+        ),
+    ],
+)
+@sql_count_checker(query_count=2)
+def test_df_loc_get_with_timedelta_behavior_difference(key, expected_result):
+    # In these test cases, native pandas raises a KeyError but Snowpark pandas works correctly.
+    data = {
+        "A": [1, 2, 3, 10],
+        "B": [4, 5, 6, 11],
+        "C": [7, 8, 9, 12],
+    }
+    idx = ["1 days", "2 days", "3 days", "25 hours"]
+    native_df = native_pd.DataFrame(data, index=native_pd.to_timedelta(idx))
+    snow_df = pd.DataFrame(data, index=pd.to_timedelta(idx))
+
+    with pytest.raises(KeyError):
+        # The error message is usually of the form KeyError: Timedelta('4 days 23:59:59.999999999').
+        native_df.loc[key]
+
+    actual_result = snow_df.loc[key]
+    assert_frame_equal(actual_result, expected_result)
 
 
 @sql_count_checker(query_count=2, join_count=1)
