@@ -275,6 +275,10 @@ Series
     Series.dt.ceil
     Series.dt.round
     Series.dt.normalize
+    Series.dt.days
+    Series.dt.seconds
+    Series.dt.microseconds
+    Series.dt.nanoseconds
 
 
 .. rubric:: String accessor methods
