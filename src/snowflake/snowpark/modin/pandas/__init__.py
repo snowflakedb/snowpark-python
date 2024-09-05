@@ -122,7 +122,7 @@ from snowflake.snowpark.modin.pandas.general import (
     value_counts,
     wide_to_long,
 )
-from snowflake.snowpark.modin.pandas.io import (
+from snowflake.snowpark.modin.pandas.io import (  # read_json is provided by overrides module
     ExcelFile,
     HDFStore,
     json_normalize,
@@ -134,7 +134,6 @@ from snowflake.snowpark.modin.pandas.io import (
     read_gbq,
     read_hdf,
     read_html,
-    read_json,
     read_orc,
     read_parquet,
     read_pickle,
@@ -164,6 +163,7 @@ from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: 
     Index,
     DatetimeIndex,
     TimedeltaIndex,
+    read_json,
 )
 
 # Record which attributes are defined on an upstream object, and which are defined on a vendored
