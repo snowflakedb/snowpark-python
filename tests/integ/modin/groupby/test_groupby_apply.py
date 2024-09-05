@@ -631,7 +631,7 @@ class TestFuncReturnsDataFrame:
     )
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
-        join_count=JOIN_COUNT,
+        join_count=3,
         udtf_count=UDTF_COUNT,
     )
     def test_numpy_ints_in_result(self, grouping_dfs_with_multiindexes, result):

@@ -3924,3 +3924,9 @@ def test_raise_set_cell_with_list_like_value_error():
         s.loc[0] = [0, 0]
     with pytest.raises(NotImplementedError):
         s.to_frame().loc[0, 0] = [0, 0]
+
+
+def test_v():
+    df = pd.DataFrame([5, 6, 7, 8], index=["i", "am", "iron", "man"])
+    print(df)
+    print(df.last_valid_index())

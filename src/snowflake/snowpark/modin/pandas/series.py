@@ -188,10 +188,21 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
 
             else:
                 # Performing set index to directly set the index column (joining on row-position instead of index).
-                index_qc = (
-                    index if isinstance(index, Series) else Series(index)
-                )._query_compiler
-                query_compiler = query_compiler.set_index_from_series(index_qc)
+                if isinstance(index, Series):
+                    index_qc_list = [index._query_compiler]
+                elif isinstance(index, Index):
+                    index_qc_list = [index.to_series()._query_compiler]
+                elif isinstance(index, pd.MultiIndex):
+                    index_qc_list = [
+                        s._query_compiler
+                        for s in [
+                            pd.Series(index.get_level_values(level))
+                            for level in range(index.nlevels)
+                        ]
+                    ]
+                else:
+                    index_qc_list = [Series(index)._query_compiler]
+                query_compiler = query_compiler.set_index(index_qc_list)
 
         # Set the query compiler and name fields.
         self._query_compiler = query_compiler.columnarize()
