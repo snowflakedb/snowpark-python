@@ -49,6 +49,7 @@
 - Fixed a bug where calling `DataFrame.to_snowpark_pandas_dataframe` without explicitly initializing the Snowpark pandas plugin caused an error.
 - Fixed a bug where using the `explode` function in dynamic table creation caused a SQL compilation error due to improper boolean type casting on the `outer` parameter.
 - Fixed a bug where using `to_pandas_batches` with async jobs caused an error due to improper handling of waiting for asynchronous query completion.
+- Fixed a bug in `session.create_dataframe` that caused a sql error when creating an iceberg table with structured datatypes.
 
 ### Snowpark Local Testing Updates
 
