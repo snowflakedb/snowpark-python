@@ -39,7 +39,11 @@ from pandas._typing import (
     Renamer,
     Scalar,
 )
-from pandas.api.types import is_datetime64_any_dtype, is_string_dtype
+from pandas.api.types import (
+    is_datetime64_any_dtype,
+    is_string_dtype,
+    is_timedelta64_dtype,
+)
 from pandas.core.common import apply_if_callable, is_bool_indexer
 from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
 from pandas.util._validators import validate_bool_kwarg
@@ -1210,7 +1214,9 @@ def dt(self):  # noqa: RT01, D200
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     current_dtype = self.dtype
-    if not is_datetime64_any_dtype(current_dtype):
+    if not is_datetime64_any_dtype(current_dtype) and not is_timedelta64_dtype(
+        current_dtype
+    ):
         raise AttributeError("Can only use .dt accessor with datetimelike values")
 
     from modin.pandas.series_utils import DatetimeProperties
