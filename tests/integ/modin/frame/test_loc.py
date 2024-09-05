@@ -3929,11 +3929,21 @@ def test_raise_set_cell_with_list_like_value_error():
 @pytest.mark.parametrize(
     "key, query_count, join_count",
     [
-        ("1 day", 2, 3),  # 1 join from squeeze, 2 joins from to_pandas during eval
-        (
+        pytest.param(
+            "1 day",
+            2,
+            3,
+            marks=pytest.mark.xfail(
+                reason="SNOW-1652608 result series name incorrectly set"
+            ),
+        ),  # 1 join from squeeze, 2 joins from to_pandas during eval
+        pytest.param(
             native_pd.to_timedelta("1 day"),
             2,
             3,
+            marks=pytest.mark.xfail(
+                reason="SNOW-1652608 result series name incorrectly set"
+            ),
         ),  # 1 join from squeeze, 2 joins from to_pandas during eval
         (["1 day", "3 days"], 1, 1),
         (slice(None, "4 days"), 1, 0),
