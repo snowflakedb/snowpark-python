@@ -571,6 +571,14 @@ def handle_udtf_expression(
 
         data = handler.end_partition(df)
 
+        if join_with_input_columns:
+            # Join input data with output data together.
+            # For now carried out as horizontal concat. Need to address join case separately.
+            # suffix df accordinglt, todo proper check.
+            data = pd.concat(
+                (df.rename(columns={c: c + "_R" for c in df.columns}), data), axis=1
+            )
+
         return data
     else:
 

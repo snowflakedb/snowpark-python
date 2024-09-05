@@ -147,9 +147,10 @@ class MockUDTFRegistration(UDTFRegistration):
         # Add to registry to MockPlan can execute.
         self._registry[udtf_name] = foo
 
-        foo._ast = ast
-        foo._ast_id = (
-            stmt.var_id.bitfield1
-        )  # Reference UDTF by its assign/statement id.
+        if _emit_ast:
+            foo._ast = ast
+            foo._ast_id = (
+                stmt.var_id.bitfield1
+            )  # Reference UDTF by its assign/statement id.
 
         return foo
