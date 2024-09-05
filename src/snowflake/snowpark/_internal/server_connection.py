@@ -59,7 +59,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.query_history import QueryHistory, QueryRecord
+from snowflake.snowpark.query_history import DescribeRecord, QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
 
 if TYPE_CHECKING:
@@ -244,8 +244,17 @@ class ServerConnection:
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
         return convert_result_meta_to_attribute(
-            run_new_describe(self._cursor, query), self.max_string_size
+            self._run_new_describe(self._cursor, query), self.max_string_size
         )
+
+    def _run_new_describe(self, cursor: SnowflakeCursor, query: str) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:
+        result_metadata = run_new_describe(cursor, query)
+
+        describe_listeners = [listener for listener in self._query_listener if hasattr(listener, 'describe_listener')]
+        for listener in describe_listeners:
+            listener._add_query(DescribeRecord(cursor.sfqid, query))
+
+        return result_metadata
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
     def upload_file(
