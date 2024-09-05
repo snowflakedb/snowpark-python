@@ -338,15 +338,9 @@ def test_index_non_list_like_names():
     )
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=2)
 def test_index_names_with_lazy_index():
-    """
-    Test to see if eager evaluation is triggered when setting names on a lazy index.
-    Eager evaluation is triggered - 4 queries are run.
-    - 1 query to find the length of names.
-    - 2 queries to create the required internal frame, one of them is for `to_pandas`.
-    - 1 query to perform evaluation of the result (another `to_pandas` query).
-    """
+    # 1 query to convert index to list, 1 query for comparison of DataFrames.
     native_df = native_pd.DataFrame(list(range(10)))
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(
