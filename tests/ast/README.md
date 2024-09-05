@@ -12,7 +12,11 @@ N.B. No eager evaluation is permitted, as any intermediate batches will not be o
 df = session.table("test_table")
 df = df.filter("STR LIKE '%e%'")
 
-## EXPECTED OUTPUT
+## EXPECTED ENCODED AST
+
+[...]
+
+## EXPECTED UNPARSER OUTPUT
 
 res1 = session.table('test_table')
 

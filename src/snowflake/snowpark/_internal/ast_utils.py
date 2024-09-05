@@ -11,7 +11,7 @@ import sys
 from functools import reduce
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -34,7 +34,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrSqlExpr,
 )
 from snowflake.snowpark._internal.utils import str_to_enum
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import DataType, StructType
 
 # This flag causes an explicit error to be raised if any Snowpark object instance is missing an AST or field, when this
 # AST or field is required to populate the AST field of a different Snowpark object instance.
@@ -42,6 +42,9 @@ FAIL_ON_MISSING_AST = True
 
 # The path to the snowpark package.
 SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
+
+# Test mode. In test mode, the source filename is ignored.
+SRC_POSITION_TEST_MODE = False
 
 
 def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
@@ -265,6 +268,15 @@ def build_udf_apply(
     build_fn_apply_args(ast, *args)
 
 
+def build_udtf_apply(
+    ast: proto.Expr, udtf_id: int, *args: Tuple[Union[proto.Expr, Any]], **kwargs
+) -> None:
+    """Builds call to UDTF into ast as Snowpark IR expression."""
+    expr = with_src_position(ast.apply_expr)
+    expr.fn.sp_fn_ref.id.bitfield1 = udtf_id
+    build_fn_apply_args(ast, *args, **kwargs)
+
+
 def build_session_table_fn_apply(
     ast: proto.Expr,
     name: Union[str, Iterable[str]],
@@ -438,7 +450,11 @@ def with_src_position(
         # If IO performance is an issue, this can be set to 0 but this will disable symbol capture. Some
         # potential alternatives to consider here are the linecache and traceback modules.
         frame_info = inspect.getframeinfo(frame, context=1)
-        src.file = frame_info.filename
+        src.file = (
+            frame_info.filename
+            if not SRC_POSITION_TEST_MODE
+            else "SRC_POSITION_TEST_MODE"
+        )
         src.start_line = frame_info.lineno
         if sys.version_info >= (3, 11):
             pos = frame_info.positions
@@ -570,9 +586,10 @@ def build_expr_from_snowpark_column_or_table_fn(
     if isinstance(value, snowflake.snowpark.Column):
         build_expr_from_snowpark_column(expr_builder, value)
     elif isinstance(value, snowflake.snowpark.table_function.TableFunctionCall):
-        raise NotImplementedError(
-            "SNOW-1509198: No support for TableFunctionCall AST generation"
-        )
+        assert value._ast is not None, "TableFunctionCall must have ast assigned."
+        expr_builder.CopyFrom(value._ast)
+
+        # TODO SNOW-1509198: Test this branch more extensively for session.table_function.
     else:
         raise TypeError(
             f"{type(value)} is not a valid type for Column or TableFunctionCall AST generation."
@@ -749,7 +766,9 @@ def build_proto_from_pivot_values(
 
 
 def build_proto_from_callable(
-    expr_builder: proto.SpCallable, func: Callable, ast_batch: Optional[AstBatch] = None
+    expr_builder: proto.SpCallable,
+    func: Union[Callable, Tuple[str, str]],
+    ast_batch: Optional[AstBatch] = None,
 ):
     """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as SpCallable protobuf."""
 
@@ -766,7 +785,10 @@ def build_proto_from_callable(
         # If it is not the first tracked lambda, use a unique ref name.
         if udf_id is not None and udf_id != 0:
             expr_builder.name = f"<lambda [{udf_id}]>"
-
+    elif isinstance(func, tuple) and len(func) == 2:
+        # UDxF has been registered from a file (e.g., via session.udf.register_from_file)
+        # The second argument is the name, the first the file path.
+        expr_builder.name = func[1]
     else:
         # Use the actual function name. Note: We do not support different scopes yet, need to be careful with this then.
         expr_builder.name = func.__name__
@@ -840,6 +862,101 @@ def build_udf(
             t._2 = v
 
     ast.source_code_display = source_code_display
+    ast.strict = strict
+    ast.secure = secure
+    if (
+        external_access_integrations is not None
+        and len(external_access_integrations) != 0
+    ):
+        ast.external_access_integrations.extend(external_access_integrations)
+    if secrets is not None and len(secrets) != 0:
+        for k, v in secrets.items():
+            t = ast.secrets.add()
+            t._1 = k
+            t._2 = v
+    ast.immutable = immutable
+    if comment is not None:
+        ast.comment.value = comment
+    for k, v in kwargs.items():
+        t = ast.kwargs.add()
+        t._1 = k
+        build_expr_from_python_val(t._2, v)
+
+
+def build_udtf(
+    ast: proto.Udtf,
+    handler: Union[Callable, Tuple[str, str]],
+    output_schema: Union[
+        StructType, Iterable[str], "PandasDataFrameType"  # noqa: F821
+    ],  # noqa: F821
+    input_types: Optional[List[DataType]],
+    name: Optional[str],
+    stage_location: Optional[str] = None,
+    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    packages: Optional[List[Union[str, ModuleType]]] = None,
+    replace: bool = False,
+    if_not_exists: bool = False,
+    parallel: int = 4,
+    max_batch_size: Optional[int] = None,
+    strict: bool = False,
+    secure: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
+    comment: Optional[str] = None,
+    statement_params: Optional[Dict[str, str]] = None,
+    is_permanent: bool = False,
+    session=None,
+    **kwargs,
+):
+    """Helper function to encode UDTF parameters (used in both regular and mock UDFRegistration)."""
+    # This is the name the UDF is registered to. Not the name to display when unaparsing, that name is captured in callable.
+
+    if name is not None:
+        _set_fn_name(name, ast)
+
+    build_proto_from_callable(
+        ast.handler, handler, session._ast_batch if session is not None else None
+    )
+
+    if output_schema is not None:
+        if isinstance(output_schema, DataType):
+            output_schema._fill_ast(ast.output_schema.udtf_schema__type.return_type)
+        elif isinstance(output_schema, Sequence) and all(
+            isinstance(el, str) for el in output_schema
+        ):
+            ast.output_schema.udtf_schema__names.schema.extend(output_schema)
+        else:
+            raise ValueError(f"Can not encode {output_schema} to AST.")
+
+    if input_types is not None and len(input_types) != 0:
+        for input_type in input_types:
+            input_type._fill_ast(ast.input_types.list.add())
+    ast.is_permanent = is_permanent
+    if stage_location is not None:
+        ast.stage_location = stage_location
+    if imports is not None and len(imports) != 0:
+        for import_ in imports:
+            import_expr = proto.SpTableName()
+            build_sp_table_name(import_expr, import_)
+            ast.imports.append(import_expr)
+    if packages is not None and len(packages) != 0:
+        for package in packages:
+            if isinstance(package, ModuleType):
+                raise NotImplementedError
+            ast.packages.append(package)
+    ast.replace = replace
+    ast.if_not_exists = if_not_exists
+    ast.parallel = parallel
+    if max_batch_size is not None:
+        ast.max_batch_size.value = max_batch_size
+
+    if statement_params is not None and len(statement_params) != 0:
+        for k, v in statement_params.items():
+            t = ast.statement_params.add()
+            t._1 = k
+            t._2 = v
+
     ast.strict = strict
     ast.secure = secure
     if (
