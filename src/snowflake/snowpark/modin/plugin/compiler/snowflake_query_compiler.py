@@ -3514,24 +3514,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         # turn each agg function into an AggFuncInfo named tuple, where is_dummy_agg is set to false;
-        # i.e., none of the aggregations here can be dummy. Also, append the func to agg_col_funcs which
-        # is used to check if the function preserves Snowpark pandas types.
-        agg_col_funcs = []
-
+        # i.e., none of the aggregations here can be dummy.
         def convert_func_to_agg_func_info(
             func: Union[AggFuncType, AggFuncWithLabel]
         ) -> AggFuncInfo:
             nonlocal uses_named_aggs
             if is_named_tuple(func):
                 uses_named_aggs = True
-                agg_col_funcs.append(func.func)
                 return AggFuncInfo(
                     func=func.func,
                     is_dummy_agg=False,
                     post_agg_pandas_label=func.pandas_label,
                 )
             else:
-                agg_col_funcs.append(func)
                 return AggFuncInfo(
                     func=func, is_dummy_agg=False, post_agg_pandas_label=None
                 )
@@ -3554,6 +3549,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_col_ops, new_data_column_index_names = generate_column_agg_info(
             internal_frame, column_to_agg_func, agg_kwargs, is_series_groupby
         )
+        # Get the column aggregation functions used to check if the function
+        # preserves Snowpark pandas types.
+        agg_col_funcs = []
+        for _, func in column_to_agg_func.items():
+            if is_list_like(func) and not is_named_tuple(func):
+                for fn in func:
+                    agg_col_funcs.append(fn.func)
+            else:
+                agg_col_funcs.append(func.func)
         # the pandas label and quoted identifier generated for each result column
         # after aggregation will be used as new pandas label and quoted identifiers.
         new_data_column_pandas_labels = []
