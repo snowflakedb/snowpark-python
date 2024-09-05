@@ -9253,7 +9253,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_is_bool_indexer: if True, the index is a boolean indexer.
             deduplicate_columns: if True, deduplicate columns from ``columns``, e.g., if columns = ["A","A"], only the
                 second "A" column will be used.
-            is_item_series: if item is from a Series
+            is_item_series: Whether item is from a Series
         Returns:
             Updated SnowflakeQueryCompiler
         """
