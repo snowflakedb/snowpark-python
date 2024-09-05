@@ -11,7 +11,7 @@ import pytest
 from modin.pandas.utils import is_scalar
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_series_equal, eval_snowpark_pandas_result
 
 
@@ -163,7 +163,18 @@ def test_df_getitem_timedelta():
         )
 
 
-def test_series_indexing_set_timedelta():
+@sql_count_checker(query_count=1, join_count=2)
+@pytest.mark.parametrize(
+    "key, item",
+    [
+        [2, pd.Timedelta("2 days 2 hours")],  # single value
+        [slice(2, None), pd.Timedelta("2 days 2 hours")],  # multi values
+        [slice(2, None), None],  # multi none values
+        [slice(2, None), pd.NaT],  # multi none values
+        [slice(None, None), pd.NA],  # all none values
+    ],
+)
+def test_series_indexing_set_timedelta(key, item):
     td_s = native_pd.Series(
         [
             native_pd.Timedelta("1 days 1 hour"),
@@ -178,24 +189,15 @@ def test_series_indexing_set_timedelta():
         s.iloc[key] = item
         return s
 
-    with SqlCounter(query_count=1, join_count=2):
-        # single value
-        eval_snowpark_pandas_result(
-            snow_td_s.copy(),
-            td_s,
-            functools.partial(iloc_set, 2, pd.Timedelta("2 days 2 hours")),
-        )
-
-    with SqlCounter(query_count=1, join_count=2):
-        # multi values
-        eval_snowpark_pandas_result(
-            snow_td_s.copy(),
-            td_s,
-            functools.partial(iloc_set, slice(2, None), pd.Timedelta("2 days 2 hours")),
-        )
+    eval_snowpark_pandas_result(
+        snow_td_s.copy(),
+        td_s,
+        functools.partial(iloc_set, key, item),
+    )
 
 
-def test_df_indexing_set_timedelta():
+@pytest.mark.parametrize("item", [pd.Timedelta("1 hour"), None])
+def test_df_indexing_set_timedelta(item):
     td = native_pd.DataFrame(
         {
             "a": [
@@ -219,9 +221,6 @@ def test_df_indexing_set_timedelta():
             snow_td.copy(), natvie_df.copy(), functools.partial(api, key, item)
         )
 
-    # Set timedelta value to timedelta columns
-    item = pd.Timedelta("2 days 2 hours")
-
     with SqlCounter(query_count=1, join_count=2):
         # single value
         key = (1, 1)
@@ -242,31 +241,9 @@ def test_df_indexing_set_timedelta():
         key = (..., [0, 1])
         run_test(key, [item] * 2)
 
-    # Set other types to timedelta columns
-    item = "string"
-    with SqlCounter(query_count=0):
-        # single value
-        key = (1, 1)
-        with pytest.raises(
-            SnowparkSQLException, match="Numeric value 'string' is not recognized"
-        ):
-            run_test(key, item)
-
-    item = 1000
-    with SqlCounter(query_count=1, join_count=2):
-        # single value
-        key = (1, 1)
-        td_int = td.copy()
-        td_int["b"] = td_int["b"].astype("int64")
-        # timedelta type is not preserved in this case
-        run_test(key, item, natvie_df=td_int)
-
     def df_set(key, item, df):
         df[key] = item
         return df
-
-    # Set timedelta value to timedelta columns
-    item = pd.Timedelta("2 days 2 hours")
 
     with SqlCounter(query_count=1, join_count=0):
         # single column
@@ -307,6 +284,57 @@ def test_df_indexing_set_timedelta():
         key = (slice(None, None, None), ["a", "b"])
         run_test(key, [item] * 2, api=loc_set)
 
+
+def test_df_indexing_set_timedelta_with_other_type():
+    td = native_pd.DataFrame(
+        {
+            "a": [
+                native_pd.Timedelta("1 days 1 hour"),
+                native_pd.Timedelta("2 days 1 minute"),
+                native_pd.Timedelta("3 days 1 nanoseconds"),
+                native_pd.Timedelta("100 nanoseconds"),
+            ],
+            "b": native_pd.timedelta_range("1 hour", "1 day", 4),
+            "c": [1, 2, 3, 4],
+        }
+    )
+    snow_td = pd.DataFrame(td)
+
+    def iloc_set(key, item, df):
+        df.iloc[key] = item
+        return df
+
+    def run_test(key, item, natvie_df=td, api=iloc_set):
+        eval_snowpark_pandas_result(
+            snow_td.copy(), natvie_df.copy(), functools.partial(api, key, item)
+        )
+
+    item = "string"
+    with SqlCounter(query_count=0):
+        # single value
+        key = (1, 1)
+        with pytest.raises(
+            SnowparkSQLException, match="Numeric value 'string' is not recognized"
+        ):
+            run_test(key, item)
+
+    item = 1000
+    with SqlCounter(query_count=1, join_count=2):
+        # single value
+        key = (1, 1)
+        td_int = td.copy()
+        td_int["b"] = td_int["b"].astype("int64")
+        # timedelta type is not preserved in this case
+        run_test(key, item, natvie_df=td_int)
+
+    def df_set(key, item, df):
+        df[key] = item
+        return df
+
+    def loc_set(key, item, df):
+        df.loc[key] = item
+        return df
+
     # Set other types to timedelta columns
     item = "string"
     with SqlCounter(query_count=0):
@@ -327,7 +355,8 @@ def test_df_indexing_set_timedelta():
         run_test(key, item, natvie_df=td_int, api=loc_set)
 
 
-def test_df_indexing_enlargement_timedelta():
+@pytest.mark.parametrize("item", [None, pd.Timedelta("1 hour")])
+def test_df_indexing_enlargement_timedelta(item):
     td = native_pd.DataFrame(
         {
             "a": [
@@ -347,7 +376,7 @@ def test_df_indexing_enlargement_timedelta():
         return df
 
     key = "x"
-    item = pd.Timedelta("2 hours")
+
     with SqlCounter(query_count=1, join_count=0):
         eval_snowpark_pandas_result(
             snow_td.copy(), td.copy(), functools.partial(setitem_enlargement, key, item)
@@ -384,11 +413,16 @@ def test_df_indexing_enlargement_timedelta():
     key = (10, slice(None, None, None))
 
     with SqlCounter(query_count=1, join_count=1):
-        # dtypes does not change while in native pandas, col "c"'s type will change to object
-        assert_series_equal(
-            loc_enlargement(key, item, snow_td.copy()).to_pandas().dtypes,
-            snow_td.dtypes,
-        )
+        if pd.isna(item):
+            eval_snowpark_pandas_result(
+                snow_td.copy(), td.copy(), functools.partial(loc_enlargement, key, item)
+            )
+        else:
+            # dtypes does not change while in native pandas, col "c"'s type will change to object
+            assert_series_equal(
+                loc_enlargement(key, item, snow_td.copy()).to_pandas().dtypes,
+                snow_td.dtypes,
+            )
 
 
 @pytest.mark.parametrize(

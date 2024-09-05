@@ -3026,6 +3026,7 @@ class DataFrame:
         transformations: Optional[Iterable[ColumnOrName]] = None,
         format_type_options: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        iceberg_config: Optional[dict] = None,
         **copy_options: Any,
     ) -> List[Row]:
         """Executes a `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html>`__ command to load data from files in a stage location into a specified table.
@@ -3079,6 +3080,19 @@ class DataFrame:
             transformations: A list of column transformations.
             format_type_options: A dict that contains the ``formatTypeOptions`` of the ``COPY INTO <table>`` command.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            iceberg_config: A dictionary that can contain the following iceberg configuration values:
+
+                * external_volume: specifies the identifier for the external volume where
+                    the Iceberg table stores its metadata files and data in Parquet format
+
+                * catalog: specifies either Snowflake or a catalog integration to use for this table
+
+                * base_location: the base directory that snowflake can write iceberg metadata and files to
+
+                * catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
+
+                * storage_serialization_policy: specifies the storage serialization policy for the table
+
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
         if not self._reader or not self._reader._file_path:
@@ -3144,6 +3158,7 @@ class DataFrame:
             if transformations
             else None
         )
+
         return DataFrame(
             self._session,
             CopyIntoTableNode(
@@ -3160,6 +3175,7 @@ class DataFrame:
                 user_schema=self._reader._user_schema,
                 cur_options=self._reader._cur_options,
                 create_table_from_infer_schema=create_table_from_infer_schema,
+                iceberg_config=iceberg_config,
             ),
         )._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
 

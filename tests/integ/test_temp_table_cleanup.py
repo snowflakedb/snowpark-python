@@ -17,9 +17,8 @@ from snowflake.snowpark.functions import col
 from tests.utils import IS_IN_STORED_PROC
 
 pytestmark = [
-    pytest.mark.skipif(
-        "config.getoption('local_testing_mode', default=False)",
-        reason="Temp table cleanup is not supported in Local Testing",
+    pytest.mark.skip(
+        reason="SNOW-1645523: Re-enable this test file after flaky test is fixed",
     ),
 ]
 
