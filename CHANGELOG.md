@@ -19,6 +19,19 @@
   - `max_data_extension_time`
   - `change_tracking`
   - `copy_grants`
+  - `iceberg_config` A dicitionary that can hold the following iceberg configuration options:
+      - `external_volume`
+      - `catalog`
+      - `base_location`
+      - `catalog_sync`
+      - `storage_serialization_policy`
+- Added support for specifying the following to `DataFrameWriter.copy_into_table`:
+  - `iceberg_config` A dicitionary that can hold the following iceberg configuration options:
+      - `external_volume`
+      - `catalog`
+      - `base_location`
+      - `catalog_sync`
+      - `storage_serialization_policy`
 - Added support for specifying the following parameters to `DataFrame.create_or_replace_dynamic_table`:
   - `mode`
   - `refresh_mode`
@@ -61,10 +74,12 @@
   - support indexing with Timedelta data columns.
   - support for adding or subtracting timestamps and `Timedelta`.
   - support for binary arithmetic between two `Timedelta` values.
+  - support for binary arithmetic and comparisons between `Timedelta` values and numeric values.
   - support for lazy `TimedeltaIndex`.
   - support for `pd.to_timedelta`.
   - support for `GroupBy` aggregations `min`, `max`, `mean`, `idxmax`, `idxmin`, `std`, `sum`, `median`, `count`, `any`, `all`, `size`, `nunique`.
   - support for `TimedeltaIndex` attributes: `days`, `seconds`, `microseconds` and `nanoseconds`.
+  - support for `diff` with timestamp columns on `axis=0` and `axis=1`
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
@@ -83,6 +98,7 @@
 - Added support for `Index.is_monotonic_increasing` and `Index.is_monotonic_decreasing`.
 - Added support for `pd.crosstab`.
 - Added support for `pd.bdate_range` and included business frequency support (B, BME, BMS, BQE, BQS, BYE, BYS) for both `pd.date_range` and `pd.bdate_range`.
+- Added support for lazy `Index` objects  as `labels` in `DataFrame.reindex` and `Series.reindex`.
 
 #### Improvements
 
@@ -95,6 +111,8 @@
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 - Fixed AssertionError in tree of binary operations.
 - Fixed bug in `Series.dt.isocalendar` using a named Series
+- Fixed `inplace` argument for Series objects derived from DataFrame columns.
+- Fixed a bug where `Series.reindex` and `DataFrame.reindex` did not update the result index's name correctly.
 
 #### Behavior Change
 
