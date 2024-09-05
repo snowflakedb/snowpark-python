@@ -203,16 +203,7 @@ class MockExecutionPlan(LogicalPlan):
 
     @property
     def attributes(self) -> List[Attribute]:
-        output = describe(self)
-
-        # # Special case: TableFunctionJoin, the logic is currently written to expect to return
-        # #               both input + output columns joined together. Else, code in select() crashes
-        # #               for local testing mode.
-        # if isinstance(self.source_plan, TableFunctionJoin):
-        #     # prepend arguments.
-        #     return self.source_plan.table_function.args + output
-
-        return output
+        return describe(self)
 
     @cached_property
     def output(self) -> List[Attribute]:
@@ -597,7 +588,7 @@ def handle_udtf_expression(
             for idx, f in enumerate(udtf._output_schema.fields)
         }
 
-        # Aliases? update output columns.
+        # Aliases? Use them then instead of output columns.
         if exp.aliases:
             output_columns = exp.aliases
 
@@ -615,7 +606,8 @@ def handle_udtf_expression(
         if hasattr(handler, "process"):
             data = []
 
-            # Special case: No data, but args provided. => process may be a generator
+            # Special case: No data, but args provided. This implies that `process` of the UDTF handler may
+            # be a generator called with literals.
             if len(input_data) == 0 and exp.args:
 
                 assert all(
