@@ -148,6 +148,8 @@ from snowflake.snowpark.modin.plugin._internal import (
 )
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     AGG_NAME_COL_LABEL,
+    GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE,
+    GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES,
     AggFuncInfo,
     AggFuncWithLabel,
     AggregateColumnOpParameters,
@@ -202,8 +204,6 @@ from snowflake.snowpark.modin.plugin._internal.frame import (
     LabelIdentifierPair,
 )
 from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
-    GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE,
-    GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES,
     check_is_groupby_supported_by_snowflake,
     extract_groupby_column_pandas_labels,
     get_frame_with_groupby_columns_as_index,
@@ -3514,19 +3514,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         # turn each agg function into an AggFuncInfo named tuple, where is_dummy_agg is set to false;
-        # i.e., none of the aggregations here can be dummy.
+        # i.e., none of the aggregations here can be dummy. Also, append the func to agg_col_funcs which
+        # is used to check if the function preserves Snowpark pandas types.
+        agg_col_funcs = []
+
         def convert_func_to_agg_func_info(
             func: Union[AggFuncType, AggFuncWithLabel]
         ) -> AggFuncInfo:
             nonlocal uses_named_aggs
             if is_named_tuple(func):
                 uses_named_aggs = True
+                agg_col_funcs.append(func.func)
                 return AggFuncInfo(
                     func=func.func,
                     is_dummy_agg=False,
                     post_agg_pandas_label=func.pandas_label,
                 )
             else:
+                agg_col_funcs.append(func)
                 return AggFuncInfo(
                     func=func, is_dummy_agg=False, post_agg_pandas_label=None
                 )
@@ -3554,21 +3559,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         new_data_column_pandas_labels = []
         new_data_column_quoted_identifiers = []
         new_data_column_snowpark_pandas_types = []
-        for col_agg_op in agg_col_ops:
+        for i in range(len(agg_col_ops)):
+            col_agg_op = agg_col_ops[i]
+            col_agg_func = agg_col_funcs[i]
             new_data_column_pandas_labels.append(col_agg_op.agg_pandas_label)
             new_data_column_quoted_identifiers.append(
                 col_agg_op.agg_snowflake_quoted_identifier
             )
-            groupby_agg_func = (
-                col_agg_op.agg_pandas_label[1] if is_dict_like(agg_func) else agg_func
-            )
-            if groupby_agg_func in GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE:
+            if col_agg_func in GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE:
                 new_data_column_snowpark_pandas_types.append(
                     col_agg_op.data_type
                     if isinstance(col_agg_op.data_type, SnowparkPandasType)
                     else None
                 )
-            elif groupby_agg_func in GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES:
+            elif col_agg_func in GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES:
                 # In the case where the aggregation overrides the type of the output data column
                 # (e.g. any always returns boolean data columns), set the output Snowpark pandas type to None
                 new_data_column_snowpark_pandas_types = None  # type: ignore
@@ -16127,7 +16131,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             pandas_labels=original_frame.index_column_pandas_labels
         )
         index_column_snowflake_quoted_identifiers = []
-        index_column_types = []
         for col_ident, col_alias in zip(
             original_frame.index_column_snowflake_quoted_identifiers,
             index_column_aliases,
@@ -16135,11 +16138,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # An alias is required for all columns selected from the ordered dataframe.
             select_list.append(col(col_ident).alias(col_alias))
             index_column_snowflake_quoted_identifiers.append(col_alias)
-            index_column_types.append(
-                original_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
-                    col_ident
-                )
-            )
             if col_ident in by_snowflake_quoted_identifiers_list:
                 # The grouping identifiers when `level` is specified come from the index columns.
                 new_groupby_sf_identifiers.append(col_alias)
@@ -16151,7 +16149,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             pandas_labels=original_frame.data_column_pandas_labels
         )
         data_column_snowflake_quoted_identifiers = []
-        data_column_types = []
         for col_ident, col_alias in zip(
             original_frame.data_column_snowflake_quoted_identifiers,
             data_column_aliases,
@@ -16159,11 +16156,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # An alias is required for all columns selected from the ordered dataframe.
             select_list.append(col(col_ident).alias(col_alias))
             data_column_snowflake_quoted_identifiers.append(col_alias)
-            data_column_types.append(
-                original_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
-                    col_ident
-                )
-            )
             if col_ident in by_snowflake_quoted_identifiers_list:
                 # The grouping identifiers when `by` is specified come from the data columns.
                 new_groupby_sf_identifiers.append(col_alias)
@@ -16251,8 +16243,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=original_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
-            data_column_types=data_column_types,
-            index_column_types=index_column_types,
+            data_column_types=original_frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=original_frame.cached_index_column_snowpark_pandas_types,
         )
 
         return SnowflakeQueryCompiler(new_modin_frame)

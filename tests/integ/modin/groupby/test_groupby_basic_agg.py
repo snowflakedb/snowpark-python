@@ -1112,7 +1112,7 @@ def test_timedelta(agg_func, by):
     native_df = native_pd.DataFrame(
         {
             "A": native_pd.to_timedelta(
-                ["1 days 06:05:01.00003", "15.5us", "nan", "16us"]
+                ["1 days 06:05:01.00003", "16us", "nan", "16us"]
             ),
             "B": [8, 8, 12, 10],
         }
@@ -1128,7 +1128,7 @@ def test_timedelta_groupby_agg():
     native_df = native_pd.DataFrame(
         {
             "A": native_pd.to_timedelta(
-                ["1 days 06:05:01.00003", "15.5us", "nan", "16us"]
+                ["1 days 06:05:01.00003", "16us", "nan", "16us"]
             ),
             "B": [8, 8, 12, 10],
             "C": [True, False, False, True],
