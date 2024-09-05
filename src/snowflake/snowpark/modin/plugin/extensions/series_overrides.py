@@ -301,11 +301,6 @@ def swaplevel(self, i=-2, j=-1, copy=True):  # noqa: PR01, RT01, D200
 
 
 @register_series_not_implemented()
-def to_dict(self, into=dict):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_series_not_implemented()
 def to_period(self, freq=None, copy=True):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
@@ -1796,6 +1791,19 @@ def to_list(self) -> list:
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.values.tolist()
+
+
+register_series_accessor("tolist")(to_list)
+
+
+@register_series_accessor("to_dict")
+@snowpark_pandas_telemetry_method_decorator
+def to_dict(self, into: type[dict] = dict) -> dict:
+    """
+    Convert Series to {label -> value} dict or dict-like object.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    return self._to_pandas().to_dict(into=into)
 
 
 # TODO: SNOW-1063346
