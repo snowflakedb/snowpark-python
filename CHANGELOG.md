@@ -115,6 +115,7 @@
 - Fixed bug in `Series.dt.isocalendar` using a named Series
 - Fixed `inplace` argument for Series objects derived from DataFrame columns.
 - Fixed a bug where `Series.reindex` and `DataFrame.reindex` did not update the result index's name correctly.
+- Fixed a bug where `Series.take` did not error when `axis=1` was specified.
 
 #### Behavior Change
 
