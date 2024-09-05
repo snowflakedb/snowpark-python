@@ -17,6 +17,7 @@ from unittest.mock import MagicMock
 
 import pandas
 
+from snowflake.snowpark._internal.analyzer.select_statement import SelectTableFunction
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionJoin
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     DeleteMergeExpression,
@@ -202,16 +203,7 @@ class MockExecutionPlan(LogicalPlan):
 
     @property
     def attributes(self) -> List[Attribute]:
-        output = describe(self)
-
-        # Special case: TableFunctionJoin, the logic is currently written to expect to return
-        #               both input + output columns joined together. Else, code in select() crashes
-        #               for local testing mode.
-        if isinstance(self.source_plan, TableFunctionJoin):
-            # prepend arguments.
-            return self.source_plan.table_function.args + output
-
-        return output
+        return describe(self)
 
     @cached_property
     def output(self) -> List[Attribute]:
@@ -557,6 +549,7 @@ def handle_udtf_expression(
     analyzer: "MockAnalyzer",
     expr_to_alias: Dict[str, str],
     current_row=None,
+    join_with_input_columns=True,
 ):
 
     # TODO: handle and support imports + other udtf attributes.
@@ -578,34 +571,85 @@ def handle_udtf_expression(
 
         data = handler.end_partition(df)
 
+        if join_with_input_columns:
+            # Join input data with output data together.
+            # For now carried out as horizontal concat. Need to address join case separately.
+            # suffix df accordinglt, todo proper check.
+            data = pd.concat(
+                (df.rename(columns={c: c + "_R" for c in df.columns}), data), axis=1
+            )
+
         return data
     else:
 
-        res = ColumnEmulator(
+        res = TableEmulator(
             data=[],
-            sf_type=ColumnType(exp.datatype, exp.nullable),
-            name=quote_name(f"{exp.udf_name}({', '.join(input_data.columns)})".upper()),
-            dtype=object,
         )
+
+        output_columns = udtf._output_schema.names
+        sf_types = {
+            f.name: ColumnType(datatype=f.datatype, nullable=f.nullable)
+            for f in udtf._output_schema.fields
+        }
+        sf_types_by_col_index = {
+            idx: ColumnType(datatype=f.datatype, nullable=f.nullable)
+            for idx, f in enumerate(udtf._output_schema.fields)
+        }
+
+        # Aliases? Use them then instead of output columns.
+        if exp.aliases:
+            output_columns = exp.aliases
+
+        if join_with_input_columns:
+            output_columns = list(input_data.columns) + output_columns
+
+            assert len(output_columns) == len(input_data.columns) + len(
+                udtf._output_schema.names
+            ), "non-unique identifiers found, can't carry out table function join."
+
+            sf_types.update(input_data.sf_types)
+            sf_types_by_col_index.update(input_data.sf_types_by_col_index)
 
         # Process each row
         if hasattr(handler, "process"):
             data = []
-            for _, row in input_data.iterrows():
-                if udtf.strict and any([v is None for v in row]):
-                    result = None
-                else:
-                    result = remove_null_wrapper(handler.process(*row))
-                data.append(result)
 
-            res = ColumnEmulator(
+            # Special case: No data, but args provided. This implies that `process` of the UDTF handler may
+            # be a generator called with literals.
+            if len(input_data) == 0 and exp.args:
+
+                assert all(
+                    isinstance(arg, Literal) for arg in exp.args
+                ), "Arguments must be literals when no data is provided."
+                args = tuple(arg.value for arg in exp.args)
+
+                if udtf.strict:
+                    data = [None]
+                else:
+                    result = remove_null_wrapper(handler.process(*args))
+                    for result_row in result:
+                        data.append(tuple(result_row))
+            else:
+                # input_data provided, TODO: args/kwargs.
+                for _, row in input_data.iterrows():
+                    if udtf.strict and any([v is None for v in row]):
+                        result = None
+                    else:
+                        result = remove_null_wrapper(handler.process(*row))
+                        for result_row in result:
+                            if join_with_input_columns:
+                                data.append(tuple(row.values) + tuple(result_row))
+                            else:
+                                data.append(tuple(result_row))
+
+            res = TableEmulator(
                 data=data,
-                sf_type=ColumnType(exp.datatype, exp.nullable),
-                name=quote_name(
-                    f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
-                ),
-                dtype=object,
+                columns=output_columns,
+                sf_types=sf_types,
+                sf_types_by_col_index=sf_types_by_col_index,
             )
+
+            res.columns = [c.strip('"') for c in res.columns]
 
         # Finish partition
         if hasattr(handler, "end_partition"):
@@ -1623,11 +1667,20 @@ def execute_mock_plan(
 
         child_rf = execute_mock_plan(source_plan.children[0], expr_to_alias)
 
+        # Because this is a join, need to add original columns as well.
         output = handle_udtf_expression(
-            source_plan.table_function, child_rf, analyzer, expr_to_alias
+            source_plan.table_function,
+            child_rf,
+            analyzer,
+            expr_to_alias,
+            join_with_input_columns=True,
         )
 
         return output
+    elif isinstance(source_plan, SelectTableFunction):
+        return handle_udtf_expression(
+            plan.func_expr, [], analyzer, expr_to_alias, None, False
+        )
 
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking SnowflakePlan {type(source_plan).__name__}",
@@ -1713,7 +1766,10 @@ def calculate_expression(
         try:
             return input_data[exp.name]
         except KeyError:
-            raise SnowparkLocalTestingException(f"invalid identifier {exp.name}")
+            try:
+                return input_data[exp.name.strip('"')]
+            except KeyError:
+                raise SnowparkLocalTestingException(f"invalid identifier {exp.name}")
     if isinstance(exp, (UnresolvedAlias, Alias)):
         return calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
     if isinstance(exp, FunctionExpression):

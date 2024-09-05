@@ -415,7 +415,7 @@ class RelationalGroupedDataFrame:
         _apply_in_pandas_udtf = self._df._session.udtf.register(
             _ApplyInPandas,
             output_schema=output_schema,
-            _emit_ast=False,
+            _emit_ast=_emit_ast,
             **kwargs,
         )
         partition_by = [

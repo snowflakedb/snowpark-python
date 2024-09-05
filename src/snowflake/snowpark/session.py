@@ -2070,42 +2070,50 @@ class Session:
                 Generator functions are not supported with :meth:`Session.table_function`.
         """
         # AST.
-        stmt = self._ast_batch.assign()
-        expr = stmt.expr
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.assign()
+            expr = stmt.expr
 
-        # Session.table_function is a two-in-one:
-        # - Can call functions directly. Use build_session_table_fn_apply
-        # - Can use Callable or TableFunctionCall objects. Use build_table_fn_apply
-        if isinstance(func_name, TableFunctionCall):
-            expr.apply_expr.fn.table_fn.call_type.table_fn_call_type__session_table_fn = (
-                True
-            )
-            build_table_fn_apply(
-                expr,
-                None,  # The callee is a TableFunctionCall object that carries its own name.
-                func_name,
-                *func_arguments,
-                **func_named_arguments,
-            )
-        elif isinstance(func_name, Callable):
-            expr.apply_expr.fn.table_fn.call_type.table_fn_call_type__session_table_fn = (
-                True
-            )
-            build_table_fn_apply(
-                expr,
-                None,  # The callee is a Callable object that carries its own name.
-                func_name._ast,  # Inline the AST expression of the callee.
-                *func_arguments,
-                **func_named_arguments,
-            )
-        elif isinstance(func_name, str):
-            build_session_table_fn_apply(
-                expr, func_name, *func_arguments, **func_named_arguments
-            )
-        elif isinstance(func_name, list):
-            build_session_table_fn_apply(
-                expr, func_name, *func_arguments, **func_named_arguments
-            )
+            # Session.table_function is a two-in-one:
+            # - Can call functions directly. Use build_session_table_fn_apply
+            # - Can use Callable or TableFunctionCall objects. Use build_table_fn_apply
+            if isinstance(func_name, TableFunctionCall):
+                assert (
+                    func_name._ast is not None
+                ), "TableFunctionCall must have an ast assigned."
+
+                apply_expr = with_src_position(expr.apply_expr, stmt)
+                apply_expr.fn.table_fn.call_type.table_fn_call_type__session_table_fn = (
+                    True
+                )
+                build_table_fn_apply(
+                    expr,
+                    None,  # The callee is a TableFunctionCall object that carries its own name.
+                    func_name._ast,
+                    *func_arguments,
+                    **func_named_arguments,
+                )
+            elif isinstance(func_name, Callable):
+                apply_expr = with_src_position(expr.apply_expr, stmt)
+                apply_expr.fn.table_fn.call_type.table_fn_call_type__session_table_fn = (
+                    True
+                )
+                build_table_fn_apply(
+                    expr,
+                    None,  # The callee is a Callable object that carries its own name.
+                    func_name._ast,  # Inline the AST expression of the callee.
+                    *func_arguments,
+                    **func_named_arguments,
+                )
+            elif isinstance(func_name, str):
+                build_session_table_fn_apply(
+                    expr, func_name, *func_arguments, **func_named_arguments
+                )
+            elif isinstance(func_name, list):
+                build_session_table_fn_apply(
+                    expr, func_name, *func_arguments, **func_named_arguments
+                )
 
         # TODO: Support table_function in MockServerConnection.
         if isinstance(self._conn, MockServerConnection):
@@ -2121,10 +2129,12 @@ class Session:
                     ans._ast_id = stmt.var_id.bitfield1
                 return ans
             else:
-                self._conn.log_not_supported_error(
-                    external_feature_name="Session.table_function",
-                    raise_error=NotImplementedError,
-                )
+                # TODO: Implement table_function properly in local testing mode.
+                # self._conn.log_not_supported_error(
+                #     external_feature_name="Session.table_function",
+                #     raise_error=NotImplementedError,
+                # )
+                pass
 
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
@@ -2137,15 +2147,17 @@ class Session:
                     from_=SelectTableFunction(func_expr, analyzer=self._analyzer),
                     analyzer=self._analyzer,
                 ),
-                ast_stmt=stmt,
             )
         else:
             d = DataFrame(
                 self,
                 TableFunctionRelation(func_expr),
-                ast_stmt=stmt,
             )
         set_api_call_source(d, "Session.table_function")
+
+        if _emit_ast:
+            d._ast_id = stmt.var_id.bitfield1
+
         return d
 
     def generator(
