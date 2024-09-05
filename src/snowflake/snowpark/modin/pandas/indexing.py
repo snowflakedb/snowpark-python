@@ -39,7 +39,6 @@ https://github.com/ray-project/ray/pull/1955#issuecomment-386781826
 
 import itertools
 import numbers
-from datetime import timedelta
 from typing import Any, Callable, Optional, Union
 
 import numpy as np
@@ -836,11 +835,6 @@ class _LocIndexer(_LocationIndexerBase):
                 slice or the original `row_loc`
             """
             # TODO: SNOW-1063352: Modin upgrade - modin.pandas.indexing._LocIndexer
-            # Check if self or its index is a TimedeltaIndex. `index_dtypes` retrieves the dtypes of the index columns.
-            if is_timedelta64_dtype(self.df._query_compiler.index_dtypes[0]):
-                res = pd.to_timedelta(row_loc)
-                return res
-
             try:
                 parsed, reso_str = parsing.parse_datetime_string_with_reso(row_loc)
             except ValueError:
@@ -864,7 +858,7 @@ class _LocIndexer(_LocationIndexerBase):
         if isinstance(row_loc, str):
             return _try_partial_string_indexing_for_string(row_loc)
 
-        elif isinstance(row_loc, slice):
+        if isinstance(row_loc, slice):
             start, stop = row_loc.start, row_loc.stop
             if isinstance(row_loc.start, str):
                 start = _try_partial_string_indexing_for_string(row_loc.start)
@@ -876,15 +870,34 @@ class _LocIndexer(_LocationIndexerBase):
                     stop = stop.stop
             # partial string indexing only updates start and stop, and should keep using the original step.
             row_loc = slice(start, stop, row_loc.step)
-
-        else:
-            # Partial string indexing for timedelta can also be performed on list-like row_loc.
-            # Check if self or its index is a TimedeltaIndex. `index_dtypes` retrieves the dtypes of the index columns.
-            if is_timedelta64_dtype(self.df._query_compiler.index_dtypes[0]):
-                res = pd.to_timedelta(row_loc)
-                return res
-
         return row_loc
+
+    def _convert_to_timedelta(
+        self, row_loc: Union[Scalar, list, slice, tuple, pd.Series]
+    ) -> Union[Scalar, list, slice, tuple, pd.Series]:
+        """
+        This helper method covers both exact matching and partial string indexing; it tries to convert
+        row locator to timedelta.
+
+        Args:
+            row_loc: the original row locator
+
+        Returns:
+            the new row locator
+        """
+        if isinstance(row_loc, slice):
+            start, stop = row_loc.start, row_loc.stop
+            if isinstance(row_loc.start, str):
+                start = self._convert_to_timedelta(row_loc.start)
+                if isinstance(start, slice):
+                    start = start.start
+            if isinstance(row_loc.stop, str):
+                stop = self._convert_to_timedelta(row_loc.stop)
+                if isinstance(stop, slice):
+                    stop = stop.stop
+            # partial string indexing only updates start and stop, and should keep using the original step.
+            return slice(start, stop, row_loc.step)
+        return pd.to_timedelta(row_loc)
 
     def __getitem__(
         self, key: INDEXING_KEY_TYPE
@@ -910,14 +923,15 @@ class _LocIndexer(_LocationIndexerBase):
         row_loc, col_loc = self._parse_get_row_and_column_locators(key)
         row_loc = self._try_partial_string_indexing(row_loc)
 
-        # In case the row_loc is None, but self is a TimedeltaIndex or has a TimedeltaIndex index, we should return an
-        # empty result. Native pandas raises a KeyError in this case since None is not present in the index. (If None
-        # were present in the index, the index type would simply be object, not TimedeltaIndex.)
         # Check if self or its index is a TimedeltaIndex. `index_dtypes` retrieves the dtypes of the index columns.
-        if isinstance(row_loc, NoneType) and is_timedelta64_dtype(
-            self.df._query_compiler.index_dtypes[0]
-        ):
-            return self.df.__constructor__()
+        if is_timedelta64_dtype(self.df._query_compiler.index_dtypes[0]):
+            if isinstance(row_loc, NoneType):
+                # In case the row_loc is None, but self is a TimedeltaIndex or has a TimedeltaIndex index, we should
+                # return an empty result. Native pandas raises a KeyError in this case since None is not present in the
+                # index. (If None were present in the index, the index type would simply be object, not TimedeltaIndex.)
+                return self.df.__constructor__()
+            # Convert row_loc to timedelta format to perform exact matching for TimedeltaIndex.
+            row_loc = self._convert_to_timedelta(row_loc)
 
         squeeze_row, squeeze_col = self._should_squeeze(
             locator=row_loc, axis=0
@@ -931,9 +945,6 @@ class _LocIndexer(_LocationIndexerBase):
             qc_view, squeeze_row=squeeze_row, squeeze_col=squeeze_col
         )
         if isinstance(result, Series):
-            if isinstance(row_loc, timedelta):
-                # squeeze() incorrectly sets the Series name as an int64 number.
-                result.name = row_loc
             result._parent = self.df
             # We need to determine which axis this Series was extracted from. We can do so
             # by checking which axis' locator is slice(None). If row_loc == slice(None),
