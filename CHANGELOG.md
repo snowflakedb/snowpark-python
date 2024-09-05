@@ -99,6 +99,7 @@
 - Added support for `pd.crosstab`.
 - Added support for `pd.bdate_range` and included business frequency support (B, BME, BMS, BQE, BQS, BYE, BYS) for both `pd.date_range` and `pd.bdate_range`.
 - Added support for lazy `Index` objects  as `labels` in `DataFrame.reindex` and `Series.reindex`.
+- Added support for `Series.dt.days`, `Series.dt.seconds`, `Series.dt.microseconds`, and `Series.dt.nanoseconds`.
 
 #### Improvements
 

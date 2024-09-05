@@ -10899,16 +10899,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return self.dt_property("freq")
 
     def dt_seconds(self) -> "SnowflakeQueryCompiler":
-        return self.dt_property("seconds")
+        return self.timedelta_property("seconds")
 
     def dt_days(self) -> "SnowflakeQueryCompiler":
-        return self.dt_property("days")
+        return self.timedelta_property("days")
 
     def dt_microseconds(self) -> "SnowflakeQueryCompiler":
-        return self.dt_property("microseconds")
+        return self.timedelta_property("microseconds")
 
     def dt_nanoseconds(self) -> "SnowflakeQueryCompiler":
-        return self.dt_property("nanoseconds")
+        return self.timedelta_property("nanoseconds")
 
     def dt_components(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("components")
@@ -10937,6 +10937,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         if not include_index:
             assert len(self.columns) == 1, "dt only works for series"
+            if not is_datetime64_any_dtype(self.dtypes[0]):
+                raise AttributeError(
+                    f"'TimedeltaProperties' object has no attribute '{property_name}'"
+                )
 
         # mapping from the property name to the corresponding snowpark function
         dt_property_to_function_map = {
@@ -17871,6 +17875,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             assert (
                 len(self.columns) == 1
             ), "dt only works for series"  # pragma: no cover
+            if is_datetime64_any_dtype(self.dtypes[0]):
+                raise AttributeError(
+                    f"'DatetimeProperties' object has no attribute '{property_name}'"
+                )
 
         # mapping from the property name to the corresponding snowpark function
         property_to_func_map = {
