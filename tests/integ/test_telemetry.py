@@ -10,6 +10,10 @@ from typing import Any, Dict, Tuple
 
 import pytest
 
+from snowflake.snowpark._internal.compiler.telemetry_constants import (
+    SkipLargeQueryBreakdownCategory,
+)
+
 try:
     import pandas as pd  # noqa: F401
 
@@ -60,8 +64,8 @@ class TelemetryDataTracker:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def extract_telemetry_log_data(self, index, partial_func) -> Tuple[Dict, Any]:
-        """TODO: this needs to return telemetry type for other test code to assert whether telemetry type is correct."""
+    def extract_telemetry_log_data(self, index, partial_func) -> Tuple[Dict, str, Any]:
+        """Extracts telemetry data, telemetry type from the log batch and result of running partial_func."""
         telemetry_obj = self.session._conn._telemetry_client.telemetry
 
         result = partial_func()
@@ -75,8 +79,10 @@ class TelemetryDataTracker:
             result = partial_func()
             message_log = telemetry_obj._log_batch
 
-        data = message_log[index].to_dict()["message"][TelemetryField.KEY_DATA.value]
-        return data, result
+        message = message_log[index].to_dict()["message"]
+        data = message.get(TelemetryField.KEY_DATA.value, None)
+        type_ = message.get("type", None)
+        return data, type_, result
 
     def find_message_in_log_data(self, size, partial_func, expected_data) -> bool:
         telemetry_obj = self.session._conn._telemetry_client.telemetry
@@ -915,14 +921,16 @@ def test_udf_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, minus_one_udf = telemetry_tracker.extract_telemetry_log_data(
+    data, type_, minus_one_udf = telemetry_tracker.extract_telemetry_log_data(
         -1, minus_one_udf_partial
     )
     assert data == {"func_name": "UDFRegistration.register", "category": "create"}
+    assert type_ == "snowpark_function_usage"
 
     select_partial = partial(df.select, df.a, minus_one_udf(df.b))
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
     assert data == {"func_name": "UserDefinedFunction.__call__", "category": "usage"}
+    assert type_ == "snowpark_function_usage"
 
     # udf register from file
     test_files = TestFiles(resources_path)
@@ -935,15 +943,19 @@ def test_udf_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, mod5_udf = telemetry_tracker.extract_telemetry_log_data(-1, mod5_udf_partial)
+    data, type_, mod5_udf = telemetry_tracker.extract_telemetry_log_data(
+        -1, mod5_udf_partial
+    )
     assert data == {
         "func_name": "UDFRegistration.register_from_file",
         "category": "create",
     }
+    assert type_ == "snowpark_function_usage"
 
     select_partial = partial(df.select, mod5_udf(df.a))
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
     assert data == {"func_name": "UserDefinedFunction.__call__", "category": "usage"}
+    assert type_ == "snowpark_function_usage"
 
     # pandas udf register
     def add_one_df_pandas_udf(df):
@@ -956,22 +968,25 @@ def test_udf_call_and_invoke(session, resources_path):
         input_types=[PandasDataFrameType([IntegerType(), IntegerType()])],
         replace=True,
     )
-    data, add_one_df_pandas_udf = telemetry_tracker.extract_telemetry_log_data(
+    data, type_, add_one_df_pandas_udf = telemetry_tracker.extract_telemetry_log_data(
         -1, pandas_udf_partial
     )
     assert data == {
         "func_name": "UDFRegistration.register[pandas_udf]",
         "category": "create",
     }
+    assert type_ == "snowpark_function_usage"
 
     select_partial = partial(df.select, add_one_df_pandas_udf("a", "b"))
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
     assert data == {"func_name": "UserDefinedFunction.__call__", "category": "usage"}
+    assert type_ == "snowpark_function_usage"
 
     # call using call_udf
     select_partial = partial(df.select, call_udf(minus_one_name, df.a))
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
     assert data == {"func_name": "functions.call_udf", "category": "usage"}
+    assert type_ == "snowpark_function_usage"
 
 
 @pytest.mark.udf
@@ -991,11 +1006,14 @@ def test_sproc_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, add_one_sp = telemetry_tracker.extract_telemetry_log_data(-1, add_one_partial)
+    data, type_, add_one_sp = telemetry_tracker.extract_telemetry_log_data(
+        -1, add_one_partial
+    )
     assert data == {
         "func_name": "StoredProcedureRegistration.register",
         "category": "create",
     }
+    assert type_ == "snowpark_function_usage"
 
     invoke_partial = partial(add_one_sp, 7)
     # the 3 messages after sproc_invoke are client_time_consume_first_result, client_time_consume_last_result, and action_collect
@@ -1013,11 +1031,14 @@ def test_sproc_call_and_invoke(session, resources_path):
         packages=["snowflake-snowpark-python"],
         replace=True,
     )
-    data, mod5_sp = telemetry_tracker.extract_telemetry_log_data(-1, mod5_sp_partial)
+    data, type_, mod5_sp = telemetry_tracker.extract_telemetry_log_data(
+        -1, mod5_sp_partial
+    )
     assert data == {
         "func_name": "StoredProcedureRegistration.register_from_file",
         "category": "create",
     }
+    assert type_ == "snowpark_function_usage"
 
     invoke_partial = partial(mod5_sp, 3)
     expected_data = {"func_name": "StoredProcedure.__call__", "category": "usage"}
@@ -1110,7 +1131,7 @@ def test_sql_simplifier_enabled(session):
         def set_sql_simplifier_enabled():
             session.sql_simplifier_enabled = True
 
-        data, _ = telemetry_tracker.extract_telemetry_log_data(
+        data, _, _ = telemetry_tracker.extract_telemetry_log_data(
             -1, set_sql_simplifier_enabled
         )
         assert data == {
@@ -1119,3 +1140,29 @@ def test_sql_simplifier_enabled(session):
         }
     finally:
         session.sql_simplifier_enabled = original_value
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        SkipLargeQueryBreakdownCategory.ACTIVE_TRANSACTION,
+        SkipLargeQueryBreakdownCategory.VIEW_DYNAMIC_TABLE,
+    ],
+)
+def test_large_query_breakdown_skipped_telemetry(reason, session):
+    client = session._conn._telemetry_client
+
+    def send_large_query_optimization_skipped_telemetry():
+        client.send_large_query_optimization_skipped_telemetry(
+            session.session_id, reason.value
+        )
+
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    expected_data = {"session_id": session.session_id, "reason": reason.value}
+
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(
+        -1, send_large_query_optimization_skipped_telemetry
+    )
+    assert data == expected_data
+    assert type_ == "snowpark_large_query_breakdown_optimization_skipped"
