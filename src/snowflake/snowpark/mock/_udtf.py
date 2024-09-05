@@ -6,6 +6,7 @@
 from types import ModuleType
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
+from snowflake.snowpark._internal.ast_utils import build_udtf, with_src_position
 from snowflake.snowpark._internal.udf_utils import process_registration_inputs
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import DataType, PandasDataFrameType, StructType
@@ -67,7 +68,40 @@ class MockUDTFRegistration(UDTFRegistration):
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
+        _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedTableFunction:
+
+        # Capture original parameters.
+        ast = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.udtf, stmt)
+
+            build_udtf(
+                ast,
+                handler,
+                output_schema=output_schema,
+                input_types=input_types,
+                name=name,
+                stage_location=stage_location,
+                imports=imports,
+                packages=packages,
+                replace=replace,
+                if_not_exists=if_not_exists,
+                parallel=parallel,
+                max_batch_size=max_batch_size,
+                strict=strict,
+                secure=secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                comment=comment,
+                statement_params=statement_params,
+                is_permanent=is_permanent,
+                session=self._session,
+                **kwargs,
+            )
 
         if isinstance(output_schema, StructType):
             _validate_output_schema_names(output_schema.names)
@@ -112,5 +146,11 @@ class MockUDTFRegistration(UDTFRegistration):
 
         # Add to registry to MockPlan can execute.
         self._registry[udtf_name] = foo
+
+        if _emit_ast:
+            foo._ast = ast
+            foo._ast_id = (
+                stmt.var_id.bitfield1
+            )  # Reference UDTF by its assign/statement id.
 
         return foo

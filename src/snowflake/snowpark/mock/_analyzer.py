@@ -689,9 +689,14 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, TableFunctionRelation):
-            self._conn.log_not_supported_error(
-                external_feature_name="table_function.TableFunctionRelation",
-                raise_error=NotImplementedError,
+            # TODO: Implement this together with Session.table_function
+            # self._conn.log_not_supported_error(
+            #     external_feature_name="table_function.TableFunctionRelation",
+            #     raise_error=NotImplementedError,
+            # )
+            return MockExecutionPlan(
+                logical_plan,
+                self.session,
             )
 
         if isinstance(logical_plan, Lateral):
