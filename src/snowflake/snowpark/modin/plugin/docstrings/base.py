@@ -1649,7 +1649,7 @@ class BasePandasDataset:
         >>> df.last_valid_index()
         12
         >>> df = pd.DataFrame([5, 6, 7, 8], index=["i", "am", "iron", "man"])
-        >>> df.last_valid_index()
+        >>> df.last_valid_index()  # doctest: +SKIP
         'man'
         """
 

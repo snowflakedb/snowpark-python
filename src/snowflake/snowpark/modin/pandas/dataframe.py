@@ -220,6 +220,7 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
 
         else:
             # CASE 5: Non-Snowpark pandas data
+            dummy_index = None  # used in a special dict case
             if isinstance(data, pandas.Index):
                 # CASE 5.B: data is a pandas Index
                 pass
@@ -291,9 +292,15 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
                     )._query_compiler
                     return
 
+                if all(is_scalar(k) and is_scalar(v) for k, v in data.items()):
+                    # Special case: All keys and values in the dict are all scalars, an index needs to be provided.
+                    # pd.DataFrame({'a': 1, 'b': 2}, index=[0])
+                    dummy_index = index
+
             query_compiler = from_pandas(
                 pandas.DataFrame(
                     data=data,
+                    index=dummy_index,
                     columns=try_convert_index_to_native(columns),
                     dtype=dtype,
                     copy=copy,
@@ -315,10 +322,21 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
 
             else:
                 # Performing set index to directly set the index column (joining on row-position instead of index).
-                index_qc = (
-                    index if isinstance(index, Series) else Series(index)
-                )._query_compiler
-                query_compiler = query_compiler.set_index_from_series(index_qc)
+                if isinstance(index, Series):
+                    index_qc_list = [index._query_compiler]
+                elif isinstance(index, Index):
+                    index_qc_list = [index.to_series()._query_compiler]
+                elif isinstance(index, pd.MultiIndex):
+                    index_qc_list = [
+                        s._query_compiler
+                        for s in [
+                            pd.Series(index.get_level_values(level))
+                            for level in range(index.nlevels)
+                        ]
+                    ]
+                else:
+                    index_qc_list = [Series(index)._query_compiler]
+                query_compiler = query_compiler.set_index(index_qc_list)
 
         if isinstance(data, DataFrame):
             # To select the required index and columns for the resultant DataFrame,
