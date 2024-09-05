@@ -19,6 +19,19 @@
   - `max_data_extension_time`
   - `change_tracking`
   - `copy_grants`
+  - `iceberg_config` A dicitionary that can hold the following iceberg configuration options:
+      - `external_volume`
+      - `catalog`
+      - `base_location`
+      - `catalog_sync`
+      - `storage_serialization_policy`
+- Added support for specifying the following to `DataFrameWriter.copy_into_table`:
+  - `iceberg_config` A dicitionary that can hold the following iceberg configuration options:
+      - `external_volume`
+      - `catalog`
+      - `base_location`
+      - `catalog_sync`
+      - `storage_serialization_policy`
 - Added support for specifying the following parameters to `DataFrame.create_or_replace_dynamic_table`:
   - `mode`
   - `refresh_mode`
@@ -86,14 +99,15 @@
 - Added support for `pd.crosstab`.
 - Added support for `pd.bdate_range` and included business frequency support (B, BME, BMS, BQE, BQS, BYE, BYS) for both `pd.date_range` and `pd.bdate_range`.
 - Added support for lazy `Index` objects  as `labels` in `DataFrame.reindex` and `Series.reindex`.
+- Added support for `Series.dt.days`, `Series.dt.seconds`, `Series.dt.microseconds`, and `Series.dt.nanoseconds`.
 - Added support for constructing `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` arguments.
-
 
 #### Improvements
 
 - Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
 - Improved `pd.to_datetime` to handle all local input cases. 
 - Create a lazy index from another lazy index without pulling data to client.
+- Raised `NotImplementedError` for Index bitwise operators.
 
 #### Bug Fixes
 
