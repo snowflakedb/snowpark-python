@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 from functools import reduce
-from typing import Any, Union
+from typing import Any, Callable, Union
 
 import numpy as np
 import pandas as native_pd
@@ -76,6 +76,11 @@ from snowflake.snowpark.types import (
     _IntegralType,
     _NumericType,
 )
+
+# This type is for a function that returns a DataType. By using it to lazily
+# get a DataType, we can sometimes defer metadata queries until we need to
+# check a type.
+DataTypeGetter = Callable[[], DataType]
 
 # The order of this mapping is important because the first match in either
 # direction is used by TypeMapper.to_pandas() and TypeMapper.to_snowflake()

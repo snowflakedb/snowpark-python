@@ -1004,6 +1004,7 @@ class Analyzer:
                 use_scoped_temp_objects=self.session._use_scoped_temp_objects,
                 creation_source=logical_plan.creation_source,
                 child_attributes=resolved_child.attributes,
+                iceberg_config=logical_plan.iceberg_config,
             )
 
         if isinstance(logical_plan, Limit):
@@ -1184,6 +1185,7 @@ class Analyzer:
                 else None,
                 user_schema=logical_plan.user_schema,
                 create_table_from_infer_schema=logical_plan.create_table_from_infer_schema,
+                iceberg_config=logical_plan.iceberg_config,
             )
 
         if isinstance(logical_plan, CopyIntoLocationNode):

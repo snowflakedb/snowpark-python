@@ -176,6 +176,7 @@ class QueryGenerator(Analyzer):
                 use_scoped_temp_objects=self.session._use_scoped_temp_objects,
                 creation_source=logical_plan.creation_source,
                 child_attributes=child_attributes,
+                iceberg_config=logical_plan.iceberg_config,
             )
 
         elif isinstance(
