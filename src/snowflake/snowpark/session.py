@@ -2129,10 +2129,12 @@ class Session:
                     ans._ast_id = stmt.var_id.bitfield1
                 return ans
             else:
-                self._conn.log_not_supported_error(
-                    external_feature_name="Session.table_function",
-                    raise_error=NotImplementedError,
-                )
+                # TODO: Implement table_function properly in local testing mode.
+                # self._conn.log_not_supported_error(
+                #     external_feature_name="Session.table_function",
+                #     raise_error=NotImplementedError,
+                # )
+                pass
 
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments

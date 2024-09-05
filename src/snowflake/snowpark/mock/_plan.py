@@ -17,6 +17,7 @@ from unittest.mock import MagicMock
 
 import pandas
 
+from snowflake.snowpark._internal.analyzer.select_statement import SelectTableFunction
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionJoin
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     DeleteMergeExpression,
@@ -613,16 +614,33 @@ def handle_udtf_expression(
         # Process each row
         if hasattr(handler, "process"):
             data = []
-            for _, row in input_data.iterrows():
-                if udtf.strict and any([v is None for v in row]):
-                    result = None
+
+            # Special case: No data, but args provided. => process may be a generator
+            if len(input_data) == 0 and exp.args:
+
+                assert all(
+                    isinstance(arg, Literal) for arg in exp.args
+                ), "Arguments must be literals when no data is provided."
+                args = tuple(arg.value for arg in exp.args)
+
+                if udtf.strict:
+                    data = [None]
                 else:
-                    result = remove_null_wrapper(handler.process(*row))
+                    result = remove_null_wrapper(handler.process(*args))
                     for result_row in result:
-                        if join_with_input_columns:
-                            data.append(tuple(row.values) + tuple(result_row))
-                        else:
-                            data.append(result_row)
+                        data.append(tuple(result_row))
+            else:
+                # input_data provided, TODO: args/kwargs.
+                for _, row in input_data.iterrows():
+                    if udtf.strict and any([v is None for v in row]):
+                        result = None
+                    else:
+                        result = remove_null_wrapper(handler.process(*row))
+                        for result_row in result:
+                            if join_with_input_columns:
+                                data.append(tuple(row.values) + tuple(result_row))
+                            else:
+                                data.append(tuple(result_row))
 
             res = TableEmulator(
                 data=data,
@@ -1659,6 +1677,10 @@ def execute_mock_plan(
         )
 
         return output
+    elif isinstance(source_plan, SelectTableFunction):
+        return handle_udtf_expression(
+            plan.func_expr, [], analyzer, expr_to_alias, None, False
+        )
 
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking SnowflakePlan {type(source_plan).__name__}",
