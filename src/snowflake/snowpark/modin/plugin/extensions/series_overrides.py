@@ -241,6 +241,11 @@ def items(self):  # noqa: RT01, D200
 
 
 @register_series_not_implemented()
+def mode(self, dropna=True):  # noqa: PR01, RT01, D200
+    pass
+
+
+@register_series_not_implemented()
 def prod(
     self,
     axis=None,
@@ -255,6 +260,11 @@ def prod(
 
 @register_series_not_implemented()
 def ravel(self, order="C"):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_series_not_implemented()
+def rdivmod(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
@@ -276,12 +286,22 @@ def reorder_levels(self, order):  # noqa: PR01, RT01, D200
 
 
 @register_series_not_implemented()
+def repeat(self, repeats, axis=None):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_series_not_implemented()
 def searchsorted(self, value, side="left", sorter=None):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
 @register_series_not_implemented()
 def swaplevel(self, i=-2, j=-1, copy=True):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_series_not_implemented()
+def to_dict(self, into=dict):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
@@ -309,6 +329,11 @@ def to_string(
 
 @register_series_not_implemented()
 def to_timestamp(self, freq=None, how="start", copy=True):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_series_not_implemented()
+def view(self, dtype=None):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 

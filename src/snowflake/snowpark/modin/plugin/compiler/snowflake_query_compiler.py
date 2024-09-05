@@ -759,24 +759,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         qc.snowpark_pandas_api_calls = self.snowpark_pandas_api_calls.copy()
         return qc
 
-    def to_list(self) -> list:
-        """
-        Return a native Python list of the values.
-
-        Only called if the frontend object was a Series.
-        """
-        return self.to_pandas().squeeze().to_list()
-
-    def series_to_dict(self, into=dict) -> dict:  # type: ignore
-        """
-        Convert the Series to a dictionary.
-
-        Returns
-        -------
-        dict or `into` instance
-        """
-        return self.to_pandas().squeeze().to_dict(into=into)
-
     def to_pandas(
         self,
         *,
@@ -1848,11 +1830,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if axis == 0
             else self._modin_frame.data_column_pandas_index_names
         )
-
-    def rdivmod(self, other: "SnowflakeQueryCompiler", **kwargs: Any) -> None:
-        ErrorMessage.method_not_implemented_error(
-            name="rdivmod", class_="Series"
-        )  # pragma: no cover
 
     def _binary_op_scalar_rhs(
         self, op: str, other: Scalar, fill_value: Scalar
@@ -6684,11 +6661,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 to_datetime_cols
             ).frame
         )
-
-    def series_view(self, dtype: npt.DTypeLike) -> None:
-        ErrorMessage.method_not_implemented_error(
-            name="view", class_="Series"
-        )  # pragma: no cover
 
     def concat(
         self,
@@ -12392,18 +12364,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         return SnowflakeQueryCompiler(internal_frame)
-
-    def mode(
-        self, axis: Axis = 0, numeric_only: bool = False, dropna: bool = True
-    ) -> None:
-        ErrorMessage.method_not_implemented_error(
-            name="mode", class_="Series"
-        )  # pragma: no cover
-
-    def repeat(self, repeats: Union[int, ListLike], axis: Axis = None) -> None:
-        ErrorMessage.method_not_implemented_error(
-            name="repeat", class_="Series"
-        )  # pragma: no cover
 
     def skew(
         self,
