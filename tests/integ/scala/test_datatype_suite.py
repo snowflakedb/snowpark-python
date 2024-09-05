@@ -441,7 +441,6 @@ def test_structured_dtypes_iceberg(
     query, expected_dtypes, expected_schema = STRUCTURED_TYPES_EXAMPLES[True]
 
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
-    save_table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
     try:
         create_df = structured_type_session.create_dataframe([], schema=expected_schema)
         create_df.write.save_as_table(table_name, iceberg_config=ICEBERG_CONFIG)
@@ -455,16 +454,11 @@ def test_structured_dtypes_iceberg(
         assert df.schema == expected_schema
         assert df.dtypes == expected_dtypes
 
-        # Try to save_as_table
-        structured_type_session.table(table_name).write.save_as_table(
-            save_table_name, iceberg_config=ICEBERG_CONFIG
-        )
-
         save_ddl = structured_type_session._run_query(
-            f"select get_ddl('table', '{save_table_name}')"
+            f"select get_ddl('table', '{table_name}')"
         )
         assert save_ddl[0][0] == (
-            f"create or replace ICEBERG TABLE {save_table_name.upper()} (\n\t"
+            f"create or replace ICEBERG TABLE {table_name.upper()} (\n\t"
             "MAP MAP(STRING, LONG),\n\tOBJ OBJECT(A STRING, B DOUBLE),\n\tARR ARRAY(DOUBLE)\n)\n "
             "EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n "
             "BASE_LOCATION = 'python_connector_merge_gate/';"
@@ -472,7 +466,33 @@ def test_structured_dtypes_iceberg(
 
     finally:
         structured_type_session.sql(f"drop table if exists {table_name}")
-        structured_type_session.sql(f"drop table if exists {save_table_name}")
+
+
+def test_structured_dtypes_iceberg_create_from_values(
+    structured_type_session, local_testing_mode, structured_type_support
+):
+    if not (
+        structured_type_support
+        and iceberg_supported(structured_type_session, local_testing_mode)
+    ):
+        pytest.skip("Test requires iceberg support and structured type support.")
+
+    _, __, expected_schema = STRUCTURED_TYPES_EXAMPLES[True]
+    table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
+    data = [
+        ({"x": 1}, {"A": "a", "B": 1}, [1, 1, 1]),
+        ({"x": 2}, {"A": "b", "B": 2}, [2, 2, 2]),
+    ]
+    try:
+        create_df = structured_type_session.create_dataframe(
+            data, schema=expected_schema
+        )
+        create_df.write.save_as_table(table_name, iceberg_config=ICEBERG_CONFIG)
+        assert structured_type_session.table(table_name).order_by(
+            col("ARR"), ascending=True
+        ).collect() == [Row(*d) for d in data]
+    finally:
+        structured_type_session.sql(f"drop table if exists {table_name}")
 
 
 def test_structured_dtypes_iceberg_udf(
