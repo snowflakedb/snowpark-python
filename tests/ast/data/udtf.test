@@ -25,8 +25,21 @@ prime_udtf = udtf(PrimeSieve, output_schema=StructType([StructField("number", In
 
 session.table_function(prime_udtf(lit(20))).collect()
 
+@udtf(output_schema=["number"])
+class sum_udtf:
+    def process(self, a: int, b: int) -> Iterable[Tuple[int]]:
+        yield (a + b, )
+
+df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+df.with_column("total", sum_udtf(df.a, df.b)).sort(df.a).show()
+
+
 ## EXPECTED OUTPUT
 
 prime_udtf = udtf(PrimeSieve, output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()])
 
 session.table_function(prime_udtf(lit(20))).collect()
+
+df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+
+df.with_column("total", udtf(sum_udtf, output_schema=["number"])(df["a"], df["b"])).sort(df["a"]).show()

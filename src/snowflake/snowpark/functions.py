@@ -7758,7 +7758,8 @@ def udtf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
-            _emit_ast=_emit_ast**kwargs,
+            _emit_ast=_emit_ast,
+            **kwargs,
         )
     else:
         return udtf_registration_method(

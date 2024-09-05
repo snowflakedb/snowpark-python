@@ -576,9 +576,11 @@ def build_expr_from_snowpark_column_or_table_fn(
     if isinstance(value, snowflake.snowpark.Column):
         build_expr_from_snowpark_column(expr_builder, value)
     elif isinstance(value, snowflake.snowpark.table_function.TableFunctionCall):
-        raise NotImplementedError(
-            "SNOW-1509198: No support for TableFunctionCall AST generation"
-        )
+        assert value._ast is not None, "TableFunctionCall must have ast assigned."
+        expr_builder.CopyFrom(value._ast)
+        # raise NotImplementedError(
+        #    "SNOW-1509198: No support for TableFunctionCall AST generation"
+        # )
     else:
         raise TypeError(
             f"{type(value)} is not a valid type for Column or TableFunctionCall AST generation."
