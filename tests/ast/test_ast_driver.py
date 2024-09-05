@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import base64
 import importlib.util
 import os
 import pathlib
@@ -14,6 +15,8 @@ from typing import List, Union
 
 import pytest
 
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
+
 TEST_DIR = pathlib.Path(__file__).parent
 
 DATA_DIR = TEST_DIR / "data"
@@ -23,7 +26,8 @@ DATA_DIR = TEST_DIR / "data"
 class TestCase:
     filename: str
     source: str
-    expected_output: str
+    expected_ast_base64: str
+    expected_ast_unparsed: str
 
 
 def parse_file(file):
@@ -41,16 +45,32 @@ def parse_file(file):
         )
 
     try:
-        expected_output_start = src.index("## EXPECTED OUTPUT\n")
+        expected_ast_unparsed_start = src.index("## EXPECTED UNPARSER OUTPUT\n")
     except ValueError:
         raise ValueError(
-            "Required header ## EXPECTED OUTPUT missing in the file: " + file.name
+            "Required header ## EXPECTED UNPARSER OUTPUT missing in the file: "
+            + file.name
         )
 
-    test_case = "".join(src[test_case_start + 1 : expected_output_start])
-    expected_output = "".join(src[expected_output_start + 1 :])
+    try:
+        expected_ast_base64_start = src.index("## EXPECTED ENCODED AST\n")
+    except ValueError:
+        raise ValueError(
+            "Required header ## EXPECTED ENCODED AST missing in the file: " + file.name
+        )
 
-    return TestCase(os.path.basename(file.name), test_case, expected_output)
+    test_case = "".join(src[test_case_start + 1 : expected_ast_unparsed_start])
+    expected_ast_unparsed = "".join(
+        src[expected_ast_unparsed_start + 1 : expected_ast_base64_start]
+    )
+    expected_ast_base64 = "".join(src[expected_ast_base64_start + 1 :])
+
+    return TestCase(
+        os.path.basename(file.name),
+        test_case,
+        expected_ast_base64,
+        expected_ast_unparsed,
+    )
 
 
 def load_test_cases():
@@ -110,8 +130,20 @@ import snowflake.snowpark.functions as functions
 from snowflake.snowpark.functions import *
 from snowflake.snowpark.types import *
 from snowflake.snowpark import Table
+from snowflake.snowpark._internal.ast import AstBatch
+import snowflake.snowpark._internal.ast_utils as ast_utils
+
+import uuid
+
+# Set up the request ID generator.
+AstBatch.generate_request_id = lambda: uuid.uuid5(uuid.NAMESPACE_DNS, "id-gen")
+
+ast_utils.SRC_POSITION_TEST_MODE = True
 
 def run_test(session):
+    # Reset the entity ID generator.
+    session._ast_batch.reset_id_gen()
+
     # Set up mock data.
     mock = session.create_dataframe(
         [
@@ -119,18 +151,20 @@ def run_test(session):
             [2, "two"],
             [3, "three"],
         ],
-        schema=['num', 'str']
+        schema=['num', 'str'],
+        _emit_ast=False
     )
-    mock.write.save_as_table("test_table")
+    mock.write.save_as_table("test_table", _emit_ast=False)
     mock = session.create_dataframe(
         [
             [1, "one"],
             [2, "two"],
             [3, "three"],
         ],
-        schema=['num', 'Owner\\'s""opinion.s']
+        schema=['num', 'Owner\\'s""opinion.s'],
+        _emit_ast=False
     )
-    mock.write.save_as_table("\\"the#qui.ck#bro.wn#\\"\\"Fox\\"\\"won\\'t#jump!\\"")
+    mock.write.save_as_table("\\"the#qui.ck#bro.wn#\\"\\"Fox\\"\\"won\\'t#jump!\\"", _emit_ast=False)
 
     # Set up data used for set operation tests.
     mock = session.create_dataframe(
@@ -138,38 +172,42 @@ def run_test(session):
             [1, 2],
             [3, 4],
         ],
-        schema=["a", "b"]
+        schema=["a", "b"],
+        _emit_ast=False
     )
-    mock.write.save_as_table("test_df1")
+    mock.write.save_as_table("test_df1", _emit_ast=False)
     mock = session.create_dataframe(
         [
             [0, 1],
             [3, 4],
         ],
-        schema=["c", "d"]
+        schema=["c", "d"],
+        _emit_ast=False
     )
-    mock.write.save_as_table("test_df2")
+    mock.write.save_as_table("test_df2", _emit_ast=False)
     mock = session.create_dataframe(
         [
             [1, 2],
         ],
-        schema=["a", "b"]
+        schema=["a", "b"],
+        _emit_ast=False
     )
-    mock.write.save_as_table("test_df3")
+    mock.write.save_as_table("test_df3", _emit_ast=False)
     mock = session.create_dataframe(
         [
             [2, 1],
         ],
-        schema=["b", "a"]
+        schema=["b", "a"],
+        _emit_ast=False
     )
-    mock.write.save_as_table("test_df4")
+    mock.write.save_as_table("test_df4", _emit_ast=False)
 
     mock = session.create_dataframe(
         [[1, [1, 2, 3], {{"Ashi Garami": "Single Leg X"}}, "Kimura"],
         [2, [11, 22], {{"Sankaku": "Triangle"}}, "Coffee"],
         [3, [], {{}}, "Tea"]],
-        schema=["idx", "lists", "maps", "strs"])
-    mock.write.save_as_table("test_table2")
+        schema=["idx", "lists", "maps", "strs"], _emit_ast=False)
+    mock.write.save_as_table("test_table2", _emit_ast=False)
 
     session._ast_batch.flush()  # Clear the AST.
 
@@ -203,14 +241,15 @@ def run_test(session):
         sys.modules[test_name] = test_module
         spec.loader.exec_module(test_module)
         base64_batches = test_module.run_test(session)
-        return render(base64_batches), "\n".join(base64_batches)
+        unparser_output = render(base64_batches) if pytest.unparser_jar else ""
+        return unparser_output, "\n".join(base64_batches)
     finally:
         os.unlink(test_file.name)
 
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
 def test_ast(session, test_case):
-    actual, base64 = run_test(
+    actual, base64_str = run_test(
         session, test_case.filename.replace(".", "_"), test_case.source
     )
     if pytest.update_expectations:
@@ -219,17 +258,38 @@ def test_ast(session, test_case):
                 [
                     "## TEST CASE\n",
                     test_case.source,
-                    "## EXPECTED OUTPUT\n\n",
+                    "## EXPECTED UNPARSER OUTPUT\n\n",
                     actual.strip(),
+                    "\n\n## EXPECTED ENCODED AST\n\n",
+                    base64_str.strip(),
                     "\n",
                 ]
             )
     else:
         try:
-            assert actual.strip() == test_case.expected_output.strip()
+            # Protobuf serialization is non-deterministic (cf. https://gist.github.com/kchristidis/39c8b310fd9da43d515c4394c3cd9510)
+            # Therefore unparse from base64, and then check equality using deterministic (python) protobuf serialization.
+            actual_message = proto.Request()
+            actual_message.ParseFromString(base64.b64decode(base64_str.strip()))
+
+            expected_message = proto.Request()
+            expected_message.ParseFromString(
+                base64.b64decode(test_case.expected_ast_base64.strip())
+            )
+
+            det_actual_message = actual_message.SerializeToString(deterministic=True)
+            det_expected_message = expected_message.SerializeToString(
+                deterministic=True
+            )
+
+            assert det_actual_message == det_expected_message
+
+            if pytest.unparser_jar:
+                assert actual.strip() == test_case.expected_ast_unparsed.strip()
+
         except AssertionError as e:
             raise AssertionError(
-                f"If the expectation is incorrect, run pytest --update-expectations:\n\n{base64}\n{e}"
+                f"If the expectation is incorrect, run pytest --update-expectations:\n\n{base64_str}\n{e}"
             ) from e
 
 

@@ -7,10 +7,14 @@ variadic = df.to_df("one", "two")
 non_variadic = df.to_df(["one", "two"])
 
 
-## EXPECTED OUTPUT
+## EXPECTED UNPARSER OUTPUT
 
 df = session.table("test_table")
 
 variadic = df.to_df("one", "two")
 
 non_variadic = df.to_df(["one", "two"])
+
+## EXPECTED ENCODED AST
+
+CkMKQQozogswEg4KDAoKdGVzdF90YWJsZRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFoiAggBEgQKAmRmGAEiAggBCkoKSAo0qgkxCgNvbmUKA3R3bxIHigIECgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFwgARIKCgh2YXJpYWRpYxgCIgIIAgpMCkoKMqoJLwoDb25lCgN0d28SB4oCBAoCCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSheEg4KDG5vbl92YXJpYWRpYxgDIgIIAxABGhESDwoNCgVmaW5hbBADGAggEyIEEAEYFQ==
