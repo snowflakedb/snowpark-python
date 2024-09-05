@@ -124,7 +124,13 @@ def test_axis_0_index_passed_as_name(df, row_label):
         eval_snowpark_pandas_result(snow_df, df, lambda x: x.apply(foo, axis=0))
 
 
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(
+    query_count=11,
+    join_count=3,
+    udtf_count=2,
+    high_count_expected=True,
+    high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
+)
 def test_axis_0_return_series():
     snow_df = pd.DataFrame([[1, 2], [3, 4]], columns=["A", "b"])
     native_df = native_pd.DataFrame([[1, 2], [3, 4]], columns=["A", "b"])
@@ -135,7 +141,13 @@ def test_axis_0_return_series():
     )
 
 
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(
+    query_count=11,
+    join_count=3,
+    udtf_count=2,
+    high_count_expected=True,
+    high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
+)
 def test_axis_0_return_series_with_different_label_results():
     df = native_pd.DataFrame([[1, 2], [3, 4]], columns=["A", "b"])
     snow_df = pd.DataFrame(df)
@@ -152,7 +164,7 @@ def test_axis_0_return_series_with_different_label_results():
     )
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=6, join_count=1, udtf_count=1)
 def test_axis_0_return_single_scalar_series():
     native_df = native_pd.DataFrame([1])
     snow_df = pd.DataFrame(native_df)
@@ -165,7 +177,7 @@ def test_axis_0_return_single_scalar_series():
     )
 
 
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=3)
 def test_axis_0_return_dataframe_not_supported():
     snow_df = pd.DataFrame([1])
 
@@ -217,7 +229,6 @@ TEST_INDEX_2 = native_pd.MultiIndex.from_tuples(
     names=["FOO", "BAR"],
 )
 
-
 TEST_INDEX_WITH_NULL_2 = native_pd.MultiIndex.from_tuples(
     list(zip(*[[None, "BB"], ["XX", None]])),
     names=["FOO", "BAR"],
@@ -238,27 +249,34 @@ TEST_COLUMNS_1 = native_pd.MultiIndex.from_tuples(
 
 
 @pytest.mark.parametrize(
-    "apply_func",
+    "apply_func, expected_join_count, expected_union_count",
     [
-        lambda x: [1, 2],
-        lambda x: x + 1 if x is not None else None,
-        lambda x: x.min(),
+        [lambda x: [1, 2], 3, 0],
+        [lambda x: x + 1 if x is not None else None, 3, 0],
+        [lambda x: x.min(), 2, 1],
     ],
 )
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
-def test_axis_0_series_basic(apply_func):
+def test_axis_0_series_basic(apply_func, expected_join_count, expected_union_count):
     native_df = native_pd.DataFrame(
         [[1.1, 2.2], [3.0, None]], index=pd.Index([2, 3]), columns=["A", "b"]
     )
     snow_df = pd.DataFrame(native_df)
-    eval_snowpark_pandas_result(
-        snow_df,
-        native_df,
-        lambda df: df.apply(apply_func, axis=0),
-    )
+    with SqlCounter(
+        query_count=11,
+        join_count=expected_join_count,
+        udtf_count=2,
+        union_count=expected_union_count,
+        high_count_expected=True,
+        high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
+    ):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.apply(apply_func, axis=0),
+        )
 
 
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(query_count=5, join_count=1, udtf_count=1)
 def test_groupby_apply_constant_output():
     native_df = native_pd.DataFrame([1, 2])
     native_df["fg"] = 0
@@ -271,7 +289,13 @@ def test_groupby_apply_constant_output():
     )
 
 
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(
+    query_count=11,
+    join_count=3,
+    udtf_count=2,
+    high_count_expected=True,
+    high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
+)
 def test_axis_0_return_list():
     snow_df = pd.DataFrame([[1, 2], [3, 4]])
     native_df = native_pd.DataFrame([[1, 2], [3, 4]])
@@ -290,7 +314,13 @@ def test_axis_0_return_list():
         lambda x: native_pd.Series([1, 2], index=TEST_INDEX_WITH_NULL_1),
     ],
 )
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(
+    query_count=21,
+    join_count=7,
+    udtf_count=4,
+    high_count_expected=True,
+    high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
+)
 def test_axis_0_multi_index_column_labels(apply_func):
     data = [[i + j for j in range(0, 4)] for i in range(0, 4)]
 
@@ -302,7 +332,13 @@ def test_axis_0_multi_index_column_labels(apply_func):
     )
 
 
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(
+    query_count=21,
+    join_count=7,
+    udtf_count=4,
+    high_count_expected=True,
+    high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
+)
 def test_axis_0_multi_index_column_labels_with_different_results():
     data = [[i + j for j in range(0, 4)] for i in range(0, 4)]
 
@@ -357,7 +393,13 @@ def test_axis_0_multi_index_column_labels_with_different_results():
         ],
     ],
 )
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(
+    query_count=11,
+    join_count=3,
+    udtf_count=2,
+    high_count_expected=True,
+    high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
+)
 def test_axis_0_date_time_timestamp_type(data, func, expected_result):
     snow_df = pd.DataFrame(data)
     result = snow_df.apply(func, axis=0)
@@ -383,13 +425,27 @@ def test_axis_0_date_time_timestamp_type(data, func, expected_result):
         ),
     ],
 )
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(
+    query_count=11,
+    join_count=2,
+    udtf_count=2,
+    union_count=1,
+    high_count_expected=True,
+    high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
+)
 def test_axis_0_index_labels(native_df, func):
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func, axis=0))
 
 
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(
+    query_count=11,
+    join_count=2,
+    udtf_count=2,
+    union_count=1,
+    high_count_expected=True,
+    high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
+)
 def test_axis_0_raw():
     snow_df = pd.DataFrame([[1, 2], [3, 4]])
     native_df = native_pd.DataFrame([[1, 2], [3, 4]])
@@ -474,7 +530,7 @@ def test_apply_axis_0_with_if_where_duplicates_not_executed(data):
         np.int64(3),
     ],
 )
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(query_count=6, join_count=1, udtf_count=1)
 def test_numpy_integers_in_return_values_snow_1227264(return_value):
     eval_snowpark_pandas_result(
         *create_test_dfs(["a"]), lambda df: df.apply(lambda row: return_value, axis=0)
