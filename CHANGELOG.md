@@ -91,7 +91,7 @@
 
 - Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
 - Fixed AssertionError in tree of binary operations.
-- Fixed `loc`-set when setting row of DataFrame with Series value.
+- Fixed `loc` set when setting row of DataFrame with Series value.
 
 #### Behavior Change
 

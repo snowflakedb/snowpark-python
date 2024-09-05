@@ -2155,7 +2155,7 @@ def set_frame_2d_labels(
         index_is_bool_indexer: if True, the index is a boolean indexer. Note we only handle boolean indexer with
                 item is a SnowflakeQueryCompiler here.
         deduplicate_columns: if True, deduplicate columns from ``columns``.
-        item_is_series: if item is from a Series
+        item_is_series: Whether item is from a Series object
     Returns:
         New frame where values have been set
     """
@@ -2219,10 +2219,10 @@ def set_frame_2d_labels(
     item_is_frame = isinstance(item, InternalFrame)
     item_is_scalar = is_scalar(item)
     original_index = index
-    # If item is Series (rather than a Dataframe), then we need to flip the series item values so they apply across
-    # columns rather than rows.
+    # If `item` is from a Series (rather than a Dataframe), flip the series item values to apply them
+    # across columns rather than rows.
     if item_is_series and (columns == slice(None) or len(columns) > 1):  # type: ignore[arg-type]
-        # If we columns is slice(None), we are setting all columns in the InternalFrame.
+        # If columns is slice(None), we are setting all columns in the InternalFrame.
         matching_item_columns_by_label = True
         col_len = (
             len(internal_frame.data_column_snowflake_quoted_identifiers)
