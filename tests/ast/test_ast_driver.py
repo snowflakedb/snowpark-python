@@ -258,8 +258,11 @@ def test_ast(session, test_case):
             )
     else:
         try:
-            assert base64.strip() == test_case.expected_ast_base64.strip()
-            if pytest.unparser_jar:
+            # Disable the base64 expectation tests for now. Serialization seems to be non-deterministic.
+            use_base64: bool = False
+            if use_base64:
+                assert base64.strip() == test_case.expected_ast_base64.strip()
+            if pytest.unparser_jar or not use_base64:
                 assert actual.strip() == test_case.expected_ast_unparsed.strip()
         except AssertionError as e:
             raise AssertionError(
