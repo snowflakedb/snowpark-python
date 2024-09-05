@@ -67,6 +67,8 @@ def test_unsupported_general(general_method, kwargs):
         ["eval", {"expr": "xxx"}],
         ["ewm", {}],
         ["filter", {}],
+        ["from_dict", {"data": ""}],
+        ["from_records", {"data": ""}],
         ["hist", {}],
         ["interpolate", {}],
         ["isetitem", {"loc": "", "value": ""}],
