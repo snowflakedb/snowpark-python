@@ -327,16 +327,35 @@ def test_index_non_list_like_names():
     That was not a clear error message and therefore has been changed to match native pandas' ValueError:
     Names must be a list-like.
     """
-
-    def helper(df):
-        df.index.names = 10
-
     native_df = native_pd.DataFrame(list(range(10)))
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
-        helper,
+        lambda df: setattr(df.index, "names", 10),
         expect_exception=True,
         check_exception_type=ValueError,
+    )
+
+
+@sql_count_checker(query_count=4)
+def test_index_names_with_lazy_index():
+    """
+    Test to see if eager evaluation is triggered when setting names on a lazy index.
+    Eager evaluation is triggered - 4 queries are run.
+    - 1 query to find the length of names.
+    - 2 queries to create the required internal frame, one of them is for `to_pandas`.
+    - 1 query to perform evaluation of the result (another `to_pandas` query).
+    """
+    native_df = native_pd.DataFrame(list(range(10)))
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: setattr(
+            df.index,
+            "names",
+            pd.Index(["A"]) if isinstance(df, pd.DataFrame) else native_pd.Index(["A"]),
+        ),
+        inplace=True,
     )
