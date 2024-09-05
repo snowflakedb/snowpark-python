@@ -5,6 +5,7 @@
 """Contains table function related classes."""
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
     NamedArgumentsTableFunction,
@@ -34,6 +35,7 @@ class TableFunctionCall:
         self,
         func_name: Union[str, Iterable[str]],
         *func_arguments: ColumnOrName,
+        _ast: Optional[proto.Expr] = None,
         **func_named_arguments: ColumnOrName,
     ) -> None:
         if func_arguments and func_named_arguments:
@@ -51,6 +53,8 @@ class TableFunctionCall:
         self._order_by = None
         self._aliases: Optional[Iterable[str]] = None
         self._api_call_source = None
+
+        self._ast = _ast
 
     def _set_api_call_source(self, api_call_source):
         self._api_call_source = api_call_source

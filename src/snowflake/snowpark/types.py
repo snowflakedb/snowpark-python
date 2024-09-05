@@ -557,6 +557,12 @@ class PandasSeriesType(_PandasType):
     def __init__(self, element_type: Optional[DataType]) -> None:
         self.element_type = element_type
 
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        if self.element_type is not None:
+            self.element_type._fill_ast(ast.sp_pandas_series_type.el_ty)
+        else:
+            ast.sp_pandas_series_type = True
+
 
 class PandasDataFrameType(_PandasType):
     """
@@ -576,6 +582,12 @@ class PandasDataFrameType(_PandasType):
             tp.element_type if isinstance(tp, PandasSeriesType) else tp
             for tp in self.col_types
         ]
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        for col_type in self.col_types:
+            ast_col = ast.sp_pandas_data_frame_type.col_types.add()
+            col_type._fill_ast(ast_col)
+        ast.sp_pandas_data_frame_type.col_names.extend(self.col_names)
 
 
 #: The type hint for annotating Variant data when registering UDFs.
