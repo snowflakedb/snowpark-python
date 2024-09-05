@@ -14,6 +14,11 @@ class QueryRecord(NamedTuple):
     sql_text: str
 
 
+class DescribeRecord(QueryRecord):
+    """Contains the query information returns from the Snowflake database after the describe query is run."""
+    pass
+
+
 class QueryHistory:
     """A context manager that listens to and records SQL queries that are pushed down to the Snowflake database.
 
