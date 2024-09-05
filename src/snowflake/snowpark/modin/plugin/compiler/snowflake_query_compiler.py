@@ -6653,6 +6653,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if isinstance(sf_type, BooleanType):
                 # bool is not allowed in to_datetime (but note that bool is allowed by astype)
                 raise TypeError("dtype bool cannot be converted to datetime64[ns]")
+            elif isinstance(sf_type, TimedeltaType):
+                raise TypeError(
+                    "dtype timedelta64[ns] cannot be converted to datetime64[ns]"
+                )
 
             to_datetime_cols[col_id] = generate_timestamp_col(
                 col(col_id),
