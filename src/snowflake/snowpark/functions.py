@@ -8042,6 +8042,7 @@ def pandas_udf(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     comment: Optional[str] = None,
+    _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """
@@ -8095,67 +8096,32 @@ def pandas_udf(
         <BLANKLINE>
     """
 
-    # Initial check to make sure no unexpected args are passed in
-    check_decorator_args(**kwargs)
-
-    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
-        session
+    # Same as udf, except in addition _from_pandas_udf_function=True is passed.
+    return udf(
+        func,
+        return_type=return_type,
+        input_types=input_types,
+        name=name,
+        is_permanent=is_permanent,
+        stage_location=stage_location,
+        imports=imports,
+        packages=packages,
+        replace=replace,
+        if_not_exists=if_not_exists,
+        parallel=parallel,
+        max_batch_size=max_batch_size,
+        statement_params=statement_params,
+        source_code_display=source_code_display,
+        strict=strict,
+        secure=secure,
+        external_access_integrations=external_access_integrations,
+        secrets=secrets,
+        immutable=immutable,
+        comment=comment,
+        _from_pandas_udf_function=True,
+        _emit_ast=_emit_ast,
+        **kwargs,
     )
-    if session is None:
-        udf_registration_method = UDFRegistration(session=session).register
-    else:
-        udf_registration_method = session.udf.register
-
-    if func is None:
-        return functools.partial(
-            udf_registration_method,
-            return_type=return_type,
-            input_types=input_types,
-            name=name,
-            is_permanent=is_permanent,
-            stage_location=stage_location,
-            imports=imports,
-            packages=packages,
-            replace=replace,
-            if_not_exists=if_not_exists,
-            parallel=parallel,
-            max_batch_size=max_batch_size,
-            _from_pandas_udf_function=True,
-            statement_params=statement_params,
-            strict=strict,
-            secure=secure,
-            source_code_display=source_code_display,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            immutable=immutable,
-            comment=comment,
-            **kwargs,
-        )
-    else:
-        return udf_registration_method(
-            func,
-            return_type=return_type,
-            input_types=input_types,
-            name=name,
-            is_permanent=is_permanent,
-            stage_location=stage_location,
-            imports=imports,
-            packages=packages,
-            replace=replace,
-            if_not_exists=if_not_exists,
-            parallel=parallel,
-            max_batch_size=max_batch_size,
-            _from_pandas_udf_function=True,
-            statement_params=statement_params,
-            strict=strict,
-            secure=secure,
-            source_code_display=source_code_display,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            immutable=immutable,
-            comment=comment,
-            **kwargs,
-        )
 
 
 def pandas_udtf(
@@ -8181,6 +8147,7 @@ def pandas_udtf(
     immutable: bool = False,
     max_batch_size: Optional[int] = None,
     comment: Optional[str] = None,
+    _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a vectorized Python UDTF and returns the UDTF.
@@ -8266,65 +8233,31 @@ def pandas_udtf(
         <BLANKLINE>
     """
 
-    # Initial check to make sure no unexpected args are passed in
-    check_decorator_args(**kwargs)
-
-    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
-        session
+    # Same as udtf, but pandas_udtf has kwargs input_names, max_batch_size in addition to plain udtf.
+    return udtf(
+        handler,
+        output_schema=output_schema,
+        input_types=input_types,
+        input_names=input_names,
+        name=name,
+        is_permanent=is_permanent,
+        stage_location=stage_location,
+        imports=imports,
+        packages=packages,
+        replace=replace,
+        if_not_exists=if_not_exists,
+        parallel=parallel,
+        statement_params=statement_params,
+        strict=strict,
+        secure=secure,
+        external_access_integrations=external_access_integrations,
+        secrets=secrets,
+        immutable=immutable,
+        max_batch_size=max_batch_size,
+        comment=comment,
+        _emit_ast=_emit_ast,
+        **kwargs,
     )
-    if session is None:
-        udtf_registration_method = UDTFRegistration(session=session).register
-    else:
-        udtf_registration_method = session.udtf.register
-
-    if handler is None:
-        return functools.partial(
-            udtf_registration_method,
-            output_schema=output_schema,
-            input_types=input_types,
-            input_names=input_names,
-            name=name,
-            is_permanent=is_permanent,
-            stage_location=stage_location,
-            imports=imports,
-            packages=packages,
-            replace=replace,
-            if_not_exists=if_not_exists,
-            parallel=parallel,
-            statement_params=statement_params,
-            strict=strict,
-            secure=secure,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            immutable=immutable,
-            max_batch_size=max_batch_size,
-            comment=comment,
-            **kwargs,
-        )
-    else:
-        return udtf_registration_method(
-            handler,
-            output_schema=output_schema,
-            input_types=input_types,
-            input_names=input_names,
-            name=name,
-            is_permanent=is_permanent,
-            stage_location=stage_location,
-            imports=imports,
-            packages=packages,
-            replace=replace,
-            if_not_exists=if_not_exists,
-            parallel=parallel,
-            statement_params=statement_params,
-            strict=strict,
-            secure=secure,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            immutable=immutable,
-            max_batch_size=max_batch_size,
-            comment=comment,
-            **kwargs,
-        )
 
 
 def call_udf(udf_name: str, *args: ColumnOrLiteral, _emit_ast: bool = True) -> Column:
