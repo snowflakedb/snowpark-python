@@ -1112,7 +1112,7 @@ def test_timedelta(agg_func, by):
     native_df = native_pd.DataFrame(
         {
             "A": native_pd.to_timedelta(
-                ["1 days 06:05:01.00003", "15.5us", "nan", "16us"]
+                ["1 days 06:05:01.00003", "16us", "nan", "16us"]
             ),
             "B": [8, 8, 12, 10],
         }
@@ -1122,3 +1122,28 @@ def test_timedelta(agg_func, by):
     eval_snowpark_pandas_result(
         snow_df, native_df, lambda df: getattr(df.groupby(by), agg_func)()
     )
+
+
+def test_timedelta_groupby_agg():
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(
+                ["1 days 06:05:01.00003", "16us", "nan", "16us"]
+            ),
+            "B": [8, 8, 12, 10],
+            "C": [True, False, False, True],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.groupby("A").agg({"B": ["sum", "median"], "C": "min"}),
+        )
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.groupby("B").agg({"A": ["sum", "median"], "C": "min"}),
+        )
