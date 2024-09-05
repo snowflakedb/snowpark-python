@@ -411,13 +411,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Copying and modifying self.snowpark_pandas_api_calls is taken care of in telemetry decorators
         self.snowpark_pandas_api_calls: list = []
 
-    def _raise_not_implemented_error_for_timedelta(self) -> None:
+    def _raise_not_implemented_error_for_timedelta(
+        self, frame: InternalFrame = None
+    ) -> None:
         """Raise NotImplementedError for SnowflakeQueryCompiler methods which does not support timedelta yet."""
-        for (
-            val
-        ) in (
-            self._modin_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.values()
-        ):
+        if frame is None:
+            frame = self._modin_frame
+        for val in frame.snowflake_quoted_identifier_to_snowpark_pandas_type.values():
             if isinstance(val, TimedeltaType):
                 method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
                 ErrorMessage.not_implemented_for_timedelta(method)
@@ -6723,13 +6723,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             NOTE: Original column level names are lost and result column index has only
             one level.
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         if levels is not None:
             raise NotImplementedError(
                 "Snowpark pandas doesn't support 'levels' argument in concat API"
             )
         frames = [self._modin_frame] + [o._modin_frame for o in other]
+        for frame in frames:
+            self._raise_not_implemented_error_for_timedelta(frame=frame)
 
         # If index columns differ in size or name, convert all multi-index row labels to
         # tuples with single level index.
