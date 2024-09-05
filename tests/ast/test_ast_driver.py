@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import base64
 import importlib.util
 import os
 import pathlib
@@ -13,6 +14,8 @@ from dataclasses import dataclass
 from typing import List, Union
 
 import pytest
+
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
 TEST_DIR = pathlib.Path(__file__).parent
 
@@ -246,7 +249,7 @@ def run_test(session):
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
 def test_ast(session, test_case):
-    actual, base64 = run_test(
+    actual, base64_str = run_test(
         session, test_case.filename.replace(".", "_"), test_case.source
     )
     if pytest.update_expectations:
@@ -258,18 +261,35 @@ def test_ast(session, test_case):
                     "## EXPECTED UNPARSER OUTPUT\n\n",
                     actual.strip(),
                     "\n\n## EXPECTED ENCODED AST\n\n",
-                    base64.strip(),
+                    base64_str.strip(),
                     "\n",
                 ]
             )
     else:
         try:
-            assert base64.strip() == test_case.expected_ast_base64.strip()
+            # Protobuf serialization is non-deterministic (cf. https://gist.github.com/kchristidis/39c8b310fd9da43d515c4394c3cd9510)
+            # Therefore unparse from base64, and then check equality using deterministic (python) protobuf serialization.
+            actual_message = proto.Request()
+            actual_message.ParseFromString(base64.b64decode(base64_str.strip()))
+
+            expected_message = proto.Request()
+            expected_message.ParseFromString(
+                base64.b64decode(test_case.expected_ast_base64.strip())
+            )
+
+            det_actual_message = actual_message.SerializeToString(deterministic=True)
+            det_expected_message = expected_message.SerializeToString(
+                deterministic=True
+            )
+
+            assert det_actual_message == det_expected_message
+
             if pytest.unparser_jar:
                 assert actual.strip() == test_case.expected_ast_unparsed.strip()
+
         except AssertionError as e:
             raise AssertionError(
-                f"If the expectation is incorrect, run pytest --update-expectations:\n\n{base64}\n{e}"
+                f"If the expectation is incorrect, run pytest --update-expectations:\n\n{base64_str}\n{e}"
             ) from e
 
 
