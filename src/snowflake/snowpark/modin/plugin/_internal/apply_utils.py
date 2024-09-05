@@ -81,7 +81,7 @@ class GroupbyApplySortMethod(Enum):
 
 def check_return_variant_and_get_return_type(func: Callable) -> tuple[bool, DataType]:
     """Check whether the function returns a variant in Snowflake, and get its return type."""
-    return_type, _ = get_types_from_type_hints(func, TempObjectType.FUNCTION)
+    return_type = deduce_return_type_from_function(func)
     if return_type is None or isinstance(
         return_type, (VariantType, PandasSeriesType, PandasDataFrameType)
     ):
