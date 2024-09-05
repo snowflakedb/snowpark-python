@@ -500,9 +500,9 @@ def try_add_telemetry_to_attribute(attr_name: str, attr_value: Any) -> Any:
     """
     Attempts to add telemetry to an attribute.
 
-    If the attribute is callable with name in TELEMETRY_PRIVATE_METHODS, or is a callable that
-    starts with an underscore, the original attribute will be returned as-is. Otherwise, a version
-    of the method/property annotated with Snowpark pandas telemetry is returned.
+    If the attribute name starts with an underscore and is not in TELEMETRY_PRIVATE_METHODS, the
+    original method will be returned. Otherwise, a version of the method/property annotated with
+    Snowpark pandas telemetry is returned.
     """
     if callable(attr_value) and (
         not attr_name.startswith("_") or (attr_name in TELEMETRY_PRIVATE_METHODS)

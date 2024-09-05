@@ -706,6 +706,7 @@ def rpow(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01,
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__add__")
+@snowpark_pandas_telemetry_method_decorator
 def __add__(self, right):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.add(right)
@@ -713,6 +714,7 @@ def __add__(self, right):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__radd__")
+@snowpark_pandas_telemetry_method_decorator
 def __radd__(self, left):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.radd(left)
@@ -752,6 +754,7 @@ def __rdivmod__(self, left):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__floordiv__")
+@snowpark_pandas_telemetry_method_decorator
 def __floordiv__(self, right):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.floordiv(right)
@@ -759,6 +762,7 @@ def __floordiv__(self, right):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__rfloordiv__")
+@snowpark_pandas_telemetry_method_decorator
 def __rfloordiv__(self, right):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.rfloordiv(right)
@@ -766,6 +770,7 @@ def __rfloordiv__(self, right):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__mod__")
+@snowpark_pandas_telemetry_method_decorator
 def __mod__(self, right):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.mod(right)
@@ -773,6 +778,7 @@ def __mod__(self, right):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__rmod__")
+@snowpark_pandas_telemetry_method_decorator
 def __rmod__(self, left):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.rmod(left)
@@ -780,6 +786,7 @@ def __rmod__(self, left):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__mul__")
+@snowpark_pandas_telemetry_method_decorator
 def __mul__(self, right):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.mul(right)
@@ -787,6 +794,7 @@ def __mul__(self, right):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__rmul__")
+@snowpark_pandas_telemetry_method_decorator
 def __rmul__(self, left):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.rmul(left)
@@ -826,6 +834,7 @@ def __rxor__(self, other):  # pragma: no cover
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__pow__")
+@snowpark_pandas_telemetry_method_decorator
 def __pow__(self, right):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.pow(right)
@@ -833,6 +842,7 @@ def __pow__(self, right):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__rpow__")
+@snowpark_pandas_telemetry_method_decorator
 def __rpow__(self, left):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.rpow(left)
@@ -840,24 +850,28 @@ def __rpow__(self, left):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__sub__")
+@snowpark_pandas_telemetry_method_decorator
 def __sub__(self, right):
     return self.sub(right)
 
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__rsub__")
+@snowpark_pandas_telemetry_method_decorator
 def __rsub__(self, left):
     return self.rsub(left)
 
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__truediv__")
+@snowpark_pandas_telemetry_method_decorator
 def __truediv__(self, right):
     return self.truediv(right)
 
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__rtruediv__")
+@snowpark_pandas_telemetry_method_decorator
 def __rtruediv__(self, left):
     return self.rtruediv(left)
 
@@ -1875,6 +1889,7 @@ def _to_pandas(
 
 # Snowpark pandas does more validation and error checking than upstream Modin.
 @register_series_accessor("__setitem__")
+@snowpark_pandas_telemetry_method_decorator
 def __setitem__(self, key, value):
     """
     Set `value` identified by `key` in the Series.
