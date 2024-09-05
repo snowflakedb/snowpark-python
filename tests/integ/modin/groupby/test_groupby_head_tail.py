@@ -180,3 +180,22 @@ def test_df_groupby_last_chained_pivot_table_SNOW_1628228():
         .groupby("A")
         .last(),
     )
+
+
+@pytest.mark.parametrize("agg_func", ["head", "tail"])
+@pytest.mark.parametrize("by", ["A", "B"])
+@sql_count_checker(query_count=1)
+def test_timedelta(agg_func, by):
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(
+                ["1 days 06:05:01.00003", "15.5us", "nan", "16us"]
+            ),
+            "B": [8, 8, 12, 10],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: getattr(df.groupby(by), agg_func)()
+    )
