@@ -399,6 +399,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     this class is best explained by looking at https://github.com/modin-project/modin/blob/a8be482e644519f2823668210cec5cf1564deb7e/modin/experimental/core/storage_formats/hdk/query_compiler.py
     """
 
+    # When lazy_execution=True, upstream Modin elides some length checks that would incur queries.
     lazy_execution = True
 
     def __init__(self, frame: InternalFrame) -> None:
@@ -1883,7 +1884,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 If data in both corresponding DataFrame locations is missing the result will be missing.
                 only arithmetic binary operation has this parameter (e.g., add() has, but eq() doesn't have).
         """
-        from snowflake.snowpark.modin.pandas.series import Series
+        from modin.pandas import Series
 
         # Step 1: Convert other to a Series and join on the row position with self.
         other_qc = Series(other)._query_compiler
@@ -2033,8 +2034,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Native pandas does not support binary operations between a Series and a list-like object.
 
+        from modin.pandas import Series
+
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-        from snowflake.snowpark.modin.pandas.series import Series
         from snowflake.snowpark.modin.pandas.utils import is_scalar
 
         # fail explicitly for unsupported scenarios
@@ -9369,7 +9371,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             New QueryCompiler that contains specified rows.
         """
 
-        from snowflake.snowpark.modin.pandas import Series
+        from modin.pandas import Series
 
         # convert key to internal frame via Series
         key_frame = None
@@ -13814,6 +13816,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             replaced_column_exprs
         )
         return SnowflakeQueryCompiler(result.frame)
+
+    def add_prefix(
+        self, substring: Any, axis: Optional[int] = 0
+    ) -> "SnowflakeQueryCompiler":
+        return self.add_substring(str(substring), "prefix", axis)
+
+    def add_suffix(
+        self, substring: Any, axis: Optional[int] = 0
+    ) -> "SnowflakeQueryCompiler":
+        return self.add_substring(str(substring), "suffix", axis)
 
     @snowpark_pandas_type_immutable_check
     def add_substring(
