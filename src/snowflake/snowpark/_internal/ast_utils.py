@@ -929,8 +929,6 @@ def build_udtf(
         else:
             raise ValueError(f"Can not encode {output_schema} to AST.")
 
-    # if return_type is not None:
-    #     return_type._fill_ast(ast.return_type)
     if input_types is not None and len(input_types) != 0:
         for input_type in input_types:
             input_type._fill_ast(ast.input_types.list.add())
