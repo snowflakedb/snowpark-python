@@ -323,9 +323,7 @@ def test_index_SNOW_1021837():
 def test_index_non_list_like_names_negative():
     """
     Bug SNOW-1650853:
-    Previously, setting names to non-list-like values raised a TypeError: object of type 'int' has no len().
-    That was not a clear error message and therefore has been changed to match native pandas' ValueError:
-    Names must be a list-like.
+    Test that the correct error is raised.
     """
     native_df = native_pd.DataFrame(list(range(10)))
     snow_df = pd.DataFrame(native_df)
