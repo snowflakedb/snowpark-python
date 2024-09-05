@@ -430,10 +430,6 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
         )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="strucutred types do not fully support structured types yet.",
-)
 def test_structured_dtypes_iceberg(
     structured_type_session, local_testing_mode, structured_type_support
 ):
@@ -447,18 +443,8 @@ def test_structured_dtypes_iceberg(
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
     save_table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
     try:
-        structured_type_session.sql(
-            f"""
-        create iceberg table if not exists {table_name} (
-          map map(varchar, int),
-          obj object(A varchar, B float),
-          arr array(float)
-        )
-        CATALOG = 'SNOWFLAKE'
-        EXTERNAL_VOLUME = 'python_connector_iceberg_exvol'
-        BASE_LOCATION = 'python_connector_merge_gate';
-        """
-        ).collect()
+        create_df = structured_type_session.create_dataframe([], schema=expected_schema)
+        create_df.write.save_as_table(table_name, iceberg_config=ICEBERG_CONFIG)
         structured_type_session.sql(
             f"""
         insert into {table_name}
@@ -489,10 +475,6 @@ def test_structured_dtypes_iceberg(
         structured_type_session.sql(f"drop table if exists {save_table_name}")
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="strucutred types do not fully support structured types yet.",
-)
 def test_structured_dtypes_iceberg_udf(
     structured_type_session, local_testing_mode, structured_type_support
 ):
@@ -520,18 +502,8 @@ def test_structured_dtypes_iceberg_udf(
     )
 
     try:
-        structured_type_session.sql(
-            f"""
-        create iceberg table if not exists {table_name} (
-          map map(varchar, int),
-          obj object(A varchar, B float),
-          arr array(float)
-        )
-        CATALOG = 'SNOWFLAKE'
-        EXTERNAL_VOLUME = 'python_connector_iceberg_exvol'
-        BASE_LOCATION = 'python_connector_merge_gate';
-        """
-        ).collect()
+        create_df = structured_type_session.create_dataframe([], schema=expected_schema)
+        create_df.write.save_as_table(table_name, iceberg_config=ICEBERG_CONFIG)
         structured_type_session.sql(
             f"""
         insert into {table_name}
