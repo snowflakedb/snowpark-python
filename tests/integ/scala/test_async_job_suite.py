@@ -489,6 +489,7 @@ def test_async_job_result_wait_no_result(session):
     assert result is None
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
 @pytest.mark.parametrize(
     "action",
     [
