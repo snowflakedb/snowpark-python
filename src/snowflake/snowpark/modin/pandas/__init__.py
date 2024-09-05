@@ -198,7 +198,7 @@ modin.pandas.base._ATTRS_NO_LOOKUP.update(_ATTRS_NO_LOOKUP)
 # For any method defined on Series/DF, add telemetry to it if it meets all of the following conditions:
 # 1. The method was defined directly on an upstream class (_attrs_defined_on_* lists)
 # 2. The method is not overridden by an extensions module
-# 3. The method name does not start with an _
+# 3. The method name does not start with an _ or is in TELEMETRY_PRIVATE_METHODS
 _base_telemetry_added_attrs = set()
 
 _series_ext = _SERIES_EXTENSIONS_.copy()
