@@ -320,7 +320,7 @@ def test_index_SNOW_1021837():
 
 
 @sql_count_checker(query_count=0)
-def test_index_non_list_like_names():
+def test_index_non_list_like_names_negative():
     """
     Bug SNOW-1650853:
     Previously, setting names to non-list-like values raised a TypeError: object of type 'int' has no len().

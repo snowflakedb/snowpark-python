@@ -753,7 +753,6 @@ class Index(metaclass=TelemetryMeta):
         if not is_list_like(values):
             raise ValueError("Names must be a list-like")
         if isinstance(values, Index):
-            # Convert index to list to reduce the number of queries triggered.
             values = values.to_list()
         self._query_compiler = self._query_compiler.set_index_names(values)
         if self._parent is not None:
