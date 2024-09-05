@@ -23,6 +23,7 @@
 
 from __future__ import annotations
 
+import inspect
 from functools import cached_property
 from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 
@@ -251,9 +252,7 @@ class Index(metaclass=TelemetryMeta):
                 if hasattr(native_index, key):
                     # Any methods that not supported by the current Index.py but exist in a
                     # native pandas index object should raise a not implemented error for now.
-                    raise ErrorMessage.not_implemented(
-                        f"Index.{key} is not yet implemented"
-                    )
+                    ErrorMessage.not_implemented(f"Index.{key} is not yet implemented")
             raise err
 
     def _binary_ops(self, method: str, other: Any) -> Index:
@@ -334,6 +333,56 @@ class Index(metaclass=TelemetryMeta):
 
     def __lt__(self, other: Any) -> Index:
         return self._binary_ops("lt", other)
+
+    def __or__(self, other: Any) -> Index:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __and__(self, other: Any) -> Index:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __xor__(self, other: Any) -> Index:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __lshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rand__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __ror__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rxor__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rlshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rrshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
 
     def to_pandas(
         self,
