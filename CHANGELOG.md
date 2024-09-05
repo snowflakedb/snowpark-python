@@ -77,7 +77,8 @@
   - support for binary arithmetic and comparisons between `Timedelta` values and numeric values.
   - support for lazy `TimedeltaIndex`.
   - support for `pd.to_timedelta`.
-  - support for `GroupBy` aggregations `min`, `max`, `mean`, `idxmax`, `idxmin`, `std`, `sum`, `median`, `count`, `any`, `all`, `size`, `nunique`, `head`, `tail`, `first`, `last`, `aggregate`.
+  - support for `GroupBy` aggregations `min`, `max`, `mean`, `idxmax`, `idxmin`, `std`, `sum`, `median`, `count`, `any`, `all`, `size`, `nunique`, `head`, `tail`, `aggregate`.
+  - support for `GroupBy` filtrations `first` and `last`.
   - support for `TimedeltaIndex` attributes: `days`, `seconds`, `microseconds` and `nanoseconds`.
   - support for `diff` with timestamp columns on `axis=0` and `axis=1`
 - Added support for index's arithmetic and comparison operators.
