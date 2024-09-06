@@ -4058,6 +4058,7 @@ def test_df_loc_get_with_timedeltaindex_key():
     )
 
 
+@pytest.mark.xfail(reason="SNOW-1653219 None key does not work with timedelta index")
 @sql_count_checker(query_count=2)
 def test_df_loc_get_with_timedelta_and_none_key():
     data = {
