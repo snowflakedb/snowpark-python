@@ -1799,6 +1799,7 @@ def test_series_loc_set_none():
             2,
         ),  # 1 join from squeeze, 1 join from to_pandas during eval
         (["1 day", "3 days"], 1, 1),
+        ([True, False, False], 1, 1),
         (slice(None, "4 days"), 1, 0),
         (slice(None, "4 days", 2), 1, 0),
         (slice("1 day", "2 days"), 1, 0),

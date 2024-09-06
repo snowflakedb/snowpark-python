@@ -3946,6 +3946,7 @@ def test_raise_set_cell_with_list_like_value_error():
             ),
         ),  # 1 join from squeeze, 2 joins from to_pandas during eval
         (["1 day", "3 days"], 1, 1),
+        ([True, False, False], 1, 1),
         (slice(None, "4 days"), 1, 0),
         (slice(None, "4 days", 2), 1, 0),
         (slice("1 day", "2 days"), 1, 0),

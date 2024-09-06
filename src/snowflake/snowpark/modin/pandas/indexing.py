@@ -896,7 +896,11 @@ class _LocIndexer(_LocationIndexerBase):
                     stop = stop.stop
             # partial string indexing only updates start and stop, and should keep using the original step.
             return slice(start, stop, row_loc.step)
-        return pd.to_timedelta(row_loc)
+        elif is_boolean_array(row_loc):
+            # to_timedelta cannot process boolean array.
+            return row_loc
+        else:
+            return pd.to_timedelta(row_loc)
 
     def __getitem__(
         self, key: INDEXING_KEY_TYPE
