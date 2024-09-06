@@ -84,7 +84,7 @@ Methods
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``any``                     | P                               |                                  | ``N`` for non-integer/boolean types                |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``apply``                   | P                               |                                  | ``N`` if ``axis == 0`` or ``func`` is not callable |
+| ``apply``                   | P                               |                                  | ``N`` if ``func`` is not callable |
 |                             |                                 |                                  | or ``result_type`` is given or ``args`` and        |
 |                             |                                 |                                  | ``kwargs`` contain DataFrame or Series             |
 |                             |                                 |                                  | ``N`` if ``func`` maps to different column labels. |

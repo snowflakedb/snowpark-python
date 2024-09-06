@@ -397,8 +397,6 @@ NANOSECONDS_PER_MICROSECOND = 10**3
 MICROSECONDS_PER_SECOND = 10**6
 NANOSECONDS_PER_DAY = SECONDS_PER_DAY * NANOSECONDS_PER_SECOND
 
-TEMP_GROUPBY_COLUMN = "tmp_groupby"
-
 
 class SnowflakeQueryCompiler(BaseQueryCompiler):
     """based on: https://modin.readthedocs.io/en/0.11.0/flow/modin/backends/base/query_compiler.html
@@ -7951,6 +7949,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # Accumulate "is scalar" flags for the column results.
             col_result_scalars = []
 
+            # Loop through each data column of the original df frame
             for (
                 data_column_pandas_label,
                 data_column_snowflake_quoted_identifier,
@@ -7958,6 +7957,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 frame.data_column_pandas_labels,
                 frame.data_column_snowflake_quoted_identifiers,
             ):
+                # Create a frame for the current data column which we will be passed to the apply function below.
+                # Note that we maintain the original index because the apply function may access via the index.
                 data_col_frame = InternalFrame.create(
                     ordered_dataframe=frame.ordered_dataframe,
                     data_column_snowflake_quoted_identifiers=[
@@ -7985,7 +7986,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
                 data_col_result_frame = data_col_qc._modin_frame
 
-                # Set the index name on the result
+                # Set the index names and corresponding data column pandas label on the result.
                 data_col_result_frame = InternalFrame.create(
                     ordered_dataframe=data_col_result_frame.ordered_dataframe,
                     data_column_snowflake_quoted_identifiers=data_col_result_frame.data_column_snowflake_quoted_identifiers,
@@ -7994,7 +7995,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     data_column_types=None,
                     index_column_snowflake_quoted_identifiers=data_col_result_frame.index_column_snowflake_quoted_identifiers,
                     index_column_pandas_labels=data_col_result_frame.index_column_pandas_labels,
-                    index_column_types=None,
+                    index_column_types=data_col_result_frame.cached_index_column_snowpark_pandas_types,
                 )
 
                 data_col_result_index = (
@@ -8073,22 +8074,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         else:
                             # If there's a mix of scalar and pd.Series output from the apply func, pandas stores the
                             # pd.Series output as the value, which we do not currently support.
-                            raise NotImplementedError(
-                                "Nested pd.Series in result is not supported"
+                            ErrorMessage.not_implemented(
+                                "Nested pd.Series in result is not supported in DataFrame.apply(axis=0)"
                             )
                 else:
                     if any(is_scalar for is_scalar in col_result_scalars):
                         # If there's a mix of scalar and pd.Series output from the apply func, pandas stores the
                         # pd.Series output as the value, which we do not currently support.
-                        raise NotImplementedError(
-                            "Nested pd.Series in result is not supported"
+                        ErrorMessage.not_implemented(
+                            "Nested pd.Series in result is not supported in DataFrame.apply(axis=0)"
                         )
 
                     duplicate_index_values = not all(
                         len(i) == len(set(i)) for i in col_result_indexes
                     )
 
-                    # If there are duplicate index valuse then align on the index for matching results with Pandas.
+                    # If there are duplicate index values then align on the index for matching results with Pandas.
                     if duplicate_index_values:
                         curr_frame = col_results[0]._modin_frame
                         for next_qc in col_results[1:]:
@@ -8106,7 +8107,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                             axis=1, other=col_results[1:], sort=not all_same_index
                         )
 
-            # If result should be Series then change te data column label appropriately.
+            # If result should be Series then change the data column label appropriately.
             if result_is_series:
                 qc_result_frame = qc_result._modin_frame
                 qc_result = SnowflakeQueryCompiler(

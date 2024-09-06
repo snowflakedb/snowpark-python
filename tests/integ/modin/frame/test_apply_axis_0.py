@@ -585,7 +585,7 @@ def test_apply_axis0_with_3rd_party_libraries_and_decorator(
     with SqlCounter(
         query_count=expected_query_count,
         high_count_expected=True,
-        high_count_reason="Snowpark package upload requires many queries.",
+        high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
     ):
         try:
             pd.session.custom_package_usage_config["enabled"] = True
