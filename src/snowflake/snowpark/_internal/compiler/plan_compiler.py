@@ -98,7 +98,10 @@ class PlanCompiler:
             # log telemetry data
             session = self._plan.session
             session._conn._telemetry_client.send_complexity_breakdown_post_compilation_stage(
-                session.session_id, before_complexity, after_complexities
+                session.session_id,
+                self._plan.uuid,
+                before_complexity,
+                after_complexities,
             )
             # do a final pass of code generation
             return query_generator.generate_queries(logical_plans)
