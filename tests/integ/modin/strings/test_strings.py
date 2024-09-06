@@ -98,7 +98,7 @@ def test_empty_str_empty_cat():
     assert pd.Series(dtype=object).str.cat() == ""
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=0)
 def test_empty_df_float_raises():
     with pytest.raises(AttributeError):
         pd.Series(dtype="float64").str.cat()

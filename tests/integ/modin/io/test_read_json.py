@@ -322,7 +322,7 @@ def test_read_json_malformed_file_negative():
     "parameter, argument",
     [
         ("orient", "records"),
-        ("typ", "frame"),
+        ("typ", "series"),
         ("dtype", True),
         ("convert_axes", True),
         ("convert_dates", True),
