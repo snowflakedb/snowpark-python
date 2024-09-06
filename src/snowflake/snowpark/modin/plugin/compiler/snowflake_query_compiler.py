@@ -56,6 +56,7 @@ from pandas.api.types import (
     is_re_compilable,
     is_scalar,
     is_string_dtype,
+    is_timedelta64_dtype,
 )
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_dict_like, is_list_like, pandas_dtype
@@ -16533,6 +16534,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 return iff(column.equal_null(floor_column), column, ceil_column)
 
         else:  # timedelta type
+            assert is_timedelta64_dtype(
+                dtype
+            ), "column must be datetime or timedelta"  # pragma: no cover
             nanos = timedelta_freq_to_nanos(freq)
             return_type = TimedeltaType()
 
@@ -16613,7 +16617,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     slice_length *= 24
                     slice_unit = "hour"
                 else:
-                    f"Snowpark pandas 'Series.dt.round' method doesn't support setting 'freq' parameter with '{slice_unit}' unit"
+                    # We already check valid 'freq' above. We should never reach here.
+                    assert slice_unit in ("minute", "hour", "day")
                 return slice_length, slice_unit
 
             if slice_length % 2 == 1:
@@ -16679,6 +16684,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
 
         else:  # timedelta type
+            assert is_timedelta64_dtype(
+                dtype
+            ), "column must be datetime or timedelta"  # pragma: no cover
             nanos = timedelta_freq_to_nanos(freq)
             return_type = TimedeltaType()
 
@@ -16739,6 +16747,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 return builtin("time_slice")(column, slice_length, slice_unit)
 
         else:  # timedelta type
+            assert is_timedelta64_dtype(
+                dtype
+            ), "column must be datetime or timedelta"  # pragma: no cover
             nanos = timedelta_freq_to_nanos(freq)
             return_type = TimedeltaType()
 
