@@ -265,7 +265,7 @@ PANDAS_AGG_FUNC_TO_SNOWPARK_PANDAS_AGG_FUNC: dict[
     Union[str, Callable], SnowparkPandasAggFunc
 ] = {
     "count": SnowparkPandasAggFunc(count, False),
-    "mean": SnowparkPandasAggFunc(mean, True),
+    **{agg_func: SnowparkPandasAggFunc(mean, True) for agg_func in ("mean", np.mean)},  # type: ignore
     **{agg_func: SnowparkPandasAggFunc(min_, True) for agg_func in ("min", np.min)},  # type: ignore
     **{agg_func: SnowparkPandasAggFunc(max_, True) for agg_func in ("max", np.max)},  # type: ignore
     "idxmax": SnowparkPandasAggFunc(

@@ -520,14 +520,17 @@ def single_pivot_helper(
             data_column_snowflake_quoted_identifiers: new data column snowflake quoted identifiers this pivot result
             data_column_pandas_labels: new data column pandas labels for this pivot result
     """
-    snowpark_aggr_func = get_axis_0_snowpark_pandas_agg_func(
+    snowpark_pandas_agg_func = get_axis_0_snowpark_pandas_agg_func(
         pandas_aggr_func_name, {}
-    ).axis_0_snowpark_aggregation
-    if not is_supported_snowflake_pivot_agg_func(snowpark_aggr_func):
+    )
+    if snowpark_pandas_agg_func is None or not is_supported_snowflake_pivot_agg_func(
+        snowpark_pandas_agg_func.axis_0_snowpark_aggregation
+    ):
         # TODO: (SNOW-853334) Add support for any non-supported snowflake pivot aggregations
         raise ErrorMessage.not_implemented(
             f"Snowpark pandas DataFrame.pivot_table does not yet support the aggregation {repr_aggregate_function(original_aggfunc, agg_kwargs={})} with the given arguments."
         )
+    snowpark_aggr_func = snowpark_pandas_agg_func.axis_0_snowpark_aggregation
 
     pandas_aggr_label, aggr_snowflake_quoted_identifier = value_label_to_identifier_pair
 
