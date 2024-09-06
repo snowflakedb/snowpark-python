@@ -3277,14 +3277,6 @@ class Series(BasePandasDataset):
         3    2
         dtype: int64
 
-
-        For `Series` axis parameter is unused and defaults to 0.
-
-        >>> ser.take([0, 3], axis=1)
-        0   -1
-        3    2
-        dtype: int64
-
         We may take elements using negative integers for positive indices,
         starting from the end of the object, just like with Python lists.
 
@@ -3800,7 +3792,6 @@ class Series(BasePandasDataset):
 
         Examples
         --------
-        >>> import snowflake.snowpark.modin.pandas as pd
         >>> import numpy as np
         >>> s = pd.Series([1, 3, 5, 7, 7])
         >>> s

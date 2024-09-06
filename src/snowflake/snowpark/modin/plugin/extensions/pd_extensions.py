@@ -99,7 +99,8 @@ def read_snowflake(
           will have a default index from 0 to n-1, where n is the number of rows in the table,
           and have all columns in the Snowflake table as data columns.
 
-          >>> import snowflake.snowpark.modin.pandas as pd
+          >>> import modin.pandas as pd
+          >>> import snowflake.snowpark.modin.plugin
           >>> pd.read_snowflake(table_name)   # doctest: +NORMALIZE_WHITESPACE
              A  B  C
           0  1  2  3
@@ -171,7 +172,8 @@ def read_snowflake(
         - When ``index_col`` is not specified, a Snowpark pandas DataFrame
           will have a default index from 0 to n-1, where n is the number of rows in the table.
 
-          >>> import snowflake.snowpark.modin.pandas as pd
+          >>> import modin.pandas as pd
+          >>> import snowflake.snowpark.modin.plugin
           >>> pd.read_snowflake(f"SELECT * FROM {table_name}")   # doctest: +NORMALIZE_WHITESPACE
              A  B  C
           0  1  2  3
