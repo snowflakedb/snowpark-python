@@ -191,7 +191,7 @@ class TestFuncReturnsDataFrame:
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
-        join_count=JOIN_COUNT,
+        join_count=3,
     )
     def test_group_by_one_column_and_one_level_with_default_kwargs(
         self, grouping_dfs_with_multiindexes, func
@@ -206,7 +206,7 @@ class TestFuncReturnsDataFrame:
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
-        join_count=JOIN_COUNT,
+        join_count=3,
     )
     def test_df_with_default_index(self, grouping_dfs_with_multiindexes):
         eval_snowpark_pandas_result(
@@ -232,7 +232,7 @@ class TestFuncReturnsDataFrame:
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
-        join_count=JOIN_COUNT,
+        join_count=3,
     )
     def test_args_and_kwargs(self, grouping_dfs_with_multiindexes):
         def func(df, num1, str1):
@@ -258,7 +258,7 @@ class TestFuncReturnsDataFrame:
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
-        join_count=JOIN_COUNT,
+        join_count=3,
     )
     def test_group_by_level(self, grouping_dfs_with_multiindexes, level):
         eval_snowpark_pandas_result(
@@ -281,7 +281,7 @@ class TestFuncReturnsDataFrame:
             # When dropna=False, we can skip the dropna query
             query_count=4,
             udtf_count=UDTF_COUNT,
-            join_count=JOIN_COUNT,
+            join_count=3,
         ):
             snow_result = operation(snow_df)
         pandas_result = operation(pandas_df)
@@ -332,7 +332,7 @@ class TestFuncReturnsDataFrame:
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
-        join_count=JOIN_COUNT,
+        join_count=3,
     )
     @pytest.mark.parametrize(
         "by, expected_output",
@@ -417,7 +417,7 @@ class TestFuncReturnsDataFrame:
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
-        join_count=JOIN_COUNT,
+        join_count=3,
     )
     @pytest.mark.parametrize("by", ["level_0", ("a", "string_col_1")])
     @pytest.mark.parametrize(
@@ -444,7 +444,7 @@ class TestFuncReturnsDataFrame:
         # transform because we only reindex to the original ordering if
         query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
-        join_count=JOIN_COUNT,
+        join_count=3,
     )
     def test_group_keys_false(self, grouping_dfs_with_multiindexes, as_index):
         eval_snowpark_pandas_result(
@@ -598,7 +598,7 @@ class TestFuncReturnsDataFrame:
     @sql_count_checker(
         # we need a transform check because group_keys=False.
         query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
-        join_count=JOIN_COUNT,
+        join_count=3,
         udtf_count=UDTF_COUNT,
     )
     def test_apply_transfform_to_subset(
@@ -800,7 +800,7 @@ class TestFuncReturnsScalar:
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
-        join_count=JOIN_COUNT,
+        join_count=3,
     )
     def test_multiindex_df(self, grouping_dfs_with_multiindexes, by, sort, as_index):
         eval_snowpark_pandas_result(
@@ -836,7 +836,7 @@ class TestFuncReturnsScalar:
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
-        join_count=JOIN_COUNT,
+        join_count=3,
     )
     def test_non_series_or_dataframe_return_types(
         self, return_value, grouping_dfs_with_multiindexes
@@ -918,7 +918,7 @@ class TestFuncReturnsSeries:
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
-        join_count=JOIN_COUNT,
+        join_count=3,
     )
     def test_return_series_with_two_columns(
         self, grouping_dfs_with_multiindexes, by, level, as_index, sort, group_keys
@@ -943,7 +943,7 @@ class TestFuncReturnsSeries:
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
-        join_count=JOIN_COUNT,
+        join_count=3,
     )
     def test_args_and_kwargs(self, grouping_dfs_with_multiindexes):
         eval_snowpark_pandas_result(

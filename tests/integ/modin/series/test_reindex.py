@@ -259,7 +259,7 @@ def test_reindex_index_fill_method_with_old_na_values_pandas_negative(limit, met
     )
 
 
-@sql_count_checker(query_count=1, join_count=3)
+@sql_count_checker(query_count=1, join_count=2)
 @pytest.mark.parametrize("limit", [None, 1, 2, 100])
 @pytest.mark.parametrize("method", ["bfill", "backfill", "pad", "ffill"])
 def test_reindex_index_datetime_with_fill(limit, method):
@@ -300,7 +300,7 @@ def test_reindex_index_non_overlapping_index():
     )
 
 
-@sql_count_checker(query_count=1, join_count=3)
+@sql_count_checker(query_count=1, join_count=2)
 def test_reindex_index_non_overlapping_datetime_index():
     # TODO: SNOW-1638397 See if it's possible to use data={"prices": [100, 101, np.nan, 100, 89, 88]} instead.
     date_index = native_pd.date_range("1/1/2010", periods=6, freq="D")

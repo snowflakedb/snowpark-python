@@ -277,16 +277,16 @@ def test_insert_loc_negative(native_df, loc, expected_query_count):
 @pytest.mark.parametrize(
     "value, expected_query_count, expected_join_count",
     [
-        (np.array(["a", "b", "c", "d"]), 2, 1),  # numpy array of shape (N,)
-        (np.array([["a"], ["b"], ["c"], ["d"]]), 2, 1),  # numpy array of shape (N, 1)
-        (["a", "b", "c", "d"], 2, 1),  # python list
-        (("a", "b", "c", "d"), 2, 1),  # python tuple
-        ({(3, 1): 1}, 1, 1),  # python dict
-        ("abc", 1, 0),  # sting scalar
-        (1, 1, 0),  # int scalar
+        (np.array(["a", "b", "c", "d"]), 2, 5),  # numpy array of shape (N,)
+        (np.array([["a"], ["b"], ["c"], ["d"]]), 2, 5),  # numpy array of shape (N, 1)
+        (["a", "b", "c", "d"], 2, 5),  # python list
+        (("a", "b", "c", "d"), 2, 5),  # python tuple
+        ({(3, 1): 1}, 1, 3),  # python dict
+        ("abc", 1, 2),  # sting scalar
+        (1, 1, 2),  # int scalar
     ],
 )
-def test_insert_multiindex_array_like_and_scaler(
+def test_insert_multiindex_array_like_and_scalar(
     value, expected_query_count, expected_join_count
 ):
     arrays = [[3, 4, 5, 6], [1, 2, 1, 2]]
@@ -310,7 +310,7 @@ def test_insert_multiindex_array_like_and_scaler(
         ("a", "b", "c", "d"),  # python tuple
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=2, join_count=5)
 def test_insert_empty_multiindex_frame(value):
     mi = pd.MultiIndex.from_arrays([np.array([], dtype=int), np.array([], dtype=int)])
     snow_df = pd.DataFrame([], index=mi)

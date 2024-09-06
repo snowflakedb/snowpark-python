@@ -168,7 +168,7 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
 
         # The logic followed here is:
         # 1. Create a query_compiler from the provided data. If columns are provided, add/select the columns.
-        # 2. If an index is provided, set the index through reindex.
+        # 2. If an index is provided, set the index through set_index or reindex.
         # 3. If the data is a DataFrame, perform loc to select the required index and columns from the DataFrame.
         # 4. The resultant query_compiler is then set as the query_compiler for the DataFrame.
 

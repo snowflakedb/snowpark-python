@@ -4,6 +4,7 @@
 import re
 
 import modin.pandas as pd
+import numpy as np
 import pandas as native_pd
 import pytest
 
@@ -491,3 +492,16 @@ def test_create_df_with_dict_as_data_and_index_as_index():
     native_df = native_pd.DataFrame(data, index=native_index)
     snow_df = pd.DataFrame(data, index=snow_index)
     assert_frame_equal(snow_df, native_df)
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_create_series_with_list_of_lists_index():
+    # When given a list of lists as the index, this index needs to be converted to a MultiIndex before processing.
+    arrays = [
+        np.array(["qux", "qux", "foo", "foo", "baz", "baz", "bar", "bar"]),
+        np.array(["two", "one", "two", "one", "two", "one", "two", "one"]),
+    ]
+    data = [1, 2, 3, 4, 5, 6, 7, 8]
+    native_series = native_pd.Series(data, index=arrays)
+    snow_series = pd.Series(data, index=arrays)
+    assert_series_equal(snow_series, native_series)

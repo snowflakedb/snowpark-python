@@ -39,7 +39,7 @@ def test_dataframe_groupby_transform(
     #   temporary function's resultant table.
     # - A second join is performed only when the groupby object specifies dropna=True.
     #   This is because a loc set operation is being performed to correctly set NA values.
-    with SqlCounter(query_count=6, join_count=1 + (1 if dropna else 0), udtf_count=1):
+    with SqlCounter(query_count=6, join_count=2 + (2 if dropna else 0), udtf_count=1):
         eval_snowpark_pandas_result(
             *df_with_multiple_columns,
             lambda df: df.groupby(
@@ -85,11 +85,11 @@ def test_dataframe_groupby_transform_with_func_args_and_kwargs(
     Test DataFrameGroupby.transform with functions that require *args and **kwargs.
     """
     # - A UDTF is created to run `groupby.transform(func)` on every group via `apply`.
-    # - One join always occurs when joining the original DataFrame's table with the
+    # - Two joins always occurs when joining the original DataFrame's table with the
     #   temporary function's resultant table.
-    # - A second join is performed only when the groupby object specifies dropna=True.
+    # - Another two joins are performed only when the groupby object specifies dropna=True.
     #   This is because a loc set operation is being performed to correctly set NA values.
-    with SqlCounter(query_count=6, join_count=1 + (1 if dropna else 0), udtf_count=1):
+    with SqlCounter(query_count=6, join_count=2 + (2 if dropna else 0), udtf_count=1):
         eval_snowpark_pandas_result(
             *df_with_multiple_columns,
             lambda df: df.groupby(
