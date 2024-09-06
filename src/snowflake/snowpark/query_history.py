@@ -12,11 +12,7 @@ class QueryRecord(NamedTuple):
 
     query_id: str
     sql_text: str
-
-
-class DescribeRecord(QueryRecord):
-    """Contains the query information returns from the Snowflake database after the describe query is run."""
-    pass
+    is_describe: bool = False
 
 
 class QueryHistory:

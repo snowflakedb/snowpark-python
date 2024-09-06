@@ -59,7 +59,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.query_history import DescribeRecord, QueryHistory, QueryRecord
+from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
 
 if TYPE_CHECKING:
@@ -252,7 +252,7 @@ class ServerConnection:
 
         describe_listeners = [listener for listener in self._query_listener if hasattr(listener, 'describe_listener')]
         for listener in describe_listeners:
-            listener._add_query(DescribeRecord(cursor.sfqid, query))
+            listener._add_query(QueryRecord(cursor.sfqid, query, True))
 
         return result_metadata
 
