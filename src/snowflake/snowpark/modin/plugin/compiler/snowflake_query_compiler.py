@@ -148,11 +148,10 @@ from snowflake.snowpark.modin.plugin._internal import (
 )
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     AGG_NAME_COL_LABEL,
-    GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE,
-    GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES,
     AggFuncInfo,
     AggFuncWithLabel,
     AggregateColumnOpParameters,
+    SnowparkPandasAggFunc,
     _columns_coalescing_idxmax_idxmin_helper,
     aggregate_with_ordered_dataframe,
     check_is_aggregation_supported_in_snowflake,
@@ -162,8 +161,8 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     generate_column_agg_info,
     generate_rowwise_aggregation_function,
     get_agg_func_to_col_map,
+    get_axis_0_snowpark_pandas_agg_func,
     get_pandas_aggr_func_name,
-    get_snowflake_agg_func,
     repr_aggregate_function,
     using_named_aggregations_for_func,
 )
@@ -3551,15 +3550,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_col_ops, new_data_column_index_names = generate_column_agg_info(
             internal_frame, column_to_agg_func, agg_kwargs, is_series_groupby
         )
-        # Get the column aggregation functions used to check if the function
-        # preserves Snowpark pandas types.
-        agg_col_funcs = []
-        for _, func in column_to_agg_func.items():
-            if is_list_like(func) and not is_named_tuple(func):
-                for fn in func:
-                    agg_col_funcs.append(fn.func)
-            else:
-                agg_col_funcs.append(func.func)
         # the pandas label and quoted identifier generated for each result column
         # after aggregation will be used as new pandas label and quoted identifiers.
         new_data_column_pandas_labels = []
@@ -3567,26 +3557,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         new_data_column_snowpark_pandas_types = []
         for i in range(len(agg_col_ops)):
             col_agg_op = agg_col_ops[i]
-            col_agg_func = agg_col_funcs[i]
             new_data_column_pandas_labels.append(col_agg_op.agg_pandas_label)
             new_data_column_quoted_identifiers.append(
                 col_agg_op.agg_snowflake_quoted_identifier
             )
-            if col_agg_func in GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE:
-                new_data_column_snowpark_pandas_types.append(
-                    col_agg_op.data_type
-                    if isinstance(col_agg_op.data_type, SnowparkPandasType)
-                    else None
-                )
-            elif col_agg_func in GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES:
-                # In the case where the aggregation overrides the type of the output data column
-                # (e.g. any always returns boolean data columns), set the output Snowpark pandas type
-                # of the given column to None
-                new_data_column_snowpark_pandas_types.append(None)  # type: ignore
-            else:
-                self._raise_not_implemented_error_for_timedelta()
-                new_data_column_snowpark_pandas_types = None  # type: ignore
-
+            new_data_column_snowpark_pandas_types.append(
+                col_agg_op.data_type
+                if isinstance(col_agg_op.data_type, SnowparkPandasType)
+                and col_agg_op.snowpark_pandas_agg_func.preserves_snowpark_pandas_type
+                else None
+            )
         # The ordering of the named aggregations is changed by us when we process
         # the agg_kwargs into the func dict (named aggregations on the same
         # column are moved to be contiguous, see groupby.py::aggregate for an
@@ -3639,7 +3619,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ),
                 agg_pandas_label=None,
                 agg_snowflake_quoted_identifier=row_position_quoted_identifier,
-                snowflake_agg_func=min_,
+                snowpark_pandas_agg_func=SnowparkPandasAggFunc(
+                    axis_0_snowpark_aggregation=min_,
+                    preserves_snowpark_pandas_type=True,
+                ),
                 ordering_columns=internal_frame.ordering_columns,
             )
             agg_col_ops.append(row_position_agg_column_op)
@@ -5633,8 +5616,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             args: the arguments passed for the aggregation
             kwargs: keyword arguments passed for the aggregation function.
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         numeric_only = kwargs.get("numeric_only", False)
         # Call fallback if the aggregation function passed in the arg is currently not supported
         # by snowflake engine.
@@ -5680,6 +5661,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             not is_list_like(value) for value in func.values()
         )
         if axis == 1:
+            if any(
+                isinstance(t, TimedeltaType)
+                for t in internal_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.values()
+            ):
+                ErrorMessage.not_implemented_for_timedelta("agg(axis=1)")
             if self.is_multiindex():
                 # TODO SNOW-1010307 fix axis=1 behavior with MultiIndex
                 ErrorMessage.not_implemented(
@@ -5859,7 +5845,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     index_column_snowflake_quoted_identifiers=[
                         agg_name_col_quoted_identifier
                     ],
-                    data_column_types=None,
+                    data_column_types=[
+                        col.data_type
+                        if isinstance(col.data_type, SnowparkPandasType)
+                        and col.snowpark_pandas_agg_func.preserves_snowpark_pandas_type
+                        else None
+                        for col in col_agg_infos
+                    ],
                     index_column_types=None,
                 )
                 return SnowflakeQueryCompiler(single_agg_dataframe)
@@ -6046,6 +6038,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 axis=0, other=single_agg_func_query_compilers[1:]
             )
         if axis == 0 and (should_squeeze or is_scalar(func)):
+            all_types = set(
+                result._modin_frame.cached_data_column_snowpark_pandas_types
+            )
+            if len(all_types) > 1:
+                ErrorMessage.not_implemented(
+                    f"No support for aggregation producing the types ({list(result.dtypes)}). Try doing each aggregation separately."
+                )
             # In this branch, the concatenated frame is a 1-row frame, but needs to be converted
             # into a 1-column frame so the frontend can wrap it as a Series
             result = result.transpose_single_row()
@@ -8906,8 +8905,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler
                 Transposed new QueryCompiler object.
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         frame = self._modin_frame
 
         # Handle case where the dataframe has empty columns.
@@ -12290,8 +12287,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         column would allow us to create an accurate row position column, but would require a
         potentially expensive JOIN operator afterwards to apply the correct index labels.
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         assert len(self._modin_frame.data_column_pandas_labels) == 1
 
         if index is not None:
@@ -12356,7 +12351,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ],
             index_column_pandas_labels=[None],
             index_column_snowflake_quoted_identifiers=[index_identifier],
-            data_column_types=None,
+            data_column_types=original_frame.cached_data_column_snowpark_pandas_types,
             index_column_types=None,
         )
         # We cannot call astype() directly to convert an index column, so we replicate
@@ -13400,13 +13395,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         if agg_func == "count"
                         else count(col(quoted_identifier)).over(window_expr)
                         >= min_periods,
-                        get_snowflake_agg_func(agg_func, agg_kwargs)(
+                        get_axis_0_snowpark_pandas_agg_func(agg_func, agg_kwargs)
+                        .axis_0_snowpark_aggregation(
                             # Expanding is cumulative so replace NULL with 0 for sum aggregation
                             builtin("zeroifnull")(col(quoted_identifier))
                             if window_func == WindowFunction.EXPANDING
                             and agg_func == "sum"
                             else col(quoted_identifier)
-                        ).over(window_expr),
+                        )
+                        .over(window_expr),
                         pandas_lit(None),
                     )
                     for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
@@ -14357,8 +14354,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         return self._idxmax_idxmin(
             func="idxmax", axis=axis, skipna=skipna, numeric_only=numeric_only
         )
@@ -14383,8 +14378,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         return self._idxmax_idxmin(
             func="idxmin", axis=axis, skipna=skipna, numeric_only=numeric_only
         )

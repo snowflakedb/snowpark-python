@@ -81,6 +81,7 @@
   - support for `GroupBy` filtrations `first` and `last`.
   - support for `TimedeltaIndex` attributes: `days`, `seconds`, `microseconds` and `nanoseconds`.
   - support for `diff` with timestamp columns on `axis=0` and `axis=1`
+  - support for `DataFrame` and `Series` aggregations `min`, ``max`, `mean`, `idxmax`, `std`, `sum`, `median`, `count`, `any`, `all`, `size`, `nunique`,`first_valid_index`, `last_valid_index`, and some cases of `agg` and `aggregate`.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.

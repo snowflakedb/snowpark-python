@@ -23,8 +23,8 @@ from snowflake.snowpark.functions import (
     sum as sum_,
 )
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
+    get_axis_0_snowpark_pandas_agg_func,
     get_pandas_aggr_func_name,
-    get_snowflake_agg_func,
     repr_aggregate_function,
 )
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
@@ -520,7 +520,9 @@ def single_pivot_helper(
             data_column_snowflake_quoted_identifiers: new data column snowflake quoted identifiers this pivot result
             data_column_pandas_labels: new data column pandas labels for this pivot result
     """
-    snowpark_aggr_func = get_snowflake_agg_func(pandas_aggr_func_name, {})
+    snowpark_aggr_func = get_axis_0_snowpark_pandas_agg_func(
+        pandas_aggr_func_name, {}
+    ).axis_0_snowpark_aggregation
     if not is_supported_snowflake_pivot_agg_func(snowpark_aggr_func):
         # TODO: (SNOW-853334) Add support for any non-supported snowflake pivot aggregations
         raise ErrorMessage.not_implemented(
@@ -1231,7 +1233,9 @@ def get_margin_aggregation(
     Returns:
         Snowpark column expression for the aggregation function result.
     """
-    resolved_aggfunc = get_snowflake_agg_func(aggfunc, {})
+    resolved_aggfunc = get_axis_0_snowpark_pandas_agg_func(
+        aggfunc, {}
+    ).axis_0_snowpark_aggregation
 
     # This would have been resolved during the original pivot at an early stage.
     assert resolved_aggfunc is not None, "resolved_aggfunc is None"
