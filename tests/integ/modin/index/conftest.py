@@ -79,4 +79,5 @@ NATIVE_INDEX_SCALAR_TEST_DATA = [
         tz="America/Los_Angeles",
     ),
     native_pd.DatetimeIndex([1262347200000000000, 1262347400000000000]),
+    native_pd.TimedeltaIndex(["4 days", None, "-1 days", "5 days"]),
 ]

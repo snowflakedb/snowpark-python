@@ -1096,60 +1096,71 @@ def test_valid_func_valid_kwarg_should_work(basic_snowpark_pandas_df):
     )
 
 
-@pytest.mark.parametrize(
-    "agg_func",
-    [
-        "count",
-        "sum",
-        "mean",
-        "median",
-        "std",
-    ],
-)
-@pytest.mark.parametrize("by", ["A", "B"])
-@sql_count_checker(query_count=1)
-def test_timedelta(agg_func, by):
-    native_df = native_pd.DataFrame(
-        {
-            "A": native_pd.to_timedelta(
-                ["1 days 06:05:01.00003", "16us", "nan", "16us"]
-            ),
-            "B": [8, 8, 12, 10],
-        }
+class TestTimedelta:
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "method",
+        [
+            "count",
+            "mean",
+            "min",
+            "max",
+            "idxmax",
+            "idxmin",
+            "sum",
+            "median",
+            "std",
+            "nunique",
+        ],
     )
-    snow_df = pd.DataFrame(native_df)
-
-    eval_snowpark_pandas_result(
-        snow_df, native_df, lambda df: getattr(df.groupby(by), agg_func)()
-    )
-
-
-def test_timedelta_groupby_agg():
-    native_df = native_pd.DataFrame(
-        {
-            "A": native_pd.to_timedelta(
-                ["1 days 06:05:01.00003", "16us", "nan", "16us"]
-            ),
-            "B": [8, 8, 12, 10],
-            "C": [True, False, False, True],
-        }
-    )
-    snow_df = pd.DataFrame(native_df)
-    with SqlCounter(query_count=1):
+    @pytest.mark.parametrize("by", ["A", "B"])
+    def test_aggregation_methods(self, method, by):
         eval_snowpark_pandas_result(
-            snow_df,
-            native_df,
+            *create_test_dfs(
+                {
+                    "A": native_pd.to_timedelta(
+                        ["1 days 06:05:01.00003", "16us", "nan", "16us"]
+                    ),
+                    "B": [8, 8, 12, 10],
+                    "C": [True, False, False, True],
+                }
+            ),
+            lambda df: getattr(df.groupby(by), method)(),
+        )
+
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "operation",
+        [
             lambda df: df.groupby("A").agg({"B": ["sum", "median"], "C": "min"}),
-        )
-    with SqlCounter(query_count=1):
-        eval_snowpark_pandas_result(
-            snow_df,
-            native_df,
             lambda df: df.groupby("B").agg({"A": ["sum", "median"], "C": "min"}),
-        )
-    with SqlCounter(query_count=1):
-        eval_snowpark_pandas_result(
-            snow_df,
-            native_df,
             lambda df: df.groupby("B").agg({"A": ["sum", "count"], "C": "median"}),
+            lambda df: df.groupby("B").agg(["mean", "std"]),
+            lambda df: df.groupby("B").agg({"A": ["count", np.sum]}),
+            lambda df: df.groupby("B").agg({"A": "sum"}),
+        ],
+    )
+    def test_agg(self, operation):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(
+                native_pd.DataFrame(
+                    {
+                        "A": native_pd.to_timedelta(
+                            ["1 days 06:05:01.00003", "16us", "nan", "16us"]
+                        ),
+                        "B": [8, 8, 12, 10],
+                        "C": [True, False, False, True],
+                    }
+                )
+            ),
+            operation,
+        )
+
+    @sql_count_checker(query_count=0)
+    def test_var_is_invalid(self):
+        eval_snowpark_pandas_result(
+            *create_test_dfs([[pd.Timedelta(1), pd.Timedelta(2)]]),
+            lambda df: df.groupby(0).var(),
+            expect_exception=True,
+            expect_exception_type=TypeError,
         )
