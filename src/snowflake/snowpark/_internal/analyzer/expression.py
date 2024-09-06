@@ -30,7 +30,7 @@ COLUMN_DEPENDENCY_DOLLAR = frozenset(
 )  # depend on any columns with expression `$n`. We don't flatten when seeing a $
 COLUMN_DEPENDENCY_ALL = None  # depend on all columns including subquery's and same level columns when we can't infer the dependent columns
 COLUMN_DEPENDENCY_EMPTY: AbstractSet[str] = frozenset()  # depend on no columns.
-
+COLUMN_DEPENDENCY_ALL_STAR = '*'
 
 def derive_dependent_columns(
     *expressions: "Optional[Expression]",
@@ -45,6 +45,17 @@ def derive_dependent_columns(
                 return COLUMN_DEPENDENCY_ALL
             assert child_dependency is not None
             result.update(child_dependency)
+    return result
+
+
+def derive_dependent_columns_with_duplication(*expressions: "Optional[Expression]") -> list[str]:
+    result = []
+    for exp in expressions:
+        if exp is not None:
+            child_dependency = exp.dependent_column_names_with_duplication()
+            assert child_dependency is not None
+            result.extend(child_dependency)
+
     return result
 
 
@@ -67,6 +78,9 @@ class Expression:
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         # TODO: consider adding it to __init__ or use cached_property.
         return COLUMN_DEPENDENCY_EMPTY
+
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return []
 
     @property
     def pretty_name(self) -> str:
@@ -143,6 +157,9 @@ class ScalarSubquery(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return COLUMN_DEPENDENCY_DOLLAR
 
+    def dependent_column_names_with_duplication(self) -> Optional[list[str]]:
+        return list(COLUMN_DEPENDENCY_DOLLAR)
+
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.plan.cumulative_node_complexity
@@ -155,6 +172,9 @@ class MultipleExpression(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.expressions)
+
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(*self.expressions)
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -171,6 +191,9 @@ class InExpression(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.columns, *self.values)
+
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.columns, *self.values)
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -212,6 +235,9 @@ class Attribute(Expression, NamedExpression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return {self.name}
 
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return [self.name]
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.COLUMN
@@ -233,6 +259,16 @@ class Star(Expression):
             derive_dependent_columns(*self.expressions)
             if self.expressions
             else COLUMN_DEPENDENCY_ALL
+        )
+
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        # When the column is `df['*']`, `expressions` contains Attributes from all columns
+        # When the column is `col('*')` or just '*' string, `expressions` is empty,
+        # but its dependent columns should be all columns too
+        return (
+            derive_dependent_columns_with_duplication(*self.expressions)
+            if self.expressions
+            else [COLUMN_DEPENDENCY_ALL_STAR]
         )
 
     @property
@@ -277,6 +313,12 @@ class UnresolvedAttribute(Expression, NamedExpression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return self._dependent_column_names
+
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        if self._dependent_column_names == COLUMN_DEPENDENCY_ALL:
+            return [COLUMN_DEPENDENCY_ALL_STAR]
+        else:
+            return list(self._dependent_column_names)
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -371,6 +413,9 @@ class Like(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, self.pattern)
 
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.expr, self.pattern)
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         # expr LIKE pattern
@@ -400,6 +445,9 @@ class RegExp(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, self.pattern)
 
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.expr, self.pattern)
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         # expr REG_EXP pattern
@@ -423,6 +471,9 @@ class Collate(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr)
 
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.expr)
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         # expr COLLATE collate_spec
@@ -443,6 +494,9 @@ class SubfieldString(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr)
+
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.expr)
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -465,6 +519,9 @@ class SubfieldInt(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr)
+
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.expr)
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -510,6 +567,9 @@ class FunctionExpression(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.children)
 
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(*self.children)
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.FUNCTION
@@ -524,6 +584,9 @@ class WithinGroup(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, *self.order_by_cols)
+
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.expr, *self.order_by_cols)
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -556,6 +619,14 @@ class CaseWhen(Expression):
         if self.else_value is not None:
             exps.append(self.else_value)
         return derive_dependent_columns(*exps)
+
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        exps = []
+        for exp_tuple in self.branches:
+            exps.extend(exp_tuple)
+        if self.else_value is not None:
+            exps.append(self.else_value)
+        return derive_dependent_columns_with_duplication(*exps)
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -602,6 +673,9 @@ class SnowflakeUDF(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.children)
 
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(*self.children)
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.FUNCTION
@@ -616,6 +690,9 @@ class ListAgg(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.col)
+
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.col)
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -635,6 +712,9 @@ class ColumnSum(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.exprs)
+
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(*self.exprs)
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
