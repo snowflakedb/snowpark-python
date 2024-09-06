@@ -80,10 +80,9 @@ def test_timedelta_series_dtypes():
     )
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError)
-def test_timedelta_precision_insufficient_with_nulls_SNOW_1628925():
+@sql_count_checker(query_count=1)
+def test_timedelta_precision_insufficient_with_nulls():
     # Storing this timedelta requires more than 15 digits of precision
-    # TODO(SNOW-1628925): Fix this bug.
     timedelta = pd.Timedelta(days=105, nanoseconds=1)
     eval_snowpark_pandas_result(
         pd, native_pd, lambda lib: lib.Series([None, timedelta])
