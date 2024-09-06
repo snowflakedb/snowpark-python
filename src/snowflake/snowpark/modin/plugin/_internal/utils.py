@@ -34,7 +34,9 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     col,
     count,
+    equal_nan,
     floor,
+    iff,
     max as max_,
     mean,
     min as min_,
@@ -1316,14 +1318,19 @@ def snowpark_to_pandas_helper(
             if snowpark_pandas_type is not None:
                 if snowpark_pandas_type == TimedeltaType():
                     timedelta_to_str_col = col(col_id)
-                    # Timedelta's underneath Snowflake type may not always be int after other operations, so explicitly
-                    # floor them to integer first before converting to string
                     if isinstance(column_type_map[col_id], _FractionalType):
-                        timedelta_to_str_col = floor(timedelta_to_str_col).cast(
-                            LongType()
+                        # Timedelta's underneath Snowflake type may not always be int after other operations, so
+                        # explicitly floor them to integer first before converting to string. Note if it is float nan,
+                        # we have to keep it as is, otherwise it will raise exception when casting to integer.
+                        astype_mapping[col_id] = iff(
+                            equal_nan(col(col_id)),
+                            col(col_id),
+                            floor(timedelta_to_str_col)
+                            .cast(LongType())
+                            .cast(StringType()),
                         )
-                    timedelta_to_str_col = timedelta_to_str_col.cast(StringType())
-                    astype_mapping[col_id] = timedelta_to_str_col
+                    else:
+                        astype_mapping[col_id] = col(col_id).cast(StringType())
         if astype_mapping:
             (
                 frame,
