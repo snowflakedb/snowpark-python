@@ -163,6 +163,7 @@ def test_lineage_trace(session):
     session.sql(
         f"CREATE OR REPLACE VIEW {db}.{schema}.V6 AS SELECT * FROM {db}.{schema}.V5"
     ).collect()
+    session.sql(f"GRANT USAGE ON view {db}.{schema}.V6 TO ROLE {test_role}").collect()
 
     df = session.lineage.trace(
         f"{db}.{schema}.V6", "view", direction=LineageDirection.UPSTREAM
