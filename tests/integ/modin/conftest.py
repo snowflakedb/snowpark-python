@@ -95,8 +95,6 @@ def check_sql_counter_invoked(request):
         INTEG_PANDAS_SUBPATH in request.node.location[0] and running_on_public_ci()
     )
 
-    # DO NOT MERGE
-    do_check = True
     if do_check:
         clear_sql_counter_called()
 
