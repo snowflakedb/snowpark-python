@@ -14,7 +14,7 @@ import pytest
 from decorator import decorator
 from pandas._typing import Scalar
 
-from snowflake.snowpark.query_history import DescribeRecord, QueryRecord
+from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.session import Session
 from tests.utils import IS_IN_STORED_PROC
 
@@ -124,7 +124,6 @@ class SqlCounter:
         from tests.integ.modin.conftest import SKIP_SQL_COUNT_CHECK
 
         self._queries: list[QueryRecord] = []
-        self._describes: list[DescribeRecord] = []
 
         # Bypassing sql counter since
         #   1. it is an unnecessary metric for tests running in stored procedures
@@ -168,7 +167,6 @@ class SqlCounter:
     def clear(self):
         """Reset the SqlCounter to start counting from 0."""
         self._queries = []
-        self._describes = []
 
     def __enter__(self):
         """Context manager enter by resetting counts."""
@@ -187,10 +185,7 @@ class SqlCounter:
         self._mark_as_dead()
 
     def _add_query(self, query_record: QueryRecord):
-        if isinstance(query_record, DescribeRecord):
-            self._describes.append(query_record)
-        else:
-            self._queries.append(query_record)
+        self._queries.append(query_record)
 
     # This attribute signals we also want to collect describe queries.
     def describe_listener(self):
@@ -279,7 +274,8 @@ class SqlCounter:
                         for fw in FILTER_OUT_QUERIES
                     ]
                 ),
-                list(map(lambda q: q.sql_text, self._queries)),
+                list(map(lambda q: q.sql_text,
+                         [q for q in self._queries if not q.is_describe])),
             )
         )
 
@@ -340,8 +336,8 @@ class SqlCounter:
     def actual_union_count(self):
         return self._count_instances_by_query_substr(contains=[UNION])
 
-    def get_actual_describe_count(self):
-        return len(self._describes)
+    def actual_describe_count(self):
+        return len([q for q in self._queries if q.is_describe])
 
     def get_actual_counts(self):
         """Retrieve all actual counts so far."""

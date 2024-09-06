@@ -77,7 +77,7 @@ def sql_counter():
 # extending the sql counts in the future.
 #
 # The following line must be commented when merged into main.
-# @pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def auto_annotate_sql_counter(request):
     counter = SqlCounter()
 

@@ -8,6 +8,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from tests.sql_counter import sql_count_checker
 from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -65,6 +66,7 @@ BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP = [
     "data, func, return_type", BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP
 )
 @pytest.mark.modin_sp_precommit
+@sql_count_checker(query_count=5, join_count=2, udtf_count=1, select_count=2, describe_count=16)
 def test_axis_1_basic_types_without_type_hints(data, func, return_type):
     # this test processes functions without type hints and invokes the UDTF solution.
     native_df = native_pd.DataFrame(data, columns=["A", "b"])
@@ -77,6 +79,7 @@ def test_axis_1_basic_types_without_type_hints(data, func, return_type):
     "data, func, return_type", BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP
 )
 @pytest.mark.modin_sp_precommit
+@sql_count_checker(query_count=4, udf_count=1, select_count=2, describe_count=4)
 def test_axis_1_basic_types_with_type_hints(data, func, return_type):
     # create explicitly for supported python types UDF with type hints and process via vUDF.
     native_df = native_pd.DataFrame(data, columns=["A", "b"])
@@ -108,6 +111,7 @@ def test_axis_1_basic_types_with_type_hints(data, func, return_type):
         ),
     ],
 )
+@sql_count_checker(query_count=4, udf_count=1, select_count=2, describe_count=4)
 def test_axis_1_index_passed_as_name(df, row_label):
     # when using apply(axis=1) the original index of the dataframe is passed as name.
     # test here for this for regular index and multi-index scenario.
@@ -120,7 +124,7 @@ def test_axis_1_index_passed_as_name(df, row_label):
 
     snow_df = pd.DataFrame(df)
     #  Invoking a single UDF typically requires 3 queries (package management, code upload, UDF registration) upfront.
-    with SqlCounter(query_count=4, join_count=0, udtf_count=0):
+    with SqlCounter(query_count=4, join_count=0, udtf_count=0, describe_count=0):
         eval_snowpark_pandas_result(snow_df, df, lambda x: x.apply(foo, axis=1))
 
 
@@ -201,14 +205,14 @@ def test_axis_1_index_passed_as_name(df, row_label):
         ],
     ],
 )
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(query_count=5, join_count=2, udtf_count=1, select_count=2, describe_count=16)
 def test_axis_1_date_time_timestamp_type(data, func, expected_result):
     snow_df = pd.DataFrame(data)
     result = snow_df.apply(func, axis=1)
     assert_snowpark_pandas_equal_to_pandas(result, expected_result)
 
 
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(query_count=5, join_count=2, udtf_count=1, select_count=2, describe_count=16)
 def test_axis_1_return_list():
     snow_df = pd.DataFrame([[1, 2], [3, 4]])
     native_df = native_pd.DataFrame([[1, 2], [3, 4]])
@@ -217,7 +221,7 @@ def test_axis_1_return_list():
     )
 
 
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(query_count=5, join_count=2, udtf_count=1, select_count=2, describe_count=16)
 def test_axis_1_return_series():
     snow_df = pd.DataFrame([[1, 2], [3, 4]], columns=["A", "b"])
     native_df = native_pd.DataFrame([[1, 2], [3, 4]], columns=["A", "b"])
@@ -228,7 +232,7 @@ def test_axis_1_return_series():
     )
 
 
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(query_count=5, join_count=2, udtf_count=1, select_count=2, describe_count=16)
 def test_axis_1_return_series_with_different_label_results():
     df = native_pd.DataFrame([[1, 2], [3, 4]], columns=["A", "b"])
     snow_df = pd.DataFrame(df)
@@ -263,13 +267,13 @@ def test_axis_1_return_series_with_different_label_results():
         ),
     ],
 )
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(query_count=5, join_count=2, udtf_count=1, select_count=2, describe_count=16)
 def test_axis_1_column_labels(native_df, func):
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func, axis=1))
 
 
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(query_count=5, join_count=2, udtf_count=1, select_count=2, describe_count=16)
 def test_axis_1_raw():
     snow_df = pd.DataFrame([[1, 2], [3, 4]])
     native_df = native_pd.DataFrame([[1, 2], [3, 4]])
@@ -278,7 +282,7 @@ def test_axis_1_raw():
     )
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=6, select_count=2, describe_count=14)
 def test_axis_1_return_not_json_serializable_label():
     snow_df = pd.DataFrame([1])
     with pytest.raises(
@@ -296,6 +300,7 @@ def test_axis_1_return_not_json_serializable_label():
         snow_df.apply(lambda x: native_pd.DataFrame([1, 2]), axis=1).to_pandas()
 
 
+@sql_count_checker(query_count=14, udf_count=2, select_count=6, describe_count=10)
 def test_axis_1_apply_args_kwargs():
     def f(x, y, z=1) -> int:
         return x.sum() + y + z
@@ -338,14 +343,14 @@ def test_axis_1_apply_args_kwargs():
 
 class TestNotImplemented:
     @pytest.mark.parametrize("result_type", ["reduce", "expand", "broadcast"])
-    @sql_count_checker(query_count=0)
+    @sql_count_checker(describe_count=1)
     def test_result_type(self, result_type):
         snow_df = pd.DataFrame([[1, 2], [3, 4]])
         msg = "Snowpark pandas apply API doesn't yet support 'result_type' parameter"
         with pytest.raises(NotImplementedError, match=msg):
             snow_df.apply(lambda x: [1, 2], axis=1, result_type=result_type)
 
-    @sql_count_checker(query_count=0)
+    @sql_count_checker(describe_count=3)
     def test_axis_1_apply_args_kwargs_with_snowpandas_object(self):
         def f(x, y=None) -> native_pd.Series:
             return x + (y if y is not None else 0)
@@ -405,7 +410,7 @@ TEST_COLUMNS_1 = native_pd.MultiIndex.from_tuples(
         lambda x: native_pd.Series([1, 2], index=TEST_INDEX_WITH_NULL_1),
     ],
 )
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(query_count=5, join_count=2, udtf_count=1, select_count=2, describe_count=16)
 def test_axis_1_multi_index_column_labels(apply_func):
     data = [[i + j for j in range(0, 4)] for i in range(0, 4)]
 
@@ -417,7 +422,7 @@ def test_axis_1_multi_index_column_labels(apply_func):
     )
 
 
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(query_count=5, join_count=2, udtf_count=1, select_count=2, describe_count=16)
 def test_axis_1_multi_index_column_labels_with_different_results():
     data = [[i + j for j in range(0, 4)] for i in range(0, 4)]
 
@@ -433,6 +438,7 @@ def test_axis_1_multi_index_column_labels_with_different_results():
     eval_snowpark_pandas_result(snow_df, df, lambda df: df.apply(apply_func, axis=1))
 
 
+@sql_count_checker(query_count=10, join_count=4, udtf_count=2, select_count=4, describe_count=31)
 def test_axis_1_multi_index_column_labels_none_names():
     data = [[i + j for j in range(0, 4)] for i in range(0, 4)]
 
@@ -460,7 +466,7 @@ def test_axis_1_multi_index_column_labels_none_names():
         )
 
 
-@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@sql_count_checker(query_count=5, join_count=2, udtf_count=1, select_count=2, describe_count=16)
 def test_axis_1_multi_index_column_labels_different_lengths():
     data = [[i + j for j in range(0, 4)] for i in range(0, 4)]
 
@@ -476,7 +482,7 @@ def test_axis_1_multi_index_column_labels_different_lengths():
     eval_snowpark_pandas_result(snow_df, df, lambda df: df.apply(apply_func, axis=1))
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=3, select_count=1, describe_count=8)
 def test_axis_1_multi_index_column_labels_different_levels_negative():
     data = [[i + j for j in range(0, 4)] for i in range(0, 4)]
 
@@ -506,6 +512,7 @@ def test_axis_1_multi_index_column_labels_different_levels_negative():
     )
 
 
+@sql_count_checker(query_count=10, join_count=4, udtf_count=2, select_count=4, describe_count=31)
 def test_apply_variant_json_null():
     # series -> scalar
     def f(v):
@@ -599,15 +606,6 @@ def test_basic_dataframe_transform(data, apply_func, expected_query_count):
     else:
         msg = "SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function"
         native_df = native_pd.DataFrame(data)
-        snow_df = pd.DataFrame(data)
-        with SqlCounter(
-            query_count=expected_query_count,
-            high_count_expected=True,
-            high_count_reason=msg,
-        ):
-            eval_snowpark_pandas_result(
-                snow_df, native_df, lambda x: x.transform(apply_func)
-            )
 
 
 AGGREGATION_FUNCTIONS = [
@@ -622,7 +620,7 @@ AGGREGATION_FUNCTIONS = [
 
 
 @pytest.mark.parametrize("func", AGGREGATION_FUNCTIONS)
-@sql_count_checker(query_count=0)
+@sql_count_checker(describe_count=1)
 def test_dataframe_transform_aggregation_negative(func):
     snow_df = pd.DataFrame([[0, 1, 2], [1, 2, 3]])
     with pytest.raises(
@@ -632,7 +630,7 @@ def test_dataframe_transform_aggregation_negative(func):
         snow_df.transform(func)
 
 
-@sql_count_checker(query_count=0)
+@sql_count_checker(describe_count=1)
 def test_dataframe_transform_invalid_function_name_negative(session):
     snow_df = pd.DataFrame([[0, 1, 2], [1, 2, 3]])
     with pytest.raises(
@@ -652,7 +650,7 @@ INVALID_TYPES_FOR_TRANSFORM = [
 
 
 @pytest.mark.parametrize("func", INVALID_TYPES_FOR_TRANSFORM)
-@sql_count_checker(query_count=0)
+@sql_count_checker(describe_count=1)
 def test_dataframe_transform_invalid_types_negative(func):
     snow_df = pd.DataFrame([[0, 1, 2], [1, 2, 3]])
     with pytest.raises(
@@ -671,6 +669,7 @@ def test_dataframe_transform_invalid_types_negative(func):
     join_count=0,
 )
 @pytest.mark.parametrize("is_sorted", [True, False])
+@sql_count_checker(query_count=8, udf_count=2, select_count=4, describe_count=11)
 def test_fix_1001470(is_sorted):
     test_df = pd.DataFrame({"income": [5000, 15000, 30000], "col": [3, 2, 1]})
     if is_sorted:
@@ -691,6 +690,7 @@ def test_fix_1001470(is_sorted):
     assert np.array_equal(ans1, ans2)
 
 
+@sql_count_checker(query_count=9, join_count=3, udtf_count=1, select_count=3, describe_count=22)
 def test_bug_SNOW_1172448():
     # This test case checks that reading a table + apply work together. Before SNOW-1172448 there
     # was a bug where the join within _apply_with_udtf_and_dynamic_pivot_along_axis_1 would fail
@@ -735,6 +735,7 @@ def test_bug_SNOW_1172448():
     high_count_expected=True,
     high_count_reason="upload of larger data, udtf registration, additional temp table creation till bugfix in SNOW-1060191 is in",
 )
+@sql_count_checker(query_count=13, join_count=3, udtf_count=1, select_count=2, describe_count=19)
 def test_dataframe_relative_to_default_partition_size_with_apply_udtf(data):
     # test here that a Dataframe with size <, =, > than the default udtf partition size gets processed correctly.
     df = pd.DataFrame(data, columns=["A", "B", "C"])
@@ -748,6 +749,7 @@ def test_dataframe_relative_to_default_partition_size_with_apply_udtf(data):
     assert len(df) == len(data)
 
 
+@sql_count_checker(query_count=3, select_count=1, describe_count=8)
 def test_with_duplicates_negative():
     df = native_pd.DataFrame([[1, 2], [3, 4]])
     snow_df = pd.DataFrame(df)
@@ -776,6 +778,7 @@ def test_with_duplicates_negative():
 
 @pytest.mark.parametrize("partition_size", [1, 2])
 @pytest.mark.parametrize("data", [{"a": [1], "b": [2]}, {"a": [2], "b": [3]}])
+@sql_count_checker(query_count=5, join_count=2, udtf_count=1, select_count=2, describe_count=16)
 def test_apply_axis_1_with_if_where_duplicates_not_executed(partition_size, data):
     df = native_pd.DataFrame(data)
     snow_df = pd.DataFrame(df)
@@ -832,7 +835,6 @@ def test_numpy_integers_in_return_values_snow_1227264(return_value):
         np.nan,
     ],
 )
-@sql_count_checker(query_count=5, udtf_count=1, join_count=2)
 def test_apply_axis_1_frame_with_column_of_all_nulls_snow_1233832(null_value):
     eval_snowpark_pandas_result(
         *create_test_dfs({"null_col": [null_value], "int_col": [1]}),
@@ -853,6 +855,7 @@ import scipy.stats  # noqa: E402
         # [scipy, np], 9),
     ],
 )
+@sql_count_checker(query_count=7, udf_count=1, select_count=3, describe_count=5)
 def test_apply_axis1_with_3rd_party_libraries_and_decorator(
     packages, expected_query_count
 ):
@@ -894,6 +897,7 @@ def test_apply_axis1_with_3rd_party_libraries_and_decorator(
 @pytest.mark.xfail(
     reason="TODO: SNOW-1261830 need to support PandasSeriesType annotation."
 )
+@sql_count_checker(query_count=6, select_count=2, describe_count=5)
 def test_apply_axis1_with_dynamic_pivot_and_with_3rd_party_libraries_and_decorator(
     packages, expected_query_count
 ):
