@@ -271,7 +271,8 @@ class DataFrameWriter:
 
         # Phase 0 flushes AST and encodes it as part of the query.
         kwargs = {}
-        _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+        if _emit_ast:
+            _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
 
         with open_telemetry_context_manager(self.save_as_table, self._dataframe):
             save_mode = (
