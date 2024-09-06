@@ -738,8 +738,6 @@ class DataFrame(BasePandasDataset):
             * 0 or 'index': apply function to each column.
             * 1 or 'columns': apply function to each row.
 
-            Snowpark pandas does not yet support ``axis=0``.
-
         raw : bool, default False
             Determines if row or column is passed as a Series or ndarray object:
 
