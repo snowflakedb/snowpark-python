@@ -60,7 +60,6 @@ from pandas.core.indexing import IndexingError
 
 import snowflake.snowpark.modin.pandas as pd
 import snowflake.snowpark.modin.pandas.utils as frontend_utils
-from snowflake.snowpark._internal.type_utils import NoneType
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.pandas.series import (
     SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE,
@@ -925,11 +924,6 @@ class _LocIndexer(_LocationIndexerBase):
 
         # Check if self or its index is a TimedeltaIndex. `index_dtypes` retrieves the dtypes of the index columns.
         if is_timedelta64_dtype(self.df._query_compiler.index_dtypes[0]):
-            if isinstance(row_loc, NoneType):
-                # In case the row_loc is None, but self is a TimedeltaIndex or has a TimedeltaIndex index, we should
-                # return an empty result. Native pandas raises a KeyError in this case since None is not present in the
-                # index. (If None were present in the index, the index type would simply be object, not TimedeltaIndex.)
-                return self.df.__constructor__()
             # Convert row_loc to timedelta format to perform exact matching for TimedeltaIndex.
             row_loc = self._convert_to_timedelta(row_loc)
 

@@ -1882,6 +1882,7 @@ def test_series_loc_get_with_timedeltaindex_key():
     assert_series_equal(snow_res, native_res)
 
 
+@pytest.mark.xfail(reason="SNOW-1653219 None key does not work with timedelta index")
 @sql_count_checker(query_count=2)
 def test_series_loc_get_with_timedelta_and_none_key():
     data = ["A", "B", "C"]
