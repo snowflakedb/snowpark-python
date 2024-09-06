@@ -1147,3 +1147,9 @@ def test_timedelta_groupby_agg():
             native_df,
             lambda df: df.groupby("B").agg({"A": ["sum", "median"], "C": "min"}),
         )
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.groupby("B").agg({"A": ["sum", "count"], "C": "median"}),
+        )
