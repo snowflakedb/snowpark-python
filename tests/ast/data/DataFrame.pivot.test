@@ -1,0 +1,22 @@
+## TEST CASE
+
+df = session.create_dataframe(
+    [
+        (1, 10000, "JAN"),
+        (1, 400, "JAN"),
+        (2, 4500, "JAN"),
+        (2, 35000, "JAN"),
+        (1, 5000, "FEB"),
+        (1, 3000, "FEB"),
+        (2, 200, "FEB"),
+    ],
+    schema=["k", "t", "mo"],
+)
+
+df1 = df.pivot("mo", ["JAN", "FEB"]).sum("t").sort("k")
+
+df2 = df.pivot("mo", values=["JAN", "FEB"], default_on_null="Nothing").sum("t").sort("k")
+
+## EXPECTED UNPARSER OUTPUT
+
+## EXPECTED ENCODED AST
