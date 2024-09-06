@@ -77,7 +77,8 @@
   - support for binary arithmetic and comparisons between `Timedelta` values and numeric values.
   - support for lazy `TimedeltaIndex`.
   - support for `pd.to_timedelta`.
-  - support for `GroupBy` aggregations `min`, `max`, `mean`, `idxmax`, `idxmin`, `std`, `sum`, `median`, `count`, `any`, `all`, `size`, `nunique`.
+  - support for `GroupBy` aggregations `min`, `max`, `mean`, `idxmax`, `idxmin`, `std`, `sum`, `median`, `count`, `any`, `all`, `size`, `nunique`, `head`, `tail`, `aggregate`.
+  - support for `GroupBy` filtrations `first` and `last`.
   - support for `TimedeltaIndex` attributes: `days`, `seconds`, `microseconds` and `nanoseconds`.
   - support for `diff` with timestamp columns on `axis=0` and `axis=1`
 - Added support for index's arithmetic and comparison operators.
@@ -100,6 +101,7 @@
 - Added support for `pd.bdate_range` and included business frequency support (B, BME, BMS, BQE, BQS, BYE, BYS) for both `pd.date_range` and `pd.bdate_range`.
 - Added support for lazy `Index` objects  as `labels` in `DataFrame.reindex` and `Series.reindex`.
 - Added support for `Series.dt.days`, `Series.dt.seconds`, `Series.dt.microseconds`, and `Series.dt.nanoseconds`.
+- Added support for creating a `DatetimeIndex` from an `Index` of numeric or string type.
 - Added support for string indexing with `Timedelta` objects.
 
 #### Improvements
@@ -116,6 +118,7 @@
 - Fixed bug in `Series.dt.isocalendar` using a named Series
 - Fixed `inplace` argument for Series objects derived from DataFrame columns.
 - Fixed a bug where `Series.reindex` and `DataFrame.reindex` did not update the result index's name correctly.
+- Fixed a bug where `Series.take` did not error when `axis=1` was specified.
 
 #### Behavior Change
 

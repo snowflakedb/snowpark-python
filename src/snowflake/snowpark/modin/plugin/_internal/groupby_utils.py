@@ -36,37 +36,18 @@ from snowflake.snowpark.modin.utils import hashable
 from snowflake.snowpark.window import Window
 
 BaseInternalKeyType = Union[
-    "snowflake.snowpark.modin.pandas.series.Series",  # type: ignore [name-defined] # noqa: F821
+    "modin.pandas.Series",  # type: ignore [name-defined] # noqa: F821
     Hashable,
 ]
 
 NO_GROUPKEY_ERROR = ValueError("No group keys passed!")
-GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE = [
-    "min",
-    "max",
-    "sum",
-    "mean",
-    "median",
-    "std",
-    "first",
-    "last",
-]
-GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES = [
-    "any",
-    "all",
-    "count",
-    "idxmax",
-    "idxmin",
-    "size",
-    "nunique",
-]
 
 
 def is_groupby_value_label_like(val: Any) -> bool:
     """
     Check if the groupby value can be treated as pandas label.
     """
-    from snowflake.snowpark.modin.pandas.series import Series
+    from modin.pandas import Series
 
     # A pandas label is a hashable, and we exclude the callable, Series and Grouper, which are
     # by values that should not be handled as pandas label of the dataframe.
