@@ -1577,7 +1577,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowpark_pandas_types.append(snowpark_pandas_type)
         new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
             quoted_identifier_to_column_map=quoted_identifier_to_column_map,
-            data_column_snowpark_pandas_types=data_column_snowpark_pandas_types,
+            snowpark_pandas_types=data_column_snowpark_pandas_types,
         ).frame
 
         return self.__constructor__(new_frame)
@@ -1862,7 +1862,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
                 quoted_identifier_to_column_map=replace_mapping,
-                data_column_snowpark_pandas_types=data_column_snowpark_pandas_types,
+                snowpark_pandas_types=data_column_snowpark_pandas_types,
             ).frame
         )
 
@@ -4180,7 +4180,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     quoted_identifier_to_column_map=self._fill_null_values_in_groupby(
                         fillna_method, by_snowflake_quoted_identifiers_list
                     ),
-                    data_column_snowpark_pandas_types=self._modin_frame.cached_data_column_snowpark_pandas_types,
+                    snowpark_pandas_types=self._modin_frame.cached_data_column_snowpark_pandas_types,
                 ).frame
             )
         result = result.groupby_agg(
@@ -9193,7 +9193,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
                 quoted_identifier_to_column_map=astype_mapping,
-                data_column_snowpark_pandas_types=data_column_snowpark_pandas_types,
+                snowpark_pandas_types=data_column_snowpark_pandas_types,
             ).frame
         )
 
@@ -10632,7 +10632,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 quoted_identifier_to_column_map={
                     k: v.snowpark_column for k, v in diff_label_to_value_map.items()
                 },
-                data_column_snowpark_pandas_types=[
+                snowpark_pandas_types=[
                     a.snowpark_pandas_type for a in diff_label_to_value_map.values()
                 ],
             ).frame
