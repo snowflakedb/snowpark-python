@@ -264,7 +264,7 @@ def test_df_indexing_set_timedelta(item):
         df.loc[key] = item
         return df
 
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=1, join_count=2):
         # single value
         key = (1, "a")
         run_test(key, item, api=loc_set)
@@ -346,7 +346,7 @@ def test_df_indexing_set_timedelta_with_other_type():
             run_test(key, item, api=loc_set)
 
     item = 1000
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=1, join_count=2):
         # single value
         key = (1, "b")
         td_int = td.copy()
@@ -383,7 +383,7 @@ def test_df_indexing_enlargement_timedelta(item):
         )
 
     key = 10
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=1, join_count=2):
         eval_snowpark_pandas_result(
             snow_td["a"].copy(),
             td["a"].copy(),
@@ -402,7 +402,7 @@ def test_df_indexing_enlargement_timedelta(item):
         )
 
     key = 10
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=1, join_count=2):
         eval_snowpark_pandas_result(
             snow_td["a"].copy(),
             td["a"].copy(),
@@ -412,7 +412,7 @@ def test_df_indexing_enlargement_timedelta(item):
     # single row
     key = (10, slice(None, None, None))
 
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=1, join_count=2):
         if pd.isna(item):
             eval_snowpark_pandas_result(
                 snow_td.copy(), td.copy(), functools.partial(loc_enlargement, key, item)
@@ -450,9 +450,9 @@ def test_index_get_timedelta(key, join_count):
 @pytest.mark.parametrize(
     "key, api, query_count, join_count",
     [
-        [2, "iat", 1, 2],
-        [native_pd.Timedelta("1 days 1 hour"), "at", 2, 2],
-        [[2, 1], "iloc", 1, 2],
+        [2, "iat", 1, 4],
+        [native_pd.Timedelta("1 days 1 hour"), "at", 2, 4],
+        [[2, 1], "iloc", 1, 4],
         [
             [
                 native_pd.Timedelta("1 days 1 hour"),
@@ -460,11 +460,11 @@ def test_index_get_timedelta(key, join_count):
             ],
             "loc",
             1,
-            1,
+            2,
         ],
-        [slice(1, None), "iloc", 1, 0],
-        [[True, False, False, True], "iloc", 1, 1],
-        [[True, False, False, True], "loc", 1, 1],
+        [slice(1, None), "iloc", 1, 1],
+        [[True, False, False, True], "iloc", 1, 2],
+        [[True, False, False, True], "loc", 1, 2],
     ],
 )
 def test_series_with_timedelta_index(key, api, query_count, join_count):
@@ -494,9 +494,9 @@ def test_series_with_timedelta_index(key, api, query_count, join_count):
 @pytest.mark.parametrize(
     "key, api, query_count, join_count",
     [
-        [2, "iat", 1, 2],
-        [native_pd.Timedelta("1 days 1 hour"), "at", 2, 2],
-        [[2, 1], "iloc", 1, 2],
+        [2, "iat", 1, 4],
+        [native_pd.Timedelta("1 days 1 hour"), "at", 2, 4],
+        [[2, 1], "iloc", 1, 4],
         [
             [
                 native_pd.Timedelta("1 days 1 hour"),
@@ -504,11 +504,11 @@ def test_series_with_timedelta_index(key, api, query_count, join_count):
             ],
             "loc",
             1,
-            1,
+            2,
         ],
-        [slice(1, None), "iloc", 1, 0],
-        [[True, False, False, True], "iloc", 1, 1],
-        [[True, False, False, True], "loc", 1, 1],
+        [slice(1, None), "iloc", 1, 1],
+        [[True, False, False, True], "iloc", 1, 2],
+        [[True, False, False, True], "loc", 1, 2],
     ],
 )
 def test_df_with_timedelta_index(key, api, query_count, join_count):
@@ -558,7 +558,7 @@ def test_df_with_timedelta_index_enlargement_during_indexing():
     item = 23
 
     key = native_pd.Timedelta("2 days")
-    with SqlCounter(query_count=1, join_count=0):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             snow_df.copy(),
             native_df.copy(),
@@ -566,7 +566,7 @@ def test_df_with_timedelta_index_enlargement_during_indexing():
         )
 
     key = native_pd.Timedelta("2 days 45 minutes")
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=1, join_count=3):
         eval_snowpark_pandas_result(
             snow_df["a"].copy(),
             native_df["a"].copy(),
@@ -579,7 +579,7 @@ def test_df_with_timedelta_index_enlargement_during_indexing():
 
     key = (slice(None, None, None), "x")
 
-    with SqlCounter(query_count=1, join_count=0):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             snow_df.copy(),
             native_df.copy(),
@@ -587,7 +587,7 @@ def test_df_with_timedelta_index_enlargement_during_indexing():
         )
 
     key = native_pd.Timedelta("2 days 25 minutes")
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=1, join_count=3):
         eval_snowpark_pandas_result(
             snow_df["a"].copy(),
             native_df["a"].copy(),
@@ -597,7 +597,7 @@ def test_df_with_timedelta_index_enlargement_during_indexing():
     # single row
     key = (native_pd.Timedelta("2 days 45 minutes"), slice(None, None, None))
 
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=1, join_count=3):
         eval_snowpark_pandas_result(
             snow_df.copy(),
             native_df.copy(),

@@ -196,16 +196,20 @@ class Series(BasePandasDataset, metaclass=TelemetryMeta):
                     index_qc_list = [index._query_compiler]
                 elif isinstance(index, Index):
                     index_qc_list = [index.to_series()._query_compiler]
-                elif isinstance(index, pd.MultiIndex):
-                    index_qc_list = [
-                        s._query_compiler
-                        for s in [
-                            pd.Series(index.get_level_values(level))
-                            for level in range(index.nlevels)
-                        ]
-                    ]
                 else:
-                    index_qc_list = [Series(index)._query_compiler]
+                    if is_list_like(index) and is_list_like(index[0]):
+                        # If given a list of lists, convert it to a MultiIndex.
+                        index = pandas.MultiIndex.from_arrays(index)
+                    if isinstance(index, pandas.MultiIndex):
+                        index_qc_list = [
+                            s._query_compiler
+                            for s in [
+                                pd.Series(index.get_level_values(level))
+                                for level in range(index.nlevels)
+                            ]
+                        ]
+                    else:
+                        index_qc_list = [Series(index)._query_compiler]
                 query_compiler = query_compiler.set_index(index_qc_list)
 
         # Set the query compiler and name fields.

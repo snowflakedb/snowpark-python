@@ -175,7 +175,7 @@ DATA_FOR_STRING_KEY_TYPE_CHECKING_TESTS = [
         (None, 35),  # None scalar
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_series_setitem_scalar_key_and_scalar_item(
     key, item, default_index_native_int_series
 ):
@@ -276,7 +276,7 @@ def test_series_setitem_none_key_and_scalar_item_mixed_type_series(
         (3.14, "a"),
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_series_setitem_scalar_key_and_scalar_item_mixed_type_series_type_coercion(
     key, item, mixed_type_index_native_series_mixed_type_index
 ):
@@ -341,7 +341,7 @@ def test_series_setitem_scalar_key_and_scalar_item_mixed_type_series_type_coerci
 # TODO: SNOW-986548 fix where key is False, row is missed in this case
 @pytest.mark.parametrize("key", [True, False])
 @pytest.mark.parametrize("item", SCALAR_LIKE_VALUES)
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_series_setitem_boolean_key_and_scalar_item_label_updated(key, item):
     # series[scalar boolean key] = scalar item
     # ----------------------------------------
@@ -493,14 +493,14 @@ def test_series_setitem_boolean_key_and_scalar_item_case2_numeric_index(key, ite
 
     expected_ser = native_pd.Series(data=data, index=index)
 
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=1, join_count=2):
         # verify that the result is correct
         assert_series_equal(snowpark_ser, expected_ser)
 
 
 @pytest.mark.parametrize("key", [True, False])
 @pytest.mark.parametrize("item", SCALAR_LIKE_VALUES)
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=3)
 def test_series_setitem_boolean_key_and_scalar_item_case2_non_numeric_index(key, item):
     # series[scalar boolean key] = scalar item
     # ----------------------------------------
@@ -559,7 +559,7 @@ def test_series_setitem_boolean_key_and_scalar_item_case2_non_numeric_index(key,
 
 @pytest.mark.parametrize("key", [0, 1])
 @pytest.mark.parametrize("item", SCALAR_LIKE_VALUES)
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_series_setitem_boolean_key_and_scalar_item_case3(
     key, item, native_series_with_duplicate_boolean_index
 ):
@@ -1601,7 +1601,7 @@ def test_series_setitem_with_empty_key_and_empty_series_item(
     else:
         snowpark_key = key
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=4):
         native_ser[key] = item
         snowpark_ser[
             pd.Series(snowpark_key)
@@ -1835,7 +1835,7 @@ def test_series_setitem_check_type_behavior_with_string_key_and_number_scalar_it
                 assert_series_equal(snowpark_ser, native_ser, check_dtype=False)
     else:
         # All other cases match native pandas behavior
-        with SqlCounter(query_count=1, join_count=1):
+        with SqlCounter(query_count=1, join_count=2):
             assert_series_equal(snowpark_ser, native_ser, check_dtype=False)
 
 
@@ -1886,7 +1886,7 @@ def test_series_setitem_check_type_behavior_with_string_key_and_boolean_scalar_i
     # b    True
     # c    True
     # dtype: bool
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=1, join_count=2):
         err_msg = "Series are different"
         with pytest.raises(AssertionError, match=err_msg):
             assert_series_equal(snowpark_ser, native_ser, check_dtype=False)
@@ -1997,7 +1997,7 @@ def test_series_setitem_check_type_behavior_with_string_key_and_string_scalar_it
 
         expected_data = [str(val) for val in native_ser]
         expected_ser = native_pd.Series(data=expected_data, index=index)
-        with SqlCounter(query_count=1, join_count=1):
+        with SqlCounter(query_count=1, join_count=2):
             assert_series_equal(snowpark_ser, expected_ser, check_dtype=False)
 
 
@@ -2093,7 +2093,7 @@ def test_series_setitem_key_slice_with_series(start, stop, step):
         [2, "x"],
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_df_setitem_boolean_key(key, index):
     item = 99
 
@@ -2435,7 +2435,7 @@ def test_behavior_table_is_up_to_date():
                         prev_err_msg = expected_err_msg
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2, join_count=6)
 def test_series_setitem_int_key():
     # pandas series setitem with int key is similar to loc set in most cases:
     # E.g., set index with label 3 to 100

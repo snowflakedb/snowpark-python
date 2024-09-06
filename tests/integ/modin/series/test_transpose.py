@@ -51,7 +51,7 @@ def test_series_transpose_empty():
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_series_transpose_multi_index():
     data = [1, 2, 3, 4, 5]
     index = [("a", "x"), ("b", "y"), ("c", "z"), ("d", "u"), ("e", "v")]
@@ -66,7 +66,7 @@ def test_series_transpose_multi_index():
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_series_transpose_index_no_names():
     data = [1, 2, 3, 4, 5]
     index = [None, None, None, None, None]
