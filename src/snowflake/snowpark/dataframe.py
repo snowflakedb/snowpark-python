@@ -104,6 +104,7 @@ from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_snowpark_column_or_col_name,
     build_expr_from_snowpark_column_or_sql_str,
     build_expr_from_snowpark_column_or_table_fn,
+    build_proto_from_pivot_values,
     fill_ast_for_column,
     with_src_position,
 )
@@ -2186,7 +2187,12 @@ class DataFrame:
         """
 
         if _emit_ast:
-            raise NotImplementedError("TODO SNOW-1491297: Add coverage for pivot.")
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_pivot, stmt)
+            self.set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.pivot_col, pivot_col)
+            build_proto_from_pivot_values(ast.values, values)
+            build_expr_from_python_val(ast.default_on_null, default_on_null)
 
         target_df, pc, pivot_values, default_on_null = prepare_pivot_arguments(
             self, "DataFrame.pivot", pivot_col, values, default_on_null
@@ -2198,6 +2204,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._PivotType(
                 pc[0], pivot_values, default_on_null
             ),
+            ast_stmt=stmt,
         )
 
     @df_api_usage
