@@ -68,6 +68,8 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
 from snowflake.snowpark.types import (
     ArrayType,
     DataType,
+    DecimalType,
+    DoubleType,
     LongType,
     MapType,
     StringType,
@@ -1315,22 +1317,27 @@ def snowpark_to_pandas_helper(
             for f in ordered_dataframe.schema.fields
         }
         for col_id, snowpark_pandas_type in zip(ids, cached_snowpark_pandas_types):
-            if snowpark_pandas_type is not None:
-                if snowpark_pandas_type == TimedeltaType():
-                    timedelta_to_str_col = col(col_id)
-                    if isinstance(column_type_map[col_id], _FractionalType):
-                        # Timedelta's underneath Snowflake type may not always be int after other operations, so
-                        # explicitly floor them to integer first before converting to string. Note if it is float nan,
-                        # we have to keep it as is, otherwise it will raise exception when casting to integer.
-                        astype_mapping[col_id] = iff(
-                            equal_nan(col(col_id)),
-                            col(col_id),
-                            floor(timedelta_to_str_col)
-                            .cast(LongType())
-                            .cast(StringType()),
-                        )
+            if (
+                snowpark_pandas_type is not None
+                and snowpark_pandas_type == TimedeltaType()
+            ):
+                col_td = col(col_id)
+                if isinstance(column_type_map[col_id], _FractionalType):
+                    if isinstance(column_type_map[col_id], DecimalType):
+                        check_non = col_td.cast(DoubleType())
                     else:
-                        astype_mapping[col_id] = col(col_id).cast(StringType())
+                        check_non = col_td
+                    check_non = equal_nan(check_non)
+                    # Timedelta's underneath Snowflake type may not always be int after other operations, so
+                    # explicitly floor them to integer first before converting to string. Note if it is float nan,
+                    # we have to keep it as is, otherwise it will raise exception when casting to integer.
+                    astype_mapping[col_id] = iff(
+                        check_non,
+                        col_td,
+                        floor(col_td).cast(LongType()).cast(StringType()),
+                    )
+                else:  # integer type
+                    astype_mapping[col_id] = col_td.cast(StringType())
         if astype_mapping:
             (
                 frame,
