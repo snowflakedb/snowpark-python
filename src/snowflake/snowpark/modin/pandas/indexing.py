@@ -43,6 +43,7 @@ from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import pandas
+from modin.pandas import Series
 from modin.pandas.base import BasePandasDataset
 from pandas._libs.tslibs import Resolution, parsing
 from pandas._typing import AnyArrayLike, Scalar
@@ -60,11 +61,6 @@ from pandas.core.indexing import IndexingError
 import snowflake.snowpark.modin.pandas as pd
 import snowflake.snowpark.modin.pandas.utils as frontend_utils
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-from snowflake.snowpark.modin.pandas.series import (
-    SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE,
-    SERIES_SETITEM_SLICE_AS_SCALAR_VALUE_ERROR_MESSAGE,
-    Series,
-)
 from snowflake.snowpark.modin.pandas.utils import is_scalar
 from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
     MULTIPLE_ELLIPSIS_INDEXING_ERROR_MESSAGE,
@@ -75,6 +71,10 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
+from snowflake.snowpark.modin.plugin.utils.frontend_constants import (
+    SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE,
+    SERIES_SETITEM_SLICE_AS_SCALAR_VALUE_ERROR_MESSAGE,
+)
 
 INDEXING_KEY_TYPE = Union[Scalar, list, slice, Callable, tuple, AnyArrayLike]
 INDEXING_ITEM_TYPE = Union[Scalar, AnyArrayLike, pd.Series, pd.DataFrame]

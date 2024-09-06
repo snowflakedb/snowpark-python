@@ -148,6 +148,8 @@ from snowflake.snowpark.modin.plugin._internal import (
 )
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     AGG_NAME_COL_LABEL,
+    GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE,
+    GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES,
     AggFuncInfo,
     AggFuncWithLabel,
     AggregateColumnOpParameters,
@@ -202,8 +204,6 @@ from snowflake.snowpark.modin.plugin._internal.frame import (
     LabelIdentifierPair,
 )
 from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
-    GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE,
-    GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES,
     check_is_groupby_supported_by_snowflake,
     extract_groupby_column_pandas_labels,
     get_frame_with_groupby_columns_as_index,
@@ -399,6 +399,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     this class is best explained by looking at https://github.com/modin-project/modin/blob/a8be482e644519f2823668210cec5cf1564deb7e/modin/experimental/core/storage_formats/hdk/query_compiler.py
     """
 
+    # When lazy_execution=True, upstream Modin elides some length checks that would incur queries.
     lazy_execution = True
 
     def __init__(self, frame: InternalFrame) -> None:
@@ -1577,7 +1578,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowpark_pandas_types.append(snowpark_pandas_type)
         new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
             quoted_identifier_to_column_map=quoted_identifier_to_column_map,
-            data_column_snowpark_pandas_types=data_column_snowpark_pandas_types,
+            snowpark_pandas_types=data_column_snowpark_pandas_types,
         ).frame
 
         return self.__constructor__(new_frame)
@@ -1862,7 +1863,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
                 quoted_identifier_to_column_map=replace_mapping,
-                data_column_snowpark_pandas_types=data_column_snowpark_pandas_types,
+                snowpark_pandas_types=data_column_snowpark_pandas_types,
             ).frame
         )
 
@@ -1883,7 +1884,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 If data in both corresponding DataFrame locations is missing the result will be missing.
                 only arithmetic binary operation has this parameter (e.g., add() has, but eq() doesn't have).
         """
-        from snowflake.snowpark.modin.pandas.series import Series
+        from modin.pandas import Series
 
         # Step 1: Convert other to a Series and join on the row position with self.
         other_qc = Series(other)._query_compiler
@@ -2033,8 +2034,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Native pandas does not support binary operations between a Series and a list-like object.
 
+        from modin.pandas import Series
+
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-        from snowflake.snowpark.modin.pandas.series import Series
         from snowflake.snowpark.modin.pandas.utils import is_scalar
 
         # fail explicitly for unsupported scenarios
@@ -3552,26 +3554,38 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_col_ops, new_data_column_index_names = generate_column_agg_info(
             internal_frame, column_to_agg_func, agg_kwargs, is_series_groupby
         )
+        # Get the column aggregation functions used to check if the function
+        # preserves Snowpark pandas types.
+        agg_col_funcs = []
+        for _, func in column_to_agg_func.items():
+            if is_list_like(func) and not is_named_tuple(func):
+                for fn in func:
+                    agg_col_funcs.append(fn.func)
+            else:
+                agg_col_funcs.append(func.func)
         # the pandas label and quoted identifier generated for each result column
         # after aggregation will be used as new pandas label and quoted identifiers.
         new_data_column_pandas_labels = []
         new_data_column_quoted_identifiers = []
         new_data_column_snowpark_pandas_types = []
-        for col_agg_op in agg_col_ops:
+        for i in range(len(agg_col_ops)):
+            col_agg_op = agg_col_ops[i]
+            col_agg_func = agg_col_funcs[i]
             new_data_column_pandas_labels.append(col_agg_op.agg_pandas_label)
             new_data_column_quoted_identifiers.append(
                 col_agg_op.agg_snowflake_quoted_identifier
             )
-            if agg_func in GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE:
+            if col_agg_func in GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE:
                 new_data_column_snowpark_pandas_types.append(
                     col_agg_op.data_type
                     if isinstance(col_agg_op.data_type, SnowparkPandasType)
                     else None
                 )
-            elif agg_func in GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES:
+            elif col_agg_func in GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES:
                 # In the case where the aggregation overrides the type of the output data column
-                # (e.g. any always returns boolean data columns), set the output Snowpark pandas type to None
-                new_data_column_snowpark_pandas_types = None  # type: ignore
+                # (e.g. any always returns boolean data columns), set the output Snowpark pandas type
+                # of the given column to None
+                new_data_column_snowpark_pandas_types.append(None)  # type: ignore
             else:
                 self._raise_not_implemented_error_for_timedelta()
                 new_data_column_snowpark_pandas_types = None  # type: ignore
@@ -4183,9 +4197,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             result = SnowflakeQueryCompiler(
                 self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
-                    self._fill_null_values_in_groupby(
+                    quoted_identifier_to_column_map=self._fill_null_values_in_groupby(
                         fillna_method, by_snowflake_quoted_identifiers_list
-                    )
+                    ),
+                    snowpark_pandas_types=self._modin_frame.cached_data_column_snowpark_pandas_types,
                 ).frame
             )
         result = result.groupby_agg(
@@ -4231,8 +4246,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: The result of groupby_first()
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         return self._groupby_first_last(
             "first", by, axis, groupby_kwargs, agg_args, agg_kwargs, drop, **kwargs
         )
@@ -4266,8 +4279,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: The result of groupby_last()
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         return self._groupby_first_last(
             "last", by, axis, groupby_kwargs, agg_args, agg_kwargs, drop, **kwargs
         )
@@ -6646,6 +6657,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if isinstance(sf_type, BooleanType):
                 # bool is not allowed in to_datetime (but note that bool is allowed by astype)
                 raise TypeError("dtype bool cannot be converted to datetime64[ns]")
+            elif isinstance(sf_type, TimedeltaType):
+                raise TypeError(
+                    "dtype timedelta64[ns] cannot be converted to datetime64[ns]"
+                )
 
             to_datetime_cols[col_id] = generate_timestamp_col(
                 col(col_id),
@@ -9184,7 +9199,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
                 quoted_identifier_to_column_map=astype_mapping,
-                data_column_snowpark_pandas_types=data_column_snowpark_pandas_types,
+                snowpark_pandas_types=data_column_snowpark_pandas_types,
             ).frame
         )
 
@@ -9372,7 +9387,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             New QueryCompiler that contains specified rows.
         """
 
-        from snowflake.snowpark.modin.pandas import Series
+        from modin.pandas import Series
 
         # convert key to internal frame via Series
         key_frame = None
@@ -10623,7 +10638,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 quoted_identifier_to_column_map={
                     k: v.snowpark_column for k, v in diff_label_to_value_map.items()
                 },
-                data_column_snowpark_pandas_types=[
+                snowpark_pandas_types=[
                     a.snowpark_pandas_type for a in diff_label_to_value_map.values()
                 ],
             ).frame
@@ -13818,6 +13833,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(result.frame)
 
+    def add_prefix(
+        self, substring: Any, axis: Optional[int] = 0
+    ) -> "SnowflakeQueryCompiler":
+        return self.add_substring(str(substring), "prefix", axis)
+
+    def add_suffix(
+        self, substring: Any, axis: Optional[int] = 0
+    ) -> "SnowflakeQueryCompiler":
+        return self.add_substring(str(substring), "suffix", axis)
+
     @snowpark_pandas_type_immutable_check
     def add_substring(
         self,
@@ -16096,8 +16121,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A SnowflakeQueryCompiler object representing a DataFrame.
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         original_frame = self._modin_frame
         ordered_dataframe = original_frame.ordered_dataframe
 
@@ -16244,8 +16267,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=original_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
-            data_column_types=None,
-            index_column_types=None,
+            data_column_types=original_frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=original_frame.cached_index_column_snowpark_pandas_types,
         )
 
         return SnowflakeQueryCompiler(new_modin_frame)
