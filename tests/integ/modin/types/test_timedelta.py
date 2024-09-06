@@ -80,6 +80,7 @@ def test_timedelta_series_dtypes():
     )
 
 
+@sql_count_checker(query_count=1)
 def test_timedelta_precision_insufficient_with_nulls():
     # Storing this timedelta requires more than 15 digits of precision
     timedelta = pd.Timedelta(days=105, nanoseconds=1)
