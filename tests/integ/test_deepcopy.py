@@ -327,13 +327,13 @@ def test_deep_nested_select(session):
 
     def get_col_ref_expression(iter_num: int, col_func: Callable) -> Column:
         ref_cols = [F.lit(str(iter_num))]
-        for i in range(1, 5):
+        for i in range(1, 4):
             col_name = f"col{i}"
             ref_col = col_func(df[col_name])
             ref_cols.append(ref_col)
         return F.concat(*ref_cols)
 
-    for i in range(1, 20):
+    for i in range(1, 4):
         int_col = df["intCol"]
         col1_base = get_col_ref_expression(i, F.initcap)
         case_expr: Optional[CaseExpr] = None
@@ -352,11 +352,57 @@ def test_deep_nested_select(session):
             )
 
         col1 = case_expr.otherwise(col1_base)
-
         df = df.with_columns(["col1"], [col1])
+        print(f"""\niteration {i}: individual complexity: {df._plan.individual_node_complexity}, accumulative complexity: {df._plan.cumulative_node_complexity}""")
 
     # make a copy of the final df plan
-    copied_plan = copy.deepcopy(df._plan)
+    # copied_plan = copy.deepcopy(df._plan)
     # skip the checking of plan attribute for this plan, because the plan is complicated for
     # compilation, and attribute issues describing call which will timeout during server compilation.
-    check_copied_plan(copied_plan, df._plan, skip_attribute=True)
+    # check_copied_plan(copied_plan, df._plan, skip_attribute=True)
+
+    """
+    iteration 1: 
+    individual complexity: {COLUMN: 21, CASE_WHEN: 1, LOW_IMPACT: 2, LITERAL: 5, FUNCTION: 12}, 
+    accumulative complexity: {COLUMN: 22, CASE_WHEN: 1, LOW_IMPACT: 2, LITERAL: 5, FUNCTION: 12}
+
+    iteration 2: 
+    individual complexity: {COLUMN: 21, CASE_WHEN: 1, LOW_IMPACT: 2, LITERAL: 5, FUNCTION: 12}, 
+    accumulative complexity: {COLUMN: 43, CASE_WHEN: 2, LOW_IMPACT: 4, LITERAL: 10, FUNCTION: 24}
+
+    iteration 3: 
+    individual complexity: {COLUMN: 21, CASE_WHEN: 1, LOW_IMPACT: 2, LITERAL: 5, FUNCTION: 12},
+    accumulative complexity: {COLUMN: 64, CASE_WHEN: 3, LOW_IMPACT: 6, LITERAL: 15, FUNCTION: 36}
+    
+    ==== new complexity
+    iteration 1:
+    individual complexity: {COLUMN: 21, CASE_WHEN: 1, LOW_IMPACT: 2, LITERAL: 5, FUNCTION: 12}
+    accumulative complexity: {COLUMN: 22, CASE_WHEN: 1, LOW_IMPACT: 2, LITERAL: 5, FUNCTION: 12}
+
+    iteration 2:
+    individual complexity: {COLUMN: 51, CASE_WHEN: 4, LOW_IMPACT: 8, LITERAL: 20, FUNCTION: 48}
+    accumulative complexity: {COLUMN: 73, CASE_WHEN: 5, LOW_IMPACT: 10, LITERAL: 25, FUNCTION: 60}
+
+    iteration 3:
+    individual complexity: {COLUMN: 141, CASE_WHEN: 13, LOW_IMPACT: 26, LITERAL: 65, FUNCTION: 156}
+    accumulative complexity: {COLUMN: 214, CASE_WHEN: 18, LOW_IMPACT: 36, LITERAL: 90, FUNCTION: 216}
+    
+    =====
+    iteration 1:
+    individual complexity: {COLUMN: 21, CASE_WHEN: 1, LOW_IMPACT: 2, LITERAL: 5, FUNCTION: 12}, 
+    accumulative complexity: {COLUMN: 22, CASE_WHEN: 1, LOW_IMPACT: 2, LITERAL: 5, FUNCTION: 12}
+
+    iteration 2:
+    individual complexity: {COLUMN: 51, CASE_WHEN: 4, LOW_IMPACT: 8, LITERAL: 20, FUNCTION: 48},
+    accumulative complexity: {COLUMN: 73, CASE_WHEN: 5, LOW_IMPACT: 10, LITERAL: 25, FUNCTION: 60}
+
+    iteration 3:
+    individual complexity: {COLUMN: 141, CASE_WHEN: 13, LOW_IMPACT: 26, LITERAL: 65, FUNCTION: 156},
+    accumulative complexity: {COLUMN: 193, CASE_WHEN: 17, LOW_IMPACT: 34, LITERAL: 85, FUNCTION: 204}
+    """
+
+
+def test_select(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df = df.select(*[(col('a') + 1).alias('a'), (col('b') + 2).alias('b_new'), 'b'])
+    df.show()

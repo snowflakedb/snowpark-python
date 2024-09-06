@@ -7,6 +7,7 @@ from typing import AbstractSet, Optional
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     derive_dependent_columns,
+    derive_dependent_columns_with_duplication,
 )
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
@@ -28,6 +29,9 @@ class BinaryExpression(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.left, self.right)
+
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.left, self.right)
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
