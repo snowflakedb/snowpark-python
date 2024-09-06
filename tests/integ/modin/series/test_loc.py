@@ -1869,7 +1869,7 @@ def test_series_loc_get_with_timedelta_behavior_difference(key, expected_result)
     assert_series_equal(actual_result, expected_result)
 
 
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=2, join_count=2)
 def test_series_loc_get_with_timedeltaindex_key():
     data = ["A", "B", "C"]
     idx = ["1 days", "2 days", "3 days"]

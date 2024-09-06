@@ -4037,7 +4037,7 @@ def test_df_loc_get_with_timedelta_behavior_difference(key, expected_result):
     assert_frame_equal(actual_result, expected_result)
 
 
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_df_loc_get_with_timedeltaindex_key():
     data = {
         "A": [1, 2, 3],
