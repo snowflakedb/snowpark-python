@@ -83,6 +83,7 @@
   - support for `diff` with timestamp columns on `axis=0` and `axis=1`
   - support for `TimedeltaIndex` methods: `ceil`, `floor` and `round`.
   - support for `TimedeltaIndex.total_seconds` method.
+  - support for `TimedeltaIndex.mean` method.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
