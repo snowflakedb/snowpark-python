@@ -8,7 +8,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import assert_frame_equal
+from tests.integ.modin.utils import assert_frame_equal, eval_snowpark_pandas_result
 
 
 @sql_count_checker(query_count=0)
@@ -317,3 +317,37 @@ def test_index_SNOW_1021837():
     native_df_reset = native_df.reset_index()
     snow_df_reset = snow_df.reset_index()
     assert_frame_equal(snow_df_reset, native_df_reset)
+
+
+@sql_count_checker(query_count=0)
+def test_index_non_list_like_names_negative():
+    """
+    Bug SNOW-1650853:
+    Test that the correct error is raised.
+    """
+    native_df = native_pd.DataFrame(list(range(10)))
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: setattr(df.index, "names", 10),
+        expect_exception=True,
+        check_exception_type=ValueError,
+    )
+
+
+@sql_count_checker(query_count=2)
+def test_index_names_with_lazy_index():
+    # 1 query to convert index to list, 1 query for comparison of DataFrames.
+    native_df = native_pd.DataFrame(list(range(10)))
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: setattr(
+            df.index,
+            "names",
+            pd.Index(["A"]) if isinstance(df, pd.DataFrame) else native_pd.Index(["A"]),
+        ),
+        inplace=True,
+    )
