@@ -433,6 +433,7 @@ class TimedeltaIndex(Index):
             raise ValueError(
                 f"axis should be 0 for TimedeltaIndex.mean, found '{axis}'"
             )
+        # TODO SNOW-1620439: Reuse code from Series.mean.
         frame = self._query_compiler._modin_frame
         index_id = frame.index_column_snowflake_quoted_identifiers[0]
         new_index_id = frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
