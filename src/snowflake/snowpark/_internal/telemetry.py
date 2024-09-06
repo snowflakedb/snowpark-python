@@ -168,6 +168,7 @@ def df_collect_api_telemetry(func):
         ]._session.sql_simplifier_enabled
         try:
             api_calls[0][TelemetryField.QUERY_PLAN_HEIGHT.value] = plan.plan_height
+            api_calls[0][CompilationStageTelemetryField.PLAN_UUID.value] = plan.uuid
             api_calls[0][
                 TelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
             ] = plan.num_duplicate_nodes
@@ -441,7 +442,7 @@ class TelemetryClient:
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
-                TelemetryField.PLAN_UUID.value: plan_uuid,
+                CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
                 CompilationStageTelemetryField.BEFORE_COMPLEXITY_SCORE.value: before_complexity_score,
                 CompilationStageTelemetryField.AFTER_COMPLEXITY_SCORES.value: after_complexity_scores,
             },

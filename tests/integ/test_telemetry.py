@@ -5,6 +5,7 @@
 
 import decimal
 import sys
+import uuid
 from functools import partial
 from typing import Any, Dict, Tuple
 
@@ -1166,3 +1167,26 @@ def test_large_query_breakdown_skipped_telemetry(reason, session):
     )
     assert data == expected_data
     assert type_ == "snowpark_large_query_breakdown_optimization_skipped"
+
+
+def test_complexity_breakdown_post_compilation_stage(session):
+    client = session._conn._telemetry_client
+    uuid_str = str(uuid.uuid4())
+
+    def send_telemetry():
+        client.send_complexity_breakdown_post_compilation_stage(
+            session.session_id, uuid_str, 100, [60, 51]
+        )
+
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    expected_data = {
+        "session_id": session.session_id,
+        "plan_uuid": uuid_str,
+        "before_complexity_score": 100,
+        "after_complexity_scores": [60, 51],
+    }
+
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
+    assert data == expected_data
+    assert type_ == "snowpark_compilation_stage_statistics"
