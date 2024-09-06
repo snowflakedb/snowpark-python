@@ -81,7 +81,8 @@
   - support for `GroupBy` filtrations `first` and `last`.
   - support for `TimedeltaIndex` attributes: `days`, `seconds`, `microseconds` and `nanoseconds`.
   - support for `diff` with timestamp columns on `axis=0` and `axis=1`
-  - support for `DataFrame` and `Series` aggregations `min`, ``max`, `mean`, `idxmax`, `std`, `sum`, `median`, `count`, `any`, `all`, `size`, `nunique`,`first_valid_index`, `last_valid_index`, and some cases of `agg` and `aggregate`.
+  - support for `TimedeltaIndex` methods: `ceil`, `floor` and `round`.
+  - support for `DataFrame` and `Series` aggregations `min`, `max`, `mean`, `idxmax`, `std`, `sum`, `median`, `count`, `any`, `all`, `size`, `nunique`,`first_valid_index`, `last_valid_index`, and some cases of `agg` and `aggregate`.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
@@ -110,6 +111,7 @@
 - Improved `pd.to_datetime` to handle all local input cases. 
 - Create a lazy index from another lazy index without pulling data to client.
 - Raised `NotImplementedError` for Index bitwise operators.
+- Display a clearer error message when `Index.names` is set to a non-like-like object.
 
 #### Bug Fixes
 
