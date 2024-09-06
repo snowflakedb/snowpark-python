@@ -3580,8 +3580,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             elif col_agg_func in GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES:
                 # In the case where the aggregation overrides the type of the output data column
-                # (e.g. any always returns boolean data columns), set the output Snowpark pandas type to None
-                new_data_column_snowpark_pandas_types = None  # type: ignore
+                # (e.g. any always returns boolean data columns), set the output Snowpark pandas type
+                # of the given column to None
+                new_data_column_snowpark_pandas_types.append(None)  # type: ignore
             else:
                 self._raise_not_implemented_error_for_timedelta()
                 new_data_column_snowpark_pandas_types = None  # type: ignore
