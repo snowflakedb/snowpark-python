@@ -44,7 +44,6 @@ class TelemetryField(Enum):
         "snowpark_eliminate_numeric_sql_value_cast_enabled"
     )
     TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = "snowpark_auto_clean_up_temp_table_enabled"
-    TYPE_LARGE_QUERY_BREAKDOWN_ENABLED = "snowpark_large_query_breakdown_enabled"
     TYPE_COMPILATION_STAGE_STATISTICS = "snowpark_compilation_stage_statistics"
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
@@ -422,11 +421,11 @@ class TelemetryClient:
     ) -> None:
         message = {
             **self._create_basic_telemetry_data(
-                TelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_ENABLED.value
+                CompilationStageTelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_ENABLED.value
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
-                TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: True,
+                TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: value,
             },
         }
         self.send(message)
@@ -441,6 +440,23 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 CompilationStageTelemetryField.KEY_REASON.value: reason,
+            },
+        }
+        self.send(message)
+
+    def send_large_query_breakdown_update_complexity_bounds(
+        self, session_id: int, lower_bound: int, upper_bound: int
+    ):
+        message = {
+            **self._create_basic_telemetry_data(
+                CompilationStageTelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_UPDATE_COMPLEXITY_BOUNDS.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.KEY_DATA.value: {
+                    CompilationStageTelemetryField.KEY_LOWER_BOUND.value: lower_bound,
+                    CompilationStageTelemetryField.KEY_UPPER_BOUND.value: upper_bound,
+                },
             },
         }
         self.send(message)

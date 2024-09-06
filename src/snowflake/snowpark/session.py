@@ -209,6 +209,16 @@ _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = (
 _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION = (
     "PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION"
 )
+_PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND = (
+    "PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND"
+)
+_PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND = (
+    "PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND"
+)
+# The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
+# in Snowflake. This is the limit where we start seeing compilation errors.
+DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
+DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
@@ -563,6 +573,18 @@ class Session:
                 _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION, False
             )
         )
+        # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
+        # in Snowflake. This is the limit where we start seeing compilation errors.
+        self._large_query_breakdown_complexity_bounds: Tuple[int, int] = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND,
+                DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND,
+            ),
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND,
+                DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
+            ),
+        )
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
@@ -654,6 +676,10 @@ class Session:
     @property
     def large_query_breakdown_enabled(self) -> bool:
         return self._large_query_breakdown_enabled
+
+    @property
+    def large_query_breakdown_complexity_bounds(self) -> Tuple[int, int]:
+        return self._large_query_breakdown_complexity_bounds
 
     @property
     def custom_package_usage_config(self) -> Dict:
@@ -769,6 +795,24 @@ class Session:
             raise ValueError(
                 "value for large_query_breakdown_enabled must be True or False!"
             )
+
+    @large_query_breakdown_complexity_bounds.setter
+    def large_query_breakdown_complexity_bounds(self, value: Tuple[int, int]) -> None:
+        """Set the lower and upper bounds for the complexity score used in large query breakdown optimization."""
+
+        if len(value) != 2:
+            raise ValueError(
+                f"Expecting a tuple of two integers. Got a tuple of length {len(value)}"
+            )
+        if value[0] >= value[1]:
+            raise ValueError(
+                f"Expecting a tuple of lower and upper bound with the lower bound less than the upper bound. Got (lower, upper) = ({value[0], value[1]})"
+            )
+        self._conn._telemetry_client.send_large_query_breakdown_update_complexity_bounds(
+            self._session_id, value[0], value[1]
+        )
+
+        self._large_query_breakdown_complexity_bounds = value
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
