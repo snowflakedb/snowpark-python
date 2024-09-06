@@ -274,8 +274,12 @@ class SqlCounter:
                         for fw in FILTER_OUT_QUERIES
                     ]
                 ),
-                list(map(lambda q: q.sql_text,
-                         [q for q in self._queries if not q.is_describe])),
+                list(
+                    map(
+                        lambda q: q.sql_text,
+                        [q for q in self._queries if not q.is_describe],
+                    )
+                ),
             )
         )
 
