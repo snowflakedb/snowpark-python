@@ -16508,13 +16508,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             A new QueryCompiler with ceil values.
 
         """
-        method_name = "DatetimeIndex.ceil" if include_index else "Series.dt.ceil"
+        dtype = self.index_dtypes[0] if include_index else self.dtypes[0]
+        if not include_index:
+            method_name = "Series.dt.ceil"
+        elif is_datetime64_any_dtype(dtype):
+            method_name = "DatetimeIndex.ceil"
+        elif is_timedelta64_dtype(dtype):
+            method_name = "TimedeltaIndex.ceil"
+        else:
+            raise AssertionError(
+                "column must be datetime or timedelta"
+            )  # pragma: no cover
+
         if ambiguous != "raise":
             ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
         if nonexistent != "raise":
             ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
 
-        dtype = self.index_dtypes[0] if include_index else self.dtypes[0]
         if is_datetime64_any_dtype(dtype):
             slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(freq)
 
@@ -16534,10 +16544,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 return iff(column.equal_null(floor_column), column, ceil_column)
 
         else:  # timedelta type
-            assert is_timedelta64_dtype(
-                dtype
-            ), "column must be datetime or timedelta"  # pragma: no cover
             nanos = timedelta_freq_to_nanos(freq)
+            if nanos == 0:
+                # no conversion needed.
+                return self
             return_type = TimedeltaType()
 
             def ceil_func(column: SnowparkColumn) -> SnowparkColumn:
@@ -16579,13 +16589,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             A new QueryCompiler with round values.
 
         """
-        method_name = "DatetimeIndex.round" if include_index else "Series.dt.round"
+        dtype = self.index_dtypes[0] if include_index else self.dtypes[0]
+        if not include_index:
+            method_name = "Series.dt.round"
+        elif is_datetime64_any_dtype(dtype):
+            method_name = "DatetimeIndex.round"
+        elif is_timedelta64_dtype(dtype):
+            method_name = "TimedeltaIndex.round"
+        else:
+            raise AssertionError(
+                "column must be datetime or timedelta"
+            )  # pragma: no cover
         if ambiguous != "raise":
             ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
         if nonexistent != "raise":
             ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
 
-        dtype = self.index_dtypes[0] if include_index else self.dtypes[0]
         if is_datetime64_any_dtype(dtype):
             slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(freq)
 
@@ -16605,6 +16624,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # This is straightforward if the length is already even.
             # If not, we then need to first downlevel the freq to a
             # lower granularity to ensure that it is even.
+            # TODO: Explore if it's possible to replace it with bround.
 
             def down_level_freq(slice_length: int, slice_unit: str) -> tuple[int, str]:
                 if slice_unit == "minute":
@@ -16684,10 +16704,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
 
         else:  # timedelta type
-            assert is_timedelta64_dtype(
-                dtype
-            ), "column must be datetime or timedelta"  # pragma: no cover
             nanos = timedelta_freq_to_nanos(freq)
+            if nanos == 0:
+                # no conversion needed.
+                return self
             return_type = TimedeltaType()
 
             def round_func(column: SnowparkColumn) -> SnowparkColumn:
@@ -16727,13 +16747,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             A new QueryCompiler with floor values.
         """
         # This method should support both datetime and timedelta types.
-        method_name = "DatetimeIndex.floor" if include_index else "Series.dt.floor"
+        dtype = self.index_dtypes[0] if include_index else self.dtypes[0]
+        if not include_index:
+            method_name = "Series.dt.floor"
+        elif is_datetime64_any_dtype(dtype):
+            method_name = "DatetimeIndex.floor"
+        elif is_timedelta64_dtype(dtype):
+            method_name = "TimedeltaIndex.floor"
+        else:
+            raise AssertionError(
+                "column must be datetime or timedelta"
+            )  # pragma: no cover
         if ambiguous != "raise":
             ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
         if nonexistent != "raise":
             ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
 
-        dtype = self.index_dtypes[0] if include_index else self.dtypes[0]
         if is_datetime64_any_dtype(dtype):
             slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(freq)
 
@@ -16747,10 +16776,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 return builtin("time_slice")(column, slice_length, slice_unit)
 
         else:  # timedelta type
-            assert is_timedelta64_dtype(
-                dtype
-            ), "column must be datetime or timedelta"  # pragma: no cover
             nanos = timedelta_freq_to_nanos(freq)
+            if nanos == 0:
+                # no conversion needed.
+                return self
             return_type = TimedeltaType()
 
             def floor_func(column: SnowparkColumn) -> SnowparkColumn:

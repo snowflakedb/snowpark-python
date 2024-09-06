@@ -77,12 +77,14 @@ def test_timedelta_index_properties(attr):
 
 
 @pytest.mark.parametrize("method", ["round", "floor", "ceil"])
-@pytest.mark.parametrize("freq", ["ns", "us", "ms", "s", "min", "h", "d"])
+@pytest.mark.parametrize(
+    "freq", ["ns", "us", "ms", "s", "min", "h", "d", "0s", "3s", pd.Timedelta(0)]
+)
 @sql_count_checker(query_count=1)
 def test_timedelta_floor_ceil_round(method, freq):
     native_index = native_pd.TimedeltaIndex(
         [
-            "1d",
+            "0ns" "1d",
             "1h",
             "5h",
             "9h",
@@ -111,7 +113,19 @@ def test_timedelta_floor_ceil_round(method, freq):
 @sql_count_checker(query_count=0)
 def test_timedelta_floor_ceil_round_negative(method, freq):
     native_index = native_pd.TimedeltaIndex(
-        ["1d", "5h", "60s", "1s", "900ms", "5us", "1ns", "1d 3s", "9m 15s 8us", None]
+        [
+            "0ns",
+            "1d",
+            "5h",
+            "60s",
+            "1s",
+            "900ms",
+            "5us",
+            "1ns",
+            "1d 3s",
+            "9m 15s 8us",
+            None,
+        ]
     )
     snow_index = pd.Index(native_index)
     eval_snowpark_pandas_result(
