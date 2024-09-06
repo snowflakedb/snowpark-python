@@ -405,15 +405,16 @@ def sql_count_checker(
 
 
 def get_readable_sql_count_values(tr):
-    count_values = ", ".join(
-        [
-            f"{key}={tr[key]}"
-            for key in SQL_COUNT_PARAMETERS
-            if key in tr and tr[key] and tr[key] != 0
-        ]
-    )
-    if len(count_values) == 0:
-        return f"{SQL_COUNT_PARAMETERS[0]}=0"
+    first_key = True
+    count_values = ''
+    for key in SQL_COUNT_PARAMETERS:
+        if not first_key:
+            count_values = count_values + '\t'
+        first_key = False
+        value = 0
+        if key in tr and tr[key] and tr[key] != 0:
+            value = tr[key]
+        count_values = count_values + f'{key}={value}'
     return count_values
 
 
@@ -427,7 +428,7 @@ def update_test_code_with_sql_counts(
     part of the run, the file is in the tests root file path.  Each section will be named by the test_file and include
     a line per test_file, test_parameter combination along with the status.
     """
-    last_status_file = None
+    print('\n\n========================= Sql Count Summary ========================\n', file=sys.stderr)
 
     # Iterate through each sql count record, this is nested dictionary structured as:
     #     sql_count_records[test_file][test_name] -> dict[Str, Scalar]
@@ -439,145 +440,29 @@ def update_test_code_with_sql_counts(
     #    ... any other counts added in the future ...
     for test_file in sql_count_records:
         test_file_record = sql_count_records[test_file]
+        input_file = str(test_file)
 
-        input_file = test_file
-        out_file = f"{test_file}.{UPDATED_SUFFIX}"
-        orig_file = f"{test_file}.{ORIGINAL_SUFFIX}"
+        test_file_index = input_file.index('tests/')
+        if test_file_index >= 0:
+            input_file = input_file[test_file_index:]
+        else:
+            input_file = input_file
 
-        test_path = test_file.dirname.split("/")
-        tests_index = test_path.index("tests")
-        status_file = f"{'/'.join(test_path[:tests_index])}/{'.'.join(test_path[tests_index:])}.{STATUS_REPORT_FILE}"
+        for test_name, test_results in test_file_record.items():
+            for test_result in test_results:
+                if 'test_parms' in test_result:
+                    test_params = test_result['test_parms']
+                    if test_params is None:
+                        test_params=''
+                else:
+                    test_params=''
+                if len(test_params)>0:
+                    test_params=f'[{test_params}]'
 
-        # Remove any left over files from earlier full or partial runs.
-        if status_file != last_status_file and os.path.exists(status_file):
-            os.remove(status_file)
+                count_values = get_readable_sql_count_values(test_result)
 
-        if os.path.exists(out_file):
-            os.remove(out_file)
-
-        if os.path.exists(orig_file):
-            os.remove(orig_file)
-
-        # Accumulate status lines for added annotation and not added.
-        added_status = []
-        not_added_status = []
-
-        out_lines = []
-        with open(input_file) as src_file:
-            for line in src_file.readlines():
-                # Find the next test method in source file.
-                if line.lstrip().startswith("def test"):
-                    line_indent = " " * line.index("def")
-                    test_name = re.split(r"[ |\(]", line.lstrip())[1]
-
-                    if test_name in test_file_record:
-                        test_records = test_file_record[test_name]
-                        tr0 = test_records[0]
-                        count_values = get_readable_sql_count_values(tr0)
-
-                        # Check if we can add a decorator here, all parameterized tests must have same counts.
-                        if len(test_records) == 1 or all(
-                            [
-                                all(
-                                    [
-                                        tr[key] == tr0[key]
-                                        for key in SQL_COUNT_PARAMETERS
-                                    ]
-                                )
-                                for tr in test_records[1:]
-                            ]
-                        ):
-                            out_line = f"{SQL_COUNT_CHECKER}({count_values})"
-                            skip_line = False
-                            if len(out_lines) > 0:
-                                if out_lines[-1].lstrip().startswith(out_line):
-                                    not_added_status.append(
-                                        (test_name, f"Already has {out_line}")
-                                    )
-                                    skip_line = True
-                                else:
-                                    no_check_checker = (
-                                        f"{SQL_COUNT_CHECKER}({NO_CHECK}=True)"
-                                    )
-                                    if (
-                                        out_lines[-1]
-                                        .lstrip()
-                                        .startswith(no_check_checker)
-                                    ):
-                                        not_added_status.append(
-                                            (
-                                                test_name,
-                                                f"Skipping since no_check {no_check_checker}",
-                                            )
-                                        )
-                                        skip_line = True
-
-                            if not skip_line:
-                                if len(out_lines) > 0 and out_lines[
-                                    -1
-                                ].lstrip().startswith(SQL_COUNT_CHECKER):
-                                    added_status.append(
-                                        (test_name, f"Updated {out_line}")
-                                    )
-                                    out_lines.pop()
-                                else:
-                                    added_status.append(
-                                        (test_name, f"Added {out_line}")
-                                    )
-
-                                out_lines.append(f"{line_indent}{out_line}\n")
-                        else:
-                            if len(out_lines) > 0 and out_lines[-1].lstrip().startswith(
-                                SQL_COUNT_CHECKER
-                            ):
-                                added_status.append(
-                                    (test_name, f"Removing {out_lines[-1]}")
-                                )
-                                out_lines.pop()
-
-                            for tr in test_records:
-                                count_values = get_readable_sql_count_values(tr)
-                                test_parms = tr["test_parms"]
-                                not_added_status.append(
-                                    (
-                                        f"{test_name}[{test_parms}]",
-                                        f"Please add inline sql_count_checker code: {count_values}",
-                                    )
-                                )
-                    else:
-                        not_added_status.append(
-                            (test_name, "Unable to find test result, probably skipped")
-                        )
-
-                # We insert the import for sql_count_checker.  We don't guarantee the correct import ordering, so
-                # will need to run the lint to re-order and eliminate any duplicates that may occur.
-                if len(out_lines) > 0 and out_lines[-1].startswith("import pytest"):
-                    out_lines.append(
-                        "from tests.sql_counter import sql_count_checker\n"
-                    )
-
-                out_lines.append(line)
-
-        last_status_file = status_file
-
-        with open(out_file, "x") as new_src_file:
-            for line in out_lines:
-                new_src_file.write(line)
-
-        indent_len = max(len(st[0]) for st in added_status + not_added_status) + 1
-
-        banner = "=" * indent_len
-        with open(status_file, "a") as status_file:
-            line = f"\n{banner}\nTest file: {input_file}\n{banner}"
-            print(line)
-            status_file.write(f"{line}\n")
-            for st in added_status + not_added_status:
-                line = f"{st[0]:<{indent_len}}{st[1]}"
-                print(line)
-                status_file.write(f"{line}\n")
-
-        os.rename(test_file, orig_file)
-        os.rename(out_file, input_file)
+                line = f'{input_file}::{test_name}{test_params}\t{count_values}'
+                print(line, file=sys.stderr)
 
 
 def generate_sql_count_report(request, counter):
