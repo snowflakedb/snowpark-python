@@ -56,7 +56,6 @@ from snowflake.snowpark.modin.plugin import docstrings  # isort: skip  # noqa: E
 
 DocModule.put(docstrings.__name__)
 
-
 # We cannot call ModinDocModule.put directly because it will produce a call to `importlib.reload`
 # that will overwrite our extensions. We instead directly call the _inherit_docstrings annotation
 # See https://github.com/modin-project/modin/issues/7122
@@ -70,6 +69,7 @@ _inherit_docstrings = snowflake.snowpark.modin.utils._inherit_docstrings
 
 inherit_modules = [
     (docstrings.base.BasePandasDataset, modin.pandas.base.BasePandasDataset),
+    (docstrings.series.Series, modin.pandas.series.Series),
     (docstrings.series_utils.StringMethods, modin.pandas.series_utils.StringMethods),
     (
         docstrings.series_utils.CombinedDatetimelikeProperties,
