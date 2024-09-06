@@ -556,23 +556,3 @@ def test_groupby_agg_invalid_min_count(
         getattr(basic_snowpark_pandas_df.groupby("col1"), min_count_method)(
             min_count=min_count
         )
-
-
-@sql_count_checker(query_count=0)
-def test_groupby_var_no_support_for_timedelta():
-    native_df = native_pd.DataFrame(
-        {
-            "A": native_pd.to_timedelta(
-                ["1 days 06:05:01.00003", "15.5us", "nan", "16us"]
-            ),
-            "B": [8, 8, 12, 10],
-        }
-    )
-    snow_df = pd.DataFrame(native_df)
-    with pytest.raises(
-        NotImplementedError,
-        match=re.escape(
-            "SnowflakeQueryCompiler::groupby_agg is not yet implemented for Timedelta Type"
-        ),
-    ):
-        snow_df.groupby("B").var()
