@@ -6038,13 +6038,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 axis=0, other=single_agg_func_query_compilers[1:]
             )
         if axis == 0 and (should_squeeze or is_scalar(func)):
-            all_types = set(
-                result._modin_frame.cached_data_column_snowpark_pandas_types
-            )
-            if len(all_types) > 1:
-                ErrorMessage.not_implemented(
-                    f"No support for aggregation producing the types ({list(result.dtypes)}). Try doing each aggregation separately."
-                )
             # In this branch, the concatenated frame is a 1-row frame, but needs to be converted
             # into a 1-column frame so the frontend can wrap it as a Series
             result = result.transpose_single_row()
@@ -8905,6 +8898,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler
                 Transposed new QueryCompiler object.
         """
+        if len(set(self._modin_frame.cached_data_column_snowpark_pandas_types)) > 1:
+            # In this case, transpose may lose types.
+            self._raise_not_implemented_error_for_timedelta()
+
         frame = self._modin_frame
 
         # Handle case where the dataframe has empty columns.
