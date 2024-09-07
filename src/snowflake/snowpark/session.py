@@ -147,6 +147,7 @@ from snowflake.snowpark.mock._pandas_util import (
 from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.mock._stored_procedure import MockStoredProcedureRegistration
 from snowflake.snowpark.mock._udf import MockUDFRegistration
+from snowflake.snowpark.profiler import Profiler
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
@@ -570,6 +571,7 @@ class Session:
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         if self._auto_clean_up_temp_table_enabled:
             self._temp_table_auto_cleaner.start()
+        self.profiler = None
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -3384,6 +3386,15 @@ class Session:
         )
         set_api_call_source(df, "Session.flatten")
         return df
+
+    def register_profiler(self, profiler: Profiler):
+        self.profiler = profiler
+        self.profiler.session = self
+        if len(self.sql(f"show stages like '{profiler.stage}'").collect()) == 0:
+            self.sql(f"create or replace temp stage if not exists {profiler.stage}")
+        self.profiler._register_modules()
+        self.profiler._set_targeted_stage()
+        self.profiler._set_active_profiler()
 
     def query_history(self) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
