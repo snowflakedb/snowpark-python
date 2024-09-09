@@ -15,6 +15,8 @@ class CompilationStageTelemetryField(Enum):
     # keys
     KEY_REASON = "reason"
     PLAN_UUID = "plan_uuid"
+    TIME_TAKEN_FOR_COMPILATION = "time_taken_for_compilation"
+    COMPLEXITY_SCORE_BOUNDS = "complexity_score_bounds"
     BEFORE_COMPLEXITY_SCORE = "before_complexity_score"
     AFTER_COMPLEXITY_SCORES = "after_complexity_scores"
 
