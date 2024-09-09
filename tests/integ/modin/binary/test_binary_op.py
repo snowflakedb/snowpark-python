@@ -1298,6 +1298,13 @@ def test_binary_add_between_series_for_index_alignment(lhs, rhs, op):
             snow_ans, native_ans, lambda s: s, check_index_type=False
         )
 
+    # The join count is high because:
+    # - When creating a single index Series, 1 join is performed; four series are created.
+    #   Therefore, 4 joins are performed. Each binary operation uses 1 join; two operations are performed.
+    #   This results in 6 joins.
+    # - Similarly, when creating a MultiIndex Series, 1 join is performed per column in the MultiIndex, in our case
+    #   there are two columns. Four Series are created, resulting in 8 joins. Each binary operation uses 1 join;
+    #   two operations are performed. This results in 10 joins.
     with SqlCounter(
         query_count=2, join_count=10 if isinstance(lhs.index, pd.MultiIndex) else 6
     ):
