@@ -105,6 +105,7 @@ from snowflake.snowpark.functions import (
     is_char,
     is_null,
     lag,
+    last_day,
     last_value,
     lead,
     least,
@@ -255,6 +256,8 @@ from snowflake.snowpark.modin.plugin._internal.pivot_utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     IMPLEMENTED_AGG_METHODS,
+    RULE_SECOND_TO_DAY,
+    RULE_WEEK_TO_YEAR,
     fill_missing_resample_bins_for_frame,
     get_expected_resample_bins_frame,
     get_snowflake_quoted_identifier_for_resample_index_col,
@@ -11908,7 +11911,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         rule = resample_kwargs.get("rule")
 
-        _, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
+        slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
 
         min_max_index_column_quoted_identifier = (
             frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
@@ -11924,14 +11927,34 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # For instance, if rule='3D' and the earliest date is
         # 2020-03-01 1:00:00, the first date should be 2020-03-01,
         # which is what date_trunc gives us.
-        start_date, end_date = frame.ordered_dataframe.agg(
-            date_trunc(slice_unit, min_(snowflake_index_column_identifier)).as_(
-                min_max_index_column_quoted_identifier[0]
-            ),
-            date_trunc(slice_unit, max_(snowflake_index_column_identifier)).as_(
-                min_max_index_column_quoted_identifier[1]
-            ),
-        ).collect()[0]
+        if slice_unit in RULE_SECOND_TO_DAY:
+            start_date, end_date = frame.ordered_dataframe.agg(
+                date_trunc(slice_unit, min_(snowflake_index_column_identifier)).as_(
+                    min_max_index_column_quoted_identifier[0]
+                ),
+                date_trunc(slice_unit, max_(snowflake_index_column_identifier)).as_(
+                    min_max_index_column_quoted_identifier[1]
+                ),
+            ).collect()[0]
+        else:
+            assert slice_unit in RULE_WEEK_TO_YEAR
+            start_date, end_date = frame.ordered_dataframe.agg(
+                last_day(
+                    date_trunc(slice_unit, min_(snowflake_index_column_identifier)),
+                    slice_unit,
+                ).as_(min_max_index_column_quoted_identifier[0]),
+                last_day(
+                    date_trunc(
+                        slice_unit,
+                        dateadd(
+                            slice_unit,
+                            pandas_lit(slice_width - 1),
+                            max_(snowflake_index_column_identifier),
+                        ),
+                    ),
+                    slice_unit,
+                ).as_(min_max_index_column_quoted_identifier[1]),
+            ).collect()[0]
 
         if resample_method in ("ffill", "bfill"):
             expected_frame = get_expected_resample_bins_frame(

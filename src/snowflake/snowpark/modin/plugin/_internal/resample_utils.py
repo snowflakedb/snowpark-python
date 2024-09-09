@@ -4,7 +4,6 @@
 
 from typing import Any, Literal, NoReturn, Optional, Union
 
-import pandas as native_pd
 from pandas._libs.lib import no_default
 from pandas._libs.tslibs import to_offset
 from pandas._typing import Frequency
@@ -16,6 +15,7 @@ from snowflake.snowpark.functions import (
     builtin,
     dateadd,
     datediff,
+    last_day,
     lit,
     to_timestamp_ntz,
 )
@@ -47,7 +47,9 @@ IMPLEMENTED_AGG_METHODS = [
     "last",
 ]
 IMPLEMENTED_MISC_METHODS = ["ffill"]
-SUPPORTED_RESAMPLE_RULES = ["day", "hour", "second", "minute"]
+SUPPORTED_RESAMPLE_RULES = ("second", "minute", "hour", "day", "month")
+RULE_SECOND_TO_DAY = ("second", "minute", "hour", "day")
+RULE_WEEK_TO_YEAR = ("week", "quarter", "month", "year")
 
 
 # https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#dateoffset-objects
@@ -376,8 +378,7 @@ def perform_resample_binning_on_frame(
     # Time slices in Snowflake are aligned to snowflake_timeslice_alignment_date,
     # so we must normalize input datetimes.
     normalization_amt = (
-        native_pd.to_datetime(start_date)
-        - native_pd.to_datetime(SNOWFLAKE_TIMESLICE_ALIGNMENT_DATE)
+        pd.to_datetime(start_date) - pd.to_datetime(SNOWFLAKE_TIMESLICE_ALIGNMENT_DATE)
     ).total_seconds()
 
     # Subtract the normalization amount in seconds from the input datetime.
@@ -399,7 +400,12 @@ def perform_resample_binning_on_frame(
 
     # Call time_slice on the normalized datetime column with the slice_width and slice_unit.
     # time_slice is not supported for timestamps with timezones, only TIMESTAMP_NTZ
-    normalized_dates_set_to_bins = time_slice(normalized_dates, slice_width, slice_unit)
+    normalized_dates_set_to_bins = time_slice(
+        column=normalized_dates,
+        slice_length=slice_width,
+        date_or_time_part=slice_unit,
+        start_or_end="start" if slice_unit in RULE_SECOND_TO_DAY else "end",
+    )
     # frame:
     #             data_col
     # date
@@ -414,8 +420,13 @@ def perform_resample_binning_on_frame(
     # 1970-01-10         9
 
     # Add the normalization amount in seconds back to the input datetime for the correct result.
-    unnormalized_dates_set_to_bins = dateadd(
-        "second", lit(normalization_amt), normalized_dates_set_to_bins
+    unnormalized_dates_set_to_bins = (
+        dateadd("second", lit(normalization_amt), normalized_dates_set_to_bins)
+        if slice_unit in RULE_SECOND_TO_DAY
+        else last_day(
+            dateadd("second", lit(normalization_amt), normalized_dates_set_to_bins),
+            slice_unit,
+        )
     )
     # frame:
     #             data_col

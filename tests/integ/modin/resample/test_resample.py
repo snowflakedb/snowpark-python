@@ -22,6 +22,9 @@ from tests.integ.modin.utils import (
 agg_func = pytest.mark.parametrize("agg_func", IMPLEMENTED_AGG_METHODS)
 freq = pytest.mark.parametrize("freq", IMPLEMENTED_DATEOFFSET_STRINGS)
 interval = pytest.mark.parametrize("interval", [1, 2, 3, 5, 15])
+# agg_func = pytest.mark.parametrize("agg_func", ["min"])
+# freq = pytest.mark.parametrize("freq", ["ME"])
+# interval = pytest.mark.parametrize("interval", [3])
 
 
 def randomword(length):
