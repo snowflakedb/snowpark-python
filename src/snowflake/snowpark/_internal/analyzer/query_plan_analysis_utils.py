@@ -51,6 +51,16 @@ def sum_node_complexities(
     return dict(counter_sum)
 
 
+def subtract_complexities(
+    complexity: Dict[PlanNodeCategory, int], other_complexity: Dict[PlanNodeCategory, int]
+) -> Dict[PlanNodeCategory, int]:
+    result = complexity.copy()
+    for k, v in other_complexity.items():
+        result[k] -= v
+
+    return result
+
+
 def get_complexity_score(
     cumulative_node_complexity: Dict[PlanNodeCategory, int]
 ) -> int:

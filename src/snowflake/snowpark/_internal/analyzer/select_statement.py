@@ -26,6 +26,7 @@ from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     sum_node_complexities,
+    subtract_complexities,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
@@ -622,7 +623,6 @@ class SelectStatement(Selectable):
         offset: Optional[int] = None,
         analyzer: "Analyzer",
         schema_query: Optional[str] = None,
-        complexity_flattened: bool = False,
     ) -> None:
         super().__init__(analyzer)
         self.projection: Optional[List[Expression]] = projection
@@ -645,7 +645,9 @@ class SelectStatement(Selectable):
             self.from_.api_calls.copy() if self.from_.api_calls is not None else None
         )  # will be replaced by new api calls if any operation.
         self._placeholder_query = None
-        self._complexity_flattened = complexity_flattened
+        # extra fields used for select statement to cache the projection complexity
+        self._can_flatten_projection_complexity = False
+        # self._projection_complexity = None
 
     def __copy__(self):
         new = SelectStatement(
@@ -823,21 +825,63 @@ class SelectStatement(Selectable):
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         return [self.from_]
 
+    def should_flatten_projection_complexity(self) -> bool:
+        return (self.projection is not None     # when project is None, the complexity is automatically flattened
+                and isinstance(self.from_, SelectStatement)
+                and self._can_flatten_projection_complexity
+                and self._column_states is not None
+                and self.column_states.projection_complexity)
+
+    def get_projection_name_complexity_pairs(self) -> Optional[list[(str, Dict[PlanNodeCategory, int])]]:
+        if self._column_states and self._column_states.projection:
+            if not self._column_states.projection_complexity:
+                for projection in self.column_states.projection:
+                    projection_col_state = self.column_states.get(projection.name, None)
+                    if (projection_col_state is not None
+                            and projection_col_state.expression is not None
+                            and isinstance(projection_col_state.expression, Expression)
+                    ):
+                        subquery_projection_name_complexity_pairs = self.from_.get_projection_name_complexity_pairs() if isinstance(self.from_, SelectStatement) else None
+                        populate_column_complexity(
+                            projection_col_state.expression,
+                            self._column_states,
+                            subquery_projection_name_complexity_pairs,
+                            self.should_flatten_projection_complexity()
+                        )
+                    else:
+                        self._column_states.projection_complexity.append({PlanNodeCategory.COLUMN: 1})
+
+            if len(self._column_states.projection_complexity) != len(self._column_states.projection):
+                return None
+            else:
+                return [
+                    (projection.name, complexity) for projection, complexity in zip(self._column_states.projection, self._column_states.projection_complexity)
+                ]
+        else:
+            return None
+
+    def reset_projection_complexity(self) -> None:
+        if self._column_states:
+            self._column_states.projection_complexity = []
+
     def projection_complexity(self) -> Dict[PlanNodeCategory, int]:
         complexity = {}
-        if self.projection is not None and self._complexity_flattened and self._column_states is not None and self.column_states.projection_complexity:
-            complexity = sum_node_complexities(*self._column_states.projection_complexity)
-        elif self.projection is not None:
-                complexity = sum_node_complexities(
-                    *(
-                        getattr(
-                            expr,
-                            "cumulative_node_complexity",
-                            {PlanNodeCategory.COLUMN: 1},
-                        )  # type: ignore
-                        for expr in self.projection
-                    ),
-                )
+        if self.should_flatten_projection_complexity() and self.get_projection_name_complexity_pairs():
+            projection_name_complexity_pairs = self.get_projection_name_complexity_pairs()
+            if projection_name_complexity_pairs is not None:
+                complexity = sum_node_complexities(*[complexity for _, complexity in projection_name_complexity_pairs])
+                return complexity
+        if self.projection is not None:
+            complexity = sum_node_complexities(
+                *(
+                    getattr(
+                        expr,
+                        "cumulative_node_complexity",
+                        {PlanNodeCategory.COLUMN: 1},
+                    )  # type: ignore
+                    for expr in self.projection
+                ),
+            )
         return complexity
 
 
@@ -903,11 +947,10 @@ class SelectStatement(Selectable):
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         if self._cumulative_node_complexity is None:
             self._cumulative_node_complexity = super().cumulative_node_complexity
-            if self.projection is not None and self._complexity_flattened and self._column_states is not None and self.column_states.projection_complexity:
-                # adjust the complexity
+            if self.should_flatten_projection_complexity() and self.get_projection_name_complexity_pairs():
+                # subtract the from_ projection complexity
                 assert isinstance(self.from_, SelectStatement)
-                for k, v in self.from_.projection_complexity().items():
-                    self._cumulative_node_complexity[k] -= v
+                self._cumulative_node_complexity = subtract_complexities(self._cumulative_node_complexity, self.from_.projection_complexity())
 
         return self._cumulative_node_complexity
 
@@ -1531,33 +1574,24 @@ def populate_column_dependency(
                     raise DeriveColumnDependencyError()
 
 
-def populate_column_complexity_with_complexity_flattened(
+def populate_column_complexity(
     exp: Expression,
     column_states: ColumnStateDict,
-    subquery_column_states: ColumnStateDict,
+    subquery_projection_name_complexity_pairs: Optional[list[(str, Dict[PlanNodeCategory, int])]],
+    flatten_column_complexity: bool
 ) -> None:
-    dependent_column_names_with_duplication = derive_dependent_columns_with_duplication(exp)
-
     exp_complexity = exp.cumulative_node_complexity.copy()
-    for dependent_column in dependent_column_names_with_duplication:
-        assert dependent_column != COLUMN_DEPENDENCY_DOLLAR
-        assert dependent_column in subquery_column_states.active_columns
-        dependent_column_complexity = None
-        for (projection, complexity) in zip(subquery_column_states.projection, subquery_column_states.projection_complexity):
-            if projection.name == dependent_column:
-                dependent_column_complexity = complexity
-                break
-        if dependent_column_complexity is None:
-            dependent_column_expression = subquery_column_states[dependent_column].expression
-            if dependent_column_expression is not None and isinstance(dependent_column_expression, Expression):
-                dependent_column_complexity = dependent_column_expression.cumulative_node_complexity
-        if dependent_column_complexity is None:
-            return
-        else:
-            # update the complexity using the current complexity - 1 (column) + dependent_column_complexity
-            exp_complexity[PlanNodeCategory.COLUMN] -= 1
-            for k, v in dependent_column_complexity.items():
-                exp_complexity[k] += v
+    if flatten_column_complexity and subquery_projection_name_complexity_pairs is not None:
+        subquery_projection_name_complexity_map = dict(subquery_projection_name_complexity_pairs)
+        dependent_column_names_with_duplication = derive_dependent_columns_with_duplication(exp)
+        for dependent_column in dependent_column_names_with_duplication:
+            assert dependent_column != COLUMN_DEPENDENCY_DOLLAR
+            dependent_column_complexity = subquery_projection_name_complexity_map.get(dependent_column, None)
+            if dependent_column_complexity is not None:
+                # update the complexity using the current complexity - 1 (column) + dependent_column_complexity
+                exp_complexity[PlanNodeCategory.COLUMN] -= 1
+                for k, v in dependent_column_complexity.items():
+                    exp_complexity[k] += v
     column_states.projection_complexity.append(exp_complexity)
 
 
@@ -1640,10 +1674,8 @@ def derive_column_states_from_subquery(
             populate_column_dependency(
                 c, quoted_c_name, column_states, from_.column_states
             )
-            if flatten_complexity:
-                populate_column_complexity_with_complexity_flattened(
-                    c, column_states, from_.column_states
-                )
+            projection_name_complexity_pairs = from_.get_projection_name_complexity_pairs() if isinstance(from_, SelectStatement) else None
+            populate_column_complexity(c, column_states, projection_name_complexity_pairs, flatten_complexity)
         except DeriveColumnDependencyError:
             # downstream will not flatten when seeing None and disable next level SelectStatement to flatten.
             # The query will get an invalid column error.

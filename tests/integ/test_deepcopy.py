@@ -375,18 +375,6 @@ def test_deep_nested_select(session):
     accumulative complexity: {COLUMN: 64, CASE_WHEN: 3, LOW_IMPACT: 6, LITERAL: 15, FUNCTION: 36}
     
     ==== new complexity
-    iteration 1:
-    individual complexity: {COLUMN: 21, CASE_WHEN: 1, LOW_IMPACT: 2, LITERAL: 5, FUNCTION: 12}
-    accumulative complexity: {COLUMN: 22, CASE_WHEN: 1, LOW_IMPACT: 2, LITERAL: 5, FUNCTION: 12}
-
-    iteration 2:
-    individual complexity: {COLUMN: 51, CASE_WHEN: 4, LOW_IMPACT: 8, LITERAL: 20, FUNCTION: 48}
-    accumulative complexity: {COLUMN: 73, CASE_WHEN: 5, LOW_IMPACT: 10, LITERAL: 25, FUNCTION: 60}
-
-    iteration 3:
-    individual complexity: {COLUMN: 141, CASE_WHEN: 13, LOW_IMPACT: 26, LITERAL: 65, FUNCTION: 156}
-    accumulative complexity: {COLUMN: 214, CASE_WHEN: 18, LOW_IMPACT: 36, LITERAL: 90, FUNCTION: 216}
-    
     =====
     iteration 1:
     individual complexity: {COLUMN: 21, CASE_WHEN: 1, LOW_IMPACT: 2, LITERAL: 5, FUNCTION: 12}, 
