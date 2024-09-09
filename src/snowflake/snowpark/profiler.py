@@ -47,14 +47,20 @@ class Profiler:
     def register_modules(self, modules: List[str]):
         self.modules_to_register = modules
         self.prepare_sql()
+        if self.session is not None:
+            self._register_modules()
 
     def set_targeted_stage(self, stage: str):
         self.stage = stage
         self.prepare_sql()
+        if self.session is not None:
+            self._set_targeted_stage()
 
     def set_active_profiler(self, active_profiler: str):
         self.active_profiler = active_profiler
         self.prepare_sql()
+        if self.session is not None:
+            self._set_active_profiler()
 
     def _register_modules(self):
         self.session.sql(self.register_modules_sql).collect()
