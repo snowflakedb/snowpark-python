@@ -11,8 +11,8 @@ from snowflake.snowpark._internal.utils import validate_object_name
 class Profiler:
     def __init__(
         self,
-        stage: str,
-        active_profiler: str = "LINE",
+        stage: Optional[str] = "",
+        active_profiler: Optional[str] = "LINE",
         session: Optional["snowflake.snowpark.Session"] = None,
     ) -> None:
         self.stage = stage
