@@ -23,6 +23,7 @@
 
 from __future__ import annotations
 
+import inspect
 from functools import cached_property
 from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 
@@ -248,15 +249,13 @@ class Index(metaclass=TelemetryMeta):
                 if hasattr(native_index, key):
                     # Any methods that not supported by the current Index.py but exist in a
                     # native pandas index object should raise a not implemented error for now.
-                    raise ErrorMessage.not_implemented(
-                        f"Index.{key} is not yet implemented"
-                    )
+                    ErrorMessage.not_implemented(f"Index.{key} is not yet implemented")
             raise err
 
     def _binary_ops(self, method: str, other: Any) -> Index:
         if isinstance(other, Index):
             other = other.to_series().reset_index(drop=True)
-        series = self.to_series().reset_index(drop=True).__getattr__(method)(other)
+        series = getattr(self.to_series().reset_index(drop=True), method)(other)
         qc = series._query_compiler
         qc = qc.set_index_from_columns(qc.columns, include_index=False)
         # Use base constructor to ensure that the correct type is returned.
@@ -266,7 +265,7 @@ class Index(metaclass=TelemetryMeta):
 
     def _unary_ops(self, method: str) -> Index:
         return self.__constructor__(
-            self.to_series().reset_index(drop=True).__getattr__(method)()
+            getattr(self.to_series().reset_index(drop=True), method)()
         )
 
     def __add__(self, other: Any) -> Index:
@@ -331,6 +330,56 @@ class Index(metaclass=TelemetryMeta):
 
     def __lt__(self, other: Any) -> Index:
         return self._binary_ops("lt", other)
+
+    def __or__(self, other: Any) -> Index:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __and__(self, other: Any) -> Index:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __xor__(self, other: Any) -> Index:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __lshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rand__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __ror__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rxor__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rlshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rrshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
 
     def to_pandas(
         self,
@@ -701,6 +750,10 @@ class Index(metaclass=TelemetryMeta):
         ------
         TypeError if each name is not hashable.
         """
+        if not is_list_like(values):
+            raise ValueError("Names must be a list-like")
+        if isinstance(values, Index):
+            values = values.to_list()
         self._query_compiler = self._query_compiler.set_index_names(values)
         if self._parent is not None:
             self._parent._update_inplace(
