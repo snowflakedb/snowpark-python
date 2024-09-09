@@ -3388,6 +3388,7 @@ class Session:
         return df
 
     def register_profiler(self, profiler: Profiler):
+        """Register a profiler to current session, all action are actually executed during this function"""
         self.profiler = profiler
         self.profiler.session = self
         if len(self.sql(f"show stages like '{profiler.stage}'").collect()) == 0:
@@ -3395,6 +3396,35 @@ class Session:
         self.profiler._register_modules()
         self.profiler._set_targeted_stage()
         self.profiler._set_active_profiler()
+        self.profiler.query_history = self.query_history()
+
+    def show_profiles(self):
+        """Gather and return result of profiler, results are also print to console"""
+        if self.profiler is not None and isinstance(self.profiler, Profiler):
+            self.profiler.show_profiles()
+        else:
+            raise ValueError(
+                "profiler is not set, use session.register_profiler or profiler context manager"
+            )
+
+    def dump_profiles(self, dst_file: str):
+        """Gather result of a profiler and redirect it to a file"""
+        if self.profiler is not None and isinstance(self.profiler, Profiler):
+            self.profiler.dump_profiles(dst_file=dst_file)
+        else:
+            raise ValueError(
+                "profiler is not set, use session.register_profiler or profiler context manager"
+            )
+
+    def register_profiler_modules(self, modules: List[str]):
+        """Register modules want to create profile"""
+        if self.profiler is not None and isinstance(self.profiler, Profiler):
+            self.profiler.register_modules(modules)
+        else:
+            sql_statement = (
+                f"alter session set python_profiler_modules='{','.join(modules)}'"
+            )
+            self.sql(sql_statement).collect()
 
     def query_history(self) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.

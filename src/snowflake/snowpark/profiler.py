@@ -26,6 +26,7 @@ class Profiler:
         self.session = session
         self.stage_and_profiler_name_validation()
         self.prepare_sql()
+        self.query_history = None
 
     def stage_and_profiler_name_validation(self):
         if self.active_profiler not in ["LINE", "MEMORY"]:
@@ -70,12 +71,24 @@ class Profiler:
     def disable_profiler(self):
         self.session.sql(self.disable_profiler_sql).collect()
 
-    def show_profiles(self, query_id: str):
+    def _get_last_query_id(self):
+        sps = self.session.sql("show procedures").collect()
+        names = [r.name for r in sps]
+        for query in self.query_history.queries[::-1]:
+            if query.sql_text.startswith("CALL"):
+                sp_name = query.sql_text.split(" ")[1].split("(")[0]
+                if sp_name.upper() in names:
+                    return query.query_id
+        return None
+
+    def show_profiles(self):
+        query_id = self._get_last_query_id()
         sql = f"select snowflake.core.get_python_profiler_output({query_id});"
         res = self.session.sql(sql).collect()
         return res
 
-    def dump_profiles(self, query_id: str, dst_file: str):
+    def dump_profiles(self, dst_file: str):
+        query_id = self._get_last_query_id()
         sql = f"select snowflake.core.get_python_profiler_output({query_id});"
         res = self.session.sql(sql).collect()
         with open(dst_file, "w") as f:
@@ -101,4 +114,7 @@ def profiler(
         internal_profiler._register_modules()
         internal_profiler.enable_profiler()
     finally:
+        yield
+        internal_profiler.register_modules([])
+        internal_profiler._register_modules()
         internal_profiler.disable_profiler()
