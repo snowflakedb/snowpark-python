@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import re
 
 import modin.pandas as pd
 import pandas as native_pd
@@ -33,12 +34,24 @@ def test_datetime_index_construction():
     assert isinstance(snow_index, pd.DatetimeIndex)
 
 
-@pytest.mark.skip(reason="SNOW-1616989: Fix datetime index construction from int")
+@pytest.mark.parametrize("data", [[1, 99], [21.3, 2.1], ["2014-09-01", "2021-01-01"]])
 @sql_count_checker(query_count=1)
-def test_datetime_index_construction_from_int():
-    snow_index = pd.DatetimeIndex(pd.Index([1, 2, 3]))
-    native_index = native_pd.DatetimeIndex(native_pd.Index([1, 2, 3]))
+def test_datetime_index_construction_from_other_types(data):
+    snow_index = pd.DatetimeIndex(pd.Index(data))
+    native_index = native_pd.DatetimeIndex(native_pd.Index(data))
     assert_index_equal(snow_index, native_index)
+
+
+@pytest.mark.parametrize(
+    "data", [native_pd.Index([True, False]), native_pd.to_timedelta(["1d", "2d"])]
+)
+@sql_count_checker(query_count=0)
+def test_datetime_index_construction_from_other_types_negative(data):
+    msg = re.escape(f"dtype {data.dtype} cannot be converted to datetime64[ns]")
+    with pytest.raises(TypeError, match=msg):
+        pd.DatetimeIndex(pd.Index(data))
+    with pytest.raises(TypeError, match=msg):
+        native_pd.DatetimeIndex(data)
 
 
 @sql_count_checker(query_count=0)

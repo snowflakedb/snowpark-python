@@ -43,7 +43,8 @@ def test_getattr(name, expected_query_count, expected_join_count):
 @pytest.mark.parametrize(
     "name, expected_query_count",
     [
-        ("columns", 1),
+        # columns is whitelisted
+        ("columns", 0),
         ("unknown", 1),
         ("____id_pack__", 0),
         ("__name__", 0),
