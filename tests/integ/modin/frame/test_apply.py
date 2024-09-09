@@ -572,7 +572,7 @@ def test_apply_bug_1650918(data, apply_func):
     )
 
 
-TRANSFORM_DATA_FUNC_MAP = [
+TRANSFORM_TEST_MAP = [
     [[[0, 1, 2], [1, 2, 3]], lambda x: x + 1, 16],
     [[[0, 1, 2], [1, 2, 3]], np.exp, 16],
     [[[0, 1, 2], [1, 2, 3]], "exp", None],
@@ -588,9 +588,7 @@ TRANSFORM_DATA_FUNC_MAP = [
 
 
 @pytest.mark.modin_sp_precommit
-@pytest.mark.parametrize(
-    "data, apply_func, expected_query_count", TRANSFORM_DATA_FUNC_MAP
-)
+@pytest.mark.parametrize("data, apply_func, expected_query_count", TRANSFORM_TEST_MAP)
 def test_basic_dataframe_transform(data, apply_func, expected_query_count):
     if expected_query_count is None:
         msg = "Snowpark pandas apply API only supports callables func"
