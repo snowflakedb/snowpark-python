@@ -1190,10 +1190,14 @@ def test_post_compilation_stage_telemetry(session):
             plan_uuid=uuid_str,
             cte_optimization_enabled=session.cte_optimization_enabled,
             large_query_breakdown_enabled=session.large_query_breakdown_enabled,
-            time_taken_for_compilation=101,
-            complexity_score_bounds=(100_000, 101_000),
-            before_complexity_score=100,
-            after_complexity_scores=[60, 51],
+            complexity_score_bounds=(300, 600),
+            time_taken_for_compilation=0.136,
+            time_taken_for_deep_copy=0.074,
+            time_taken_for_cte_optimization=0.01,
+            time_taken_for_large_query_breakdown=0.062,
+            complexity_score_before_compilation=1148,
+            complexity_scores_after_cte=[1148],
+            complexity_scores_after_large_query_breakdown=[514, 636],
         )
 
     telemetry_tracker = TelemetryDataTracker(session)
@@ -1201,12 +1205,16 @@ def test_post_compilation_stage_telemetry(session):
     expected_data = {
         "session_id": session.session_id,
         "plan_uuid": uuid_str,
-        "before_complexity_score": 100,
-        "after_complexity_scores": [60, 51],
         "cte_optimization_enabled": session.cte_optimization_enabled,
         "large_query_breakdown_enabled": session.large_query_breakdown_enabled,
-        "complexity_score_bounds": (100_000, 101_000),
-        "time_taken_for_compilation": 101,
+        "complexity_score_bounds": (300, 600),
+        "time_taken_for_compilation": 0.136,
+        "time_taken_for_deep_copy_plan": 0.074,
+        "time_taken_for_cte_optimization": 0.01,
+        "time_taken_for_large_query_breakdown": 0.062,
+        "complexity_score_before_compilation": 1148,
+        "complexity_score_after_cte_optimization": [1148],
+        "complexity_score_after_large_query_breakdown": [514, 636],
     }
 
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)

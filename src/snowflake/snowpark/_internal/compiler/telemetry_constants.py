@@ -16,9 +16,15 @@ class CompilationStageTelemetryField(Enum):
     KEY_REASON = "reason"
     PLAN_UUID = "plan_uuid"
     TIME_TAKEN_FOR_COMPILATION = "time_taken_for_compilation"
+    TIME_TAKEN_FOR_DEEP_COPY_PLAN = "time_taken_for_deep_copy_plan"
+    TIME_TAKEN_FOR_CTE_OPTIMIZATION = "time_taken_for_cte_optimization"
+    TIME_TAKEN_FOR_LARGE_QUERY_BREAKDOWN = "time_taken_for_large_query_breakdown"
     COMPLEXITY_SCORE_BOUNDS = "complexity_score_bounds"
-    BEFORE_COMPLEXITY_SCORE = "before_complexity_score"
-    AFTER_COMPLEXITY_SCORES = "after_complexity_scores"
+    COMPLEXITY_SCORE_BEFORE_COMPILATION = "complexity_score_before_compilation"
+    COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION = "complexity_score_after_cte_optimization"
+    COMPLEXITY_SCORE_AFTER_LARGE_QUERY_BREAKDOWN = (
+        "complexity_score_after_large_query_breakdown"
+    )
 
 
 class SkipLargeQueryBreakdownCategory(Enum):
