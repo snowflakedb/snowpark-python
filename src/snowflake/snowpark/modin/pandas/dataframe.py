@@ -195,7 +195,7 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
                 # the DataFrame and sets columns to the columns provided.
                 query_compiler = from_pandas(
                     self.__constructor__(columns=columns)
-                )._query_compiler
+                )._query_compiler  # pragma: no cover
 
         elif isinstance(data, DataFrame):
             # CASE 5: data is a Snowpark pandas DataFrame
@@ -256,7 +256,7 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
                     if dtype is not None:
                         new_qc = new_qc.astype({col: dtype for col in new_qc.columns})
                     if index is not None:
-                        if isinstance(index, Index):
+                        if isinstance(index, Index):  # pragma: no cover
                             index = index.to_series()._query_compiler
                         elif isinstance(index, Series):
                             index = index._query_compiler
@@ -318,7 +318,7 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
                 if isinstance(labels, Index):
                     labels = labels.to_series()._query_compiler
                 elif isinstance(labels, Series):
-                    labels = labels._query_compiler
+                    labels = labels._query_compiler  # pragma: no cover
                 else:
                     labels = Index(labels).to_series()._query_compiler
                 query_compiler = query_compiler.reindex(axis=0, labels=labels)

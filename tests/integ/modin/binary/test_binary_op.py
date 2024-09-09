@@ -17,7 +17,6 @@ from pandas.testing import assert_frame_equal, assert_series_equal
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-from tests.integ.modin.series.test_bitwise_operators import try_cast_to_snow_series
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
@@ -1294,24 +1293,15 @@ def test_binary_add_between_series_for_index_alignment(lhs, rhs, op):
         snow_ans = op(snow_lhs, snow_rhs)
         native_ans = op(native_lhs, native_rhs)
         # for one multi-index test case (marked with comment) the "inferred_type" doesn't match (Snowpark: float vs. pandas integer)
-        eval_snowpark_pandas_result(
-            snow_ans, native_ans, lambda s: s, check_index_type=False
-        )
+        with SqlCounter(query_count=1, join_count=1):
+            eval_snowpark_pandas_result(
+                snow_ans, native_ans, lambda s: s, check_index_type=False
+            )
 
-    # The join count is high because:
-    # - When creating a single index Series, 1 join is performed; four series are created.
-    #   Therefore, 4 joins are performed. Each binary operation uses 1 join; two operations are performed.
-    #   This results in 6 joins.
-    # - Similarly, when creating a MultiIndex Series, 1 join is performed per column in the MultiIndex, in our case
-    #   there are two columns. Four Series are created, resulting in 8 joins. Each binary operation uses 1 join;
-    #   two operations are performed. This results in 10 joins.
-    with SqlCounter(
-        query_count=2, join_count=10 if isinstance(lhs.index, pd.MultiIndex) else 6
-    ):
-        check_op(lhs, rhs, try_cast_to_snow_series(lhs), try_cast_to_snow_series(rhs))
-
-        # commute series
-        check_op(rhs, lhs, try_cast_to_snow_series(rhs), try_cast_to_snow_series(lhs))
+    snow_lhs, snow_rhs = pd.Series(lhs), pd.Series(rhs)
+    check_op(lhs, rhs, snow_lhs, snow_rhs)
+    # commute series
+    check_op(rhs, lhs, snow_rhs, snow_lhs)
 
 
 # MOD TESTS
