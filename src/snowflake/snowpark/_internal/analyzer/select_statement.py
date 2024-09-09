@@ -690,6 +690,7 @@ class SelectStatement(Selectable):
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
         copied._projection_in_str = self._projection_in_str
         copied._query_params = deepcopy(self._query_params)
+        copied._can_flatten_projection_complexity = self._can_flatten_projection_complexity
         return copied
 
     @property
@@ -1085,7 +1086,7 @@ class SelectStatement(Selectable):
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
             )
         new.flatten_disabled = disable_next_level_flatten
-        new._complexity_flattened = complexity_can_be_flattened
+        new._can_flatten_projection_complexity = complexity_can_be_flattened
         assert new.projection is not None
         new._column_states = derive_column_states_from_subquery(
             new.projection, new.from_

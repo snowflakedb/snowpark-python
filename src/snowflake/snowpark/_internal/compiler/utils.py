@@ -241,6 +241,9 @@ def update_resolvable_node(
             node.from_.df_aliased_col_name_to_real_col_name
         )
 
+        # reset the cached projection complexity
+        node.reset_projection_complexity()
+
     elif isinstance(node, SetStatement):
         # clean up the cached sql query and snowflake plan to allow
         # re-calculation of the sql query and snowflake plan
