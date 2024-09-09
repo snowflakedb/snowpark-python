@@ -5,7 +5,6 @@
 import datetime
 import decimal
 import inspect
-import math
 import re
 import sys
 from functools import reduce
@@ -107,8 +106,10 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
         unscaled_val = reduce(lambda val, digit: val * 10 + digit, dec_tuple.digits)
         if dec_tuple.sign != 0:
             unscaled_val *= -1
-        # Need to round up.
-        req_bytes = int(math.ceil((unscaled_val.bit_length() + 7) / 8))
+
+        # In two-complement -1 with one byte is 0xFF. We encode arbitrary length integers
+        # in full bytes. Therefore, round up to fullest byte. To restore the sign, add another byte.
+        req_bytes = unscaled_val.bit_length() // 8 + 1
 
         ast.unscaled_value = unscaled_val.to_bytes(req_bytes, "big", signed=True)
         ast.scale = dec_tuple.exponent
