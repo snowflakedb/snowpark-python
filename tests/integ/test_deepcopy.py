@@ -314,6 +314,7 @@ def test_create_or_replace_view(session):
 
 
 def test_deep_nested_select(session):
+    session.large_query_breakdown_enabled = True
     temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
     # create a tabel with 11 columns (1 int columns and 10 string columns) for testing
     struct_fields = [T.StructField("intCol", T.IntegerType(), True)]
@@ -333,7 +334,7 @@ def test_deep_nested_select(session):
             ref_cols.append(ref_col)
         return F.concat(*ref_cols)
 
-    for i in range(1, 4):
+    for i in range(1, 8):
         int_col = df["intCol"]
         col1_base = get_col_ref_expression(i, F.initcap)
         case_expr: Optional[CaseExpr] = None
@@ -353,7 +354,7 @@ def test_deep_nested_select(session):
 
         col1 = case_expr.otherwise(col1_base)
         df = df.with_columns(["col1"], [col1])
-        print(f"""\niteration {i}: individual complexity: {df._plan.individual_node_complexity}, accumulative complexity: {df._plan.cumulative_node_complexity}""")
+        # print(f"""\niteration {i}: individual complexity: {df._plan.individual_node_complexity}, accumulative complexity: {df._plan.cumulative_node_complexity}""")
 
     # make a copy of the final df plan
     # copied_plan = copy.deepcopy(df._plan)
@@ -361,6 +362,8 @@ def test_deep_nested_select(session):
     # compilation, and attribute issues describing call which will timeout during server compilation.
     # check_copied_plan(copied_plan, df._plan, skip_attribute=True)
 
+    queries = df.queries
+    print(queries)
     """
     iteration 1: 
     individual complexity: {COLUMN: 21, CASE_WHEN: 1, LOW_IMPACT: 2, LITERAL: 5, FUNCTION: 12}, 

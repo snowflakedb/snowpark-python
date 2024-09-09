@@ -57,8 +57,11 @@ from snowflake.snowpark.session import Session
 
 # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
 # in Snowflake. This is the limit where we start seeing compilation errors.
-COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
-COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
+# COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
+# COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
+
+COMPLEXITY_SCORE_LOWER_BOUND = 1000
+COMPLEXITY_SCORE_UPPER_BOUND = 2000
 
 _logger = logging.getLogger(__name__)
 
@@ -298,7 +301,8 @@ class LargeQueryBreakdown:
         if isinstance(node, SelectStatement):
             # SelectStatement is a pipeline breaker if it contains an order by clause since sorting
             # is a pipeline breaker.
-            return node.order_by is not None
+            # return node.order_by is not None
+            return True
 
         if isinstance(node, SetStatement):
             # If the last operator applied in the SetStatement is a pipeline breaker, then the
