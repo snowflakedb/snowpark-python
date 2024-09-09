@@ -465,7 +465,7 @@ class ServerConnection:
         qid = results_cursor.sfqid
         if to_iter:
             new_cursor = results_cursor.connection.cursor()
-            new_cursor.execute(f"SELECT * FROM TABLE(RESULT_SCAN('{qid}'))")
+            new_cursor.get_results_from_sfqid(qid)
             results_cursor = new_cursor
 
         if to_pandas:
@@ -575,6 +575,9 @@ class ServerConnection:
         action_id = plan.session._generate_new_action_id()
         plan_queries = plan.execution_queries
         result, result_meta = None, None
+        statement_params = kwargs.get("_statement_params", None) or {}
+        statement_params["_PLAN_UUID"] = plan.uuid
+        kwargs["_statement_params"] = statement_params
         try:
             main_queries = plan_queries[PlanQueryType.QUERIES]
             placeholders = {}

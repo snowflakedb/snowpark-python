@@ -2454,7 +2454,11 @@ def set_frame_2d_labels(
         elif index_is_frame:
             col_obj = iff(index_data_col.is_null(), original_col, col_obj)
 
-        col_obj_type = col_obj_type if col_obj_type == origin_col_type else None
+        col_obj_type = (
+            origin_col_type
+            if col_obj_type == origin_col_type or (is_scalar(item) and pd.isna(item))
+            else None
+        )
 
         return SnowparkPandasColumn(col_obj, col_obj_type)
 
@@ -2758,12 +2762,12 @@ def set_frame_2d_positional(
                     df_snowflake_quoted_identifier,
                 ).as_(new_snowflake_quoted_identifier)
             )
-            if (
-                frame.snowflake_quoted_identifier_to_snowpark_pandas_type[
-                    original_snowflake_quoted_identifier
-                ]
-                == item_type
-            ):
+            original_type = frame.snowflake_quoted_identifier_to_snowpark_pandas_type[
+                original_snowflake_quoted_identifier
+            ]
+            if is_scalar(item) and pd.isna(item):
+                new_data_column_types.append(original_type)
+            elif original_type == item_type:
                 new_data_column_types.append(item_type)
             else:
                 new_data_column_types.append(None)

@@ -1491,7 +1491,7 @@ class BasePandasDataset:
         With a scalar integer.
 
         >>> type(df.iloc[0])
-        <class 'snowflake.snowpark.modin.pandas.series.Series'>
+        <class 'modin.pandas.series.Series'>
         >>> df.iloc[0]
         a    1
         b    2
@@ -2043,7 +2043,6 @@ class BasePandasDataset:
 
         Examples
         --------
-        >>> import snowflake.snowpark.modin.pandas as pd
         >>> df = pd.DataFrame({'A': [4, 5, 6], 'B': [4, 1, 1]})
         >>> df.nunique()
         A    3

@@ -23,6 +23,7 @@
 
 from __future__ import annotations
 
+import inspect
 from functools import cached_property
 from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 
@@ -117,27 +118,26 @@ class Index(metaclass=TelemetryMeta):
             TimedeltaIndex,
         )
 
-        if query_compiler:
-            dtype = query_compiler.index_dtypes[0]
-            if is_datetime64_any_dtype(dtype):
-                return DatetimeIndex(query_compiler=query_compiler)
-            if is_timedelta64_dtype(dtype):
-                return TimedeltaIndex(query_compiler=query_compiler)
-        elif isinstance(data, BasePandasDataset):
-            if data.ndim != 1:
-                raise ValueError("Index data must be 1 - dimensional")
-            dtype = data.dtype
-            if is_datetime64_any_dtype(dtype):
-                return DatetimeIndex(data, dtype=dtype, copy=copy, name=name)
-            if is_timedelta64_dtype(dtype):
-                return TimedeltaIndex(data, dtype=dtype, copy=copy, name=name)
-        else:
-            index = native_pd.Index(data, dtype, copy, name, tupleize_cols)
-            if isinstance(index, native_pd.DatetimeIndex):
-                return DatetimeIndex(data)
-            if isinstance(index, native_pd.TimedeltaIndex):
-                return TimedeltaIndex(data)
-        return object.__new__(cls)
+        kwargs = {
+            "dtype": dtype,
+            "copy": copy,
+            "name": name,
+            "tupleize_cols": tupleize_cols,
+        }
+        query_compiler = cls._init_query_compiler(
+            data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs
+        )
+        dtype = query_compiler.index_dtypes[0]
+        if is_datetime64_any_dtype(dtype):
+            return DatetimeIndex(query_compiler=query_compiler)
+        if is_timedelta64_dtype(dtype):
+            return TimedeltaIndex(query_compiler=query_compiler)
+        index = object.__new__(cls)
+        # Initialize the Index
+        index._query_compiler = query_compiler
+        # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
+        index._parent = None
+        return index
 
     def __init__(
         self,
@@ -185,30 +185,23 @@ class Index(metaclass=TelemetryMeta):
         >>> pd.Index([1, 2, 3], dtype="uint8")
         Index([1, 2, 3], dtype='int64')
         """
-        kwargs = {
-            "dtype": dtype,
-            "copy": copy,
-            "name": name,
-            "tupleize_cols": tupleize_cols,
-        }
-        self._init_index(data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs)
+        # Index is already initialized in __new__ method. We keep this method only for
+        # docstring generation.
 
-    def _init_index(
-        self,
+    @classmethod
+    def _init_query_compiler(
+        cls,
         data: ArrayLike | native_pd.Index | Series | None,
         ctor_defaults: dict,
         query_compiler: SnowflakeQueryCompiler = None,
         **kwargs: Any,
-    ):
-        # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
-        self._parent = None
+    ) -> SnowflakeQueryCompiler:
         if query_compiler:
             # Raise warning if `data` is query compiler with non-default arguments.
             for arg_name, arg_value in kwargs.items():
                 assert (
                     arg_value == ctor_defaults[arg_name]
                 ), f"Non-default argument '{arg_name}={arg_value}' when constructing Index with query compiler"
-            self._query_compiler = query_compiler
         elif isinstance(data, BasePandasDataset):
             if data.ndim != 1:
                 raise ValueError("Index data must be 1 - dimensional")
@@ -218,15 +211,17 @@ class Index(metaclass=TelemetryMeta):
             )
             if series_has_no_name:
                 idx.name = None
-            self._query_compiler = idx._query_compiler
+            query_compiler = idx._query_compiler
+        elif isinstance(data, Index):
+            query_compiler = data._query_compiler
         else:
-            self._query_compiler = DataFrame(
-                index=self._NATIVE_INDEX_TYPE(data=data, **kwargs)
+            query_compiler = DataFrame(
+                index=cls._NATIVE_INDEX_TYPE(data=data, **kwargs)
             )._query_compiler
-        if len(self._query_compiler.columns):
-            self._query_compiler = self._query_compiler.drop(
-                columns=self._query_compiler.columns
-            )
+
+        if len(query_compiler.columns):
+            query_compiler = query_compiler.drop(columns=query_compiler.columns)
+        return query_compiler
 
     def __getattr__(self, key: str) -> Any:
         """
@@ -254,15 +249,13 @@ class Index(metaclass=TelemetryMeta):
                 if hasattr(native_index, key):
                     # Any methods that not supported by the current Index.py but exist in a
                     # native pandas index object should raise a not implemented error for now.
-                    raise ErrorMessage.not_implemented(
-                        f"Index.{key} is not yet implemented"
-                    )
+                    ErrorMessage.not_implemented(f"Index.{key} is not yet implemented")
             raise err
 
     def _binary_ops(self, method: str, other: Any) -> Index:
         if isinstance(other, Index):
             other = other.to_series().reset_index(drop=True)
-        series = self.to_series().reset_index(drop=True).__getattr__(method)(other)
+        series = getattr(self.to_series().reset_index(drop=True), method)(other)
         qc = series._query_compiler
         qc = qc.set_index_from_columns(qc.columns, include_index=False)
         # Use base constructor to ensure that the correct type is returned.
@@ -272,7 +265,7 @@ class Index(metaclass=TelemetryMeta):
 
     def _unary_ops(self, method: str) -> Index:
         return self.__constructor__(
-            self.to_series().reset_index(drop=True).__getattr__(method)()
+            getattr(self.to_series().reset_index(drop=True), method)()
         )
 
     def __add__(self, other: Any) -> Index:
@@ -337,6 +330,56 @@ class Index(metaclass=TelemetryMeta):
 
     def __lt__(self, other: Any) -> Index:
         return self._binary_ops("lt", other)
+
+    def __or__(self, other: Any) -> Index:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __and__(self, other: Any) -> Index:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __xor__(self, other: Any) -> Index:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __lshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rand__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __ror__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rxor__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rlshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rrshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
 
     def to_pandas(
         self,
@@ -707,6 +750,10 @@ class Index(metaclass=TelemetryMeta):
         ------
         TypeError if each name is not hashable.
         """
+        if not is_list_like(values):
+            raise ValueError("Names must be a list-like")
+        if isinstance(values, Index):
+            values = values.to_list()
         self._query_compiler = self._query_compiler.set_index_names(values)
         if self._parent is not None:
             self._parent._update_inplace(
