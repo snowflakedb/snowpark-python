@@ -129,6 +129,12 @@ class SqlCounter:
         #   2. pytest-assume package is not available in conda
         self._no_check = no_check or IS_IN_STORED_PROC or SKIP_SQL_COUNT_CHECK
 
+        self._no_check = False
+
+        if kwargs is None:
+            kwargs = {}
+        kwargs["describe_count"] = 0
+
         # Save any expected sql counts initialized at start up.
         self._expected_sql_counts = {}
         for key, value in kwargs.items():
@@ -199,11 +205,13 @@ class SqlCounter:
         mark_sql_counter_called()
         self._check_if_dead()
 
-        if self._no_check or SqlCounter._record_mode:
-            return
+        # if self._no_check or SqlCounter._record_mode:
+        #     return
 
         if len(kwargs) == 0:
             raise AssertionError("SqlCounter not configured for test.")
+
+        kwargs["describe_count"] = 0
 
         failed = False
         # Get the actual counts and check they match assumptions.
