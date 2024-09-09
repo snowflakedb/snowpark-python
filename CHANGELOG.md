@@ -81,6 +81,7 @@
   - support for `GroupBy` filtrations `first` and `last`.
   - support for `TimedeltaIndex` attributes: `days`, `seconds`, `microseconds` and `nanoseconds`.
   - support for `diff` with timestamp columns on `axis=0` and `axis=1`
+  - support for `TimedeltaIndex` methods: `ceil`, `floor` and `round`.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
@@ -102,6 +103,7 @@
 - Added support for lazy `Index` objects  as `labels` in `DataFrame.reindex` and `Series.reindex`.
 - Added support for `Series.dt.days`, `Series.dt.seconds`, `Series.dt.microseconds`, and `Series.dt.nanoseconds`.
 - Added support for creating a `DatetimeIndex` from an `Index` of numeric or string type.
+- Added support for string indexing with `Timedelta` objects.
 - Added support for constructing `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` arguments.
 
 #### Improvements
@@ -110,6 +112,7 @@
 - Improved `pd.to_datetime` to handle all local input cases. 
 - Create a lazy index from another lazy index without pulling data to client.
 - Raised `NotImplementedError` for Index bitwise operators.
+- Display a clearer error message when `Index.names` is set to a non-like-like object.
 
 #### Bug Fixes
 
