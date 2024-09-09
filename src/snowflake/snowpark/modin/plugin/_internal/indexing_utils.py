@@ -2128,7 +2128,7 @@ def set_frame_2d_labels(
     matching_item_rows_by_label: bool,
     index_is_bool_indexer: bool,
     deduplicate_columns: bool,
-    item_is_series: bool,
+    frame_is_df_and_item_is_series: bool,
 ) -> InternalFrame:
     """
     Helper function to handle the general loc set functionality. The general idea here is to join the key from ``index``
@@ -2155,7 +2155,7 @@ def set_frame_2d_labels(
         index_is_bool_indexer: if True, the index is a boolean indexer. Note we only handle boolean indexer with
                 item is a SnowflakeQueryCompiler here.
         deduplicate_columns: if True, deduplicate columns from ``columns``.
-        item_is_series: Whether item is from a Series object
+        frame_is_df_and_item_is_series: Whether item is from a Series object and is being assigned to a DataFrame object
     Returns:
         New frame where values have been set
     """
@@ -2221,7 +2221,7 @@ def set_frame_2d_labels(
     original_index = index
     # If `item` is from a Series (rather than a Dataframe), flip the series item values to apply them
     # across columns rather than rows.
-    if item_is_series and (columns == slice(None) or len(columns) > 1):  # type: ignore[arg-type]
+    if frame_is_df_and_item_is_series and (columns == slice(None) or len(columns) > 1):  # type: ignore[arg-type]
         # If columns is slice(None), we are setting all columns in the InternalFrame.
         matching_item_columns_by_label = True
         col_len = (

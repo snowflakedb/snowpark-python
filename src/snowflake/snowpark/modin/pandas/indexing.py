@@ -1041,7 +1041,9 @@ class _LocIndexer(_LocationIndexerBase):
         )
         if item_is_2d_array:
             item = pd.DataFrame(item)
-        is_item_series = isinstance(item, pd.Series)
+        frame_is_df_and_item_is_series = isinstance(item, pd.Series) and isinstance(
+            self.df, pd.DataFrame
+        )
         item = item._query_compiler if isinstance(item, BasePandasDataset) else item
         new_qc = self.qc.set_2d_labels(
             index,
@@ -1050,7 +1052,7 @@ class _LocIndexer(_LocationIndexerBase):
             matching_item_columns_by_label=matching_item_columns_by_label,
             matching_item_rows_by_label=matching_item_rows_by_label,
             index_is_bool_indexer=index_is_bool_indexer,
-            is_item_series=is_item_series,
+            frame_is_df_and_item_is_series=frame_is_df_and_item_is_series,
         )
 
         self.df._update_inplace(new_query_compiler=new_qc)
