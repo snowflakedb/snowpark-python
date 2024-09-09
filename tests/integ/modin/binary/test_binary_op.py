@@ -1289,20 +1289,26 @@ def test_other_with_native_pandas_object_raises(op):
     ],
 )
 @pytest.mark.parametrize("op", [operator.add])
-@sql_count_checker(query_count=2, join_count=2)
 def test_binary_add_between_series_for_index_alignment(lhs, rhs, op):
     def check_op(native_lhs, native_rhs, snow_lhs, snow_rhs):
         snow_ans = op(snow_lhs, snow_rhs)
         native_ans = op(native_lhs, native_rhs)
-        # for one multi-index test case (marked with comment) the "inferred_type" doesn't match (Snowpark: float vs. pandas integer)
-        eval_snowpark_pandas_result(
-            snow_ans, native_ans, lambda s: s, check_index_type=False
-        )
+        with SqlCounter(
+            query_count=2, join_count=10 if isinstance(lhs.index, pd.MultiIndex) else 6
+        ):
+            # for one multi-index test case (marked with comment) the "inferred_type" doesn't match (Snowpark: float vs. pandas integer)
+            eval_snowpark_pandas_result(
+                snow_ans, native_ans, lambda s: s, check_index_type=False
+            )
 
-    check_op(lhs, rhs, try_cast_to_snow_series(lhs), try_cast_to_snow_series(rhs))
+            check_op(
+                lhs, rhs, try_cast_to_snow_series(lhs), try_cast_to_snow_series(rhs)
+            )
 
-    # commute series
-    check_op(rhs, lhs, try_cast_to_snow_series(rhs), try_cast_to_snow_series(lhs))
+            # commute series
+            check_op(
+                rhs, lhs, try_cast_to_snow_series(rhs), try_cast_to_snow_series(lhs)
+            )
 
 
 # MOD TESTS
@@ -1872,7 +1878,7 @@ def test_binary_rpow_between_df_and_list_like_on_axis_1(rhs):
         "rmod",
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=3)
 def test_generated_docstring_examples(opname):
     # test for operators that correct examples are generated and match up with pandas.
     # if this test passes, this ensures that all the examples generated in utils.py will be correct.

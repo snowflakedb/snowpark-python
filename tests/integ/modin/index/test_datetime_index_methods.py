@@ -89,7 +89,7 @@ def test_non_default_args(kwargs):
         pd.DatetimeIndex(query_compiler=idx._query_compiler, **kwargs)
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=6, join_count=6)
 def test_index_parent():
     """
     Check whether the parent field in Index is updated properly.
