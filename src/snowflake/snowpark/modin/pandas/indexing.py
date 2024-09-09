@@ -889,11 +889,11 @@ class _LocIndexer(_LocationIndexerBase):
             if isinstance(row_loc.start, str):
                 start = self._convert_to_timedelta(row_loc.start)
                 if isinstance(start, slice):
-                    start = start.start
+                    start = start.start  # pragma: no cover
             if isinstance(row_loc.stop, str):
                 stop = self._convert_to_timedelta(row_loc.stop)
                 if isinstance(stop, slice):
-                    stop = stop.stop
+                    stop = stop.stop  # pragma: no cover
             # partial string indexing only updates start and stop, and should keep using the original step.
             return slice(start, stop, row_loc.step)
         elif is_boolean_array(row_loc):
