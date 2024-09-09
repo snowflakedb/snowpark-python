@@ -92,13 +92,13 @@ def to_snowpark(
          ValueError if the label used for a index or data column is None.
 
     See also:
-        - :func:`to_snowpark <modin.pandas.io.to_snowpark>`
+        - :func:`to_snowpark <snowflake.snowpark.modin.pandas.to_snowpark>`
         - :func:`Series.to_snowpark <modin.pandas.Series.to_snowpark>`
 
     Note:
         The labels of the Snowpark pandas DataFrame or index_label provided will be used as Normalized Snowflake
         Identifiers of the Snowpark DataFrame.
-        For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~modin.pandas.io.read_snowflake`
+        For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~snowflake.snowpark.modin.pandas.read_snowflake`
 
     Examples::
 
