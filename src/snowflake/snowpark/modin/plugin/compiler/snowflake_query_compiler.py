@@ -9275,7 +9275,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         matching_item_rows_by_label: bool,
         index_is_bool_indexer: bool,
         deduplicate_columns: bool = False,
-        is_item_series: bool = False,
+        frame_is_df_and_item_is_series: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Create a new SnowflakeQueryCompiler with indexed columns and rows replaced by item.
@@ -9300,7 +9300,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_is_bool_indexer: if True, the index is a boolean indexer.
             deduplicate_columns: if True, deduplicate columns from ``columns``, e.g., if columns = ["A","A"], only the
                 second "A" column will be used.
-            is_item_series: Whether item is from a Series
+            frame_is_df_and_item_is_series: Whether item is from a Series and is being set to a DataFrame object
         Returns:
             Updated SnowflakeQueryCompiler
         """
@@ -9326,7 +9326,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             matching_item_rows_by_label=matching_item_rows_by_label,
             index_is_bool_indexer=index_is_bool_indexer,
             deduplicate_columns=deduplicate_columns,
-            item_is_series=is_item_series,
+            frame_is_df_and_item_is_series=frame_is_df_and_item_is_series,
         )
 
         return SnowflakeQueryCompiler(result_frame)
