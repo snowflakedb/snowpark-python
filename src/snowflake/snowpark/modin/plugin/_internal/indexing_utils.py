@@ -128,6 +128,7 @@ def get_valid_index_values(
     -------
     Optional[Row]: The desired index (a Snowpark Row) if it exists, else None.
     """
+    frame = frame.ensure_row_position_column()
     index_quoted_identifier = frame.index_column_snowflake_quoted_identifiers
     data_quoted_identifier = frame.data_column_snowflake_quoted_identifiers
     row_position_quoted_identifier = frame.row_position_snowflake_quoted_identifier
