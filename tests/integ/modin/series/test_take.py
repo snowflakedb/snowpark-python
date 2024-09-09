@@ -16,7 +16,7 @@ def test_series_take():
 
     actual = ser.take([1, 3, 4])
     expected = pd.Series([5, 2, 4], index=[1, 3, 4])
-    with SqlCounter(query_count=2, join_count=2):
+    with SqlCounter(query_count=2, join_count=3):
         assert_series_equal(actual, expected)
 
     actual = ser.take([-1, 3, 4])

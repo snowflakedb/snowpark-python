@@ -85,12 +85,12 @@ def test_dataframe_nunique_no_columns(native_df):
         ),
     ],
 )
-@sql_count_checker(query_count=1)
 def test_dataframe_nunique_multiindex(index, columns):
-    eval_snowpark_pandas_result(
-        *create_test_dfs(TEST_DATA, index=index, columns=columns),
-        lambda df: df.nunique(axis=0),
-    )
+    with SqlCounter(query_count=1, join_count=0 if index is None else 2):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(TEST_DATA, index=index, columns=columns),
+            lambda df: df.nunique(axis=0),
+        )
 
 
 @sql_count_checker(query_count=0)

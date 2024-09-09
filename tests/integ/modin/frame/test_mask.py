@@ -864,7 +864,7 @@ def test_mask_series_other_axis_not_specified():
     )
 
 
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=2, join_count=4)
 @pytest.mark.parametrize(
     "data",
     [[10], [10, 11, 12], [10, 11, 12, 13]],
@@ -909,7 +909,7 @@ def test_mask_series_other_axis_0(index, data):
     )
 
 
-@sql_count_checker(query_count=2, join_count=3, union_count=1)
+@sql_count_checker(query_count=2, join_count=5, union_count=1)
 @pytest.mark.parametrize(
     "data",
     [[10], [10, 11, 12], [10, 11, 12, 13]],

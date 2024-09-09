@@ -11,7 +11,7 @@ import pandas.testing as tm
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
@@ -47,15 +47,16 @@ def try_cast_to_snow_series(value: Any) -> Any:
 
 
 @pytest.mark.parametrize("value", BITWISE_TEST_DATA)
-@sql_count_checker(query_count=1)
 def test_bitwise_unary(value):
 
     # Note: In pandas, using NaN values without specfiying a null-compatible dtype will yield an error.
     # SnowPandas will allow this behavior.
     # Note: NaN values like pd.NA, pd.NaT, np.nan will raise a TypeError: boolean value of NA is ambiguous
-    snow_value = try_cast_to_snow_series(value)
-
-    eval_snowpark_pandas_result(snow_value, native_pd.Series(value), lambda s: ~s)
+    with SqlCounter(
+        query_count=1, join_count=1 if isinstance(value, native_pd.Series) else 0
+    ):
+        snow_value = try_cast_to_snow_series(value)
+        eval_snowpark_pandas_result(snow_value, native_pd.Series(value), lambda s: ~s)
 
 
 @pytest.mark.parametrize("series", SERIES_BITWISE_TEST_DATA)
@@ -121,7 +122,6 @@ def test_bitwise_binary_scalar(series, scalar, op):
 @pytest.mark.parametrize(
     "op", [operator.or_, operator.and_]
 )  # |, &.  ^ is not supported in Snowflake
-@sql_count_checker(query_count=2, join_count=2)
 def test_bitwise_binary_between_series(lhs, rhs, op):
     def check_op(native_lhs, native_rhs, snow_lhs, snow_rhs):
         snow_ans = op(snow_lhs, snow_rhs)
@@ -131,10 +131,14 @@ def test_bitwise_binary_between_series(lhs, rhs, op):
             snow_ans, native_ans, lambda s: s, check_index_type=False
         )
 
-    check_op(lhs, rhs, try_cast_to_snow_series(lhs), try_cast_to_snow_series(rhs))
+    with SqlCounter(
+        query_count=2,
+        join_count=10 if isinstance(lhs.index, native_pd.MultiIndex) else 6,
+    ):
+        check_op(lhs, rhs, try_cast_to_snow_series(lhs), try_cast_to_snow_series(rhs))
 
-    # commute series
-    check_op(rhs, lhs, try_cast_to_snow_series(rhs), try_cast_to_snow_series(lhs))
+        # commute series
+        check_op(rhs, lhs, try_cast_to_snow_series(rhs), try_cast_to_snow_series(lhs))
 
 
 # Due to differences in logical or/and in SQL and pandas' |,& implementation, behavior doesn't match here, in particular
@@ -230,18 +234,21 @@ def test_bitwise_binary_between_series(lhs, rhs, op):
         ),
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
 def test_bitwise_binary_between_series_with_deviating_behavior_or(
     lhs, rhs, expected_pandas, expected_snowpark_pandas
 ):
-    snow_ans = try_cast_to_snow_series(lhs) | try_cast_to_snow_series(rhs)
-    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-        snow_ans, expected_snowpark_pandas
-    )
+    with SqlCounter(
+        query_count=1,
+        join_count=5 if isinstance(lhs.index, native_pd.MultiIndex) else 3,
+    ):
+        snow_ans = try_cast_to_snow_series(lhs) | try_cast_to_snow_series(rhs)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            snow_ans, expected_snowpark_pandas
+        )
 
-    # test here pandas to track any version regressions
-    native_ans = lhs | rhs
-    tm.assert_series_equal(native_ans, expected_pandas, check_index_type=False)
+        # test here pandas to track any version regressions
+        native_ans = lhs | rhs
+        tm.assert_series_equal(native_ans, expected_pandas, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -315,16 +322,19 @@ def test_bitwise_binary_between_series_with_deviating_behavior_or(
         ),
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
 def test_bitwise_binary_between_series_with_deviating_behavior_and(
     lhs, rhs, expected_pandas, expected_snowpark_pandas
 ):
-    snow_ans = try_cast_to_snow_series(lhs) & try_cast_to_snow_series(rhs)
-    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-        snow_ans, expected_snowpark_pandas
-    )
+    with SqlCounter(
+        query_count=1,
+        join_count=5 if isinstance(lhs.index, native_pd.MultiIndex) else 3,
+    ):
+        snow_ans = try_cast_to_snow_series(lhs) & try_cast_to_snow_series(rhs)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            snow_ans, expected_snowpark_pandas
+        )
 
-    # test here pandas to track any version regressions
-    native_ans = lhs & rhs
-    print(native_ans.index)
-    tm.assert_series_equal(native_ans, expected_pandas, check_index_type=False)
+        # test here pandas to track any version regressions
+        native_ans = lhs & rhs
+        print(native_ans.index)
+        tm.assert_series_equal(native_ans, expected_pandas, check_index_type=False)

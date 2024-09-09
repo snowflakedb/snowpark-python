@@ -46,7 +46,7 @@ def test_series_add_prefix_multiindex(prefix, multiindex_native_int_series):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 @pytest.mark.parametrize("prefix", TEST_ADD_PREFIX_DATA)
 def test_series_add_prefix_time_column_df(prefix, time_index_series_data):
     series_data, kwargs = time_index_series_data

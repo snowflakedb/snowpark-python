@@ -269,21 +269,21 @@ def test_join_validate_negative(lvalues, rvalues, validate):
         left.join(right, validate=validate)
 
 
-@sql_count_checker(query_count=6, join_count=2)
+@sql_count_checker(query_count=2, join_count=2)
 def test_join_timedelta(left, right):
     right = right.astype("timedelta64[ns]")
     eval_snowpark_pandas_result(
+        pd.DataFrame(left),
         left,
-        left.to_pandas(),
         lambda df: df.join(
-            right if isinstance(df, pd.DataFrame) else right.to_pandas()
+            pd.DataFrame(right) if isinstance(df, pd.DataFrame) else right
         ),
     )
     left = left.astype("timedelta64[ns]")
     eval_snowpark_pandas_result(
+        pd.DataFrame(left),
         left,
-        left.to_pandas(),
         lambda df: df.join(
-            right if isinstance(df, pd.DataFrame) else right.to_pandas()
+            pd.DataFrame(right) if isinstance(df, pd.DataFrame) else right
         ),
     )

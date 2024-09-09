@@ -34,7 +34,7 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
         "empty series with only index",
     ],
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_series_empty(args, kwargs):
     eval_snowpark_pandas_result(
         pd.Series(*args, **kwargs),

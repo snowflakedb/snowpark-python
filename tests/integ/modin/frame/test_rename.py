@@ -294,7 +294,7 @@ class TestRename:
         assert "FOO" in renamed
         assert "foo" not in renamed
 
-    @sql_count_checker(query_count=6, join_count=2)
+    @sql_count_checker(query_count=6, join_count=8)
     def test_rename_axis_style(self):
         # https://github.com/pandas-dev/pandas/issues/12392
         df = DataFrame({"A": [1, 2], "B": [1, 2]}, index=["X", "Y"])
@@ -420,7 +420,7 @@ class TestRename:
         with pytest.raises(TypeError, match=msg):
             df.rename({}, columns={}, index={})
 
-    @sql_count_checker(query_count=1, join_count=1)
+    @sql_count_checker(query_count=1, join_count=5)
     def test_rename_with_duplicate_columns(self):
         # GH#4403
         df4 = DataFrame(

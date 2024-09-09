@@ -17,7 +17,7 @@ def assert_ngroups_equal(snow_res, pd_res):
 
 
 @pytest.mark.parametrize("by", ["a", "b", ["a", "b"]])
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=4)
 def test_groupby_sort_multiindex_series(series_multi_numeric, by):
 
     snow_ser = series_multi_numeric

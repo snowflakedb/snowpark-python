@@ -20,7 +20,7 @@ from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 )
 @pytest.mark.parametrize("dropna", [True, False])
 @pytest.mark.parametrize("sort", [True, False])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_stack(data, index, columns, dropna, sort):
     eval_snowpark_pandas_result(
         *create_test_dfs(data=data, index=index, columns=columns),

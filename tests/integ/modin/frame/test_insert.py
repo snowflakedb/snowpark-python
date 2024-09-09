@@ -344,55 +344,61 @@ def test_insert_multiindex_dict_negative():
 
 
 @pytest.mark.parametrize(
-    "df_index, value_index",
+    "df_index, value_index, join_count",
     [
-        ([3, 0, 4], [1, 2, 3]),
-        ([(1, 0), (1, 2), (2, 2)], [(1, 1), (1, 2), (2, 2)]),
-        ([1.0, 2.5, 3.0], [1, 2, 3]),  # Long and Double can be joined
+        ([3, 0, 4], [1, 2, 3], 6),
+        ([(1, 0), (1, 2), (2, 2)], [(1, 1), (1, 2), (2, 2)], 11),
+        ([1.0, 2.5, 3.0], [1, 2, 3], 6),  # Long and Double can be joined
     ],
 )
-@sql_count_checker(query_count=4, join_count=1)
-def test_insert_compatible_index(df_index, value_index):
+def test_insert_compatible_index(df_index, value_index, join_count):
     snow_df = pd.DataFrame({"col1": ["p", "q", "r"]}, index=native_pd.Index(df_index))
     value = pd.DataFrame({"col2": ["x", "y", "z"]}, index=native_pd.Index(value_index))
-    eval_snowpark_pandas_result(
-        snow_df,
-        snow_df.to_pandas(),
-        lambda df: df.insert(
-            0, "col3", value if isinstance(df, pd.DataFrame) else value.to_pandas()
-        ),
-        inplace=True,  # insert operation is always inplace
-    )
+    with SqlCounter(query_count=4, join_count=join_count):
+        eval_snowpark_pandas_result(
+            snow_df,
+            snow_df.to_pandas(),
+            lambda df: df.insert(
+                0, "col3", value if isinstance(df, pd.DataFrame) else value.to_pandas()
+            ),
+            inplace=True,  # insert operation is always inplace
+        )
 
 
 @pytest.mark.parametrize(
-    "df_index, value_index",
+    "df_index, value_index, join_count",
     [
-        ([3, 2, 1], [(1, 0, 1), (1, 2, 3), (2, 1, 0)]),  # length mismatch 1 != 3
+        ([3, 2, 1], [(1, 0, 1), (1, 2, 3), (2, 1, 0)], 3),  # length mismatch 1 != 3
         (
             [(3, 1), (2, 1), (1, 2)],
             [(1, 0, 1), (1, 2, 3), (2, 1, 0)],
+            3,
         ),  # length mismatch 2 != 3
-        ([1, 2, 3], [(1, 0), (1, 2), (2, 2)]),  # 1 != 2
-        ([(1, 0), (1, 2), (2, 2)], [(1, 2, 3), (3, 4, 5), (6, 5, 4)]),  # 2 != 3
-        ([(1, 2, 3), (3, 4, 5), (6, 5, 4)], [3, 1, 2]),  # length mismatch 3 != 1
+        ([1, 2, 3], [(1, 0), (1, 2), (2, 2)], 2),  # 1 != 2
+        ([(1, 0), (1, 2), (2, 2)], [(1, 2, 3), (3, 4, 5), (6, 5, 4)], 3),  # 2 != 3
+        ([(1, 2, 3), (3, 4, 5), (6, 5, 4)], [3, 1, 2], 1),  # length mismatch 3 != 1
         (
             [(1, 1), (1, 2), (2, 2)],
             ["(1, 0)", "(1, 2)", "(2, 2)"],
+            1,
         ),  # length and type mismatch
     ],
 )
-@sql_count_checker(query_count=1)
-def test_insert_index_num_levels_mismatch_negative(df_index, value_index):
-    snow_df = pd.DataFrame({"col1": ["p", "q", "r"]}, index=native_pd.Index(df_index))
-    value = pd.DataFrame({"col2": ["w", "x", "y"]}, index=native_pd.Index(value_index))
-    # This is different behavior from native pandas. Native pandas in some cases
-    # insert new column with null values but in Snowpark pandas we always raise error.
-    with pytest.raises(
-        ValueError,
-        match="Number of index levels of inserted column are different from frame index",
-    ):
-        snow_df.insert(0, "col3", value)
+def test_insert_index_num_levels_mismatch_negative(df_index, value_index, join_count):
+    with SqlCounter(query_count=1, join_count=join_count):
+        snow_df = pd.DataFrame(
+            {"col1": ["p", "q", "r"]}, index=native_pd.Index(df_index)
+        )
+        value = pd.DataFrame(
+            {"col2": ["w", "x", "y"]}, index=native_pd.Index(value_index)
+        )
+        # This is different behavior from native pandas. Native pandas in some cases
+        # insert new column with null values but in Snowpark pandas we always raise error.
+        with pytest.raises(
+            ValueError,
+            match="Number of index levels of inserted column are different from frame index",
+        ):
+            snow_df.insert(0, "col3", value)
 
 
 @pytest.mark.parametrize(
@@ -407,7 +413,7 @@ def test_insert_index_num_levels_mismatch_negative(df_index, value_index):
         ),  # type mismatch boolean != long
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=2, join_count=4)
 def test_insert_index_type_mismatch(df_index, value_index, expected_index):
     # Note: This is different behavior than native pandas. In native pandas when
     # index datatype mismatch new columns in inserted will all NULL values.
@@ -424,7 +430,7 @@ def test_insert_index_type_mismatch(df_index, value_index, expected_index):
     assert_snowpark_pandas_equal_to_pandas(snow_df, expected_df)
 
 
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=3, join_count=5)
 def test_insert_with_null_index_values():
     snow_df = pd.DataFrame(
         {"A": ["p", "q", "r", "s"]}, native_pd.Index(["a", None, "b", None])
@@ -440,7 +446,7 @@ def test_insert_with_null_index_values():
     )
 
 
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=3, join_count=5)
 def test_insert_multiple_null():
     snow_df = pd.DataFrame(
         {"A": ["p", "q", "r", "s"]}, native_pd.Index(["a", "b", "c", "d"])
@@ -465,8 +471,8 @@ def test_insert_multiple_null():
 @pytest.mark.parametrize(
     "index, value, expected_query_count, expected_join_count",
     [
-        ([1, 2], native_pd.Series([1, 2], index=[2, 3]), 1, 1),
-        ([1, 2], [3, 4], 2, 1),
+        ([1, 2], native_pd.Series([1, 2], index=[2, 3]), 1, 3),
+        ([1, 2], [3, 4], 2, 3),
     ],
 )
 def test_insert_into_empty_dataframe_with_index(
