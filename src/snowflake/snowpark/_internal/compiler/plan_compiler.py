@@ -3,6 +3,7 @@
 #
 
 import copy
+import time
 from typing import Dict, List
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
@@ -15,6 +16,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.compiler.large_query_breakdown import (
+    COMPLEXITY_SCORE_LOWER_BOUND,
+    COMPLEXITY_SCORE_UPPER_BOUND,
     LargeQueryBreakdown,
 )
 from snowflake.snowpark._internal.compiler.repeated_subquery_elimination import (
@@ -71,6 +74,7 @@ class PlanCompiler:
         if self.should_start_query_compilation():
             # preparation for compilation
             # 1. make a copy of the original plan
+            start_time = time.time()
             before_complexity = get_complexity_score(
                 self._plan.cumulative_node_complexity
             )
@@ -95,16 +99,26 @@ class PlanCompiler:
                 for logical_plan in logical_plans
             ]
 
-            # log telemetry data
-            session = self._plan.session
-            session._conn._telemetry_client.send_complexity_breakdown_post_compilation_stage(
-                session.session_id,
-                self._plan.uuid,
-                before_complexity,
-                after_complexities,
-            )
             # do a final pass of code generation
-            return query_generator.generate_queries(logical_plans)
+            queries = query_generator.generate_queries(logical_plans)
+
+            # log telemetry data
+            end_time = time.time()
+            session = self._plan.session
+            session._conn._telemetry_client.send_post_compilation_stage_telemetry(
+                session_id=session.session_id,
+                plan_uuid=self._plan.uuid,
+                cte_optimization_enabled=session.cte_optimization_enabled,
+                large_query_breakdown_enabled=session.large_query_breakdown_enabled,
+                time_taken_for_compilation=end_time - start_time,
+                complexity_score_bounds=(
+                    COMPLEXITY_SCORE_LOWER_BOUND,
+                    COMPLEXITY_SCORE_UPPER_BOUND,
+                ),
+                before_complexity_score=before_complexity,
+                after_complexity_scores=after_complexities,
+            )
+            return queries
         else:
             final_plan = self._plan
             if self._plan.session.cte_optimization_enabled:

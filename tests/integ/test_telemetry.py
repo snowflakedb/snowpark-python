@@ -1180,13 +1180,20 @@ def test_large_query_breakdown_skipped_telemetry(reason, session):
     assert type_ == "snowpark_large_query_breakdown_optimization_skipped"
 
 
-def test_complexity_breakdown_post_compilation_stage(session):
+def test_post_compilation_stage_telemetry(session):
     client = session._conn._telemetry_client
     uuid_str = str(uuid.uuid4())
 
     def send_telemetry():
-        client.send_complexity_breakdown_post_compilation_stage(
-            session.session_id, uuid_str, 100, [60, 51]
+        client.send_post_compilation_stage_telemetry(
+            session_id=session.session_id,
+            plan_uuid=uuid_str,
+            cte_optimization_enabled=session.cte_optimization_enabled,
+            large_query_breakdown_enabled=session.large_query_breakdown_enabled,
+            time_taken_for_compilation=101,
+            complexity_score_bounds=(100_000, 101_000),
+            before_complexity_score=100,
+            after_complexity_scores=[60, 51],
         )
 
     telemetry_tracker = TelemetryDataTracker(session)
@@ -1196,6 +1203,10 @@ def test_complexity_breakdown_post_compilation_stage(session):
         "plan_uuid": uuid_str,
         "before_complexity_score": 100,
         "after_complexity_scores": [60, 51],
+        "cte_optimization_enabled": session.cte_optimization_enabled,
+        "large_query_breakdown_enabled": session.large_query_breakdown_enabled,
+        "complexity_score_bounds": (100_000, 101_000),
+        "time_taken_for_compilation": 101,
     }
 
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)

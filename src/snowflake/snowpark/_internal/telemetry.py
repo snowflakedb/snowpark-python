@@ -5,7 +5,7 @@
 
 import functools
 from enum import Enum, unique
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.telemetry import (
@@ -432,10 +432,14 @@ class TelemetryClient:
         }
         self.send(message)
 
-    def send_complexity_breakdown_post_compilation_stage(
+    def send_post_compilation_stage_telemetry(
         self,
         session_id: int,
         plan_uuid: str,
+        cte_optimization_enabled: bool,
+        large_query_breakdown_enabled: bool,
+        complexity_score_bounds: Tuple[int, int],
+        time_taken_for_compilation: int,
         before_complexity_score: int,
         after_complexity_scores: List[int],
     ) -> None:
@@ -446,6 +450,10 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
+                TelemetryField.CTE_OPTIMIZATION_ENABLED.value: cte_optimization_enabled,
+                TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: large_query_breakdown_enabled,
+                CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: complexity_score_bounds,
+                CompilationStageTelemetryField.TIME_TAKEN_FOR_COMPILATION.value: time_taken_for_compilation,
                 CompilationStageTelemetryField.BEFORE_COMPLEXITY_SCORE.value: before_complexity_score,
                 CompilationStageTelemetryField.AFTER_COMPLEXITY_SCORES.value: after_complexity_scores,
             },
