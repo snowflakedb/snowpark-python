@@ -88,7 +88,6 @@ import modin.pandas
 
 # TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
 from modin.pandas import plotting  # type: ignore[import]
-from modin.pandas.base import BasePandasDataset
 from modin.pandas.dataframe import _DATAFRAME_EXTENSIONS_, DataFrame
 from modin.pandas.series import _SERIES_EXTENSIONS_, Series
 
@@ -167,16 +166,6 @@ from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: 
     read_json,
 )
 
-# Determine which properties of `Series` were defined directly on `Series` rather than inherited
-# from `BasePandasDataset`. This prevents us from accidentally registering telemetry on an attribute
-# twice (once while iterating over `dir(Series)` and once while iterating over `dir(DataFrame)`).
-# This check must be done before extension methods are added.
-_modin_series_methods_defined_on_base = set()
-for attr_name, attr_value in Series.__dict__.items():
-    base_value = BasePandasDataset.__dict__.get(attr_name, None)
-    if base_value is not None and attr_value == base_value:
-        _modin_series_methods_defined_on_base.add(attr_name)
-
 
 # base overrides occur before subclass overrides in case subclasses override a base method
 import snowflake.snowpark.modin.plugin.extensions.base_extensions  # isort: skip  # noqa: E402,F401
@@ -220,16 +209,9 @@ for attr_name in dir(DataFrame):
     if attr_name not in _dataframe_ext and (
         not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
     ):
-        # If this method was inherited from BasePandasDataset and telemetry was already added via
-        # Series, register the override but don't re-wrap the method in the telemetry annotation.
-        # If we don't do this check, we will end up double-reporting telemetry on some methods.
-        original_attr = getattr(DataFrame, attr_name)
-        new_attr = (
-            original_attr
-            if attr_name in _modin_series_methods_defined_on_base
-            else try_add_telemetry_to_attribute(attr_name, original_attr)
+        register_dataframe_accessor(attr_name)(
+            try_add_telemetry_to_attribute(attr_name, getattr(DataFrame, attr_name))
         )
-        register_dataframe_accessor(attr_name)(new_attr)
 
 
 def __getattr__(name: str) -> Any:
