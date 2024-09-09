@@ -1293,22 +1293,18 @@ def test_binary_add_between_series_for_index_alignment(lhs, rhs, op):
     def check_op(native_lhs, native_rhs, snow_lhs, snow_rhs):
         snow_ans = op(snow_lhs, snow_rhs)
         native_ans = op(native_lhs, native_rhs)
-        with SqlCounter(
-            query_count=2, join_count=10 if isinstance(lhs.index, pd.MultiIndex) else 6
-        ):
-            # for one multi-index test case (marked with comment) the "inferred_type" doesn't match (Snowpark: float vs. pandas integer)
-            eval_snowpark_pandas_result(
-                snow_ans, native_ans, lambda s: s, check_index_type=False
-            )
+        # for one multi-index test case (marked with comment) the "inferred_type" doesn't match (Snowpark: float vs. pandas integer)
+        eval_snowpark_pandas_result(
+            snow_ans, native_ans, lambda s: s, check_index_type=False
+        )
 
-            check_op(
-                lhs, rhs, try_cast_to_snow_series(lhs), try_cast_to_snow_series(rhs)
-            )
+    with SqlCounter(
+        query_count=2, join_count=10 if isinstance(lhs.index, pd.MultiIndex) else 6
+    ):
+        check_op(lhs, rhs, try_cast_to_snow_series(lhs), try_cast_to_snow_series(rhs))
 
-            # commute series
-            check_op(
-                rhs, lhs, try_cast_to_snow_series(rhs), try_cast_to_snow_series(lhs)
-            )
+        # commute series
+        check_op(rhs, lhs, try_cast_to_snow_series(rhs), try_cast_to_snow_series(lhs))
 
 
 # MOD TESTS

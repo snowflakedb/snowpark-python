@@ -1670,7 +1670,6 @@ def test_df_loc_get_key_bool_self_series():
         [random.choice([True, False]) for _ in range(5)],
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
 def test_df_loc_get_key_bool_series_with_aligned_indices(key, use_default_index):
     # aligned indices means both row_pos and index are exactly match
     if use_default_index:
@@ -1681,14 +1680,15 @@ def test_df_loc_get_key_bool_series_with_aligned_indices(key, use_default_index)
     native_df = native_pd.DataFrame(
         {"c1": [1, 2, 3, 4, 5], "c2": ["x", "y", "z", "d", "e"]}, index=index
     )
-    snow_df = pd.DataFrame(native_df)
-    eval_snowpark_pandas_result(
-        snow_df,
-        native_df,
-        lambda df: df.loc[pd.Series(key, index=index, dtype="bool")]
-        if isinstance(df, pd.DataFrame)
-        else df.loc[native_pd.Series(key, index=index, dtype="bool")],
-    )
+    with SqlCounter(query_count=1, join_count=1 if use_default_index else 2):
+        snow_df = pd.DataFrame(native_df)
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.loc[pd.Series(key, index=index, dtype="bool")]
+            if isinstance(df, pd.DataFrame)
+            else df.loc[native_pd.Series(key, index=index, dtype="bool")],
+        )
 
 
 @pytest.mark.parametrize(
