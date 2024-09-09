@@ -224,7 +224,6 @@ def test_series_loc_get_all_rows():
         [random.choice([True, False]) for _ in range(5)],
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
 def test_series_loc_get_key_bool_series_with_aligned_indices(key, use_default_index):
     # aligned indices means both row_pos and index are exactly match
     if use_default_index:
@@ -234,13 +233,14 @@ def test_series_loc_get_key_bool_series_with_aligned_indices(key, use_default_in
         index = native_pd.Index(["a", "a", None, "b", "b"], name="index")
     native_series = native_pd.Series([1, 2, 3, 4, 5], index=index)
     snow_series = pd.Series(native_series)
-    eval_snowpark_pandas_result(
-        snow_series,
-        native_series,
-        lambda s: s.loc[pd.Series(key, index=index, dtype="bool")]
-        if isinstance(s, pd.Series)
-        else s.loc[native_pd.Series(key, index=index, dtype="bool")],
-    )
+    with SqlCounter(query_count=1, join_count=1 if use_default_index else 2):
+        eval_snowpark_pandas_result(
+            snow_series,
+            native_series,
+            lambda s: s.loc[pd.Series(key, index=index, dtype="bool")]
+            if isinstance(s, pd.Series)
+            else s.loc[native_pd.Series(key, index=index, dtype="bool")],
+        )
 
 
 @pytest.mark.parametrize(
@@ -861,7 +861,7 @@ def test_series_loc_set_dataframe_item_negative(key_type):
         ["a", "a", "c", "d"],
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=3)
 def test_series_loc_set_scalar_row_key_enlargement(row_key, item_values, ser_index):
     data = [1, 2, 3, 4]
 
@@ -1407,7 +1407,7 @@ def test_series_loc_set_slice_item_negative(key, default_index_native_series):
         [2, "x"],
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_series_loc_set_boolean_key(key, index):
     # series.loc[True/False key] = scalar item
     # ----------------------------------------
@@ -1596,7 +1596,7 @@ def test_series_loc_set_with_scalar_key_and_list_like_item(
         assert_series_equal(snowpark_ser, native_ser)
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 @pytest.mark.parametrize("key", SCALAR_LIKE_VALUES)
 @pytest.mark.parametrize("item", SCALAR_LIKE_VALUES)
 def test_series_loc_set_with_scalar_key_and_scalar_item(
@@ -1776,7 +1776,7 @@ def test_series_partial_string_indexing_behavior_diff():
     assert len(series_minute["2022"]) == 0
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_series_loc_set_none():
     # Note that pandas does not support df.loc[None,:] like the series does here.
     native_s = native_pd.Series([1, 2, 3])
@@ -1792,18 +1792,22 @@ def test_series_loc_set_none():
 @pytest.mark.parametrize(
     "key, query_count, join_count",
     [
-        ("1 day", 2, 2),  # 1 join from squeeze, 1 join from to_pandas during eval
+        (
+            "1 day",
+            2,
+            4,
+        ),  # 1 join from series creation (double counted), 1 join from squeeze, 1 join from to_pandas during eval
         (
             native_pd.to_timedelta("1 day"),
             2,
-            2,
-        ),  # 1 join from squeeze, 1 join from to_pandas during eval
-        (["1 day", "3 days"], 1, 1),
-        ([True, False, False], 1, 1),
-        (slice(None, "4 days"), 1, 0),
-        (slice(None, "4 days", 2), 1, 0),
-        (slice("1 day", "2 days"), 1, 0),
-        (slice("1 day 1 hour", "2 days 2 hours", 1), 1, 0),
+            4,
+        ),  # 1 join from series creation (double counted), 1 join from squeeze, 1 join from to_pandas during eval
+        (["1 day", "3 days"], 1, 2),
+        ([True, False, False], 1, 2),
+        (slice(None, "4 days"), 1, 1),
+        (slice(None, "4 days", 2), 1, 1),
+        (slice("1 day", "2 days"), 1, 1),
+        (slice("1 day 1 hour", "2 days 2 hours", 1), 1, 1),
     ],
 )
 def test_series_loc_get_with_timedelta(key, query_count, join_count):
@@ -1854,7 +1858,7 @@ def test_series_loc_get_with_timedelta(key, query_count, join_count):
         ),
     ],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_series_loc_get_with_timedelta_behavior_difference(key, expected_result):
     data = ["A", "B", "C", "D"]
     idx = ["1 days", "2 days", "3 days", "25 hours"]
@@ -1869,7 +1873,7 @@ def test_series_loc_get_with_timedelta_behavior_difference(key, expected_result)
     assert_series_equal(actual_result, expected_result)
 
 
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=2, join_count=2)
 def test_series_loc_get_with_timedeltaindex_key():
     data = ["A", "B", "C"]
     idx = ["1 days", "2 days", "3 days"]

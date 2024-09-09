@@ -302,7 +302,7 @@ def test_merge_on_index_columns(left_df, right_df, how, on, sort):
 
 @pytest.mark.parametrize("index1", [[3, 4], [1.5, 8.0], [None, None]])
 @pytest.mark.parametrize("index2", [[7, 8], [1.5, 3.0], [None, None]])
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=3, join_count=5)
 def test_join_type_mismatch(index1, index2):
     df1 = pd.DataFrame({"A": [1, 2]}, index=index1)
     df2 = pd.DataFrame({"B": [3, 4]}, index=index2)
@@ -351,7 +351,7 @@ def test_join_type_mismatch_negative(index1, index2):
         ),
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=3)
 def test_join_type_mismatch_diff_with_native_pandas(index1, index2, expected_res):
     df1 = pd.DataFrame({"A": [1, 2]}, index=index1)
     df2 = pd.DataFrame({"B": [3, 4]}, index=index2)
@@ -960,7 +960,7 @@ def test_merge_no_join_keys_negative(left_name, right_name, left_df, right_df):
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=2)
 def test_merge_no_join_keys_common_index_negative(left_df, right_df):
     left_df = pd.DataFrame({"A": [1, 2, 3]}, native_pd.Index([7, 8, 9], name="KEY"))
     right_df = pd.DataFrame({"B": [1, 2, 3]}, native_pd.Index([7, 8, 9], name="KEY"))

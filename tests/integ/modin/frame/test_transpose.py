@@ -242,7 +242,7 @@ def test_dataframe_transpose_preserve_float_dtypes():
     assert all([dtype == "float64" for dtype in snow_df.T.dtypes])
 
 
-@sql_count_checker(query_count=1, union_count=1)
+@sql_count_checker(query_count=1, union_count=1, join_count=2)
 def test_dataframe_transpose_single_numeric_column():
     single_column_data = ({0: "A", 1: "B", 2: "C", 3: "D"},)
     native_df = native_pd.DataFrame(single_column_data, index=(0,))
