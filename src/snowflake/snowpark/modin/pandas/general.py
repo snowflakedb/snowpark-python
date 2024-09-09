@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Any, Literal, Union
 import numpy as np
 import pandas
 import pandas.core.common as common
+from modin.pandas import Series
 from modin.pandas.base import BasePandasDataset
 from pandas import IntervalIndex, NaT, Timedelta, Timestamp
 from pandas._libs import NaTType, lib
@@ -65,7 +66,6 @@ from pandas.util._validators import validate_inclusive
 # add this line to make doctests runnable
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-from snowflake.snowpark.modin.pandas.series import Series
 from snowflake.snowpark.modin.pandas.utils import (
     is_scalar,
     raise_if_native_pandas_objects,
