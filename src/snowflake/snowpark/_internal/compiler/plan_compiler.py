@@ -75,48 +75,68 @@ class PlanCompiler:
             # preparation for compilation
             # 1. make a copy of the original plan
             start_time = time.time()
-            before_complexity = get_complexity_score(
+            complexity_score_before_compilation = get_complexity_score(
                 self._plan.cumulative_node_complexity
             )
             logical_plans: List[LogicalPlan] = [copy.deepcopy(self._plan)]
+            deep_copy_end_time = time.time()
+
             # 2. create a code generator with the original plan
             query_generator = create_query_generator(self._plan)
 
-            # apply each optimizations if needed
+            # 3. apply each optimizations if needed
+            # CTE optimization
+            cte_start_time = time.time()
             if self._plan.session.cte_optimization_enabled:
                 repeated_subquery_eliminator = RepeatedSubqueryElimination(
                     logical_plans, query_generator
                 )
                 logical_plans = repeated_subquery_eliminator.apply()
+
+            cte_end_time = time.time()
+            complexity_scores_after_cte = [
+                get_complexity_score(logical_plan.cumulative_node_complexity)
+                for logical_plan in logical_plans
+            ]
+
+            # Large query breakdown
             if self._plan.session.large_query_breakdown_enabled:
                 large_query_breakdown = LargeQueryBreakdown(
                     self._plan.session, query_generator, logical_plans
                 )
                 logical_plans = large_query_breakdown.apply()
 
-            after_complexities = [
+            large_query_breakdown_end_time = time.time()
+            complexity_scores_after_large_query_breakdown = [
                 get_complexity_score(logical_plan.cumulative_node_complexity)
                 for logical_plan in logical_plans
             ]
 
-            # do a final pass of code generation
+            # 4. do a final pass of code generation
             queries = query_generator.generate_queries(logical_plans)
 
             # log telemetry data
-            end_time = time.time()
+            deep_copy_time = deep_copy_end_time - start_time
+            cte_time = cte_end_time - cte_start_time
+            large_query_breakdown_time = large_query_breakdown_end_time - cte_end_time
+            total_time = time.time() - start_time
             session = self._plan.session
             session._conn._telemetry_client.send_post_compilation_stage_telemetry(
                 session_id=session.session_id,
                 plan_uuid=self._plan.uuid,
                 cte_optimization_enabled=session.cte_optimization_enabled,
                 large_query_breakdown_enabled=session.large_query_breakdown_enabled,
-                time_taken_for_compilation=end_time - start_time,
+                time_taken_for_deep_copy=deep_copy_time,
+                time_taken_for_cte_optimization=cte_time,
+                time_taken_for_large_query_breakdown=large_query_breakdown_time,
+                time_taken_for_compilation=total_time,
                 complexity_score_bounds=(
                     COMPLEXITY_SCORE_LOWER_BOUND,
                     COMPLEXITY_SCORE_UPPER_BOUND,
                 ),
-                before_complexity_score=before_complexity,
-                after_complexity_scores=after_complexities,
+                complexity_score_before_compilation=complexity_score_before_compilation,
+                complexity_scores_after_cte=complexity_scores_after_cte,
+                complexity_scores_after_large_query_breakdown=complexity_scores_after_large_query_breakdown,
             )
             return queries
         else:

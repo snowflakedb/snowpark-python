@@ -168,8 +168,9 @@ def df_collect_api_telemetry(func):
         ]._session.sql_simplifier_enabled
         try:
             api_calls[0][TelemetryField.QUERY_PLAN_HEIGHT.value] = plan.plan_height
-            # The uuid for df._select_statement can be different from df._plan. We always
-            # use plan uuid to track the queries.
+            # The uuid for df._select_statement can be different from df._plan. Since plan
+            # can take both values, we cannot use plan.uuid. We always use df._plan.uuid
+            # to track the queries.
             uuid = args[0]._plan.uuid
             api_calls[0][CompilationStageTelemetryField.PLAN_UUID.value] = uuid
             api_calls[0][
@@ -439,9 +440,13 @@ class TelemetryClient:
         cte_optimization_enabled: bool,
         large_query_breakdown_enabled: bool,
         complexity_score_bounds: Tuple[int, int],
-        time_taken_for_compilation: int,
-        before_complexity_score: int,
-        after_complexity_scores: List[int],
+        time_taken_for_compilation: float,
+        time_taken_for_deep_copy: float,
+        time_taken_for_cte_optimization: float,
+        time_taken_for_large_query_breakdown: float,
+        complexity_score_before_compilation: int,
+        complexity_scores_after_cte: List[int],
+        complexity_scores_after_large_query_breakdown: List[int],
     ) -> None:
         message = {
             **self._create_basic_telemetry_data(
@@ -454,8 +459,12 @@ class TelemetryClient:
                 TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: large_query_breakdown_enabled,
                 CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: complexity_score_bounds,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_COMPILATION.value: time_taken_for_compilation,
-                CompilationStageTelemetryField.BEFORE_COMPLEXITY_SCORE.value: before_complexity_score,
-                CompilationStageTelemetryField.AFTER_COMPLEXITY_SCORES.value: after_complexity_scores,
+                CompilationStageTelemetryField.TIME_TAKEN_FOR_DEEP_COPY_PLAN.value: time_taken_for_deep_copy,
+                CompilationStageTelemetryField.TIME_TAKEN_FOR_CTE_OPTIMIZATION.value: time_taken_for_cte_optimization,
+                CompilationStageTelemetryField.TIME_TAKEN_FOR_LARGE_QUERY_BREAKDOWN.value: time_taken_for_large_query_breakdown,
+                CompilationStageTelemetryField.COMPLEXITY_SCORE_BEFORE_COMPILATION.value: complexity_score_before_compilation,
+                CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION.value: complexity_scores_after_cte,
+                CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_LARGE_QUERY_BREAKDOWN.value: complexity_scores_after_large_query_breakdown,
             },
         }
         self.send(message)
