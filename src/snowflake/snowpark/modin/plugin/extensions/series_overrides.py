@@ -441,7 +441,7 @@ def __init__(
             if isinstance(labels, Index):
                 labels = labels.to_series()._query_compiler
             elif isinstance(labels, Series):
-                labels = labels._query_compiler
+                labels = labels._query_compiler  # pragma: no cover
             else:
                 labels = Index(labels).to_series()._query_compiler
             query_compiler = query_compiler.reindex(axis=0, labels=labels)
