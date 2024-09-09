@@ -517,7 +517,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
+        Snowpark pandas :class:`~modin.pandas.DataFrame` or Snowpark pandas :class:`~modin.pandas.Series`
 
         Notes
         -----
@@ -585,7 +585,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        same type as caller (Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`)
+        same type as caller (Snowpark pandas :class:`~modin.pandas.DataFrame` or Snowpark pandas :class:`~modin.pandas.Series`)
 
         Examples
         --------
@@ -695,7 +695,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        copy : Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        copy : Snowpark pandas :class:`~modin.pandas.Series` or Snowpark pandas :class:`~modin.pandas.DataFrame`
             Object type matches caller.
 
         Examples
@@ -753,7 +753,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
+        Snowpark pandas :class:`~modin.pandas.Series`
             For each column/row the number of non-NA/null entries.
 
         See Also
