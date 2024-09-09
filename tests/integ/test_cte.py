@@ -423,10 +423,6 @@ def test_table(session):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
-@pytest.mark.skipif(
-    "config.getoption('disable_sql_simplifier', default=False)",
-    reason="TODO SNOW-1556590: Re-enable test_sql in test_cte.py when sql simplifier is disabled once new CTE implementation is completed",
-)
 @pytest.mark.parametrize(
     "query",
     [
@@ -435,6 +431,11 @@ def test_table(session):
     ],
 )
 def test_sql(session, query):
+    if not session._query_compilation_stage_enabled:
+        pytest.skip(
+            "CTE query generation without the new query generation doesn't work correctly"
+        )
+
     df = session.sql(query).filter(lit(True))
     df_result = df.union_all(df).select("*")
     check_result(session, df_result, expect_cte_optimized=True)

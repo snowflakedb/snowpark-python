@@ -41,6 +41,7 @@ from pandas._typing import (
     TimeAmbiguous,
     TimeNonexistent,
 )
+from pandas.core.dtypes.common import is_datetime64_any_dtype
 
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
@@ -70,17 +71,99 @@ class DatetimeIndex(Index):
     # Equivalent index type in native pandas
     _NATIVE_INDEX_TYPE = native_pd.DatetimeIndex
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(
+        cls,
+        data: ArrayLike | native_pd.Index | modin.pandas.Sereis | None = None,
+        freq: Frequency | lib.NoDefault = _CONSTRUCTOR_DEFAULTS["freq"],
+        tz=_CONSTRUCTOR_DEFAULTS["tz"],
+        normalize: bool | lib.NoDefault = _CONSTRUCTOR_DEFAULTS["normalize"],
+        closed=_CONSTRUCTOR_DEFAULTS["closed"],
+        ambiguous: TimeAmbiguous = _CONSTRUCTOR_DEFAULTS["ambiguous"],
+        dayfirst: bool = _CONSTRUCTOR_DEFAULTS["dayfirst"],
+        yearfirst: bool = _CONSTRUCTOR_DEFAULTS["yearfirst"],
+        dtype: Dtype | None = _CONSTRUCTOR_DEFAULTS["dtype"],
+        copy: bool = _CONSTRUCTOR_DEFAULTS["copy"],
+        name: Hashable | None = _CONSTRUCTOR_DEFAULTS["name"],
+        query_compiler: SnowflakeQueryCompiler = None,
+    ) -> DatetimeIndex:
         """
         Create new instance of DatetimeIndex. This overrides behavior of Index.__new__.
-        Args:
-            *args: arguments.
-            **kwargs: keyword arguments.
+
+        Parameters
+        ----------
+        data : array-like (1-dimensional), pandas.Index, modin.pandas.Series, optional
+            Datetime-like data to construct index with.
+        freq : str or pandas offset object, optional
+            One of pandas date offset strings or corresponding objects. The string
+            'infer' can be passed in order to set the frequency of the index as the
+            inferred frequency upon creation.
+        tz : pytz.timezone or dateutil.tz.tzfile or datetime.tzinfo or str
+            Set the Timezone of the data.
+        normalize : bool, default False
+            Normalize start/end dates to midnight before generating date range.
+        closed : {'left', 'right'}, optional
+            Set whether to include `start` and `end` that are on the
+            boundary. The default includes boundary points on either end.
+        ambiguous : 'infer', bool-ndarray, 'NaT', default 'raise'
+            When clocks moved backward due to DST, ambiguous times may arise.
+            For example in Central European Time (UTC+01), when going from 03:00
+            DST to 02:00 non-DST, 02:30:00 local time occurs both at 00:30:00 UTC
+            and at 01:30:00 UTC. In such a situation, the `ambiguous` parameter
+            dictates how ambiguous times should be handled.
+
+            - 'infer' will attempt to infer fall dst-transition hours based on
+              order
+            - bool-ndarray where True signifies a DST time, False signifies a
+              non-DST time (note that this flag is only applicable for ambiguous
+              times)
+            - 'NaT' will return NaT where there are ambiguous times
+            - 'raise' will raise an AmbiguousTimeError if there are ambiguous times.
+        dayfirst : bool, default False
+            If True, parse dates in `data` with the day first order.
+        yearfirst : bool, default False
+            If True parse dates in `data` with the year first order.
+        dtype : numpy.dtype or DatetimeTZDtype or str, default None
+            Note that the only NumPy dtype allowed is `datetime64[ns]`.
+        copy : bool, default False
+            Make a copy of input ndarray.
+        name : label, default None
+            Name to be stored in the index.
+        query_compiler : SnowflakeQueryCompiler, optional
+            A query compiler object to create the ``Index`` from.
 
         Returns:
             New instance of DatetimeIndex.
         """
-        return object.__new__(cls)
+        if query_compiler:
+            # Raise error if underlying type is not a TimestampType.
+            current_dtype = query_compiler.index_dtypes[0]
+            if not current_dtype == np.dtype("datetime64[ns]"):
+                raise ValueError(
+                    "DatetimeIndex can only be created from a query compiler with TimestampType."
+                )
+        kwargs = {
+            "freq": freq,
+            "tz": tz,
+            "normalize": normalize,
+            "closed": closed,
+            "ambiguous": ambiguous,
+            "dayfirst": dayfirst,
+            "yearfirst": yearfirst,
+            "dtype": dtype,
+            "copy": copy,
+            "name": name,
+        }
+        index = object.__new__(cls)
+        query_compiler = DatetimeIndex._init_query_compiler(
+            data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs
+        )
+        # Convert to datetime64 if not already.
+        if not is_datetime64_any_dtype(query_compiler.index_dtypes[0]):
+            query_compiler = query_compiler.series_to_datetime(include_index=True)
+        index._query_compiler = query_compiler
+        # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
+        index._parent = None
+        return index
 
     def __init__(
         self,
@@ -148,26 +231,8 @@ class DatetimeIndex(Index):
         >>> idx
         DatetimeIndex(['2020-01-01 02:00:00-08:00', '2020-02-01 03:00:00-08:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
         """
-        if query_compiler:
-            # Raise error if underlying type is not a TimestampType.
-            current_dtype = query_compiler.index_dtypes[0]
-            if not current_dtype == np.dtype("datetime64[ns]"):
-                raise ValueError(
-                    "DatetimeIndex can only be created from a query compiler with TimestampType."
-                )
-        kwargs = {
-            "freq": freq,
-            "tz": tz,
-            "normalize": normalize,
-            "closed": closed,
-            "ambiguous": ambiguous,
-            "dayfirst": dayfirst,
-            "yearfirst": yearfirst,
-            "dtype": dtype,
-            "copy": copy,
-            "name": name,
-        }
-        self._init_index(data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs)
+        # DatetimeIndex is already initialized in __new__ method. We keep this method
+        # only for docstring generation.
 
     def _dt_property(self, property_name: str) -> Index:
         """

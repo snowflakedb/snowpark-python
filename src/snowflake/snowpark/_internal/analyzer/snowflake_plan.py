@@ -254,12 +254,17 @@ class SnowflakePlan(LogicalPlan):
         # In the placeholder query, subquery (child) is held by the ID of query plan
         # It is used for optimization, by replacing a subquery with a CTE
         self.placeholder_query = placeholder_query
-        # encode an id for CTE optimization
+        # encode an id for CTE optimization. This is generated based on the main
+        # query and the associated query parameters. We use this id for equality comparison
+        # to determine if two plans are the same.
         self._id = encode_id(queries[-1].sql, queries[-1].params)
         self.referenced_ctes: Set[str] = (
             referenced_ctes.copy() if referenced_ctes else set()
         )
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
+        # UUID for the plan to uniquely identify the SnowflakePlan object. We also use this
+        # to UUID track queries that are generated from the same plan.
+        self._uuid = str(uuid.uuid4())
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         if not isinstance(other, SnowflakePlan):
@@ -271,6 +276,10 @@ class SnowflakePlan(LogicalPlan):
 
     def __hash__(self) -> int:
         return hash(self._id) if self._id else super().__hash__()
+
+    @property
+    def uuid(self) -> str:
+        return self._uuid
 
     @property
     def execution_queries(self) -> Dict["PlanQueryType", List["Query"]]:
@@ -846,6 +855,7 @@ class SnowflakePlanBuilder:
         use_scoped_temp_objects: bool,
         creation_source: TableCreationSource,
         child_attributes: Optional[List[Attribute]],
+        iceberg_config: Optional[dict] = None,
     ) -> SnowflakePlan:
         """Returns a SnowflakePlan to materialize the child plan into a table.
 
@@ -872,6 +882,13 @@ class SnowflakePlanBuilder:
             child_attributes: child attributes will be none in the case of large query breakdown
                 where we use ctas query to create the table which does not need to know the column
                 metadata.
+            iceberg_config: A dictionary that can contain the following iceberg configuration values:
+                external_volume: specifies the identifier for the external volume where
+                    the Iceberg table stores its metadata files and data in Parquet format
+                catalog: specifies either Snowflake or a catalog integration to use for this table
+                base_location: the base directory that snowflake can write iceberg metadata and files to
+                catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
+                storage_serialization_policy: specifies the storage serialization policy for the table
         """
         is_generated = creation_source in (
             TableCreationSource.CACHE_RESULT,
@@ -929,6 +946,7 @@ class SnowflakePlanBuilder:
                     max_data_extension_time=max_data_extension_time,
                     change_tracking=change_tracking,
                     copy_grants=copy_grants,
+                    iceberg_config=iceberg_config,
                     use_scoped_temp_objects=use_scoped_temp_objects,
                     is_generated=is_generated,
                 ),
@@ -957,6 +975,7 @@ class SnowflakePlanBuilder:
                 copy_grants=copy_grants,
                 use_scoped_temp_objects=use_scoped_temp_objects,
                 is_generated=is_generated,
+                iceberg_config=iceberg_config,
             )
 
             # so that dataframes created from non-select statements,
@@ -1380,6 +1399,7 @@ class SnowflakePlanBuilder:
         *,
         copy_options: Dict[str, Any],
         format_type_options: Dict[str, Any],
+        iceberg_config: Optional[dict] = None,
     ) -> SnowflakePlan:
         # tracking usage of pattern, will refactor this function in future
         if pattern:
@@ -1413,6 +1433,7 @@ class SnowflakePlanBuilder:
                     create_table_statement(
                         full_table_name,
                         attribute_to_schema_string(attributes),
+                        iceberg_config=iceberg_config,
                     ),
                     # This is an exception. The principle is to avoid surprising behavior and most of the time
                     # it applies to temp object. But this perm table creation is also one place where we create
