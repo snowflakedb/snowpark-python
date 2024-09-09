@@ -168,7 +168,10 @@ def df_collect_api_telemetry(func):
         ]._session.sql_simplifier_enabled
         try:
             api_calls[0][TelemetryField.QUERY_PLAN_HEIGHT.value] = plan.plan_height
-            api_calls[0][CompilationStageTelemetryField.PLAN_UUID.value] = plan.uuid
+            # The uuid for df._select_statement can be different from df._plan. We always
+            # use plan uuid to track the queries.
+            uuid = args[0]._plan.uuid
+            api_calls[0][CompilationStageTelemetryField.PLAN_UUID.value] = uuid
             api_calls[0][
                 TelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
             ] = plan.num_duplicate_nodes
