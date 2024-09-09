@@ -158,6 +158,11 @@ class SqlCounter:
             # Add SqlCounter as a snowpark query listener.
             self.session._conn.add_query_listener(self)
 
+    # The query history listener will include describe queries if this is true.
+    @property
+    def include_describe(self) -> bool:
+        return True
+
     @staticmethod
     def set_record_mode(record_mode):
         """Record mode means the SqlCounter does not assert any results, but rather collects them so they can
@@ -186,10 +191,6 @@ class SqlCounter:
 
     def _add_query(self, query_record: QueryRecord):
         self._queries.append(query_record)
-
-    # This attribute signals we also want to collect describe queries.
-    def describe_listener(self):
-        pass
 
     def expects(self, **kwargs):
         """
@@ -274,8 +275,12 @@ class SqlCounter:
                         for fw in FILTER_OUT_QUERIES
                     ]
                 ),
-                list(map(lambda q: q.sql_text,
-                         [q for q in self._queries if not q.is_describe])),
+                list(
+                    map(
+                        lambda q: q.sql_text,
+                        [q for q in self._queries if not q.is_describe],
+                    )
+                ),
             )
         )
 

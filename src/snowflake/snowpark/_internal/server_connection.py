@@ -247,11 +247,16 @@ class ServerConnection:
             self._run_new_describe(self._cursor, query), self.max_string_size
         )
 
-    def _run_new_describe(self, cursor: SnowflakeCursor, query: str) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:
+    def _run_new_describe(
+        self, cursor: SnowflakeCursor, query: str
+    ) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:
         result_metadata = run_new_describe(cursor, query)
 
-        describe_listeners = [listener for listener in self._query_listener if hasattr(listener, 'describe_listener')]
-        for listener in describe_listeners:
+        for listener in filter(
+            lambda listener: hasattr(listener, "include_describe")
+            and listener.include_describe,
+            self._query_listener,
+        ):
             listener._add_query(QueryRecord(cursor.sfqid, query, True))
 
         return result_metadata
