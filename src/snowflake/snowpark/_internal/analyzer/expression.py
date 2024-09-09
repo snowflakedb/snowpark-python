@@ -4,6 +4,7 @@
 
 import copy
 import uuid
+from functools import cached_property
 from typing import TYPE_CHECKING, AbstractSet, Any, Dict, List, Optional, Tuple
 
 import snowflake.snowpark._internal.utils
@@ -35,6 +36,13 @@ COLUMN_DEPENDENCY_EMPTY: AbstractSet[str] = frozenset()  # depend on no columns.
 def derive_dependent_columns(
     *expressions: "Optional[Expression]",
 ) -> Optional[AbstractSet[str]]:
+    """
+    Given set of expressions, derive the set of columns that the expressions dependents on.
+
+    Note, the returned dependent columns is a set without duplication. For example, given expression
+    concat(col1, upper(co1), upper(col2)), the result will be {col1, col2} even if col1 has
+    occurred in the given expression twice.
+    """
     result = set()
     for exp in expressions:
         if exp is not None:
@@ -45,6 +53,20 @@ def derive_dependent_columns(
                 return COLUMN_DEPENDENCY_ALL
             assert child_dependency is not None
             result.update(child_dependency)
+    return result
+
+
+def derive_dependent_columns_with_duplication(*expressions: "Optional[Expression]") -> list[str]:
+    """
+    Given set of expressions, derive the list of columns that the expression dependents on.
+
+    Note, the returned columns will have duplication if the column occurred more than once in
+    the given expression. For example, concat(col1, upper(co1), upper(col2)) will have result
+    [col1, col1, col2], where col1 occurred twice in the result.
+    """
+    result: List[str] = []
+    for exp in expressions:
+        result.extend(exp.dependent_column_names_with_duplication)
     return result
 
 
@@ -67,6 +89,10 @@ class Expression:
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         # TODO: consider adding it to __init__ or use cached_property.
         return COLUMN_DEPENDENCY_EMPTY
+
+    @cached_property
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return []
 
     @property
     def pretty_name(self) -> str:
@@ -143,6 +169,10 @@ class ScalarSubquery(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return COLUMN_DEPENDENCY_DOLLAR
 
+    @cached_property
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return list(COLUMN_DEPENDENCY_DOLLAR)
+
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.plan.cumulative_node_complexity
@@ -155,6 +185,10 @@ class MultipleExpression(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.expressions)
+
+    @cached_property
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(*self.expressions)
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -171,6 +205,10 @@ class InExpression(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.columns, *self.values)
+
+    @cached_property
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.columns, *self.values)
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -212,6 +250,10 @@ class Attribute(Expression, NamedExpression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return {self.name}
 
+    @cached_property
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return [self.name]
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.COLUMN
@@ -233,6 +275,14 @@ class Star(Expression):
             derive_dependent_columns(*self.expressions)
             if self.expressions
             else COLUMN_DEPENDENCY_ALL
+        )
+
+    @cached_property
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return (
+            derive_dependent_columns_with_duplication(*self.expressions)
+            if self.expressions
+            else []         # we currently do not handle * dependency
         )
 
     @property
