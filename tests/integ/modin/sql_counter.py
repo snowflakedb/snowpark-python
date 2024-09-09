@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import inspect
-import os
 import re
 import sys
 import threading
@@ -406,15 +405,15 @@ def sql_count_checker(
 
 def get_readable_sql_count_values(tr):
     first_key = True
-    count_values = ''
+    count_values = ""
     for key in SQL_COUNT_PARAMETERS:
         if not first_key:
-            count_values = count_values + '\t'
+            count_values = count_values + "\t"
         first_key = False
         value = 0
         if key in tr and tr[key] and tr[key] != 0:
             value = tr[key]
-        count_values = count_values + f'{key}={value}'
+        count_values = count_values + f"{key}={value}"
     return count_values
 
 
@@ -428,7 +427,10 @@ def update_test_code_with_sql_counts(
     part of the run, the file is in the tests root file path.  Each section will be named by the test_file and include
     a line per test_file, test_parameter combination along with the status.
     """
-    print('\n\n========================= Sql Count Summary ========================\n', file=sys.stderr)
+    print(
+        "\n\n========================= Sql Count Summary ========================\n",
+        file=sys.stderr,
+    )
 
     # Iterate through each sql count record, this is nested dictionary structured as:
     #     sql_count_records[test_file][test_name] -> dict[Str, Scalar]
@@ -442,7 +444,7 @@ def update_test_code_with_sql_counts(
         test_file_record = sql_count_records[test_file]
         input_file = str(test_file)
 
-        test_file_index = input_file.index('tests/')
+        test_file_index = input_file.index("tests/")
         if test_file_index >= 0:
             input_file = input_file[test_file_index:]
         else:
@@ -450,18 +452,18 @@ def update_test_code_with_sql_counts(
 
         for test_name, test_results in test_file_record.items():
             for test_result in test_results:
-                if 'test_parms' in test_result:
-                    test_params = test_result['test_parms']
+                if "test_parms" in test_result:
+                    test_params = test_result["test_parms"]
                     if test_params is None:
-                        test_params=''
+                        test_params = ""
                 else:
-                    test_params=''
-                if len(test_params)>0:
-                    test_params=f'[{test_params}]'
+                    test_params = ""
+                if len(test_params) > 0:
+                    test_params = f"[{test_params}]"
 
                 count_values = get_readable_sql_count_values(test_result)
 
-                line = f'{input_file}::{test_name}{test_params}\t{count_values}'
+                line = f"{input_file}::{test_name}{test_params}\t{count_values}"
                 print(line, file=sys.stderr)
 
 
