@@ -505,3 +505,12 @@ def test_create_series_with_list_of_lists_index():
     native_series = native_pd.Series(data, index=arrays)
     snow_series = pd.Series(data, index=arrays)
     assert_series_equal(snow_series, native_series)
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_create_series_with_none_data_and_non_empty_index():
+    # When creating an empty Series with a non-empty index, the index should be used as the index of the Series.
+    index = ["A", "B", "C", "D"]
+    native_series = native_pd.Series(None, index=index, dtype=object)
+    snow_series = pd.Series(None, index=index, dtype=object)
+    assert_series_equal(snow_series, native_series)

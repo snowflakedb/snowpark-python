@@ -88,7 +88,7 @@ def test_nlargest_nsmallest_non_numeric_types(method, data):
     assert_series_equal(getattr(snow_s, method)(n), expected_s)
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=3, join_count=2)
 def test_nlargest_nsmallest_no_columns(method):
     snow_s = pd.Series(query_compiler=pd.DataFrame(index=[1, 2])._query_compiler)
     snow_s = snow_s

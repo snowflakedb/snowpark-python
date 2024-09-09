@@ -103,7 +103,7 @@ def test_iat_set_str_index_str_columns(
         (-7, -7),
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1, join_count=4)
 def test_iat_get_time_index_time_columns(
     key,
     time_index_snowpark_pandas_df,
@@ -121,7 +121,7 @@ def test_iat_get_time_index_time_columns(
         (-7, -7),
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1, join_count=4)
 def test_iat_set_time_index_time_columns(
     key,
     time_index_snowpark_pandas_df,

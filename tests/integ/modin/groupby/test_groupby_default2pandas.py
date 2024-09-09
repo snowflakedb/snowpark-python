@@ -124,7 +124,7 @@ def test_groupby_with_numpy_array(basic_snowpark_pandas_df) -> None:
     "by_list",
     [[2, 1, 1, 2, 3, 3], [[2, 1, 1, 2, 3, 3], "a"]],
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_groupby_series_with_numpy_array(series_multi_numeric, by_list) -> None:
     with pytest.raises(
         NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN

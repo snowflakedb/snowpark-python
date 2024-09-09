@@ -8,7 +8,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_values_equal,
     create_test_series,
@@ -63,11 +63,11 @@ def test_series_nunique_deviating_nan_behavior(input_data, expected):
         ),
     ],
 )
-@sql_count_checker(query_count=1)
 def test_dataframe_nunique_multiindex(index):
     data = [0.1, 0.2, 0.1, 0]
-    eval_snowpark_pandas_result(
-        *create_test_series(data, index=index),
-        lambda ser: ser.nunique(),
-        comparator=assert_values_equal,
-    )
+    with SqlCounter(query_count=1, join_count=0 if index is None else 2):
+        eval_snowpark_pandas_result(
+            *create_test_series(data, index=index),
+            lambda ser: ser.nunique(),
+            comparator=assert_values_equal,
+        )

@@ -297,6 +297,8 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
                     # pd.DataFrame({'a': 1, 'b': 2}, index=[0])
                     dummy_index = index
 
+            if is_scalar(data) and not isinstance(index, type(None)):
+                dummy_index = index
             query_compiler = from_pandas(
                 pandas.DataFrame(
                     data=data,
@@ -308,9 +310,10 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
             )._query_compiler
 
         if index is not None:
-            if isinstance(data, (type(self), Series)):
+            if isinstance(data, (type(self), Series, type(None))):
                 # The `index` parameter is used to select the rows from `data` that will be in the resultant DataFrame.
                 # If a value in `index` is not present in `data`'s index, it will be filled with a NaN value.
+                # If data is None and an index is provided, set the index.
                 labels = index
                 if isinstance(labels, Index):
                     labels = labels.to_series()._query_compiler
@@ -326,16 +329,28 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
                     index_qc_list = [index._query_compiler]
                 elif isinstance(index, Index):
                     index_qc_list = [index.to_series()._query_compiler]
-                elif isinstance(index, pd.MultiIndex):
-                    index_qc_list = [
-                        s._query_compiler
-                        for s in [
-                            pd.Series(index.get_level_values(level))
-                            for level in range(index.nlevels)
-                        ]
-                    ]
                 else:
-                    index_qc_list = [Series(index)._query_compiler]
+                    if (
+                        not isinstance(index, pandas.MultiIndex)
+                        and is_list_like(index)
+                        and len(index) > 0
+                        and all(
+                            (not isinstance(i, tuple) and is_list_like(i))
+                            for i in index
+                        )
+                    ):
+                        # If given a list of lists, convert it to a MultiIndex.
+                        index = pandas.MultiIndex.from_arrays(index)
+                    if isinstance(index, pandas.MultiIndex):
+                        index_qc_list = [
+                            s._query_compiler
+                            for s in [
+                                pd.Series(index.get_level_values(level))
+                                for level in range(index.nlevels)
+                            ]
+                        ]
+                    else:
+                        index_qc_list = [Series(index)._query_compiler]
                 query_compiler = query_compiler.set_index(index_qc_list)
 
         if isinstance(data, DataFrame):

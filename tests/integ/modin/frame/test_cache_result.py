@@ -81,6 +81,8 @@ def perform_chained_operations(df, module):
 @pytest.mark.parametrize("inplace", [True, False])
 def test_cache_result_empty_dataframe(init_kwargs, inplace):
     snow_df, native_df = create_test_dfs(**init_kwargs)
+    print(snow_df)
+    print(native_df)
     snow_df_copy = snow_df.copy(deep=True)
     with SqlCounter(query_count=1):
         cached_snow_df = cache_and_return_df(snow_df, inplace)

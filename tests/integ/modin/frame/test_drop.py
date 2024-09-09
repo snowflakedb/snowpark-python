@@ -209,7 +209,7 @@ def test_drop_invalid_labels_axis0_negative(
         ([], None),  # empty labels
     ],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=4)
 def test_drop_invalid_axis1_labels_errors_ignore(labels, level, multiindex_snow_df):
     result = multiindex_snow_df.drop(labels, level=level, axis=1, errors="ignore")
     assert_frame_equal(multiindex_snow_df, result)
@@ -231,7 +231,7 @@ def test_drop_invalid_axis1_labels_errors_ignore(labels, level, multiindex_snow_
         ([], None),  # empty labels
     ],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=4)
 def test_drop_invalid_axis0_labels_errors_ignore(labels, level, multiindex_snow_df):
     result = multiindex_snow_df.drop(labels, level=level, errors="ignore")
     assert_frame_equal(multiindex_snow_df, result)
@@ -263,7 +263,7 @@ def test_empty_tuple_multiindex(multiindex_snow_df, axis):
             assert len(result.index) == 0
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=4)
 def test_drop_preserve_index_names(multiindex_snow_df):
     df_dropped_e = multiindex_snow_df.drop("red", axis=1)
     df_inplace_e = multiindex_snow_df.copy()

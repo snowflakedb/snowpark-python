@@ -410,6 +410,9 @@ def __init__(
         # CASE 4: Non-Snowpark pandas data
         # If the data is not a Snowpark pandas object, convert it to a query compiler.
         name = MODIN_UNNAMED_SERIES_LABEL if name is None else name
+        dummy_index = None
+        if is_scalar(data) and not isinstance(index, type(None)):
+            dummy_index = index
         if (
             isinstance(data, (native_pd.Series, native_pd.Index))
             and data.name is not None
@@ -418,15 +421,22 @@ def __init__(
         query_compiler = from_pandas(
             native_pd.DataFrame(
                 native_pd.Series(
-                    data=data, dtype=dtype, name=name, copy=copy, fastpath=fastpath
+                    data=data,
+                    dtype=dtype,
+                    index=dummy_index,
+                    name=name,
+                    copy=copy,
+                    fastpath=fastpath,
                 )
             )
         )._query_compiler
 
     if index is not None:
-        if is_dict_like(data) or isinstance(data, (type(self))):
+        if is_dict_like(data) or isinstance(data, (type(self), type(None))):
             # The `index` parameter is used to select the rows from `data` that will be in the resultant Series.
             # If a value in `index` is not present in `data`'s index, it will be filled with a NaN value.
+            # If data is None and an index is provided, all the values in the Series will be NaN and the index
+            # will be the provided index.
             labels = index
             if isinstance(labels, Index):
                 labels = labels.to_series()._query_compiler
@@ -443,7 +453,14 @@ def __init__(
             elif isinstance(index, Index):
                 index_qc_list = [index.to_series()._query_compiler]
             else:
-                if is_list_like(index) and is_list_like(index[0]):
+                if (
+                    not isinstance(index, native_pd.MultiIndex)
+                    and is_list_like(index)
+                    and len(index) > 0
+                    and all(
+                        (not isinstance(i, tuple) and is_list_like(i)) for i in index
+                    )
+                ):
                     # If given a list of lists, convert it to a MultiIndex.
                     index = native_pd.MultiIndex.from_arrays(index)
                 if isinstance(index, native_pd.MultiIndex):

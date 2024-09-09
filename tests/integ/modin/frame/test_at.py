@@ -20,7 +20,7 @@ def test_at_get_default_index_str_columns(
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_at_set_default_index_str_columns(
     default_index_snowpark_pandas_df,
     default_index_native_df,
@@ -44,7 +44,7 @@ def test_at_get_str_index_str_columns(
     assert str_index_snowpark_pandas_df.at["b", "B"] == str_index_native_df.at["b", "B"]
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_at_set_str_index_str_columns(
     str_index_snowpark_pandas_df,
     str_index_native_df,
@@ -57,7 +57,7 @@ def test_at_set_str_index_str_columns(
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=2)
 def test_at_get_time_index_time_columns(
     time_index_snowpark_pandas_df,
     time_index_native_df,
@@ -68,7 +68,7 @@ def test_at_get_time_index_time_columns(
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=3)
 def test_at_set_time_index_time_columns(
     time_index_snowpark_pandas_df,
     time_index_native_df,

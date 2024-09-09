@@ -46,7 +46,7 @@ def test_add_suffix_multiindex(suffix, multiindex_native_int_series):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 @pytest.mark.parametrize("suffix", TEST_ADD_SUFFIX_DATA)
 def test_add_suffix_time_column_df(suffix, time_index_series_data):
     series_data, kwargs = time_index_series_data

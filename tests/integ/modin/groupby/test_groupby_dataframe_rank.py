@@ -7,7 +7,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
     eval_snowpark_pandas_result,
@@ -211,7 +211,6 @@ TEST_RANK_DATA_MUL = [
 ]
 
 
-@sql_count_checker(query_count=1)
 @pytest.mark.parametrize("data, index", TEST_RANK_DATA)
 @pytest.mark.parametrize(
     "method",
@@ -233,16 +232,18 @@ TEST_RANK_DATA_MUL = [
 def test_df_groupby_rank(data, index, method, ascending, na_option, dropna):
     snow_df = pd.DataFrame(data, index=index)
     native_df = native_pd.DataFrame(data, index=index)
-    eval_snowpark_pandas_result(
-        snow_df,
-        native_df,
-        lambda df: df.groupby("group", dropna=dropna).rank(
-            method=method, na_option=na_option, ascending=ascending
-        ),
-    )
+    with SqlCounter(
+        query_count=1, join_count=2 if isinstance(index, pd.MultiIndex) else 0
+    ):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.groupby("group", dropna=dropna).rank(
+                method=method, na_option=na_option, ascending=ascending
+            ),
+        )
 
 
-@sql_count_checker(query_count=1)
 @pytest.mark.parametrize("data, index", TEST_RANK_DATA)
 @pytest.mark.parametrize(
     "method",
@@ -272,10 +273,14 @@ def test_df_rank_pct(data, index, method, ascending, na_option, dropna):
         .groupby("group", dropna=dropna)
         .rank(method=method, ascending=ascending, na_option=na_option, pct=True)
     )
-    assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64(snow_df, native_df)
+    with SqlCounter(
+        query_count=1, join_count=2 if isinstance(index, pd.MultiIndex) else 0
+    ):
+        assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64(
+            snow_df, native_df
+        )
 
 
-@sql_count_checker(query_count=1)
 @pytest.mark.parametrize("data, index", TEST_RANK_DATA_MUL)
 @pytest.mark.parametrize(
     "method",
@@ -293,13 +298,16 @@ def test_df_rank_pct(data, index, method, ascending, na_option, dropna):
 def test_df_groupby_rank_by_list(data, index, method, ascending, na_option):
     snow_df = pd.DataFrame(data, index=index)
     native_df = native_pd.DataFrame(data, index=index)
-    eval_snowpark_pandas_result(
-        snow_df,
-        native_df,
-        lambda df: df.groupby(["group", "a"]).rank(
-            method=method, na_option=na_option, ascending=ascending
-        ),
-    )
+    with SqlCounter(
+        query_count=1, join_count=2 if isinstance(index, pd.MultiIndex) else 0
+    ):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.groupby(["group", "a"]).rank(
+                method=method, na_option=na_option, ascending=ascending
+            ),
+        )
 
 
 @pytest.mark.parametrize(

@@ -19,14 +19,14 @@ from tests.integ.modin.utils import (
 
 
 @pytest.mark.parametrize("by", ["a", ["b"], ["a", "b"]])
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=4)
 def test_groupby_sort_multiindex_series(series_multi_numeric, agg_method, by):
     native_mseries_group = series_multi_numeric.to_pandas().groupby(by=by, sort=True)
     mseries_group = series_multi_numeric.groupby(by=by, sort=True)
     eval_snowpark_pandas_result(mseries_group, native_mseries_group, agg_method)
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=3, join_count=6)
 def test_groupby_sort_false_multiindex_series(series_multi_numeric):
     # it is known that groupby sort=False is buggy with multiIndex, it is always
     # sorting when only part of the level is used.
@@ -48,7 +48,7 @@ def test_groupby_sort_false_multiindex_series(series_multi_numeric):
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=2)
 def test_groupby_series_count_with_nan():
     index = native_pd.Index(["a", "b", "b", "a", "c"])
     index.names = ["grp_col"]
@@ -75,7 +75,7 @@ def test_groupby_series_count_with_nan():
     ],
 )
 @pytest.mark.parametrize("sort", [True, False])
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=2)
 def test_groupby_agg_series(agg_func, sort):
     index = native_pd.Index(["a", "b", "b", "a", "c"])
     index.names = ["grp_col"]
@@ -113,7 +113,7 @@ def test_groupby_agg_series_dict_func_negative():
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 @pytest.mark.parametrize(
     "agg_func, type_str",
     [({"x": ("y", "sum")}, "tuple"), ({"x": pd.NamedAgg("y", "sum")}, "NamedAgg")],
@@ -139,7 +139,7 @@ def test_groupby_agg_series_raises_for_2_tuple_agg(agg_func, type_str):
 
 @pytest.mark.parametrize("sort", [True, False])
 @pytest.mark.parametrize("aggs", [{"minimum": min}, {"minimum": min, "maximum": max}])
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=2)
 def test_groupby_agg_series_named_agg(aggs, sort):
     index = native_pd.Index(["a", "b", "b", "a", "c"])
     index.names = ["grp_col"]
@@ -164,7 +164,7 @@ def test_groupby_series_numeric_only(series_str, numeric_only):
 
 
 @pytest.mark.parametrize("level", [0, 1, [1, 0], "b", [1, 1], [0, "b"], [-1]])
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=4)
 def test_groupby_sort_multiindex_series_level(series_multi_numeric, level):
     native_series = series_multi_numeric.to_pandas()
 
@@ -173,7 +173,7 @@ def test_groupby_sort_multiindex_series_level(series_multi_numeric, level):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_groupby_series_single_index():
     snow_ser = pd.Series([2, 5, 6, 8], index=[2.0, 4.0, 4.0, 5.0])
     native_ser = native_pd.Series([2, 5, 6, 8], index=[2.0, 4.0, 4.0, 5.0])

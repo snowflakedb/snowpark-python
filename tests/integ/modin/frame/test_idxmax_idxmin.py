@@ -13,7 +13,6 @@ from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
 
-@sql_count_checker(query_count=1, join_count=1)
 @pytest.mark.parametrize(
     "data, index",
     [
@@ -74,13 +73,17 @@ def test_idxmax_idxmin_df(data, index, func, axis, skipna):
         pytest.xfail(
             "Snowpark pandas returns a Series with None whereas pandas throws a ValueError"
         )
-    eval_snowpark_pandas_result(
-        *create_test_dfs(
-            data=data,
-            index=index,
-        ),
-        lambda df: getattr(df, func)(axis=axis, skipna=skipna),
-    )
+    with SqlCounter(
+        query_count=1,
+        join_count=0 if index is None or (data == {} and index == []) else 1,
+    ):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(
+                data=data,
+                index=index,
+            ),
+            lambda df: getattr(df, func)(axis=axis, skipna=skipna),
+        )
 
 
 @sql_count_checker(query_count=1, join_count=1)
@@ -173,7 +176,7 @@ def test_idxmax_idxmin_df_numeric_only_axis_1_different_column_dtypes(
             )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 @pytest.mark.parametrize("func", ["idxmax", "idxmin"])
 @pytest.mark.parametrize("axis", [0, 1])
 def test_idxmax_idxmin_with_dates(func, axis):
@@ -214,7 +217,7 @@ def test_idxmax_idxmin_with_timedelta(func, axis):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 @pytest.mark.parametrize("func", ["idxmax", "idxmin"])
 @pytest.mark.parametrize("axis", [0, 1])
 def test_idxmax_idxmin_with_strings(func, axis):

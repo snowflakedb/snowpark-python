@@ -50,7 +50,7 @@ class TestDefaultParameters:
         # copying the original series's index to the final resulting dataframe
         # adds 1 extra query to materialize the index.
         query_count=QUERY_COUNT + 1,
-        join_count=JOIN_COUNT,
+        join_count=5,
     )
     def test_no_diff(self, base_series):
         other_series = base_series.copy()
