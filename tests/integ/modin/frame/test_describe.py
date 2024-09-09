@@ -255,8 +255,8 @@ def test_describe_timestamps():
 @pytest.mark.parametrize(
     "index",
     [
-        # pytest.param(None, id="default_index"),
-        # pytest.param(["one", "two", "three", "four", "five", "six"], id="flat_index"),
+        pytest.param(None, id="default_index"),
+        pytest.param(["one", "two", "three", "four", "five", "six"], id="flat_index"),
         pytest.param(
             [
                 np.array(["bar", "bar", "baz", "baz", "foo", "foo"]),
