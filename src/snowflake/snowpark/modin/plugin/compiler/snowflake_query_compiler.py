@@ -361,6 +361,7 @@ from snowflake.snowpark.types import (
     BooleanType,
     DataType,
     DateType,
+    DecimalType,
     DoubleType,
     FloatType,
     IntegerType,
@@ -16879,14 +16880,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
-    def dt_total_seconds(self) -> None:
+    def dt_total_seconds(self, include_index: bool = False) -> "SnowflakeQueryCompiler":
         """
         Return total duration of each element expressed in seconds.
+        Args:
+            include_index: Whether to include the index columns in the operation.
         Returns:
             New QueryCompiler containing total seconds.
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.total_seconds'"
+        # This method is only applicable to timedelta types.
+        dtype = self.index_dtypes[0] if include_index else self.dtypes[0]
+        if not is_timedelta64_dtype(dtype):
+            raise AttributeError(
+                "'DatetimeProperties' object has no attribute 'total_seconds'"
+            )
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                # Cast the column to decimal of scale 9 to ensure no precision loss.
+                lambda x: x.cast(DecimalType(scale=9)) / 1_000_000_000,
+                include_index,
+            )
         )
 
     def dt_strftime(self, date_format: str) -> None:
