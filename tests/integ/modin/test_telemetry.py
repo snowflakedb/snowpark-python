@@ -576,3 +576,15 @@ def test_telemetry_series_describe():
         {"name": "Series.property.name_set"},
         {"name": "Series.Series.describe"},
     ]
+
+
+@sql_count_checker(query_count=0)
+def test_telemetry_series_isin():
+    # isin is overridden in both series_overrides.py and base_overrides.py
+    # This test ensures we only report telemetry for one
+    s = pd.Series([1, 2, 3, 4])
+    result = s.isin([1])
+    assert result._query_compiler.snowpark_pandas_api_calls == [
+        {"name": "Series.property.name_set"},
+        {"name": "Series.isin"},
+    ]
