@@ -1,14 +1,17 @@
 name: Daily Snowpark pandas jupyter notebook test
 
 on:
-    schedule:
-      - cron: "0 16 * * *" # Runs 16:00 UTC on every day
-    workflow_dispatch:
-        inputs:
-            logLevel:
-                default: warning
-                description: "Log level"
-                required: true
+  pull_request:
+    types:
+      - opened
+#    schedule:
+#      - cron: "0 16 * * *" # Runs 16:00 UTC on every day
+#    workflow_dispatch:
+#        inputs:
+#            logLevel:
+#                default: warning
+#                description: "Log level"
+#                required: true
 
 jobs:
     lint:
@@ -46,7 +49,7 @@ jobs:
               run: python -m pip wheel -v -w dist --no-deps .
             - name: Show wheels generated
               run: ls -lh dist
-            - uses: actions/upload-artifact@v1
+            - uses: actions/upload-artifact@v4
               with:
                 name: wheel
                 path: dist/
