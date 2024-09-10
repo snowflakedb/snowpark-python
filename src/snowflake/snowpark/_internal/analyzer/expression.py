@@ -328,6 +328,10 @@ class UnresolvedAttribute(Expression, NamedExpression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return self._dependent_column_names
 
+    @cached_property
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return [] if self._dependent_column_names == COLUMN_DEPENDENCY_ALL else list(self._dependent_column_names)
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.COLUMN
@@ -421,6 +425,10 @@ class Like(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, self.pattern)
 
+    @cached_property
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.expr, self.pattern)
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         # expr LIKE pattern
@@ -450,6 +458,10 @@ class RegExp(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, self.pattern)
 
+    @cached_property
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.expr, self.pattern)
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         # expr REG_EXP pattern
@@ -472,6 +484,10 @@ class Collate(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr)
+
+    @cached_property
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.expr)
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
