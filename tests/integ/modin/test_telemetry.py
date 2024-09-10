@@ -613,16 +613,16 @@ def test_telemetry_quantile():
 
 
 @sql_count_checker(query_count=2)
-def test_telemetry_to_pandas():
-    # to_pandas exists only in Snowpark pandas (modin uses _to_pandas instead)
+def test_telemetry_cache_result():
+    # cache_result exists only in Snowpark pandas
     s = pd.Series([1, 2, 3, 4])
-    result_s = s.to_pandas()
+    result_s = s.cache_result()
     assert result_s._query_compiler.snowpark_pandas_api_calls == [
         {"name": "Series.property.name_set"},
-        {"name": "Series.to_pandas"},
+        {"name": "Series.cache_result"},
     ]
     df = pd.DataFrame([1, 2, 3, 4])
-    result_df = df.to_pandas()
+    result_df = df.cache_result()
     assert result_df._query_compiler.snowpark_pandas_api_calls == [
-        {"name": "DataFrame.to_pandas"},
+        {"name": "DataFrame.cache_result"},
     ]
