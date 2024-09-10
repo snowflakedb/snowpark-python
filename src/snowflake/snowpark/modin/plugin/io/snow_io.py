@@ -233,7 +233,7 @@ class PandasOnSnowflakeIO(BaseIO):
         Note:
              The labels of the Snowpark pandas DataFrame/Series or index_label provided will be used as Normalized Snowflake
              Identifiers of the Snowpark DataFrame.
-             For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~snowflake.snowpark.modin.pandas.io.read_snowflake`
+             For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~modin.pandas.read_snowflake`
         """
         return cls.query_compiler_cls.to_snowpark(
             index, index_label

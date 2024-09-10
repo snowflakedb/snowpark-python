@@ -558,7 +558,7 @@ class Series(BasePandasDataset):
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or None
+        Snowpark pandas :class:`~modin.pandas.Series` or None
             Series with specified index labels removed or None if ``inplace=True``.
 
         Raises
@@ -672,17 +672,17 @@ class Series(BasePandasDataset):
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        Snowpark pandas :class:`~modin.pandas.Series` or Snowpark pandas :class:`~modin.pandas.DataFrame`
             If func returns a Series object the result will be a DataFrame.
 
 
         See Also
         --------
-        :func:`Series.map <snowflake.snowpark.modin.pandas.Series.map>` : For applying more complex functions on a Series.
+        :func:`Series.map <modin.pandas.Series.map>` : For applying more complex functions on a Series.
 
-        :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
+        :func:`DataFrame.apply <modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
 
-        :func:`DataFrame.applymap <snowflake.snowpark.modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
+        :func:`DataFrame.applymap <modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
 
         Notes
         -----
@@ -702,7 +702,7 @@ class Series(BasePandasDataset):
         When no type annotation is provided and Variant data is returned, Python ``None`` is translated to
         JSON NULL, and all other pandas missing values (np.nan, pd.NA, pd.NaT) are translated to SQL NULL.
 
-        4. For working with 3rd-party-packages see :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>`.
+        4. For working with 3rd-party-packages see :func:`DataFrame.apply <modin.pandas.DataFrame.apply>`.
         """
 
     def argmax():
@@ -840,7 +840,7 @@ class Series(BasePandasDataset):
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or Snowpark pandas :class:`~modin.pandas.DataFrame`
             If axis is 0 or 'index' the result will be a Series.
             The resulting index will be a MultiIndex with 'self' and 'other'
             stacked alternately at the inner level.
@@ -967,8 +967,8 @@ class Series(BasePandasDataset):
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` with the first differences of the Series.
+        Snowpark pandas :class:`~modin.pandas.Series`
+            Snowpark pandas :class:`~modin.pandas.Series` with the first differences of the Series.
 
         Notes
         -----
@@ -1101,7 +1101,7 @@ class Series(BasePandasDataset):
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or None
+        Snowpark pandas :class:`~modin.pandas.Series` or None
             Series with NA entries dropped from it or None if ``inplace=True``.
 
         See Also
@@ -1177,7 +1177,7 @@ class Series(BasePandasDataset):
         Returns
         -------
         Snowpark pandas Series[bool]
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` indicating whether each value has occurred
+            Snowpark pandas :class:`~modin.pandas.Series` indicating whether each value has occurred
             in the preceding values.
 
         See Also
@@ -1776,11 +1776,11 @@ class Series(BasePandasDataset):
 
         See Also
         --------
-        :func:`Series.apply <snowflake.snowpark.modin.pandas.Series.apply>` : For applying more complex functions on a Series.
+        :func:`Series.apply <modin.pandas.Series.apply>` : For applying more complex functions on a Series.
 
-        :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
+        :func:`DataFrame.apply <modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
 
-        :func:`DataFrame.applymap <snowflake.snowpark.modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
+        :func:`DataFrame.applymap <modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
 
         Notes
         -----
@@ -2180,7 +2180,7 @@ class Series(BasePandasDataset):
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        Snowpark pandas :class:`~modin.pandas.DataFrame`
 
         Notes
         -----
