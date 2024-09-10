@@ -1166,3 +1166,47 @@ def test_large_query_breakdown_skipped_telemetry(reason, session):
     )
     assert data == expected_data
     assert type_ == "snowpark_large_query_breakdown_optimization_skipped"
+
+
+def test_temp_table_cleanup(session):
+    client = session._conn._telemetry_client
+
+    def send_telemetry():
+        client.send_temp_table_cleanup_telemetry(
+            session.session_id,
+            num_temp_tables_cleaned=2,
+            num_temp_tables_created=5,
+        )
+
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    expected_data = {
+        "session_id": session.session_id,
+        "num_temp_tables_cleaned": 2,
+        "num_temp_tables_created": 5,
+    }
+
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
+    assert data == expected_data
+    assert type_ == "snowpark_temp_table_cleanup"
+
+
+def test_temp_table_cleanup_exception(session):
+    client = session._conn._telemetry_client
+
+    def send_telemetry():
+        client.send_temp_table_cleanup_exception_telemetry(
+            session.session_id,
+            reason="placeholder",
+        )
+
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    expected_data = {
+        "session_id": session.session_id,
+        "temp_table_cleanup_exception_reason": "placeholder",
+    }
+
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
+    assert data == expected_data
+    assert type_ == "snowpark_temp_table_cleanup_exception"
