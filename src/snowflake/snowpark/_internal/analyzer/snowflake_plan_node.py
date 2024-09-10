@@ -158,7 +158,7 @@ class SnowflakeValues(LeafNode):
             # 2. insert into table query
             # 3. select * from table query
             # We only consider the complexity from the final select * query since other queries
-            # are build based on it.
+            # are built based on it.
             return {
                 PlanNodeCategory.COLUMN: 1,
             }
