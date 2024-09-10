@@ -150,7 +150,7 @@ class SnowflakeValues(LeafNode):
 
         # select $1, ..., $m FROM VALUES (r11, r12, ..., r1m), (rn1, ...., rnm)
         literal_complexity = len(self.data) * len(self.output)
-        if literal_complexity > ARRAY_BIND_THRESHOLD:
+        if literal_complexity >= ARRAY_BIND_THRESHOLD:
             # When the number of literals exceeds the threshold, we generate 3 queries:
             # 1. create table query
             # 2. insert into table query
