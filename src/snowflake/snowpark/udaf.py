@@ -13,7 +13,11 @@ import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
-from snowflake.snowpark._internal.ast_utils import build_udaf_apply
+from snowflake.snowpark._internal.ast_utils import (
+    build_udaf,
+    build_udaf_apply,
+    with_src_position,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import (
     open_telemetry_udf_context_manager,
@@ -656,6 +660,35 @@ class UDAFRegistration:
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedAggregateFunction:
+
+        # AST. Capture original parameters, before any pre-processing.
+        ast = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.udaf, stmt)
+            build_udaf(
+                ast,
+                handler,
+                return_type=return_type,
+                input_types=input_types,
+                name=name,
+                stage_location=stage_location,
+                imports=imports,
+                packages=packages,
+                replace=replace,
+                if_not_exists=if_not_exists,
+                parallel=parallel,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                comment=comment,
+                statement_params=statement_params,
+                source_code_display=source_code_display,
+                is_permanent=is_permanent,
+                session=self._session,
+                **kwargs,
+            )
+
         # get the udaf name, return and input types
         (
             udaf_name,
@@ -752,6 +785,12 @@ class UDAFRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return UserDefinedAggregateFunction(
+        udaf = UserDefinedAggregateFunction(
             handler, udaf_name, return_type, input_types, packages=packages
         )
+
+        udaf._ast = ast
+        if _emit_ast:
+            udaf._ast_id = stmt.var_id.bitfield1
+
+        return udaf

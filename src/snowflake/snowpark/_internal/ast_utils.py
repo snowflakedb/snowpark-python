@@ -831,7 +831,7 @@ def build_udf(
     **kwargs,
 ):
     """Helper function to encode UDF parameters (used in both regular and mock UDFRegistration)."""
-    # This is the name the UDF is registered to. Not the name to display when unaparsing, that name is captured in callable.
+    # This is the name the UDF is registered to. Not the name to display when unparsing, that name is captured in callable.
 
     if name is not None:
         _set_fn_name(name, ast)
@@ -914,8 +914,8 @@ def build_udaf(
     session=None,
     **kwargs,
 ):
-    """Helper function to encode UDF parameters (used in both regular and mock UDFRegistration)."""
-    # This is the name the UDF is registered to. Not the name to display when unaparsing, that name is captured in callable.
+    """Helper function to encode UDAF parameters (used in both regular and mock UDFRegistration)."""
+    # This is the name the UDAF is registered to. Not the name to display when unparsing, that name is captured in callable.
 
     if name is not None:
         _set_fn_name(name, ast)
@@ -998,7 +998,7 @@ def build_udtf(
     **kwargs,
 ):
     """Helper function to encode UDTF parameters (used in both regular and mock UDFRegistration)."""
-    # This is the name the UDF is registered to. Not the name to display when unaparsing, that name is captured in callable.
+    # This is the name the UDTF is registered to. Not the name to display when unparsing, that name is captured in callable.
 
     if name is not None:
         _set_fn_name(name, ast)

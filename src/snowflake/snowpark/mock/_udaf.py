@@ -10,8 +10,6 @@ from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.udaf import UDAFRegistration, UserDefinedAggregateFunction
 
-# TODO: Implement mock udaf for local testing
-
 
 class MockUserDefinedAggregateFunction(UserDefinedAggregateFunction):
     def __init__(self, *args, strict=False, use_session_imports=True, **kwargs) -> None:
