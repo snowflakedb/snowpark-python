@@ -7,7 +7,7 @@ File containing DataFrame APIs defined in the Modin API layer, but with differen
 pandas, such as `DataFrame.memory_usage`.
 """
 
-from typing import Any
+from typing import Any, Union
 
 import pandas as native_pd
 from modin.pandas import DataFrame
@@ -18,17 +18,13 @@ from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_ac
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     is_snowflake_agg_func,
 )
-from snowflake.snowpark.modin.plugin._internal.telemetry import (
-    snowpark_pandas_telemetry_method_decorator,
-)
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-from snowflake.snowpark.modin.utils import _inherit_docstrings
+from snowflake.snowpark.modin.utils import _inherit_docstrings, validate_int_kwarg
 
 
 @_inherit_docstrings(native_pd.DataFrame.memory_usage, apilink="pandas.DataFrame")
 @register_dataframe_accessor("memory_usage")
-@snowpark_pandas_telemetry_method_decorator
 def memory_usage(self, index: bool = True, deep: bool = False) -> Any:
     """
     Memory Usage (Dummy Information)
@@ -68,7 +64,6 @@ def memory_usage(self, index: bool = True, deep: bool = False) -> Any:
 
 @register_dataframe_accessor("plot")
 @property
-@snowpark_pandas_telemetry_method_decorator
 def plot(
     self,
     x=None,
@@ -113,8 +108,29 @@ def plot(
     return self._to_pandas().plot
 
 
+# Upstream modin defines sum differently for series/DF, but we use the same implementation for both.
+@register_dataframe_accessor("sum")
+def sum(
+    self,
+    axis: Union[Axis, None] = None,
+    skipna: bool = True,
+    numeric_only: bool = False,
+    min_count: int = 0,
+    **kwargs: Any,
+):
+    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+    min_count = validate_int_kwarg(min_count, "min_count")
+    kwargs.update({"min_count": min_count})
+    return self._agg_helper(
+        func="sum",
+        axis=axis,
+        skipna=skipna,
+        numeric_only=numeric_only,
+        **kwargs,
+    )
+
+
 @register_dataframe_accessor("transform")
-@snowpark_pandas_telemetry_method_decorator
 def transform(
     self, func: PythonFuncType, axis: Axis = 0, *args: Any, **kwargs: Any
 ) -> DataFrame:  # noqa: PR01, RT01, D200

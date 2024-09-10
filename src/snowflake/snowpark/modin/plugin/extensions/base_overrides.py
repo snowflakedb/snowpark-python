@@ -21,6 +21,7 @@ import modin.pandas as pd
 import numpy as np
 import numpy.typing as npt
 import pandas
+from modin.pandas import Series
 from modin.pandas.base import BasePandasDataset
 from pandas._libs import lib
 from pandas._libs.lib import NoDefault, is_bool, no_default
@@ -72,10 +73,6 @@ from snowflake.snowpark.modin.pandas.utils import (
     raise_if_native_pandas_objects,
     validate_and_try_convert_agg_func_arg_func_to_str,
 )
-from snowflake.snowpark.modin.plugin._internal.telemetry import (
-    snowpark_pandas_telemetry_method_decorator,
-    try_add_telemetry_to_attribute,
-)
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -96,16 +93,12 @@ def register_base_override(method_name: str):
     """
 
     def decorator(base_method: Any):
-        base_method = try_add_telemetry_to_attribute(method_name, base_method)
         parent_method = getattr(BasePandasDataset, method_name, None)
         if isinstance(parent_method, property):
             parent_method = parent_method.fget
         # If the method was not defined on Series/DataFrame and instead inherited from the superclass
-        # we need to override it as well because the MRO was already determined or something?
-        # TODO: SNOW-1063347
-        # Since we still use the vendored version of Series and the overrides for the top-level
-        # namespace haven't been performed yet, we need to set properties on the vendored version
-        series_method = getattr(spd.series.Series, method_name, None)
+        # we need to override it as well.
+        series_method = getattr(pd.Series, method_name, None)
         if isinstance(series_method, property):
             series_method = series_method.fget
         if series_method is None or series_method is parent_method:
@@ -127,9 +120,7 @@ def register_base_override(method_name: str):
 
 def register_base_not_implemented():
     def decorator(base_method: Any):
-        func = snowpark_pandas_telemetry_method_decorator(
-            base_not_implemented()(base_method)
-        )
+        func = base_not_implemented()(base_method)
         register_series_accessor(base_method.__name__)(func)
         register_dataframe_accessor(base_method.__name__)(func)
         return func
@@ -393,6 +384,17 @@ def truncate(
 
 
 @register_base_not_implemented()
+def xs(
+    self,
+    key,
+    axis=0,
+    level=None,
+    drop_level: bool = True,
+):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
 def __finalize__(self, other, method=None, **kwargs):
     pass  # pragma: no cover
 
@@ -425,8 +427,6 @@ def aggregate(
     Aggregate using one or more operations over the specified axis.
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    from snowflake.snowpark.modin.pandas import Series
-
     origin_axis = axis
     axis = self._get_axis_number(axis)
 
@@ -713,28 +713,6 @@ def std(
     kwargs.update({"ddof": ddof})
     return self._agg_helper(
         func="std",
-        axis=axis,
-        skipna=skipna,
-        numeric_only=numeric_only,
-        **kwargs,
-    )
-
-
-# See _agg_helper
-@register_base_override("sum")
-def sum(
-    self,
-    axis: Axis | None = None,
-    skipna: bool = True,
-    numeric_only: bool = False,
-    min_count: int = 0,
-    **kwargs: Any,
-):
-    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    min_count = validate_int_kwarg(min_count, "min_count")
-    kwargs.update({"min_count": min_count})
-    return self._agg_helper(
-        func="sum",
         axis=axis,
         skipna=skipna,
         numeric_only=numeric_only,
@@ -1538,8 +1516,6 @@ def where(
     if isinstance(cond, Callable):
         raise NotImplementedError("Do not support callable for 'cond' parameter.")
 
-    from snowflake.snowpark.modin.pandas import Series
-
     if isinstance(cond, Series):
         cond._query_compiler._shape_hint = "column"
     if isinstance(self, Series):
@@ -1600,8 +1576,6 @@ def mask(
 
     if isinstance(cond, Callable):
         raise NotImplementedError("Do not support callable for 'cond' parameter.")
-
-    from snowflake.snowpark.modin.pandas import Series
 
     if isinstance(cond, Series):
         cond._query_compiler._shape_hint = "column"
@@ -1691,6 +1665,32 @@ def to_csv(
         decimal=decimal,
         errors=errors,
         storage_options=storage_options,
+    )
+
+
+# Modin has support for a custom NumPy wrapper module.
+@register_base_override("to_numpy")
+def to_numpy(
+    self,
+    dtype: npt.DTypeLike | None = None,
+    copy: bool = False,
+    na_value: object = no_default,
+    **kwargs: Any,
+) -> np.ndarray:
+    """
+    Convert the `BasePandasDataset` to a NumPy array or a Modin wrapper for NumPy array.
+    """
+    # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+    if copy:
+        WarningMessage.ignored_argument(
+            operation="to_numpy",
+            argument="copy",
+            message="copy is ignored in Snowflake backend",
+        )
+    return self._query_compiler.to_numpy(
+        dtype=dtype,
+        na_value=na_value,
+        **kwargs,
     )
 
 
@@ -1812,7 +1812,6 @@ def astype(
     # dtype can be a series, a dict, or a scalar. If it's series or scalar,
     # convert it to a dict before passing it to the query compiler.
     raise_if_native_pandas_objects(dtype)
-    from snowflake.snowpark.modin.pandas import Series
 
     if isinstance(dtype, Series):
         dtype = dtype.to_pandas()

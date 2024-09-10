@@ -12,7 +12,7 @@ from typing import Any, Callable, Optional, Union
 import numpy as np
 import pandas as native_pd
 from pandas._typing import Scalar
-from pandas.core.dtypes.common import is_integer_dtype, is_scalar
+from pandas.core.dtypes.common import is_integer_dtype, is_object_dtype, is_scalar
 
 import snowflake.snowpark.modin.pandas as pd
 import snowflake.snowpark.modin.plugin._internal.statement_params_constants as STATEMENT_PARAMS
@@ -34,6 +34,9 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     col,
     count,
+    equal_nan,
+    floor,
+    iff,
     max as max_,
     mean,
     min as min_,
@@ -50,6 +53,7 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
 )
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
     SnowparkPandasType,
+    TimedeltaType,
     ensure_snowpark_python_type,
 )
 from snowflake.snowpark.modin.plugin._typing import LabelTuple
@@ -64,10 +68,15 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
 from snowflake.snowpark.types import (
     ArrayType,
     DataType,
+    DecimalType,
+    DoubleType,
+    LongType,
     MapType,
+    StringType,
     StructField,
     StructType,
     VariantType,
+    _FractionalType,
 )
 
 ROW_POSITION_COLUMN_LABEL = "row_position"
@@ -256,8 +265,9 @@ def _create_read_only_table(
         temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
 
         _logger.warning(
-            f"Data from source table/view '{table_name}' is being copied into a new "
-            f"temporary table '{temp_table_name}'. DataFrame creation might take some time."
+            f"Snapshot source table/view '{table_name}' failed due to reason: `{materialization_reason}'. Data from "
+            f"source table/view '{table_name}' is being copied into a new "
+            f"temporary table '{temp_table_name}' for snapshotting. DataFrame creation might take some time."
         )
 
         statement_params = get_default_snowpark_pandas_statement_params()
@@ -1166,7 +1176,9 @@ def is_snowpark_pandas_dataframe_or_series_type(obj: Any) -> bool:
     # Note: Native pandas.DataFrame/Series return False
     # Checking type name instead of using isinstance because of circle import.
     class_type = type(obj)
-    if not class_type.__module__.startswith("snowflake.snowpark.modin.pandas"):
+    if not class_type.__module__.startswith(
+        "snowflake.snowpark.modin.pandas"
+    ) and not class_type.__module__.startswith("modin.pandas"):
         return False
     return class_type.__name__ in {
         "DataFrame",
@@ -1269,30 +1281,76 @@ def check_snowpark_pandas_object_in_arg(arg: Any) -> bool:
 
 
 def snowpark_to_pandas_helper(
-    ordered_dataframe: OrderedDataFrame,
-    cached_snowpark_pandas_types: list[SnowparkPandasType],
+    frame: "frame.InternalFrame",
     *,
+    index_only: bool = False,
     statement_params: Optional[dict[str, str]] = None,
     **kwargs: Any,
-) -> native_pd.DataFrame:
+) -> Union[native_pd.Index, native_pd.DataFrame]:
     """
     The helper function retrieves a pandas dataframe from an OrderedDataFrame. Performs necessary type
     conversions for variant types on the client. This function issues 2 queries, one metadata query
     to retrieve the schema and one query to retrieve the data values.
 
     Args:
-        ordered_dataframe: Ordered Dataframe abstraction to convert to pandas Dataframe
+        frame: The internal frame to convert to pandas Dataframe (or Index if index_only is true)
+        index_only: if true, only turn the index columns into a pandas Index
         statement_params: Dictionary of statement level parameters to be passed to conversion function of ordered dataframe abstraction.
-        cached_snowpark_pandas_types:
-            List of types for the ordered dataframe's projected columns. These
-            types override the types from Snowpark python.
         kwargs: Additional keyword-only args to pass to internal `to_pandas` conversion for orderded dataframe abstraction.
 
     Returns:
         pandas dataframe
     """
+    ids = frame.index_column_snowflake_quoted_identifiers
+    cached_snowpark_pandas_types = frame.cached_index_column_snowpark_pandas_types
 
-    # Step 1: Retrieve schema of Snowpark dataframe and
+    if not index_only:
+        ids += frame.data_column_snowflake_quoted_identifiers
+        cached_snowpark_pandas_types += frame.cached_data_column_snowpark_pandas_types
+
+    ordered_dataframe = frame.ordered_dataframe.select(*ids)
+    # Step 1: preprocessing on Snowpark pandas types
+    # Here we convert Timedelta to string before to_pandas to avoid precision loss.
+    if cached_snowpark_pandas_types is not None:
+        astype_mapping = {}
+        column_type_map = {
+            f.column_identifier.quoted_name: f.datatype
+            for f in ordered_dataframe.schema.fields
+        }
+        for col_id, snowpark_pandas_type in zip(ids, cached_snowpark_pandas_types):
+            if (
+                snowpark_pandas_type is not None
+                and snowpark_pandas_type == TimedeltaType()
+            ):
+                col_td = col(col_id)
+                if isinstance(column_type_map[col_id], _FractionalType):
+                    if isinstance(column_type_map[col_id], DecimalType):
+                        check_non = col_td.cast(DoubleType())
+                    else:
+                        check_non = col_td
+                    check_non = equal_nan(check_non)
+                    # Timedelta's underneath Snowflake type may not always be int after other operations, so
+                    # explicitly floor them to integer first before converting to string. Note if it is float nan,
+                    # we have to keep it as is, otherwise it will raise exception when casting to integer.
+                    astype_mapping[col_id] = iff(
+                        check_non,
+                        col_td,
+                        floor(col_td).cast(LongType()).cast(StringType()),
+                    )
+                else:  # integer type
+                    astype_mapping[col_id] = col_td.cast(StringType())
+        if astype_mapping:
+            (
+                frame,
+                old_to_new_id_mapping,
+            ) = frame.update_snowflake_quoted_identifiers_with_expressions(
+                quoted_identifier_to_column_map=astype_mapping,
+            )
+            ordered_dataframe = frame.ordered_dataframe.select(
+                [old_to_new_id_mapping.get(id, id) for id in ids]
+            )
+
+    # Step 2: Retrieve schema of Snowpark dataframe and
     # capture information about each quoted identifier and its corresponding datatype, store
     # as list to keep information about order of columns.
     columns_info = [
@@ -1307,7 +1365,7 @@ def snowpark_to_pandas_helper(
     )
     variant_type_identifiers = list(map(lambda t: t[0], variant_type_columns_info))
 
-    # Step 2: Create for each variant type column a separate type column (append at end), and retrieve data values
+    # Step 3: Create for each variant type column a separate type column (append at end), and retrieve data values
     # (and types for variant type columns).
     variant_type_typeof_identifiers = (
         ordered_dataframe.generate_snowflake_quoted_identifiers(
@@ -1333,7 +1391,7 @@ def snowpark_to_pandas_helper(
     ), "Snowpark DataFrame to convert must have unique column identifiers"
     pandas_df = ordered_dataframe.to_pandas(statement_params=statement_params, **kwargs)
 
-    # Step 3: perform post-processing
+    # Step 4: perform post-processing
     # If the dataframe has no rows, do not perform this. Using the result of the `apply` on
     # an empty frame would erroneously update the dtype of the column to be `float64` instead of `object`.
     # TODO SNOW-982779: verify correctness of this behavior
@@ -1381,21 +1439,79 @@ def snowpark_to_pandas_helper(
                         id_to_label_mapping[quoted_name]
                     ].apply(lambda value: None if value is None else json.loads(value))
 
-    # Return the original amount of columns by stripping any typeof(...) columns appended if
+    # Step 5. Return the original amount of columns by stripping any typeof(...) columns appended if
     # schema contained VariantType.
     downcast_pandas_df = pandas_df[pandas_df.columns[: len(columns_info)]]
 
+    # Step 6. postprocessing for Snowpark pandas types
     if cached_snowpark_pandas_types is not None:
+        timedelta_t = TimedeltaType()
+
+        def convert_str_to_timedelta(x: str) -> pd.Timedelta:
+            return (
+                x
+                if pd.isna(x)
+                else pd.NaT
+                if x == "NaN"
+                else timedelta_t.to_pandas(int(x))
+            )
+
         for pandas_label, snowpark_pandas_type in zip(
             downcast_pandas_df.columns, cached_snowpark_pandas_types
         ):
-            if snowpark_pandas_type is not None and isinstance(
-                snowpark_pandas_type, SnowparkPandasType
-            ):
+            if snowpark_pandas_type is not None and snowpark_pandas_type == timedelta_t:
                 downcast_pandas_df[pandas_label] = pandas_df[pandas_label].apply(
-                    snowpark_pandas_type.to_pandas
+                    convert_str_to_timedelta
                 )
 
+    # Step 7. postprocessing for return types
+    if index_only:
+        index_values = downcast_pandas_df.values
+        if frame.is_multiindex(axis=0):
+            value_tuples = [tuple(row) for row in index_values]
+            return native_pd.MultiIndex.from_tuples(
+                value_tuples, names=frame.index_column_pandas_labels
+            )
+        else:
+            # We have one index column. Fill in the type correctly.
+            index_identifier = frame.index_column_snowflake_quoted_identifiers[0]
+            from snowflake.snowpark.modin.plugin._internal.type_utils import TypeMapper
+
+            index_type = TypeMapper.to_pandas(
+                frame.get_snowflake_type(index_identifier)
+            )
+            ret = native_pd.Index(
+                [row[0] for row in index_values],
+                name=frame.index_column_pandas_labels[0],
+                # setting tupleize_cols=False to avoid creating a MultiIndex
+                # otherwise, when labels are tuples (e.g., [("A", "a"), ("B", "b")]),
+                # a MultiIndex will be created incorrectly
+                tupleize_cols=False,
+            )
+            # When pd.Index() failed to reduce dtype to a numpy or pandas extension type, it will be object type. For
+            # example, an empty dataframe will be object dtype by default, or a variant, or a timestamp column with
+            # multiple timezones. So here we cast the index to the index_type when ret = pd.Index(...) above cannot
+            # figure out a non-object dtype. Note that the index_type is a logical type may not be 100% accurate.
+            if is_object_dtype(ret.dtype) and not is_object_dtype(index_type):
+                ret = ret.astype(index_type)
+            return ret
+
+    # to_pandas() does not preserve the index information and will just return a
+    # RangeIndex. Therefore, we need to set the index column manually
+    downcast_pandas_df.set_index(
+        [
+            extract_pandas_label_from_snowflake_quoted_identifier(identifier)
+            for identifier in frame.index_column_snowflake_quoted_identifiers
+        ],
+        inplace=True,
+    )
+    # set index name
+    downcast_pandas_df.index = downcast_pandas_df.index.set_names(
+        frame.index_column_pandas_labels
+    )
+
+    # set column names and potential casting
+    downcast_pandas_df.columns = frame.data_columns_index
     return downcast_pandas_df
 
 

@@ -41,6 +41,7 @@ from modin.pandas.base import BasePandasDataset
 
 # from . import _update_engine
 from modin.pandas.iterator import PartitionIterator
+from modin.pandas.series import Series
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     AggFuncType,
@@ -78,7 +79,6 @@ from snowflake.snowpark.modin.pandas.groupby import (
     DataFrameGroupBy,
     validate_groupby_args,
 )
-from snowflake.snowpark.modin.pandas.series import Series
 from snowflake.snowpark.modin.pandas.snow_partition_iterator import (
     SnowparkPandasRowPartitionIterator,
 )
@@ -91,7 +91,6 @@ from snowflake.snowpark.modin.pandas.utils import (
     replace_external_data_keys_with_empty_pandas_series,
     replace_external_data_keys_with_query_compiler,
 )
-from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._internal.utils import is_repr_truncated
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
@@ -138,7 +137,7 @@ _DATAFRAME_EXTENSIONS_ = {}
     ],
     apilink="pandas.DataFrame",
 )
-class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
+class DataFrame(BasePandasDataset):
     _pandas_class = pandas.DataFrame
 
     def __init__(

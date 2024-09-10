@@ -168,6 +168,7 @@ else:
     from collections.abc import Iterable
 
 if TYPE_CHECKING:
+    import modin.pandas  # pragma: no cover
     from table import Table  # pragma: no cover
 
 _logger = getLogger(__name__)
@@ -938,7 +939,7 @@ class DataFrame:
         self,
         index_col: Optional[Union[str, List[str]]] = None,
         columns: Optional[List[str]] = None,
-    ) -> "snowflake.snowpark.modin.pandas.DataFrame":
+    ) -> "modin.pandas.DataFrame":
         """
         Convert the Snowpark DataFrame to Snowpark pandas DataFrame.
 
@@ -948,7 +949,7 @@ class DataFrame:
                 all columns except ones configured in index_col.
 
         Returns:
-            :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            :class:`~modin.pandas.DataFrame`
                 A Snowpark pandas DataFrame contains index and data columns based on the snapshot of the current
                 Snowpark DataFrame, which triggers an eager evaluation.
 
@@ -964,12 +965,12 @@ class DataFrame:
         Note:
             Transformations performed on the returned Snowpark pandas Dataframe do not affect the Snowpark DataFrame
             from which it was created. Call
-            - :func:`snowflake.snowpark.modin.pandas.to_snowpark <snowflake.snowpark.modin.pandas.to_snowpark>`
+            - :func:`modin.pandas.to_snowpark <modin.pandas.to_snowpark>`
             to transform a Snowpark pandas DataFrame back to a Snowpark DataFrame.
 
             The column names used for columns or index_cols must be Normalized Snowflake Identifiers, and the
             Normalized Snowflake Identifiers of a Snowpark DataFrame can be displayed by calling df.show().
-            For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~snowflake.snowpark.modin.pandas.read_snowflake`
+            For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~modin.pandas.read_snowflake`
 
             `to_snowpark_pandas` works only when the environment is set up correctly for Snowpark pandas. This environment
             may require version of Python and pandas different from what Snowpark Python uses If the environment is setup
@@ -980,9 +981,9 @@ class DataFrame:
             - the installation section https://docs.snowflake.com/en/developer-guide/snowpark/python/snowpark-pandas#installing-the-snowpark-pandas-api
 
         See also:
-            - :func:`snowflake.snowpark.modin.pandas.to_snowpark <snowflake.snowpark.modin.pandas.to_snowpark>`
-            - :func:`snowflake.snowpark.modin.pandas.DataFrame.to_snowpark <snowflake.snowpark.modin.pandas.DataFrame.to_snowpark>`
-            - :func:`snowflake.snowpark.modin.pandas.Series.to_snowpark <snowflake.snowpark.modin.pandas.Series.to_snowpark>`
+            - :func:`modin.pandas.to_snowpark <modin.pandas.to_snowpark>`
+            - :func:`modin.pandas.DataFrame.to_snowpark <modin.pandas.DataFrame.to_snowpark>`
+            - :func:`modin.pandas.Series.to_snowpark <modin.pandas.Series.to_snowpark>`
 
         Example::
             >>> df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
@@ -3026,6 +3027,7 @@ class DataFrame:
         transformations: Optional[Iterable[ColumnOrName]] = None,
         format_type_options: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        iceberg_config: Optional[dict] = None,
         **copy_options: Any,
     ) -> List[Row]:
         """Executes a `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html>`__ command to load data from files in a stage location into a specified table.
@@ -3079,6 +3081,19 @@ class DataFrame:
             transformations: A list of column transformations.
             format_type_options: A dict that contains the ``formatTypeOptions`` of the ``COPY INTO <table>`` command.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            iceberg_config: A dictionary that can contain the following iceberg configuration values:
+
+                * external_volume: specifies the identifier for the external volume where
+                    the Iceberg table stores its metadata files and data in Parquet format
+
+                * catalog: specifies either Snowflake or a catalog integration to use for this table
+
+                * base_location: the base directory that snowflake can write iceberg metadata and files to
+
+                * catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
+
+                * storage_serialization_policy: specifies the storage serialization policy for the table
+
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
         if not self._reader or not self._reader._file_path:
@@ -3144,6 +3159,7 @@ class DataFrame:
             if transformations
             else None
         )
+
         return DataFrame(
             self._session,
             CopyIntoTableNode(
@@ -3160,6 +3176,7 @@ class DataFrame:
                 user_schema=self._reader._user_schema,
                 cur_options=self._reader._cur_options,
                 create_table_from_infer_schema=create_table_from_infer_schema,
+                iceberg_config=iceberg_config,
             ),
         )._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
 

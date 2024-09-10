@@ -12,7 +12,7 @@ from tests.integ.modin.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize(
-    "values", [[1, 2, 3], [3, 2, 1], [1, 3, 2], [1, 2, 2], [1, np.NaN, 3]]
+    "values", [[], [1], [3, 2], [1, 3, 2], [1, 2, 2], [1, np.NaN, 3]]
 )
 @sql_count_checker(query_count=1)
 def test_monotonic_increasing_numbers(values):
@@ -23,7 +23,7 @@ def test_monotonic_increasing_numbers(values):
 
 
 @pytest.mark.parametrize(
-    "values", [[3, 2, 1], [1, 2, 3], [3, 1, 2], [2, 2, 1], [3, np.NaN, 1]]
+    "values", [[], [3], [1, 2], [3, 1, 2], [2, 2, 1], [3, np.NaN, 1]]
 )
 @sql_count_checker(query_count=1)
 def test_monotonic_decreasing_numbers(values):
@@ -95,3 +95,13 @@ def test_monotonic_decreasing_dates(values):
         pd.Series(values).is_monotonic_decreasing
         == native_pd.Series(values).is_monotonic_decreasing
     )
+
+
+@sql_count_checker(query_count=2)
+def test_monotonic_type_mismatch():
+    # Snowpark pandas may have different behavior when the column type is variant. pandas always returns False while
+    # Snowflake engine does implicit casting (“coercion”) and then check monotonic
+    assert not native_pd.Series([0, "a"]).is_monotonic_increasing
+    assert pd.Series([0, "a"]).is_monotonic_increasing
+    assert not native_pd.Series(["a", 0]).is_monotonic_decreasing
+    assert pd.Series(["a", 0]).is_monotonic_decreasing
