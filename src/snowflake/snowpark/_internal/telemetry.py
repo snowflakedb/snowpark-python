@@ -79,6 +79,12 @@ class TelemetryField(Enum):
     QUERY_PLAN_HEIGHT = "query_plan_height"
     QUERY_PLAN_NUM_DUPLICATE_NODES = "query_plan_num_duplicate_nodes"
     QUERY_PLAN_COMPLEXITY = "query_plan_complexity"
+    # temp table cleanup
+    TYPE_TEMP_TABLE_CLEANUP = "snowpark_temp_table_cleanup"
+    NUM_TEMP_TABLES_CLEANED = "num_temp_tables_cleaned"
+    NUM_TEMP_TABLES_CREATED = "num_temp_tables_created"
+    TYPE_TEMP_TABLE_CLEANUP_EXCEPTION = "snowpark_temp_table_cleanup_exception"
+    TEMP_TABLE_CLEANUP_EXCEPTION_REASON = "temp_table_cleanup_exception_reason"
 
 
 # These DataFrame APIs call other DataFrame APIs
@@ -438,6 +444,40 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 CompilationStageTelemetryField.KEY_REASON.value: reason,
+            },
+        }
+        self.send(message)
+
+    def send_temp_table_cleanup_telemetry(
+        self,
+        session_id: str,
+        num_temp_tables_cleaned: int,
+        num_temp_tables_created: int,
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_TEMP_TABLE_CLEANUP.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.NUM_TEMP_TABLES_CLEANED.value: num_temp_tables_cleaned,
+                TelemetryField.NUM_TEMP_TABLES_CREATED.value: num_temp_tables_created,
+            },
+        }
+        self.send(message)
+
+    def send_temp_table_cleanup_exception_telemetry(
+        self,
+        session_id: str,
+        reason: str,
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_TEMP_TABLE_CLEANUP_EXCEPTION.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.TEMP_TABLE_CLEANUP_EXCEPTION_REASON.value: reason,
             },
         }
         self.send(message)

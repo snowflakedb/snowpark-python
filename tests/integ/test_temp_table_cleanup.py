@@ -12,6 +12,7 @@ from snowflake.snowpark import Session
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
+    warning_dict,
 )
 from snowflake.snowpark.functions import col
 from tests.utils import IS_IN_STORED_PROC
@@ -25,40 +26,61 @@ pytestmark = [
 WAIT_TIME = 1
 
 
+@pytest.fixture(autouse=True)
+def setup(session):
+    auto_clean_up_temp_table_enabled = session.auto_clean_up_temp_table_enabled
+    session.auto_clean_up_temp_table_enabled = True
+    yield
+    session.auto_clean_up_temp_table_enabled = auto_clean_up_temp_table_enabled
+
+
 def test_basic(session):
+    session._temp_table_auto_cleaner.ref_count_map.clear()
     df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).cache_result()
     table_name = df1.table_name
     table_ids = table_name.split(".")
     df1.collect()
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 0
     df2 = df1.select("*").filter(col("a") == 1)
     df2.collect()
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 0
     df3 = df1.union_all(df2)
     df3.collect()
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 0
 
-    session._temp_table_auto_cleaner.start()
     del df1
     gc.collect()
     time.sleep(WAIT_TIME)
     assert session._table_exists(table_ids)
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 0
 
     del df2
     gc.collect()
     time.sleep(WAIT_TIME)
     assert session._table_exists(table_ids)
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 0
 
     del df3
     gc.collect()
     time.sleep(WAIT_TIME)
     assert not session._table_exists(table_ids)
-    assert table_name not in session._temp_table_auto_cleaner.ref_count_map
+    assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 0
+    assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 1
 
 
 def test_function(session):
+    session._temp_table_auto_cleaner.ref_count_map.clear()
     table_name = None
 
     def f(session: Session) -> None:
@@ -68,13 +90,16 @@ def test_function(session):
         nonlocal table_name
         table_name = df.table_name
         assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 1
+        assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+        assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 0
 
-    session._temp_table_auto_cleaner.start()
     f(session)
     gc.collect()
     time.sleep(WAIT_TIME)
     assert not session._table_exists(table_name.split("."))
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 0
+    assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 1
 
 
 @pytest.mark.parametrize(
@@ -86,33 +111,42 @@ def test_function(session):
     ],
 )
 def test_copy(session, copy_function):
+    session._temp_table_auto_cleaner.ref_count_map.clear()
     df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).cache_result()
     table_name = df1.table_name
     table_ids = table_name.split(".")
     df1.collect()
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 0
     df2 = copy_function(df1).select("*").filter(col("a") == 1)
     df2.collect()
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 2
+    assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 0
 
-    session._temp_table_auto_cleaner.start()
     del df1
     gc.collect()
     time.sleep(WAIT_TIME)
     assert session._table_exists(table_ids)
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 0
 
-    session._temp_table_auto_cleaner.start()
     del df2
     gc.collect()
     time.sleep(WAIT_TIME)
     assert not session._table_exists(table_ids)
-    assert table_name not in session._temp_table_auto_cleaner.ref_count_map
+    assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 0
+    assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 1
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_reference_count_map_multiple_sessions(db_parameters, session):
+    session._temp_table_auto_cleaner.ref_count_map.clear()
     new_session = Session.builder.configs(db_parameters).create()
+    new_session.auto_clean_up_temp_table_enabled = True
     try:
         df1 = session.create_dataframe(
             [[1, 2], [3, 4]], schema=["a", "b"]
@@ -120,43 +154,59 @@ def test_reference_count_map_multiple_sessions(db_parameters, session):
         table_name1 = df1.table_name
         table_ids1 = table_name1.split(".")
         assert session._temp_table_auto_cleaner.ref_count_map[table_name1] == 1
-        assert new_session._temp_table_auto_cleaner.ref_count_map[table_name1] == 0
+        assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+        assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 0
+        assert table_name1 not in new_session._temp_table_auto_cleaner.ref_count_map
+        assert new_session._temp_table_auto_cleaner.num_temp_tables_created == 0
+        assert new_session._temp_table_auto_cleaner.num_temp_tables_cleaned == 0
         df2 = new_session.create_dataframe(
             [[1, 2], [3, 4]], schema=["a", "b"]
         ).cache_result()
         table_name2 = df2.table_name
         table_ids2 = table_name2.split(".")
-        assert session._temp_table_auto_cleaner.ref_count_map[table_name2] == 0
+        assert table_name2 not in session._temp_table_auto_cleaner.ref_count_map
+        assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+        assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 0
         assert new_session._temp_table_auto_cleaner.ref_count_map[table_name2] == 1
+        assert new_session._temp_table_auto_cleaner.num_temp_tables_created == 1
+        assert new_session._temp_table_auto_cleaner.num_temp_tables_cleaned == 0
 
-        session._temp_table_auto_cleaner.start()
         del df1
         gc.collect()
         time.sleep(WAIT_TIME)
         assert not session._table_exists(table_ids1)
         assert new_session._table_exists(table_ids2)
         assert session._temp_table_auto_cleaner.ref_count_map[table_name1] == 0
-        assert new_session._temp_table_auto_cleaner.ref_count_map[table_name1] == 0
+        assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+        assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 1
+        assert table_name1 not in new_session._temp_table_auto_cleaner.ref_count_map
+        assert new_session._temp_table_auto_cleaner.num_temp_tables_created == 1
+        assert new_session._temp_table_auto_cleaner.num_temp_tables_cleaned == 0
 
-        new_session._temp_table_auto_cleaner.start()
         del df2
         gc.collect()
         time.sleep(WAIT_TIME)
         assert not new_session._table_exists(table_ids2)
-        assert session._temp_table_auto_cleaner.ref_count_map[table_name2] == 0
+        assert table_name2 not in session._temp_table_auto_cleaner.ref_count_map
+        assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+        assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 1
         assert new_session._temp_table_auto_cleaner.ref_count_map[table_name2] == 0
+        assert new_session._temp_table_auto_cleaner.num_temp_tables_created == 1
+        assert new_session._temp_table_auto_cleaner.num_temp_tables_cleaned == 1
     finally:
         new_session.close()
 
 
 def test_save_as_table_no_drop(session):
-    session._temp_table_auto_cleaner.start()
+    session._temp_table_auto_cleaner.ref_count_map.clear()
 
     def f(session: Session, temp_table_name: str) -> None:
         session.create_dataframe(
             [[1, 2], [3, 4]], schema=["a", "b"]
         ).write.save_as_table(temp_table_name, table_type="temp")
-        assert session._temp_table_auto_cleaner.ref_count_map[temp_table_name] == 0
+        assert temp_table_name not in session._temp_table_auto_cleaner.ref_count_map
+        assert session._temp_table_auto_cleaner.num_temp_tables_created == 0
+        assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 0
 
     temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
     f(session, temp_table_name)
@@ -165,34 +215,25 @@ def test_save_as_table_no_drop(session):
     assert session._table_exists([temp_table_name])
 
 
-def test_start_stop(session):
-    session._temp_table_auto_cleaner.stop()
-
-    df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).cache_result()
-    table_name = df1.table_name
-    table_ids = table_name.split(".")
-    assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 1
-    del df1
-    gc.collect()
-    assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 0
-    assert not session._temp_table_auto_cleaner.queue.empty()
-    assert session._table_exists(table_ids)
-
-    session._temp_table_auto_cleaner.start()
-    time.sleep(WAIT_TIME)
-    assert session._temp_table_auto_cleaner.queue.empty()
-    assert not session._table_exists(table_ids)
-
-
 def test_auto_clean_up_temp_table_enabled_parameter(db_parameters, session, caplog):
+    warning_dict.clear()
     with caplog.at_level(logging.WARNING):
-        session.auto_clean_up_temp_table_enabled = True
-    assert session.auto_clean_up_temp_table_enabled is True
-    assert "auto_clean_up_temp_table_enabled is experimental" in caplog.text
-    assert session._temp_table_auto_cleaner.is_alive()
-    session.auto_clean_up_temp_table_enabled = False
+        session.auto_clean_up_temp_table_enabled = False
     assert session.auto_clean_up_temp_table_enabled is False
-    assert not session._temp_table_auto_cleaner.is_alive()
+    assert "auto_clean_up_temp_table_enabled is experimental" in caplog.text
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).cache_result()
+    table_name = df.table_name
+    table_ids = table_name.split(".")
+    del df
+    gc.collect()
+    time.sleep(WAIT_TIME)
+    assert session._table_exists(table_ids)
+    assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 0
+    assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
+    assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 1
+    session.auto_clean_up_temp_table_enabled = True
+    assert session.auto_clean_up_temp_table_enabled is True
+
     with pytest.raises(
         ValueError,
         match="value for auto_clean_up_temp_table_enabled must be True or False!",
