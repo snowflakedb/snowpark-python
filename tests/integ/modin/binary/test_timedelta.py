@@ -14,6 +14,7 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
+    assert_frame_equal,
     assert_series_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
@@ -114,8 +115,8 @@ def timestamp_scalar(request):
 @pytest.fixture(
     params=[
         pd.Timedelta("10 days 23:59:59.123456789"),
-        datetime.timedelta(microseconds=1),
-        datetime.timedelta(microseconds=2),
+        pd.Timedelta(microseconds=1),
+        pd.Timedelta(microseconds=2),
         pd.Timedelta(nanoseconds=1),
         pd.Timedelta(nanoseconds=2),
         pd.Timedelta(nanoseconds=3),
@@ -272,6 +273,95 @@ def op_between_timedeltas(request) -> list[str]:
     return request.param
 
 
+@pytest.fixture(
+    params=[
+        "mul",
+        "rmul",
+        "div",
+        "truediv",
+        "floordiv",
+        "mod",
+        "eq",
+        "ne",
+    ]
+)
+def op_between_timedelta_and_numeric(request) -> list[str]:
+    """Valid operations between a timedelta LHS and numeric RHS."""
+    return request.param
+
+
+@pytest.fixture(
+    params=[
+        "mul",
+        "rmul",
+        "rdiv",
+        "rtruediv",
+        "rfloordiv",
+        "rmod",
+        "eq",
+        "ne",
+    ]
+)
+def op_between_numeric_and_timedelta(request) -> list[str]:
+    """Valid operations between a numeric RHS and timedelta LHS."""
+    return request.param
+
+
+@pytest.fixture(
+    params=[
+        -2.5,
+        -2,
+        -1,
+        1,
+        0.5,
+        1.5,
+        2,
+        1001,
+    ]
+)
+def numeric_scalar_non_null(request) -> list:
+    return request.param
+
+
+@pytest.fixture
+def numeric_dataframes_postive_no_nulls_1_2x2() -> tuple[
+    pd.DataFrame, native_pd.DataFrame
+]:
+    return create_test_dfs(
+        [
+            [1, 1.5],
+            [
+                2,
+                1001,
+            ],
+        ]
+    )
+
+
+@pytest.fixture
+def numeric_list_like_postive_no_nulls_1_length_6() -> list:
+    return [
+        1,
+        0.5,
+        1.5,
+        2,
+        1001,
+        1000,
+    ]
+
+
+@pytest.fixture
+def numeric_series_positive_no_nulls_1_length_6(
+    numeric_list_like_postive_no_nulls_1_length_6,
+) -> tuple[pd.Series, native_pd.Series]:
+    return create_test_series(numeric_list_like_postive_no_nulls_1_length_6)
+
+
+@pytest.fixture
+def numeric_series_positive_no_nulls_2_length_2() -> tuple[pd.Series, native_pd.Series]:
+    return create_test_series([0.5, 2.5])
+
+
 class TestInvalid:
     """
     Test invalid binary operations, e.g. subtracting a timestamp from a timedelta.
@@ -349,6 +439,132 @@ class TestInvalid:
             ),
         )
 
+    @pytest.mark.parametrize("op", ["add", "radd", "sub", "rsub"])
+    @pytest.mark.parametrize("value", [1, 1.5])
+    @sql_count_checker(query_count=0)
+    def test_timedelta_addition_and_subtraction_with_numeric(
+        self, timedelta_dataframes_1, op, value
+    ):
+        eval_snowpark_pandas_result(
+            *timedelta_dataframes_1,
+            lambda df: getattr(df, op)(value),
+            expect_exception=True,
+            expect_exception_match=re.escape(
+                "Snowpark pandas does not support addition or subtraction between timedelta values and numeric values."
+            ),
+            expect_exception_type=TypeError,
+            assert_exception_equal=False,
+        )
+
+    @pytest.mark.parametrize("op", ["div", "floordiv", "truediv", "mod"])
+    @sql_count_checker(query_count=0)
+    def test_timedelta_divide_number_dataframe_by_timedelta_scalar(self, op):
+        eval_snowpark_pandas_result(
+            *create_test_dfs([1]),
+            lambda df: getattr(df, op)(pd.Timedelta(1)),
+            expect_exception=True,
+            expect_exception_match=re.escape(
+                "Snowpark pandas does not support dividing numeric values by timedelta values with div (/), mod (%), or floordiv (//)."
+            ),
+            expect_exception_type=TypeError,
+            assert_exception_equal=False,
+        )
+
+    @pytest.mark.parametrize("op", ["rdiv", "rfloordiv", "rtruediv", "rmod"])
+    @sql_count_checker(query_count=0)
+    def test_divide_number_scalar_by_timedelta_dataframe(self, op):
+        eval_snowpark_pandas_result(
+            *create_test_dfs([pd.Timedelta(1)]),
+            lambda df: getattr(df, op)(2),
+            expect_exception=True,
+            expect_exception_match=re.escape(
+                "Snowpark pandas does not support dividing numeric values by timedelta values with div (/), mod (%), or floordiv (//)."
+            ),
+            expect_exception_type=TypeError,
+            assert_exception_equal=False,
+        )
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.parametrize("op", ["gt", "ge", "lt", "le"])
+    def test_timedelta_less_than_or_greater_than_numeric(
+        self, timedelta_dataframes_1, op
+    ):
+        eval_snowpark_pandas_result(
+            *timedelta_dataframes_1,
+            lambda df: getattr(df, op)(1),
+            expect_exception=True,
+            expect_exception_type=TypeError,
+            expect_exception_match=re.escape(
+                f"Snowpark pandas does not support binary operation {op} between timedelta and a non-timedelta type"
+            ),
+            assert_exception_equal=False,
+        )
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.parametrize("op", ["pow", "rpow"])
+    def test_pow_timedelta_numeric(self, op, timedelta_dataframes_1):
+        eval_snowpark_pandas_result(
+            *timedelta_dataframes_1,
+            lambda df: getattr(df, op)(1),
+            expect_exception=True,
+            expect_exception_type=TypeError,
+            expect_exception_match=re.escape(
+                "Snowpark pandas does not support binary operation pow between timedelta and a non-timedelta type"
+            ),
+            assert_exception_equal=False,
+        )
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.parametrize(
+        "op,error_message_type",
+        [
+            ("pow", "Numeric"),
+            ("rpow", "Numeric"),
+            ("__and__", "Boolean"),
+            ("__rand__", "Boolean"),
+            ("__or__", "Boolean"),
+            ("__ror__", "Boolean"),
+        ],
+    )
+    def test_invalid_ops_between_timedelta_dataframe_and_string_scalar(
+        self, op, timedelta_dataframes_1, error_message_type
+    ):
+        eval_snowpark_pandas_result(
+            *timedelta_dataframes_1,
+            lambda df: getattr(df, op)("4 days"),
+            expect_exception=True,
+            expect_exception_type=SnowparkSQLException,
+            expect_exception_match=f"{error_message_type} value '.*' is not recognized",
+            # pandas raises errors like "TypeError: ufunc 'power' not supported
+            # for the input types, and the inputs could not be safely coerced
+            # to any supported types according to the casting rule ''safe''."
+            # We follow the general pattern for binary operations of not trying
+            # to match pandas exactly.
+            assert_exception_equal=False,
+        )
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.parametrize(
+        "op,error_pattern",
+        [
+            ("__or__", "__or__"),
+            ("__and__", "__and__"),
+            ("__ror__", "__or__"),
+            ("__rand__", "__and__"),
+        ],
+    )
+    def test_bitwise_timedelta_numeric(self, op, error_pattern, timedelta_dataframes_1):
+        eval_snowpark_pandas_result(
+            *timedelta_dataframes_1,
+            lambda df: getattr(df, op)(1),
+            expect_exception=True,
+            expect_exception_type=TypeError,
+            expect_exception_match=re.escape(
+                f"Snowpark pandas does not support binary operation {error_pattern} between timedelta and a non-timedelta type"
+            ),
+            assert_exception_equal=False,
+        )
+
 
 class TestNumericEdgeCases:
     """
@@ -360,7 +576,7 @@ class TestNumericEdgeCases:
         "lhs,rhs,expected_pandas,expected_snow",
         [(3, -2, -1, 1), (-3, -2, -1, -1), (-3, 2, 1, -1)],
     )
-    def test_timedelta_mod_with_negative(
+    def test_timedelta_mod_with_negative_timedelta(
         self, lhs, rhs, expected_pandas, expected_snow
     ):
         """Snowflake sometimes has different behavior for mod with negative numbers."""
@@ -374,6 +590,25 @@ class TestNumericEdgeCases:
             native_pd.Series(pd.Timedelta(expected_snow)),
         )
 
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "lhs,rhs,expected_pandas,expected_snow",
+        [(3, -2, 1, 1), (-3, -2, -1, -1), (-3, 2, -1, -1)],
+    )
+    def test_timedelta_mod_with_negative_numeric(
+        self, lhs, rhs, expected_pandas, expected_snow
+    ):
+        """Snowflake sometimes has different behavior for mod with negative numbers."""
+        snow_series, pandas_series = create_test_series(pd.Timedelta(lhs))
+        assert_series_equal(
+            pandas_series % rhs,
+            native_pd.Series(pd.Timedelta(expected_pandas)),
+        )
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            snow_series % rhs,
+            native_pd.Series(pd.Timedelta(expected_snow)),
+        )
+
     @sql_count_checker(query_count=0)
     def test_divide_timedelta_by_zero_timedelta(self):
         snow_series, pandas_series = create_test_series(pd.Timedelta(1))
@@ -382,11 +617,29 @@ class TestNumericEdgeCases:
             (snow_series / pd.Timedelta(0)).to_pandas()
 
     @sql_count_checker(query_count=0)
+    def test_divide_timdelta_by_zero_integer(self):
+        snow_series, pandas_series = create_test_series(pd.Timedelta(1))
+        assert_series_equal(
+            pandas_series / 0, native_pd.Series(pd.NaT, dtype="timedelta64[ns]")
+        )
+        with pytest.raises(SnowparkSQLException, match=re.escape("Division by zero")):
+            (snow_series / 0).to_pandas()
+
+    @sql_count_checker(query_count=0)
     def test_floordiv_timedelta_by_zero_timedelta(self):
         snow_series, pandas_series = create_test_series(pd.Timedelta(1))
         assert_series_equal(pandas_series // pd.Timedelta(0), native_pd.Series(0))
         with pytest.raises(SnowparkSQLException, match=re.escape("Division by zero")):
             (snow_series // pd.Timedelta(0)).to_pandas()
+
+    @sql_count_checker(query_count=0)
+    def test_floordiv_timedelta_by_zero_integer(self):
+        snow_series, pandas_series = create_test_series(pd.Timedelta(1))
+        assert_series_equal(
+            pandas_series // 0, native_pd.Series(pd.NaT, dtype="timedelta64[ns]")
+        )
+        with pytest.raises(SnowparkSQLException, match=re.escape("Division by zero")):
+            (snow_series // 0).to_pandas()
 
     @sql_count_checker(query_count=1)
     def test_mod_timedelta_by_zero_timedelta(self):
@@ -398,6 +651,13 @@ class TestNumericEdgeCases:
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
             snow_series % pd.Timedelta(0),
             native_pd.Series(pd.NaT, dtype="timedelta64[ns]"),
+        )
+
+    @sql_count_checker(query_count=1)
+    def test_mod_timedelta_by_zero_integer(self):
+        eval_snowpark_pandas_result(
+            *create_test_series(pd.Timedelta(1)),
+            lambda series: series % 0,
         )
 
     @sql_count_checker(query_count=1)
@@ -594,18 +854,94 @@ class TestDataFrameAndScalar:
             lambda df: getattr(df, op_between_timedeltas)(timedelta_scalar_positive),
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=NotImplementedError,
-        match="does not yet support the binary operation .* with a Timedelta column and a non-Timedelta column",
-        reason="SNOW-1637102",
-    )
-    @pytest.mark.parametrize("op", ["mul", "rmul"])
-    def test_timedelta_dataframe_with_integer_scalar(
-        self, timedelta_dataframes_postive_no_nulls_1_2x2, op
+    @sql_count_checker(query_count=1)
+    def test_timedelta_dataframe_with_numeric_scalar(
+        self,
+        timedelta_dataframes_postive_no_nulls_1_2x2,
+        op_between_timedelta_and_numeric,
+        numeric_scalar_non_null,
     ):
         eval_snowpark_pandas_result(
-            *timedelta_dataframes_postive_no_nulls_1_2x2, lambda df: getattr(df, op)(3)
+            *timedelta_dataframes_postive_no_nulls_1_2x2,
+            lambda df: getattr(df, op_between_timedelta_and_numeric)(
+                numeric_scalar_non_null
+            ),
+        )
+
+    @sql_count_checker(query_count=1)
+    def test_numeric_dataframe_with_timedelta_scalar(
+        self,
+        numeric_dataframes_postive_no_nulls_1_2x2,
+        op_between_numeric_and_timedelta,
+        timedelta_scalar_positive,
+    ):
+        eval_snowpark_pandas_result(
+            *numeric_dataframes_postive_no_nulls_1_2x2,
+            lambda df: getattr(df, op_between_numeric_and_timedelta)(
+                timedelta_scalar_positive
+            ),
+        )
+
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize("op", ["mul", "rmul"])
+    def test_datetime_timedelta_scalar_multiply_with_numeric_dataframe(
+        self,
+        numeric_dataframes_postive_no_nulls_1_2x2,
+        op,
+    ):
+        """
+        Test valid multiplication between numeric dataframe and datetime.timedelta scalar
+
+        We test this case separately from other timedelta scalar cases due to
+        https://github.com/pandas-dev/pandas/issues/59656
+        """
+        eval_snowpark_pandas_result(
+            *numeric_dataframes_postive_no_nulls_1_2x2,
+            lambda df: getattr(df, op)(datetime.timedelta(microseconds=2)),
+        )
+
+    @sql_count_checker(query_count=1)
+    def test_datetime_timedelta_scalar_divide_by_numeric_dataframe(
+        self,
+    ):
+        """
+        Test valid division between numeric dataframe and datetime.timedelta scalar
+
+        We test this case separately from other timedelta scalar cases due to
+        https://github.com/pandas-dev/pandas/issues/59656
+        """
+        modin_df, pandas_df = create_test_dfs([[1.5, 1001]])
+        scalar = datetime.timedelta(microseconds=2)
+        # Due to https://github.com/pandas-dev/pandas/issues/59656, pandas
+        # produces a result with microsecond precision, i.e. dtype
+        # timedelt64[us], so it represents pd.Timedelta(microseconds=2) /
+        # 1.5 as pd.Timedelta(microseconds=1) instead of as
+        # pd.Timedelta(nanoseconds=1333). Likewise, it represents
+        # pd.Timedelta(microseconds=2) / 1001 as
+        # pd.Timedelta(microseconds=0) instead of as
+        # pd.Timedelta(nanoseconds=1).
+        assert_frame_equal(
+            scalar / pandas_df,
+            native_pd.DataFrame(
+                [
+                    [
+                        pd.Timedelta(microseconds=1),
+                        pd.Timedelta(microseconds=0),
+                    ],
+                ],
+                dtype="timedelta64[us]",
+            ),
+        )
+        assert_frame_equal(
+            scalar / modin_df,
+            native_pd.DataFrame(
+                [
+                    [
+                        pd.Timedelta(nanoseconds=1333),
+                        pd.Timedelta(nanoseconds=1),
+                    ],
+                ]
+            ),
         )
 
 
@@ -666,6 +1002,57 @@ class TestSeriesAndScalar:
             ),
         )
 
+    @sql_count_checker(query_count=1)
+    def test_timedelta_series_with_numeric_scalar(
+        self,
+        timedelta_series_positive_no_nulls_1_length_6,
+        op_between_timedelta_and_numeric,
+        numeric_scalar_non_null,
+    ):
+        eval_snowpark_pandas_result(
+            *timedelta_series_positive_no_nulls_1_length_6,
+            lambda series: getattr(series, op_between_timedelta_and_numeric)(
+                numeric_scalar_non_null
+            ),
+        )
+
+    @sql_count_checker(query_count=1)
+    def test_numeric_series_with_timedelta_scalar(
+        self,
+        numeric_series_positive_no_nulls_1_length_6,
+        op_between_numeric_and_timedelta,
+        timedelta_scalar_positive,
+    ):
+        eval_snowpark_pandas_result(
+            *numeric_series_positive_no_nulls_1_length_6,
+            lambda series: getattr(series, op_between_numeric_and_timedelta)(
+                timedelta_scalar_positive
+            ),
+        )
+
+    @pytest.mark.xfail(strict=True, raises=NotImplementedError, reason="SNOW-1646604")
+    @pytest.mark.parametrize(
+        "op",
+        [
+            "sub",
+            "add",
+            "div",
+            "truediv",
+            "eq",
+            "ne",
+        ],
+    )
+    @sql_count_checker(query_count=1)
+    def test_string_series_with_timedelta_scalar(self, timedelta_scalar_positive, op):
+        # TODO(SNOW-1646604): Test other operand types (e.g. DataFrame of strings + scalar timedelta),
+        # and all operations in `op_between_timedeltas`.
+        # However, note that not all of those cases work in pandas due to
+        # https://github.com/pandas-dev/pandas/issues/59653
+        eval_snowpark_pandas_result(
+            *create_test_series(["1 days", "1 day 1 hour"]),
+            lambda series: getattr(series, op)(timedelta_scalar_positive),
+        )
+
 
 class TestDataFrameAndListLikeAxis1:
     @pytest.mark.parametrize("op", ["sub", "rsub"])
@@ -722,6 +1109,38 @@ class TestDataFrameAndListLikeAxis1:
         eval_snowpark_pandas_result(
             *timedelta_dataframes_postive_no_nulls_1_2x2,
             lambda df: getattr(df, op_between_timedeltas)(
+                [
+                    pd.Timedelta(days=2, milliseconds=140),
+                    pd.Timedelta(days=1, milliseconds=770),
+                ]
+            ),
+        )
+
+    @sql_count_checker(query_count=1)
+    def test_timedelta_dataframe_with_numeric_list_like(
+        self,
+        op_between_timedelta_and_numeric,
+        timedelta_dataframes_postive_no_nulls_1_2x2,
+    ):
+        eval_snowpark_pandas_result(
+            *timedelta_dataframes_postive_no_nulls_1_2x2,
+            lambda df: getattr(df, op_between_timedelta_and_numeric)(
+                [
+                    1.5,
+                    2,
+                ]
+            ),
+        )
+
+    @sql_count_checker(query_count=1)
+    def test_numeric_dataframe_with_timedelta_list_like(
+        self,
+        op_between_numeric_and_timedelta,
+        numeric_dataframes_postive_no_nulls_1_2x2,
+    ):
+        eval_snowpark_pandas_result(
+            *numeric_dataframes_postive_no_nulls_1_2x2,
+            lambda df: getattr(df, op_between_numeric_and_timedelta)(
                 [
                     pd.Timedelta(days=2, milliseconds=140),
                     pd.Timedelta(days=1, milliseconds=770),
@@ -798,6 +1217,40 @@ class TestSeriesAndListLike:
             ),
         )
 
+    @sql_count_checker(query_count=1, join_count=1)
+    def test_timedelta_series_and_numeric_list_like(
+        self,
+        op_between_timedelta_and_numeric,
+        timedelta_series_positive_no_nulls_1_length_6,
+        numeric_list_like_postive_no_nulls_1_length_6,
+    ):
+        eval_snowpark_pandas_result(
+            *timedelta_series_positive_no_nulls_1_length_6,
+            lambda series: getattr(series, op_between_timedelta_and_numeric)(
+                numeric_list_like_postive_no_nulls_1_length_6
+            ),
+        )
+
+    @sql_count_checker(query_count=1, join_count=1)
+    def test_numeric_series_and_timedelta_list_like(
+        self,
+        op_between_numeric_and_timedelta,
+        numeric_series_positive_no_nulls_1_length_6,
+    ):
+        eval_snowpark_pandas_result(
+            *numeric_series_positive_no_nulls_1_length_6,
+            lambda series: getattr(series, op_between_numeric_and_timedelta)(
+                [
+                    pd.Timedelta(days=1),
+                    pd.Timedelta(days=2),
+                    pd.Timedelta(days=3),
+                    pd.Timedelta(days=4),
+                    pd.Timedelta(days=5),
+                    pd.Timedelta(days=6),
+                ]
+            ),
+        )
+
 
 class TestDataFrameAndListLikeAxis0:
     @sql_count_checker(query_count=1, join_count=1)
@@ -860,6 +1313,34 @@ class TestDataFrameAndListLikeAxis0:
                 [
                     pd.Timedelta(nanoseconds=1),
                     pd.Timedelta(microseconds=2),
+                ],
+                axis=0,
+            ),
+        )
+
+    @sql_count_checker(query_count=1, join_count=1)
+    def test_timedelta_dataframe_and_numeric_list_like(
+        self,
+        timedelta_dataframes_postive_no_nulls_1_2x2,
+        op_between_timedelta_and_numeric,
+    ):
+        eval_snowpark_pandas_result(
+            *timedelta_dataframes_postive_no_nulls_1_2x2,
+            lambda df: getattr(df, op_between_timedelta_and_numeric)([1.5, 2], axis=0),
+        )
+
+    @sql_count_checker(query_count=1, join_count=1)
+    def test_numeric_dataframe_and_timedelta_list_like(
+        self,
+        numeric_dataframes_postive_no_nulls_1_2x2,
+        op_between_numeric_and_timedelta,
+    ):
+        eval_snowpark_pandas_result(
+            *numeric_dataframes_postive_no_nulls_1_2x2,
+            lambda df: getattr(df, op_between_numeric_and_timedelta)(
+                [
+                    pd.Timedelta(nanoseconds=1),
+                    pd.Timedelta(microseconds=2.5),
                 ],
                 axis=0,
             ),
@@ -974,6 +1455,40 @@ class TestSeriesAndSeries:
             lambda inputs: getattr(inputs[0], op_between_timedeltas)(inputs[1]),
         )
 
+    @sql_count_checker(query_count=1, join_count=1)
+    def test_timedelta_and_numeric(
+        self,
+        op_between_timedelta_and_numeric,
+        timedelta_series_positive_no_nulls_1_length_6,
+        numeric_series_positive_no_nulls_1_length_6,
+    ):
+        snow_lhs, pandas_lhs = timedelta_series_positive_no_nulls_1_length_6
+        snow_rhs, pandas_rhs = numeric_series_positive_no_nulls_1_length_6
+        eval_snowpark_pandas_result(
+            (snow_lhs, snow_rhs),
+            (pandas_lhs, pandas_rhs),
+            lambda inputs: getattr(inputs[0], op_between_timedelta_and_numeric)(
+                inputs[1]
+            ),
+        )
+
+    @sql_count_checker(query_count=1, join_count=1)
+    def test_numeric_and_timedelta(
+        self,
+        op_between_numeric_and_timedelta,
+        numeric_series_positive_no_nulls_1_length_6,
+        timedelta_series_positive_no_nulls_1_length_6,
+    ):
+        snow_lhs, pandas_lhs = numeric_series_positive_no_nulls_1_length_6
+        snow_rhs, pandas_rhs = timedelta_series_positive_no_nulls_1_length_6
+        eval_snowpark_pandas_result(
+            (snow_lhs, snow_rhs),
+            (pandas_lhs, pandas_rhs),
+            lambda inputs: getattr(inputs[0], op_between_numeric_and_timedelta)(
+                inputs[1]
+            ),
+        )
+
 
 class TestDataFrameAndSeriesAxis0:
     @pytest.mark.parametrize("op", ["sub", "rsub"])
@@ -1054,13 +1569,43 @@ class TestDataFrameAndSeriesAxis0:
             lambda t: getattr(t[0], op_between_timedeltas)(t[1], axis=0),
         )
 
+    @sql_count_checker(query_count=1, join_count=1)
+    def test_timedelta_dataframe_and_numeric_series(
+        self,
+        op_between_timedelta_and_numeric,
+        timedelta_dataframes_postive_no_nulls_1_2x2,
+        numeric_series_positive_no_nulls_2_length_2,
+    ):
+        snow_df, pandas_df = timedelta_dataframes_postive_no_nulls_1_2x2
+        snow_series, pandas_series = numeric_series_positive_no_nulls_2_length_2
+        eval_snowpark_pandas_result(
+            (snow_df, snow_series),
+            (pandas_df, pandas_series),
+            lambda t: getattr(t[0], op_between_timedelta_and_numeric)(t[1], axis=0),
+        )
+
+    @sql_count_checker(query_count=1, join_count=1)
+    def test_numeric_dataframe_and_timedelta_series(
+        self,
+        op_between_numeric_and_timedelta,
+        numeric_dataframes_postive_no_nulls_1_2x2,
+        timedelta_series_no_nulls_3_length_2,
+    ):
+        snow_df, pandas_df = numeric_dataframes_postive_no_nulls_1_2x2
+        snow_series, pandas_series = timedelta_series_no_nulls_3_length_2
+        eval_snowpark_pandas_result(
+            (snow_df, snow_series),
+            (pandas_df, pandas_series),
+            lambda t: getattr(t[0], op_between_numeric_and_timedelta)(t[1], axis=0),
+        )
+
 
 class TestDataFrameAndSeriesAxis1:
-    @sql_count_checker(
-        # One query to materialize the series for the subtraction, and another
-        # query to materialize the result.
-        query_count=2
-    )
+    # One query to materialize the series so we can align it along axis 1, and
+    # another query to materialize the result of the binary operation.
+    QUERY_COUNT = 2
+
+    @sql_count_checker(query_count=QUERY_COUNT)
     def test_timestamp_dataframe_minus_timestamp_series(
         self, timestamp_no_timezone_dataframes_3
     ):
@@ -1098,11 +1643,7 @@ class TestDataFrameAndSeriesAxis1:
             ),
         )
 
-    @sql_count_checker(
-        # One query to materialize the series for the subtraction, and another
-        # query to materialize the result.
-        query_count=2
-    )
+    @sql_count_checker(query_count=QUERY_COUNT)
     def test_timestamp_series_minus_timestamp_dataframe(
         self, timestamp_no_timezone_dataframes_3
     ):
@@ -1143,11 +1684,7 @@ class TestDataFrameAndSeriesAxis1:
             ),
         )
 
-    @sql_count_checker(
-        # One query to materialize the series for the operation, and another
-        # query to materialize the result.
-        query_count=2
-    )
+    @sql_count_checker(query_count=QUERY_COUNT)
     @pytest.mark.parametrize(
         "op,error_message",
         [
@@ -1198,11 +1735,7 @@ class TestDataFrameAndSeriesAxis1:
             ),
         )
 
-    @sql_count_checker(
-        # One query to materialize the series for the subtraction, and another
-        # query to materialize the result.
-        query_count=2
-    )
+    @sql_count_checker(query_count=QUERY_COUNT)
     def test_timestamp_dataframe_minus_timedelta_series(
         self, timestamp_no_timezone_dataframes_3
     ):
@@ -1241,11 +1774,7 @@ class TestDataFrameAndSeriesAxis1:
             ),
         )
 
-    @sql_count_checker(
-        # One query to materialize the series for the operation, and another
-        # query to materialize the result.
-        query_count=2
-    )
+    @sql_count_checker(query_count=QUERY_COUNT)
     @pytest.mark.parametrize(
         "op,error_message",
         [
@@ -1286,11 +1815,7 @@ class TestDataFrameAndSeriesAxis1:
             ),
         )
 
-    @sql_count_checker(
-        # One query to materialize the series for the subtraction, and another
-        # query to materialize the result.
-        query_count=2
-    )
+    @sql_count_checker(query_count=QUERY_COUNT)
     def test_timedelta_dataframe_with_timedelta_series(
         self,
         timedelta_dataframes_postive_no_nulls_1_2x2,
@@ -1303,6 +1828,36 @@ class TestDataFrameAndSeriesAxis1:
             (snow_df, snow_series),
             (pandas_df, pandas_series),
             lambda t: getattr(t[0], op_between_timedeltas)(t[1]),
+        )
+
+    @sql_count_checker(query_count=QUERY_COUNT)
+    def test_timedelta_dataframe_and_numeric_series(
+        self,
+        op_between_timedelta_and_numeric,
+        timedelta_dataframes_postive_no_nulls_1_2x2,
+        numeric_series_positive_no_nulls_2_length_2,
+    ):
+        snow_df, pandas_df = timedelta_dataframes_postive_no_nulls_1_2x2
+        snow_series, pandas_series = numeric_series_positive_no_nulls_2_length_2
+        eval_snowpark_pandas_result(
+            (snow_df, snow_series),
+            (pandas_df, pandas_series),
+            lambda t: getattr(t[0], op_between_timedelta_and_numeric)(t[1]),
+        )
+
+    @sql_count_checker(query_count=QUERY_COUNT)
+    def test_numeric_dataframe_and_timedelta_series(
+        self,
+        op_between_numeric_and_timedelta,
+        numeric_dataframes_postive_no_nulls_1_2x2,
+        timedelta_series_no_nulls_3_length_2,
+    ):
+        snow_df, pandas_df = numeric_dataframes_postive_no_nulls_1_2x2
+        snow_series, pandas_series = timedelta_series_no_nulls_3_length_2
+        eval_snowpark_pandas_result(
+            (snow_df, snow_series),
+            (pandas_df, pandas_series),
+            lambda t: getattr(t[0], op_between_numeric_and_timedelta)(t[1]),
         )
 
 
@@ -1387,7 +1942,7 @@ class TestDataFrameAndDataFrameAxis1:
         )
 
     @sql_count_checker(query_count=1, join_count=1)
-    def test_two_timedelta_datfaframes(
+    def test_two_timedelta_dataframes(
         self, timedelta_dataframes_postive_no_nulls_1_2x2, op_between_timedeltas
     ):
         snow_lhs, pandas_lhs = timedelta_dataframes_postive_no_nulls_1_2x2
@@ -1404,4 +1959,34 @@ class TestDataFrameAndDataFrameAxis1:
             (snow_lhs, snow_rhs),
             (pandas_lhs, pandas_rhs),
             lambda t: getattr(t[0], op_between_timedeltas)(t[1]),
+        )
+
+    @sql_count_checker(query_count=1, join_count=1)
+    def test_timedelta_and_numeric(
+        self,
+        timedelta_dataframes_postive_no_nulls_1_2x2,
+        numeric_dataframes_postive_no_nulls_1_2x2,
+        op_between_timedelta_and_numeric,
+    ):
+        snow_lhs, pandas_lhs = timedelta_dataframes_postive_no_nulls_1_2x2
+        snow_rhs, pandas_rhs = numeric_dataframes_postive_no_nulls_1_2x2
+        eval_snowpark_pandas_result(
+            (snow_lhs, snow_rhs),
+            (pandas_lhs, pandas_rhs),
+            lambda t: getattr(t[0], op_between_timedelta_and_numeric)(t[1]),
+        )
+
+    @sql_count_checker(query_count=1, join_count=1)
+    def test_numeric_and_timedelta(
+        self,
+        numeric_dataframes_postive_no_nulls_1_2x2,
+        timedelta_dataframes_postive_no_nulls_1_2x2,
+        op_between_numeric_and_timedelta,
+    ):
+        snow_lhs, pandas_lhs = numeric_dataframes_postive_no_nulls_1_2x2
+        snow_rhs, pandas_rhs = timedelta_dataframes_postive_no_nulls_1_2x2
+        eval_snowpark_pandas_result(
+            (snow_lhs, snow_rhs),
+            (pandas_lhs, pandas_rhs),
+            lambda t: getattr(t[0], op_between_numeric_and_timedelta)(t[1]),
         )

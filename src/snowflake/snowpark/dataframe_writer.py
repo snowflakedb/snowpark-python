@@ -139,6 +139,7 @@ class DataFrameWriter:
         max_data_extension_time: Optional[int] = None,
         change_tracking: Optional[bool] = None,
         copy_grants: bool = False,
+        iceberg_config: Optional[dict] = None,
     ) -> Optional[AsyncJob]:
         """Writes the data to the specified table in a Snowflake database.
 
@@ -186,6 +187,18 @@ class DataFrameWriter:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
+            iceberg_config: A dictionary that can contain the following iceberg configuration values:
+
+                * external_volume: specifies the identifier for the external volume where
+                    the Iceberg table stores its metadata files and data in Parquet format
+
+                * catalog: specifies either Snowflake or a catalog integration to use for this table
+
+                * base_location: the base directory that snowflake can write iceberg metadata and files to
+
+                * catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
+
+                * storage_serialization_policy: specifies the storage serialization policy for the table
 
         Examples::
 
@@ -256,6 +269,7 @@ class DataFrameWriter:
                 max_data_extension_time,
                 change_tracking,
                 copy_grants,
+                iceberg_config,
             )
             session = self._dataframe._session
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
