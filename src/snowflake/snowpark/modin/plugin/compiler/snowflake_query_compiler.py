@@ -86,6 +86,7 @@ from snowflake.snowpark.functions import (
     coalesce,
     col,
     concat,
+    convert_timezone,
     corr,
     count,
     count_distinct,
@@ -131,8 +132,10 @@ from snowflake.snowpark.functions import (
     sum as sum_,
     sum_distinct,
     timestamp_ntz_from_parts,
+    timestamp_tz_from_parts,
     to_date,
     to_time,
+    to_timestamp_ntz,
     to_variant,
     translate,
     trim,
@@ -16450,7 +16453,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         tz: Union[str, tzinfo],
         ambiguous: str = "raise",
         nonexistent: str = "raise",
-    ) -> None:
+    ) -> "SnowflakeQueryCompiler":
         """
         Localize tz-naive to tz-aware.
         Args:
@@ -16462,11 +16465,46 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             BaseQueryCompiler
                 New QueryCompiler containing values with localized time zone.
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.tz_localize'"
+        if ambiguous != "raise":
+            ErrorMessage.parameter_not_implemented_error(
+                "ambiguous", "Series.dt.tz_localize"
+            )
+        if nonexistent != "raise":
+            ErrorMessage.parameter_not_implemented_error(
+                "nonexistent", "Series.dt.tz_localize"
+            )
+
+        def tz_localize_column(
+            column: SnowparkColumn, tz: Union[str, tzinfo]
+        ) -> SnowparkColumn:
+            if tz is None:
+                # If this column is already a TIMESTAMP_NTZ, this cast does nothing.
+                # If the column is a TIMESTAMP_TZ, the cast drops the timezone and converts
+                # to TIMESTAMP_NTZ.
+                return to_timestamp_ntz(column)
+            else:
+                if isinstance(tz, tzinfo):
+                    tz_name = tz.tzname(None)
+                else:
+                    tz_name = tz
+                return timestamp_tz_from_parts(
+                    year(column),
+                    month(column),
+                    dayofmonth(column),
+                    hour(column),
+                    minute(column),
+                    second(column),
+                    date_part("nanosecond", column),
+                    pandas_lit(tz_name),
+                )
+
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                lambda column: tz_localize_column(column, tz)
+            )
         )
 
-    def dt_tz_convert(self, tz: Union[str, tzinfo]) -> None:
+    def dt_tz_convert(self, tz: Union[str, tzinfo]) -> "SnowflakeQueryCompiler":
         """
         Convert time-series data to the specified time zone.
 
@@ -16476,8 +16514,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A new QueryCompiler containing values with converted time zone.
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.tz_convert'"
+
+        def tz_convert_column(
+            column: SnowparkColumn, tz: Union[str, tzinfo]
+        ) -> SnowparkColumn:
+            if tz is None:
+                return convert_timezone(pandas_lit("UTC"), column)
+            else:
+                if isinstance(tz, tzinfo):
+                    tz_name = tz.tzname(None)
+                else:
+                    tz_name = tz
+                return convert_timezone(pandas_lit(tz_name), column)
+
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                lambda column: tz_convert_column(column, tz)
+            )
         )
 
     def dt_ceil(

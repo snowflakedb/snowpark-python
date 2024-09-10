@@ -32,8 +32,6 @@ def mock_query_compiler_for_dt_series() -> SnowflakeQueryCompiler:
     [
         (lambda s: s.dt.timetz, "timetz"),
         (lambda s: s.dt.to_period(), "to_period"),
-        (lambda s: s.dt.tz_localize(tz="UTC"), "tz_localize"),
-        (lambda s: s.dt.tz_convert(tz="UTC"), "tz_convert"),
         (lambda s: s.dt.strftime(date_format="YY/MM/DD"), "strftime"),
         (lambda s: s.dt.total_seconds(), "total_seconds"),
         (lambda s: s.dt.qyear, "qyear"),
