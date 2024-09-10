@@ -7871,6 +7871,7 @@ def udaf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     comment: Optional[str] = None,
+    _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDAF and returns the UDAF.
@@ -8061,6 +8062,7 @@ def udaf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            _emit_ast=_emit_ast,
             **kwargs,
         )
     else:
@@ -8081,6 +8083,7 @@ def udaf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            _emit_ast=_emit_ast,
             **kwargs,
         )
 
