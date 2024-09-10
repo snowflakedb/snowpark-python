@@ -931,7 +931,7 @@ def build_udaf(
             input_type._fill_ast(ast.input_types.list.add())
     ast.is_permanent = is_permanent
     if stage_location is not None:
-        ast.stage_location = stage_location
+        ast.stage_location.value = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
             import_expr = proto.SpTableName()
