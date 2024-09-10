@@ -89,7 +89,7 @@ from snowflake.snowpark.modin.utils import _inherit_docstrings, to_pandas
 if TYPE_CHECKING:
     # To prevent cross-reference warnings when building documentation and prevent erroneously
     # linking to `snowflake.snowpark.DataFrame`, we need to explicitly
-    # qualify return types in this file with `snowflake.snowpark.modin.pandas.DataFrame`.
+    # qualify return types in this file with `modin.pandas.DataFrame`.
     # SNOW-1233342: investigate how to fix these links without using absolute paths
     import modin
     from modin.core.storage_formats import BaseQueryCompiler  # pragma: no cover
@@ -170,8 +170,8 @@ def merge(
 
     Parameters
     ----------
-    left : :class:`~snowflake.snowpark.modin.pandas.DataFrame` or named Series
-    right : :class:`~snowflake.snowpark.modin.pandas.DataFrame` or named Series
+    left : :class:`~modin.pandas.DataFrame` or named Series
+    right : :class:`~modin.pandas.DataFrame` or named Series
         Object to merge with.
     how : {'left', 'right', 'outer', 'inner', 'cross'}, default 'inner'
         Type of merge to be performed.
@@ -232,7 +232,7 @@ def merge(
 
     Returns
     -------
-    :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+    :class:`~modin.pandas.DataFrame`
         A DataFrame of the two merged objects.
 
     See Also
@@ -427,8 +427,8 @@ def merge_asof(
 
     Parameters
     ----------
-    left : :class:`~snowflake.snowpark.modin.pandas.DataFrame` or named :class:`~snowflake.snowpark.modin.pandas.Series`.
-    right : :class:`~snowflake.snowpark.modin.pandas.DataFrame` or named :class:`~snowflake.snowpark.modin.pandas.Series`.
+    left : :class:`~modin.pandas.DataFrame` or named :class:`~modin.pandas.Series`.
+    right : :class:`~modin.pandas.DataFrame` or named :class:`~modin.pandas.Series`.
     on : label
         Field name to join on. Must be found in both DataFrames. The data MUST be ordered.
         Furthermore, this must be a numeric column such as datetimelike, integer, or float.
@@ -459,7 +459,7 @@ def merge_asof(
 
     Returns
     -------
-    Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+    Snowpark pandas :class:`~modin.pandas.DataFrame`
 
     Examples
     --------
@@ -676,7 +676,7 @@ def pivot_table(
 
     Returns
     -------
-    Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+    Snowpark pandas :class:`~modin.pandas.DataFrame`
         An Excel style pivot table.
 
     Notes
@@ -806,7 +806,7 @@ def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D20
 
     Parameters
     ----------
-    data : :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+    data : :class:`~modin.pandas.DataFrame`
     columns : str or object or a list of str
         Column to use to make new frame’s columns.
     index : str or object or a list of str, optional
@@ -817,7 +817,7 @@ def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D20
 
     Returns
     -------
-    :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+    :class:`~modin.pandas.DataFrame`
 
     Notes
     -----
@@ -1164,11 +1164,11 @@ def concat(
     Returns
     -------
     object, type of objs
-        When concatenating all Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` along the index (axis=0),
-        a Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` is returned. When ``objs`` contains at least
-        one Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`,
-        a Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` is returned. When concatenating along
-        the columns (axis=1), a Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` is returned.
+        When concatenating all Snowpark pandas :class:`~modin.pandas.Series` along the index (axis=0),
+        a Snowpark pandas :class:`~modin.pandas.Series` is returned. When ``objs`` contains at least
+        one Snowpark pandas :class:`~modin.pandas.DataFrame`,
+        a Snowpark pandas :class:`~modin.pandas.DataFrame` is returned. When concatenating along
+        the columns (axis=1), a Snowpark pandas :class:`~modin.pandas.DataFrame` is returned.
 
     See Also
     --------
@@ -1504,13 +1504,13 @@ def to_datetime(
     """
     Convert argument to datetime.
 
-    This function converts a scalar, array-like, :class:`~snowflake.snowpark.modin.pandas.Series` or
-    :class:`~snowflake.snowpark.modin.pandas.DataFrame`/dict-like to a pandas datetime object.
+    This function converts a scalar, array-like, :class:`~modin.pandas.Series` or
+    :class:`~modin.pandas.DataFrame`/dict-like to a pandas datetime object.
 
     Parameters
     ----------
-    arg : int, float, str, datetime, list, tuple, 1-d array, Series, :class:`~snowflake.snowpark.modin.pandas.DataFrame`/dict-like
-        The object to convert to a datetime. If a :class:`~snowflake.snowpark.modin.pandas.DataFrame` is provided, the
+    arg : int, float, str, datetime, list, tuple, 1-d array, Series, :class:`~modin.pandas.DataFrame`/dict-like
+        The object to convert to a datetime. If a :class:`~modin.pandas.DataFrame` is provided, the
         method expects minimally the following columns: :const:`"year"`,
         :const:`"month"`, :const:`"day"`.
     errors : {'ignore', 'raise', 'coerce'}, default 'raise'
@@ -1546,7 +1546,7 @@ def to_datetime(
         Control timezone-related parsing, localization and conversion.
 
         - If :const:`True`, the function *always* returns a timezone-aware
-          UTC-localized :class:`Timestamp`, :class:`~snowflake.snowpark.modin.pandas.Series` or
+          UTC-localized :class:`Timestamp`, :class:`~modin.pandas.Series` or
           :class:`DatetimeIndex`. To do this, timezone-naive inputs are
           *localized* as UTC, while timezone-aware inputs are *converted* to UTC.
 
@@ -1607,14 +1607,14 @@ def to_datetime(
         parsing):
 
         - scalar: :class:`Timestamp` (or :class:`datetime.datetime`)
-        - array-like: :class:`~snowflake.snowpark.modin.pandas.DatetimeIndex` (or
-          :class: :class:`~snowflake.snowpark.modin.pandas.Series` of :class:`object` dtype containing
+        - array-like: :class:`~modin.pandas.DatetimeIndex` (or
+          :class: :class:`~modin.pandas.Series` of :class:`object` dtype containing
           :class:`datetime.datetime`)
-        - Series: :class:`~snowflake.snowpark.modin.pandas.Series` of :class:`datetime64` dtype (or
-          :class: :class:`~snowflake.snowpark.modin.pandas.Series` of :class:`object` dtype containing
+        - Series: :class:`~modin.pandas.Series` of :class:`datetime64` dtype (or
+          :class: :class:`~modin.pandas.Series` of :class:`object` dtype containing
           :class:`datetime.datetime`)
-        - DataFrame: :class:`~snowflake.snowpark.modin.pandas.Series` of :class:`datetime64` dtype (or
-          :class:`~snowflake.snowpark.modin.pandas.Series` of :class:`object` dtype containing
+        - DataFrame: :class:`~modin.pandas.Series` of :class:`datetime64` dtype (or
+          :class:`~modin.pandas.Series` of :class:`object` dtype containing
           :class:`datetime.datetime`)
 
     Raises
@@ -1623,7 +1623,7 @@ def to_datetime(
         When parsing a date from string fails.
     ValueError
         When another datetime conversion error happens. For example when one
-        of 'year', 'month', day' columns is missing in a :class:`~snowflake.snowpark.modin.pandas.DataFrame`, or
+        of 'year', 'month', day' columns is missing in a :class:`~modin.pandas.DataFrame`, or
         when a Timezone-aware :class:`datetime.datetime` is found in an array-like
         of mixed time offsets, and ``utc=False``.
 
@@ -1649,21 +1649,21 @@ def to_datetime(
       :class:`datetime.datetime`. None/NaN/null entries are converted to
       :const:`NaT` in both cases.
 
-    - **Series** are converted to :class:`~snowflake.snowpark.modin.pandas.Series` with :class:`datetime64`
-      dtype when possible, otherwise they are converted to :class:`~snowflake.snowpark.modin.pandas.Series` with
+    - **Series** are converted to :class:`~modin.pandas.Series` with :class:`datetime64`
+      dtype when possible, otherwise they are converted to :class:`~modin.pandas.Series` with
       :class:`object` dtype, containing :class:`datetime.datetime`. None/NaN/null
       entries are converted to :const:`NaT` in both cases.
 
-    - **DataFrame/dict-like** are converted to :class:`~snowflake.snowpark.modin.pandas.Series` with
+    - **DataFrame/dict-like** are converted to :class:`~modin.pandas.Series` with
       :class:`datetime64` dtype. For each row a datetime is created from assembling
       the various dataframe columns. Column keys can be common abbreviations
       like [‘year’, ‘month’, ‘day’, ‘minute’, ‘second’, ‘ms’, ‘us’, ‘ns’]) or
       plurals of the same.
 
     The following causes are responsible for :class:`datetime.datetime` objects
-    being returned (possibly inside an :class:`Index` or a :class:`~snowflake.snowpark.modin.pandas.Series` with
+    being returned (possibly inside an :class:`Index` or a :class:`~modin.pandas.Series` with
     :class:`object` dtype) instead of a proper pandas designated type
-    (:class:`Timestamp` or :class:`~snowflake.snowpark.modin.pandas.Series` with :class:`datetime64` dtype):
+    (:class:`Timestamp` or :class:`~modin.pandas.Series` with :class:`datetime64` dtype):
 
     - when any input element is before :const:`Timestamp.min` or after
       :const:`Timestamp.max`, see `timestamp limitations
@@ -1671,7 +1671,7 @@ def to_datetime(
       #timeseries-timestamp-limits>`_.
 
     - when ``utc=False`` (default) and the input is an array-like or
-      :class:`~snowflake.snowpark.modin.pandas.Series` containing mixed naive/aware datetime, or aware with mixed
+      :class:`~modin.pandas.Series` containing mixed naive/aware datetime, or aware with mixed
       time offsets. Note that this happens in the (quite frequent) situation when
       the timezone has a daylight savings policy. In that case you may wish to
       use ``utc=True``.
@@ -1681,7 +1681,7 @@ def to_datetime(
 
     **Handling various input formats**
 
-    Assembling a datetime from multiple columns of a :class:`~snowflake.snowpark.modin.pandas.DataFrame`. The keys
+    Assembling a datetime from multiple columns of a :class:`~modin.pandas.DataFrame`. The keys
     can be common abbreviations like ['year', 'month', 'day', 'minute', 'second',
     'ms', 'us', 'ns']) or plurals of the same
 
@@ -1742,7 +1742,7 @@ def to_datetime(
 
     The default behaviour (``utc=False``) is as follows:
 
-    - Timezone-naive inputs are kept as timezone-naive :class:`~snowflake.snowpark.modin.pandas.DatetimeIndex`:
+    - Timezone-naive inputs are kept as timezone-naive :class:`~modin.pandas.DatetimeIndex`:
 
     >>> pd.to_datetime(['2018-10-26 12:00:00', '2018-10-26 13:00:15'])
     DatetimeIndex(['2018-10-26 12:00:00', '2018-10-26 13:00:15'], dtype='datetime64[ns]', freq=None)
@@ -1842,7 +1842,7 @@ def get_dummies(
 
     Parameters
     ----------
-    data : array-like, Series, or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+    data : array-like, Series, or :class:`~modin.pandas.DataFrame`
         Data of which to get dummy indicators.
     prefix : str, list of str, or dict of str, default None
         String to append DataFrame column names.
@@ -1871,7 +1871,7 @@ def get_dummies(
 
     Returns
     -------
-    :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+    :class:`~modin.pandas.DataFrame`
         Dummy-coded data.
 
     Examples
@@ -1940,7 +1940,7 @@ def melt(
 
     Returns
     -------
-    :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+    :class:`~modin.pandas.DataFrame`
         unpivoted on the value columns
 
     Examples
@@ -2032,7 +2032,7 @@ def crosstab(
 
     Returns
     -------
-    Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+    Snowpark pandas :class:`~modin.pandas.DataFrame`
         Cross tabulation of the data.
 
     Notes

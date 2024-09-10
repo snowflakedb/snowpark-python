@@ -50,10 +50,9 @@ def to_snowflake(
             types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
 
     See Also:
-        - :func:`to_snowflake <snowflake.snowpark.modin.pandas.io.to_snowflake>`
+        - :func:`to_snowflake <snowflake.snowpark.modin.pandas.to_snowflake>`
         - :func:`DataFrame.to_snowflake <modin.pandas.DataFrame.to_snowflake>`
-        - :func:`read_snowflake <snowflake.snowpark.modin.pandas.io.read_snowflake>`
-
+        - :func:`read_snowflake <snowflake.snowpark.modin.pandas.read_snowflake>`
     """
     self._query_compiler.to_snowflake(name, if_exists, index, index_label, table_type)
 
@@ -88,13 +87,13 @@ def to_snowpark(
          ValueError if the label used for a index or data column is None.
 
     See also:
-        - :func:`to_snowpark <snowflake.snowpark.modin.pandas.io.to_snowpark>`
-        - :func:`Series.to_snowpark <snowflake.snowpark.modin.pandas.Series.to_snowpark>`
+        - :func:`to_snowpark <snowflake.snowpark.modin.pandas.to_snowpark>`
+        - :func:`Series.to_snowpark <modin.pandas.Series.to_snowpark>`
 
     Note:
         The labels of the Snowpark pandas DataFrame or index_label provided will be used as Normalized Snowflake
         Identifiers of the Snowpark DataFrame.
-        For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~snowflake.snowpark.modin.pandas.io.read_snowflake`
+        For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~snowflake.snowpark.modin.pandas.read_snowflake`
 
     Examples::
 
@@ -181,8 +180,7 @@ def to_pandas(
         statement_params: Dictionary of statement level parameters to be set while executing this action.
 
     See Also:
-        - :func:`to_pandas <snowflake.snowpark.modin.pandas.io.to_pandas>`
-        - :func:`DataFrame.to_pandas <modin.pandas.DataFrame.to_pandas>`
+        - :func:`to_pandas <snowflake.snowpark.modin.pandas.to_pandas>`
 
     Returns:
         pandas Series

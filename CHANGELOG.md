@@ -67,7 +67,7 @@
 #### New Features
 
 - Added limited support for the `Timedelta` type, including the following features. Snowpark pandas will raise `NotImplementedError` for unsupported `Timedelta` use cases.
-  - supporting tracking the Timedelta type through `copy`, `cache_result`, `shift`, `sort_index`, `assign`, `bfill`, `ffill`, `fillna`, `compare`, `diff`, `drop`, `dropna`, `duplicated`, `empty`, `equals`, `insert`, `isin`, `isna`, `items`, `iterrows`, `join`, `len`, `mask`, `melt`, `merge`, `nlargest`, `nsmallest`.
+  - supporting tracking the Timedelta type through `copy`, `cache_result`, `shift`, `sort_index`, `assign`, `bfill`, `ffill`, `fillna`, `compare`, `diff`, `drop`, `dropna`, `duplicated`, `empty`, `equals`, `insert`, `isin`, `isna`, `items`, `iterrows`, `join`, `len`, `mask`, `melt`, `merge`, `nlargest`, `nsmallest`, `to_pandas`.
   - converting non-timedelta to timedelta via `astype`.
   - `NotImplementedError` will be raised for the rest of methods that do not support `Timedelta`.
   - support for subtracting two timestamps to get a Timedelta.
@@ -81,6 +81,8 @@
   - support for `GroupBy` filtrations `first` and `last`.
   - support for `TimedeltaIndex` attributes: `days`, `seconds`, `microseconds` and `nanoseconds`.
   - support for `diff` with timestamp columns on `axis=0` and `axis=1`
+  - support for `TimedeltaIndex` methods: `ceil`, `floor` and `round`.
+  - support for `TimedeltaIndex.total_seconds` method.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
@@ -101,13 +103,20 @@
 - Added support for `pd.bdate_range` and included business frequency support (B, BME, BMS, BQE, BQS, BYE, BYS) for both `pd.date_range` and `pd.bdate_range`.
 - Added support for lazy `Index` objects  as `labels` in `DataFrame.reindex` and `Series.reindex`.
 - Added support for `Series.dt.days`, `Series.dt.seconds`, `Series.dt.microseconds`, and `Series.dt.nanoseconds`.
+- Added support for creating a `DatetimeIndex` from an `Index` of numeric or string type.
+- Added support for string indexing with `Timedelta` objects.
+- Added support for `Series.dt.total_seconds` method.
 
 #### Improvements
 
+- Improve concat, join performance when operations are performed on series coming from the same dataframe by avoiding unnecessary joins.
 - Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
 - Improved `pd.to_datetime` to handle all local input cases. 
 - Create a lazy index from another lazy index without pulling data to client.
 - Raised `NotImplementedError` for Index bitwise operators.
+- Display a clearer error message when `Index.names` is set to a non-like-like object.
+- Raise a warning whenever MultiIndex values are pulled in locally.
+- Improve warning message for `pd.read_snowflake` include the creation reason when temp table creation is triggered.
 
 #### Bug Fixes
 
@@ -122,9 +131,6 @@
 
 - When calling `DataFrame.set_index`, or setting `DataFrame.index` or `Series.index`, with a new index that does not match the current length of the `Series`/`DataFrame` object, a `ValueError` is no longer raised. When the `Series`/`DataFrame` object is longer than the new index, the `Series`/`DataFrame`'s new index is filled with `NaN` values for the "extra" elements. When the `Series`/`DataFrame` object is shorter than the new index, the extra values in the new index are ignored—`Series` and `DataFrame` stay the same length `n`, and use only the first `n` values of the new index.
 
-#### Improvements
-
-- Improve concat, join performance when operations are performed on series coming from the same dataframe by avoiding unnecessary joins.
 
 ## 1.21.0 (2024-08-19)
 
