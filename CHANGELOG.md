@@ -109,12 +109,14 @@
 
 #### Improvements
 
+- Improve concat, join performance when operations are performed on series coming from the same dataframe by avoiding unnecessary joins.
 - Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
 - Improved `pd.to_datetime` to handle all local input cases. 
 - Create a lazy index from another lazy index without pulling data to client.
 - Raised `NotImplementedError` for Index bitwise operators.
 - Display a clearer error message when `Index.names` is set to a non-like-like object.
 - Raise a warning whenever MultiIndex values are pulled in locally.
+- Improve warning message for `pd.read_snowflake` include the creation reason when temp table creation is triggered.
 
 #### Bug Fixes
 
@@ -129,9 +131,6 @@
 
 - When calling `DataFrame.set_index`, or setting `DataFrame.index` or `Series.index`, with a new index that does not match the current length of the `Series`/`DataFrame` object, a `ValueError` is no longer raised. When the `Series`/`DataFrame` object is longer than the new index, the `Series`/`DataFrame`'s new index is filled with `NaN` values for the "extra" elements. When the `Series`/`DataFrame` object is shorter than the new index, the extra values in the new index are ignored—`Series` and `DataFrame` stay the same length `n`, and use only the first `n` values of the new index.
 
-#### Improvements
-
-- Improve concat, join performance when operations are performed on series coming from the same dataframe by avoiding unnecessary joins.
 
 ## 1.21.0 (2024-08-19)
 
