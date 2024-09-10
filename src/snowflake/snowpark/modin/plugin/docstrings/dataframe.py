@@ -1059,8 +1059,6 @@ class DataFrame(BasePandasDataset):
         axis : {0 or 'index', 1 or 'columns'}, default 0
             If 0 or 'index': apply function to each column. If 1 or 'columns': apply function to each row.
 
-            Snowpark pandas currently only supports axis=1, and does not yet support axis=0.
-
         *args
             Positional arguments to pass to `func`.
 

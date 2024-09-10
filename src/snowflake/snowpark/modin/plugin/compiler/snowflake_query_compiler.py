@@ -7950,29 +7950,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             col_result_scalars = []
 
             # Loop through each data column of the original df frame
-            for (
-                data_column_pandas_label,
-                data_column_snowflake_quoted_identifier,
-            ) in zip(
-                frame.data_column_pandas_labels,
-                frame.data_column_snowflake_quoted_identifiers,
+            for (column_index, data_column_pair) in enumerate(
+                zip(
+                    frame.data_column_pandas_labels,
+                    frame.data_column_snowflake_quoted_identifiers,
+                )
             ):
+                (
+                    data_column_pandas_label,
+                    data_column_snowflake_quoted_identifier,
+                ) = data_column_pair
+
                 # Create a frame for the current data column which we will be passed to the apply function below.
                 # Note that we maintain the original index because the apply function may access via the index.
-                data_col_frame = InternalFrame.create(
-                    ordered_dataframe=frame.ordered_dataframe,
-                    data_column_snowflake_quoted_identifiers=[
-                        data_column_snowflake_quoted_identifier
-                    ],
-                    data_column_pandas_labels=[data_column_pandas_label],
-                    data_column_pandas_index_names=frame.data_column_pandas_index_names,
-                    data_column_types=None,
-                    index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
-                    index_column_pandas_labels=frame.index_column_pandas_labels,
-                    index_column_types=None,
+                data_col_qc = self.take_2d_positional(
+                    index=slice(None, None), columns=[column_index]
                 )
 
-                data_col_qc = SnowflakeQueryCompiler(data_col_frame).groupby_apply(
+                data_col_frame = data_col_qc._modin_frame
+
+                data_col_qc = data_col_qc.groupby_apply(
                     by=[],
                     agg_func=agg_func,
                     axis=0,
