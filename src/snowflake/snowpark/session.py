@@ -3456,7 +3456,7 @@ class Session:
         set_api_call_source(df, "Session.flatten")
         return df
 
-    def query_history(self) -> QueryHistory:
+    def query_history(self, include_describe: bool = False) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
 
         >>> with session.query_history() as query_history:
@@ -3465,7 +3465,7 @@ class Session:
         ...     res = df.collect()
         >>> assert len(query_history.queries) == 1
         """
-        query_listener = QueryHistory(self)
+        query_listener = QueryHistory(self, include_describe)
         self._conn.add_query_listener(query_listener)
         return query_listener
 
