@@ -16,14 +16,10 @@ from pandas._typing import IndexLabel
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
-from snowflake.snowpark.modin.plugin._internal.telemetry import (
-    snowpark_pandas_telemetry_method_decorator,
-)
 from snowflake.snowpark.modin.plugin.extensions.utils import add_cache_result_docstring
 
 
 @register_series_accessor("to_snowflake")
-@snowpark_pandas_telemetry_method_decorator
 def to_snowflake(
     self,
     name: Union[str, Iterable[str]],
@@ -63,7 +59,6 @@ def to_snowflake(
 
 
 @register_series_accessor("to_snowpark")
-@snowpark_pandas_telemetry_method_decorator
 def to_snowpark(
     self, index: bool = True, index_label: Optional[IndexLabel] = None
 ) -> SnowparkDataFrame:
@@ -173,7 +168,6 @@ def to_snowpark(
 
 
 @register_series_accessor("to_pandas")
-@snowpark_pandas_telemetry_method_decorator
 def to_pandas(
     self,
     *,
@@ -208,7 +202,6 @@ def to_pandas(
 
 @register_series_accessor("cache_result")
 @add_cache_result_docstring
-@snowpark_pandas_telemetry_method_decorator
 def cache_result(self, inplace: bool = False) -> Optional[pd.Series]:
     """
     Persists the Snowpark pandas Series to a temporary table for the duration of the session.
