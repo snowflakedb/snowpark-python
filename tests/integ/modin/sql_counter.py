@@ -225,17 +225,22 @@ class SqlCounter:
             else ""
         )
 
-        for key in kwargs.keys():
-            if key in BOOL_PARAMETERS:
-                continue
-            actual_count = actual_counts[key]
-            expected_count = kwargs[key]
+        import os
+        test_name = os.environ.get('PYTEST_CURRENT_TEST')
+
+        counts_list = ''
+        for key in SQL_COUNT_PARAMETERS:
+            actual_count = actual_counts[key] if key in actual_counts else 0
+            expected_count = kwargs[key] if key in kwargs else -1
             if expected_count is None:
                 expected_count = 0
             failed = failed or expected_count != actual_count
+            counts_list=counts_list + f',{key},{expected_count},{actual_count}'
+
+        if failed:
             pytest.assume(
                 expected_count == actual_count,
-                f"Sql count check '{key}' failed.  expected_{key}={expected_count}, actual_{key}={actual_count}{stack_trace}",
+                f"SQL_COUNT_TEST_NAME,{test_name}{counts_list}{stack_trace}",
             )
 
         # If there are no failures, then check if we fail due to high query count.
