@@ -122,14 +122,12 @@ def test_dropna_negative(test_dropna_df):
         expect_exception_match="['invalid']",
     )
 
-    eval_snowpark_pandas_result(
-        pd.DataFrame(test_dropna_df),
-        test_dropna_df,
-        lambda df: df.dropna(subset=["invalid"], axis=1),
-        expect_exception=True,
-        expect_exception_type=KeyError,
-        expect_exception_match="['invalid']",
-    )
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas dropna API doesn't yet support axis == 1",
+    ):
+        df = pd.DataFrame(test_dropna_df)
+        df.dropna(subset=["invalid"], axis=1)
 
 
 @pytest.mark.parametrize(

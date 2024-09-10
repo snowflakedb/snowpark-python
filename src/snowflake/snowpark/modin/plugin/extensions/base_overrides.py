@@ -860,10 +860,11 @@ def _dropna(
     if how not in ["any", "all"]:
         raise ValueError("invalid how option: %s" % how)
     if subset is not None:
-        indices = self.columns.get_indexer_for(subset)
-        check = indices == -1
-        if check.any():
-            raise KeyError(list(np.compress(check, subset)))
+        if axis != 1:
+            indices = self.columns.get_indexer_for(subset)
+            check = indices == -1
+            if check.any():
+                raise KeyError(list(np.compress(check, subset)))
 
     new_query_compiler = self._query_compiler.dropna(
         axis=axis,
