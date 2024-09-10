@@ -24,16 +24,8 @@ class Profiler:
         self.disable_profiler_sql = ""
         self.set_active_profiler_sql = ""
         self.session = session
-        self.stage_and_profiler_name_validation()
         self.prepare_sql()
         self.query_history = None
-
-    def stage_and_profiler_name_validation(self):
-        if self.active_profiler not in ["LINE", "MEMORY"]:
-            raise ValueError(
-                f"active_profiler expect 'LINE' or 'MEMORY', got {self.active_profiler} instead"
-            )
-        validate_object_name(self.stage)
 
     def prepare_sql(self):
         self.register_modules_sql = f"alter session set python_profiler_modules='{','.join(self.modules_to_register)}'"
@@ -44,19 +36,24 @@ class Profiler:
         self.disable_profiler_sql = "alter session set ENABLE_PYTHON_PROFILER = false"
         self.set_active_profiler_sql = f"alter session set ACTIVE_PYTHON_PROFILER = '{self.active_profiler.upper()}'"
 
-    def register_modules(self, modules: List[str]):
+    def register_profiler_modules(self, modules: List[str]):
         self.modules_to_register = modules
         self.prepare_sql()
         if self.session is not None:
             self._register_modules()
 
     def set_targeted_stage(self, stage: str):
+        validate_object_name(stage)
         self.stage = stage
         self.prepare_sql()
         if self.session is not None:
             self._set_targeted_stage()
 
     def set_active_profiler(self, active_profiler: str):
+        if self.active_profiler not in ["LINE", "MEMORY"]:
+            raise ValueError(
+                f"active_profiler expect 'LINE' or 'MEMORY', got {self.active_profiler} instead"
+            )
         self.active_profiler = active_profiler
         self.prepare_sql()
         if self.session is not None:
@@ -89,17 +86,17 @@ class Profiler:
 
     def show_profiles(self):
         query_id = self._get_last_query_id()
-        sql = f"select snowflake.core.get_python_profiler_output({query_id});"
+        sql = f"select snowflake.core.get_python_profiler_output('{query_id}');"
         res = self.session.sql(sql).collect()
-        return res
+        print(res[0][0])  # noqa: T201: we need to print here.
+        return res[0][0]
 
     def dump_profiles(self, dst_file: str):
         query_id = self._get_last_query_id()
-        sql = f"select snowflake.core.get_python_profiler_output({query_id});"
+        sql = f"select snowflake.core.get_python_profiler_output('{query_id}');"
         res = self.session.sql(sql).collect()
         with open(dst_file, "w") as f:
-            for row in res:
-                f.write(str(row))
+            f.write(str(res[0][0]))
 
 
 @contextmanager
@@ -110,17 +107,19 @@ def profiler(
     modules: Optional[List[str]] = None,
 ):
     internal_profiler = Profiler(stage, active_profiler, session)
+    session.profiler = internal_profiler
+    internal_profiler.query_history = session.query_history()
     modules = [] if modules is None else modules
     try:
         # set up phase
         internal_profiler._set_targeted_stage()
         internal_profiler._set_active_profiler()
 
-        internal_profiler.register_modules(modules)
+        internal_profiler.register_profiler_modules(modules)
         internal_profiler._register_modules()
         internal_profiler.enable_profiler()
     finally:
         yield
-        internal_profiler.register_modules([])
+        internal_profiler.register_profiler_modules([])
         internal_profiler._register_modules()
         internal_profiler.disable_profiler()
