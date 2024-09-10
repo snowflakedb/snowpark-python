@@ -153,4 +153,4 @@ def test_timedelta_index_mean_invalid_axis():
         native_index.mean(axis=1)
     # Snowpark pandas raises ValueError instead of IndexError.
     with pytest.raises(ValueError, match="axis should be 0 for TimedeltaIndex.mean"):
-        snow_index.mean(axis=1)
+        snow_index.mean(axis=1).to_pandas()
