@@ -7935,7 +7935,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # If raw, then pass numpy ndarray rather than pandas Series as input to the apply function.
             if raw:
 
-                def wrapped_func(*args, **kwargs):  # type: ignore
+                def wrapped_func(*args, **kwargs):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
                     raw_input_obj = args[0].to_numpy()
                     args = (raw_input_obj,) + args[1:]
                     return func(*args, **kwargs)
