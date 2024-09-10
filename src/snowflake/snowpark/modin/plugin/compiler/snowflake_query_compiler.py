@@ -7999,6 +7999,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     data_col_result_frame.index_columns_pandas_index()
                 )
                 col_result_indexes.append(data_col_result_index)
+                # TODO: For functions like np.sum, when supported, we can know upfront the result is a scalar
+                # so don't need to look at the index.
                 col_result_scalars.append(
                     len(data_col_result_index) == 1 and data_col_result_index[0] == -1
                 )
