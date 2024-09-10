@@ -567,11 +567,12 @@ def test_telemetry_copy():
 
 @sql_count_checker(query_count=0)
 def test_telemetry_series_describe():
-    # describe() is defined in upstream Modin's Series class, and not overridden by Snowpark pandas.
+    # describe() is defined in upstream Modin's Series class, and calls super().describe().
+    # Snowpark pandas overrides the BasePandasDataset superclass implementation, but telemetry on it
+    # is not recorded because we only add telemetry to the implementation of the child class.
     s = pd.Series([1, 2, 3, 4])
     result = s.describe()
     assert result._query_compiler.snowpark_pandas_api_calls == [
         {"name": "Series.property.name_set"},
-        {"name": "Series.describe"},
         {"name": "Series.Series.describe"},
     ]

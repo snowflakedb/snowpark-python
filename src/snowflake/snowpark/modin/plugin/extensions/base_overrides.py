@@ -72,10 +72,6 @@ from snowflake.snowpark.modin.pandas.utils import (
     raise_if_native_pandas_objects,
     validate_and_try_convert_agg_func_arg_func_to_str,
 )
-from snowflake.snowpark.modin.plugin._internal.telemetry import (
-    snowpark_pandas_telemetry_method_decorator,
-    try_add_telemetry_to_attribute,
-)
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -91,12 +87,9 @@ def register_base_override(method_name: str):
     for directly overriding methods on BasePandasDataset, we mock this by performing the override on
     DataFrame and Series, and manually performing a `setattr` on the base class. These steps are necessary
     to allow both the docstring extension and method dispatch to work properly.
-
-    Methods annotated here also are automatically instrumented with Snowpark pandas telemetry.
     """
 
     def decorator(base_method: Any):
-        base_method = try_add_telemetry_to_attribute(method_name, base_method)
         parent_method = getattr(BasePandasDataset, method_name, None)
         if isinstance(parent_method, property):
             parent_method = parent_method.fget
@@ -124,9 +117,7 @@ def register_base_override(method_name: str):
 
 def register_base_not_implemented():
     def decorator(base_method: Any):
-        func = snowpark_pandas_telemetry_method_decorator(
-            base_not_implemented()(base_method)
-        )
+        func = base_not_implemented()(base_method)
         register_series_accessor(base_method.__name__)(func)
         register_dataframe_accessor(base_method.__name__)(func)
         return func
