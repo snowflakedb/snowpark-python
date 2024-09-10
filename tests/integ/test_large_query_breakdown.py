@@ -4,12 +4,14 @@
 
 
 import logging
+from unittest.mock import patch
 
 import pytest
 
 from snowflake.snowpark._internal.analyzer import analyzer
 from snowflake.snowpark._internal.compiler import large_query_breakdown
 from snowflake.snowpark.functions import col, lit, sum_distinct, when_matched
+from snowflake.snowpark.row import Row
 from tests.utils import Utils
 
 pytestmark = [
@@ -371,6 +373,27 @@ def test_async_job_with_large_query_breakdown(session, large_query_df):
     assert large_query_df.queries["post_actions"][0].startswith(
         "DROP  TABLE  If  EXISTS"
     )
+
+
+def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
+    set_bounds(300, 600)
+
+    with patch.object(
+        session._conn, "run_query", wraps=session._conn.run_query
+    ) as patched_run_query:
+        result = large_query_df.collect()
+        Utils.check_answer(result, [Row(1, 4954), Row(2, 4953)])
+
+        plan = large_query_df._plan
+        # 1 for current transaction, 1 for partition, 1 for main query, 1 for post action
+        assert patched_run_query.call_count == 4
+
+        for i, call in enumerate(patched_run_query.call_args_list):
+            if i == 0:
+                assert call.args[0] == "SELECT CURRENT_TRANSACTION()"
+            else:
+                assert "_statement_params" in call.kwargs
+                assert call.kwargs["_statement_params"]["_PLAN_UUID"] == plan.uuid
 
 
 def test_complexity_bounds_affect_num_partitions(session, large_query_df):
