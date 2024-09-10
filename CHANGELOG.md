@@ -82,6 +82,7 @@
   - support for `TimedeltaIndex` attributes: `days`, `seconds`, `microseconds` and `nanoseconds`.
   - support for `diff` with timestamp columns on `axis=0` and `axis=1`
   - support for `TimedeltaIndex` methods: `ceil`, `floor` and `round`.
+  - support for `TimedeltaIndex.total_seconds` method.
 - Added support for index's arithmetic and comparison operators.
 - Added support for `Series.dt.round`.
 - Added documentation pages for `DatetimeIndex`.
@@ -104,6 +105,7 @@
 - Added support for `Series.dt.days`, `Series.dt.seconds`, `Series.dt.microseconds`, and `Series.dt.nanoseconds`.
 - Added support for creating a `DatetimeIndex` from an `Index` of numeric or string type.
 - Added support for string indexing with `Timedelta` objects.
+- Added support for `Series.dt.total_seconds` method.
 
 #### Improvements
 
@@ -112,6 +114,7 @@
 - Create a lazy index from another lazy index without pulling data to client.
 - Raised `NotImplementedError` for Index bitwise operators.
 - Display a clearer error message when `Index.names` is set to a non-like-like object.
+- Raise a warning whenever MultiIndex values are pulled in locally.
 
 #### Bug Fixes
 

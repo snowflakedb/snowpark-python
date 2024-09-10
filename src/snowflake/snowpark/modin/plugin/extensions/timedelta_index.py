@@ -441,3 +441,23 @@ class TimedeltaIndex(Index):
         >>> idx.as_unit('s')  # doctest: +SKIP
         TimedeltaIndex(['1 days 00:03:00'], dtype='timedelta64[s]', freq=None)
         """
+
+    def total_seconds(self) -> Index:
+        """
+        Return total duration of each element expressed in seconds.
+
+        Returns
+        -------
+        An Index with float type.
+
+        Examples:
+        --------
+        >>> idx = pd.to_timedelta(np.arange(5), unit='d')
+        >>> idx
+        TimedeltaIndex(['0 days', '1 days', '2 days', '3 days', '4 days'], dtype='timedelta64[ns]', freq=None)
+        >>> idx.total_seconds()
+        Index([0.0, 86400.0, 172800.0, 259200.0, 345600.0], dtype='float64')
+        """
+        return Index(
+            query_compiler=self._query_compiler.dt_total_seconds(include_index=True)
+        )
