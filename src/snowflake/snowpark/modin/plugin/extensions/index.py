@@ -1101,6 +1101,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458146 implement delete
 
+    @index_not_implemented()
     def drop(
         self,
         labels: Any,
@@ -1132,8 +1133,6 @@ class Index(metaclass=TelemetryMeta):
         Index(['b', 'c'], dtype='object')
         """
         # TODO: SNOW-1458146 implement drop
-        WarningMessage.index_to_pandas_warning("drop")
-        return self.__constructor__(self.to_pandas().drop(labels=labels, errors=errors))
 
     @index_not_implemented()
     def drop_duplicates(self) -> None:
@@ -1159,6 +1158,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458147 implement drop_duplicates
 
+    @index_not_implemented()
     def duplicated(self, keep: Literal["first", "last", False] = "first") -> np.ndarray:
         """
         Indicate duplicate index values.
@@ -1214,8 +1214,6 @@ class Index(metaclass=TelemetryMeta):
         array([ True, False,  True, False,  True])
         """
         # TODO: SNOW-1458147 implement duplicated
-        WarningMessage.index_to_pandas_warning("duplicated")
-        return self.to_pandas().duplicated(keep=keep)
 
     def equals(self, other: Any) -> bool:
         """
@@ -2381,6 +2379,7 @@ class Index(metaclass=TelemetryMeta):
             )
         )
 
+    @index_not_implemented()
     def union(self, other: Any, sort: bool = False) -> Index:
         """
         Form the union of two Index objects.
@@ -2427,11 +2426,8 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458149 implement union w/o sort
         # TODO: SNOW-1468240 implement union w/ sort
-        WarningMessage.index_to_pandas_warning("union")
-        return self.__constructor__(
-            self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort)
-        )
 
+    @index_not_implemented()
     def difference(self, other: Any, sort: Any = None) -> Index:
         """
         Return a new Index with elements of index not in `other`.
@@ -2466,11 +2462,8 @@ class Index(metaclass=TelemetryMeta):
         Index([2, 1], dtype='int64')
         """
         # TODO: SNOW-1458152 implement difference
-        WarningMessage.index_to_pandas_warning("difference")
-        return self.__constructor__(
-            self.to_pandas().difference(try_convert_index_to_native(other), sort=sort)
-        )
 
+    @index_not_implemented()
     def get_indexer_for(self, target: Any) -> Any:
         """
         Guaranteed return of an indexer even when non-unique.
@@ -2501,6 +2494,7 @@ class Index(metaclass=TelemetryMeta):
         tup = self.to_pandas()._get_indexer_strict(key=key, axis_name=axis_name)
         return self.__constructor__(tup[0]), tup[1]
 
+    @index_not_implemented()
     def get_level_values(self, level: int | str) -> Index:
         """
         Return an Index of values for requested level.
@@ -2577,6 +2571,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458153 implement isin
 
+    @index_not_implemented()
     def slice_indexer(
         self,
         start: Hashable | None = None,
@@ -2809,6 +2804,7 @@ class Index(metaclass=TelemetryMeta):
         0    A_Str_Series
         dtype: object
 
+        >>> s.str.split("_")
         >>> s.str.split("_")
         0    [A, Str, Series]
         dtype: object
