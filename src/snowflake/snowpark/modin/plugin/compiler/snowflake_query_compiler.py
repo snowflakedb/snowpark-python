@@ -21,7 +21,6 @@ import pandas.core.resample
 import pandas.io.parsers
 import pandas.io.parsers.readers
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
-from numpy import dtype
 from pandas import Timedelta
 from pandas._libs import lib
 from pandas._libs.lib import no_default
@@ -57,6 +56,7 @@ from pandas.api.types import (
     is_re_compilable,
     is_scalar,
     is_string_dtype,
+    is_timedelta64_dtype,
 )
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_dict_like, is_list_like, pandas_dtype
@@ -80,6 +80,7 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     abs as abs_,
     array_construct,
+    bround,
     builtin,
     cast,
     coalesce,
@@ -279,6 +280,7 @@ from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     col_to_timedelta,
     generate_timestamp_col,
     raise_if_to_datetime_not_supported,
+    timedelta_freq_to_nanos,
     to_snowflake_timestamp_format,
 )
 from snowflake.snowpark.modin.plugin._internal.transpose_utils import (
@@ -359,6 +361,7 @@ from snowflake.snowpark.types import (
     BooleanType,
     DataType,
     DateType,
+    DecimalType,
     DoubleType,
     FloatType,
     IntegerType,
@@ -504,7 +507,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @property
-    def index_dtypes(self) -> list[Union[dtype, ExtensionDtype]]:
+    def index_dtypes(self) -> list[Union[np.dtype, ExtensionDtype]]:
         """
         Get index dtypes.
 
@@ -1578,7 +1581,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowpark_pandas_types.append(snowpark_pandas_type)
         new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
             quoted_identifier_to_column_map=quoted_identifier_to_column_map,
-            data_column_snowpark_pandas_types=data_column_snowpark_pandas_types,
+            snowpark_pandas_types=data_column_snowpark_pandas_types,
         ).frame
 
         return self.__constructor__(new_frame)
@@ -1706,6 +1709,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         if self.is_multiindex():
             # Lazy multiindex is not supported
+            logging.warning(
+                "Lazy MultiIndex is not supported. MultiIndex values are evaluated eagerly and pulled out of Snowflake."
+            )
             return self._modin_frame.index_columns_pandas_index()
         else:
             return pd.Index(query_compiler=self)
@@ -1863,7 +1869,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
                 quoted_identifier_to_column_map=replace_mapping,
-                data_column_snowpark_pandas_types=data_column_snowpark_pandas_types,
+                snowpark_pandas_types=data_column_snowpark_pandas_types,
             ).frame
         )
 
@@ -3580,8 +3586,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             elif col_agg_func in GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES:
                 # In the case where the aggregation overrides the type of the output data column
-                # (e.g. any always returns boolean data columns), set the output Snowpark pandas type to None
-                new_data_column_snowpark_pandas_types = None  # type: ignore
+                # (e.g. any always returns boolean data columns), set the output Snowpark pandas type
+                # of the given column to None
+                new_data_column_snowpark_pandas_types.append(None)  # type: ignore
             else:
                 self._raise_not_implemented_error_for_timedelta()
                 new_data_column_snowpark_pandas_types = None  # type: ignore
@@ -4196,7 +4203,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     quoted_identifier_to_column_map=self._fill_null_values_in_groupby(
                         fillna_method, by_snowflake_quoted_identifiers_list
                     ),
-                    data_column_snowpark_pandas_types=self._modin_frame.cached_data_column_snowpark_pandas_types,
+                    snowpark_pandas_types=self._modin_frame.cached_data_column_snowpark_pandas_types,
                 ).frame
             )
         result = result.groupby_agg(
@@ -6653,6 +6660,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if isinstance(sf_type, BooleanType):
                 # bool is not allowed in to_datetime (but note that bool is allowed by astype)
                 raise TypeError("dtype bool cannot be converted to datetime64[ns]")
+            elif isinstance(sf_type, TimedeltaType):
+                raise TypeError(
+                    "dtype timedelta64[ns] cannot be converted to datetime64[ns]"
+                )
 
             to_datetime_cols[col_id] = generate_timestamp_col(
                 col(col_id),
@@ -9122,7 +9133,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def astype(
         self,
-        col_dtypes_map: dict[str, Union[dtype, ExtensionDtype]],
+        col_dtypes_map: dict[str, Union[np.dtype, ExtensionDtype]],
         errors: Literal["raise", "ignore"] = "raise",
     ) -> "SnowflakeQueryCompiler":
         """
@@ -9191,13 +9202,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
                 quoted_identifier_to_column_map=astype_mapping,
-                data_column_snowpark_pandas_types=data_column_snowpark_pandas_types,
+                snowpark_pandas_types=data_column_snowpark_pandas_types,
             ).frame
         )
 
     def astype_index(
         self,
-        col_dtypes_map: dict[Hashable, Union[dtype, ExtensionDtype]],
+        col_dtypes_map: dict[Hashable, Union[np.dtype, ExtensionDtype]],
     ) -> "SnowflakeQueryCompiler":
         """
         Convert index columns dtypes to given dtypes.
@@ -10630,7 +10641,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 quoted_identifier_to_column_map={
                     k: v.snowpark_column for k, v in diff_label_to_value_map.items()
                 },
-                data_column_snowpark_pandas_types=[
+                snowpark_pandas_types=[
                     a.snowpark_pandas_type for a in diff_label_to_value_map.values()
                 ],
             ).frame
@@ -16501,29 +16512,56 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             A new QueryCompiler with ceil values.
 
         """
-        method_name = "DatetimeIndex.ceil" if include_index else "Series.dt.ceil"
+        dtype = self.index_dtypes[0] if include_index else self.dtypes[0]
+        if not include_index:
+            method_name = "Series.dt.ceil"
+        elif is_datetime64_any_dtype(dtype):
+            method_name = "DatetimeIndex.ceil"
+        elif is_timedelta64_dtype(dtype):
+            method_name = "TimedeltaIndex.ceil"
+        else:
+            raise AssertionError(
+                "column must be datetime or timedelta"
+            )  # pragma: no cover
+
         if ambiguous != "raise":
             ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
         if nonexistent != "raise":
             ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
 
-        slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(
-            rule=freq  # type:  ignore[arg-type]
-        )
+        if is_datetime64_any_dtype(dtype):
+            slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(freq)
 
-        if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS:
-            ErrorMessage.parameter_not_implemented_error(f"freq='{freq}'", method_name)
+            if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS:
+                ErrorMessage.parameter_not_implemented_error(
+                    f"freq='{freq}'", method_name
+                )
+            return_type = None
 
-        def ceil_func(column: SnowparkColumn) -> SnowparkColumn:
-            floor_column = builtin("time_slice")(
-                column, slice_length, slice_unit, "START"
-            )
-            ceil_column = builtin("time_slice")(column, slice_length, slice_unit, "END")
-            return iff(column.equal_null(floor_column), column, ceil_column)
+            def ceil_func(column: SnowparkColumn) -> SnowparkColumn:
+                floor_column = builtin("time_slice")(
+                    column, slice_length, slice_unit, "START"
+                )
+                ceil_column = builtin("time_slice")(
+                    column, slice_length, slice_unit, "END"
+                )
+                return iff(column.equal_null(floor_column), column, ceil_column)
+
+        else:  # timedelta type
+            nanos = timedelta_freq_to_nanos(freq)
+            if nanos == 0:
+                # no conversion needed.
+                return self
+            return_type = TimedeltaType()
+
+            def ceil_func(column: SnowparkColumn) -> SnowparkColumn:
+                return iff(
+                    column % nanos == 0, column, column + nanos - (column % nanos)
+                )
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
-                ceil_func, include_index
+                ceil_func, include_index, return_type
             )
         )
 
@@ -16555,100 +16593,133 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             A new QueryCompiler with round values.
 
         """
-        method_name = "DatetimeIndex.round" if include_index else "Series.dt.round"
+        dtype = self.index_dtypes[0] if include_index else self.dtypes[0]
+        if not include_index:
+            method_name = "Series.dt.round"
+        elif is_datetime64_any_dtype(dtype):
+            method_name = "DatetimeIndex.round"
+        elif is_timedelta64_dtype(dtype):
+            method_name = "TimedeltaIndex.round"
+        else:
+            raise AssertionError(
+                "column must be datetime or timedelta"
+            )  # pragma: no cover
         if ambiguous != "raise":
             ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
         if nonexistent != "raise":
             ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
 
-        slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(
-            rule=freq  # type:  ignore[arg-type]
-        )
+        if is_datetime64_any_dtype(dtype):
+            slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(freq)
 
-        if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS or slice_unit == "second":
-            ErrorMessage.parameter_not_implemented_error(f"freq={freq}", method_name)
+            if (
+                slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS
+                or slice_unit == "second"
+            ):
+                ErrorMessage.parameter_not_implemented_error(
+                    f"freq={freq}", method_name
+                )
 
-        # We need to implement the algorithm for rounding half to even whenever
-        # the date value is at half point of the slice:
-        # https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even
+            # We need to implement the algorithm for rounding half to even whenever
+            # the date value is at half point of the slice:
+            # https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even
 
-        # First, we need to calculate the length of half a slice.
-        # This is straightforward if the length is already even.
-        # If not, we then need to first downlevel the freq to a
-        # lower granularity to ensure that it is even.
+            # First, we need to calculate the length of half a slice.
+            # This is straightforward if the length is already even.
+            # If not, we then need to first downlevel the freq to a
+            # lower granularity to ensure that it is even.
+            # TODO: Explore if it's possible to replace it with bround.
 
-        def down_level_freq(slice_length: int, slice_unit: str) -> tuple[int, str]:
-            if slice_unit == "minute":
-                slice_length *= 60
-                slice_unit = "second"
-            elif slice_unit == "hour":
-                slice_length *= 60
-                slice_unit = "minute"
-            elif slice_unit == "day":
-                slice_length *= 24
-                slice_unit = "hour"
-            else:
-                f"Snowpark pandas 'Series.dt.round' method doesn't support setting 'freq' parameter with '{slice_unit}' unit"
-            return slice_length, slice_unit
+            def down_level_freq(slice_length: int, slice_unit: str) -> tuple[int, str]:
+                if slice_unit == "minute":
+                    slice_length *= 60
+                    slice_unit = "second"
+                elif slice_unit == "hour":
+                    slice_length *= 60
+                    slice_unit = "minute"
+                elif slice_unit == "day":
+                    slice_length *= 24
+                    slice_unit = "hour"
+                else:
+                    # We already check valid 'freq' above. We should never reach here.
+                    assert slice_unit in ("minute", "hour", "day")
+                return slice_length, slice_unit
 
-        if slice_length % 2 == 1:
-            slice_length, slice_unit = down_level_freq(slice_length, slice_unit)
-        half_slice_length = int(slice_length / 2)
-
-        def slice_length_when_unit_is_second(slice_length: int, slice_unit: str) -> int:
-            while slice_unit != "second":
+            if slice_length % 2 == 1:
                 slice_length, slice_unit = down_level_freq(slice_length, slice_unit)
-            return slice_length
+            half_slice_length = int(slice_length / 2)
+            return_type = None
 
-        def round_func(column: SnowparkColumn) -> SnowparkColumn:
-            # Second, we determine whether floor represents an even number of slices.
-            # To do so, we must divide the number of epoch seconds in it over the number
-            # of epoch seconds in one slice. This way, we can get the number of slices.
+            def slice_length_when_unit_is_second(
+                slice_length: int, slice_unit: str
+            ) -> int:
+                while slice_unit != "second":
+                    slice_length, slice_unit = down_level_freq(slice_length, slice_unit)
+                return slice_length
 
-            floor_column = builtin("time_slice")(
-                column, slice_length, slice_unit, "START"
-            )
-            ceil_column = builtin("time_slice")(column, slice_length, slice_unit, "END")
+            def round_func(column: SnowparkColumn) -> SnowparkColumn:
+                # Second, we determine whether floor represents an even number of slices.
+                # To do so, we must divide the number of epoch seconds in it over the number
+                # of epoch seconds in one slice. This way, we can get the number of slices.
 
-            floor_epoch_seconds_column = builtin("extract")(
-                "epoch_second", floor_column
-            )
-            floor_num_slices_column = cast(
-                floor_epoch_seconds_column
-                / pandas_lit(
-                    slice_length_when_unit_is_second(slice_length, slice_unit)
-                ),
-                IntegerType(),
-            )
+                floor_column = builtin("time_slice")(
+                    column, slice_length, slice_unit, "START"
+                )
+                ceil_column = builtin("time_slice")(
+                    column, slice_length, slice_unit, "END"
+                )
 
-            # Now that we know the number of slices, we can check if they are even or odd.
-            floor_is_even = (floor_num_slices_column % pandas_lit(2)).equal_null(
-                pandas_lit(0)
-            )
+                floor_epoch_seconds_column = builtin("extract")(
+                    "epoch_second", floor_column
+                )
+                floor_num_slices_column = cast(
+                    floor_epoch_seconds_column
+                    / pandas_lit(
+                        slice_length_when_unit_is_second(slice_length, slice_unit)
+                    ),
+                    IntegerType(),
+                )
 
-            # Accordingly, we can decide if the round column should be the floor or ceil
-            # of the slice.
-            round_column_if_half_point = iff(floor_is_even, floor_column, ceil_column)
+                # Now that we know the number of slices, we can check if they are even or odd.
+                floor_is_even = (floor_num_slices_column % pandas_lit(2)).equal_null(
+                    pandas_lit(0)
+                )
 
-            # In case the date value is not at half point of the slice, then we shift it
-            # by half a slice, and take the floor from there.
-            base_plus_half_slice_column = dateadd(
-                slice_unit, pandas_lit(half_slice_length), column
-            )
-            round_column_if_not_half_point = builtin("time_slice")(
-                base_plus_half_slice_column, slice_length, slice_unit, "START"
-            )
+                # Accordingly, we can decide if the round column should be the floor or ceil
+                # of the slice.
+                round_column_if_half_point = iff(
+                    floor_is_even, floor_column, ceil_column
+                )
 
-            # The final expression for the round column.
-            return iff(
-                base_plus_half_slice_column.equal_null(ceil_column),
-                round_column_if_half_point,
-                round_column_if_not_half_point,
-            )
+                # In case the date value is not at half point of the slice, then we shift it
+                # by half a slice, and take the floor from there.
+                base_plus_half_slice_column = dateadd(
+                    slice_unit, pandas_lit(half_slice_length), column
+                )
+                round_column_if_not_half_point = builtin("time_slice")(
+                    base_plus_half_slice_column, slice_length, slice_unit, "START"
+                )
+
+                # The final expression for the round column.
+                return iff(
+                    base_plus_half_slice_column.equal_null(ceil_column),
+                    round_column_if_half_point,
+                    round_column_if_not_half_point,
+                )
+
+        else:  # timedelta type
+            nanos = timedelta_freq_to_nanos(freq)
+            if nanos == 0:
+                # no conversion needed.
+                return self
+            return_type = TimedeltaType()
+
+            def round_func(column: SnowparkColumn) -> SnowparkColumn:
+                return bround(column / nanos, 0) * nanos
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
-                round_func, include_index
+                round_func, include_index, return_type
             )
         )
 
@@ -16679,26 +16750,49 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A new QueryCompiler with floor values.
         """
-        method_name = "DatetimeIndex.floor" if include_index else "Series.dt.floor"
+        # This method should support both datetime and timedelta types.
+        dtype = self.index_dtypes[0] if include_index else self.dtypes[0]
+        if not include_index:
+            method_name = "Series.dt.floor"
+        elif is_datetime64_any_dtype(dtype):
+            method_name = "DatetimeIndex.floor"
+        elif is_timedelta64_dtype(dtype):
+            method_name = "TimedeltaIndex.floor"
+        else:
+            raise AssertionError(
+                "column must be datetime or timedelta"
+            )  # pragma: no cover
         if ambiguous != "raise":
             ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
         if nonexistent != "raise":
             ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
 
-        slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(
-            rule=freq  # type:  ignore[arg-type]
-        )
+        if is_datetime64_any_dtype(dtype):
+            slice_length, slice_unit = rule_to_snowflake_width_and_slice_unit(freq)
 
-        if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS:
-            ErrorMessage.parameter_not_implemented_error(f"freq='{freq}'", method_name)
+            if slice_unit not in SUPPORTED_DT_FLOOR_CEIL_FREQS:
+                ErrorMessage.parameter_not_implemented_error(
+                    f"freq='{freq}'", method_name
+                )
+            return_type = None
 
-        def floor_func(column: SnowparkColumn) -> SnowparkColumn:
-            return builtin("time_slice")(column, slice_length, slice_unit)
+            def floor_func(column: SnowparkColumn) -> SnowparkColumn:
+                return builtin("time_slice")(column, slice_length, slice_unit)
+
+        else:  # timedelta type
+            nanos = timedelta_freq_to_nanos(freq)
+            if nanos == 0:
+                # no conversion needed.
+                return self
+            return_type = TimedeltaType()
+
+            def floor_func(column: SnowparkColumn) -> SnowparkColumn:
+                return column - (column % nanos)
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
-                floor_func, include_index
-            )
+                floor_func, include_index, return_type
+            ),
         )
 
     def dt_normalize(self, include_index: bool = False) -> "SnowflakeQueryCompiler":
@@ -16789,14 +16883,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
-    def dt_total_seconds(self) -> None:
+    def dt_total_seconds(self, include_index: bool = False) -> "SnowflakeQueryCompiler":
         """
         Return total duration of each element expressed in seconds.
+        Args:
+            include_index: Whether to include the index columns in the operation.
         Returns:
             New QueryCompiler containing total seconds.
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.total_seconds'"
+        # This method is only applicable to timedelta types.
+        dtype = self.index_dtypes[0] if include_index else self.dtypes[0]
+        if not is_timedelta64_dtype(dtype):
+            raise AttributeError(
+                "'DatetimeProperties' object has no attribute 'total_seconds'"
+            )
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                # Cast the column to decimal of scale 9 to ensure no precision loss.
+                lambda x: x.cast(DecimalType(scale=9)) / 1_000_000_000,
+                include_index,
+            )
         )
 
     def dt_strftime(self, date_format: str) -> None:

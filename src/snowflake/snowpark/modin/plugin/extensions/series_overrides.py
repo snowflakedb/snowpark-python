@@ -1508,6 +1508,51 @@ def unstack(
     return result
 
 
+# Snowpark pandas does an extra check on `len(ascending)`.
+@register_series_accessor("sort_values")
+def sort_values(
+    self,
+    axis: Axis = 0,
+    ascending: bool | int | Sequence[bool] | Sequence[int] = True,
+    inplace: bool = False,
+    kind: str = "quicksort",
+    na_position: str = "last",
+    ignore_index: bool = False,
+    key: IndexKeyFunc | None = None,
+):
+    """
+    Sort by the values.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    from modin.pandas.dataframe import DataFrame
+
+    if is_list_like(ascending) and len(ascending) != 1:
+        raise ValueError(f"Length of ascending ({len(ascending)}) must be 1 for Series")
+
+    if axis is not None:
+        # Validate `axis`
+        self._get_axis_number(axis)
+
+    # When we convert to a DataFrame, the name is automatically converted to 0 if it
+    # is None, so we do this to avoid a KeyError.
+    by = self.name if self.name is not None else 0
+    result = (
+        DataFrame(self.copy())
+        .sort_values(
+            by=by,
+            ascending=ascending,
+            inplace=False,
+            kind=kind,
+            na_position=na_position,
+            ignore_index=ignore_index,
+            key=key,
+        )
+        .squeeze(axis=1)
+    )
+    result.name = self.name
+    return self._create_or_update_from_compiler(result._query_compiler, inplace=inplace)
+
+
 # Upstream Modin defaults at the frontend layer.
 @register_series_accessor("where")
 def where(
@@ -1556,51 +1601,6 @@ def value_counts(
         ).set_index_names([self.name]),
         name="proportion" if normalize else "count",
     )
-
-
-# Snowpark pandas does an extra check on `len(ascending)`.
-@register_series_accessor("sort_values")
-def sort_values(
-    self,
-    axis: Axis = 0,
-    ascending: bool | int | Sequence[bool] | Sequence[int] = True,
-    inplace: bool = False,
-    kind: str = "quicksort",
-    na_position: str = "last",
-    ignore_index: bool = False,
-    key: IndexKeyFunc | None = None,
-):
-    """
-    Sort by the values.
-    """
-    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    from modin.pandas.dataframe import DataFrame
-
-    if is_list_like(ascending) and len(ascending) != 1:
-        raise ValueError(f"Length of ascending ({len(ascending)}) must be 1 for Series")
-
-    if axis is not None:
-        # Validate `axis`
-        self._get_axis_number(axis)
-
-    # When we convert to a DataFrame, the name is automatically converted to 0 if it
-    # is None, so we do this to avoid a KeyError.
-    by = self.name if self.name is not None else 0
-    result = (
-        DataFrame(self.copy())
-        .sort_values(
-            by=by,
-            ascending=ascending,
-            inplace=False,
-            kind=kind,
-            na_position=na_position,
-            ignore_index=ignore_index,
-            key=key,
-        )
-        .squeeze(axis=1)
-    )
-    result.name = self.name
-    return self._create_or_update_from_compiler(result._query_compiler, inplace=inplace)
 
 
 # The `suffix` parameter is documented but according to pandas maintainers, "not public."

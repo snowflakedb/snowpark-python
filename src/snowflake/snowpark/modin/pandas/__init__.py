@@ -166,7 +166,6 @@ from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: 
     read_json,
 )
 
-
 # base overrides occur before subclass overrides in case subclasses override a base method
 import snowflake.snowpark.modin.plugin.extensions.base_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.base_overrides  # isort: skip  # noqa: E402,F401
@@ -188,7 +187,6 @@ modin.pandas.base._ATTRS_NO_LOOKUP.update(_ATTRS_NO_LOOKUP)
 
 # For any method defined on Series/DF, add telemetry to it if the method name does not start with an
 # _, or the method is in TELEMETRY_PRIVATE_METHODS. This includes methods defined as an extension/override.
-
 for attr_name in dir(Series):
     # Since Series is defined in upstream Modin, all of its members were either defined upstream
     # or overridden by extension.
