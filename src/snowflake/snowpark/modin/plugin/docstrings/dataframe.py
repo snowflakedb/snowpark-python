@@ -730,7 +730,7 @@ class DataFrame(BasePandasDataset):
         Parameters
         ----------
         func : function
-            A Python function object to apply to each column or row, or a Python function decorated with @udf.
+            A Python function object to apply to each column or row.
 
         axis : {0 or 'index', 1 or 'columns'}, default 0
             Axis along which the function is applied:
@@ -808,8 +808,6 @@ class DataFrame(BasePandasDataset):
 
         7. When ``func`` uses any first-party modules or third-party packages inside the function,
         you need to add these dependencies via ``session.add_import()`` and ``session.add_packages()``.
-        Alternatively. specify third-party packages with the @udf decorator. When using the @udf decorator,
-        annotations using PandasSeriesType or PandasDataFrameType are not supported.
 
         8. The Snowpark pandas module cannot currently be referenced inside the definition of
         ``func``. If you need to call a general pandas API like ``pd.Timestamp`` inside ``func``,
@@ -849,22 +847,6 @@ class DataFrame(BasePandasDataset):
         0     1.00
         1    14.50
         2    24.25
-        dtype: float64
-
-        or annotate the function
-        with the @udf decorator from Snowpark https://docs.snowflake.com/en/developer-guide/snowpark/reference/python/latest/api/snowflake.snowpark.functions.udf.
-
-        >>> from snowflake.snowpark.functions import udf
-        >>> from snowflake.snowpark.types import DoubleType
-        >>> @udf(packages=['statsmodels>0.12'], return_type=DoubleType())
-        ... def autocorr(column):
-        ...    import pandas as pd
-        ...    import statsmodels.tsa.stattools
-        ...    return pd.Series(statsmodels.tsa.stattools.pacf_ols(column.values)).mean()
-        ...
-        >>> df.apply(autocorr, axis=0)  # doctest: +SKIP
-        A    0.857143
-        B    0.428571
         dtype: float64
         """
 
