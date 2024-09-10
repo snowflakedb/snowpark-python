@@ -592,9 +592,10 @@ TRANSFORM_TEST_MAP = [
 def test_basic_dataframe_transform(data, apply_func, expected_query_count):
     if expected_query_count is None:
         msg = "Snowpark pandas apply API only supports callables func"
-        with pytest.raises(NotImplementedError, match=msg):
-            snow_df = pd.DataFrame(data)
-            snow_df.transform(apply_func)
+        with SqlCounter(query_count=0):
+            with pytest.raises(NotImplementedError, match=msg):
+                snow_df = pd.DataFrame(data)
+                snow_df.transform(apply_func)
     else:
         msg = "SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function"
         native_df = native_pd.DataFrame(data)

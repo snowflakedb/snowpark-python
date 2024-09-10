@@ -22,7 +22,7 @@ from tests.integ.modin.utils import (
 
 # test data which has a python type as return type that is not a pandas Series/pandas DataFrame/tuple/list
 BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP = [
-    [[[1.1, 2.2], [3, np.nan]], np.min, "float"],
+    [[[1.0, 2.2], [3, np.nan]], np.min, "float"],
     [[[1.1, 2.2], [3, np.nan]], lambda x: x.sum(), "float"],
     [[[1.1, 2.2], [3, np.nan]], lambda x: x.size, "int"],
     [[[1.1, 2.2], [3, np.nan]], lambda x: "0" if x.sum() > 1 else 0, "object"],
@@ -569,6 +569,29 @@ def test_apply_axis_0_bug_1650918(data, apply_func):
         native_df,
         lambda x: x.apply(apply_func, axis=0),
     )
+
+
+def test_apply_nested_series_negative():
+    snow_df = pd.DataFrame([[1, 2], [3, 4]])
+
+    with pytest.raises(
+        NotImplementedError,
+        match=r"Nested pd.Series in result is not supported in DataFrame.apply\(axis=0\)",
+    ):
+        snow_df.apply(
+            lambda ser: 99 if ser.sum() == 4 else native_pd.Series([1, 2]), axis=0
+        ).to_pandas()
+
+    snow_df2 = pd.DataFrame([[1, 2, 3]])
+
+    with pytest.raises(
+        NotImplementedError,
+        match=r"Nested pd.Series in result is not supported in DataFrame.apply\(axis=0\)",
+    ):
+        snow_df2.apply(
+            lambda ser: 99 if ser.sum() == 2 else native_pd.Series([100], index=["a"]),
+            axis=0,
+        ).to_pandas()
 
 
 import scipy.stats  # noqa: E402

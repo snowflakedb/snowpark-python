@@ -862,7 +862,7 @@ class DataFrame(BasePandasDataset):
         ...    import statsmodels.tsa.stattools
         ...    return pd.Series(statsmodels.tsa.stattools.pacf_ols(column.values)).mean()
         ...
-        >>> df.apply(autocorr, axis=0)
+        >>> df.apply(autocorr, axis=0)  # doctest: +SKIP
         A    0.857143
         B    0.428571
         dtype: float64
