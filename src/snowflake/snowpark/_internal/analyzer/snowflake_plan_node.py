@@ -145,11 +145,14 @@ class SnowflakeValues(LeafNode):
         self.schema_query = schema_query
 
     @property
-    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    def is_large_local_data(self) -> bool:
         from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
 
-        literal_complexity = len(self.data) * len(self.output)
-        if literal_complexity >= ARRAY_BIND_THRESHOLD:
+        return len(self.data) * len(self.output) >= ARRAY_BIND_THRESHOLD
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        if self.is_large_local_data:
             # When the number of literals exceeds the threshold, we generate 3 queries:
             # 1. create table query
             # 2. insert into table query
@@ -164,7 +167,7 @@ class SnowflakeValues(LeafNode):
         # select $1, ..., $m FROM VALUES (r11, r12, ..., r1m), (rn1, ...., rnm)
         return {
             PlanNodeCategory.COLUMN: len(self.output),
-            PlanNodeCategory.LITERAL: literal_complexity,
+            PlanNodeCategory.LITERAL: len(self.data) * len(self.output),
         }
 
 
