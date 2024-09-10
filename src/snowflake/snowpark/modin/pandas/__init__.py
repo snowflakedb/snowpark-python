@@ -88,8 +88,8 @@ import modin.pandas
 
 # TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
 from modin.pandas import plotting  # type: ignore[import]
-from modin.pandas.dataframe import _DATAFRAME_EXTENSIONS_, DataFrame
-from modin.pandas.series import _SERIES_EXTENSIONS_, Series
+from modin.pandas.dataframe import DataFrame
+from modin.pandas.series import Series
 
 from snowflake.snowpark.modin.pandas.api.extensions import (
     register_dataframe_accessor,
@@ -186,29 +186,21 @@ modin.pandas.base._ATTRS_NO_LOOKUP.add("columns")
 modin.pandas.base._ATTRS_NO_LOOKUP.update(_ATTRS_NO_LOOKUP)
 
 
-# For any method defined on Series/DF, add telemetry to it if it meets all of the following conditions:
-# 1. The method was defined directly on an upstream class
-# 2. The method is not overridden by an extensions module
-# 3. The method name does not start with an _ or is in TELEMETRY_PRIVATE_METHODS
+# For any method defined on Series/DF, add telemetry to it if the method name does not start with an
+# _, or the method is in TELEMETRY_PRIVATE_METHODS. This includes methods defined as an extension/override.
 
-_series_ext = _SERIES_EXTENSIONS_.copy()
 for attr_name in dir(Series):
     # Since Series is defined in upstream Modin, all of its members were either defined upstream
     # or overridden by extension.
-    if attr_name not in _series_ext and (
-        not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
-    ):
+    if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
         register_series_accessor(attr_name)(
             try_add_telemetry_to_attribute(attr_name, getattr(Series, attr_name))
         )
 
-_dataframe_ext = _DATAFRAME_EXTENSIONS_.copy()
 for attr_name in dir(DataFrame):
     # Since DataFrame is defined in upstream Modin, all of its members were either defined upstream
     # or overridden by extension.
-    if attr_name not in _dataframe_ext and (
-        not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
-    ):
+    if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
         register_dataframe_accessor(attr_name)(
             try_add_telemetry_to_attribute(attr_name, getattr(DataFrame, attr_name))
         )

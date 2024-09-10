@@ -84,10 +84,6 @@ from snowflake.snowpark.modin.pandas.utils import (
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     is_snowflake_agg_func,
 )
-from snowflake.snowpark.modin.plugin._internal.telemetry import (
-    snowpark_pandas_telemetry_method_decorator,
-    try_add_telemetry_to_attribute,
-)
 from snowflake.snowpark.modin.plugin._internal.utils import is_repr_truncated
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
@@ -110,9 +106,7 @@ from snowflake.snowpark.udf import UserDefinedFunction
 
 def register_dataframe_not_implemented():
     def decorator(base_method: Any):
-        func = snowpark_pandas_telemetry_method_decorator(
-            dataframe_not_implemented()(base_method)
-        )
+        func = dataframe_not_implemented()(base_method)
         register_dataframe_accessor(base_method.__name__)(func)
         return func
 
@@ -130,7 +124,6 @@ def register_dataframe_not_implemented():
 
 # Avoid overwriting builtin `map` by accident
 @register_dataframe_accessor("map")
-@snowpark_pandas_telemetry_method_decorator
 @dataframe_not_implemented()
 def _map(
     self, func, na_action: str | None = None, **kwargs
@@ -410,7 +403,6 @@ def __rdivmod__(self, other):
 # The from_dict and from_records accessors are class methods and cannot be overridden via the
 # extensions module, as they need to be foisted onto the namespace directly because they are not
 # routed through getattr. To this end, we manually set DataFrame.from_dict to our new method.
-@snowpark_pandas_telemetry_method_decorator
 @dataframe_not_implemented()
 def from_dict(
     cls, data, orient="columns", dtype=None, columns=None
@@ -421,7 +413,6 @@ def from_dict(
 DataFrame.from_dict = from_dict
 
 
-@snowpark_pandas_telemetry_method_decorator
 @dataframe_not_implemented()
 def from_records(
     cls,
@@ -571,7 +562,6 @@ def __init__(
 
 
 @register_dataframe_accessor("__dataframe__")
-@snowpark_pandas_telemetry_method_decorator
 def __dataframe__(self, nan_as_null: bool = False, allow_copy: bool = True):
     """
     Get a Modin DataFrame that implements the dataframe exchange protocol.
@@ -614,28 +604,24 @@ def __dataframe__(self, nan_as_null: bool = False, allow_copy: bool = True):
 # Snowpark pandas defaults to axis=1 instead of axis=0 for these; we need to investigate if the same should
 # apply to upstream Modin.
 @register_dataframe_accessor("__and__")
-@snowpark_pandas_telemetry_method_decorator
 def __and__(self, other):
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     return self._binary_op("__and__", other, axis=1)
 
 
 @register_dataframe_accessor("__rand__")
-@snowpark_pandas_telemetry_method_decorator
 def __rand__(self, other):
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     return self._binary_op("__rand__", other, axis=1)
 
 
 @register_dataframe_accessor("__or__")
-@snowpark_pandas_telemetry_method_decorator
 def __or__(self, other):
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     return self._binary_op("__or__", other, axis=1)
 
 
 @register_dataframe_accessor("__ror__")
-@snowpark_pandas_telemetry_method_decorator
 def __ror__(self, other):
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     return self._binary_op("__ror__", other, axis=1)
@@ -643,7 +629,6 @@ def __ror__(self, other):
 
 # Upstream Modin defaults to pandas in some cases.
 @register_dataframe_accessor("apply")
-@snowpark_pandas_telemetry_method_decorator
 def apply(
     self,
     func: AggFuncType | UserDefinedFunction,
@@ -681,7 +666,6 @@ def apply(
 
 # Snowpark pandas uses a separate QC method, while modin directly calls map.
 @register_dataframe_accessor("applymap")
-@snowpark_pandas_telemetry_method_decorator
 def applymap(self, func: PythonFuncType, na_action: str | None = None, **kwargs):
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     if not callable(func):
@@ -725,14 +709,11 @@ def _set_columns(self, new_columns: Axes) -> None:
     )
 
 
-register_dataframe_accessor("columns")(
-    try_add_telemetry_to_attribute("columns", property(_get_columns, _set_columns))
-)
+register_dataframe_accessor("columns")(property(_get_columns, _set_columns))
 
 
 # Snowpark pandas does preprocessing for numeric_only (should be pushed to QC).
 @register_dataframe_accessor("corr")
-@snowpark_pandas_telemetry_method_decorator
 def corr(
     self,
     method: str | Callable = "pearson",
@@ -760,7 +741,6 @@ def corr(
 
 # Snowpark pandas does not respect `ignore_index`, and upstream Modin does not respect `how`.
 @register_dataframe_accessor("dropna")
-@snowpark_pandas_telemetry_method_decorator
 def dropna(
     self,
     *,
@@ -777,7 +757,6 @@ def dropna(
 
 # Snowpark pandas uses `self_is_series`, while upstream Modin uses `squeeze_self` and `squeeze_value`.
 @register_dataframe_accessor("fillna")
-@snowpark_pandas_telemetry_method_decorator
 def fillna(
     self,
     value: Hashable | Mapping | Series | DataFrame = None,
@@ -802,7 +781,6 @@ def fillna(
 
 # Snowpark pandas does different validation and returns a custom GroupBy object.
 @register_dataframe_accessor("groupby")
-@snowpark_pandas_telemetry_method_decorator
 def groupby(
     self,
     by=None,
@@ -910,7 +888,6 @@ def groupby(
 
 # Upstream Modin uses a proxy DataFrameInfo object
 @register_dataframe_accessor("info")
-@snowpark_pandas_telemetry_method_decorator
 def info(
     self,
     verbose: bool | None = None,
@@ -1051,7 +1028,6 @@ def info(
 
 # Snowpark pandas does different validation.
 @register_dataframe_accessor("insert")
-@snowpark_pandas_telemetry_method_decorator
 def insert(
     self,
     loc: int,
@@ -1145,7 +1121,6 @@ def insert(
 
 # Snowpark pandas does more specialization based on the type of `values`
 @register_dataframe_accessor("isin")
-@snowpark_pandas_telemetry_method_decorator
 def isin(
     self, values: ListLike | Series | DataFrame | dict[Hashable, ListLike]
 ) -> DataFrame:
@@ -1179,7 +1154,6 @@ def isin(
 
 # Upstream Modin defaults to pandas for some arguments.
 @register_dataframe_accessor("join")
-@snowpark_pandas_telemetry_method_decorator
 def join(
     self,
     other: DataFrame | Series | Iterable[DataFrame | Series],
@@ -1312,7 +1286,6 @@ def join(
 
 # Snowpark pandas does extra error checking.
 @register_dataframe_accessor("mask")
-@snowpark_pandas_telemetry_method_decorator
 def mask(
     self,
     cond: DataFrame | Series | Callable | AnyArrayLike,
@@ -1339,7 +1312,6 @@ def mask(
 
 # Snowpark pandas has a fix for a pandas behavior change. It is available in Modin 0.30.1 (SNOW-1552497).
 @register_dataframe_accessor("melt")
-@snowpark_pandas_telemetry_method_decorator
 def melt(
     self,
     id_vars=None,
@@ -1380,7 +1352,6 @@ def melt(
 
 # Snowpark pandas does more thorough error checking.
 @register_dataframe_accessor("merge")
-@snowpark_pandas_telemetry_method_decorator
 def merge(
     self,
     right: DataFrame | Series,
@@ -1479,7 +1450,6 @@ def merge(
 
 @_inherit_docstrings(native_pd.DataFrame.memory_usage, apilink="pandas.DataFrame")
 @register_dataframe_accessor("memory_usage")
-@snowpark_pandas_telemetry_method_decorator
 def memory_usage(self, index: bool = True, deep: bool = False) -> Any:
     """
     Memory Usage (Dummy Information)
@@ -1519,7 +1489,6 @@ def memory_usage(self, index: bool = True, deep: bool = False) -> Any:
 
 # Snowpark pandas handles `inplace` differently.
 @register_dataframe_accessor("replace")
-@snowpark_pandas_telemetry_method_decorator
 def replace(
     self,
     to_replace=None,
@@ -1546,7 +1515,6 @@ def replace(
 
 # Snowpark pandas interacts with the inplace flag differently.
 @register_dataframe_accessor("rename")
-@snowpark_pandas_telemetry_method_decorator
 def rename(
     self,
     mapper: Renamer | None = None,
@@ -1603,7 +1571,6 @@ def rename(
 
 # Upstream modin converts aggfunc to a cython function if it's a string.
 @register_dataframe_accessor("pivot_table")
-@snowpark_pandas_telemetry_method_decorator
 def pivot_table(
     self,
     values=None,
@@ -1641,7 +1608,6 @@ def pivot_table(
 # Snowpark pandas produces a different warning for materialization.
 @register_dataframe_accessor("plot")
 @property
-@snowpark_pandas_telemetry_method_decorator
 def plot(
     self,
     x=None,
@@ -1688,7 +1654,6 @@ def plot(
 
 # Upstream Modin defaults when other is a Series.
 @register_dataframe_accessor("pow")
-@snowpark_pandas_telemetry_method_decorator
 def pow(
     self, other, axis="columns", level=None, fill_value=None
 ):  # noqa: PR01, RT01, D200
@@ -1706,7 +1671,6 @@ def pow(
 
 
 @register_dataframe_accessor("rpow")
-@snowpark_pandas_telemetry_method_decorator
 def rpow(
     self, other, axis="columns", level=None, fill_value=None
 ):  # noqa: PR01, RT01, D200
@@ -1725,7 +1689,6 @@ def rpow(
 
 # Snowpark pandas does extra argument validation, and uses iloc instead of drop at the end.
 @register_dataframe_accessor("select_dtypes")
-@snowpark_pandas_telemetry_method_decorator
 def select_dtypes(
     self,
     include: ListLike | str | type | None = None,
@@ -1790,7 +1753,6 @@ def select_dtypes(
 
 # Snowpark pandas does extra validation on the `axis` argument.
 @register_dataframe_accessor("set_axis")
-@snowpark_pandas_telemetry_method_decorator
 def set_axis(
     self,
     labels: IndexLabel,
@@ -1811,7 +1773,6 @@ def set_axis(
 
 # Snowpark pandas needs extra logic for the lazy index class.
 @register_dataframe_accessor("set_index")
-@snowpark_pandas_telemetry_method_decorator
 def set_index(
     self,
     keys: IndexLabel
@@ -1877,7 +1838,6 @@ def set_index(
 # Upstream Modin uses `len(self.index)` instead of `len(self)`, which gives an extra query.
 @register_dataframe_accessor("shape")
 @property
-@snowpark_pandas_telemetry_method_decorator
 def shape(self) -> tuple[int, int]:
     """
     Return a tuple representing the dimensionality of the ``DataFrame``.
@@ -1888,7 +1848,6 @@ def shape(self) -> tuple[int, int]:
 
 # Snowpark pands has rewrites to minimize queries from length checks.
 @register_dataframe_accessor("squeeze")
-@snowpark_pandas_telemetry_method_decorator
 def squeeze(self, axis: Axis | None = None):
     """
     Squeeze 1 dimensional axis objects into scalars.
@@ -1911,7 +1870,6 @@ def squeeze(self, axis: Axis | None = None):
 
 # Upstream modin defines sum differently for series/DF, but we use the same implementation for both.
 @register_dataframe_accessor("sum")
-@snowpark_pandas_telemetry_method_decorator
 def sum(
     self,
     axis: Axis | None = None,
@@ -1934,7 +1892,6 @@ def sum(
 
 # Snowpark pandas raises a warning where modin defaults to pandas.
 @register_dataframe_accessor("stack")
-@snowpark_pandas_telemetry_method_decorator
 def stack(
     self,
     level: int | str | list = -1,
@@ -1974,7 +1931,6 @@ def stack(
 # Upstream modin doesn't pass `copy`, so we can't raise a warning for it.
 # No need to override the `T` property since that can't take any extra arguments.
 @register_dataframe_accessor("transpose")
-@snowpark_pandas_telemetry_method_decorator
 def transpose(self, copy=False, *args):  # noqa: PR01, RT01, D200
     """
     Transpose index and columns.
@@ -1999,7 +1955,6 @@ def transpose(self, copy=False, *args):  # noqa: PR01, RT01, D200
 
 # Upstream modin implements transform in base.py, but we don't yet support Series.transform.
 @register_dataframe_accessor("transform")
-@snowpark_pandas_telemetry_method_decorator
 def transform(
     self, func: PythonFuncType, axis: Axis = 0, *args: Any, **kwargs: Any
 ) -> DataFrame:  # noqa: PR01, RT01, D200
@@ -2024,7 +1979,6 @@ def transform(
 
 # Upstream modin defaults to pandas for some arguments.
 @register_dataframe_accessor("unstack")
-@snowpark_pandas_telemetry_method_decorator
 def unstack(
     self,
     level: int | str | list = -1,
@@ -2057,7 +2011,6 @@ def unstack(
 
 # Upstream modin does different validation and sorting.
 @register_dataframe_accessor("value_counts")
-@snowpark_pandas_telemetry_method_decorator
 def value_counts(
     self,
     subset: Sequence[Hashable] | None = None,
@@ -2080,7 +2033,6 @@ def value_counts(
 
 
 @register_dataframe_accessor("where")
-@snowpark_pandas_telemetry_method_decorator
 def where(
     self,
     cond: DataFrame | Series | Callable | AnyArrayLike,
@@ -2110,7 +2062,6 @@ def where(
 
 # Snowpark pandas has a custom iterator.
 @register_dataframe_accessor("iterrows")
-@snowpark_pandas_telemetry_method_decorator
 def iterrows(self) -> Iterator[tuple[Hashable, Series]]:
     """
     Iterate over ``DataFrame`` rows as (index, ``Series``) pairs.
@@ -2131,7 +2082,6 @@ def iterrows(self) -> Iterator[tuple[Hashable, Series]]:
 
 # Snowpark pandas has a custom iterator.
 @register_dataframe_accessor("itertuples")
-@snowpark_pandas_telemetry_method_decorator
 def itertuples(
     self, index: bool = True, name: str | None = "Pandas"
 ) -> Iterable[tuple[Any, ...]]:
@@ -2171,7 +2121,6 @@ def itertuples(
 
 # Snowpark pandas truncates the repr output.
 @register_dataframe_accessor("__repr__")
-@snowpark_pandas_telemetry_method_decorator
 def __repr__(self):
     """
     Return a string representation for a particular ``DataFrame``.
@@ -2204,7 +2153,6 @@ def __repr__(self):
 
 # Snowpark pandas uses a different default `num_rows` value.
 @register_dataframe_accessor("_repr_html_")
-@snowpark_pandas_telemetry_method_decorator
 def _repr_html_(self):  # pragma: no cover
     """
     Return a html representation for a particular ``DataFrame``.
@@ -2241,7 +2189,6 @@ def _repr_html_(self):  # pragma: no cover
 
 # Upstream modin just uses `to_datetime` rather than `dataframe_to_datetime` on the query compiler.
 @register_dataframe_accessor("_to_datetime")
-@snowpark_pandas_telemetry_method_decorator
 def _to_datetime(self, **kwargs):
     """
     Convert `self` to datetime.
@@ -2264,7 +2211,6 @@ def _to_datetime(self, **kwargs):
 
 # Snowpark pandas has the extra `statement_params` argument.
 @register_dataframe_accessor("_to_pandas")
-@snowpark_pandas_telemetry_method_decorator
 def _to_pandas(
     self,
     *,
@@ -2287,7 +2233,6 @@ def _to_pandas(
 # Snowpark pandas does more validation and error checking than upstream Modin, and uses different
 # helper methods for dispatch.
 @register_dataframe_accessor("__setitem__")
-@snowpark_pandas_telemetry_method_decorator
 def __setitem__(self, key: Any, value: Any):
     """
     Set attribute `value` identified by `key`.
