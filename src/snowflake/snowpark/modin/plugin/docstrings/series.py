@@ -3428,7 +3428,7 @@ class Series(BasePandasDataset):
 
         >>> pd.Series([pd.Timestamp('2016-01-01', tz='US/Eastern')
         ...            for _ in range(3)]).unique()
-        array([Timestamp('2015-12-31 21:00:00-0800', tz='America/Los_Angeles')],
+        array([Timestamp('2016-01-01 00:00:00-0500', tz='UTC-05:00')],
               dtype=object)
 
         """
