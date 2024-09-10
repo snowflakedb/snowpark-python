@@ -104,6 +104,7 @@
 - Added support for `Series.dt.days`, `Series.dt.seconds`, `Series.dt.microseconds`, and `Series.dt.nanoseconds`.
 - Added support for creating a `DatetimeIndex` from an `Index` of numeric or string type.
 - Added support for string indexing with `Timedelta` objects.
+- Added support for `Series.dt.tz_convert` and `Series.dt.tz_localize`.
 
 #### Improvements
 
