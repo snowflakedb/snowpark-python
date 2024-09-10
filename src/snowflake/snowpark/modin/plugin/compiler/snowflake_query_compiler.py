@@ -1709,7 +1709,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if self.is_multiindex():
             # Lazy multiindex is not supported
             logging.warning(
-                "Lazy MultiIndex is not supported. Pulling values from Snowflake."
+                "Lazy MultiIndex is not supported. MultiIndex values are evaluated eagerly and pulled out of Snowflake."
             )
             return self._modin_frame.index_columns_pandas_index()
         else:
