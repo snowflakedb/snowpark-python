@@ -12,6 +12,7 @@ from pandas._typing import Callable, Scalar
 
 from snowflake.snowpark.column import Column as SnowparkColumn
 from snowflake.snowpark.functions import (
+    cast,
     ceil,
     col,
     concat,
@@ -39,6 +40,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.types import (
     DataType,
+    LongType,
     NullType,
     StringType,
     TimestampTimeZone,
@@ -443,7 +445,9 @@ def compute_binary_op_between_snowpark_columns(
     elif op == "mul" and (
         _op_is_between_timedelta_and_numeric(first_datatype, second_datatype)
     ):
-        binary_op_result_column = first_operand * second_operand
+        binary_op_result_column = cast(
+            floor(first_operand * second_operand), LongType()
+        )
         snowpark_pandas_type = TimedeltaType()
     # For `eq` and `ne`, note that Snowflake will consider 1 equal to
     # Timedelta(1) because those two have the same representation in Snowflake,
@@ -461,7 +465,9 @@ def compute_binary_op_between_snowpark_columns(
         and isinstance(first_datatype(), TimedeltaType)
         and _is_numeric_non_timedelta_type(second_datatype())
     ):
-        binary_op_result_column = floor(first_operand / second_operand)
+        binary_op_result_column = cast(
+            floor(first_operand / second_operand), LongType()
+        )
         snowpark_pandas_type = TimedeltaType()
     elif (
         op == "mod"
