@@ -1,0 +1,48 @@
+## TEST CASE
+
+from snowflake.snowpark.functions import col, udaf
+
+from snowflake.snowpark.types import IntegerType
+class PythonSumUDAF:
+    def __init__(self) -> None:
+        self._sum = 0
+
+    @property
+    def aggregate_state(self):
+        return self._sum
+
+    def accumulate(self, input_value):
+        self._sum += input_value
+
+    def merge(self, other_sum):
+        self._sum += other_sum
+
+    def finish(self):
+        return self._sum
+
+sum_udaf = udaf(
+    PythonSumUDAF,
+    name="sum_int",
+    replace=True,
+    return_type=IntegerType(),
+    input_types=[IntegerType()],
+)
+
+df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
+
+df.agg(sum_udaf("a")).collect()
+
+## EXPECTED UNPARSER OUTPUT
+
+sum_udaf = udf(PythonSumUDAF, input_types=[IntegerType()], parallel=1, max_batch_size=0, source_code_display=False, secrets={"": ""}, source_code_display=True)
+
+df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]])
+
+df = df.to_df("a", "b")
+
+df.agg(sum_udaf("a")).collect()
+
+## EXPECTED ENCODED AST
+
+Cp8BCpwBCocBmgyDARoPEg1QeXRob25TdW1VREFGOgQKAmABSjgKE3NvdXJjZV9jb2RlX2Rpc3BsYXkSIbIBHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKG4QAVILCgkKB3N1bV9pbnRgBGgBcgJgAYIBGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShuEgoKCHN1bV91ZGFmGAEiAggBCtQDCtEDCsIDygW+AwqfAwqcAwplogJiChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodhIhkgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodhABEiGSAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh2EAMKZaICYgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHYSIZICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHYQARIhkgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodhAECmWiAmIKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh2EiGSAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh2EAISIZICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHYQBQplogJiChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodhIhkgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodhACEiGSAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh2EAYaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh2EgQKAmRmGAIiAggCCkAKPgowqgktCgFhCgFiEgeKAgQKAggCGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodiABEgQKAmRmGAMiAggDCoUBCoIBCnjSBXUKB4oCBAoCCAMSTgpKekgKBhoECgIIARoi6gsfChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoeBIBYSIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHgQARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHgSABgEIgIIBAozCjEKJ6IGJAgBEAEaAggEMhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoeBIAGAUiAggFCggSBggGEgIIBRABGhESDwoNCgVmaW5hbBADGAggEyIEEAEYFQ==
+EAEaERIPCg0KBWZpbmFsEAMYCCATIgQQARgV

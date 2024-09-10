@@ -10,8 +10,10 @@ from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
+from snowflake.snowpark._internal.ast_utils import build_udaf_apply
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import (
     open_telemetry_udf_context_manager,
@@ -66,6 +68,8 @@ class UserDefinedAggregateFunction:
         return_type: DataType,
         input_types: List[DataType],
         packages: Optional[List[Union[str, ModuleType]]] = None,
+        _ast: Optional[proto.Udaf] = None,
+        _ast_id: Optional[int] = None,
     ) -> None:
         #: The Python class or a tuple containing the Python file path and the function name.
         self.handler: Union[Callable, Tuple[str, str]] = handler
@@ -77,9 +81,14 @@ class UserDefinedAggregateFunction:
 
         self._packages = packages
 
+        # If None, no ast will be emitted. Else, passed whenever udf is invoked.
+        self._ast = _ast
+        self._ast_id = _ast_id
+
     def __call__(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+        _emit_ast: bool = True,
     ) -> Column:
         exprs = []
         for c in parse_positional_args_to_list(*cols):
@@ -92,9 +101,16 @@ class UserDefinedAggregateFunction:
                     f"The inputs of UDAF {self.name} must be Column or column name"
                 )
 
-        raise NotImplementedError("TODO SNOW-1514712: support UDxFs")
+        udaf_expr = None
+        if _emit_ast:
+            assert (
+                self._ast is not None
+            ), "Need to ensure _emit_ast is True when registering UDAF."
+            assert self._ast_id is not None, "Need to assign UDAF an ID."
+            udaf_expr = proto.Expr()
+            build_udaf_apply(udaf_expr, self._ast_id, *cols)
 
-        return Column(self._create_udaf_expression(exprs))
+        return Column(self._create_udaf_expression(exprs), ast=udaf_expr)
 
     def _create_udaf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
         if len(exprs) != len(self._input_types):
@@ -107,6 +123,7 @@ class UserDefinedAggregateFunction:
             exprs,
             self._return_type,
             api_call_source="UserDefinedAggregateFunction.__call__",
+            is_aggregate_function=True,
         )
 
 
@@ -636,6 +653,8 @@ class UDAFRegistration:
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
         immutable: bool = False,
+        _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedAggregateFunction:
         # get the udaf name, return and input types
         (

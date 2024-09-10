@@ -594,6 +594,7 @@ class SnowflakeUDF(Expression):
         datatype: DataType,
         nullable: bool = True,
         api_call_source: Optional[str] = None,
+        is_aggregate_function: bool = False,
     ) -> None:
         super().__init__()
         self.udf_name = udf_name
@@ -601,6 +602,7 @@ class SnowflakeUDF(Expression):
         self.datatype = datatype
         self.nullable = nullable
         self.api_call_source = api_call_source
+        self.is_aggregate_function = is_aggregate_function
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.children)
