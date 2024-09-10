@@ -989,6 +989,7 @@ class UDFRegistration:
         )
 
         udf._ast = ast
-        udf._ast_id = stmt.var_id.bitfield1
+        if _emit_ast:
+            udf._ast_id = stmt.var_id.bitfield1
 
         return udf
