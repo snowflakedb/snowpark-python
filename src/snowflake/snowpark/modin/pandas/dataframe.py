@@ -2362,7 +2362,7 @@ class DataFrame(BasePandasDataset):
         # this needs to pull all index which is inefficient
         if verify_integrity and not new_query_compiler.index.is_unique:
             duplicates = new_query_compiler.index[
-                new_query_compiler.index.duplicated()
+                new_query_compiler.index.to_pandas().duplicated()
             ].unique()
             raise ValueError(f"Index has duplicate keys: {duplicates}")
 
