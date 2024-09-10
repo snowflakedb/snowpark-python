@@ -2,11 +2,17 @@
 
 df = session.table("test_table")
 
+# Single weight means returning the dataframe itself.
+
+# df, = df.random_split([0.7])
+
 weights = [0.1, 0.2, 0.3]
 
-df2 = df.random_split(weights)
+df1, df2, df3 = df.random_split(weights)
 
-df3 = df.random_split(weights, seed=24)
+# One more time, with different symbol order.
+
+df3, df1, df2 = df.random_split(weights, seed=24)
 
 ## EXPECTED UNPARSER OUTPUT
 
