@@ -594,3 +594,35 @@ def test_telemetry_series_isin():
         {"name": "Series.property.name_set"},
         {"name": "Series.isin"},
     ]
+
+
+@sql_count_checker(query_count=0)
+def test_telemetry_quantile():
+    # quantile is overridden in base_overrides.py
+    s = pd.Series([1, 2, 3, 4])
+    result_s = s.quantile(q=[0.1, 0.2])
+    assert result_s._query_compiler.snowpark_pandas_api_calls == [
+        {"name": "Series.property.name_set"},
+        {"argument": ["q"], "name": "Series.Series.quantile"},
+    ]
+    df = pd.DataFrame([1, 2, 3, 4])
+    result_df = df.quantile(q=[0.1, 0.2])
+    assert result_df._query_compiler.snowpark_pandas_api_calls == [
+        {"argument": ["q"], "name": "DataFrame.DataFrame.quantile"},
+    ]
+
+
+@sql_count_checker(query_count=2)
+def test_telemetry_to_pandas():
+    # to_pandas exists only in Snowpark pandas (modin uses _to_pandas instead)
+    s = pd.Series([1, 2, 3, 4])
+    result_s = s.to_pandas()
+    assert result_s._query_compiler.snowpark_pandas_api_calls == [
+        {"name": "Series.property.name_set"},
+        {"name": "Series.to_pandas"},
+    ]
+    df = pd.DataFrame([1, 2, 3, 4])
+    result_df = df.to_pandas()
+    assert result_df._query_compiler.snowpark_pandas_api_calls == [
+        {"name": "DataFrame.to_pandas"},
+    ]
