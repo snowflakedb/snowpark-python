@@ -3401,7 +3401,7 @@ class Session:
     def show_profiles(self):
         """Gather and return result of profiler, results are also print to console"""
         if self.profiler is not None and isinstance(self.profiler, Profiler):
-            self.profiler.show_profiles()
+            return self.profiler.show_profiles()
         else:
             raise ValueError(
                 "profiler is not set, use session.register_profiler or profiler context manager"
@@ -3419,7 +3419,7 @@ class Session:
     def register_profiler_modules(self, modules: List[str]):
         """Register modules want to create profile"""
         if self.profiler is not None and isinstance(self.profiler, Profiler):
-            self.profiler.register_modules(modules)
+            self.profiler.register_profiler_modules(modules)
         else:
             sql_statement = (
                 f"alter session set python_profiler_modules='{','.join(modules)}'"
