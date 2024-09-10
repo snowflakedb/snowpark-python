@@ -2246,6 +2246,7 @@ class Index(metaclass=TelemetryMeta):
             builtin :meth:`sorted` function, with the notable difference that
             this `key` function should be *vectorized*. It should expect an
             ``Index`` and return an ``Index`` of the same shape.
+            This parameter is not yet supported.
 
         Returns
         -------
@@ -2625,6 +2626,7 @@ class Index(metaclass=TelemetryMeta):
         """
         return the array of values
         """
+        WarningMessage.index_to_pandas_warning("array")
         return self.to_pandas().array
 
     def _summary(self, name: Any = None) -> str:
