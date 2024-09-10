@@ -1,6 +1,6 @@
 # Release History
 
-## 1.22.0 (TBD)
+## 1.22.0 (2024-09-10)
 
 ### Snowpark Python API Updates
 
@@ -46,7 +46,7 @@
 - Fixed a bug in `session.read.csv` that caused an error when setting `PARSE_HEADER = True` in an externally defined file format.
 - Fixed a bug in query generation from set operations that allowed generation of duplicate queries when children have common subqueries.
 - Fixed a bug in `session.get_session_stage` that referenced a non-existing stage after switching database or schema.
-- Fixed a bug where calling `DataFrame.to_snowpark_pandas_dataframe` without explicitly initializing the Snowpark pandas plugin caused an error.
+- Fixed a bug where calling `DataFrame.to_snowpark_pandas` without explicitly initializing the Snowpark pandas plugin caused an error.
 - Fixed a bug where using the `explode` function in dynamic table creation caused a SQL compilation error due to improper boolean type casting on the `outer` parameter.
 
 ### Snowpark Local Testing Updates
@@ -116,6 +116,7 @@
 - Display a clearer error message when `Index.names` is set to a non-like-like object.
 - Raise a warning whenever MultiIndex values are pulled in locally.
 - Improve warning message for `pd.read_snowflake` include the creation reason when temp table creation is triggered.
+- When calling `DataFrame.set_index`, or setting `DataFrame.index` or `Series.index`, with a new index that does not match the current length of the `Series`/`DataFrame` object, a `ValueError` is no longer raised. When the `Series`/`DataFrame` object is longer than the new index, the `Series`/`DataFrame`'s new index is filled with `NaN` values for the "extra" elements. When the `Series`/`DataFrame` object is shorter than the new index, the extra values in the new index are ignored—`Series` and `DataFrame` stay the same length `n`, and use only the first `n` values of the new index.
 
 #### Bug Fixes
 
@@ -126,10 +127,6 @@
 - Fixed a bug where `Series.reindex` and `DataFrame.reindex` did not update the result index's name correctly.
 - Fixed a bug where `Series.take` did not error when `axis=1` was specified.
 
-#### Behavior Change
-
-- When calling `DataFrame.set_index`, or setting `DataFrame.index` or `Series.index`, with a new index that does not match the current length of the `Series`/`DataFrame` object, a `ValueError` is no longer raised. When the `Series`/`DataFrame` object is longer than the new index, the `Series`/`DataFrame`'s new index is filled with `NaN` values for the "extra" elements. When the `Series`/`DataFrame` object is shorter than the new index, the extra values in the new index are ignored—`Series` and `DataFrame` stay the same length `n`, and use only the first `n` values of the new index.
-
 
 ## 1.21.1 (2024-09-05)
 
@@ -139,6 +136,8 @@
 
 - Fixed a bug where using `to_pandas_batches` with async jobs caused an error due to improper handling of waiting for asynchronous query completion.
 
+=======
+>>>>>>> 8b23c30b (release 1.22.0)
 ## 1.21.0 (2024-08-19)
 
 ### Snowpark Python API Updates
