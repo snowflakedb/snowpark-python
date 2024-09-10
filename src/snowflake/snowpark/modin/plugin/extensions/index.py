@@ -2805,7 +2805,6 @@ class Index(metaclass=TelemetryMeta):
         dtype: object
 
         >>> s.str.split("_")
-        >>> s.str.split("_")
         0    [A, Str, Series]
         dtype: object
 
