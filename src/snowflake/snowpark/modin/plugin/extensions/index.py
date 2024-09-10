@@ -2626,7 +2626,6 @@ class Index(metaclass=TelemetryMeta):
         """
         return the array of values
         """
-        WarningMessage.index_to_pandas_warning("array")
         return self.to_pandas().array
 
     def _summary(self, name: Any = None) -> str:
@@ -2818,7 +2817,6 @@ class Index(metaclass=TelemetryMeta):
         0    AStrSeries
         dtype: object
         """
-        WarningMessage.index_to_pandas_warning("str")
         return self.to_pandas().str
 
     def _to_datetime(
