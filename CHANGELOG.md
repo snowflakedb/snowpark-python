@@ -112,6 +112,7 @@
 - Create a lazy index from another lazy index without pulling data to client.
 - Raised `NotImplementedError` for Index bitwise operators.
 - Display a clearer error message when `Index.names` is set to a non-like-like object.
+- Raise a warning whenever MultiIndex values are pulled in locally.
 
 #### Bug Fixes
 
