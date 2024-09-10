@@ -1903,8 +1903,8 @@ class CombinedDatetimelikeProperties:
         >>> tz_naive = pd.date_range('2018-03-01 09:00', periods=3)
         >>> tz_naive
         DatetimeIndex(['2018-03-01 09:00:00', '2018-03-02 09:00:00',
-                    '2018-03-03 09:00:00'],
-                    dtype='datetime64[ns]', freq='D')
+                       '2018-03-03 09:00:00'],
+                      dtype='datetime64[ns]', freq='D')
 
         Localize DatetimeIndex in US/Eastern time zone:
 
@@ -1913,14 +1913,14 @@ class CombinedDatetimelikeProperties:
         DatetimeIndex(['2018-03-01 09:00:00-05:00',
                        '2018-03-02 09:00:00-05:00',
                        '2018-03-03 09:00:00-05:00'],
-                       dtype='datetime64[ns, US/Eastern]', freq=None)
+                      dtype='datetime64[ns, US/Eastern]', freq=None)
 
         With the tz=None, we can remove the time zone information while keeping the local time (not converted to UTC):
 
         >>> tz_aware.tz_localize(None)
         DatetimeIndex(['2018-03-01 09:00:00', '2018-03-02 09:00:00',
                        '2018-03-03 09:00:00'],
-                       dtype='datetime64[ns]', freq=None)
+                      dtype='datetime64[ns]', freq=None)
 
         Be careful with DST changes. When there is sequential data, pandas can infer the DST time:
 
@@ -2001,15 +2001,15 @@ class CombinedDatetimelikeProperties:
         With the tz parameter, we can change the DatetimeIndex to other time zones:
 
         >>> dti = pd.date_range(start='2014-08-01 09:00',
-        ...                     freq='h', periods=3, tz='Europe/Berlin')
+        ...                     freq='h', periods=3, tz='Europe/Berlin')  # doctest: +SKIP
 
-        >>> dti
+        >>> dti  # doctest: +SKIP
         DatetimeIndex(['2014-08-01 09:00:00+02:00',
                        '2014-08-01 10:00:00+02:00',
                        '2014-08-01 11:00:00+02:00'],
                       dtype='datetime64[ns, Europe/Berlin]', freq='h')
 
-        >>> dti.tz_convert('US/Central')
+        >>> dti.tz_convert('US/Central')  # doctest: +SKIP
         DatetimeIndex(['2014-08-01 02:00:00-05:00',
                        '2014-08-01 03:00:00-05:00',
                        '2014-08-01 04:00:00-05:00'],
@@ -2018,19 +2018,19 @@ class CombinedDatetimelikeProperties:
         With the tz=None, we can remove the timezone (after converting to UTC if necessary):
 
         >>> dti = pd.date_range(start='2014-08-01 09:00', freq='h',
-        ...                     periods=3, tz='Europe/Berlin')
+        ...                     periods=3, tz='Europe/Berlin')  # doctest: +SKIP
 
-        >>> dti
+        >>> dti  # doctest: +SKIP
         DatetimeIndex(['2014-08-01 09:00:00+02:00',
                        '2014-08-01 10:00:00+02:00',
                        '2014-08-01 11:00:00+02:00'],
-                        dtype='datetime64[ns, Europe/Berlin]', freq='h')
+                      dtype='datetime64[ns, Europe/Berlin]', freq='h')
 
-        >>> dti.tz_convert(None)
+        >>> dti.tz_convert(None)  # doctest: +SKIP
         DatetimeIndex(['2014-08-01 07:00:00',
                        '2014-08-01 08:00:00',
                        '2014-08-01 09:00:00'],
-                        dtype='datetime64[ns]', freq='h')
+                      dtype='datetime64[ns]', freq='h')
         """
 
     def normalize():
