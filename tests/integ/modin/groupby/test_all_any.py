@@ -44,7 +44,7 @@ def test_all_any_basic(data):
 def test_timedelta(agg_func, by):
     native_df = native_pd.DataFrame(
         {
-            "A": native_pd.to_timedelta(["1 days 06:05:01.00003", "15.5us", "10"]),
+            "A": native_pd.to_timedelta(["1 days 06:05:01.00003", "15.5us", "15.5us"]),
             "B": [10, 8, 12],
         }
     )

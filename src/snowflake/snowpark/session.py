@@ -19,7 +19,18 @@ from functools import reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
-from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
 
 import cloudpickle
 import pkg_resources
@@ -174,6 +185,9 @@ from snowflake.snowpark.types import (
 from snowflake.snowpark.udaf import UDAFRegistration
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
+
+if TYPE_CHECKING:
+    import modin.pandas  # pragma: no cover
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -2344,8 +2358,8 @@ class Session:
     def _write_modin_pandas_helper(
         self,
         df: Union[
-            "snowflake.snowpark.modin.pandas.DataFrame",  # noqa: F821
-            "snowflake.snowpark.modin.pandas.Series",  # noqa: F821
+            "modin.pandas.DataFrame",  # noqa: F821
+            "modin.pandas.Series",  # noqa: F821
         ],
         table_name: str,
         location: str,
@@ -2359,8 +2373,8 @@ class Session:
         table_type: Literal["", "temp", "temporary", "transient"] = "",
     ) -> None:
         """A helper method used by `write_pandas` to write Snowpark pandas DataFrame or Series to a table by using
-        :func:`snowflake.snowpark.modin.pandas.DataFrame.to_snowflake <snowflake.snowpark.modin.pandas.DataFrame.to_snowflake>` or
-        :func:`snowflake.snowpark.modin.pandas.Series.to_snowflake <snowflake.snowpark.modin.pandas.Series.to_snowflake>` internally
+        :func:`modin.pandas.DataFrame.to_snowflake <modin.pandas.DataFrame.to_snowflake>` or
+        :func:`modin.pandas.Series.to_snowflake <modin.pandas.Series.to_snowflake>` internally
 
         Args:
             df: The Snowpark pandas DataFrame or Series we'd like to write back.
@@ -2421,8 +2435,8 @@ class Session:
         self,
         df: Union[
             "pandas.DataFrame",
-            "snowflake.snowpark.modin.pandas.DataFrame",  # noqa: F821
-            "snowflake.snowpark.modin.pandas.Series",  # noqa: F821
+            "modin.pandas.DataFrame",  # noqa: F821
+            "modin.pandas.Series",  # noqa: F821
         ],
         table_name: str,
         *,
@@ -2516,10 +2530,10 @@ class Session:
             your pandas DataFrame cannot be written to the specified table, an
             exception will be raised.
 
-            If the dataframe is Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
-            or :class:`~snowflake.snowpark.modin.pandas.Series`, it will call
-            :func:`modin.pandas.DataFrame.to_snowflake <snowflake.snowpark.modin.pandas.DataFrame.to_snowflake>`
-            or :func:`modin.pandas.Series.to_snowflake <snowflake.snowpark.modin.pandas.Series.to_snowflake>`
+            If the dataframe is Snowpark pandas :class:`~modin.pandas.DataFrame`
+            or :class:`~modin.pandas.Series`, it will call
+            :func:`modin.pandas.DataFrame.to_snowflake <modin.pandas.DataFrame.to_snowflake>`
+            or :func:`modin.pandas.Series.to_snowflake <modin.pandas.Series.to_snowflake>`
             internally to write a Snowpark pandas DataFrame into a Snowflake table.
         """
         if isinstance(self._conn, MockServerConnection):
@@ -3123,7 +3137,9 @@ class Session:
                     # we do not validate here
                     object_type = match.group(1)
                     object_name = match.group(2)
-                    setattr(self._conn, f"_active_{object_type}", object_name)
+                    mock_conn_lock = self._conn.get_lock()
+                    with mock_conn_lock:
+                        setattr(self._conn, f"_active_{object_type}", object_name)
                 else:
                     self._run_query(query)
             else:

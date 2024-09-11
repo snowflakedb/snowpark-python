@@ -88,12 +88,13 @@ import modin.pandas
 
 # TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
 from modin.pandas import plotting  # type: ignore[import]
+from modin.pandas.series import Series
 
 from snowflake.snowpark.modin.pandas.api.extensions import (
     register_dataframe_accessor,
     register_series_accessor,
 )
-from snowflake.snowpark.modin.pandas.dataframe import _DATAFRAME_EXTENSIONS_, DataFrame
+from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.pandas.general import (
     bdate_range,
     concat,
@@ -120,7 +121,7 @@ from snowflake.snowpark.modin.pandas.general import (
     value_counts,
     wide_to_long,
 )
-from snowflake.snowpark.modin.pandas.io import (
+from snowflake.snowpark.modin.pandas.io import (  # read_json is provided by overrides module
     ExcelFile,
     HDFStore,
     json_normalize,
@@ -132,7 +133,6 @@ from snowflake.snowpark.modin.pandas.io import (
     read_gbq,
     read_hdf,
     read_html,
-    read_json,
     read_orc,
     read_parquet,
     read_pickle,
@@ -146,11 +146,12 @@ from snowflake.snowpark.modin.pandas.io import (
     read_xml,
     to_pickle,
 )
-from snowflake.snowpark.modin.pandas.series import _SERIES_EXTENSIONS_, Series
 from snowflake.snowpark.modin.plugin._internal.session import SnowpandasSessionHolder
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
+    TELEMETRY_PRIVATE_METHODS,
     try_add_telemetry_to_attribute,
 )
+from snowflake.snowpark.modin.plugin.utils.frontend_constants import _ATTRS_NO_LOOKUP
 
 # The extensions assigned to this module
 _PD_EXTENSIONS_: dict = {}
@@ -162,16 +163,8 @@ from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: 
     Index,
     DatetimeIndex,
     TimedeltaIndex,
+    read_json,
 )
-
-# this must occur before overrides are applied
-_attrs_defined_on_modin_base = set(dir(modin.pandas.base.BasePandasDataset))
-_attrs_defined_on_series = set(
-    dir(Series)
-)  # TODO: SNOW-1063347 revisit when series.py is removed
-_attrs_defined_on_dataframe = set(
-    dir(DataFrame)
-)  # TODO: SNOW-1063346 revisit when dataframe.py is removed
 
 # base overrides occur before subclass overrides in case subclasses override a base method
 import snowflake.snowpark.modin.plugin.extensions.base_extensions  # isort: skip  # noqa: E402,F401
@@ -181,52 +174,38 @@ import snowflake.snowpark.modin.plugin.extensions.dataframe_overrides  # isort: 
 import snowflake.snowpark.modin.plugin.extensions.series_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_overrides  # isort: skip  # noqa: E402,F401
 
-# For any method defined on Series/DF, add telemetry to it if it meets all of the following conditions:
-# 1. The method was defined directly on upstream BasePandasDataset (_attrs_defined_on_modin_base)
-# 2. The method is not overridden by a child class (this will change)
-# 3. The method is not overridden by an extensions module
-# 4. The method name does not start with an _
-#
-# TODO: SNOW-1063347
-# Since we still use the vendored version of Series and the overrides for the top-level
-# namespace haven't been performed yet, we need to set properties on the vendored version
-_base_telemetry_added_attrs = set()
 
-_series_ext = _SERIES_EXTENSIONS_.copy()
+# dt and str accessors raise AttributeErrors that get caught by Modin __getitem__. Whitelist
+# them in _ATTRS_NO_LOOKUP here to avoid this.
+# In upstream Modin, we should change __getitem__ to perform a direct getitem call rather than
+# calling self.index[].
+modin.pandas.base._ATTRS_NO_LOOKUP.add("dt")
+modin.pandas.base._ATTRS_NO_LOOKUP.add("str")
+modin.pandas.base._ATTRS_NO_LOOKUP.add("columns")
+modin.pandas.base._ATTRS_NO_LOOKUP.update(_ATTRS_NO_LOOKUP)
+
+
+# For any method defined on Series/DF, add telemetry to it if it:
+# 1. Is defined directly on an upstream class
+# 2. The method name does not start with an _, or is in TELEMETRY_PRIVATE_METHODS
+
 for attr_name in dir(Series):
-    if (
-        attr_name in _attrs_defined_on_modin_base
-        and attr_name in _attrs_defined_on_series
-        and attr_name not in _series_ext
-        and not attr_name.startswith("_")
-    ):
+    # Since Series is defined in upstream Modin, all of its members were either defined upstream
+    # or overridden by extension.
+    if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
         register_series_accessor(attr_name)(
             try_add_telemetry_to_attribute(attr_name, getattr(Series, attr_name))
         )
-        _base_telemetry_added_attrs.add(attr_name)
+
 
 # TODO: SNOW-1063346
 # Since we still use the vendored version of DataFrame and the overrides for the top-level
 # namespace haven't been performed yet, we need to set properties on the vendored version
-_dataframe_ext = _DATAFRAME_EXTENSIONS_.copy()
 for attr_name in dir(DataFrame):
-    if (
-        attr_name in _attrs_defined_on_modin_base
-        and attr_name in _attrs_defined_on_dataframe
-        and attr_name not in _dataframe_ext
-        and not attr_name.startswith("_")
-    ):
-        # If telemetry was already added via Series, register the override but don't re-wrap
-        # the method in the telemetry annotation. If we don't do this check, we will end up
-        # double-reporting telemetry on some methods.
-        original_attr = getattr(DataFrame, attr_name)
-        new_attr = (
-            original_attr
-            if attr_name in _base_telemetry_added_attrs
-            else try_add_telemetry_to_attribute(attr_name, original_attr)
+    if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
+        register_dataframe_accessor(attr_name)(
+            try_add_telemetry_to_attribute(attr_name, getattr(DataFrame, attr_name))
         )
-        register_dataframe_accessor(attr_name)(new_attr)
-        _base_telemetry_added_attrs.add(attr_name)
 
 
 def __getattr__(name: str) -> Any:
@@ -377,6 +356,8 @@ _SKIP_TOP_LEVEL_ATTRS = [
     # would override register_pd_accessor and similar methods defined in our own modin.pandas.extensions
     # module.
     "api",
+    # We're already using the upstream copy of the Series class, so there's no need to re-export it.
+    "Series",
 ]
 
 # Manually re-export the members of the pd_extensions namespace, which are not declared in __all__.

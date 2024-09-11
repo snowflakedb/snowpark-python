@@ -41,6 +41,7 @@ from pandas._typing import (
     TimeAmbiguous,
     TimeNonexistent,
 )
+from pandas.core.dtypes.common import is_datetime64_any_dtype
 
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
@@ -153,9 +154,13 @@ class DatetimeIndex(Index):
             "name": name,
         }
         index = object.__new__(cls)
-        index._query_compiler = DatetimeIndex._init_query_compiler(
+        query_compiler = DatetimeIndex._init_query_compiler(
             data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs
         )
+        # Convert to datetime64 if not already.
+        if not is_datetime64_any_dtype(query_compiler.index_dtypes[0]):
+            query_compiler = query_compiler.series_to_datetime(include_index=True)
+        index._query_compiler = query_compiler
         # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
         index._parent = None
         return index
@@ -224,7 +229,7 @@ class DatetimeIndex(Index):
         --------
         >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00", "2/1/2020 11:00:00+00:00"], tz="America/Los_Angeles")
         >>> idx
-        DatetimeIndex(['2020-01-01 02:00:00-08:00', '2020-02-01 03:00:00-08:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
+        DatetimeIndex(['2020-01-01 02:00:00-08:00', '2020-02-01 03:00:00-08:00'], dtype='datetime64[ns, UTC-08:00]', freq=None)
         """
         # DatetimeIndex is already initialized in __new__ method. We keep this method
         # only for docstring generation.
@@ -1128,6 +1133,7 @@ default 'raise'
             frequency like 'S' (second) not 'ME' (month end). See
             frequency aliases for a list of possible `freq` values.
         ambiguous : 'infer', bool-ndarray, 'NaT', default 'raise'
+            This parameter is only supported for 'raise'.
             Only relevant for DatetimeIndex:
 
             - 'infer' will attempt to infer fall dst-transition hours based on
@@ -1140,6 +1146,7 @@ default 'raise'
               times.
 
         nonexistent : 'shift_forward', 'shift_backward', 'NaT', timedelta, default 'raise'
+            This parameter is only supported for 'raise'.
             A nonexistent time does not exist in a particular timezone
             where clocks moved forward due to DST.
 
@@ -1194,6 +1201,7 @@ default 'raise'
             frequency like 'S' (second) not 'ME' (month end). See
             frequency aliases for a list of possible `freq` values.
         ambiguous : 'infer', bool-ndarray, 'NaT', default 'raise'
+            This parameter is only supported for 'raise'.
             Only relevant for DatetimeIndex:
 
             - 'infer' will attempt to infer fall dst-transition hours based on
@@ -1206,6 +1214,7 @@ default 'raise'
               times.
 
         nonexistent : 'shift_forward', 'shift_backward', 'NaT', timedelta, default 'raise'
+            This parameter is only supported for 'raise'.
             A nonexistent time does not exist in a particular timezone
             where clocks moved forward due to DST.
 
@@ -1260,6 +1269,7 @@ default 'raise'
             frequency like 'S' (second) not 'ME' (month end). See
             frequency aliases for a list of possible `freq` values.
         ambiguous : 'infer', bool-ndarray, 'NaT', default 'raise'
+            This parameter is only supported for 'raise'.
             Only relevant for DatetimeIndex:
 
             - 'infer' will attempt to infer fall dst-transition hours based on
@@ -1272,6 +1282,7 @@ default 'raise'
               times.
 
         nonexistent : 'shift_forward', 'shift_backward', 'NaT', timedelta, default 'raise'
+            This parameter is only supported for 'raise'.
             A nonexistent time does not exist in a particular timezone
             where clocks moved forward due to DST.
 

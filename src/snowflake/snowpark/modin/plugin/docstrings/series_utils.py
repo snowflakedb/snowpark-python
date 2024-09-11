@@ -38,7 +38,7 @@ class StringMethods:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series`, Index, :class:`~snowflake.snowpark.modin.pandas.DataFrame` or MultiIndex
+        :class:`~modin.pandas.Series`, Index, :class:`~modin.pandas.DataFrame` or MultiIndex
             Type matches caller unless expand=True (see Notes).
 
         See also
@@ -1527,7 +1527,7 @@ class CombinedDatetimelikeProperties:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.DataFrame`
             With columns year, week, and day.
 
         Examples
@@ -2166,26 +2166,185 @@ class CombinedDatetimelikeProperties:
         """
 
     def total_seconds():
-        pass
+        """
+        Return total duration of each element expressed in seconds.
+
+        This method is available directly on TimedeltaArray, TimedeltaIndex
+        and on Series containing timedelta values under the ``.dt`` namespace.
+
+        Returns
+        -------
+        ndarray, Index or Series
+            When the calling object is a TimedeltaArray, the return type
+            is ndarray.  When the calling object is a TimedeltaIndex,
+            the return type is an Index with a float64 dtype. When the calling object
+            is a Series, the return type is Series of type `float64` whose
+            index is the same as the original.
+
+        See Also
+        --------
+        datetime.timedelta.total_seconds : Standard library version
+            of this method.
+        TimedeltaIndex.components : Return a DataFrame with components of
+            each Timedelta.
+
+        Examples
+        --------
+        **Series**
+
+        >>> s = pd.Series(pd.to_timedelta(np.arange(5), unit='d'))
+        >>> s
+        0   0 days
+        1   1 days
+        2   2 days
+        3   3 days
+        4   4 days
+        dtype: timedelta64[ns]
+
+        >>> s.dt.total_seconds()
+        0         0.0
+        1     86400.0
+        2    172800.0
+        3    259200.0
+        4    345600.0
+        dtype: float64
+
+        **TimedeltaIndex**
+
+        >>> idx = pd.to_timedelta(np.arange(5), unit='d')
+        >>> idx
+        TimedeltaIndex(['0 days', '1 days', '2 days', '3 days', '4 days'], dtype='timedelta64[ns]', freq=None)
+
+        >>> idx.total_seconds()
+        Index([0.0, 86400.0, 172800.0, 259200.0, 345600.0], dtype='float64')
+        """
 
     def to_pytimedelta():
         pass
 
     @property
     def seconds():
-        pass
+        """
+        Number of seconds (>= 0 and less than 1 day) for each element.
+
+        Examples
+        --------
+        For Series:
+
+        >>> ser = pd.Series(pd.to_timedelta([1, 2, 3], unit='s'))
+        >>> ser
+        0   0 days 00:00:01
+        1   0 days 00:00:02
+        2   0 days 00:00:03
+        dtype: timedelta64[ns]
+        >>> ser.dt.seconds
+        0    1
+        1    2
+        2    3
+        dtype: int64
+
+        For TimedeltaIndex:
+
+        >>> tdelta_idx = pd.to_timedelta([1, 2, 3], unit='s')
+        >>> tdelta_idx
+        TimedeltaIndex(['0 days 00:00:01', '0 days 00:00:02', '0 days 00:00:03'], dtype='timedelta64[ns]', freq=None)
+        >>> tdelta_idx.seconds
+        Index([1, 2, 3], dtype='int64')
+        """
 
     @property
     def days():
-        pass
+        """
+        Number of days for each element.
+
+        Examples
+        --------
+        For Series:
+
+        >>> ser = pd.Series(pd.to_timedelta([1, 2, 3], unit='d'))
+        >>> ser
+        0   1 days
+        1   2 days
+        2   3 days
+        dtype: timedelta64[ns]
+        >>> ser.dt.days
+        0    1
+        1    2
+        2    3
+        dtype: int64
+
+        For TimedeltaIndex:
+
+        >>> tdelta_idx = pd.to_timedelta(["0 days", "10 days", "20 days"])
+        >>> tdelta_idx
+        TimedeltaIndex(['0 days', '10 days', '20 days'], dtype='timedelta64[ns]', freq=None)
+        >>> tdelta_idx.days
+        Index([0, 10, 20], dtype='int64')
+        """
 
     @property
     def microseconds():
-        pass
+        """
+        Number of microseconds (>= 0 and less than 1 second) for each element.
+
+        Examples
+        --------
+        For Series:
+
+        >>> ser = pd.Series(pd.to_timedelta([1, 2, 3], unit='us'))
+        >>> ser
+        0   0 days 00:00:00.000001
+        1   0 days 00:00:00.000002
+        2   0 days 00:00:00.000003
+        dtype: timedelta64[ns]
+        >>> ser.dt.microseconds
+        0    1
+        1    2
+        2    3
+        dtype: int64
+
+        For TimedeltaIndex:
+
+        >>> tdelta_idx = pd.to_timedelta([1, 2, 3], unit='us')
+        >>> tdelta_idx
+        TimedeltaIndex(['0 days 00:00:00.000001', '0 days 00:00:00.000002',
+                        '0 days 00:00:00.000003'],
+                       dtype='timedelta64[ns]', freq=None)
+        >>> tdelta_idx.microseconds
+        Index([1, 2, 3], dtype='int64')
+        """
 
     @property
     def nanoseconds():
-        pass
+        """
+        Number of nanoseconds (>= 0 and less than 1 microsecond) for each element.
+
+        Examples
+        --------
+        For Series:
+
+        >>> ser = pd.Series(pd.to_timedelta([1, 2, 3], unit='ns'))
+        >>> ser
+        0   0 days 00:00:00.000000001
+        1   0 days 00:00:00.000000002
+        2   0 days 00:00:00.000000003
+        dtype: timedelta64[ns]
+        >>> ser.dt.nanoseconds
+        0    1
+        1    2
+        2    3
+        dtype: int64
+
+        For TimedeltaIndex:
+
+        >>> tdelta_idx = pd.to_timedelta([1, 2, 3], unit='ns')
+        >>> tdelta_idx
+        TimedeltaIndex(['0 days 00:00:00.000000001', '0 days 00:00:00.000000002',
+                        '0 days 00:00:00.000000003'],
+                       dtype='timedelta64[ns]', freq=None)
+        >>> tdelta_idx.nanoseconds
+        Index([1, 2, 3], dtype='int64')
+        """
 
     @property
     def components():

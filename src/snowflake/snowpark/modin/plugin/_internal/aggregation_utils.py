@@ -240,7 +240,9 @@ def _columns_coalescing_idxmax_idxmin_helper(
 
 
 # Map between the pandas input aggregation function (str or numpy function) and
-# the corresponding snowflake builtin aggregation function for axis=0.
+# the corresponding snowflake builtin aggregation function for axis=0. If any change
+# is made to this map, ensure GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE and
+# GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES are updated accordingly.
 SNOWFLAKE_BUILTIN_AGG_FUNC_MAP: dict[Union[str, Callable], Callable] = {
     "count": count,
     "mean": mean,
@@ -270,6 +272,29 @@ SNOWFLAKE_BUILTIN_AGG_FUNC_MAP: dict[Union[str, Callable], Callable] = {
     "quantile": column_quantile,
     "nunique": count_distinct,
 }
+GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE = (
+    "min",
+    "max",
+    "sum",
+    "mean",
+    "median",
+    "std",
+    np.max,
+    np.min,
+    np.sum,
+    np.mean,
+    np.median,
+    np.std,
+)
+GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES = (
+    "any",
+    "all",
+    "count",
+    "idxmax",
+    "idxmin",
+    "size",
+    "nunique",
+)
 
 
 class AggFuncWithLabel(NamedTuple):

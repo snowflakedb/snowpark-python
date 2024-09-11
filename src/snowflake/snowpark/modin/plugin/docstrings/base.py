@@ -517,7 +517,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
+        Snowpark pandas :class:`~modin.pandas.DataFrame` or Snowpark pandas :class:`~modin.pandas.Series`
 
         Notes
         -----
@@ -585,7 +585,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        same type as caller (Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`)
+        same type as caller (Snowpark pandas :class:`~modin.pandas.DataFrame` or Snowpark pandas :class:`~modin.pandas.Series`)
 
         Examples
         --------
@@ -695,7 +695,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        copy : Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        copy : Snowpark pandas :class:`~modin.pandas.Series` or Snowpark pandas :class:`~modin.pandas.DataFrame`
             Object type matches caller.
 
         Examples
@@ -753,7 +753,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
+        Snowpark pandas :class:`~modin.pandas.Series`
             For each column/row the number of non-NA/null entries.
 
         See Also
@@ -1491,7 +1491,7 @@ class BasePandasDataset:
         With a scalar integer.
 
         >>> type(df.iloc[0])
-        <class 'snowflake.snowpark.modin.pandas.series.Series'>
+        <class 'modin.pandas.series.Series'>
         >>> df.iloc[0]
         a    1
         b    2
@@ -1511,8 +1511,6 @@ class BasePandasDataset:
         >>> df.iloc[[0]]
            a  b  c  d
         0  1  2  3  4
-        >>> type(df.iloc[[0]])
-        <class 'snowflake.snowpark.modin.pandas.dataframe.DataFrame'>
 
         >>> df.iloc[[0, 1]]
              a    b    c    d
@@ -2043,7 +2041,6 @@ class BasePandasDataset:
 
         Examples
         --------
-        >>> import snowflake.snowpark.modin.pandas as pd
         >>> df = pd.DataFrame({'A': [4, 5, 6], 'B': [4, 1, 1]})
         >>> df.nunique()
         A    3

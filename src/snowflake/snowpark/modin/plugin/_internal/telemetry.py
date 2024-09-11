@@ -499,9 +499,9 @@ def try_add_telemetry_to_attribute(attr_name: str, attr_value: Any) -> Any:
     """
     Attempts to add telemetry to an attribute.
 
-    If the attribute is callable with name in TELEMETRY_PRIVATE_METHODS, or is a callable that
-    starts with an underscore, the original attribute will be returned as-is. Otherwise, a version
-    of the method/property annotated with Snowpark pandas telemetry is returned.
+    If the attribute name starts with an underscore and is not in TELEMETRY_PRIVATE_METHODS, the
+    original method will be returned. Otherwise, a version of the method/property annotated with
+    Snowpark pandas telemetry is returned.
     """
     if callable(attr_value) and (
         not attr_name.startswith("_") or (attr_name in TELEMETRY_PRIVATE_METHODS)
@@ -542,8 +542,6 @@ class TelemetryMeta(type):
     def __new__(
         cls, name: str, bases: tuple, attrs: dict[str, Any]
     ) -> Union[
-        "snowflake.snowpark.modin.pandas.series.Series",
-        "snowflake.snowpark.modin.pandas.dataframe.DataFrame",
         "snowflake.snowpark.modin.pandas.groupby.DataFrameGroupBy",
         "snowflake.snowpark.modin.pandas.resample.Resampler",
         "snowflake.snowpark.modin.pandas.window.Window",
@@ -556,8 +554,7 @@ class TelemetryMeta(type):
         This metaclass decorates callable class/instance methods which are public or are ``TELEMETRY_PRIVATE_METHODS``
         with ``snowpark_pandas_telemetry_api_usage`` telemetry decorator.
         Method arguments returned by _get_kwargs_telemetry are collected otherwise set telemetry_args=list().
-        TelemetryMeta is only set as the metaclass of: snowflake.snowpark.modin.pandas.series.Series,
-         snowflake.snowpark.modin.pandas.dataframe.DataFrame,
+        TelemetryMeta is only set as the metaclass of:
          snowflake.snowpark.modin.pandas.groupby.DataFrameGroupBy,
          snowflake.snowpark.modin.pandas.resample.Resampler,
          snowflake.snowpark.modin.pandas.window.Window,
