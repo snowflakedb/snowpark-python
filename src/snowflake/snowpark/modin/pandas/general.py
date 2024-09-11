@@ -1047,7 +1047,7 @@ def unique(values) -> np.ndarray:
 
     >>> pd.unique([pd.Timestamp('2016-01-01', tz='US/Eastern')
     ...            for _ in range(3)])
-    array([Timestamp('2015-12-31 21:00:00-0800', tz='America/Los_Angeles')],
+    array([Timestamp('2016-01-01 00:00:00-0500', tz='UTC-05:00')],
           dtype=object)
 
     >>> pd.unique([("a", "b"), ("b", "a"), ("a", "c"), ("b", "a")])
@@ -1750,35 +1750,35 @@ def to_datetime(
     DatetimeIndex(['2018-10-26 12:00:00', '2018-10-26 13:00:15'], dtype='datetime64[ns]', freq=None)
 
     >>> pd.to_datetime(['2018-10-26 12:00:00 -0500', '2018-10-26 13:00:00 -0500'])
-    DatetimeIndex(['2018-10-26 10:00:00-07:00', '2018-10-26 11:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
+    DatetimeIndex(['2018-10-26 12:00:00-05:00', '2018-10-26 13:00:00-05:00'], dtype='datetime64[ns, UTC-05:00]', freq=None)
 
     - Use right format to convert to timezone-aware type (Note that when call Snowpark
       pandas API to_pandas() the timezone-aware output will always be converted to session timezone):
 
     >>> pd.to_datetime(['2018-10-26 12:00:00 -0500', '2018-10-26 13:00:00 -0500'], format="%Y-%m-%d %H:%M:%S %z")
-    DatetimeIndex(['2018-10-26 10:00:00-07:00', '2018-10-26 11:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
+    DatetimeIndex(['2018-10-26 12:00:00-05:00', '2018-10-26 13:00:00-05:00'], dtype='datetime64[ns, UTC-05:00]', freq=None)
 
     - Timezone-aware inputs *with mixed time offsets* (for example
       issued from a timezone with daylight savings, such as Europe/Paris):
 
     >>> pd.to_datetime(['2020-10-25 02:00:00 +0200', '2020-10-25 04:00:00 +0100'])
-    DatetimeIndex(['2020-10-24 17:00:00-07:00', '2020-10-24 20:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
+    DatetimeIndex([2020-10-25 02:00:00+02:00, 2020-10-25 04:00:00+01:00], dtype='object', freq=None)
 
     >>> pd.to_datetime(['2020-10-25 02:00:00 +0200', '2020-10-25 04:00:00 +0100'], format="%Y-%m-%d %H:%M:%S %z")
-    DatetimeIndex(['2020-10-24 17:00:00-07:00', '2020-10-24 20:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
+    DatetimeIndex([2020-10-25 02:00:00+02:00, 2020-10-25 04:00:00+01:00], dtype='object', freq=None)
 
     Setting ``utc=True`` makes sure always convert to timezone-aware outputs:
 
     - Timezone-naive inputs are *localized* based on the session timezone
 
     >>> pd.to_datetime(['2018-10-26 12:00', '2018-10-26 13:00'], utc=True)
-    DatetimeIndex(['2018-10-26 05:00:00-07:00', '2018-10-26 06:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
+    DatetimeIndex(['2018-10-26 12:00:00+00:00', '2018-10-26 13:00:00+00:00'], dtype='datetime64[ns, UTC]', freq=None)
 
     - Timezone-aware inputs are *converted* to session timezone
 
     >>> pd.to_datetime(['2018-10-26 12:00:00 -0530', '2018-10-26 12:00:00 -0500'],
     ...                utc=True)
-    DatetimeIndex(['2018-10-26 10:30:00-07:00', '2018-10-26 10:00:00-07:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
+    DatetimeIndex(['2018-10-26 17:30:00+00:00', '2018-10-26 17:00:00+00:00'], dtype='datetime64[ns, UTC]', freq=None)
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
     raise_if_native_pandas_objects(arg)
