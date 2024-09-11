@@ -24,7 +24,7 @@ class GroupingSet(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.group_by_exprs)
 
-    def dependent_column_names_with_duplication(self) -> list[str]:
+    def dependent_column_names_with_duplication(self) -> List[str]:
         return derive_dependent_columns_with_duplication(*self.group_by_exprs)
 
     @property
