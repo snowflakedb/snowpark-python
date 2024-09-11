@@ -38,9 +38,11 @@ class MockUDFRegistration(UDFRegistration):
             dict()
         )  # maps udf name to either the callable or a pair of str (module_name, callable_name)
         self._session_level_imports = set()
+        self._lock = self._session._conn.get_lock()
 
     def _clear_session_imports(self):
-        self._session_level_imports.clear()
+        with self._lock:
+            self._session_level_imports.clear()
 
     def _import_file(
         self,
@@ -54,29 +56,32 @@ class MockUDFRegistration(UDFRegistration):
         When udf_name is not None, the import is added to the UDF associated with the name;
         Otherwise, it is a session level import and will be used if no UDF-level imports are specified.
         """
-        absolute_module_path, module_name = extract_import_dir_and_module_name(
-            file_path, self._session._conn.stage_registry, import_path
-        )
-        if udf_name:
-            self._registry[udf_name].add_import(absolute_module_path)
-        else:
-            self._session_level_imports.add(absolute_module_path)
+        with self._lock:
+            absolute_module_path, module_name = extract_import_dir_and_module_name(
+                file_path, self._session._conn.stage_registry, import_path
+            )
+            if udf_name:
+                self._registry[udf_name].add_import(absolute_module_path)
+            else:
+                self._session_level_imports.add(absolute_module_path)
 
-        return module_name
+            return module_name
 
     def get_udf(self, udf_name: str) -> MockUserDefinedFunction:
-        if udf_name not in self._registry:
-            raise SnowparkLocalTestingException(f"udf {udf_name} does not exist.")
-        return self._registry[udf_name]
+        with self._lock:
+            if udf_name not in self._registry:
+                raise SnowparkLocalTestingException(f"udf {udf_name} does not exist.")
+            return self._registry[udf_name]
 
     def get_udf_imports(self, udf_name: str) -> Set[str]:
-        udf = self._registry.get(udf_name)
-        if not udf:
-            return set()
-        elif udf.use_session_imports:
-            return self._session_level_imports
-        else:
-            return udf._imports
+        with self._lock:
+            udf = self._registry.get(udf_name)
+            if not udf:
+                return set()
+            elif udf.use_session_imports:
+                return self._session_level_imports
+            else:
+                return udf._imports
 
     def _do_register_udf(
         self,
@@ -113,73 +118,81 @@ class MockUDFRegistration(UDFRegistration):
                 raise_error=NotImplementedError,
             )
 
-        # get the udf name, return and input types
-        (
-            udf_name,
-            is_pandas_udf,
-            is_dataframe_input,
-            return_type,
-            input_types,
-            opt_arg_defaults,
-        ) = process_registration_inputs(
-            self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
-        )
-
-        current_schema = self._session.get_current_schema()
-        current_database = self._session.get_current_database()
-        udf_name = get_fully_qualified_name(udf_name, current_schema, current_database)
-
-        # allow registering pandas UDF from udf(),
-        # but not allow registering non-pandas UDF from pandas_udf()
-        if from_pandas_udf_function and not is_pandas_udf:
-            raise ValueError(
-                "You cannot create a non-vectorized UDF using pandas_udf(). "
-                "Use udf() instead."
+        with self._lock:
+            # get the udf name, return and input types
+            (
+                udf_name,
+                is_pandas_udf,
+                is_dataframe_input,
+                return_type,
+                input_types,
+                opt_arg_defaults,
+            ) = process_registration_inputs(
+                self._session,
+                TempObjectType.FUNCTION,
+                func,
+                return_type,
+                input_types,
+                name,
             )
 
-        custom_python_runtime_version_allowed = False
-
-        if not custom_python_runtime_version_allowed:
-            check_python_runtime_version(
-                self._session._runtime_version_from_requirement
+            current_schema = self._session.get_current_schema()
+            current_database = self._session.get_current_database()
+            udf_name = get_fully_qualified_name(
+                udf_name, current_schema, current_database
             )
 
-        if replace and if_not_exists:
-            raise ValueError("options replace and if_not_exists are incompatible")
+            # allow registering pandas UDF from udf(),
+            # but not allow registering non-pandas UDF from pandas_udf()
+            if from_pandas_udf_function and not is_pandas_udf:
+                raise ValueError(
+                    "You cannot create a non-vectorized UDF using pandas_udf(). "
+                    "Use udf() instead."
+                )
 
-        if udf_name in self._registry and if_not_exists:
+            custom_python_runtime_version_allowed = False
+
+            if not custom_python_runtime_version_allowed:
+                check_python_runtime_version(
+                    self._session._runtime_version_from_requirement
+                )
+
+            if replace and if_not_exists:
+                raise ValueError("options replace and if_not_exists are incompatible")
+
+            if udf_name in self._registry and if_not_exists:
+                return self._registry[udf_name]
+
+            if udf_name in self._registry and not replace:
+                raise SnowparkSQLException(
+                    f"002002 (42710): SQL compilation error: \nObject '{udf_name}' already exists.",
+                    error_code="1304",
+                )
+
+            if packages:
+                pass  # NO-OP
+
+            # register
+            self._registry[udf_name] = MockUserDefinedFunction(
+                func,
+                return_type,
+                input_types,
+                udf_name,
+                strict=strict,
+                packages=packages,
+                use_session_imports=imports is None,
+            )
+
+            if type(func) is tuple:  # update file registration
+                module_name = self._import_file(func[0], udf_name=udf_name)
+                self._registry[udf_name].func = (module_name, func[1])
+
+            if imports is not None:
+                for _import in imports:
+                    if type(_import) is str:
+                        self._import_file(_import, udf_name=udf_name)
+                    else:
+                        local_path, import_path = _import
+                        self._import_file(local_path, import_path, udf_name=udf_name)
+
             return self._registry[udf_name]
-
-        if udf_name in self._registry and not replace:
-            raise SnowparkSQLException(
-                f"002002 (42710): SQL compilation error: \nObject '{udf_name}' already exists.",
-                error_code="1304",
-            )
-
-        if packages:
-            pass  # NO-OP
-
-        # register
-        self._registry[udf_name] = MockUserDefinedFunction(
-            func,
-            return_type,
-            input_types,
-            udf_name,
-            strict=strict,
-            packages=packages,
-            use_session_imports=imports is None,
-        )
-
-        if type(func) is tuple:  # update file registration
-            module_name = self._import_file(func[0], udf_name=udf_name)
-            self._registry[udf_name].func = (module_name, func[1])
-
-        if imports is not None:
-            for _import in imports:
-                if type(_import) is str:
-                    self._import_file(_import, udf_name=udf_name)
-                else:
-                    local_path, import_path = _import
-                    self._import_file(local_path, import_path, udf_name=udf_name)
-
-        return self._registry[udf_name]
