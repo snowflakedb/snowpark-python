@@ -163,6 +163,7 @@ class DatetimeIndex(Index):
         index._query_compiler = query_compiler
         # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
         index._parent = None
+        index._parent_qc = None
         return index
 
     def __init__(

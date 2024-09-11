@@ -113,6 +113,7 @@ class TimedeltaIndex(Index):
         )
         # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
         tdi._parent = None
+        tdi._parent_qc = None
         return tdi
 
     def __init__(

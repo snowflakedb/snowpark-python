@@ -136,7 +136,10 @@ class Index(metaclass=TelemetryMeta):
         # Initialize the Index
         index._query_compiler = query_compiler
         # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
+        # `_parent_qc` keeps track of the original query compiler of the parent object.
+        # These fields are used with the name APIs.
         index._parent = None
+        index._parent_qc = None
         return index
 
     def __init__(
@@ -413,6 +416,7 @@ class Index(metaclass=TelemetryMeta):
         Set the parent object of the current Index to a given Series or DataFrame.
         """
         self._parent = parent
+        self._parent_qc = parent._query_compiler
 
     @property
     def values(self) -> ArrayLike:
@@ -726,7 +730,9 @@ class Index(metaclass=TelemetryMeta):
         if not is_hashable(value):
             raise TypeError(f"{type(self).__name__}.name must be a hashable type")
         self._query_compiler = self._query_compiler.set_index_names([value])
-        if self._parent is not None:
+        # Update the name of the parent's index only if the parent's current query compiler
+        # matches the recorded query compiler (_parent_qc).
+        if self._parent is not None and self._parent_qc is self._parent._query_compiler:
             self._parent._update_inplace(
                 new_query_compiler=self._parent._query_compiler.set_index_names([value])
             )
@@ -755,7 +761,9 @@ class Index(metaclass=TelemetryMeta):
         if isinstance(values, Index):
             values = values.to_list()
         self._query_compiler = self._query_compiler.set_index_names(values)
-        if self._parent is not None:
+        # Update the name of the parent's index only if the parent's current query compiler
+        # matches the recorded query compiler (_parent_qc).
+        if self._parent is not None and self._parent_qc is self._parent._query_compiler:
             self._parent._update_inplace(
                 new_query_compiler=self._parent._query_compiler.set_index_names(values)
             )
