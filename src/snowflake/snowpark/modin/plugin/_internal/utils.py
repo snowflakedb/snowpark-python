@@ -1292,8 +1292,15 @@ def snowpark_to_pandas_helper(
 ) -> Union[native_pd.Index, native_pd.DataFrame]:
     """
     The helper function retrieves a pandas dataframe from an OrderedDataFrame. Performs necessary type
-    conversions for variant types on the client. This function issues 2 queries, one metadata query
-    to retrieve the schema and one query to retrieve the data values.
+    conversions includes
+    1. For VARIANT types, OrderedDataFrame.to_pandas may convert datetime like types to string. So we add one type_of
+    column for each variant column and use that metadata to convert datetime like types back to their original types.
+    2. For TIMESTAMP_TZ type, OrderedDataFrame.to_pandas will convert them into the local session timezone and lose the
+    original timezone. So we cast TIMESTAMP_TZ columns to string first and then convert them back after to_pandas to
+    preserve the original timezone. Note that the actual timezone will be lost in Snowflake backend but only the offset
+    preserved.
+    3. For Timedelta columns, since currently we represent the values using integers, here we need to explicitly cast
+    them back to Timedelta.
 
     Args:
         frame: The internal frame to convert to pandas Dataframe (or Index if index_only is true)
