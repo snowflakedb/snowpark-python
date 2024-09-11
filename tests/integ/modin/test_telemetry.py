@@ -342,7 +342,7 @@ def test_telemetry_with_update_inplace():
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 def test_telemetry_with_resample():
     # verify api_calls have been collected correctly for Resample APIs
     index = pandas.date_range("1/1/2000", periods=9, freq="min")

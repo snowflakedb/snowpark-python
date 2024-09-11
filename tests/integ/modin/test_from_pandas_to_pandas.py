@@ -525,7 +525,7 @@ def test_from_pandas_series_with_tuple_name():
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 def test_series_to_pandas():
     array = ["a", "b", "c"]
     pandas_series = native_pd.Series(data=array, index=array)
@@ -585,7 +585,7 @@ def test_snowpark_pandas_statement_params():
         assert "efg" == mock_to_pandas.call_args.kwargs["statement_params"]["abc"]
 
 
-@sql_count_checker(query_count=1, join_count=5)
+@sql_count_checker(query_count=1, join_count=2)
 def test_create_df_from_series():
     native_data = {
         "one": native_pd.Series([1, 2, 3], index=["a", "b", "c"]),
