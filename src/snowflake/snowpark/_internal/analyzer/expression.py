@@ -169,7 +169,7 @@ class ScalarSubquery(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return COLUMN_DEPENDENCY_DOLLAR
 
-    def dependent_column_names_with_duplication(self) -> list[str]:
+    def dependent_column_names_with_duplication(self) -> List[str]:
         return list(COLUMN_DEPENDENCY_DOLLAR)
 
     @property
