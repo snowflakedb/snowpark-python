@@ -149,8 +149,6 @@ from snowflake.snowpark.modin.plugin._internal import (
 )
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     AGG_NAME_COL_LABEL,
-    GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE,
-    GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES,
     AggFuncInfo,
     AggFuncWithLabel,
     AggregateColumnOpParameters,
@@ -161,7 +159,6 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     convert_agg_func_arg_to_col_agg_func_map,
     drop_non_numeric_data_columns,
     generate_column_agg_info,
-    generate_rowwise_aggregation_function,
     get_agg_func_to_col_map,
     get_pandas_aggr_func_name,
     get_snowflake_agg_func,
@@ -3557,41 +3554,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_col_ops, new_data_column_index_names = generate_column_agg_info(
             internal_frame, column_to_agg_func, agg_kwargs, is_series_groupby
         )
-        # Get the column aggregation functions used to check if the function
-        # preserves Snowpark pandas types.
-        agg_col_funcs = []
-        for _, func in column_to_agg_func.items():
-            if is_list_like(func) and not is_named_tuple(func):
-                for fn in func:
-                    agg_col_funcs.append(fn.func)
-            else:
-                agg_col_funcs.append(func.func)
+
         # the pandas label and quoted identifier generated for each result column
         # after aggregation will be used as new pandas label and quoted identifiers.
         new_data_column_pandas_labels = []
         new_data_column_quoted_identifiers = []
         new_data_column_snowpark_pandas_types = []
-        for i in range(len(agg_col_ops)):
-            col_agg_op = agg_col_ops[i]
-            col_agg_func = agg_col_funcs[i]
-            new_data_column_pandas_labels.append(col_agg_op.agg_pandas_label)
+        for agg_col_op in agg_col_ops:
+            new_data_column_pandas_labels.append(agg_col_op.agg_pandas_label)
             new_data_column_quoted_identifiers.append(
-                col_agg_op.agg_snowflake_quoted_identifier
+                agg_col_op.agg_snowflake_quoted_identifier
             )
-            if col_agg_func in GROUPBY_AGG_PRESERVES_SNOWPARK_PANDAS_TYPE:
-                new_data_column_snowpark_pandas_types.append(
-                    col_agg_op.data_type
-                    if isinstance(col_agg_op.data_type, SnowparkPandasType)
-                    else None
-                )
-            elif col_agg_func in GROUPBY_AGG_WITH_NONE_SNOWPARK_PANDAS_TYPES:
-                # In the case where the aggregation overrides the type of the output data column
-                # (e.g. any always returns boolean data columns), set the output Snowpark pandas type
-                # of the given column to None
-                new_data_column_snowpark_pandas_types.append(None)  # type: ignore
-            else:
-                self._raise_not_implemented_error_for_timedelta()
-                new_data_column_snowpark_pandas_types = None  # type: ignore
+            new_data_column_snowpark_pandas_types.append(
+                agg_col_op.data_type
+                if isinstance(agg_col_op.data_type, SnowparkPandasType)
+                and agg_col_op.snowflake_agg_func.preserves_snowpark_pandas_types
+                else None
+            )
 
         # The ordering of the named aggregations is changed by us when we process
         # the agg_kwargs into the func dict (named aggregations on the same
@@ -3645,7 +3624,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ),
                 agg_pandas_label=None,
                 agg_snowflake_quoted_identifier=row_position_quoted_identifier,
-                snowflake_agg_func=min_,
+                snowflake_agg_func=get_snowflake_agg_func("min", agg_kwargs={}, axis=0),
                 ordering_columns=internal_frame.ordering_columns,
             )
             agg_col_ops.append(row_position_agg_column_op)
@@ -5743,9 +5722,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         pandas_column_labels=frame.data_column_pandas_labels,
                     )
                     if agg_arg in ("idxmin", "idxmax")
-                    else generate_rowwise_aggregation_function(agg_arg, kwargs)(
-                        *(col(c) for c in data_col_identifiers)
-                    )
+                    else get_snowflake_agg_func(
+                        agg_arg, kwargs, axis=1
+                    ).snowpark_aggregation(*(col(c) for c in data_col_identifiers))
                     for agg_arg in agg_args
                 }
                 pandas_labels = list(agg_col_map.keys())
@@ -13396,6 +13375,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 }
             ).frame
         else:
+            snowflake_agg_func = get_snowflake_agg_func(agg_func, agg_kwargs, axis=0)
+            if snowflake_agg_func is None:
+                # We don't have test coverage for this situation because we
+                # test individual rolling and expanding methods we've implemented,
+                # like rolling_sum(), but other rolling methods raise
+                # NotImplementedError immediately. We also don't support rolling
+                # agg(), which might take us here.
+                ErrorMessage.not_implemented(  # pragma: no cover
+                    f"Window aggregation does not support the aggregation {repr_aggregate_function(agg_func, agg_kwargs)}"
+                )
             new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
                 {
                     # If aggregation is count use count on row_position_quoted_identifier
@@ -13406,7 +13395,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         if agg_func == "count"
                         else count(col(quoted_identifier)).over(window_expr)
                         >= min_periods,
-                        get_snowflake_agg_func(agg_func, agg_kwargs)(
+                        snowflake_agg_func.snowpark_aggregation(
                             # Expanding is cumulative so replace NULL with 0 for sum aggregation
                             builtin("zeroifnull")(col(quoted_identifier))
                             if window_func == WindowFunction.EXPANDING

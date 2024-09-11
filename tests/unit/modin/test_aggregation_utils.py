@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
+    _is_supported_snowflake_agg_func,
     check_is_aggregation_supported_in_snowflake,
-    is_supported_snowflake_agg_func,
 )
 
 
@@ -53,8 +53,8 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
         ("quantile", {}, 1, False),
     ],
 )
-def test_is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis, is_valid) -> None:
-    assert is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis) is is_valid
+def test__is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis, is_valid) -> None:
+    assert _is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis) is is_valid
 
 
 @pytest.mark.parametrize(
