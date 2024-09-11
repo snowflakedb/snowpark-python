@@ -1832,6 +1832,15 @@ class BasePandasDataset:
         viper               0       0
         sidewinder          0       0
 
+        Setting the values with a Series item.
+
+        >>> df.loc["viper"] = pd.Series([99, 99], index=["max_speed", "shield"])
+        >>> df
+                    max_speed  shield
+        cobra              30      10
+        viper              99      99
+        sidewinder          0       0
+
         **Getting values on a DataFrame with an index that has integer labels**
 
         Another example using integers for the index
