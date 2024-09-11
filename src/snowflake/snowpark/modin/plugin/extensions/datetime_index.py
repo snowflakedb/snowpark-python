@@ -960,7 +960,6 @@ class DatetimeIndex(Index):
         DatetimeIndex(['2023-01-01', '2023-01-01', '2023-02-01', '2023-02-01'], dtype='datetime64[ns]', freq=None)
         """
 
-    @datetime_index_not_implemented()
     def tz_convert(self, tz) -> DatetimeIndex:
         """
         Convert tz-aware Datetime Array/Index from one time zone to another.
@@ -1025,8 +1024,13 @@ class DatetimeIndex(Index):
                        '2014-08-01 09:00:00'],
                         dtype='datetime64[ns]', freq='h')
         """
+        return DatetimeIndex(
+            query_compiler=self._query_compiler.dt_tz_convert(
+                tz,
+                include_index=True,
+            )
+        )
 
-    @datetime_index_not_implemented()
     def tz_localize(
         self,
         tz,
@@ -1119,6 +1123,14 @@ default 'raise'
                        '2018-03-03 09:00:00'],
                       dtype='datetime64[ns]', freq=None)
         """
+        return DatetimeIndex(
+            query_compiler=self._query_compiler.dt_tz_localize(
+                tz,
+                ambiguous,
+                nonexistent,
+                include_index=True,
+            )
+        )
 
     def round(
         self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
