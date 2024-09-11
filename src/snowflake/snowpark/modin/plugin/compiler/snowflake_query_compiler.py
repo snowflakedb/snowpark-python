@@ -279,6 +279,8 @@ from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     raise_if_to_datetime_not_supported,
     timedelta_freq_to_nanos,
     to_snowflake_timestamp_format,
+    tz_convert_column,
+    tz_localize_column,
 )
 from snowflake.snowpark.modin.plugin._internal.transpose_utils import (
     clean_up_transpose_result_index_and_labels,
@@ -16666,7 +16668,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         tz: Union[str, tzinfo],
         ambiguous: str = "raise",
         nonexistent: str = "raise",
-    ) -> None:
+    ) -> "SnowflakeQueryCompiler":
         """
         Localize tz-naive to tz-aware.
         Args:
@@ -16678,11 +16680,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             BaseQueryCompiler
                 New QueryCompiler containing values with localized time zone.
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.tz_localize'"
+        if not isinstance(ambiguous, str) or ambiguous != "raise":
+            ErrorMessage.parameter_not_implemented_error(
+                "ambiguous", "Series.dt.tz_localize"
+            )
+        if not isinstance(nonexistent, str) or nonexistent != "raise":
+            ErrorMessage.parameter_not_implemented_error(
+                "nonexistent", "Series.dt.tz_localize"
+            )
+
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                lambda column: tz_localize_column(column, tz)
+            )
         )
 
-    def dt_tz_convert(self, tz: Union[str, tzinfo]) -> None:
+    def dt_tz_convert(self, tz: Union[str, tzinfo]) -> "SnowflakeQueryCompiler":
         """
         Convert time-series data to the specified time zone.
 
@@ -16692,8 +16705,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A new QueryCompiler containing values with converted time zone.
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.tz_convert'"
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                lambda column: tz_convert_column(column, tz)
+            )
         )
 
     def dt_ceil(
