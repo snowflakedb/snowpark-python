@@ -1,5 +1,13 @@
 # Release History
 
+## 1.23.0 (TBD)
+
+### Snowpark pandas API Updates
+
+#### Improvements
+
+- Improved `to_pandas` to persist the original timezone offset for TIMESTAMP_TZ type.
+
 ## 1.22.0 (TBD)
 
 ### Snowpark Python API Updates
@@ -117,7 +125,6 @@
 - Display a clearer error message when `Index.names` is set to a non-like-like object.
 - Raise a warning whenever MultiIndex values are pulled in locally.
 - Improve warning message for `pd.read_snowflake` include the creation reason when temp table creation is triggered.
-- Improved `to_pandas` to persist the original timezone offset for TIMESTAMP_TZ type.
 
 #### Bug Fixes
 

@@ -1292,8 +1292,8 @@ def snowpark_to_pandas_helper(
 ) -> Union[native_pd.Index, native_pd.DataFrame]:
     """
     The helper function retrieves a pandas dataframe from an OrderedDataFrame. Performs necessary type
-    conversions includes
-    1. For VARIANT types, OrderedDataFrame.to_pandas may convert datetime like types to string. So we add one type_of
+    conversions including
+    1. For VARIANT types, OrderedDataFrame.to_pandas may convert datetime like types to string. So we add one `typeof`
     column for each variant column and use that metadata to convert datetime like types back to their original types.
     2. For TIMESTAMP_TZ type, OrderedDataFrame.to_pandas will convert them into the local session timezone and lose the
     original timezone. So we cast TIMESTAMP_TZ columns to string first and then convert them back after to_pandas to
@@ -1305,8 +1305,10 @@ def snowpark_to_pandas_helper(
     Args:
         frame: The internal frame to convert to pandas Dataframe (or Index if index_only is true)
         index_only: if true, only turn the index columns into a pandas Index
-        statement_params: Dictionary of statement level parameters to be passed to conversion function of ordered dataframe abstraction.
-        kwargs: Additional keyword-only args to pass to internal `to_pandas` conversion for orderded dataframe abstraction.
+        statement_params: Dictionary of statement level parameters to be passed to conversion function of ordered
+        dataframe abstraction.
+        kwargs: Additional keyword-only args to pass to internal `to_pandas` conversion for ordered dataframe
+        abstraction.
 
     Returns:
         pandas dataframe
@@ -1550,6 +1552,7 @@ def snowpark_to_pandas_helper(
             # multiple timezones. So here we cast the index to the index_type when ret = pd.Index(...) above cannot
             # figure out a non-object dtype. Note that the index_type is a logical type may not be 100% accurate.
             if is_object_dtype(ret.dtype) and not is_object_dtype(index_type):
+                # TODO: SNOW-1657460 fix index_type for timestamp_tz
                 try:
                     ret = ret.astype(index_type)
                 except ValueError:  # e.g., Tz-aware datetime.datetime cannot be converted to datetime64
