@@ -8,6 +8,10 @@
 
 - Improved `to_pandas` to persist the original timezone offset for TIMESTAMP_TZ type.
 
+#### New Features
+
+- Added support for `TimedeltaIndex.mean` method.
+
 ## 1.22.0 (2024-09-10)
 
 ### Snowpark Python API Updates
