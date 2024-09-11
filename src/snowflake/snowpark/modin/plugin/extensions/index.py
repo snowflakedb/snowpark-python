@@ -1104,6 +1104,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458146 implement delete
 
+    @index_not_implemented()
     def drop(
         self,
         labels: Any,
@@ -1127,16 +1128,8 @@ class Index(metaclass=TelemetryMeta):
         ------
         KeyError
             If all labels are not found in the selected axis
-
-        Examples
-        --------
-        >>> idx = pd.Index(['a', 'b', 'c'])
-        >>> idx.drop(['a'])
-        Index(['b', 'c'], dtype='object')
         """
         # TODO: SNOW-1458146 implement drop
-        WarningMessage.index_to_pandas_warning("drop")
-        return self.__constructor__(self.to_pandas().drop(labels=labels, errors=errors))
 
     @index_not_implemented()
     def drop_duplicates(self) -> None:
@@ -1162,6 +1155,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458147 implement drop_duplicates
 
+    @index_not_implemented()
     def duplicated(self, keep: Literal["first", "last", False] = "first") -> np.ndarray:
         """
         Indicate duplicate index values.
@@ -1190,35 +1184,8 @@ class Index(metaclass=TelemetryMeta):
         --------
         Series.duplicated : Equivalent method on pandas.Series.
         DataFrame.duplicated : Equivalent method on pandas.DataFrame.
-
-        Examples
-        --------
-        By default, for each set of duplicated values, the first occurrence is
-        set to False and all others to True:
-
-        >>> idx = pd.Index(['lama', 'cow', 'lama', 'beetle', 'lama'])
-        >>> idx.duplicated()
-        array([False, False,  True, False,  True])
-
-        which is equivalent to
-
-        >>> idx.duplicated(keep='first')
-        array([False, False,  True, False,  True])
-
-        By using 'last', the last occurrence of each set of duplicated values
-        is set on False and all others on True:
-
-        >>> idx.duplicated(keep='last')
-        array([ True, False,  True, False, False])
-
-        By setting keep on ``False``, all duplicates are True:
-
-        >>> idx.duplicated(keep=False)
-        array([ True, False,  True, False,  True])
         """
         # TODO: SNOW-1458147 implement duplicated
-        WarningMessage.index_to_pandas_warning("duplicated")
-        return self.to_pandas().duplicated(keep=keep)
 
     def equals(self, other: Any) -> bool:
         """
@@ -2249,6 +2216,7 @@ class Index(metaclass=TelemetryMeta):
             builtin :meth:`sorted` function, with the notable difference that
             this `key` function should be *vectorized*. It should expect an
             ``Index`` and return an ``Index`` of the same shape.
+            This parameter is not yet supported.
 
         Returns
         -------
@@ -2383,6 +2351,7 @@ class Index(metaclass=TelemetryMeta):
             )
         )
 
+    @index_not_implemented()
     def union(self, other: Any, sort: bool = False) -> Index:
         """
         Form the union of two Index objects.
@@ -2410,30 +2379,11 @@ class Index(metaclass=TelemetryMeta):
         -------
         Index
             The Index that represents the union between the two indexes
-
-        Examples
-        --------
-        Union matching dtypes
-
-        >>> idx1 = pd.Index([1, 2, 3, 4])
-        >>> idx2 = pd.Index([3, 4, 5, 6])
-        >>> idx1.union(idx2)
-        Index([1, 2, 3, 4, 5, 6], dtype='int64')
-
-        Union mismatched dtypes
-
-        >>> idx1 = pd.Index(['a', 'b', 'c', 'd'])
-        >>> idx2 = pd.Index([1, 2, 3, 4])
-        >>> idx1.union(idx2)
-        Index(['a', 'b', 'c', 'd', 1, 2, 3, 4], dtype='object')
         """
         # TODO: SNOW-1458149 implement union w/o sort
         # TODO: SNOW-1468240 implement union w/ sort
-        WarningMessage.index_to_pandas_warning("union")
-        return self.__constructor__(
-            self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort)
-        )
 
+    @index_not_implemented()
     def difference(self, other: Any, sort: Any = None) -> Index:
         """
         Return a new Index with elements of index not in `other`.
@@ -2457,22 +2407,10 @@ class Index(metaclass=TelemetryMeta):
         -------
         Index
             An index object that represents the difference between the two indexes.
-
-        Examples
-        --------
-        >>> idx1 = pd.Index([2, 1, 3, 4])
-        >>> idx2 = pd.Index([3, 4, 5, 6])
-        >>> idx1.difference(idx2)
-        Index([1, 2], dtype='int64')
-        >>> idx1.difference(idx2, sort=False)
-        Index([2, 1], dtype='int64')
         """
         # TODO: SNOW-1458152 implement difference
-        WarningMessage.index_to_pandas_warning("difference")
-        return self.__constructor__(
-            self.to_pandas().difference(try_convert_index_to_native(other), sort=sort)
-        )
 
+    @index_not_implemented()
     def get_indexer_for(self, target: Any) -> Any:
         """
         Guaranteed return of an indexer even when non-unique.
@@ -2484,13 +2422,6 @@ class Index(metaclass=TelemetryMeta):
         -------
         np.ndarray[np.intp]
             List of indices.
-
-        Examples
-        --------
-        Note Snowpark pandas converts np.nan, pd.NA, pd.NaT to None
-        >>> idx = pd.Index([np.nan, 'var1', np.nan])
-        >>> idx.get_indexer_for([None])
-        array([0, 2])
         """
         WarningMessage.index_to_pandas_warning("get_indexer_for")
         return self.to_pandas().get_indexer_for(target=target)
@@ -2503,6 +2434,7 @@ class Index(metaclass=TelemetryMeta):
         tup = self.to_pandas()._get_indexer_strict(key=key, axis_name=axis_name)
         return self.__constructor__(tup[0]), tup[1]
 
+    @index_not_implemented()
     def get_level_values(self, level: int | str) -> Index:
         """
         Return an Index of values for requested level.
@@ -2523,17 +2455,6 @@ class Index(metaclass=TelemetryMeta):
         Notes
         -----
         For Index, level should be 0, since there are no multiple levels.
-
-        Examples
-        --------
-        >>> idx = pd.Index(list('abc'))
-        >>> idx
-        Index(['a', 'b', 'c'], dtype='object')
-
-        Get level values by supplying `level` as integer:
-
-        >>> idx.get_level_values(0)
-        Index(['a', 'b', 'c'], dtype='object')
         """
         WarningMessage.index_to_pandas_warning("get_level_values")
         return self.__constructor__(self.to_pandas().get_level_values(level=level))
@@ -2579,6 +2500,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458153 implement isin
 
+    @index_not_implemented()
     def slice_indexer(
         self,
         start: Hashable | None = None,
@@ -2611,14 +2533,6 @@ class Index(metaclass=TelemetryMeta):
         Notes
         -----
         This function assumes that the data is sorted, so use at your own peril
-
-        Examples
-        --------
-        This is a method on all index types. For example you can do:
-
-        >>> idx = pd.Index(list('abcd'))
-        >>> idx.slice_indexer(start='b', end='c')
-        slice(1, 3, None)
         """
         WarningMessage.index_to_pandas_warning("slice_indexer")
         return self.to_pandas().slice_indexer(start=start, end=end, step=step)
@@ -2819,7 +2733,6 @@ class Index(metaclass=TelemetryMeta):
         0    AStrSeries
         dtype: object
         """
-        WarningMessage.index_to_pandas_warning("str")
         return self.to_pandas().str
 
     def _to_datetime(

@@ -178,6 +178,13 @@ def test_unsupported_str_methods(func, func_name, caplog) -> None:
 
 # unsupported methods for Index
 UNSUPPORTED_INDEX_METHODS = [
+    lambda idx: idx.duplicated(),
+    lambda idx: idx.drop(),
+    lambda idx: idx.union(),
+    lambda idx: idx.difference(),
+    lambda idx: idx.get_indexer_for(),
+    lambda idx: idx.get_level_values(),
+    lambda idx: idx.slice_indexer(),
     lambda idx: idx.nbytes(),
     lambda idx: idx.memory_usage(),
     lambda idx: idx.delete(),
