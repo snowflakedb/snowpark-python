@@ -13,6 +13,7 @@ import os
 import re
 import sys
 import tempfile
+import threading
 import warnings
 from array import array
 from functools import reduce
@@ -499,6 +500,8 @@ class Session:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
+        self._thread_store = threading.local()
+        self._lock = threading.RLock()
         self._query_tag = None
         self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
         self._packages: Dict[str, str] = {}
