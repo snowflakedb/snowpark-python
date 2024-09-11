@@ -64,6 +64,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
   - `is_transient`
   - `data_retention_time`
   - `max_data_extension_time`
+- Added support for passing parameter `include_describe` to `Session.query_history`.
 
 #### Bug Fixes
 
