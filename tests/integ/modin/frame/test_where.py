@@ -628,7 +628,6 @@ def test_dataframe_where_with_dataframe_cond_single_index_different_names():
     )
 
 
-# one extra query to convert index to native pandas when creating the snowpark pandas dataframe
 @sql_count_checker(query_count=1, join_count=3)
 def test_dataframe_where_with_dataframe_cond_single_index_different_names_2():
     data = [1, 2, 3]
@@ -702,7 +701,7 @@ def test_dataframe_where_with_duplicated_index_aligned(cond_frame, other):
         )
 
 
-# 3 extra join queries to create the 3 snowpark pandas dataframe with non-Snowpark pandas data
+# 3 extra joins to create the 3 snowpark pandas dataframe with non-Snowpark pandas data
 # and a Snowpark pandas Index.
 @sql_count_checker(query_count=1, join_count=5)
 def test_dataframe_where_with_duplicated_index_unaligned():
