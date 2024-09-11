@@ -127,10 +127,6 @@
 - Fixed a bug where `Series.reindex` and `DataFrame.reindex` did not update the result index's name correctly.
 - Fixed a bug where `Series.take` did not error when `axis=1` was specified.
 
-#### Behavior Change
-
-- When calling `DataFrame.set_index`, or setting `DataFrame.index` or `Series.index`, with a new index that does not match the current length of the `Series`/`DataFrame` object, a `ValueError` is no longer raised. When the `Series`/`DataFrame` object is longer than the new index, the `Series`/`DataFrame`'s new index is filled with `NaN` values for the "extra" elements. When the `Series`/`DataFrame` object is shorter than the new index, the extra values in the new index are ignored—`Series` and `DataFrame` stay the same length `n`, and use only the first `n` values of the new index.
-
 ## 1.21.1 (2024-09-05)
 
 ### Snowpark Python API Updates
