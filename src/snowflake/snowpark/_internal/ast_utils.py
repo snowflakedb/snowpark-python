@@ -106,7 +106,11 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
         unscaled_val = reduce(lambda val, digit: val * 10 + digit, dec_tuple.digits)
         if dec_tuple.sign != 0:
             unscaled_val *= -1
-        req_bytes = (unscaled_val.bit_length() + 7) // 8
+
+        # In two-complement -1 with one byte is 0xFF. We encode arbitrary length integers
+        # in full bytes. Therefore, round up to fullest byte. To restore the sign, add another byte.
+        req_bytes = unscaled_val.bit_length() // 8 + 1
+
         ast.unscaled_value = unscaled_val.to_bytes(req_bytes, "big", signed=True)
         ast.scale = dec_tuple.exponent
 
@@ -262,6 +266,16 @@ def build_udf_apply(
 ) -> None:
     expr = with_src_position(ast.apply_expr)
     expr.fn.sp_fn_ref.id.bitfield1 = udf_id
+    build_fn_apply_args(ast, *args)
+
+
+def build_udaf_apply(
+    ast: proto.Expr,
+    udaf_id: int,
+    *args: Tuple[Union[proto.Expr, Any]],
+) -> None:
+    expr = with_src_position(ast.apply_expr)
+    expr.fn.sp_fn_ref.id.bitfield1 = udaf_id
     build_fn_apply_args(ast, *args)
 
 
@@ -810,7 +824,6 @@ def build_udf(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     comment: Optional[str] = None,
-    *,
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = True,
     is_permanent: bool = False,
@@ -818,7 +831,7 @@ def build_udf(
     **kwargs,
 ):
     """Helper function to encode UDF parameters (used in both regular and mock UDFRegistration)."""
-    # This is the name the UDF is registered to. Not the name to display when unaparsing, that name is captured in callable.
+    # This is the name the UDF is registered to. Not the name to display when unparsing, that name is captured in callable.
 
     if name is not None:
         _set_fn_name(name, ast)
@@ -880,6 +893,84 @@ def build_udf(
         build_expr_from_python_val(t._2, v)
 
 
+def build_udaf(
+    ast: proto.Udaf,
+    handler: Union[Callable, Tuple[str, str]],
+    return_type: Optional[DataType],
+    input_types: Optional[List[DataType]],
+    name: Optional[str],
+    stage_location: Optional[str] = None,
+    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    packages: Optional[List[Union[str, ModuleType]]] = None,
+    replace: bool = False,
+    if_not_exists: bool = False,
+    parallel: int = 4,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
+    immutable: bool = False,
+    comment: Optional[str] = None,
+    statement_params: Optional[Dict[str, str]] = None,
+    is_permanent: bool = False,
+    session=None,
+    **kwargs,
+):
+    """Helper function to encode UDAF parameters (used in both regular and mock UDFRegistration)."""
+    # This is the name the UDAF is registered to. Not the name to display when unparsing, that name is captured in callable.
+
+    if name is not None:
+        _set_fn_name(name, ast)
+
+    build_proto_from_callable(
+        ast.handler, handler, session._ast_batch if session is not None else None
+    )
+
+    if return_type is not None:
+        return_type._fill_ast(ast.return_type)
+    if input_types is not None and len(input_types) != 0:
+        for input_type in input_types:
+            input_type._fill_ast(ast.input_types.list.add())
+    ast.is_permanent = is_permanent
+    if stage_location is not None:
+        ast.stage_location.value = stage_location
+    if imports is not None and len(imports) != 0:
+        for import_ in imports:
+            import_expr = proto.SpTableName()
+            build_sp_table_name(import_expr, import_)
+            ast.imports.append(import_expr)
+    if packages is not None and len(packages) != 0:
+        for package in packages:
+            if isinstance(package, ModuleType):
+                raise NotImplementedError
+            ast.packages.append(package)
+    ast.replace = replace
+    ast.if_not_exists = if_not_exists
+    ast.parallel = parallel
+
+    if statement_params is not None and len(statement_params) != 0:
+        for k, v in statement_params.items():
+            t = ast.statement_params.add()
+            t._1 = k
+            t._2 = v
+
+    if (
+        external_access_integrations is not None
+        and len(external_access_integrations) != 0
+    ):
+        ast.external_access_integrations.extend(external_access_integrations)
+    if secrets is not None and len(secrets) != 0:
+        for k, v in secrets.items():
+            t = ast.secrets.add()
+            t._1 = k
+            t._2 = v
+    ast.immutable = immutable
+    if comment is not None:
+        ast.comment.value = comment
+    for k, v in kwargs.items():
+        t = ast.kwargs.add()
+        t._1 = k
+        build_expr_from_python_val(t._2, v)
+
+
 def build_udtf(
     ast: proto.Udtf,
     handler: Union[Callable, Tuple[str, str]],
@@ -907,7 +998,7 @@ def build_udtf(
     **kwargs,
 ):
     """Helper function to encode UDTF parameters (used in both regular and mock UDFRegistration)."""
-    # This is the name the UDF is registered to. Not the name to display when unaparsing, that name is captured in callable.
+    # This is the name the UDTF is registered to. Not the name to display when unparsing, that name is captured in callable.
 
     if name is not None:
         _set_fn_name(name, ast)

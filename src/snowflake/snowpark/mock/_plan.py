@@ -543,6 +543,88 @@ def handle_udf_expression(
         return res
 
 
+def handle_udaf_expression(
+    exp: FunctionExpression,
+    input_data: Union[TableEmulator, ColumnEmulator],
+    analyzer: "MockAnalyzer",
+    expr_to_alias: Dict[str, str],
+    current_row=None,
+):
+    udaf_registry = analyzer.session.udaf
+    udaf_name = exp.udf_name
+    udaf = udaf_registry.get_udaf(udaf_name)
+
+    with ImportContext(udaf_registry.get_udaf_imports(udaf_name)):
+        # Resolve handler callable
+        if type(udaf.handler) is tuple:
+            module_name, handler_name = udaf.func
+            exec(f"from {module_name} import {handler_name}")
+            udaf_handler = eval(handler_name)
+        else:
+            udaf_handler = udaf.handler
+
+        # Compute input data and validate typing
+        if len(exp.children) != len(udaf._input_types):
+            raise SnowparkLocalTestingException(
+                f"Expected {len(udaf._input_types)} arguments, but received {len(exp.children)}"
+            )
+
+        function_input = TableEmulator(index=input_data.index)
+        for child, expected_type in zip(exp.children, udaf._input_types):
+            col_name = analyzer.analyze(child, expr_to_alias)
+            column_data = calculate_expression(
+                child, input_data, analyzer, expr_to_alias
+            )
+
+            # Variant Data is often cast to specific python types when passed to a udf.
+            if isinstance(expected_type, VariantType):
+                column_data = column_data.apply(coerce_variant_input)
+
+            coerce_result = get_coerce_result_type(
+                column_data.sf_type, ColumnType(expected_type, False)
+            )
+            if coerce_result is None:
+                raise SnowparkLocalTestingException(
+                    f"UDF received input type {column_data.sf_type.datatype} for column {child.name}, but expected input type of {expected_type}"
+                )
+
+            function_input[col_name] = cast_column_to(
+                column_data, ColumnType(expected_type, False)
+            )
+
+        try:
+            # Initiate some aggregation state (this is only needed for distributed compute).
+            some_agg_state = udaf_handler().aggregate_state
+            Agg = udaf_handler()
+
+            for _, row in function_input.iterrows():
+                # Call Agg.accumulate
+                if udaf.strict and any([v is None for v in row]):
+                    Agg.accumulate(None)
+                else:
+                    Agg.accumulate(*row)
+
+            # Call merge with empty state
+            Agg.merge(some_agg_state)
+            result = Agg.finish()
+
+            # Single row result for aggregation.
+            res = ColumnEmulator(
+                data=[result],
+                sf_type=ColumnType(exp.datatype, exp.nullable),
+                name=quote_name(
+                    f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
+                ),
+                dtype=object,
+            )
+        except Exception as err:
+            SnowparkLocalTestingException.raise_from_error(
+                err, error_message=f"Python Interpreter Error: {err}"
+            )
+
+        return res
+
+
 def handle_udtf_expression(
     exp: FunctionExpression,
     input_data: Union[TableEmulator, ColumnEmulator],
@@ -2452,7 +2534,11 @@ def calculate_expression(
         res.sf_type = ColumnType(VariantType(), col.sf_type.nullable)
         return res
     elif isinstance(exp, SnowflakeUDF):
-        return handle_udf_expression(exp, input_data, analyzer, expr_to_alias)
+        # Could be either UDAF or UDF, decide on type.
+        if exp.is_aggregate_function:
+            return handle_udaf_expression(exp, input_data, analyzer, expr_to_alias)
+        else:
+            return handle_udf_expression(exp, input_data, analyzer, expr_to_alias)
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking Expression {type(exp).__name__}",
         internal_feature_name=type(exp).__name__,
