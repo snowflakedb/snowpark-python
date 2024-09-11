@@ -185,11 +185,7 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     sort_apply_udtf_result_columns_by_pandas_positions,
 )
 from snowflake.snowpark.modin.plugin._internal.binary_op_utils import (
-    compute_binary_op_between_scalar_and_snowpark_column,
-    compute_binary_op_between_snowpark_column_and_scalar,
-    compute_binary_op_between_snowpark_columns,
-    compute_binary_op_with_fill_value,
-    is_binary_op_supported,
+    BinaryOp,
     merge_label_and_identifier_pairs,
     prepare_binop_pairs_between_dataframe_and_dataframe,
 )
@@ -1857,7 +1853,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         replace_mapping = {}
         data_column_snowpark_pandas_types = []
         for identifier in self._modin_frame.data_column_snowflake_quoted_identifiers:
-            expression, snowpark_pandas_type = compute_binary_op_with_fill_value(
+            expression, snowpark_pandas_type = BinaryOp.create_with_fill_value(
                 op=op,
                 lhs=col(identifier),
                 lhs_datatype=lambda identifier=identifier: self._modin_frame.get_snowflake_type(
@@ -1866,7 +1862,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 rhs=pandas_lit(other),
                 rhs_datatype=lambda: infer_object_type(other),
                 fill_value=fill_value,
-            )
+            ).compute()
             replace_mapping[identifier] = expression
             data_column_snowpark_pandas_types.append(snowpark_pandas_type)
         return SnowflakeQueryCompiler(
@@ -1917,7 +1913,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         replace_mapping = {}
         snowpark_pandas_types = []
         for identifier in new_frame.data_column_snowflake_quoted_identifiers[:-1]:
-            expression, snowpark_pandas_type = compute_binary_op_with_fill_value(
+            expression, snowpark_pandas_type = BinaryOp.create_with_fill_value(
                 op=op,
                 lhs=col(identifier),
                 lhs_datatype=lambda identifier=identifier: new_frame.get_snowflake_type(
@@ -1926,7 +1922,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 rhs=col(other_identifier),
                 rhs_datatype=lambda: new_frame.get_snowflake_type(other_identifier),
                 fill_value=fill_value,
-            )
+            ).compute()
             replace_mapping[identifier] = expression
             snowpark_pandas_types.append(snowpark_pandas_type)
 
@@ -1989,7 +1985,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # rhs is not guaranteed to be a scalar value - it can be a list-like as well.
             # Convert all list-like objects to a list.
             rhs_lit = pandas_lit(rhs) if is_scalar(rhs) else pandas_lit(rhs.tolist())
-            expression, snowpark_pandas_type = compute_binary_op_with_fill_value(
+            expression, snowpark_pandas_type = BinaryOp.create_with_fill_value(
                 op,
                 lhs=lhs,
                 lhs_datatype=lambda identifier=identifier: self._modin_frame.get_snowflake_type(
@@ -1998,7 +1994,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 rhs=rhs_lit,
                 rhs_datatype=lambda rhs=rhs: infer_object_type(rhs),
                 fill_value=fill_value,
-            )
+            ).compute()
             replace_mapping[identifier] = expression
             snowpark_pandas_types.append(snowpark_pandas_type)
 
@@ -2059,7 +2055,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # match pandas documentation; hence it is omitted in the Snowpark pandas implementation.
                 raise ValueError("Only scalars can be used as fill_value.")
 
-        if not is_binary_op_supported(op):
+        if not BinaryOp.is_binary_op_supported(op):
             ErrorMessage.not_implemented(
                 f"Snowpark pandas doesn't yet support '{op}' binary operation"
             )
@@ -2124,7 +2120,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )[0]
 
             # add new column with result as unnamed
-            new_column_expr, snowpark_pandas_type = compute_binary_op_with_fill_value(
+            new_column_expr, snowpark_pandas_type = BinaryOp.create_with_fill_value(
                 op=op,
                 lhs=col(lhs_quoted_identifier),
                 lhs_datatype=lambda: aligned_frame.get_snowflake_type(
@@ -2135,7 +2131,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     rhs_quoted_identifier
                 ),
                 fill_value=fill_value,
-            )
+            ).compute()
 
             # name is dropped when names of series differ. A dropped name is using unnamed series label.
             new_column_name = (
@@ -10769,7 +10765,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     snowpark_pandas_type=None,
                 )
             else:
-                return compute_binary_op_between_snowpark_columns(
+                return BinaryOp.create(
                     "sub",
                     col(snowflake_quoted_identifier),
                     lambda: column_datatype,
@@ -10781,7 +10777,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         )
                     ),
                     lambda: column_datatype,
-                )
+                ).compute()
 
         else:
             # periods is the number of columns to *go back*.
@@ -10830,13 +10826,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         col1 = cast(col1, IntegerType())
                     if isinstance(col2_dtype, BooleanType):
                         col2 = cast(col2, IntegerType())
-                    return compute_binary_op_between_snowpark_columns(
+                    return BinaryOp.create(
                         "sub",
                         col1,
                         lambda: col1_dtype,
                         col2,
                         lambda: col2_dtype,
-                    )
+                    ).compute()
 
     def diff(self, periods: int, axis: int) -> "SnowflakeQueryCompiler":
         """
@@ -14434,7 +14430,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
-        # Lazify type map here for calling compute_binary_op_between_snowpark_columns.
+        # Lazify type map here for calling binaryOp.compute.
         def create_lazy_type_functions(
             identifiers: list[str],
         ) -> list[DataTypeGetter]:
@@ -14464,12 +14460,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         replace_mapping = {}
         snowpark_pandas_types = []
         for left, left_datatype in zip(left_result_data_identifiers, left_datatypes):
-            (
-                expression,
-                snowpark_pandas_type,
-            ) = compute_binary_op_between_snowpark_columns(
+            (expression, snowpark_pandas_type,) = BinaryOp.create(
                 op, col(left), left_datatype, col(right), right_datatype
-            )
+            ).compute()
             snowpark_pandas_types.append(snowpark_pandas_type)
             replace_mapping[left] = expression
         update_result = joined_frame.result_frame.update_snowflake_quoted_identifiers_with_expressions(
@@ -14728,14 +14721,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         replace_mapping = {}
         data_column_snowpark_pandas_types = []
         for p in left_right_pairs:
-            result_expression, snowpark_pandas_type = compute_binary_op_with_fill_value(
+            result_expression, snowpark_pandas_type = BinaryOp.create_with_fill_value(
                 op=op,
                 lhs=p.lhs,
                 lhs_datatype=p.lhs_datatype,
                 rhs=p.rhs,
                 rhs_datatype=p.rhs_datatype,
                 fill_value=fill_value,
-            )
+            ).compute()
             replace_mapping[p.identifier] = result_expression
             data_column_snowpark_pandas_types.append(snowpark_pandas_type)
         # Create restricted frame with only combined / replaced labels.
@@ -15002,19 +14995,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         snowpark_pandas_labels = []
         for label, identifier in overlapping_pairs:
             expression, new_type = (
-                compute_binary_op_between_scalar_and_snowpark_column(
+                BinaryOp.create_with_lhs_scalar(
                     op,
                     series.loc[label],
                     col(identifier),
                     datatype_getters[identifier],
-                )
+                ).compute()
                 if squeeze_self
-                else compute_binary_op_between_snowpark_column_and_scalar(
+                else BinaryOp.create_with_rhs_scalar(
                     op,
                     col(identifier),
                     datatype_getters[identifier],
                     series.loc[label],
-                )
+                ).compute()
             )
             snowpark_pandas_labels.append(new_type)
             replace_mapping[identifier] = expression
@@ -17493,9 +17486,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         replace_mapping = {
-            p.identifier: compute_binary_op_between_snowpark_columns(
+            p.identifier: BinaryOp.create(
                 "equal_null", p.lhs, p.lhs_datatype, p.rhs, p.rhs_datatype
-            ).snowpark_column
+            )
+            .compute()
+            .snowpark_column
             for p in left_right_pairs
         }
 
@@ -18023,7 +18018,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             right_identifier = result_column_mapper.right_quoted_identifiers_map[
                 right_identifier
             ]
-            op_result = compute_binary_op_between_snowpark_columns(
+            op_result = BinaryOp.create(
                 op="equal_null",
                 first_operand=col(left_identifier),
                 first_datatype=functools.partial(
@@ -18033,7 +18028,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 second_datatype=functools.partial(
                     lambda col: result_frame.get_snowflake_type(col), right_identifier
                 ),
-            )
+            ).compute()
             binary_op_result = binary_op_result.append_column(
                 str(left_pandas_label) + "_comparison_result",
                 op_result.snowpark_column,
@@ -18144,19 +18139,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 right_identifier
             ]
 
-            cols_equal = compute_binary_op_between_snowpark_columns(
-                op="equal_null",
-                first_operand=col(left_mappped_identifier),
-                first_datatype=functools.partial(
-                    lambda col: result_frame.get_snowflake_type(col),
-                    left_mappped_identifier,
-                ),
-                second_operand=col(right_mapped_identifier),
-                second_datatype=functools.partial(
-                    lambda col: result_frame.get_snowflake_type(col),
-                    right_mapped_identifier,
-                ),
-            ).snowpark_column
+            cols_equal = (
+                BinaryOp.create(
+                    op="equal_null",
+                    first_operand=col(left_mappped_identifier),
+                    first_datatype=functools.partial(
+                        lambda col: result_frame.get_snowflake_type(col),
+                        left_mappped_identifier,
+                    ),
+                    second_operand=col(right_mapped_identifier),
+                    second_datatype=functools.partial(
+                        lambda col: result_frame.get_snowflake_type(col),
+                        right_mapped_identifier,
+                    ),
+                )
+                .compute()
+                .snowpark_column
+            )
 
             # Add a column containing the values from `self`, but replace
             # matching values with null.

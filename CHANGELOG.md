@@ -2,6 +2,15 @@
 
 ## 1.23.0 (TBD)
 
+### Snowpark pandas API Updates
+
+#### Improvements
+
+- Improved `to_pandas` to persist the original timezone offset for TIMESTAMP_TZ type.
+
+#### New Features
+
+- Added support for `TimedeltaIndex.mean` method.
 
 ## 1.22.0 (2024-09-10)
 
@@ -109,7 +118,8 @@
 - Added support for string indexing with `Timedelta` objects.
 - Added support for `Series.dt.total_seconds` method.
 - Added support for `DataFrame.apply(axis=0)`.
-- Added support for `DatetimeIndex.tz_localize` and `DatetimeIndex.tz_convert`.
+- Added support for `Series.dt.tz_convert` and `Series.dt.tz_localize`.
+- Added support for `DatetimeIndex.tz_convert` and `DatetimeIndex.tz_localize`.
 
 #### Improvements
 
