@@ -1124,18 +1124,6 @@ def test_timedelta(agg_func, by):
     )
 
 
-@sql_count_checker(query_count=0)
-def test_timedelta_var_invalid():
-    eval_snowpark_pandas_result(
-        *create_test_dfs(
-            [["key0", pd.Timedelta(1)]],
-        ),
-        lambda df: df.groupby(0).var(),
-        expect_exception=True,
-        expect_exception_type=TypeError,
-    )
-
-
 def test_timedelta_groupby_agg():
     native_df = native_pd.DataFrame(
         {

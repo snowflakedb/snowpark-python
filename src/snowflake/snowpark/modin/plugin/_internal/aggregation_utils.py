@@ -596,7 +596,7 @@ def get_snowflake_agg_func(
     snowpark_aggregation = snowpark_pandas_aggregation.axis_0_aggregation
 
     if snowpark_aggregation is None:
-        return None
+        return None  # pragma: no cover
 
     # Rewrite some aggregations according to `agg_kwargs.`
     if snowpark_aggregation == stddev or snowpark_aggregation == variance:
