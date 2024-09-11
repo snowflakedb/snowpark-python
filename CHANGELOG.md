@@ -118,6 +118,7 @@
 - Added support for string indexing with `Timedelta` objects.
 - Added support for `Series.dt.total_seconds` method.
 - Added support for `DataFrame.apply(axis=0)`.
+- Added support for `Series.dt.tz_convert` and `Series.dt.tz_localize`.
 
 #### Improvements
 
