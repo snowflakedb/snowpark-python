@@ -2,6 +2,11 @@
 
 ## 1.23.0 (TBD)
 
+### Snowpark pandas API Updates
+
+#### Improvements
+
+- Improved `to_pandas` to persist the original timezone offset for TIMESTAMP_TZ type.
 
 ## 1.22.0 (2024-09-10)
 
