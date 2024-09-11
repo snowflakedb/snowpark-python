@@ -1904,7 +1904,7 @@ class CombinedDatetimelikeProperties:
         >>> tz_naive
         DatetimeIndex(['2018-03-01 09:00:00', '2018-03-02 09:00:00',
                        '2018-03-03 09:00:00'],
-                      dtype='datetime64[ns]', freq='D')
+                      dtype='datetime64[ns]', freq=None)
 
         Localize DatetimeIndex in US/Eastern time zone:
 
