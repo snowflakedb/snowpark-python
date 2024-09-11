@@ -48,28 +48,28 @@ SRC_POSITION_TEST_MODE = False
 class ExtractAssignmentVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
         super().__init__()
-        self.symbols = None
+        self.symbols: Optional[Union[str, List[str]]] = None
 
     def visit_Assign(self, node) -> None:
         assert len(node.targets) == 1
         target = node.targets[0]
 
         if isinstance(target, ast.Name):
-            self.symbols = [target.id]
+            self.symbols = target.id
         elif isinstance(target, ast.Tuple):
             self.symbols = [name.id for name in target.elts]
         else:
             raise ValueError(f"Unsupported target {ast.dump(target)}")
 
 
-def extract_assign_targets(source_line: str) -> Optional[List[str]]:
+def extract_assign_targets(source_line: str) -> Optional[Union[str, List[str]]]:
     """
     Extracts the targets as strings for a python assignment.
     Args:
         source_line: A string, e.g. "a, b, c = df.random_split([0.2, 0.3, 0.5])"
 
     Returns:
-        None if extraction fails, or list of strings for the symbol names.
+        None if extraction fails, or list of strings for the symbol names, or a single string if it is a single target.
     """
     try:
         tree = ast.parse(source_line.strip())
@@ -517,9 +517,10 @@ def with_src_position(
                 symbols = extract_assign_targets(source_line)
                 if symbols is not None:
                     if target_idx is not None:
-                        assign.symbol.value = symbols[target_idx]
-                    else:
-                        assign.symbol.value = symbols[0]
+                        if isinstance(symbols, list):
+                            assign.symbol.value = symbols[target_idx]
+                    elif isinstance(symbols, str):
+                        assign.symbol.value = symbols
     finally:
         del frame
 
