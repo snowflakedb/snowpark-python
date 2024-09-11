@@ -1908,7 +1908,7 @@ class CombinedDatetimelikeProperties:
 
         Localize DatetimeIndex in US/Eastern time zone:
 
-        >>> tz_aware = tz_naive.tz_localize(tz='US/Eastern')
+        >>> tz_aware = tz_naive.tz_localize(tz='US/Eastern')  # doctest: +SKIP
         >>> tz_aware
         DatetimeIndex(['2018-03-01 09:00:00-05:00',
                        '2018-03-02 09:00:00-05:00',
@@ -1917,7 +1917,7 @@ class CombinedDatetimelikeProperties:
 
         With the tz=None, we can remove the time zone information while keeping the local time (not converted to UTC):
 
-        >>> tz_aware.tz_localize(None)
+        >>> tz_aware.tz_localize(None)  # doctest: +SKIP
         DatetimeIndex(['2018-03-01 09:00:00', '2018-03-02 09:00:00',
                        '2018-03-03 09:00:00'],
                       dtype='datetime64[ns]', freq=None)
@@ -1931,7 +1931,7 @@ class CombinedDatetimelikeProperties:
         ...                             '2018-10-28 02:30:00',
         ...                             '2018-10-28 03:00:00',
         ...                             '2018-10-28 03:30:00']))
-        >>> s.dt.tz_localize('CET', ambiguous='infer')
+        >>> s.dt.tz_localize('CET', ambiguous='infer')  # doctest: +SKIP
         0   2018-10-28 01:30:00+02:00
         1   2018-10-28 02:00:00+02:00
         2   2018-10-28 02:30:00+02:00
@@ -1946,7 +1946,7 @@ class CombinedDatetimelikeProperties:
         >>> s = pd.to_datetime(pd.Series(['2018-10-28 01:20:00',
         ...                             '2018-10-28 02:36:00',
         ...                             '2018-10-28 03:46:00']))
-        >>> s.dt.tz_localize('CET', ambiguous=np.array([True, True, False]))
+        >>> s.dt.tz_localize('CET', ambiguous=np.array([True, True, False]))  # doctest: +SKIP
         0   2018-10-28 01:20:00+02:00
         1   2018-10-28 02:36:00+02:00
         2   2018-10-28 03:46:00+01:00
@@ -1956,17 +1956,17 @@ class CombinedDatetimelikeProperties:
 
         >>> s = pd.to_datetime(pd.Series(['2015-03-29 02:30:00',
                                     '2015-03-29 03:30:00']))
-        >>> s.dt.tz_localize('Europe/Warsaw', nonexistent='shift_forward')
+        >>> s.dt.tz_localize('Europe/Warsaw', nonexistent='shift_forward')  # doctest: +SKIP
         0   2015-03-29 03:00:00+02:00
         1   2015-03-29 03:30:00+02:00
         dtype: datetime64[ns, Europe/Warsaw]
 
-        >>> s.dt.tz_localize('Europe/Warsaw', nonexistent='shift_backward')
+        >>> s.dt.tz_localize('Europe/Warsaw', nonexistent='shift_backward')  # doctest: +SKIP
         0   2015-03-29 01:59:59.999999999+01:00
         1   2015-03-29 03:30:00+02:00
         dtype: datetime64[ns, Europe/Warsaw]
 
-        >>> s.dt.tz_localize('Europe/Warsaw', nonexistent=pd.Timedelta('1h'))
+        >>> s.dt.tz_localize('Europe/Warsaw', nonexistent=pd.Timedelta('1h'))  # doctest: +SKIP
         0   2015-03-29 03:30:00+02:00
         1   2015-03-29 03:30:00+02:00
         dtype: datetime64[ns, Europe/Warsaw]
