@@ -351,3 +351,41 @@ def test_index_names_with_lazy_index():
         ),
         inplace=True,
     )
+
+
+@sql_count_checker(query_count=1)
+def test_index_names_replace_behavior():
+    """
+    Check that the index name of a DataFrame cannot be updated after the DataFrame has been modified.
+    """
+    data = (
+        {
+            "A": [0, 1, 2, 3, 4, 4],
+            "B": ["a", "b", "c", "d", "e", "f"],
+        },
+    )
+    idx = [1, 2, 3, 4, 5, 6]
+    native_df = native_pd.DataFrame(data, native_pd.Index(idx, name="test"))
+    snow_df = pd.DataFrame(data, index=pd.Index(idx, name="test"))
+
+    # Get a reference to the index of the DataFrames.
+    snow_index = snow_df.index
+    native_index = native_df.index
+
+    # Change the names.
+    snow_index.name = "test2"
+    native_index.name = "test2"
+
+    # Compare the names.
+    assert snow_index.name == native_index.name == "test2"
+    assert snow_df.index.name == native_df.index.name == "test2"
+
+    # Change the query compiler the DataFrame is referring to, change the names.
+    snow_df.dropna(inplace=True)
+    native_df.dropna(inplace=True)
+    snow_index.name = "test3"
+    native_index.name = "test3"
+
+    # Compare the names. Changing the index name should not change the DataFrame's index name.
+    assert snow_index.name == native_index.name == "test3"
+    assert snow_df.index.name == native_df.index.name == "test2"
