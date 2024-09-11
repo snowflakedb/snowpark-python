@@ -168,6 +168,11 @@ def df_collect_api_telemetry(func):
         ]._session.sql_simplifier_enabled
         try:
             api_calls[0][TelemetryField.QUERY_PLAN_HEIGHT.value] = plan.plan_height
+            # The uuid for df._select_statement can be different from df._plan. Since plan
+            # can take both values, we cannot use plan.uuid. We always use df._plan.uuid
+            # to track the queries.
+            uuid = args[0]._plan.uuid
+            api_calls[0][CompilationStageTelemetryField.PLAN_UUID.value] = uuid
             api_calls[0][
                 TelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
             ] = plan.num_duplicate_nodes
@@ -424,6 +429,24 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: True,
+            },
+        }
+        self.send(message)
+
+    def send_query_compilation_summary_telemetry(
+        self,
+        session_id: int,
+        plan_uuid: str,
+        compilation_stage_summary: Dict[str, Any],
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                CompilationStageTelemetryField.TYPE_COMPILATION_STAGE_STATISTICS.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
+                **compilation_stage_summary,
             },
         }
         self.send(message)
