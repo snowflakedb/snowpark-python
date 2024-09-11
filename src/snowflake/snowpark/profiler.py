@@ -109,7 +109,7 @@ def profiler(
     internal_profiler = Profiler(stage, active_profiler, session)
     session.profiler = internal_profiler
     internal_profiler.query_history = session.query_history()
-    modules = [] if modules is None else modules
+    modules = modules or []
     try:
         # set up phase
         internal_profiler._set_targeted_stage()

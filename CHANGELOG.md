@@ -9,6 +9,7 @@
 - Added following new functions in `snowflake.snowpark.functions`:
   - `array_remove`
   - `ln`
+- Added snowpark python API for profiler.
 
 #### Improvements
 
