@@ -148,7 +148,9 @@ class WindowExpression(Expression):
         return derive_dependent_columns(self.window_function, self.window_spec)
 
     def dependent_column_names_with_duplication(self) -> list[str]:
-        return derive_dependent_columns_with_duplication(self.window_function, self.window_spec)
+        return derive_dependent_columns_with_duplication(
+            self.window_function, self.window_spec
+        )
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
