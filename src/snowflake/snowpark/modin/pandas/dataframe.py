@@ -91,7 +91,6 @@ from snowflake.snowpark.modin.pandas.utils import (
     replace_external_data_keys_with_empty_pandas_series,
     replace_external_data_keys_with_query_compiler,
 )
-from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._internal.utils import is_repr_truncated
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
@@ -138,7 +137,7 @@ _DATAFRAME_EXTENSIONS_ = {}
     ],
     apilink="pandas.DataFrame",
 )
-class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
+class DataFrame(BasePandasDataset):
     _pandas_class = pandas.DataFrame
 
     def __init__(
@@ -2363,7 +2362,7 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
         # this needs to pull all index which is inefficient
         if verify_integrity and not new_query_compiler.index.is_unique:
             duplicates = new_query_compiler.index[
-                new_query_compiler.index.duplicated()
+                new_query_compiler.index.to_pandas().duplicated()
             ].unique()
             raise ValueError(f"Index has duplicate keys: {duplicates}")
 
