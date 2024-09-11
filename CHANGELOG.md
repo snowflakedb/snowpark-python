@@ -8,8 +8,14 @@
 
 - Improved `to_pandas` to persist the original timezone offset for TIMESTAMP_TZ type.
 
+#### New Features
+
+- Added support for `TimedeltaIndex.mean` method.
+
 #### Bug Fixes
+
 - Fixed a bug where an `Index` object created from a `Series`/`DataFrame` incorrectly updates the `Series`/`DataFrame`'s index name when it is not supposed to.
+
 
 ## 1.22.0 (2024-09-10)
 
