@@ -3459,6 +3459,9 @@ class Session:
     def query_history(self, include_describe: bool = False) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
 
+        Args:
+            include_describe: Include query notifications for describe queries
+
         >>> with session.query_history() as query_history:
         ...     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
         ...     df = df.filter(df.a == 1)
