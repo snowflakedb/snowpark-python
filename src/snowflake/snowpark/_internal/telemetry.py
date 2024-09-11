@@ -374,7 +374,7 @@ class TelemetryClient:
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
-                TelemetryField.SQL_SIMPLIFIER_ENABLED.value: True,
+                TelemetryField.SQL_SIMPLIFIER_ENABLED.value: sql_simplifier_enabled,
             },
         }
         self.send(message)

@@ -369,8 +369,6 @@ def test_async_job_with_large_query_breakdown(session, large_query_df):
 
 
 def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
-    set_bounds(300, 600)
-
     with patch.object(
         session._conn, "run_query", wraps=session._conn.run_query
     ) as patched_run_query:
