@@ -5,6 +5,7 @@
 import datetime
 
 import modin.pandas as pd
+import numpy as np
 import pandas as native_pd
 import pytest
 import pytz
@@ -263,7 +264,12 @@ def test_tz_localize(tz):
     "ambiguous, nonexistent",
     [
         ("infer", "raise"),
+        ("NaT", "raise"),
+        (np.array([True, True, False]), "raise"),
         ("raise", "shift_forward"),
+        ("raise", "shift_backward"),
+        ("raise", "NaT"),
+        ("raise", pd.Timedelta("1h")),
         ("infer", "shift_forward"),
     ],
 )

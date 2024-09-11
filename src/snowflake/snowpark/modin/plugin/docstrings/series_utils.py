@@ -2032,6 +2032,7 @@ class CombinedDatetimelikeProperties:
                        '2014-08-01 09:00:00'],
                       dtype='datetime64[ns]', freq='h')
         """
+        # TODO (SNOW-1660843): Support tz in pd.date_range and unskip the doctests.
 
     def normalize():
         pass
