@@ -2238,6 +2238,15 @@ class DataFrame:
             ---------------------------------------------
             <BLANKLINE>
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_unpivot, stmt)
+        self.set_ast_ref(ast.df)
+        ast.value_column = value_column
+        ast.name_column = name_column
+        for c in column_list:
+            build_expr_from_snowpark_column_or_col_name(ast.column_list.add(), c)
+
         column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
         unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
 
@@ -2248,9 +2257,10 @@ class DataFrame:
                         unpivot_plan, analyzer=self._session._analyzer
                     ),
                     analyzer=self._session._analyzer,
-                )
+                ),
+                ast_stmt=stmt,
             )
-        return self._with_plan(unpivot_plan)
+        return self._with_plan(unpivot_plan, ast_stmt=stmt)
 
     @df_api_usage
     def limit(
