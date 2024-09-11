@@ -435,3 +435,41 @@ def test_dt_invalid_dtype_property_combo(data, data_type, property_name):
         expect_exception=True,
         expect_exception_match="object has no attribute",
     )
+
+
+@sql_count_checker(query_count=1)
+def test_dt_total_seconds():
+    data = [
+        "0ns",
+        "1d",
+        "1h",
+        "5h",
+        "9h",
+        "60s",
+        "1s",
+        "800ms",
+        "900ms",
+        "5us",
+        "6ns",
+        "1ns",
+        "1d 3s",
+        "9m 15s 8us",
+        None,
+    ]
+    native_ser = native_pd.Series(native_pd.TimedeltaIndex(data))
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(snow_ser, native_ser, lambda x: x.dt.total_seconds())
+
+
+@sql_count_checker(query_count=0)
+def test_timedelta_total_seconds_type_error():
+    native_ser = native_pd.Series(native_pd.DatetimeIndex(["2024-01-01"]))
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda x: x.dt.total_seconds(),
+        expect_exception=True,
+        expect_exception_type=AttributeError,
+        expect_exception_match="'DatetimeProperties' object has no attribute 'total_seconds'",
+    )
