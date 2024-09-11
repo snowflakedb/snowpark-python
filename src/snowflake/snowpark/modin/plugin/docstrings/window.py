@@ -39,7 +39,7 @@ engine_kwargs : dict, default None {ek}
 
 Returns
 -------
-:class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+:class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
     Computed {win_type} {fname} of values.
 
 Examples
@@ -70,9 +70,9 @@ Returns
 -------
 Scalar
     Case when `Series.agg` is called with a single function.
-:class:`~snowflake.snowpark.modin.pandas.Series`
+:class:`~modin.pandas.Series`
     Case when `DataFrame.agg` is called with a single function.
-:class:`~snowflake.snowpark.modin.pandas.DataFrame`
+:class:`~modin.pandas.DataFrame`
     Case when `DataFrame.agg` is called with several functions.
 
 {examples}
@@ -128,7 +128,7 @@ class Rolling:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed rolling count of values.
 
         Examples
@@ -540,7 +540,7 @@ class Rolling:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Return type is the same as the original object with np.float64 dtype.
 
         Examples
@@ -570,7 +570,7 @@ class Expanding:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed expanding count of values.
 
         Examples
@@ -827,7 +827,7 @@ class Expanding:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Return type is the same as the original object with np.float64 dtype.
 
         Examples

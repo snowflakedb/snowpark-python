@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import math
 from typing import Any, Literal, NoReturn, Optional, Union
 
 import pandas as native_pd
@@ -18,7 +17,6 @@ from snowflake.snowpark.functions import (
     dateadd,
     datediff,
     lit,
-    row_number,
     to_timestamp_ntz,
 )
 from snowflake.snowpark.modin.plugin._internal import join_utils
@@ -28,16 +26,8 @@ from snowflake.snowpark.modin.plugin._internal.join_utils import (
     MatchComparator,
     join,
 )
-from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
-    DataFrameReference,
-    OrderedDataFrame,
-)
-from snowflake.snowpark.modin.plugin._internal.utils import (
-    generate_snowflake_quoted_identifiers_helper,
-)
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.types import DateType, TimestampType
-from snowflake.snowpark.window import Window
 
 RESAMPLE_INDEX_LABEL = "__resample_index__"
 
@@ -478,39 +468,15 @@ def get_expected_resample_bins_frame(
     2020-01-07
     2020-01-09
     """
-    slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
-
-    index_column_snowflake_quoted_identifiers = (
-        generate_snowflake_quoted_identifiers_helper(
-            pandas_labels=[RESAMPLE_INDEX_LABEL]
-        )
-    )
-
-    # row_number ensures there are no gaps in the sequence.
-    all_resample_bins_col = dateadd(
-        slice_unit,
-        (row_number().over(Window.order_by(lit(1))) - 1) * slice_width,
-        to_timestamp_ntz(lit(start_date)),
-    ).as_(index_column_snowflake_quoted_identifiers[0])
-
-    rowcount = math.floor(
-        (native_pd.to_datetime(end_date) - native_pd.to_datetime(start_date))
-        / to_offset(rule)
-        + 1
-    )
-
-    expected_resample_bins_snowpark_frame = pd.session.generator(
-        all_resample_bins_col, rowcount=rowcount
-    )
-
+    expected_resample_bins_snowpark_frame = pd.date_range(
+        start_date, end_date, freq=rule
+    )._query_compiler._modin_frame
     return InternalFrame.create(
-        ordered_dataframe=OrderedDataFrame(
-            DataFrameReference(expected_resample_bins_snowpark_frame)
-        ),
+        ordered_dataframe=expected_resample_bins_snowpark_frame.ordered_dataframe,
         data_column_pandas_labels=[],
         data_column_snowflake_quoted_identifiers=[],
         index_column_pandas_labels=[RESAMPLE_INDEX_LABEL],
-        index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
+        index_column_snowflake_quoted_identifiers=expected_resample_bins_snowpark_frame.index_column_snowflake_quoted_identifiers,
         data_column_pandas_index_names=[None],
         data_column_types=None,
         index_column_types=None,
