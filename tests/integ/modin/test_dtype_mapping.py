@@ -281,15 +281,11 @@ from tests.utils import Utils
             "timestamp_tz timestamp_tz",
             "values ('2023-01-01 00:00:01.001 +0000'), ('2023-12-31 23:59:59.999 +1000')",  # timestamp_tz only supports tz offset
             dtype("<M8[ns]"),
-            "datetime64[ns, America/Los_Angeles]",  # to_pandas convert tz to local timezone
+            "object",
             native_pd.DataFrame(
                 [
-                    Timestamp(
-                        "2022-12-31 16:00:01.001000-08:00", tz="America/Los_Angeles"
-                    ),
-                    Timestamp(
-                        "2023-12-31 05:59:59.999000-08:00", tz="America/Los_Angeles"
-                    ),
+                    Timestamp("2023-01-01 00:00:01.001 +0000"),
+                    Timestamp("2023-12-31 23:59:59.999 +1000"),
                 ],
                 index=native_pd.Index([0, 1]),
                 columns=["TIMESTAMP_TZ"],
