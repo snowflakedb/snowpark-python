@@ -226,16 +226,17 @@ class SqlCounter:
         )
 
         import os
-        test_name = os.environ.get('PYTEST_CURRENT_TEST')
 
-        counts_list = ''
+        test_name = os.environ.get("PYTEST_CURRENT_TEST")
+
+        counts_list = ""
         for key in SQL_COUNT_PARAMETERS:
             actual_count = actual_counts[key] if key in actual_counts else 0
             expected_count = kwargs[key] if key in kwargs else -1
             if expected_count is None:
                 expected_count = 0
             failed = failed or expected_count != actual_count
-            counts_list=counts_list + f',{key},{expected_count},{actual_count}'
+            counts_list = counts_list + f",{key},{expected_count},{actual_count}"
 
         if failed:
             pytest.assume(
