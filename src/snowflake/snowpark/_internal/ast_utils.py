@@ -77,6 +77,18 @@ def extract_assign_targets(source_line: str) -> Optional[Union[str, List[str]]]:
         v.visit(tree)
         return v.symbols
     except Exception:
+        # It may happen that an incomplete source line is submitted.
+        # For this reason, try to parse one more time if '=' is found.
+        if "=" in source_line:
+            source_line = source_line[: source_line.find("=")] + " = None"
+            try:
+                tree = ast.parse(source_line.strip())
+                v = ExtractAssignmentVisitor()
+                v.visit(tree)
+                return v.symbols
+            except Exception:
+                # If this fails, return None for parse error.
+                pass
         return None
 
 
