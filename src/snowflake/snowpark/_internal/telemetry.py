@@ -44,7 +44,7 @@ class TelemetryField(Enum):
         "snowpark_eliminate_numeric_sql_value_cast_enabled"
     )
     TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = "snowpark_auto_clean_up_temp_table_enabled"
-    TYPE_COMPILATION_STAGE_STATISTICS = "snowpark_compilation_stage_statistics"
+    TYPE_LARGE_QUERY_BREAKDOWN_ENABLED = "snowpark_large_query_breakdown_enabled"
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
     KEY_START_TIME = "start_time"
@@ -79,8 +79,6 @@ class TelemetryField(Enum):
     QUERY_PLAN_HEIGHT = "query_plan_height"
     QUERY_PLAN_NUM_DUPLICATE_NODES = "query_plan_num_duplicate_nodes"
     QUERY_PLAN_COMPLEXITY = "query_plan_complexity"
-    BEFORE_COMPLEXITY_SCORE = "before_complexity_score"
-    AFTER_COMPLEXITY_SCORES = "after_complexity_scores"
 
 
 # These DataFrame APIs call other DataFrame APIs
@@ -426,7 +424,7 @@ class TelemetryClient:
     ) -> None:
         message = {
             **self._create_basic_telemetry_data(
-                CompilationStageTelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_ENABLED.value
+                TelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_ENABLED.value
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
@@ -477,29 +475,11 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.KEY_DATA.value: {
-                    CompilationStageTelemetryField.KEY_LOWER_BOUND.value: lower_bound,
-                    CompilationStageTelemetryField.KEY_UPPER_BOUND.value: upper_bound,
+                    CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: (
+                        lower_bound,
+                        upper_bound,
+                    ),
                 },
-            },
-        }
-        self.send(message)
-
-    def send_complexity_breakdown_post_compilation_stage(
-        self,
-        session_id: int,
-        plan_uuid: str,
-        before_complexity_score: int,
-        after_complexity_scores: List[int],
-    ) -> None:
-        message = {
-            **self._create_basic_telemetry_data(
-                TelemetryField.TYPE_COMPILATION_STAGE_STATISTICS.value
-            ),
-            TelemetryField.KEY_DATA.value: {
-                TelemetryField.SESSION_ID.value: session_id,
-                TelemetryField.PLAN_UUID.value: plan_uuid,
-                TelemetryField.BEFORE_COMPLEXITY_SCORE.value: before_complexity_score,
-                TelemetryField.AFTER_COMPLEXITY_SCORES.value: after_complexity_scores,
             },
         }
         self.send(message)

@@ -56,7 +56,7 @@ def setup(session):
     session._query_compilation_stage_enabled = is_query_compilation_stage_enabled
     session._cte_optimization_enabled = cte_optimization_enabled
     session._large_query_breakdown_enabled = large_query_breakdown_enabled
-    reset_bounds()
+    reset_bounds(session)
 
 
 def set_bounds(session: Session, lower_bound: int, upper_bound: int):
@@ -423,7 +423,7 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     assert len(large_query_df.queries["queries"]) == 1
     assert len(large_query_df.queries["post_actions"]) == 0
 
-    reset_bounds()
+    reset_bounds(session)
     assert len(large_query_df.queries["queries"]) == 1
     assert len(large_query_df.queries["post_actions"]) == 0
 
