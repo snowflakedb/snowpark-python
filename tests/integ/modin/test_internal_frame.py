@@ -38,7 +38,7 @@ def test_strip_duplicates(input, expected):
     assert_frame_equal(result, pd.DataFrame(expected))
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2, join_count=1)
 def test_strip_duplicates_after_sort():
     df = pd.DataFrame({"A": [0, 1, 0, 1, 2], "B": [1, 2, 3, 4, 5]})
     df = df.sort_values(by="B", ascending=False)
