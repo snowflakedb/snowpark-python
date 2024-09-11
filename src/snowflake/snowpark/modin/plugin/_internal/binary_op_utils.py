@@ -5,7 +5,6 @@ import functools
 from collections.abc import Hashable
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Set, Type
 
 import numpy as np
 import pandas as native_pd
@@ -343,20 +342,6 @@ class BinaryOp:
             components = snake_str.split("_")
             return "".join(x.title() for x in components)
 
-        def get_all_subclasses(cls: Type[BinaryOp]) -> Set[Type[BinaryOp]]:
-            """Gets all subclasses of a given class."""
-            subclasses = set()
-            to_check = [cls]
-
-            while to_check:
-                parent = to_check.pop()
-                for child in parent.__subclasses__():
-                    if child not in subclasses:
-                        subclasses.add(child)
-                        to_check.append(child)
-
-            return subclasses
-
         if op in _RIGHT_BINARY_OP_TO_LEFT_BINARY_OP:
             # Normalize right-sided binary operations to the equivalent left-sided
             # operations with swapped operands. For example, rsub(col(a), col(b))
@@ -371,7 +356,7 @@ class BinaryOp:
 
         class_name = f"{snake_to_camel(op)}Op"
         op_class = None
-        for subclass in get_all_subclasses(BinaryOp):
+        for subclass in BinaryOp.__subclasses__():
             if subclass.__name__ == class_name:
                 op_class = subclass
         if op_class is None:
@@ -486,7 +471,7 @@ class BinaryOp:
             snowpark_pandas_type=self.result_snowpark_pandas_type,
         )
 
-    def _check_timedelta_with_none(self) -> bool:
+    def _check_timedelta_with_none(self) -> None:
         if self.op in (
             "add",
             "sub",
@@ -510,8 +495,6 @@ class BinaryOp:
         ):
             self.result_column = pandas_lit(None)
             self.result_snowpark_pandas_type = TimedeltaType()
-            return True
-        return False
 
     def _check_error(self) -> None:
         if (
@@ -605,7 +588,9 @@ class BinaryOp:
     def compute(self) -> SnowparkPandasColumn:
         self._check_error()
 
-        if self._check_timedelta_with_none():
+        self._check_timedelta_with_none()
+
+        if self.result_column is not None:
             return self._get_result()
 
         # Generally, some operators and the data types have to be handled specially to align with pandas
@@ -738,15 +723,6 @@ class MulOp(BinaryOp):
 
 class EqOp(BinaryOp):
     def _custom_compute(self) -> None:
-        # some operators and the data types have to be handled specially to align with pandas
-        # However, it is difficult to fail early if the arithmetic operator is not compatible
-        # with the data type, so we just let the server raise exception (e.g. a string minus a string).
-
-        if _op_is_between_two_timedeltas_or_timedelta_and_null(
-            self.first_datatype(), self.second_datatype()
-        ):
-            return
-
         # For `eq` and `ne`, note that Snowflake will consider 1 equal to
         # Timedelta(1) because those two have the same representation in Snowflake,
         # so we have to compare types in the client.
@@ -758,15 +734,6 @@ class EqOp(BinaryOp):
 
 class NeOp(BinaryOp):
     def _custom_compute(self) -> None:
-        # some operators and the data types have to be handled specially to align with pandas
-        # However, it is difficult to fail early if the arithmetic operator is not compatible
-        # with the data type, so we just let the server raise exception (e.g. a string minus a string).
-
-        if _op_is_between_two_timedeltas_or_timedelta_and_null(
-            self.first_datatype(), self.second_datatype()
-        ):
-            return
-
         # For `eq` and `ne`, note that Snowflake will consider 1 equal to
         # Timedelta(1) because those two have the same representation in Snowflake,
         # so we have to compare types in the client.
@@ -791,8 +758,9 @@ class TruedivOp(BinaryOp):
         if isinstance(
             self.first_datatype(), TimedeltaType
         ) and _is_numeric_non_timedelta_type(self.second_datatype()):
-            self.result_column = floor(self.first_operand / self.second_operand)
-            self.result_column = cast(self.result_column, LongType())
+            self.result_column = cast(
+                floor(self.first_operand / self.second_operand), LongType()
+            )
             self.result_snowpark_pandas_type = TimedeltaType()
 
 
