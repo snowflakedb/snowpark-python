@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from functools import cached_property
 from typing import AbstractSet, Dict, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -38,7 +37,6 @@ class UnaryExpression(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.child)
 
-    @cached_property
     def dependent_column_names_with_duplication(self) -> list[str]:
         return derive_dependent_columns_with_duplication(self.child)
 
