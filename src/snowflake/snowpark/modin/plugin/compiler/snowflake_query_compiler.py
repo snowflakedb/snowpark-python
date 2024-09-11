@@ -16691,7 +16691,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.parameter_not_implemented_error(
                 "ambiguous", "Series.dt.tz_localize"
             )
-        if not isinstance(ambiguous, str) or nonexistent != "raise":
+        if not isinstance(nonexistent, str) or nonexistent != "raise":
             ErrorMessage.parameter_not_implemented_error(
                 "nonexistent", "Series.dt.tz_localize"
             )
