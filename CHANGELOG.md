@@ -9,7 +9,7 @@
 
 ### New Features
 
-- Added following new functions in `snowflake.snowpark.functions`:
+- Added the following new functions in `snowflake.snowpark.functions`:
   - `array_remove`
   - `ln`
 
@@ -56,7 +56,7 @@
 
 #### New Features
 
-- Added support for type coercion when passing columns as input to udf calls
+- Added support for type coercion when passing columns as input to UDF calls.
 - Added support for `Index.identical`.
 
 #### Bug Fixes
@@ -116,10 +116,10 @@
 - Improved `pd.to_datetime` to handle all local input cases. 
 - Create a lazy index from another lazy index without pulling data to client.
 - Raised `NotImplementedError` for Index bitwise operators.
-- Display a clearer error message when `Index.names` is set to a non-like-like object.
+- Display a more clear error message when `Index.names` is set to a non-like-like object.
 - Raise a warning whenever MultiIndex values are pulled in locally.
 - Improve warning message for `pd.read_snowflake` include the creation reason when temp table creation is triggered.
-- When calling `DataFrame.set_index`, or setting `DataFrame.index` or `Series.index`, with a new index that does not match the current length of the `Series`/`DataFrame` object, a `ValueError` is no longer raised. When the `Series`/`DataFrame` object is longer than the new index, the `Series`/`DataFrame`'s new index is filled with `NaN` values for the "extra" elements. When the `Series`/`DataFrame` object is shorter than the new index, the extra values in the new index are ignored—`Series` and `DataFrame` stay the same length `n`, and use only the first `n` values of the new index.
+- Improve performance for `DataFrame.set_index`, or setting `DataFrame.index` or `Series.index` by avoiding checks require eager evaluation. As a consequence, when the new index that does not match the current `Series`/`DataFrame` object length, a `ValueError` is no longer raised. Instead, when the `Series`/`DataFrame` object is longer than the provided index, the `Series`/`DataFrame`'s new index is filled with `NaN` values for the "extra" elements. Otherwise, the extra values in the provided index are ignored.
 
 #### Bug Fixes
 
