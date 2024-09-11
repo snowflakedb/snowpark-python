@@ -1909,7 +1909,7 @@ class CombinedDatetimelikeProperties:
         Localize DatetimeIndex in US/Eastern time zone:
 
         >>> tz_aware = tz_naive.tz_localize(tz='US/Eastern')  # doctest: +SKIP
-        >>> tz_aware
+        >>> tz_aware  # doctest: +SKIP
         DatetimeIndex(['2018-03-01 09:00:00-05:00',
                        '2018-03-02 09:00:00-05:00',
                        '2018-03-03 09:00:00-05:00'],
