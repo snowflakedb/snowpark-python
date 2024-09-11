@@ -1185,19 +1185,22 @@ def test_post_compilation_stage_telemetry(session):
     uuid_str = str(uuid.uuid4())
 
     def send_telemetry():
-        client.send_post_compilation_stage_telemetry(
+        summary_value = {
+            "cte_optimization_enabled": True,
+            "large_query_breakdown_enabled": True,
+            "complexity_score_bounds": (300, 600),
+            "time_taken_for_compilation": 0.136,
+            "time_taken_for_deep_copy_plan": 0.074,
+            "time_taken_for_cte_optimization": 0.01,
+            "time_taken_for_large_query_breakdown": 0.062,
+            "complexity_score_before_compilation": 1148,
+            "complexity_score_after_cte_optimization": [1148],
+            "complexity_score_after_large_query_breakdown": [514, 636],
+        }
+        client.send_query_compilation_summary_telemetry(
             session_id=session.session_id,
             plan_uuid=uuid_str,
-            cte_optimization_enabled=session.cte_optimization_enabled,
-            large_query_breakdown_enabled=session.large_query_breakdown_enabled,
-            complexity_score_bounds=(300, 600),
-            time_taken_for_compilation=0.136,
-            time_taken_for_deep_copy=0.074,
-            time_taken_for_cte_optimization=0.01,
-            time_taken_for_large_query_breakdown=0.062,
-            complexity_score_before_compilation=1148,
-            complexity_scores_after_cte=[1148],
-            complexity_scores_after_large_query_breakdown=[514, 636],
+            compilation_stage_summary=summary_value,
         )
 
     telemetry_tracker = TelemetryDataTracker(session)
@@ -1205,8 +1208,8 @@ def test_post_compilation_stage_telemetry(session):
     expected_data = {
         "session_id": session.session_id,
         "plan_uuid": uuid_str,
-        "cte_optimization_enabled": session.cte_optimization_enabled,
-        "large_query_breakdown_enabled": session.large_query_breakdown_enabled,
+        "cte_optimization_enabled": True,
+        "large_query_breakdown_enabled": True,
         "complexity_score_bounds": (300, 600),
         "time_taken_for_compilation": 0.136,
         "time_taken_for_deep_copy_plan": 0.074,

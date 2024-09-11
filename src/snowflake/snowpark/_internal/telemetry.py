@@ -5,7 +5,7 @@
 
 import functools
 from enum import Enum, unique
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.telemetry import (
@@ -433,20 +433,11 @@ class TelemetryClient:
         }
         self.send(message)
 
-    def send_post_compilation_stage_telemetry(
+    def send_query_compilation_summary_telemetry(
         self,
         session_id: int,
         plan_uuid: str,
-        cte_optimization_enabled: bool,
-        large_query_breakdown_enabled: bool,
-        complexity_score_bounds: Tuple[int, int],
-        time_taken_for_compilation: float,
-        time_taken_for_deep_copy: float,
-        time_taken_for_cte_optimization: float,
-        time_taken_for_large_query_breakdown: float,
-        complexity_score_before_compilation: int,
-        complexity_scores_after_cte: List[int],
-        complexity_scores_after_large_query_breakdown: List[int],
+        compilation_stage_summary: Dict[str, Any],
     ) -> None:
         message = {
             **self._create_basic_telemetry_data(
@@ -455,16 +446,7 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
-                TelemetryField.CTE_OPTIMIZATION_ENABLED.value: cte_optimization_enabled,
-                TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: large_query_breakdown_enabled,
-                CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: complexity_score_bounds,
-                CompilationStageTelemetryField.TIME_TAKEN_FOR_COMPILATION.value: time_taken_for_compilation,
-                CompilationStageTelemetryField.TIME_TAKEN_FOR_DEEP_COPY_PLAN.value: time_taken_for_deep_copy,
-                CompilationStageTelemetryField.TIME_TAKEN_FOR_CTE_OPTIMIZATION.value: time_taken_for_cte_optimization,
-                CompilationStageTelemetryField.TIME_TAKEN_FOR_LARGE_QUERY_BREAKDOWN.value: time_taken_for_large_query_breakdown,
-                CompilationStageTelemetryField.COMPLEXITY_SCORE_BEFORE_COMPILATION.value: complexity_score_before_compilation,
-                CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION.value: complexity_scores_after_cte,
-                CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_LARGE_QUERY_BREAKDOWN.value: complexity_scores_after_large_query_breakdown,
+                **compilation_stage_summary,
             },
         }
         self.send(message)

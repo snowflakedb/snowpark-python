@@ -23,7 +23,11 @@ from snowflake.snowpark._internal.compiler.large_query_breakdown import (
 from snowflake.snowpark._internal.compiler.repeated_subquery_elimination import (
     RepeatedSubqueryElimination,
 )
+from snowflake.snowpark._internal.compiler.telemetry_constants import (
+    CompilationStageTelemetryField,
+)
 from snowflake.snowpark._internal.compiler.utils import create_query_generator
+from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark.mock._connection import MockServerConnection
 
 
@@ -121,22 +125,25 @@ class PlanCompiler:
             large_query_breakdown_time = large_query_breakdown_end_time - cte_end_time
             total_time = time.time() - start_time
             session = self._plan.session
-            session._conn._telemetry_client.send_post_compilation_stage_telemetry(
-                session_id=session.session_id,
-                plan_uuid=self._plan.uuid,
-                cte_optimization_enabled=session.cte_optimization_enabled,
-                large_query_breakdown_enabled=session.large_query_breakdown_enabled,
-                time_taken_for_deep_copy=deep_copy_time,
-                time_taken_for_cte_optimization=cte_time,
-                time_taken_for_large_query_breakdown=large_query_breakdown_time,
-                time_taken_for_compilation=total_time,
-                complexity_score_bounds=(
+            summary_value = {
+                TelemetryField.CTE_OPTIMIZATION_ENABLED.value: session.cte_optimization_enabled,
+                TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: session.large_query_breakdown_enabled,
+                CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: (
                     COMPLEXITY_SCORE_LOWER_BOUND,
                     COMPLEXITY_SCORE_UPPER_BOUND,
                 ),
-                complexity_score_before_compilation=complexity_score_before_compilation,
-                complexity_scores_after_cte=complexity_scores_after_cte,
-                complexity_scores_after_large_query_breakdown=complexity_scores_after_large_query_breakdown,
+                CompilationStageTelemetryField.TIME_TAKEN_FOR_COMPILATION.value: total_time,
+                CompilationStageTelemetryField.TIME_TAKEN_FOR_DEEP_COPY_PLAN.value: deep_copy_time,
+                CompilationStageTelemetryField.TIME_TAKEN_FOR_CTE_OPTIMIZATION.value: cte_time,
+                CompilationStageTelemetryField.TIME_TAKEN_FOR_LARGE_QUERY_BREAKDOWN.value: large_query_breakdown_time,
+                CompilationStageTelemetryField.COMPLEXITY_SCORE_BEFORE_COMPILATION.value: complexity_score_before_compilation,
+                CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION.value: complexity_scores_after_cte,
+                CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_LARGE_QUERY_BREAKDOWN.value: complexity_scores_after_large_query_breakdown,
+            }
+            session._conn._telemetry_client.send_query_compilation_summary_telemetry(
+                session_id=session.session_id,
+                plan_uuid=self._plan.uuid,
+                compilation_stage_summary=summary_value,
             )
             return queries
         else:
