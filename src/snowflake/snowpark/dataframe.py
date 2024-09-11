@@ -5032,16 +5032,6 @@ class DataFrame:
                 if w <= 0:
                     raise ValueError("weights must be positive numbers")
 
-            # # TODO: Support random_split in MockServerConnection.
-            # from snowflake.snowpark.mock._connection import MockServerConnection
-            #
-            # if (
-            #     isinstance(self._session._conn, MockServerConnection)
-            #     and self._session._conn._suppress_not_implemented_error
-            # ):
-            #     # Allow AST tests to pass.
-            #     return []
-
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
                 temp_column_name,
