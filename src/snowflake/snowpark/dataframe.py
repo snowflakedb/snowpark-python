@@ -5023,6 +5023,7 @@ class DataFrame:
                 ast.seed.value = seed
             if statement_params:
                 ast.statement_params = statement_params
+            self.set_ast_ref(ast.df)
 
         if len(weights) == 1:
             return [self]
@@ -5066,7 +5067,19 @@ class DataFrame:
 
             if _emit_ast:
                 # Assign each Dataframe in res_dfs a __getitem__ from random_split.
-                raise NotImplementedError()
+                for i, df in enumerate(res_dfs):
+                    obj_stmt = (
+                        self._session._ast_batch.assign()
+                    )  # TODO: symbol capture for multiple.
+                    obj_expr = with_src_position(
+                        obj_stmt.expr.object_get_item, obj_stmt
+                    )
+                    obj_expr.obj.bitfield1 = stmt.var_id.bitfield1
+
+                    arg = obj_expr.args.add()
+                    build_expr_from_python_val(arg, i)
+
+                    df._ast_id = obj_stmt.var_id.bitfield1
 
             return res_dfs
 
