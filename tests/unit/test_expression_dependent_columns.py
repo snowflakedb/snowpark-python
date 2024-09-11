@@ -242,7 +242,9 @@ def test_within_group():
     assert a.dependent_column_names() == set("abcde")
     assert a.dependent_column_names_with_duplication() == list("eabcd")
 
-    b = WithinGroup(UnresolvedAttribute("e"), [UnresolvedAttribute(x) for x in "abcdea"])
+    b = WithinGroup(
+        UnresolvedAttribute("e"), [UnresolvedAttribute(x) for x in "abcdea"]
+    )
     assert b.dependent_column_names() == set("abcde")
     assert b.dependent_column_names_with_duplication() == list("eabcdea")
 
@@ -309,7 +311,11 @@ def test_binary_expression(expression_class):
     # hierarchical expressions with duplication
     hierarchical_binary_expression = expression_class(expression_class(a, b), b)
     assert hierarchical_binary_expression.dependent_column_names() == {"A", "B"}
-    assert hierarchical_binary_expression.dependent_column_names_with_duplication() == ["A", "B", "B"]
+    assert hierarchical_binary_expression.dependent_column_names_with_duplication() == [
+        "A",
+        "B",
+        "B",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -412,6 +418,22 @@ def test_window_expression():
     a = WindowExpression(UnresolvedAttribute("x"), window_spec_definition)
     assert a.dependent_column_names() == set("abcdefx")
     assert a.dependent_column_names_with_duplication() == list("xabcdef")
+
+
+def test_window_expression_with_duplication_columns():
+    window_spec_definition = WindowSpecDefinition(
+        [UnresolvedAttribute("a"), UnresolvedAttribute("b")],
+        [
+            SortOrder(UnresolvedAttribute("c"), Ascending()),
+            SortOrder(UnresolvedAttribute("a"), Ascending()),
+        ],
+        SpecifiedWindowFrame(
+            RowFrame(), UnresolvedAttribute("e"), UnresolvedAttribute("f")
+        ),
+    )
+    a = WindowExpression(UnresolvedAttribute("e"), window_spec_definition)
+    assert a.dependent_column_names() == set("abcef")
+    assert a.dependent_column_names_with_duplication() == list("eabcaef")
 
 
 @pytest.mark.parametrize(
