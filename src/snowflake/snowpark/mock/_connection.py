@@ -6,6 +6,7 @@
 import functools
 import json
 import logging
+import threading
 import uuid
 from copy import copy
 from decimal import Decimal
@@ -91,35 +92,39 @@ class MockServerConnection:
             self.table_registry = {}
             self.view_registry = {}
             self.conn = conn
+            self._lock = self.conn.get_lock()
 
         def is_existing_table(self, name: Union[str, Iterable[str]]) -> bool:
-            current_schema = self.conn._get_current_parameter("schema")
-            current_database = self.conn._get_current_parameter("database")
-            qualified_name = get_fully_qualified_name(
-                name, current_schema, current_database
-            )
-            return qualified_name in self.table_registry
+            with self._lock:
+                current_schema = self.conn._get_current_parameter("schema")
+                current_database = self.conn._get_current_parameter("database")
+                qualified_name = get_fully_qualified_name(
+                    name, current_schema, current_database
+                )
+                return qualified_name in self.table_registry
 
         def is_existing_view(self, name: Union[str, Iterable[str]]) -> bool:
-            current_schema = self.conn._get_current_parameter("schema")
-            current_database = self.conn._get_current_parameter("database")
-            qualified_name = get_fully_qualified_name(
-                name, current_schema, current_database
-            )
-            return qualified_name in self.view_registry
+            with self._lock:
+                current_schema = self.conn._get_current_parameter("schema")
+                current_database = self.conn._get_current_parameter("database")
+                qualified_name = get_fully_qualified_name(
+                    name, current_schema, current_database
+                )
+                return qualified_name in self.view_registry
 
         def read_table(self, name: Union[str, Iterable[str]]) -> TableEmulator:
-            current_schema = self.conn._get_current_parameter("schema")
-            current_database = self.conn._get_current_parameter("database")
-            qualified_name = get_fully_qualified_name(
-                name, current_schema, current_database
-            )
-            if qualified_name in self.table_registry:
-                return copy(self.table_registry[qualified_name])
-            else:
-                raise SnowparkLocalTestingException(
-                    f"Object '{name}' does not exist or not authorized."
+            with self._lock:
+                current_schema = self.conn._get_current_parameter("schema")
+                current_database = self.conn._get_current_parameter("database")
+                qualified_name = get_fully_qualified_name(
+                    name, current_schema, current_database
                 )
+                if qualified_name in self.table_registry:
+                    return copy(self.table_registry[qualified_name])
+                else:
+                    raise SnowparkLocalTestingException(
+                        f"Object '{name}' does not exist or not authorized."
+                    )
 
         def write_table(
             self,
@@ -128,127 +133,155 @@ class MockServerConnection:
             mode: SaveMode,
             column_names: Optional[List[str]] = None,
         ) -> List[Row]:
-            for column in table.columns:
-                if not table[column].sf_type.nullable and table[column].isnull().any():
-                    raise SnowparkLocalTestingException(
-                        "NULL result in a non-nullable column"
-                    )
-            current_schema = self.conn._get_current_parameter("schema")
-            current_database = self.conn._get_current_parameter("database")
-            name = get_fully_qualified_name(name, current_schema, current_database)
-            table = copy(table)
-            if mode == SaveMode.APPEND:
-                if name in self.table_registry:
-                    target_table = self.table_registry[name]
-                    input_schema = table.columns.to_list()
-                    existing_schema = target_table.columns.to_list()
-
-                    if not column_names:  # append with column_order being index
-                        if len(input_schema) != len(existing_schema):
-                            raise SnowparkLocalTestingException(
-                                f"Cannot append because incoming data has different schema {input_schema} than existing table {existing_schema}"
-                            )
-                        # temporarily align the column names of both dataframe to be col indexes 0, 1, ... N - 1
-                        table.columns = range(table.shape[1])
-                        target_table.columns = range(target_table.shape[1])
-                    else:  # append with column_order being name
-                        if invalid_cols := set(input_schema) - set(existing_schema):
-                            identifiers = "', '".join(
-                                unquote_if_quoted(id) for id in invalid_cols
-                            )
-                            raise SnowparkLocalTestingException(
-                                f"table contains invalid identifier '{identifiers}'"
-                            )
-                        invalid_non_nullable_cols = []
-                        for missing_col in set(existing_schema) - set(input_schema):
-                            if target_table[missing_col].sf_type.nullable:
-                                table[missing_col] = None
-                                table.sf_types[missing_col] = target_table[
-                                    missing_col
-                                ].sf_type
-                            else:
-                                invalid_non_nullable_cols.append(missing_col)
-                        if invalid_non_nullable_cols:
-                            identifiers = "', '".join(
-                                unquote_if_quoted(id)
-                                for id in invalid_non_nullable_cols
-                            )
-                            raise SnowparkLocalTestingException(
-                                f"NULL result in a non-nullable column '{identifiers}'"
-                            )
-
-                    self.table_registry[name] = pandas.concat(
-                        [target_table, table], ignore_index=True
-                    )
-                    self.table_registry[name].columns = existing_schema
-                    self.table_registry[name].sf_types = target_table.sf_types
-                else:
-                    self.table_registry[name] = table
-            elif mode == SaveMode.IGNORE:
-                if name not in self.table_registry:
-                    self.table_registry[name] = table
-            elif mode == SaveMode.OVERWRITE:
-                self.table_registry[name] = table
-            elif mode == SaveMode.ERROR_IF_EXISTS:
-                if name in self.table_registry:
-                    raise SnowparkLocalTestingException(f"Table {name} already exists")
-                else:
-                    self.table_registry[name] = table
-            elif mode == SaveMode.TRUNCATE:
-                if name in self.table_registry:
-                    target_table = self.table_registry[name]
-                    input_schema = set(table.columns.to_list())
-                    existing_schema = set(target_table.columns.to_list())
-                    # input is a subset of existing schema and all missing columns are nullable
-                    if input_schema.issubset(existing_schema) and all(
-                        target_table[col].sf_type.nullable
-                        for col in set(existing_schema - input_schema)
+            with self._lock:
+                for column in table.columns:
+                    if (
+                        not table[column].sf_type.nullable
+                        and table[column].isnull().any()
                     ):
-                        for col in set(existing_schema - input_schema):
-                            table[col] = ColumnEmulator(
-                                data=[None] * table.shape[0],
-                                sf_type=target_table[col].sf_type,
-                                dtype=object,
-                            )
-                    else:
                         raise SnowparkLocalTestingException(
-                            f"Cannot truncate because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
+                            "NULL result in a non-nullable column"
                         )
-                    table.sf_types_by_col_index = target_table.sf_types_by_col_index
-                    table = table.reindex(columns=target_table.columns)
-                self.table_registry[name] = table
-            else:
-                raise SnowparkLocalTestingException(f"Unrecognized mode: {mode}")
-            return [
-                Row(status=f"Table {name} successfully created.")
-            ]  # TODO: match message
+                current_schema = self.conn._get_current_parameter("schema")
+                current_database = self.conn._get_current_parameter("database")
+                name = get_fully_qualified_name(name, current_schema, current_database)
+                table = copy(table)
+                if mode == SaveMode.APPEND:
+                    if name in self.table_registry:
+                        target_table = self.table_registry[name]
+                        input_schema = table.columns.to_list()
+                        existing_schema = target_table.columns.to_list()
+
+                        if not column_names:  # append with column_order being index
+                            if len(input_schema) != len(existing_schema):
+                                raise SnowparkLocalTestingException(
+                                    f"Cannot append because incoming data has different schema {input_schema} than existing table {existing_schema}"
+                                )
+                            # temporarily align the column names of both dataframe to be col indexes 0, 1, ... N - 1
+                            table.columns = range(table.shape[1])
+                            target_table.columns = range(target_table.shape[1])
+                        else:  # append with column_order being name
+                            if invalid_cols := set(input_schema) - set(existing_schema):
+                                identifiers = "', '".join(
+                                    unquote_if_quoted(id) for id in invalid_cols
+                                )
+                                raise SnowparkLocalTestingException(
+                                    f"table contains invalid identifier '{identifiers}'"
+                                )
+                            invalid_non_nullable_cols = []
+                            for missing_col in set(existing_schema) - set(input_schema):
+                                if target_table[missing_col].sf_type.nullable:
+                                    table[missing_col] = None
+                                    table.sf_types[missing_col] = target_table[
+                                        missing_col
+                                    ].sf_type
+                                else:
+                                    invalid_non_nullable_cols.append(missing_col)
+                            if invalid_non_nullable_cols:
+                                identifiers = "', '".join(
+                                    unquote_if_quoted(id)
+                                    for id in invalid_non_nullable_cols
+                                )
+                                raise SnowparkLocalTestingException(
+                                    f"NULL result in a non-nullable column '{identifiers}'"
+                                )
+
+                        self.table_registry[name] = pandas.concat(
+                            [target_table, table], ignore_index=True
+                        )
+                        self.table_registry[name].columns = existing_schema
+                        self.table_registry[name].sf_types = target_table.sf_types
+                    else:
+                        self.table_registry[name] = table
+                elif mode == SaveMode.IGNORE:
+                    if name not in self.table_registry:
+                        self.table_registry[name] = table
+                elif mode == SaveMode.OVERWRITE:
+                    self.table_registry[name] = table
+                elif mode == SaveMode.ERROR_IF_EXISTS:
+                    if name in self.table_registry:
+                        raise SnowparkLocalTestingException(
+                            f"Table {name} already exists"
+                        )
+                    else:
+                        self.table_registry[name] = table
+                elif mode == SaveMode.TRUNCATE:
+                    if name in self.table_registry:
+                        target_table = self.table_registry[name]
+                        input_schema = set(table.columns.to_list())
+                        existing_schema = set(target_table.columns.to_list())
+                        # input is a subset of existing schema and all missing columns are nullable
+                        if input_schema.issubset(existing_schema) and all(
+                            target_table[col].sf_type.nullable
+                            for col in set(existing_schema - input_schema)
+                        ):
+                            for col in set(existing_schema - input_schema):
+                                table[col] = ColumnEmulator(
+                                    data=[None] * table.shape[0],
+                                    sf_type=target_table[col].sf_type,
+                                    dtype=object,
+                                )
+                        else:
+                            raise SnowparkLocalTestingException(
+                                f"Cannot truncate because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
+                            )
+                        table.sf_types_by_col_index = target_table.sf_types_by_col_index
+                        table = table.reindex(columns=target_table.columns)
+                    self.table_registry[name] = table
+                else:
+                    raise SnowparkLocalTestingException(f"Unrecognized mode: {mode}")
+                return [
+                    Row(status=f"Table {name} successfully created.")
+                ]  # TODO: match message
 
         def drop_table(self, name: Union[str, Iterable[str]]) -> None:
-            current_schema = self.conn._get_current_parameter("schema")
-            current_database = self.conn._get_current_parameter("database")
-            name = get_fully_qualified_name(name, current_schema, current_database)
-            if name in self.table_registry:
-                self.table_registry.pop(name)
+            with self._lock:
+                current_schema = self.conn._get_current_parameter("schema")
+                current_database = self.conn._get_current_parameter("database")
+                name = get_fully_qualified_name(name, current_schema, current_database)
+                if name in self.table_registry:
+                    self.table_registry.pop(name)
 
         def create_or_replace_view(
             self, execution_plan: MockExecutionPlan, name: Union[str, Iterable[str]]
         ):
-            current_schema = self.conn._get_current_parameter("schema")
-            current_database = self.conn._get_current_parameter("database")
-            name = get_fully_qualified_name(name, current_schema, current_database)
-            self.view_registry[name] = execution_plan
+            with self._lock:
+                current_schema = self.conn._get_current_parameter("schema")
+                current_database = self.conn._get_current_parameter("database")
+                name = get_fully_qualified_name(name, current_schema, current_database)
+                self.view_registry[name] = execution_plan
 
         def get_review(self, name: Union[str, Iterable[str]]) -> MockExecutionPlan:
-            current_schema = self.conn._get_current_parameter("schema")
-            current_database = self.conn._get_current_parameter("database")
-            name = get_fully_qualified_name(name, current_schema, current_database)
-            if name in self.view_registry:
-                return self.view_registry[name]
-            raise SnowparkLocalTestingException(f"View {name} does not exist")
+            with self._lock:
+                current_schema = self.conn._get_current_parameter("schema")
+                current_database = self.conn._get_current_parameter("database")
+                name = get_fully_qualified_name(name, current_schema, current_database)
+                if name in self.view_registry:
+                    return self.view_registry[name]
+                raise SnowparkLocalTestingException(f"View {name} does not exist")
+
+        def read_view_if_exists(
+            self, name: Union[str, Iterable[str]]
+        ) -> Optional[MockExecutionPlan]:
+            """Method to atomically read a view if it exists. Returns None if the view does not exist."""
+            with self._lock:
+                if self.is_existing_view(name):
+                    return self.get_review(name)
+                return None
+
+        def read_table_if_exists(
+            self, name: Union[str, Iterable[str]]
+        ) -> Optional[TableEmulator]:
+            """Method to atomically read a table if it exists. Returns None if the table does not exist."""
+            with self._lock:
+                if self.is_existing_table(name):
+                    return self.read_table(name)
+                return None
 
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         self._conn = MockedSnowflakeConnection()
         self._cursor = Mock()
+        self._lock = threading.RLock()
         self._lower_case_parameters = {}
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
@@ -301,7 +334,7 @@ class MockServerConnection:
         warning_logger: Optional[logging.Logger] = None,
     ):
         """
-        send telemetry to oob servie, can raise error or logging a warning based upon the input
+        send telemetry to oob service, can raise error or logging a warning based upon the input
 
         Args:
             external_feature_name: customer facing feature name, this information is used to raise error
@@ -323,25 +356,31 @@ class MockServerConnection:
 
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
         # mock implementation
-        return (
-            self._conn._session_parameters.get(name, default_value)
-            if self._conn._session_parameters
-            else default_value
-        )
+        with self._lock:
+            return (
+                self._conn._session_parameters.get(name, default_value)
+                if self._conn._session_parameters
+                else default_value
+            )
 
     def get_session_id(self) -> int:
         return 1
 
+    def get_lock(self):
+        return self._lock
+
     def close(self) -> None:
-        if self._conn:
-            self._conn.close()
+        with self._lock:
+            if self._conn:
+                self._conn.close()
 
     def is_closed(self) -> bool:
         return self._conn.is_closed()
 
     def _get_current_parameter(self, param: str, quoted: bool = True) -> Optional[str]:
         try:
-            name = getattr(self, f"_active_{param}", None)
+            with self._lock:
+                name = getattr(self, f"_active_{param}", None)
             if name and len(name) >= 2 and name[0] == name[-1] == '"':
                 # it is a quoted identifier, return the original value
                 return name

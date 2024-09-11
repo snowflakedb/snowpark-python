@@ -81,7 +81,7 @@ class GroupbyApplySortMethod(Enum):
 
 def check_return_variant_and_get_return_type(func: Callable) -> tuple[bool, DataType]:
     """Check whether the function returns a variant in Snowflake, and get its return type."""
-    return_type, _ = get_types_from_type_hints(func, TempObjectType.FUNCTION)
+    return_type = deduce_return_type_from_function(func)
     if return_type is None or isinstance(
         return_type, (VariantType, PandasSeriesType, PandasDataFrameType)
     ):
@@ -390,6 +390,7 @@ def create_udtf_for_groupby_apply(
     series_groupby: bool,
     by_types: list[DataType],
     existing_identifiers: list[str],
+    force_list_like_to_series: bool = False,
 ) -> UserDefinedTableFunction:
     """
     Create a UDTF from the Python function for groupby.apply.
@@ -480,6 +481,7 @@ def create_udtf_for_groupby_apply(
     series_groupby: Whether we are performing a SeriesGroupBy.apply() instead of DataFrameGroupBy.apply()
     by_types: The snowflake types of the by columns.
     existing_identifiers: List of existing column identifiers; these are omitted when creating new column identifiers.
+    force_list_like_to_series: Force the function result to series if it is list-like
 
     Returns
     -------
@@ -553,6 +555,17 @@ def create_udtf_for_groupby_apply(
             # https://github.com/snowflakedb/snowpandas/pull/823/files#r1507286892
             input_object = input_object.infer_objects()
             func_result = func(input_object, *args, **kwargs)
+            if (
+                force_list_like_to_series
+                and not isinstance(func_result, native_pd.Series)
+                and native_pd.api.types.is_list_like(func_result)
+            ):
+                if len(func_result) == 1:
+                    func_result = func_result[0]
+                else:
+                    func_result = native_pd.Series(func_result)
+                    if len(func_result) == len(df.index):
+                        func_result.index = df.index
             if isinstance(func_result, native_pd.Series):
                 if series_groupby:
                     func_result_as_frame = func_result.to_frame()
@@ -754,7 +767,7 @@ def handle_missing_value_in_variant(value: Any) -> Any:
 
 def convert_numpy_int_result_to_int(value: Any) -> Any:
     """
-    If the result is a numpy int, convert it to a python int.
+    If the result is a numpy int (or bool), convert it to a python int (or bool.)
 
     Use this function to make UDF results JSON-serializable. numpy ints are not
     JSON-serializable, but python ints are. Note that this function cannot make
@@ -772,9 +785,14 @@ def convert_numpy_int_result_to_int(value: Any) -> Any:
 
     Returns
     -------
-    int(value) if the value is a numpy int, otherwise the value.
+    int(value) if the value is a numpy int,
+    bool(value) if the value is a numpy bool, otherwise the value.
     """
-    return int(value) if np.issubdtype(type(value), np.integer) else value
+    return (
+        int(value)
+        if np.issubdtype(type(value), np.integer)
+        else (bool(value) if np.issubdtype(type(value), np.bool_) else value)
+    )
 
 
 def deduce_return_type_from_function(
@@ -887,7 +905,7 @@ def get_metadata_from_groupby_apply_pivot_result_column_names(
     input:
 
     get_metadata_from_groupby_apply_pivot_result_column_names([
-                 # this representa a data column named ('a', 'group_key') at position 0
+                 # this represents a data column named ('a', 'group_key') at position 0
                  '"\'{""0"": ""a"", ""1"": ""group_key"", ""data_pos"": 0, ""names"": [""c1"", ""c2""]}\'"',
                  # this represents a data column named  ('b', 'int_col') at position 1
                 '"\'{""0"": ""b"", ""1"": ""int_col"", ""data_pos"": 1, ""names"": [""c1"", ""c2""]}\'"',
@@ -1110,7 +1128,9 @@ def groupby_apply_pivot_result_to_final_ordered_dataframe(
             #       in GROUP_KEY_APPEARANCE_ORDER) and assign the
             #       label i to all rows that came from func(group_i).
             [
-                original_row_position_snowflake_quoted_identifier
+                col(original_row_position_snowflake_quoted_identifier).as_(
+                    new_index_identifier
+                )
                 if sort_method is GroupbyApplySortMethod.ORIGINAL_ROW_ORDER
                 else (
                     dense_rank().over(
