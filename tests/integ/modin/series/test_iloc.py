@@ -823,6 +823,7 @@ def test_df_iloc_set_with_multiindex(
         native_items.index = pd.MultiIndex.from_tuples(item_index)
 
     if row_key_index:
+        # Using native pandas index since row_key[2] is a MultiIndex object.
         snow_row_key = pd.Series(row_key, index=native_pd.Index(row_key_index))
         native_row_key = native_pd.Series(row_key, index=native_pd.Index(row_key_index))
     else:

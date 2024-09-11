@@ -425,6 +425,8 @@ def __init__(
             )
         )._query_compiler
 
+    # The index is already set if the data is a non-Snowpark pandas object. If either the data or the index is
+    # a Snowpark pandas object, set the index here.
     if index is not None and (
         isinstance(index, (Index, type(self))) or isinstance(data, (Index, type(self)))
     ):
