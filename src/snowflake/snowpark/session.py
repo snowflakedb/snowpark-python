@@ -809,7 +809,8 @@ class Session:
         Returns a list of imports added for user defined functions (UDFs).
         This list includes any Python or zip files that were added automatically by the library.
         """
-        return list(self._import_paths.keys())
+        with self._lock:
+            return list(self._import_paths.keys())
 
     def add_import(
         self,
@@ -890,7 +891,8 @@ class Session:
         path, checksum, leading_path = self._resolve_import_path(
             path, import_path, chunk_size, whole_file_hash
         )
-        self._import_paths[path] = (checksum, leading_path)
+        with self._lock:
+            self._import_paths[path] = (checksum, leading_path)
 
     def remove_import(self, path: str) -> None:
         """
@@ -917,10 +919,11 @@ class Session:
             if not trimmed_path.startswith(STAGE_PREFIX)
             else trimmed_path
         )
-        if abs_path not in self._import_paths:
-            raise KeyError(f"{abs_path} is not found in the existing imports")
-        else:
-            self._import_paths.pop(abs_path)
+        with self._lock:
+            if abs_path not in self._import_paths:
+                raise KeyError(f"{abs_path} is not found in the existing imports")
+            else:
+                self._import_paths.pop(abs_path)
 
     def clear_imports(self) -> None:
         """
@@ -929,7 +932,8 @@ class Session:
         if isinstance(self._conn, MockServerConnection):
             self.udf._clear_session_imports()
             self.sproc._clear_session_imports()
-        self._import_paths.clear()
+        with self._lock:
+            self._import_paths.clear()
 
     def _resolve_import_path(
         self,
@@ -1020,7 +1024,8 @@ class Session:
             upload_and_import_stage
         )
 
-        import_paths = udf_level_import_paths or self._import_paths
+        with self._lock:
+            import_paths = udf_level_import_paths or self._import_paths.copy()
         for path, (prefix, leading_path) in import_paths.items():
             # stage file
             if path.startswith(STAGE_PREFIX):
@@ -1102,7 +1107,8 @@ class Session:
         The key of this ``dict`` is the package name and the value of this ``dict``
         is the corresponding requirement specifier.
         """
-        return self._packages.copy()
+        with self._lock:
+            return self._packages.copy()
 
     def add_packages(
         self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
@@ -1193,16 +1199,18 @@ class Session:
             0
         """
         package_name = pkg_resources.Requirement.parse(package).key
-        if package_name in self._packages:
-            self._packages.pop(package_name)
-        else:
-            raise ValueError(f"{package_name} is not in the package list")
+        with self._lock:
+            if package_name in self._packages:
+                self._packages.pop(package_name)
+            else:
+                raise ValueError(f"{package_name} is not in the package list")
 
     def clear_packages(self) -> None:
         """
         Clears all third-party packages of a user-defined function (UDF).
         """
-        self._packages.clear()
+        with self._lock:
+            self._packages.clear()
 
     def add_requirements(self, file_path: str) -> None:
         """
@@ -1550,7 +1558,8 @@ class Session:
         if isinstance(self._conn, MockServerConnection):
             # in local testing we don't resolve the packages, we just return what is added
             errors = []
-            result_dict = self._packages.copy()
+            with self._lock:
+                result_dict = self._packages.copy()
             for pkg_name, _, pkg_req in package_dict.values():
                 if pkg_name in result_dict and str(pkg_req) != result_dict[pkg_name]:
                     errors.append(
@@ -1566,7 +1575,8 @@ class Session:
             elif len(errors) > 0:
                 raise RuntimeError(errors)
 
-            self._packages.update(result_dict)
+            with self._lock:
+                self._packages.update(result_dict)
             return list(result_dict.values())
 
         package_table = "information_schema.packages"
@@ -1581,9 +1591,12 @@ class Session:
         #  'python-dateutil': 'python-dateutil==2.8.2'}
         # Add to packages dictionary. Make a copy of existing packages
         # dictionary to avoid modifying it during intermediate steps.
-        result_dict = (
-            existing_packages_dict.copy() if existing_packages_dict is not None else {}
-        )
+        with self._lock:
+            result_dict = (
+                existing_packages_dict.copy()
+                if existing_packages_dict is not None
+                else {}
+            )
 
         # Retrieve list of dependencies that need to be added
         dependency_packages = self._get_dependency_packages(
@@ -1616,8 +1629,9 @@ class Session:
         if include_pandas:
             extra_modules.append("pandas")
 
-        if existing_packages_dict is not None:
-            existing_packages_dict.update(result_dict)
+        with self._lock:
+            if existing_packages_dict is not None:
+                existing_packages_dict.update(result_dict)
         return list(result_dict.values()) + self._get_req_identifiers_list(
             extra_modules, result_dict
         )
@@ -2300,18 +2314,19 @@ class Session:
             Therefore, if you switch database or schema during the session, the stage will not be re-created
             in the new database or schema, and still references the stage in the old database or schema.
         """
-        if not self._session_stage:
-            full_qualified_stage_name = self.get_fully_qualified_name_if_possible(
-                random_name_for_temp_object(TempObjectType.STAGE)
-            )
-            self._run_query(
-                f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
-                stage if not exists {full_qualified_stage_name}",
-                is_ddl_on_temp_object=True,
-                statement_params=statement_params,
-            )
-            # set the value after running the query to ensure atomicity
-            self._session_stage = full_qualified_stage_name
+        with self._lock:
+            if not self._session_stage:
+                full_qualified_stage_name = self.get_fully_qualified_name_if_possible(
+                    random_name_for_temp_object(TempObjectType.STAGE)
+                )
+                self._run_query(
+                    f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
+                    stage if not exists {full_qualified_stage_name}",
+                    is_ddl_on_temp_object=True,
+                    statement_params=statement_params,
+                )
+                # set the value after running the query to ensure atomicity
+                self._session_stage = full_qualified_stage_name
         return f"{STAGE_PREFIX}{self._session_stage}"
 
     def _write_modin_pandas_helper(

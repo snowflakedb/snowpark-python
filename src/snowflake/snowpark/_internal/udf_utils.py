@@ -1089,7 +1089,7 @@ def resolve_imports_and_packages(
             else session.get_session_stage(statement_params=statement_params)
         )
 
-    if session:
+        all_urls = []
         if imports:
             udf_level_imports = {}
             for udf_import in imports:
@@ -1117,10 +1117,6 @@ def resolve_imports_and_packages(
                 upload_and_import_stage,
                 statement_params=statement_params,
             )
-        else:
-            all_urls = []
-    else:
-        all_urls = []
 
     dest_prefix = get_udf_upload_prefix(udf_name)
 
