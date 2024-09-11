@@ -18,7 +18,7 @@ from snowflake.snowpark.types import (
     StringType,
     VariantType,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_series_equal,
@@ -77,7 +77,7 @@ def validate_series_snowpark_dtype(series: pd.Series, snowpark_type: DataType) -
         ),
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=2)
 def test_integer(dataframe_input, input_dtype, logical_dtype):
     expected = native_pd.Series(dataframe_input, dtype=input_dtype)
     created = pd.Series(dataframe_input, dtype=input_dtype)
@@ -218,7 +218,7 @@ def test_extended_float64_with_nan():
         ),
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=2)
 def test_float(dataframe_input, input_dtype, expected_dtype, logical_dtype):
     expected = native_pd.Series(dataframe_input, dtype=input_dtype)
     created = pd.Series(dataframe_input, dtype=input_dtype)
@@ -256,7 +256,7 @@ def test_float(dataframe_input, input_dtype, expected_dtype, logical_dtype):
         ),
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=2)
 def test_string(dataframe_input, input_dtype, index):
     expected = native_pd.Series(dataframe_input, dtype=input_dtype)
     created = pd.Series(dataframe_input)
@@ -305,7 +305,7 @@ def test_string_explicit(dataframe_input, input_dtype, index):
         (["level0"], ["col1", "col2", "col1"]),
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1)
 def test_insert_multiindex_multi_label(label1, label2):
     arrays = [["apple", "apple", "banana", "banana"], [1, 2, 1, 2]]
     index = pd.MultiIndex.from_arrays(arrays, names=["first", "second"])
@@ -452,24 +452,24 @@ def test_empty(input_dtype, expected_dtype, snowpark_dtype, to_pandas_dtype):
 
 
 @pytest.mark.parametrize(
-    "index, expected_index_dtype, join_count",
+    "index, expected_index_dtype",
     [
-        (None, np.dtype("int64"), 0),
-        (native_pd.Index([]), np.dtype("object"), 1),
-        (native_pd.Index([], dtype="float64"), np.dtype("float64"), 1),
+        (None, np.dtype("int64")),
+        (native_pd.Index([]), np.dtype("object")),
+        (native_pd.Index([], dtype="float64"), np.dtype("float64")),
     ],
 )
-def test_empty_index(index, expected_index_dtype, join_count):
-    with SqlCounter(query_count=1, join_count=join_count):
-        expected = native_pd.Series(data=[], index=index)
-        assert expected.dtype == np.dtype("object")
-        assert expected.index.dtype == expected_index_dtype
-        created = pd.Series(data=[], index=index)
-        assert created.dtype == np.dtype("object")
-        assert created.index.dtype == expected_index_dtype
-        roundtripped = created.to_pandas()
-        assert roundtripped.dtype == np.dtype("object")
-        assert roundtripped.index.dtype == expected_index_dtype
+@sql_count_checker(query_count=1)
+def test_empty_index(index, expected_index_dtype):
+    expected = native_pd.Series(data=[], index=index)
+    assert expected.dtype == np.dtype("object")
+    assert expected.index.dtype == expected_index_dtype
+    created = pd.Series(data=[], index=index)
+    assert created.dtype == np.dtype("object")
+    assert created.index.dtype == expected_index_dtype
+    roundtripped = created.to_pandas()
+    assert roundtripped.dtype == np.dtype("object")
+    assert roundtripped.index.dtype == expected_index_dtype
 
 
 @pytest.mark.parametrize(

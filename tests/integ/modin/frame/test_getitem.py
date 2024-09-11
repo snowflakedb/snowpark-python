@@ -343,7 +343,7 @@ def test_df_getitem_with_slice(
         slice("z", "a", -1),
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 def test_df_getitem_with_non_int_slice(key):
     data = {"a": [1, 2, 3], "b": [4, 5, 6]}
     index = ["x", "y", "z"]

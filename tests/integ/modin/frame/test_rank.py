@@ -7,7 +7,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
     eval_snowpark_pandas_result,
@@ -40,6 +40,7 @@ TEST_RANK_DATA = [
 ]
 
 
+@sql_count_checker(query_count=1)
 @pytest.mark.parametrize("data, index", TEST_RANK_DATA)
 @pytest.mark.parametrize(
     "method",
@@ -55,16 +56,13 @@ TEST_RANK_DATA = [
 )
 # test df.rank with all method, na_option, ascending parameter combinations
 def test_df_rank(data, index, method, ascending, na_option):
-    with SqlCounter(
-        query_count=1, join_count=2 if isinstance(index, native_pd.MultiIndex) else 0
-    ):
-        snow_df = pd.DataFrame(data, index=index)
-        native_df = native_pd.DataFrame(data, index=index)
-        eval_snowpark_pandas_result(
-            snow_df,
-            native_df,
-            lambda df: df.rank(method=method, na_option=na_option, ascending=ascending),
-        )
+    snow_df = pd.DataFrame(data, index=index)
+    native_df = native_pd.DataFrame(data, index=index)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.rank(method=method, na_option=na_option, ascending=ascending),
+    )
 
 
 @sql_count_checker(query_count=1)
@@ -120,6 +118,7 @@ def test_rank_unsupported_args_negative(method, ascending, na_option):
         snow_df.rank(axis=1, method=method, ascending=ascending, na_option=na_option)
 
 
+@sql_count_checker(query_count=1)
 @pytest.mark.parametrize("data, index", TEST_RANK_DATA)
 @pytest.mark.parametrize(
     "method",
@@ -135,15 +134,10 @@ def test_rank_unsupported_args_negative(method, ascending, na_option):
 )
 # test df percentile rank
 def test_df_rank_pct(data, index, method, ascending, na_option):
-    with SqlCounter(
-        query_count=1, join_count=2 if isinstance(index, native_pd.MultiIndex) else 0
-    ):
-        snow_df = pd.DataFrame(data, index=index).rank(
-            method=method, ascending=ascending, na_option=na_option, pct=True
-        )
-        native_df = native_pd.DataFrame(data, index=index).rank(
-            method=method, ascending=ascending, na_option=na_option, pct=True
-        )
-        assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64(
-            snow_df, native_df
-        )
+    snow_df = pd.DataFrame(data, index=index).rank(
+        method=method, ascending=ascending, na_option=na_option, pct=True
+    )
+    native_df = native_pd.DataFrame(data, index=index).rank(
+        method=method, ascending=ascending, na_option=na_option, pct=True
+    )
+    assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64(snow_df, native_df)

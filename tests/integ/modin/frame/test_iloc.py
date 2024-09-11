@@ -118,7 +118,7 @@ snowpark_pandas_input_keys = [
     ("RangeIndex", 0),
     ("Index[bool]", 1),
     ("emptyFloatSeries", 2),
-    ("multi_index_Series", 6),
+    ("multi_index_Series", 2),
 ]
 
 # Snowflake type checking will fail if the item values aren't type compatible, so we normalize to int to stay compatible.
@@ -315,10 +315,7 @@ def test_df_iloc_get_col_input_snowpark_pandas_return_dataframe(
     if key == "RangeIndex":
         expected_query_count = 1
 
-    with SqlCounter(
-        query_count=expected_query_count,
-        join_count=4 if key == "multi_index_Series" else 0,
-    ):
+    with SqlCounter(query_count=expected_query_count):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df, default_index_native_df, eval_func
         )
@@ -448,7 +445,7 @@ def test_df_iloc_get_diff2native(
     )
 
 
-@sql_count_checker(query_count=2, join_count=8)
+@sql_count_checker(query_count=2, join_count=4)
 def test_df_iloc_get_with_conflict():
     # index and data columns have conflict in get_by_col
     df = DataFrame({"A": [0, 1]}, index=native_pd.Index([2, 3], name="A")).rename(
@@ -2622,31 +2619,31 @@ def test_df_iloc_set_with_mixed_types_fail(
 
 
 @pytest.mark.parametrize(
-    "row_key, row_key_index, row_add_joins",
+    "row_key, row_key_index",
     [
-        [1, None, 0],
-        [[3, 0], None, 0],
-        [[1, 2], [("A",), ("B",)], 1],
-        [[2, 1], [("A", 1), ("B", 2)], 2],
+        [1, None],
+        [[3, 0], None],
+        [[1, 2], [("A",), ("B",)]],
+        [[2, 1], [("A", 1), ("B", 2)]],
     ],
 )
 @pytest.mark.parametrize(
-    "col_key, col_key_index, col_add_joins",
+    "col_key, col_key_index",
     [
-        [2, None, 0],
-        [[2, 1], None, 0],
-        [[1, 2], [("X",), ("Y",)], 1],
-        [[2, 1], [("X", 11), ("Y", 21)], 2],
+        [2, None],
+        [[2, 1], None],
+        [[1, 2], [("X",), ("Y",)]],
+        [[2, 1], [("X", 11), ("Y", 21)]],
     ],
 )
 @pytest.mark.parametrize(
     "item_values, item_index, item_columns, expected_join_count",
     [
-        [999, None, None, 6],
-        [TEST_ITEMS_DATA_2X2, None, None, 7],
-        [TEST_ITEMS_DATA_2X2, [("r", 20), ("s", 25)], None, 9],
-        [TEST_ITEMS_DATA_2X2, [("r", 20), ("s", 25)], [("e", 5), ("f", 6)], 9],
-        [TEST_ITEMS_DATA_2X2, None, [("e", 5), ("f", 6)], 7],
+        [999, None, None, 2],
+        [TEST_ITEMS_DATA_2X2, None, None, 3],
+        [TEST_ITEMS_DATA_2X2, [("r", 20), ("s", 25)], None, 5],
+        [TEST_ITEMS_DATA_2X2, [("r", 20), ("s", 25)], [("e", 5), ("f", 6)], 5],
+        [TEST_ITEMS_DATA_2X2, None, [("e", 5), ("f", 6)], 3],
     ],
 )
 def test_df_iloc_set_with_multiindex(
@@ -2658,8 +2655,6 @@ def test_df_iloc_set_with_multiindex(
     item_index,
     item_columns,
     expected_join_count,
-    row_add_joins,
-    col_add_joins,
 ):
     df_data = [
         [1, 2, 3, 4, 5],
@@ -2715,6 +2710,7 @@ def test_df_iloc_set_with_multiindex(
         native_items.columns = pd.MultiIndex.from_tuples(item_columns)
 
     if row_key_index:
+        # Using native pandas index since row_key[2] is a MultiIndex object.
         snow_row_key = pd.Series(row_key, index=native_pd.Index(row_key_index))
         native_row_key = native_pd.Series(row_key, index=native_pd.Index(row_key_index))
     else:
@@ -2722,6 +2718,7 @@ def test_df_iloc_set_with_multiindex(
         native_row_key = row_key
 
     if col_key_index:
+        # Using native pandas index since col_key[2] is a MultiIndex object.
         snow_col_key = pd.Series(col_key, index=native_pd.Index(col_key_index))
         native_col_key = native_pd.Series(col_key, index=native_pd.Index(col_key_index))
     else:
@@ -2738,7 +2735,6 @@ def test_df_iloc_set_with_multiindex(
     if isinstance(snow_col_key, pd.Series):
         expected_query_count += 1
 
-    expected_join_count += row_add_joins + col_add_joins
     with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
         eval_snowpark_pandas_result(snow_df, native_df, helper_iloc, inplace=True)
 
@@ -2814,7 +2810,7 @@ def test_df_iloc_get_series_with_multiindex(
 
     # For a Series row key, the key is joined with the df to derive the iloc results. For column keys, a select
     # statement is used instead of a join.
-    join_count = 4 if axis == "row" else 2
+    join_count = 2 if axis == "row" else 0
     query_count = 1 if axis == "row" else 2
 
     # Evaluate with MultiIndex created from tuples.

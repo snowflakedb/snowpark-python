@@ -137,7 +137,7 @@ def test_resample_fillna_invalid_method():
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 def test_resample_tz_negative():
     snow_df = pd.DataFrame(
         {"a": range(3)},

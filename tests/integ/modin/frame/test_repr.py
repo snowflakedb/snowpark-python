@@ -227,7 +227,7 @@ def test_repr_deviating_behavior():
     assert native_str[:N] == snow_str[:N]
 
 
-@sql_count_checker(query_count=2, union_count=1, join_count=6)
+@sql_count_checker(query_count=2, union_count=1)
 def test_repr_of_multiindex_df():
     tuples = [
         ("cobra", "mark i"),

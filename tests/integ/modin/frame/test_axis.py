@@ -244,7 +244,7 @@ def test_set_columns_index_name(index_name):
     )
 
 
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1)
 def test_duplicate_labels_assignment():
     # Duplicate data labels
     snow_df = pd.DataFrame({"a": [1, 2], "b": [3, 4], "c": [5, 6]})

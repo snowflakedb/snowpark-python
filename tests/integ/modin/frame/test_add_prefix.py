@@ -46,7 +46,7 @@ def test_df_add_prefix_multiindex(prefix, native_df_with_multiindex_columns):
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 @pytest.mark.parametrize("prefix", TEST_ADD_PREFIX_DATA)
 def test_df_add_prefix_time_column_df(
     prefix, time_column_snowpark_pandas_df, time_column_native_df

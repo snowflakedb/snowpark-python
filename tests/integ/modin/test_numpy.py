@@ -113,7 +113,7 @@ def test_np_where_notimplemented():
             )
 
 
-@sql_count_checker(query_count=5, join_count=7)
+@sql_count_checker(query_count=5, join_count=4)
 def test_scalar():
     pdf_scalar = native_pd.DataFrame([[99, 99], [99, 99]])
     sdf_scalar = pd.DataFrame([[99, 99], [99, 99]])
@@ -172,7 +172,7 @@ def test_different_inputs(cond, x, y):
         assert_array_equal(sp_result, np_orig_result)
 
 
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=2, join_count=2)
 def test_broadcast_scalar_x_df():
     input_df = native_pd.DataFrame([[False, True], [False, True]])
     input_df2 = native_pd.DataFrame([[1, 0], [0, 1]])
@@ -183,7 +183,7 @@ def test_broadcast_scalar_x_df():
     assert_array_equal(snow_result, np_result)
 
 
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=2, join_count=2)
 def test_broadcast_scalar_x_ser():
     input_ser = native_pd.Series([False, True])
     input_ser2 = native_pd.Series([1, 0])

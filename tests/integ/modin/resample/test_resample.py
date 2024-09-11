@@ -145,7 +145,7 @@ def test_resample_duplicated_timestamps():
 @freq
 @interval
 @agg_func
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=2, join_count=1)
 def test_resample_series(freq, interval, agg_func):
     rule = f"{interval}{freq}"
     eval_snowpark_pandas_result(
@@ -188,7 +188,7 @@ def test_resample_df_with_nan(agg_func):
 
 
 @agg_func
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=2, join_count=1)
 def test_resample_ser_with_nan(agg_func):
     # 1 resample bin of all NaN, 1 resample bin partially NaN, 1 resample bin no NaNs
     eval_snowpark_pandas_result(
@@ -242,7 +242,7 @@ def test_resample_df_getitem():
     )
 
 
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=2, join_count=1)
 def test_resample_ser_getitem():
     eval_snowpark_pandas_result(
         *create_test_series(

@@ -215,7 +215,7 @@ def test_df_loc_get_col_non_boolean_key(
     "key",
     boolean_indexer,
 )
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=3)
 def test_df_loc_get_col_boolean_indexer(
     key, str_index_snowpark_pandas_df, str_index_native_df
 ):
@@ -243,7 +243,7 @@ def test_df_loc_get_col_boolean_indexer(
     "key",
     list_like_time_col_inputs,
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 def test_df_loc_get_col_time_df(
     key, time_column_snowpark_pandas_df, time_column_native_df
 ):
@@ -258,7 +258,7 @@ def test_df_loc_get_col_time_df(
     "key",
     snowpark_pandas_int_index_row_inputs,
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_df_loc_get_int_index_row_snowpark_pandas_input(
     key,
     default_index_snowpark_pandas_df,
@@ -606,7 +606,7 @@ def test_mi_df_loc_get_non_boolean_list_tuple_key(mi_table_df, row, col):
             )
 
 
-@sql_count_checker(query_count=2, join_count=4)
+@sql_count_checker(query_count=2, join_count=2)
 def test_mi_df_loc_get_boolean_series_row_key(mi_table_df):
     df = pd.DataFrame(mi_table_df)
     bool_indexer = [False, True, True, False, False, True]
@@ -639,7 +639,7 @@ def test_mi_df_loc_get_boolean_series_row_key(mi_table_df):
     )
 
 
-@sql_count_checker(query_count=3, join_count=2)
+@sql_count_checker(query_count=3)
 def test_mi_df_loc_get_boolean_series_col_key(mi_table_df):
     df = pd.DataFrame(mi_table_df)
     bool_indexer = [False, True]
@@ -1448,9 +1448,11 @@ def test_df_loc_set_with_non_matching_1d_scalar_key(data, index, columns, key, v
                 snow_df.to_pandas()
     else:
         expected_query_count = 1
-        expected_join_count = 2
+        expected_join_count = 1
         if key == slice(None):
             expected_join_count = 0
+        elif isinstance(key, slice) and key.step == 2:
+            expected_join_count += 1
 
         with SqlCounter(
             query_count=expected_query_count, join_count=expected_join_count
@@ -1680,7 +1682,7 @@ def test_df_loc_get_key_bool_series_with_aligned_indices(key, use_default_index)
     native_df = native_pd.DataFrame(
         {"c1": [1, 2, 3, 4, 5], "c2": ["x", "y", "z", "d", "e"]}, index=index
     )
-    with SqlCounter(query_count=1, join_count=1 if use_default_index else 2):
+    with SqlCounter(query_count=1, join_count=1):
         snow_df = pd.DataFrame(native_df)
         eval_snowpark_pandas_result(
             snow_df,
@@ -1699,7 +1701,7 @@ def test_df_loc_get_key_bool_series_with_aligned_indices(key, use_default_index)
         [random.choice([True, False]) for _ in range(5)],
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_df_loc_get_key_bool_series_with_unaligned_and_distinct_indices(
     key, use_default_index
 ):
@@ -1776,7 +1778,7 @@ def test_df_loc_get_key_bool_series_with_unaligned_and_duplicate_indices():
         ],  # larger length
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_df_loc_get_key_bool_series_with_mismatch_index_len(key, use_default_index):
     if use_default_index:
         index = None
@@ -2404,7 +2406,7 @@ def test_df_loc_self_df_set_aligned_row_key(df):
         ["a", "a", "c", "d"],
     ],
 )
-@sql_count_checker(query_count=1, join_count=3)
+@sql_count_checker(query_count=1, join_count=1)
 def test_df_loc_set_scalar_row_key_enlargement(
     row_key, col_key, item_values, data_index
 ):
@@ -2476,7 +2478,7 @@ def test_df_loc_set_scalar_row_key_enlargement(
         ["a", "a", "c", "d"],
     ],
 )
-@sql_count_checker(query_count=1, join_count=3)
+@sql_count_checker(query_count=1, join_count=1)
 def test_df_loc_set_scalar_row_key_enlargement_deviates_from_native_pandas(
     row_key, col_key, item_values, data_index
 ):
@@ -3201,7 +3203,7 @@ def test_df_loc_set_boolean_series_with_non_default_index_key_and_scalar_item():
         ["duplicate", [1, 1, 2, 3]],
     ],
 )
-@sql_count_checker(query_count=1, join_count=5)
+@sql_count_checker(query_count=1, join_count=4)
 def test_df_loc_set_duplicate_index(
     self_index_type, self_index_val, index, columns, item
 ):
@@ -3782,7 +3784,7 @@ def test_df_loc_set_with_empty_key_and_series_item_negative(
         [2, "x"],
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_df_setitem_boolean_key(key, index):
     item = 99
     num_columns = 3
@@ -3860,7 +3862,7 @@ def test_df_single_value_with_slice_key():
     eval_snowpark_pandas_result(snowpark_df, native_df, lambda df: df.loc[0:1])
 
 
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_df_loc_set_none():
     native_df = native_pd.DataFrame({"a": [1, 2, 3]})
 
@@ -3883,7 +3885,7 @@ def test_df_loc_set_none():
     )
 
 
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=1, join_count=3)
 def test_df_loc_set_with_index_and_column_labels():
     """
     Create a DataFrame using 3 Series objects and perform loc set with a scalar.

@@ -68,7 +68,7 @@ def test_to_snowflake_index_label_none_raises(test_table_name):
         snow_series.to_snowflake(test_table_name, if_exists="replace", index=True)
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2)
 def test_to_snowflake_multiindex(test_table_name, snow_series):
     index = native_pd.MultiIndex.from_arrays(
         [[1, 1, 2, 2], ["red", "blue", "red", "blue"]], names=("number", "color")

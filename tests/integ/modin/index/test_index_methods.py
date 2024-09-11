@@ -359,7 +359,7 @@ def test_has_duplicates(index):
         assert index.has_duplicates == snow_index.has_duplicates
 
 
-@sql_count_checker(query_count=6, join_count=6)
+@sql_count_checker(query_count=6)
 def test_index_parent():
     """
     Check whether the parent field in Index is updated properly.

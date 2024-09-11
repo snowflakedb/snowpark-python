@@ -45,7 +45,7 @@ class TestDataFrameGroupByHeadTail:
         ["lion", 1234, 456, 78, 9],
     ]
 
-    @sql_count_checker(query_count=1, join_count=1)
+    @sql_count_checker(query_count=1)
     def test_df_groupby_head_tail(self, op_type, n, dropna, as_index, sort, group_keys):
         """
         Test DataFrameGroupBy.head and DataFrameGroupBy.tail with a small df with no NA values.
@@ -66,7 +66,7 @@ class TestDataFrameGroupByHeadTail:
             check_index_type=False,
         )
 
-    @sql_count_checker(query_count=6, join_count=1)
+    @sql_count_checker(query_count=6)
     def test_df_groupby_head_tail_large_data(
         self, op_type, n, dropna, as_index, sort, group_keys, large_df_with_na_values
     ):

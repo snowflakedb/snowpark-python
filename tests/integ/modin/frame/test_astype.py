@@ -35,7 +35,7 @@ def test_series_input():
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 def test_input_negative():
     df = pd.DataFrame({"a": [1, 2, 3], "b": [2.4, 2.5, 3.1]})
     with pytest.raises(KeyError, match="not found in columns"):

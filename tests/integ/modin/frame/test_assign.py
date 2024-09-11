@@ -36,7 +36,7 @@ def test_assign_basic_series():
     eval_snowpark_pandas_result(snow_df, native_df, assign_func)
 
 
-@sql_count_checker(query_count=1, join_count=3)
+@sql_count_checker(query_count=1, join_count=2)
 @pytest.mark.parametrize(
     "index", [[2, 1, 0], [4, 5, 6]], ids=["reversed_index", "different_index"]
 )
@@ -136,7 +136,7 @@ def test_assign_short_series():
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
-@sql_count_checker(query_count=1, join_count=3)
+@sql_count_checker(query_count=1, join_count=2)
 @pytest.mark.parametrize(
     "index", [[1, 0], [4, 5]], ids=["reversed_index", "different_index"]
 )

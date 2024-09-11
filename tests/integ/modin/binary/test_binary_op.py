@@ -1871,7 +1871,7 @@ def test_binary_rpow_between_df_and_list_like_on_axis_1(rhs):
         "rmod",
     ],
 )
-@sql_count_checker(query_count=1, join_count=3)
+@sql_count_checker(query_count=1, join_count=1)
 def test_generated_docstring_examples(opname):
     # test for operators that correct examples are generated and match up with pandas.
     # if this test passes, this ensures that all the examples generated in utils.py will be correct.

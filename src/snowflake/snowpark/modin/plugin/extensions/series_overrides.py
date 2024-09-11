@@ -411,7 +411,7 @@ def __init__(
         # If the data is not a Snowpark pandas object, convert it to a query compiler.
         name = MODIN_UNNAMED_SERIES_LABEL if name is None else name
         dummy_index = None
-        if is_scalar(data) and not isinstance(index, type(None)):
+        if not isinstance(index, (Index, type(self))):
             dummy_index = index
         if (
             isinstance(data, (native_pd.Series, native_pd.Index))
@@ -431,7 +431,9 @@ def __init__(
             )
         )._query_compiler
 
-    if index is not None:
+    if index is not None and (
+        isinstance(index, (Index, type(self))) or isinstance(data, (Index, type(self)))
+    ):
         if is_dict_like(data) or isinstance(data, (type(self), type(None))):
             # The `index` parameter is used to select the rows from `data` that will be in the resultant Series.
             # If a value in `index` is not present in `data`'s index, it will be filled with a NaN value.
