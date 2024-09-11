@@ -108,6 +108,7 @@
 - Added support for creating a `DatetimeIndex` from an `Index` of numeric or string type.
 - Added support for string indexing with `Timedelta` objects.
 - Added support for `Series.dt.total_seconds` method.
+- Added support for `DataFrame.apply(axis=0)`.
 
 #### Improvements
 
