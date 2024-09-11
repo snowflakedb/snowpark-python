@@ -7,6 +7,7 @@ from typing import AbstractSet, Optional, Type
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     derive_dependent_columns,
+    derive_dependent_columns_with_duplication,
 )
 
 
@@ -55,3 +56,6 @@ class SortOrder(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.child)
+
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.child)

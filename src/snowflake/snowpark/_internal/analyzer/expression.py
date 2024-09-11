@@ -4,7 +4,6 @@
 
 import copy
 import uuid
-from functools import cached_property
 from typing import TYPE_CHECKING, AbstractSet, Any, Dict, List, Optional, Tuple
 
 import snowflake.snowpark._internal.utils
@@ -68,7 +67,7 @@ def derive_dependent_columns_with_duplication(
     """
     result: List[str] = []
     for exp in expressions:
-        result.extend(exp.dependent_column_names_with_duplication)
+        result.extend(exp.dependent_column_names_with_duplication())
     return result
 
 
@@ -92,7 +91,6 @@ class Expression:
         # TODO: consider adding it to __init__ or use cached_property.
         return COLUMN_DEPENDENCY_EMPTY
 
-    @cached_property
     def dependent_column_names_with_duplication(self) -> list[str]:
         return []
 
@@ -171,7 +169,6 @@ class ScalarSubquery(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return COLUMN_DEPENDENCY_DOLLAR
 
-    @cached_property
     def dependent_column_names_with_duplication(self) -> list[str]:
         return list(COLUMN_DEPENDENCY_DOLLAR)
 
@@ -188,7 +185,6 @@ class MultipleExpression(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.expressions)
 
-    @cached_property
     def dependent_column_names_with_duplication(self) -> list[str]:
         return derive_dependent_columns_with_duplication(*self.expressions)
 
@@ -208,7 +204,6 @@ class InExpression(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.columns, *self.values)
 
-    @cached_property
     def dependent_column_names_with_duplication(self) -> list[str]:
         return derive_dependent_columns_with_duplication(self.columns, *self.values)
 
@@ -252,7 +247,6 @@ class Attribute(Expression, NamedExpression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return {self.name}
 
-    @cached_property
     def dependent_column_names_with_duplication(self) -> list[str]:
         return [self.name]
 
@@ -279,7 +273,6 @@ class Star(Expression):
             else COLUMN_DEPENDENCY_ALL
         )
 
-    @cached_property
     def dependent_column_names_with_duplication(self) -> list[str]:
         return (
             derive_dependent_columns_with_duplication(*self.expressions)
@@ -330,7 +323,6 @@ class UnresolvedAttribute(Expression, NamedExpression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return self._dependent_column_names
 
-    @cached_property
     def dependent_column_names_with_duplication(self) -> list[str]:
         return (
             []
@@ -431,7 +423,6 @@ class Like(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, self.pattern)
 
-    @cached_property
     def dependent_column_names_with_duplication(self) -> list[str]:
         return derive_dependent_columns_with_duplication(self.expr, self.pattern)
 
@@ -464,7 +455,6 @@ class RegExp(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, self.pattern)
 
-    @cached_property
     def dependent_column_names_with_duplication(self) -> list[str]:
         return derive_dependent_columns_with_duplication(self.expr, self.pattern)
 
@@ -491,7 +481,6 @@ class Collate(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr)
 
-    @cached_property
     def dependent_column_names_with_duplication(self) -> list[str]:
         return derive_dependent_columns_with_duplication(self.expr)
 
@@ -516,6 +505,9 @@ class SubfieldString(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr)
 
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.expr)
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         # the literal corresponds to the contribution from self.field
@@ -537,6 +529,9 @@ class SubfieldInt(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr)
+
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.expr)
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -582,6 +577,9 @@ class FunctionExpression(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.children)
 
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(*self.children)
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.FUNCTION
@@ -596,6 +594,9 @@ class WithinGroup(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, *self.order_by_cols)
+
+    def dependent_column_names_with_duplication(self) -> list[str]:
+        return derive_dependent_columns_with_duplication(self.expr, *self.order_by_cols)
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -634,7 +635,6 @@ class CaseWhen(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self._child_expressions)
 
-    @cached_property
     def dependent_column_names_with_duplication(self) -> list[str]:
         return derive_dependent_columns_with_duplication(*self._child_expressions)
 
@@ -683,7 +683,6 @@ class SnowflakeUDF(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.children)
 
-    @cached_property
     def dependent_column_names_with_duplication(self) -> list[str]:
         return derive_dependent_columns_with_duplication(*self.children)
 
@@ -702,7 +701,6 @@ class ListAgg(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.col)
 
-    @cached_property
     def dependent_column_names_with_duplication(self) -> list[str]:
         return derive_dependent_columns_with_duplication(self.col)
 
@@ -725,7 +723,6 @@ class ColumnSum(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.exprs)
 
-    @cached_property
     def dependent_column_names_with_duplication(self) -> list[str]:
         return derive_dependent_columns_with_duplication(*self.exprs)
 
