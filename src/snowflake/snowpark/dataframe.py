@@ -2250,17 +2250,20 @@ class DataFrame:
         column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
         unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
 
+        df: DataFrame
         if self._select_statement:
-            return self._with_plan(
+            df = self._with_plan(
                 SelectStatement(
                     from_=SelectSnowflakePlan(
                         unpivot_plan, analyzer=self._session._analyzer
                     ),
                     analyzer=self._session._analyzer,
-                ),
-                ast_stmt=stmt,
+                )
             )
-        return self._with_plan(unpivot_plan, ast_stmt=stmt)
+        else:
+            df = self._with_plan(unpivot_plan)
+        df._ast_id = stmt.var_id.bitfield1
+        return df
 
     @df_api_usage
     def limit(
