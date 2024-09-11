@@ -148,10 +148,11 @@ def compute_isin_with_series(
         slice(None),
         [agg_label],
         values_series,
-        False,
-        True,
-        False,
-        False,
+        matching_item_columns_by_label=False,
+        matching_item_rows_by_label=True,
+        index_is_bool_indexer=False,
+        deduplicate_columns=False,
+        frame_is_df_and_item_is_series=False,
     )
 
     # apply isin operation for all columns except the appended agg_label/agg_identifier column.

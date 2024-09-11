@@ -953,7 +953,7 @@ def test_series_loc_set_key_slice_with_series(start, stop, step):
     else:
         native_res = set_loc_helper(native_ser)
         if is_scalar(native_res):
-            with SqlCounter(query_count=1):
+            with SqlCounter(query_count=0):
                 snow_res = set_loc_helper(snow_ser)
                 assert snow_res == native_res
         else:
