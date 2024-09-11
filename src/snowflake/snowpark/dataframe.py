@@ -2027,12 +2027,13 @@ class DataFrame:
         ]
 
         names = right_project_list + not_found_attrs
-        if self._session.sql_simplifier_enabled and other._select_statement:
+        sql_simplifier_enabled = self._session.sql_simplifier_enabled
+        if sql_simplifier_enabled and other._select_statement:
             right_child = self._with_plan(other._select_statement.select(names))
         else:
             right_child = self._with_plan(Project(names, other._plan))
 
-        if self._session.sql_simplifier_enabled:
+        if sql_simplifier_enabled:
             df = self._with_plan(
                 self._select_statement.set_operator(
                     right_child._select_statement
