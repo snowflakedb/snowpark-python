@@ -3093,7 +3093,9 @@ class Session:
                     # we do not validate here
                     object_type = match.group(1)
                     object_name = match.group(2)
-                    setattr(self._conn, f"_active_{object_type}", object_name)
+                    mock_conn_lock = self._conn.get_lock()
+                    with mock_conn_lock:
+                        setattr(self._conn, f"_active_{object_type}", object_name)
                 else:
                     self._run_query(query)
             else:
