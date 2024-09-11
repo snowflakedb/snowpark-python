@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import AbstractSet, Optional
+from typing import AbstractSet, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -30,7 +30,7 @@ class BinaryExpression(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.left, self.right)
 
-    def dependent_column_names_with_duplication(self) -> list[str]:
+    def dependent_column_names_with_duplication(self) -> List[str]:
         return derive_dependent_columns_with_duplication(self.left, self.right)
 
     @property

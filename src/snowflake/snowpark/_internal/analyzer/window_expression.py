@@ -72,7 +72,7 @@ class SpecifiedWindowFrame(WindowFrame):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.lower, self.upper)
 
-    def dependent_column_names_with_duplication(self) -> list[str]:
+    def dependent_column_names_with_duplication(self) -> List[str]:
         return derive_dependent_columns_with_duplication(self.lower, self.upper)
 
     @property
@@ -106,7 +106,7 @@ class WindowSpecDefinition(Expression):
             *self.partition_spec, *self.order_spec, self.frame_spec
         )
 
-    def dependent_column_names_with_duplication(self) -> list[str]:
+    def dependent_column_names_with_duplication(self) -> List[str]:
         return derive_dependent_columns_with_duplication(
             *self.partition_spec, *self.order_spec, self.frame_spec
         )
@@ -147,7 +147,7 @@ class WindowExpression(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.window_function, self.window_spec)
 
-    def dependent_column_names_with_duplication(self) -> list[str]:
+    def dependent_column_names_with_duplication(self) -> List[str]:
         return derive_dependent_columns_with_duplication(
             self.window_function, self.window_spec
         )
@@ -185,7 +185,7 @@ class RankRelatedFunctionExpression(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, self.default)
 
-    def dependent_column_names_with_duplication(self) -> list[str]:
+    def dependent_column_names_with_duplication(self) -> List[str]:
         return derive_dependent_columns_with_duplication(self.expr, self.default)
 
     @property
