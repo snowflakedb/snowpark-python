@@ -1,5 +1,8 @@
 # Release History
 
+## 1.23.0 (TBD)
+
+
 ## 1.22.0 (2024-09-10)
 
 ### Snowpark Python API Updates
@@ -136,8 +139,7 @@
 
 - Fixed a bug where using `to_pandas_batches` with async jobs caused an error due to improper handling of waiting for asynchronous query completion.
 
-=======
->>>>>>> 8b23c30b (release 1.22.0)
+
 ## 1.21.0 (2024-08-19)
 
 ### Snowpark Python API Updates
