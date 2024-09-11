@@ -12,6 +12,10 @@
 
 - Added support for `TimedeltaIndex.mean` method.
 
+
+## 1.22.1 (2024-09-11)
+This is a re-release of 1.22.0, please refer to the release note for 1.22.0 for detailed release content.
+
 ## 1.22.0 (2024-09-10)
 
 ### Snowpark Python API Updates
