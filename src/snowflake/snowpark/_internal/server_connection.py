@@ -174,7 +174,6 @@ class ServerConnection:
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
         self._telemetry_client = TelemetryClient(self._conn)
-        # TODO: protect _query_listener
         self._query_listener: Set[QueryHistory] = set()
         # The session in this case refers to a Snowflake session, not a
         # Snowpark session
@@ -219,10 +218,12 @@ class ServerConnection:
             ] = get_version()
 
     def add_query_listener(self, listener: QueryHistory) -> None:
-        self._query_listener.add(listener)
+        with self._lock:
+            self._query_listener.add(listener)
 
     def remove_query_listener(self, listener: QueryHistory) -> None:
-        self._query_listener.remove(listener)
+        with self._lock:
+            self._query_listener.remove(listener)
 
     def close(self) -> None:
         if self._conn:
@@ -369,8 +370,9 @@ class ServerConnection:
                 raise ex
 
     def notify_query_listeners(self, query_record: QueryRecord) -> None:
-        for listener in self._query_listener:
-            listener._add_query(query_record)
+        with self._lock:
+            for listener in self._query_listener:
+                listener._add_query(query_record)
 
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
