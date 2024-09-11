@@ -574,24 +574,40 @@ def test_apply_axis_0_bug_1650918(data, apply_func):
 def test_apply_nested_series_negative():
     snow_df = pd.DataFrame([[1, 2], [3, 4]])
 
-    with pytest.raises(
-        NotImplementedError,
-        match=r"Nested pd.Series in result is not supported in DataFrame.apply\(axis=0\)",
+    with SqlCounter(
+        query_count=10,
+        join_count=2,
+        udtf_count=2,
+        high_count_expected=True,
+        high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
     ):
-        snow_df.apply(
-            lambda ser: 99 if ser.sum() == 4 else native_pd.Series([1, 2]), axis=0
-        ).to_pandas()
+        with pytest.raises(
+            NotImplementedError,
+            match=r"Nested pd.Series in result is not supported in DataFrame.apply\(axis=0\)",
+        ):
+            snow_df.apply(
+                lambda ser: 99 if ser.sum() == 4 else native_pd.Series([1, 2]), axis=0
+            ).to_pandas()
 
     snow_df2 = pd.DataFrame([[1, 2, 3]])
 
-    with pytest.raises(
-        NotImplementedError,
-        match=r"Nested pd.Series in result is not supported in DataFrame.apply\(axis=0\)",
+    with SqlCounter(
+        query_count=15,
+        join_count=3,
+        udtf_count=3,
+        high_count_expected=True,
+        high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
     ):
-        snow_df2.apply(
-            lambda ser: 99 if ser.sum() == 2 else native_pd.Series([100], index=["a"]),
-            axis=0,
-        ).to_pandas()
+        with pytest.raises(
+            NotImplementedError,
+            match=r"Nested pd.Series in result is not supported in DataFrame.apply\(axis=0\)",
+        ):
+            snow_df2.apply(
+                lambda ser: 99
+                if ser.sum() == 2
+                else native_pd.Series([100], index=["a"]),
+                axis=0,
+            ).to_pandas()
 
 
 import scipy.stats  # noqa: E402
