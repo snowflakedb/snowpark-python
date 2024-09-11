@@ -5072,7 +5072,7 @@ class DataFrame:
                         self._session._ast_batch.assign()
                     )  # TODO: symbol capture for multiple.
                     obj_expr = with_src_position(
-                        obj_stmt.expr.object_get_item, obj_stmt
+                        obj_stmt.expr.object_get_item, obj_stmt, target_idx=i
                     )
                     obj_expr.obj.bitfield1 = stmt.var_id.bitfield1
 
