@@ -117,7 +117,6 @@
 - Display a clearer error message when `Index.names` is set to a non-like-like object.
 - Raise a warning whenever MultiIndex values are pulled in locally.
 - Improve warning message for `pd.read_snowflake` include the creation reason when temp table creation is triggered.
-- Improved readability for binary operation utility code.
 
 #### Bug Fixes
 

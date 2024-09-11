@@ -308,6 +308,16 @@ class BinaryOp:
         second_operand: SnowparkColumn,
         second_datatype: DataTypeGetter,
     ) -> None:
+        """
+        Construct a BinaryOp object to compute pandas binary operation for two SnowparkColumns
+        Args:
+            op: pandas operation
+            first_operand: SnowparkColumn for lhs
+            first_datatype: Callable for Snowpark Datatype for lhs
+            second_operand: SnowparkColumn for rhs
+            second_datatype: Callable for Snowpark DateType for rhs
+            it is not needed.
+        """
         self.op = op
         self.first_operand = first_operand
         self.first_datatype = first_datatype
@@ -337,6 +347,17 @@ class BinaryOp:
         second_operand: SnowparkColumn,
         second_datatype: DataTypeGetter,
     ) -> "BinaryOp":
+        """
+        Create a BinaryOp object to compute pandas binary operation for two SnowparkColumns
+        Args:
+            op: pandas operation
+            first_operand: SnowparkColumn for lhs
+            first_datatype: Callable for Snowpark Datatype for lhs
+            second_operand: SnowparkColumn for rhs
+            second_datatype: Callable for Snowpark DateType for rhs
+            it is not needed.
+        """
+
         def snake_to_camel(snake_str: str) -> str:
             """Converts a snake case string to camel case."""
             components = snake_str.split("_")
@@ -375,6 +396,18 @@ class BinaryOp:
         fill_value: Scalar,
     ) -> "BinaryOp":
         """
+        Create a BinaryOp object to compute pandas binary operation for two SnowparkColumns with fill value for missing
+        values.
+
+        Args:
+            op: pandas operation
+            first_operand: SnowparkColumn for lhs
+            first_datatype: Callable for Snowpark Datatype for lhs
+            second_operand: SnowparkColumn for rhs
+            second_datatype: Callable for Snowpark DateType for rhs
+            it is not needed.
+            fill_value: the value to fill missing values
+
         Helper method for performing binary operations.
         1. Fills NaN/None values in the lhs and rhs with the given fill_value.
         2. Computes the binary operation expression for lhs <op> rhs.
@@ -497,40 +530,33 @@ class BinaryOp:
             self.result_snowpark_pandas_type = TimedeltaType()
 
     def _check_error(self) -> None:
+        # Timedelta - Timestamp doesn't make sense. Raise the same error
+        # message as pandas.
         if (
             self.op == "sub"
             and isinstance(self.first_datatype(), TimedeltaType)
             and isinstance(self.second_datatype(), TimestampType)
         ):
-            # Timedelta - Timestamp doesn't make sense. Raise the same error
-            # message as pandas.
             raise TypeError("bad operand type for unary -: 'DatetimeArray'")
 
-        elif self.op in "pow" and _op_is_between_two_timedeltas_or_timedelta_and_null(
-            self.first_datatype(), self.second_datatype()
-        ):
-            raise TypeError("unsupported operand type for **: Timedelta")
-        elif (
-            self.op == "__or__"
-            and _op_is_between_two_timedeltas_or_timedelta_and_null(
-                self.first_datatype(), self.second_datatype()
-            )
-        ):
-            raise TypeError("unsupported operand type for |: Timedelta")
-        elif (
-            self.op == "__and__"
-            and _op_is_between_two_timedeltas_or_timedelta_and_null(
-                self.first_datatype(), self.second_datatype()
-            )
-        ):
-            raise TypeError("unsupported operand type for &: Timedelta")
-        elif self.op == "mul" and _op_is_between_two_timedeltas_or_timedelta_and_null(
-            self.first_datatype(), self.second_datatype()
-        ):
-            raise np.core._exceptions._UFuncBinaryResolutionError(  # type: ignore[attr-defined]
+        # Raise error for two timedelta or timedelta and null
+        two_timedeltas_or_timedelta_and_null_error = {
+            "pow": TypeError("unsupported operand type for **: Timedelta"),
+            "__or__": TypeError("unsupported operand type for |: Timedelta"),
+            "__and__": TypeError("unsupported operand type for &: Timedelta"),
+            "mul": np.core._exceptions._UFuncBinaryResolutionError(  # type: ignore[attr-defined]
                 np.multiply, (np.dtype("timedelta64[ns]"), np.dtype("timedelta64[ns]"))
+            ),
+        }
+        if (
+            self.op in two_timedeltas_or_timedelta_and_null_error
+            and _op_is_between_two_timedeltas_or_timedelta_and_null(
+                self.first_datatype(), self.second_datatype()
             )
-        elif self.op in ("add", "sub") and (
+        ):
+            raise two_timedeltas_or_timedelta_and_null_error[self.op]
+
+        if self.op in ("add", "sub") and (
             (
                 isinstance(self.first_datatype(), TimedeltaType)
                 and _is_numeric_non_timedelta_type(self.second_datatype())
@@ -543,14 +569,18 @@ class BinaryOp:
             raise TypeError(
                 "Snowpark pandas does not support addition or subtraction between timedelta values and numeric values."
             )
-        elif self.op in ("truediv", "floordiv", "mod") and (
+
+        if self.op in ("truediv", "floordiv", "mod") and (
             _is_numeric_non_timedelta_type(self.first_datatype())
             and isinstance(self.second_datatype(), TimedeltaType)
         ):
             raise TypeError(
-                "Snowpark pandas does not support dividing numeric values by timedelta values with div (/), mod (%), or floordiv (//)."
+                "Snowpark pandas does not support dividing numeric values by timedelta values with div (/), mod (%), "
+                "or floordiv (//)."
             )
-        elif self.op in (
+
+        # TODO(SNOW-1646604): Support these cases.
+        if self.op in (
             "add",
             "sub",
             "truediv",
@@ -572,17 +602,18 @@ class BinaryOp:
                 and isinstance(self.first_datatype(), StringType)
             )
         ):
-            # TODO(SNOW-1646604): Support these cases.
             ErrorMessage.not_implemented(
                 f"Snowpark pandas does not yet support the operation {self.op} between timedelta and string"
             )
-        elif self.op in ("gt", "ge", "lt", "le", "pow", "__or__", "__and__") and (
+
+        if self.op in ("gt", "ge", "lt", "le", "pow", "__or__", "__and__") and (
             _op_is_between_timedelta_and_numeric(
                 self.first_datatype, self.second_datatype
             )
         ):
             raise TypeError(
-                f"Snowpark pandas does not support binary operation {self.op} between timedelta and a non-timedelta type."
+                f"Snowpark pandas does not support binary operation {self.op} between timedelta and a non-timedelta "
+                f"type."
             )
 
     def compute(self) -> SnowparkPandasColumn:
