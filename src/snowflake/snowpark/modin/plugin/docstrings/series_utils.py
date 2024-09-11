@@ -1955,7 +1955,7 @@ class CombinedDatetimelikeProperties:
         If the DST transition causes nonexistent times, you can shift these dates forward or backwards with a timedelta object or ‘shift_forward’ or ‘shift_backwards’.
 
         >>> s = pd.to_datetime(pd.Series(['2015-03-29 02:30:00',
-                                    '2015-03-29 03:30:00']))
+        ...                             '2015-03-29 03:30:00']))
         >>> s.dt.tz_localize('Europe/Warsaw', nonexistent='shift_forward')  # doctest: +SKIP
         0   2015-03-29 03:00:00+02:00
         1   2015-03-29 03:30:00+02:00
