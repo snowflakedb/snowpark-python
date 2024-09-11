@@ -1058,7 +1058,7 @@ def test_concat_sorted_frames():
         ),  # duplicate in frame2
     ],
 )
-@sql_count_checker(query_count=2, union_count=1, join_count=1)
+@sql_count_checker(query_count=2, union_count=1)
 def test_concat_duplicate_columns(columns1, columns2, expected_rows, expected_cols):
     df1 = pd.DataFrame([[1, 2, 3]], columns=columns1)
     df2 = pd.DataFrame([[4, 5, 6]], columns=columns2)
@@ -1123,7 +1123,7 @@ def test_concat_from_file(resources_path):
     )
 
 
-@sql_count_checker(query_count=1, join_count=5)
+@sql_count_checker(query_count=1, join_count=2)
 def test_concat_keys():
     native_data = {
         "one": native_pd.Series([1, 2, 3], index=["a", "b", "c"]),

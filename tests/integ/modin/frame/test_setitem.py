@@ -141,7 +141,7 @@ def test_df_setitem_slice_key_df_value(key):
         else:
             df[key] = val
 
-    expected_join_count = 6 if isinstance(key.start, int) else 7
+    expected_join_count = 3 if isinstance(key.start, int) else 4
 
     with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(snow_df, native_df, setitem, inplace=True)
@@ -361,7 +361,9 @@ def test_df_setitem_replace_column_with_single_column(column, key):
         df[key] = column
 
     expected_join_count = 2
-    if isinstance(column, native_pd.Index) and not isinstance(
+    if isinstance(column, native_pd.Series):
+        expected_join_count = 1
+    elif isinstance(column, native_pd.Index) and not isinstance(
         column, native_pd.DatetimeIndex
     ):
         expected_join_count = 4

@@ -951,8 +951,8 @@ def test_groupby_with_level(df_multi, level):
     )
 
 
-@sql_count_checker(query_count=1, join_count=2)
-def test_groupby_with_hier_columns():
+@sql_count_checker(query_count=1)
+def test_groupby_with_higher_columns():
     tuples = list(
         zip(
             *[

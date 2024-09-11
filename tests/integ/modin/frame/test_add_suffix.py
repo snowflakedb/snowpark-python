@@ -46,7 +46,7 @@ def test_df_add_suffix_multiindex(suffix, native_df_with_multiindex_columns):
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 @pytest.mark.parametrize("suffix", TEST_ADD_SUFFIX_DATA)
 def test_df_add_suffix_time_column_df(
     suffix, time_column_snowpark_pandas_df, time_column_native_df

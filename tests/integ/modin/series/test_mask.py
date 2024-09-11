@@ -76,8 +76,8 @@ def test_series_mask_duplicate_labels():
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.mask(ser > 3))
 
 
-@sql_count_checker(query_count=1, join_count=1)
-def test_series_mask_multi_index():
+@sql_count_checker(query_count=1)
+def test_series_mask_multiindex():
     data = [1, 2, 3, 4, 5]
     index = [("a", "x"), ("b", "y"), ("c", "z"), ("d", "u"), ("e", "v")]
 
@@ -233,7 +233,7 @@ def test_series_mask_with_scalar_cond(cond):
         )
 
 
-@sql_count_checker(query_count=1, join_count=3)
+@sql_count_checker(query_count=1, join_count=1)
 def test_series_mask_series_cond_unmatched_index():
     data = [1, 2, 3, 4]
     index1 = [0, 1, 2, 3]
@@ -258,10 +258,9 @@ def test_series_mask_series_cond_unmatched_index():
     )
 
 
-@pytest.mark.parametrize(
-    "index, join_count", [("matched_index", 1), ("unmatched_index", 2)]
-)
-def test_series_mask_short_series_cond(index, join_count):
+@sql_count_checker(query_count=1, join_count=1)
+@pytest.mark.parametrize("index", ["matched_index", "unmatched_index"])
+def test_series_mask_short_series_cond(index):
     data = [1, 2, 3, 4]
     if index != "matched_index":
         index = [7, 8, 9]
@@ -280,18 +279,16 @@ def test_series_mask_short_series_cond(index, join_count):
         else:
             return series.mask(native_cond, -1)
 
-    with SqlCounter(query_count=1, join_count=join_count):
-        eval_snowpark_pandas_result(
-            snow_ser,
-            native_ser,
-            perform_mask,
-        )
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        perform_mask,
+    )
 
 
-@pytest.mark.parametrize(
-    "index, join_count", [("matched_index", 1), ("unmatched_index", 2)]
-)
-def test_series_mask_long_series_cond(index, join_count):
+@sql_count_checker(query_count=1, join_count=1)
+@pytest.mark.parametrize("index", ["matched_index", "unmatched_index"])
+def test_series_mask_long_series_cond(index):
     data = [1, 2, 3, 4]
     if index != "matched_index":
         index = [7, 8, 9, 10, 11]
@@ -310,9 +307,8 @@ def test_series_mask_long_series_cond(index, join_count):
         else:
             return series.mask(native_cond, -1)
 
-    with SqlCounter(query_count=1, join_count=join_count):
-        eval_snowpark_pandas_result(
-            snow_ser,
-            native_ser,
-            perform_mask,
-        )
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        perform_mask,
+    )

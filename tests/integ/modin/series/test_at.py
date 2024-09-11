@@ -18,7 +18,7 @@ def test_at_get_default_index(
     )
 
 
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_at_set_default_index(
     default_index_snowpark_pandas_series,
     default_index_native_series,
@@ -42,7 +42,7 @@ def test_at_get_str_index(
     assert str_index_snowpark_pandas_series.at["b"] == str_index_native_series.at["b"]
 
 
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_at_set_str_index(
     str_index_snowpark_pandas_series,
     str_index_native_series,
@@ -58,7 +58,7 @@ def test_at_set_str_index(
     )
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2)
 def test_at_get_time_index(
     time_index_snowpark_pandas_series,
     time_index_native_series,
@@ -69,7 +69,7 @@ def test_at_get_time_index(
     )
 
 
-@sql_count_checker(query_count=1, join_count=3)
+@sql_count_checker(query_count=1, join_count=1)
 def test_at_set_time_index(
     time_index_snowpark_pandas_series,
     time_index_native_series,

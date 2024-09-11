@@ -494,7 +494,7 @@ def test_create_df_with_dict_as_data_and_index_as_index():
     assert_frame_equal(snow_df, native_df)
 
 
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1)
 def test_create_series_with_list_of_lists_index():
     # When given a list of lists as the index, this index needs to be converted to a MultiIndex before processing.
     arrays = [
@@ -507,7 +507,7 @@ def test_create_series_with_list_of_lists_index():
     assert_series_equal(snow_series, native_series)
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 def test_create_series_with_none_data_and_non_empty_index():
     # When creating an empty Series with a non-empty index, the index should be used as the index of the Series.
     index = ["A", "B", "C", "D"]

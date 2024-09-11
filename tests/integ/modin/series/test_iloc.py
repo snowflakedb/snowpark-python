@@ -89,7 +89,7 @@ def test_series_iloc_setitem(
         # Based on snowflake type results, the result becomes 'str' type so we normalize to float for comparison.
         return ser.astype("float")
 
-    expected_join_count = 5 if isinstance(val, list) else 4
+    expected_join_count = 3 if isinstance(val, list) else 2
     with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             default_index_native_int_snowpark_pandas_series,
@@ -777,25 +777,25 @@ def test_iloc_with_row_key_series_rhs_series_no_shape_check(
 
 
 @pytest.mark.parametrize(
-    "row_key, row_key_index, add_joins",
+    "row_key, row_key_index",
     [
-        [1, None, 0],
-        [[3, 0], None, 0],
-        [[1, 2], [("A",), ("B",)], 1],
-        [[2, 1], [("A", 1), ("B", 2)], 2],
+        [1, None],
+        [[3, 0], None],
+        [[1, 2], [("A",), ("B",)]],
+        [[2, 1], [("A", 1), ("B", 2)]],
     ],
 )
 @pytest.mark.parametrize(
     "item_values, item_index, expected_join_count",
     [
-        [999, None, 6],
-        [TEST_ITEMS_DATA_2X1, None, 7],
-        [TEST_ITEMS_DATA_2X1, [("r",), ("s",)], 8],
-        [TEST_ITEMS_DATA_2X1, [("r", 20), ("s", 25)], 9],
+        [999, None, 2],
+        [TEST_ITEMS_DATA_2X1, None, 3],
+        [TEST_ITEMS_DATA_2X1, [("r",), ("s",)], 4],
+        [TEST_ITEMS_DATA_2X1, [("r", 20), ("s", 25)], 5],
     ],
 )
 def test_df_iloc_set_with_multiindex(
-    row_key, row_key_index, item_values, item_index, expected_join_count, add_joins
+    row_key, row_key_index, item_values, item_index, expected_join_count
 ):
     ser_data = [10, 11, 12, 13, 14]
     row_index = pd.MultiIndex.from_tuples(
@@ -835,7 +835,7 @@ def test_df_iloc_set_with_multiindex(
         else:
             ser.iloc[snow_row_key] = snow_items
 
-    with SqlCounter(query_count=1, join_count=expected_join_count + add_joins):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(snow_ser, native_ser, helper_iloc, inplace=True)
 
 
@@ -851,7 +851,7 @@ def test_series_iloc_get_series_with_multiindex(
             )
 
         # test ser with default index
-        with SqlCounter(query_count=1, join_count=4):
+        with SqlCounter(query_count=1, join_count=2):
             eval_snowpark_pandas_result(
                 default_index_int_series,
                 default_index_native_int_series,
@@ -859,7 +859,7 @@ def test_series_iloc_get_series_with_multiindex(
             )
 
         # test ser with non default index
-        with SqlCounter(query_count=1, join_count=4):
+        with SqlCounter(query_count=1, join_count=2):
             eval_snowpark_pandas_result(
                 int_series_with_non_default_index,
                 native_int_series_with_non_default_index,
@@ -867,7 +867,7 @@ def test_series_iloc_get_series_with_multiindex(
             )
 
         # test ser with MultiIndex
-        with SqlCounter(query_count=1, join_count=4):
+        with SqlCounter(query_count=1, join_count=2):
             eval_snowpark_pandas_result(
                 int_series_with_multiindex,
                 multiindex_native_int_series,

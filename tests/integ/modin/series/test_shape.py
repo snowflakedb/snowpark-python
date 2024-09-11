@@ -9,7 +9,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter
+from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 
@@ -34,13 +34,11 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
         "empty series with only index",
     ],
 )
+@sql_count_checker(query_count=1)
 def test_series_shape(args, kwargs):
-    with SqlCounter(
-        query_count=1, join_count=1 if kwargs.get("index", None) == [] else 0
-    ):
-        eval_snowpark_pandas_result(
-            pd.Series(*args, **kwargs),
-            native_pd.Series(*args, **kwargs),
-            lambda df: df.shape,
-            comparator=lambda x, y: x == y,
-        )
+    eval_snowpark_pandas_result(
+        pd.Series(*args, **kwargs),
+        native_pd.Series(*args, **kwargs),
+        lambda df: df.shape,
+        comparator=lambda x, y: x == y,
+    )

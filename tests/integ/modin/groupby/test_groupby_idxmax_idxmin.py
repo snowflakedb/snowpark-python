@@ -20,7 +20,7 @@ from tests.utils import running_on_public_ci
 @pytest.mark.parametrize("grouping_columns", ["B", ["A", "B"]])
 @pytest.mark.parametrize("skipna", [False, True])
 @pytest.mark.parametrize("func", ["idxmax", "idxmin"])
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 def test_df_groupby_idxmax_idxmin_on_axis_0(
     df_with_multiple_columns, grouping_columns, skipna, func
 ):
@@ -73,7 +73,7 @@ def test_df_groupby_idxmax_idxmin_on_axis_1_negative(df_with_multiple_columns, f
 
 @pytest.mark.parametrize("func", ["idxmax", "idxmin"])
 @pytest.mark.parametrize("numeric_only", [True, False])
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 def test_groupby_idxmax_idxmin_with_different_column_dtypes_on_axis_0(
     func, numeric_only
 ):

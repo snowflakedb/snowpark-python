@@ -28,7 +28,7 @@ def native_df(snow_df):
 
 
 @pytest.mark.parametrize("deep", [None, True, False])
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 def test_copy(deep, snow_df, native_df):
     # Verify copy is same as original
     assert_snowpark_pandas_equal_to_pandas(snow_df.copy(deep=deep), native_df)
@@ -61,7 +61,7 @@ def test_copy_deep_false_column_names(snow_df):
         lambda df: df.rename(columns={"a": "new_a"}, inplace=True),
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 def test_copy_inplace_operations_on_deep_copy(snow_df, native_df, operation):
     snow_df_copy = snow_df.copy(deep=True)
     operation(snow_df_copy)
@@ -79,7 +79,7 @@ def test_copy_inplace_operations_on_deep_copy(snow_df, native_df, operation):
         lambda df: df.rename(columns={"a": "new_a"}, inplace=True),
     ],
 )
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2)
 def test_copy_inplace_operations_on_shallow_copy(snow_df, operation):
     snow_df_copy = snow_df.copy(deep=False)
     operation(snow_df_copy)

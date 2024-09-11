@@ -44,7 +44,7 @@ def test_resample_fill(interval, agg_func):
 
 @interval
 @agg_func
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=2, join_count=1)
 def test_resample_fill_ser(interval, agg_func):
     datecol = native_pd.to_datetime(
         [
@@ -139,7 +139,7 @@ def test_resample_ffill_missing_in_middle(interval, agg_func):
 
 @interval
 @agg_func
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=2, join_count=1)
 def test_resample_ffill_ser_missing_in_middle(interval, agg_func):
     datecol = native_pd.to_datetime(
         [

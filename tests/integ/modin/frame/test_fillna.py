@@ -426,7 +426,7 @@ def test_multiindex_df_values_dict_various_levels(test_fillna_multiindex_df):
     )
 
 
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=2)
 def test_multiindex_df_values_series(test_fillna_multiindex_df, test_fillna_multiindex):
     values = pd.Series([10, 1, 2, 3], index=test_fillna_multiindex)
     native_values = native_pd.Series([10, 1, 2, 3], index=test_fillna_multiindex)

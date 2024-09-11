@@ -45,7 +45,7 @@ class TestRename:
             # values in the variant column will be quoted
             assert_index_equal(renamed.index, renamed2.index.str.replace('"', ""))
 
-    @sql_count_checker(query_count=1, join_count=2)
+    @sql_count_checker(query_count=1, join_count=1)
     def test_rename_partial_dict(self):
         # partial dict
         ser = Series(np.arange(4), index=["a", "b", "c", "d"], dtype="int64")
@@ -63,7 +63,7 @@ class TestRename:
         renamed = renamer.rename({})
         assert renamed.index.name == renamer.index.name
 
-    @sql_count_checker(query_count=2, join_count=2)
+    @sql_count_checker(query_count=2, join_count=1)
     def test_rename_by_series(self):
         ser = Series(range(5), name="foo")
         renamer = Series({1: 10, 2: 20})
@@ -80,7 +80,7 @@ class TestRename:
                 tm.assert_numpy_array_equal(result.index.values, ser.index.values)
                 assert ser.name is None
 
-    @sql_count_checker(query_count=5, join_count=5)
+    @sql_count_checker(query_count=5)
     def test_rename_set_name_inplace(self):
         ser = Series(range(3), index=list("abc"))
         for name in ["foo", 123, 123.0, datetime(2001, 11, 11), ("foo",)]:

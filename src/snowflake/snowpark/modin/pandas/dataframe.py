@@ -297,7 +297,7 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
                     # pd.DataFrame({'a': 1, 'b': 2}, index=[0])
                     dummy_index = index
 
-            if is_scalar(data) and not isinstance(index, type(None)):
+            if not isinstance(index, (Index, type(self))):
                 dummy_index = index
             query_compiler = from_pandas(
                 pandas.DataFrame(
@@ -309,7 +309,10 @@ class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
                 )
             )._query_compiler
 
-        if index is not None:
+        if index is not None and (
+            isinstance(index, (Index, Series))
+            or isinstance(data, (Index, Series, type(self)))
+        ):
             if isinstance(data, (type(self), Series, type(None))):
                 # The `index` parameter is used to select the rows from `data` that will be in the resultant DataFrame.
                 # If a value in `index` is not present in `data`'s index, it will be filled with a NaN value.

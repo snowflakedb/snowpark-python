@@ -65,7 +65,7 @@ def test_any_int(data):
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 def test_all_named_index():
     data = [1, 0, 3]
     index_name = ["a", "b", "c"]
@@ -77,7 +77,7 @@ def test_all_named_index():
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 def test_any_named_index():
     data = [1, 0, 3]
     index_name = ["a", "b", "c"]

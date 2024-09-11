@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_series_equal,
     create_test_series,
@@ -129,18 +129,15 @@ def test_describe_timestamps(data):
 
 
 @pytest.mark.parametrize(
-    "index, join_count",
+    "index",
     [
-        pytest.param(None, 0, id="default_index"),
-        pytest.param(
-            ["one", "two", "three", "four", "five", "six"], 6, id="flat_index"
-        ),
+        pytest.param(None, id="default_index"),
+        pytest.param(["one", "two", "three", "four", "five", "six"], id="flat_index"),
         pytest.param(
             [
                 np.array(["bar", "bar", "baz", "baz", "foo", "foo"]),
                 np.array(["one", "two", "one", "two", "one", "two"]),
             ],
-            12,
             id="2D_index",
         ),
     ],
@@ -154,10 +151,8 @@ def test_describe_timestamps(data):
     ],
     ids=["ints", "floats", "objects"],
 )
-def test_describe_multiindex(data, index, join_count):
-    if isinstance(data[0], str) and index is not None:
-        join_count = 8 if len(index) == 2 else 4
-    with SqlCounter(query_count=1, union_count=5, join_count=join_count):
-        eval_snowpark_pandas_result(
-            *create_test_series(data, index=index), lambda ser: ser.describe()
-        )
+@sql_count_checker(query_count=1, union_count=5)
+def test_describe_multiindex(data, index):
+    eval_snowpark_pandas_result(
+        *create_test_series(data, index=index), lambda ser: ser.describe()
+    )
