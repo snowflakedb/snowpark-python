@@ -32,7 +32,12 @@ from pandas._libs import lib
 from pandas._typing import ArrayLike, AxisInt, Dtype, Frequency, Hashable
 from pandas.core.dtypes.common import is_timedelta64_dtype
 
+from snowflake.snowpark import functions as fn
 from snowflake.snowpark.modin.pandas import DataFrame, Series
+from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
+    AggregateColumnOpParameters,
+    aggregate_with_ordered_dataframe,
+)
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -40,6 +45,7 @@ from snowflake.snowpark.modin.plugin.extensions.index import Index
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     timedelta_index_not_implemented,
 )
+from snowflake.snowpark.types import LongType
 
 _CONSTRUCTOR_DEFAULTS = {
     "unit": lib.no_default,
@@ -393,12 +399,11 @@ class TimedeltaIndex(Index):
                datetime.timedelta(days=3)], dtype=object)
         """
 
-    @timedelta_index_not_implemented()
     def mean(
         self, *, skipna: bool = True, axis: AxisInt | None = 0
-    ) -> native_pd.Timestamp:
+    ) -> native_pd.Timedelta:
         """
-        Return the mean value of the Array.
+        Return the mean value of the Timedelta values.
 
         Parameters
         ----------
@@ -408,17 +413,40 @@ class TimedeltaIndex(Index):
 
         Returns
         -------
-            scalar Timestamp
+            scalar Timedelta
+
+        Examples
+        --------
+        >>> idx = pd.to_timedelta([1, 2, 3, 1], unit='D')
+        >>> idx
+        TimedeltaIndex(['1 days', '2 days', '3 days', '1 days'], dtype='timedelta64[ns]', freq=None)
+        >>> idx.mean()
+        Timedelta('1 days 18:00:00')
 
         See Also
         --------
         numpy.ndarray.mean : Returns the average of array elements along a given axis.
         Series.mean : Return the mean value in a Series.
-
-        Notes
-        -----
-        mean is only defined for Datetime and Timedelta dtypes, not for Period.
         """
+        if axis:
+            # Native pandas raises IndexError: tuple index out of range
+            # We raise a different more user-friendly error message.
+            raise ValueError(
+                f"axis should be 0 for TimedeltaIndex.mean, found '{axis}'"
+            )
+        # TODO SNOW-1620439: Reuse code from Series.mean.
+        frame = self._query_compiler._modin_frame
+        index_id = frame.index_column_snowflake_quoted_identifiers[0]
+        new_index_id = frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+            pandas_labels=["mean"]
+        )[0]
+        agg_column_op_params = AggregateColumnOpParameters(
+            index_id, LongType(), "mean", new_index_id, fn.mean, []
+        )
+        mean_value = aggregate_with_ordered_dataframe(
+            frame.ordered_dataframe, [agg_column_op_params], {"skipna": skipna}
+        ).collect()[0][0]
+        return native_pd.Timedelta(np.nan if mean_value is None else int(mean_value))
 
     @timedelta_index_not_implemented()
     def as_unit(self, unit: str) -> TimedeltaIndex:
