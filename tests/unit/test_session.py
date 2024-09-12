@@ -112,6 +112,7 @@ def test_used_scoped_temp_object():
 def test_close_exception():
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
+    fake_connection._telemetry_client = mock.Mock()
     fake_connection.is_closed = MagicMock(return_value=False)
     exception_msg = "Mock exception for session.cancel_all"
     fake_connection.run_query = MagicMock(side_effect=Exception(exception_msg))
