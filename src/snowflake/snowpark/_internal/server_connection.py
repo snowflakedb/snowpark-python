@@ -8,6 +8,7 @@ import importlib
 import inspect
 import os
 import sys
+import threading
 import time
 from logging import getLogger
 from typing import (
@@ -154,6 +155,8 @@ class ServerConnection:
         options: Dict[str, Union[int, str]],
         conn: Optional[SnowflakeConnection] = None,
     ) -> None:
+        self._lock = threading.RLock()
+        self._thread_stored = threading.local()
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self._add_application_parameters()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
@@ -170,7 +173,6 @@ class ServerConnection:
 
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
-        self._cursor = self._conn.cursor()
         self._telemetry_client = TelemetryClient(self._conn)
         self._query_listener: Set[QueryHistory] = set()
         # The session in this case refers to a Snowflake session, not a
@@ -182,6 +184,12 @@ class ServerConnection:
         self._supports_skip_upload_on_content_match = (
             "_skip_upload_on_content_match" in signature.parameters
         )
+
+    @property
+    def _cursor(self) -> SnowflakeCursor:
+        if not hasattr(self._thread_stored, "cursor"):
+            self._thread_stored.cursor = self._conn.cursor()
+        return self._thread_stored.cursor
 
     def _add_application_parameters(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
@@ -210,10 +218,12 @@ class ServerConnection:
             ] = get_version()
 
     def add_query_listener(self, listener: QueryHistory) -> None:
-        self._query_listener.add(listener)
+        with self._lock:
+            self._query_listener.add(listener)
 
     def remove_query_listener(self, listener: QueryHistory) -> None:
-        self._query_listener.remove(listener)
+        with self._lock:
+            self._query_listener.remove(listener)
 
     def close(self) -> None:
         if self._conn:
@@ -360,8 +370,9 @@ class ServerConnection:
                 raise ex
 
     def notify_query_listeners(self, query_record: QueryRecord) -> None:
-        for listener in self._query_listener:
-            listener._add_query(query_record)
+        with self._lock:
+            for listener in self._query_listener:
+                listener._add_query(query_record)
 
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any

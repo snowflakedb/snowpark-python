@@ -540,9 +540,6 @@ class Session:
         )
         self._file = FileOperation(self)
         self._lineage = Lineage(self)
-        self._analyzer = (
-            Analyzer(self) if isinstance(conn, ServerConnection) else MockAnalyzer(self)
-        )
         self._sql_simplifier_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
@@ -605,8 +602,19 @@ class Session:
         )
 
     def _generate_new_action_id(self) -> int:
-        self._last_action_id += 1
-        return self._last_action_id
+        with self._lock:
+            self._last_action_id += 1
+            return self._last_action_id
+
+    @property
+    def _analyzer(self) -> Analyzer:
+        if not hasattr(self._thread_store, "analyzer"):
+            self._thread_store.analyzer = (
+                Analyzer(self)
+                if isinstance(self._conn, ServerConnection)
+                else MockAnalyzer(self)
+            )
+        return self._thread_store.analyzer
 
     def close(self) -> None:
         """Close this session."""
@@ -798,7 +806,8 @@ class Session:
         This does not affect any action methods called in the future.
         """
         _logger.info("Canceling all running queries")
-        self._last_canceled_id = self._last_action_id
+        with self._lock:
+            self._last_canceled_id = self._last_action_id
         if not isinstance(self._conn, MockServerConnection):
             self._conn.run_query(
                 f"select system$cancel_all_queries({self._session_id})"
@@ -1917,11 +1926,12 @@ class Session:
 
     @query_tag.setter
     def query_tag(self, tag: str) -> None:
-        if tag:
-            self._conn.run_query(f"alter session set query_tag = {str_to_sql(tag)}")
-        else:
-            self._conn.run_query("alter session unset query_tag")
-        self._query_tag = tag
+        with self._lock:
+            if tag:
+                self._conn.run_query(f"alter session set query_tag = {str_to_sql(tag)}")
+            else:
+                self._conn.run_query("alter session unset query_tag")
+            self._query_tag = tag
 
     def _get_remote_query_tag(self) -> None:
         """
