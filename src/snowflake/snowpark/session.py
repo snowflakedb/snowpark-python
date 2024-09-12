@@ -1774,7 +1774,6 @@ class Session:
         finally:
             if tmpdir_handler:
                 tmpdir_handler.cleanup()
-                tmpdir_handler = None
 
         return supported_dependencies + new_dependencies
 
