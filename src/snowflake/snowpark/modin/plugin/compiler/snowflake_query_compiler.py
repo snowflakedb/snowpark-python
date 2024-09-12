@@ -16684,9 +16684,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         dtype = self.index_dtypes[0] if include_index else self.dtypes[0]
         if not include_index:
-            method_name = "Series.dt.ceil"
+            method_name = "Series.dt.tz_localize"
         elif is_datetime64_any_dtype(dtype):
-            method_name = "DatetimeIndex.ceil"
+            method_name = "DatetimeIndex.tz_localize"
         else:
             raise AssertionError("column must be datetime")  # pragma: no cover
 

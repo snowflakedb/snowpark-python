@@ -274,28 +274,26 @@ def test_normalize():
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 @timezones
 def test_tz_convert(tz):
-    native_index = native_pd.DatetimeIndex(
-        [
-            "2014-04-04 23:56:01.000000001",
-            "2014-07-18 21:24:02.000000002",
-            "2015-11-22 22:14:03.000000003",
-            "2015-11-23 20:12:04.1234567890",
-            pd.NaT,
-        ],
-        tz="US/Eastern",
+    native_index = native_pd.date_range(
+        start="2021-01-01", periods=5, freq="7h", tz="US/Eastern"
+    )
+    native_index = native_index.append(
+        native_pd.DatetimeIndex([pd.NaT], tz="US/Eastern")
     )
     snow_index = pd.DatetimeIndex(native_index)
-    eval_snowpark_pandas_result(
-        snow_index,
-        native_index,
-        lambda i: i.tz_convert(tz),
+
+    # Using eval_snowpark_pandas_result() was not possible because currently
+    # Snowpark pandas DatetimeIndex only mainains a timzeone-naive dtype
+    # even if the data contains a timezone.
+    assert snow_index.tz_convert(tz).equals(
+        pd.DatetimeIndex(native_index.tz_convert(tz))
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 @timezones
 def test_tz_localize(tz):
     native_index = native_pd.DatetimeIndex(
@@ -308,10 +306,12 @@ def test_tz_localize(tz):
         ],
     )
     snow_index = pd.DatetimeIndex(native_index)
-    eval_snowpark_pandas_result(
-        snow_index,
-        native_index,
-        lambda i: i.tz_localize(tz),
+
+    # Using eval_snowpark_pandas_result() was not possible because currently
+    # Snowpark pandas DatetimeIndex only mainains a timzeone-naive dtype
+    # even if the data contains a timezone.
+    assert snow_index.tz_localize(tz).equals(
+        pd.DatetimeIndex(native_index.tz_localize(tz))
     )
 
 
