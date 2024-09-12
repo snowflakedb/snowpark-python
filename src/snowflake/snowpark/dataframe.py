@@ -1430,8 +1430,7 @@ class DataFrame:
 
     @df_api_usage
     def drop(
-        self,
-        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+        self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]], _emit_ast: bool = True
     ) -> "DataFrame":
         """Returns a new DataFrame that excludes the columns with the specified names
         from the output.
@@ -1465,12 +1464,14 @@ class DataFrame:
         exprs, is_variadic = parse_positional_args_to_list_variadic(*cols)
 
         # AST.
-        stmt = self._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_drop, stmt)
-        self.set_ast_ref(ast.df)
-        for c in exprs:
-            build_expr_from_snowpark_column_or_col_name(ast.cols.args.add(), c)
-        ast.cols.variadic = is_variadic
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_drop, stmt)
+            self.set_ast_ref(ast.df)
+            for c in exprs:
+                build_expr_from_snowpark_column_or_col_name(ast.cols.args.add(), c)
+            ast.cols.variadic = is_variadic
 
         names = []
         for c in exprs:
@@ -1508,7 +1509,12 @@ class DataFrame:
         if not keep_col_names:
             raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
         else:
-            return self.select(list(keep_col_names), _ast_stmt=stmt)
+            df = self.select(list(keep_col_names), _emit_ast=False)
+
+            if _emit_ast:
+                df._ast_id = stmt.var_id.bitfield1
+
+            return df
 
     @df_api_usage
     def filter(
@@ -4846,7 +4852,10 @@ class DataFrame:
 
     @df_collect_api_telemetry
     def cache_result(
-        self, *, statement_params: Optional[Dict[str, str]] = None
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
     ) -> "Table":
         """Caches the content of this DataFrame to create a new cached Table DataFrame.
 
@@ -4908,14 +4917,16 @@ class DataFrame:
         from snowflake.snowpark.mock._connection import MockServerConnection
 
         # AST.
-        stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_cache_result, stmt)
-        self.set_ast_ref(expr.df)
-        if statement_params is not None:
-            for k in statement_params:
-                entry = expr.statement_params.add()
-                entry._1 = k
-                entry._2 = statement_params[k]
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_cache_result, stmt)
+            self.set_ast_ref(expr.df)
+            if statement_params is not None:
+                for k in statement_params:
+                    entry = expr.statement_params.add()
+                    entry._1 = k
+                    entry._2 = statement_params[k]
 
         temp_table_name = self._session.get_fully_qualified_name_if_possible(
             f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
@@ -4953,7 +4964,9 @@ class DataFrame:
             _emit_ast=False,
         )
         cached_df.is_cached = True
-        cached_df._ast_id = stmt.var_id.bitfield1
+
+        if _emit_ast:
+            cached_df._ast_id = stmt.var_id.bitfield1
         return cached_df
 
     @df_collect_api_telemetry
@@ -4996,17 +5009,12 @@ class DataFrame:
 
         if not weights:
             raise ValueError(
-                "weights can't be None or empty and must be positive numbers"
+                "weights can't be None or empty and its values must be positive numbers."
             )
 
         # AST.
         stmt = None
         if _emit_ast:
-
-            raise NotImplementedError(
-                "TODO SNOW-1638290: implement __getitem__ for dataframe and support this."
-            )
-
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_random_split, stmt)
             for w in weights:
@@ -5015,6 +5023,7 @@ class DataFrame:
                 ast.seed.value = seed
             if statement_params:
                 ast.statement_params = statement_params
+            self.set_ast_ref(ast.df)
 
         if len(weights) == 1:
             return [self]
@@ -5023,20 +5032,12 @@ class DataFrame:
                 if w <= 0:
                     raise ValueError("weights must be positive numbers")
 
-            # TODO: Support random_split in MockServerConnection.
-            from snowflake.snowpark.mock._connection import MockServerConnection
-
-            if (
-                isinstance(self._session._conn, MockServerConnection)
-                and self._session._conn._suppress_not_implemented_error
-            ):
-                # Allow AST tests to pass.
-                return []
-
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
-                temp_column_name, abs_(random(seed)) % _ONE_MILLION, ast_stmt=stmt
-            ).cache_result(statement_params=statement_params)
+                temp_column_name,
+                abs_(random(seed)) % _ONE_MILLION,
+                _emit_ast=False,
+            ).cache_result(statement_params=statement_params, _emit_ast=False)
             sum_weights = sum(weights)
             normalized_cum_weights = [0] + [
                 int(w * _ONE_MILLION)
@@ -5048,10 +5049,29 @@ class DataFrame:
             res_dfs = [
                 cached_df.where(
                     (col(temp_column_name) >= lower_bound)
-                    & (col(temp_column_name) < upper_bound)
-                ).drop(temp_column_name)
+                    & (col(temp_column_name) < upper_bound),
+                    _emit_ast=False,
+                ).drop(temp_column_name, _emit_ast=False)
                 for lower_bound, upper_bound in normalized_boundaries
             ]
+
+            if _emit_ast:
+                # Assign each Dataframe in res_dfs a __getitem__ from random_split.
+                for i, df in enumerate(res_dfs):
+                    obj_stmt = self._session._ast_batch.assign()
+
+                    # To enable symbol capture for multiple targets (e.g., a, b, c = ...), we hint
+                    # with_src_position with a target_idx.
+                    obj_expr = with_src_position(
+                        obj_stmt.expr.object_get_item, obj_stmt, target_idx=i
+                    )
+                    obj_expr.obj.bitfield1 = stmt.var_id.bitfield1
+
+                    arg = obj_expr.args.add()
+                    build_expr_from_python_val(arg, i)
+
+                    df._ast_id = obj_stmt.var_id.bitfield1
+
             return res_dfs
 
     @property
