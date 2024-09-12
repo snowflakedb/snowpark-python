@@ -2,6 +2,9 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import hashlib
+import os
+import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from unittest.mock import patch
 
@@ -9,7 +12,7 @@ import pytest
 
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.row import Row
-from tests.utils import IS_IN_STORED_PROC, Utils
+from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 
 def test_concurrent_select_queries(session):
@@ -122,3 +125,67 @@ def test_action_ids_are_unique(session):
             action_ids.add(future.result())
 
     assert len(action_ids) == 10
+
+
+@pytest.mark.parametrize("use_stream", [True, False])
+def test_file_io(session, resources_path, temp_stage, use_stream):
+    stage_prefix = f"prefix_{Utils.random_alphanumeric_str(10)}"
+    stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
+    test_files = TestFiles(resources_path)
+
+    resources_files = [
+        test_files.test_file_csv,
+        test_files.test_file2_csv,
+        test_files.test_file_json,
+        test_files.test_file_csv_header,
+        test_files.test_file_csv_colon,
+        test_files.test_file_csv_quotes,
+        test_files.test_file_csv_special_format,
+        test_files.test_file_json_special_format,
+        test_files.test_file_csv_quotes_special,
+        test_files.test_concat_file1_csv,
+        test_files.test_concat_file2_csv,
+    ]
+
+    def get_file_hash(fd):
+        return hashlib.md5(fd.read()).hexdigest()
+
+    def put_and_get_file(upload_file_path, download_dir):
+        if use_stream:
+            with open(upload_file_path, "rb") as fd:
+                results = session.file.put_stream(
+                    fd, stage_with_prefix, auto_compress=False, overwrite=False
+                )
+        else:
+            results = session.file.put(
+                upload_file_path,
+                stage_with_prefix,
+                auto_compress=False,
+                overwrite=False,
+            )
+        # assert file is uploaded successfully
+        assert len(results) == 1
+        assert results[0].status == "UPLOADED"
+
+        stage_file_name = f"{stage_with_prefix}{os.path.basename(upload_file_path)}"
+        if use_stream:
+            fd = session.file.get_stream(stage_file_name, download_dir)
+            with open(upload_file_path, "rb") as upload_fd:
+                assert get_file_hash(upload_fd) == get_file_hash(fd)
+
+        else:
+            results = session.file.get(stage_file_name, download_dir)
+            # assert file is downloaded successfully
+            assert len(results) == 1
+            assert results[0].status == "DOWNLOADED"
+            download_file_path = results[0].file
+            # assert two files are identical
+            with open(upload_file_path, "rb") as upload_fd, open(
+                download_file_path, "rb"
+            ) as download_fd:
+                assert get_file_hash(upload_fd) == get_file_hash(download_fd)
+
+    with tempfile.TemporaryDirectory() as download_dir:
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            for file_path in resources_files:
+                executor.submit(put_and_get_file, file_path, download_dir)
