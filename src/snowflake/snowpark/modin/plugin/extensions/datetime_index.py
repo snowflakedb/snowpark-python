@@ -229,7 +229,7 @@ class DatetimeIndex(Index):
         --------
         >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00", "2/1/2020 11:00:00+00:00"], tz="America/Los_Angeles")
         >>> idx
-        DatetimeIndex(['2020-01-01 02:00:00-08:00', '2020-02-01 03:00:00-08:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
+        DatetimeIndex(['2020-01-01 02:00:00-08:00', '2020-02-01 03:00:00-08:00'], dtype='datetime64[ns, UTC-08:00]', freq=None)
         """
         # DatetimeIndex is already initialized in __new__ method. We keep this method
         # only for docstring generation.
@@ -1133,6 +1133,7 @@ default 'raise'
             frequency like 'S' (second) not 'ME' (month end). See
             frequency aliases for a list of possible `freq` values.
         ambiguous : 'infer', bool-ndarray, 'NaT', default 'raise'
+            This parameter is only supported for 'raise'.
             Only relevant for DatetimeIndex:
 
             - 'infer' will attempt to infer fall dst-transition hours based on
@@ -1145,6 +1146,7 @@ default 'raise'
               times.
 
         nonexistent : 'shift_forward', 'shift_backward', 'NaT', timedelta, default 'raise'
+            This parameter is only supported for 'raise'.
             A nonexistent time does not exist in a particular timezone
             where clocks moved forward due to DST.
 
@@ -1199,6 +1201,7 @@ default 'raise'
             frequency like 'S' (second) not 'ME' (month end). See
             frequency aliases for a list of possible `freq` values.
         ambiguous : 'infer', bool-ndarray, 'NaT', default 'raise'
+            This parameter is only supported for 'raise'.
             Only relevant for DatetimeIndex:
 
             - 'infer' will attempt to infer fall dst-transition hours based on
@@ -1211,6 +1214,7 @@ default 'raise'
               times.
 
         nonexistent : 'shift_forward', 'shift_backward', 'NaT', timedelta, default 'raise'
+            This parameter is only supported for 'raise'.
             A nonexistent time does not exist in a particular timezone
             where clocks moved forward due to DST.
 
@@ -1265,6 +1269,7 @@ default 'raise'
             frequency like 'S' (second) not 'ME' (month end). See
             frequency aliases for a list of possible `freq` values.
         ambiguous : 'infer', bool-ndarray, 'NaT', default 'raise'
+            This parameter is only supported for 'raise'.
             Only relevant for DatetimeIndex:
 
             - 'infer' will attempt to infer fall dst-transition hours based on
@@ -1277,6 +1282,7 @@ default 'raise'
               times.
 
         nonexistent : 'shift_forward', 'shift_backward', 'NaT', timedelta, default 'raise'
+            This parameter is only supported for 'raise'.
             A nonexistent time does not exist in a particular timezone
             where clocks moved forward due to DST.
 

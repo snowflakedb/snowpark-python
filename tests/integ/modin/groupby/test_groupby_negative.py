@@ -18,6 +18,7 @@ from tests.integ.modin.utils import (
     MAP_DATA_AND_TYPE,
     MIXED_NUMERIC_STR_DATA_AND_TYPE,
     TIMESTAMP_DATA_AND_TYPE,
+    create_test_dfs,
     eval_snowpark_pandas_result,
 )
 
@@ -556,3 +557,15 @@ def test_groupby_agg_invalid_min_count(
         getattr(basic_snowpark_pandas_df.groupby("col1"), min_count_method)(
             min_count=min_count
         )
+
+
+@sql_count_checker(query_count=0)
+def test_timedelta_var_invalid():
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            [["key0", pd.Timedelta(1)]],
+        ),
+        lambda df: df.groupby(0).var(),
+        expect_exception=True,
+        expect_exception_type=TypeError,
+    )

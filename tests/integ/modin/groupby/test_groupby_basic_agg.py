@@ -1122,7 +1122,6 @@ class TestTimedelta:
                         ["1 days 06:05:01.00003", "16us", "nan", "16us"]
                     ),
                     "B": [8, 8, 12, 10],
-                    "C": [True, False, False, True],
                 }
             ),
             lambda df: getattr(df.groupby(by), method)(),
@@ -1156,11 +1155,22 @@ class TestTimedelta:
             operation,
         )
 
-    @sql_count_checker(query_count=0)
-    def test_var_is_invalid(self):
+    @sql_count_checker(query_count=1)
+    def test_groupby_timedelta_var(self):
+        """
+        Test that we can group by a timedelta column and take var() of an integer column.
+
+        Note that we can't take the groupby().var() of the timedelta column because
+        var() is not defined for timedelta, in pandas or in Snowpark pandas.
+        """
         eval_snowpark_pandas_result(
-            *create_test_dfs([[pd.Timedelta(1), pd.Timedelta(2)]]),
-            lambda df: df.groupby(0).var(),
-            expect_exception=True,
-            expect_exception_type=TypeError,
+            *create_test_dfs(
+                {
+                    "A": native_pd.to_timedelta(
+                        ["1 days 06:05:01.00003", "16us", "nan", "16us"]
+                    ),
+                    "B": [8, 8, 12, 10],
+                }
+            ),
+            lambda df: df.groupby("A").var(),
         )

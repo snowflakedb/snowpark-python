@@ -9,7 +9,7 @@ from collections import defaultdict
 from collections.abc import Hashable, Iterable
 from functools import partial
 from inspect import getmembers
-from types import BuiltinFunctionType
+from types import BuiltinFunctionType, MappingProxyType
 from typing import Any, Callable, Literal, Mapping, NamedTuple, Optional, Union
 
 import numpy as np
@@ -89,7 +89,7 @@ _NUMPY_FUNCTION_TO_NAME = {
 }
 
 
-def array_agg_keepna(
+def _array_agg_keepna(
     column_to_aggregate: ColumnOrName, ordering_columns: Iterable[OrderingColumn]
 ) -> Column:
     """
@@ -243,53 +243,63 @@ def _columns_coalescing_idxmax_idxmin_helper(
         )
 
 
-class SnowparkPandasAggFunc(NamedTuple):
+class _SnowparkPandasAggregation(NamedTuple):
     """
-    A Snowpark pandas aggregation function.
+    A representation of a Snowpark pandas aggregation.
 
-    This is a normalized representation of an aggregation in Snowpark pandas:
-    a single SnowparkPandasAggFunc could represent aggregating with either of
-    2 different aliases of sum, like `np.sum` and `"sum"`.
+    This structure gives us a common representation for an aggregation that may
+    have multiple aliases, like "sum" and np.sum.
     """
 
-    # A callable that takes a Snowpark column and returns the aggregated column.
-    axis_0_snowpark_aggregation: Callable
+    # This field tells whether if types of all the inputs of the function are
+    # the same instance of SnowparkPandasType, the type of the result is the
+    # same instance of SnowparkPandasType. Note that this definition applies
+    # whether the aggregation is on axis=0 or axis=1. For example, the sum of
+    # a single timedelta column on axis 0 is another timedelta column.
+    # Equivalently, the sum of two timedelta columns along axis 1 is also
+    # another timedelta column. Therefore, preserves_snowpark_pandas_types for
+    # sum would be True.
+    preserves_snowpark_pandas_types: bool
 
-    # Whether the aggregation preserves the SnowparkPandasType of the input.
-    preserves_snowpark_pandas_type: bool
+    # This callable takes a single Snowpark column as input and aggregates the
+    # column on axis=0. If None, Snowpark pandas does not support this
+    # aggregation on axis=0.
+    axis_0_aggregation: Optional[Callable] = None
+
+    # This callable takes one or more Snowpark columns as input and
+    # the columns on axis=1 with skipna=True, i.e. not including nulls in the
+    # aggregation. If None, Snowpark pandas does not support this aggregation
+    # on axis=1 with skipna=True.
+    axis_1_aggregation_skipna: Optional[Callable] = None
+
+    # This callable takes one or more Snowpark columns as input and
+    # the columns on axis=1 with skipna=False, i.e. including nulls in the
+    # aggregation. If None, Snowpark pandas does not support this aggregation
+    # on axis=1 with skipna=False.
+    axis_1_aggregation_keepna: Optional[Callable] = None
 
 
-# Map between the pandas input aggregation function (str or numpy function) and
-# the corresponding snowpark aggregation function for axis=0.
-PANDAS_AGG_FUNC_TO_SNOWPARK_PANDAS_AGG_FUNC: dict[
-    Union[str, Callable], SnowparkPandasAggFunc
-] = {
-    "count": SnowparkPandasAggFunc(count, False),
-    **{agg_func: SnowparkPandasAggFunc(mean, True) for agg_func in ("mean", np.mean)},  # type: ignore
-    **{agg_func: SnowparkPandasAggFunc(min_, True) for agg_func in ("min", np.min)},  # type: ignore
-    **{agg_func: SnowparkPandasAggFunc(max_, True) for agg_func in ("max", np.max)},  # type: ignore
-    "idxmax": SnowparkPandasAggFunc(
-        functools.partial(_columns_coalescing_idxmax_idxmin_helper, func="idxmax"),
-        False,
-    ),
-    "idxmin": SnowparkPandasAggFunc(
-        functools.partial(_columns_coalescing_idxmax_idxmin_helper, func="idxmin"),
-        False,
-    ),
-    **{agg_func: SnowparkPandasAggFunc(sum_, True) for agg_func in ("sum", np.sum)},  # type: ignore
-    **{
-        agg_func: SnowparkPandasAggFunc(median, True)  # type: ignore
-        for agg_func in ("median", np.median)
-    },
-    "skew": SnowparkPandasAggFunc(skew, True),
-    **{agg_func: SnowparkPandasAggFunc(stddev, True) for agg_func in ("std", np.std)},  # type: ignore
-    **{agg_func: SnowparkPandasAggFunc(variance, True) for agg_func in ("var", np.var)},  # type: ignore
-    "all": SnowparkPandasAggFunc(builtin("booland_agg"), False),
-    "any": SnowparkPandasAggFunc(builtin("boolor_agg"), False),
-    "array_agg": SnowparkPandasAggFunc(array_agg, False),
-    "quantile": SnowparkPandasAggFunc(column_quantile, True),
-    "nunique": SnowparkPandasAggFunc(count_distinct, False),
-}
+class SnowflakeAggFunc(NamedTuple):
+    """
+    A Snowflake aggregation, including information about how the aggregation acts on SnowparkPandasType.
+    """
+
+    # The aggregation function in Snowpark.
+    # For aggregation on axis=0, this field should take a single Snowpark
+    # column and return the aggregated column.
+    # For aggregation on axis=1, this field should take an arbitrary number
+    # of Snowpark columns and return the aggregated column.
+    snowpark_aggregation: Callable
+
+    # This field tells whether if types of all the inputs of the function are
+    # the same instance of SnowparkPandasType, the type of the result is the
+    # same instance of SnowparkPandasType. Note that this definition applies
+    # whether the aggregation is on axis=0 or axis=1. For example, the sum of
+    # a single timedelta column on axis 0 is another timedelta column.
+    # Equivalently, the sum of two timedelta columns along axis 1 is also
+    # another timedelta column. Therefore, preserves_snowpark_pandas_types for
+    # sum would be True.
+    preserves_snowpark_pandas_types: bool
 
 
 class AggFuncWithLabel(NamedTuple):
@@ -408,35 +418,143 @@ def _columns_coalescing_sum(*cols: SnowparkColumn) -> Callable:
     return sum(builtin("zeroifnull")(col) for col in cols)
 
 
-# Map between the pandas input aggregation function (str or numpy function) and
-# the corresponding aggregation function for axis=1 when skipna=True. The returned aggregation
-# function may either  be a builtin aggregation function, or a function taking in *arg columns
-# that then calls the appropriate builtin aggregations.
-SNOWFLAKE_COLUMNS_AGG_FUNC_MAP: dict[Union[str, Callable], Callable] = {
-    "count": _columns_count,
-    "sum": _columns_coalescing_sum,
-    np.sum: _columns_coalescing_sum,
-    "min": _columns_coalescing_min,
-    "max": _columns_coalescing_max,
-    "idxmax": _columns_coalescing_idxmax_idxmin_helper,
-    "idxmin": _columns_coalescing_idxmax_idxmin_helper,
-    np.min: _columns_coalescing_min,
-    np.max: _columns_coalescing_max,
-}
+def _create_pandas_to_snowpark_pandas_aggregation_map(
+    pandas_functions: Iterable[AggFuncTypeBase],
+    snowpark_pandas_aggregation: _SnowparkPandasAggregation,
+) -> MappingProxyType[AggFuncTypeBase, _SnowparkPandasAggregation]:
+    """
+    Create a map from the given pandas functions to the given _SnowparkPandasAggregation.
 
-# These functions are called instead if skipna=False
-SNOWFLAKE_COLUMNS_KEEPNA_AGG_FUNC_MAP: dict[Union[str, Callable], Callable] = {
-    "min": least,
-    "max": greatest,
-    "idxmax": _columns_coalescing_idxmax_idxmin_helper,
-    "idxmin": _columns_coalescing_idxmax_idxmin_helper,
-    # IMPORTANT: count and sum use python builtin sum to invoke __add__ on each column rather than Snowpark
-    # sum_, since Snowpark sum_ gets the sum of all rows within a single column.
-    "sum": lambda *cols: sum(cols),
-    np.sum: lambda *cols: sum(cols),
-    np.min: least,
-    np.max: greatest,
-}
+    Args;
+        pandas_functions: The pandas functions that map to the given aggregation.
+        snowpark_pandas_aggregation: The aggregation to map to
+
+    Returns:
+        The map.
+    """
+    return MappingProxyType({k: snowpark_pandas_aggregation for k in pandas_functions})
+
+
+# Map between the pandas input aggregation function (str or numpy function) and
+# _SnowparkPandasAggregation representing information about applying the
+# aggregation in Snowpark pandas.
+_PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
+    AggFuncTypeBase, _SnowparkPandasAggregation
+] = MappingProxyType(
+    {
+        "count": _SnowparkPandasAggregation(
+            axis_0_aggregation=count,
+            axis_1_aggregation_skipna=_columns_count,
+            preserves_snowpark_pandas_types=False,
+        ),
+        **_create_pandas_to_snowpark_pandas_aggregation_map(
+            ("mean", np.mean),
+            _SnowparkPandasAggregation(
+                axis_0_aggregation=mean,
+                preserves_snowpark_pandas_types=True,
+            ),
+        ),
+        **_create_pandas_to_snowpark_pandas_aggregation_map(
+            ("min", np.min),
+            _SnowparkPandasAggregation(
+                axis_0_aggregation=min_,
+                axis_1_aggregation_keepna=least,
+                axis_1_aggregation_skipna=_columns_coalescing_min,
+                preserves_snowpark_pandas_types=True,
+            ),
+        ),
+        **_create_pandas_to_snowpark_pandas_aggregation_map(
+            ("max", np.max),
+            _SnowparkPandasAggregation(
+                axis_0_aggregation=max_,
+                axis_1_aggregation_keepna=greatest,
+                axis_1_aggregation_skipna=_columns_coalescing_max,
+                preserves_snowpark_pandas_types=True,
+            ),
+        ),
+        **_create_pandas_to_snowpark_pandas_aggregation_map(
+            ("sum", np.sum),
+            _SnowparkPandasAggregation(
+                axis_0_aggregation=sum_,
+                # IMPORTANT: count and sum use python builtin sum to invoke
+                # __add__ on each column rather than Snowpark sum_, since
+                # Snowpark sum_ gets the sum of all rows within a single column.
+                axis_1_aggregation_keepna=lambda *cols: sum(cols),
+                axis_1_aggregation_skipna=_columns_coalescing_sum,
+                preserves_snowpark_pandas_types=True,
+            ),
+        ),
+        **_create_pandas_to_snowpark_pandas_aggregation_map(
+            ("median", np.median),
+            _SnowparkPandasAggregation(
+                axis_0_aggregation=median,
+                preserves_snowpark_pandas_types=True,
+            ),
+        ),
+        "idxmax": _SnowparkPandasAggregation(
+            axis_0_aggregation=functools.partial(
+                _columns_coalescing_idxmax_idxmin_helper, func="idxmax"
+            ),
+            axis_1_aggregation_keepna=_columns_coalescing_idxmax_idxmin_helper,
+            axis_1_aggregation_skipna=_columns_coalescing_idxmax_idxmin_helper,
+            preserves_snowpark_pandas_types=False,
+        ),
+        "idxmin": _SnowparkPandasAggregation(
+            axis_0_aggregation=functools.partial(
+                _columns_coalescing_idxmax_idxmin_helper, func="idxmin"
+            ),
+            axis_1_aggregation_skipna=_columns_coalescing_idxmax_idxmin_helper,
+            axis_1_aggregation_keepna=_columns_coalescing_idxmax_idxmin_helper,
+            preserves_snowpark_pandas_types=False,
+        ),
+        "skew": _SnowparkPandasAggregation(
+            axis_0_aggregation=skew,
+            preserves_snowpark_pandas_types=True,
+        ),
+        "all": _SnowparkPandasAggregation(
+            # all() for a column with no non-null values is NULL in Snowflake, but True in pandas.
+            axis_0_aggregation=lambda c: coalesce(
+                builtin("booland_agg")(col(c)), pandas_lit(True)
+            ),
+            preserves_snowpark_pandas_types=False,
+        ),
+        "any": _SnowparkPandasAggregation(
+            # any() for a column with no non-null values is NULL in Snowflake, but False in pandas.
+            axis_0_aggregation=lambda c: coalesce(
+                builtin("boolor_agg")(col(c)), pandas_lit(False)
+            ),
+            preserves_snowpark_pandas_types=False,
+        ),
+        **_create_pandas_to_snowpark_pandas_aggregation_map(
+            ("std", np.std),
+            _SnowparkPandasAggregation(
+                axis_0_aggregation=stddev,
+                preserves_snowpark_pandas_types=True,
+            ),
+        ),
+        **_create_pandas_to_snowpark_pandas_aggregation_map(
+            ("var", np.var),
+            _SnowparkPandasAggregation(
+                axis_0_aggregation=variance,
+                # variance units are the square of the input column units, so
+                # variance does not preserve types.
+                preserves_snowpark_pandas_types=False,
+            ),
+        ),
+        "array_agg": _SnowparkPandasAggregation(
+            axis_0_aggregation=array_agg,
+            preserves_snowpark_pandas_types=False,
+        ),
+        "quantile": _SnowparkPandasAggregation(
+            axis_0_aggregation=column_quantile,
+            preserves_snowpark_pandas_types=True,
+        ),
+        "nunique": _SnowparkPandasAggregation(
+            axis_0_aggregation=count_distinct,
+            preserves_snowpark_pandas_types=False,
+        ),
+    }
+)
 
 
 class AggregateColumnOpParameters(NamedTuple):
@@ -457,7 +575,7 @@ class AggregateColumnOpParameters(NamedTuple):
     agg_snowflake_quoted_identifier: str
 
     # the snowflake aggregation function to apply on the column
-    snowpark_pandas_agg_func: SnowparkPandasAggFunc
+    snowflake_agg_func: SnowflakeAggFunc
 
     # the columns specifying the order of rows in the column. This is only
     # relevant for aggregations that depend on row order, e.g. summing a string
@@ -465,24 +583,36 @@ class AggregateColumnOpParameters(NamedTuple):
     ordering_columns: Iterable[OrderingColumn]
 
 
-def is_pandas_agg_func(agg_func: AggFuncTypeBase) -> bool:
-    return agg_func in PANDAS_AGG_FUNC_TO_SNOWPARK_PANDAS_AGG_FUNC
+def is_snowflake_agg_func(agg_func: AggFuncTypeBase) -> bool:
+    return agg_func in _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION
 
 
-def get_axis_0_snowpark_pandas_agg_func(
-    agg_func: AggFuncTypeBase, agg_kwargs: dict[str, Any]
-) -> Optional[SnowparkPandasAggFunc]:
+def get_snowflake_agg_func(
+    agg_func: AggFuncTypeBase, agg_kwargs: dict[str, Any], axis: Literal[0, 1]
+) -> Optional[SnowflakeAggFunc]:
     """
     Get the corresponding Snowflake/Snowpark aggregation function for the given aggregation function.
     If no corresponding snowflake aggregation function can be found, return None.
     """
+    if axis == 1:
+        return _generate_rowwise_aggregation_function(agg_func, agg_kwargs)
 
-    snowpark_pandas_agg_func = PANDAS_AGG_FUNC_TO_SNOWPARK_PANDAS_AGG_FUNC.get(agg_func)
-    if snowpark_pandas_agg_func is None:
-        return snowpark_pandas_agg_func
-    snowpark_agg_func, preserves_output_types = snowpark_pandas_agg_func
+    snowpark_pandas_aggregation = (
+        _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION.get(agg_func)
+    )
 
-    if snowpark_agg_func == stddev or snowpark_agg_func == variance:
+    if snowpark_pandas_aggregation is None:
+        # We don't have any implementation at all for this aggregation.
+        return None
+
+    snowpark_aggregation = snowpark_pandas_aggregation.axis_0_aggregation
+
+    if snowpark_aggregation is None:
+        # We don't have an implementation on axis=0 for this aggregation.
+        return None
+
+    # Rewrite some aggregations according to `agg_kwargs.`
+    if snowpark_aggregation == stddev or snowpark_aggregation == variance:
         # for aggregation function std and var, we only support ddof = 0 or ddof = 1.
         # when ddof is 1, std is mapped to stddev, var is mapped to variance
         # when ddof is 0, std is mapped to stddev_pop, var is mapped to var_pop
@@ -491,8 +621,10 @@ def get_axis_0_snowpark_pandas_agg_func(
         if ddof != 1 and ddof != 0:
             return None
         if ddof == 0:
-            snowpark_agg_func = stddev_pop if snowpark_agg_func == stddev else var_pop
-    elif snowpark_agg_func == column_quantile:
+            snowpark_aggregation = (
+                stddev_pop if snowpark_aggregation == stddev else var_pop
+            )
+    elif snowpark_aggregation == column_quantile:
         interpolation = agg_kwargs.get("interpolation", "linear")
         q = agg_kwargs.get("q", 0.5)
         if interpolation not in ("linear", "nearest"):
@@ -501,59 +633,59 @@ def get_axis_0_snowpark_pandas_agg_func(
             # SNOW-1062878 Because list-like q would return multiple rows, calling quantile
             # through the aggregate frontend in this manner is unsupported.
             return None
-        snowpark_agg_func = functools.partial(
-            column_quantile, interpolation=interpolation, q=q
-        )
-    elif agg_func in ("all", "any"):
-        # If there are no rows in the input frame, the function will also return NULL, which should
-        # instead by TRUE for "all" and FALSE for "any".
-        # Need to wrap column name in IDENTIFIER, or else the agg function will treat the name
-        # as a string literal.
-        # The generated SQL expression for "all" is
-        #   IFNULL(BOOLAND_AGG(IDENTIFIER("column_name")), TRUE)
-        # The expression for "any" is
-        #   IFNULL(BOOLOR_AGG(IDENTIFIER("column_name")), FALSE)
-        default_value = bool(agg_func == "all")
-        orginal_agg_func = snowpark_agg_func
 
-        def snowpark_agg_func(col: Column) -> Column:
-            return builtin("ifnull")(
-                orginal_agg_func(builtin("identifier")(col)),
-                pandas_lit(default_value),
-            )
+        def snowpark_aggregation(col: SnowparkColumn) -> SnowparkColumn:
+            return column_quantile(col, interpolation, q)
 
-    return SnowparkPandasAggFunc(snowpark_agg_func, preserves_output_types)
+    assert (
+        snowpark_aggregation is not None
+    ), "Internal error: Snowpark pandas should have identified a Snowpark aggregation."
+    return SnowflakeAggFunc(
+        snowpark_aggregation=snowpark_aggregation,
+        preserves_snowpark_pandas_types=snowpark_pandas_aggregation.preserves_snowpark_pandas_types,
+    )
 
 
-def generate_rowwise_aggregation_function(
+def _generate_rowwise_aggregation_function(
     agg_func: AggFuncTypeBase, agg_kwargs: dict[str, Any]
-) -> Optional[Callable]:
+) -> Optional[SnowflakeAggFunc]:
     """
     Get a callable taking *arg columns to apply for an aggregation.
 
-    Unlike get_axis_0_snowpark_pandas_agg_func, this function may return a wrapped composition of
+    Unlike get_snowflake_agg_func, this function may return a wrapped composition of
     Snowflake builtin functions depending on the values of the specified kwargs.
     """
-    snowflake_agg_func = SNOWFLAKE_COLUMNS_AGG_FUNC_MAP.get(agg_func)
-    if not agg_kwargs.get("skipna", True):
-        snowflake_agg_func = SNOWFLAKE_COLUMNS_KEEPNA_AGG_FUNC_MAP.get(
-            agg_func, snowflake_agg_func
-        )
+    snowpark_pandas_aggregation = (
+        _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION.get(agg_func)
+    )
+    if snowpark_pandas_aggregation is None:
+        return None
+    snowpark_aggregation = (
+        snowpark_pandas_aggregation.axis_1_aggregation_skipna
+        if agg_kwargs.get("skipna", True)
+        else snowpark_pandas_aggregation.axis_1_aggregation_keepna
+    )
+    if snowpark_aggregation is None:
+        return None
     min_count = agg_kwargs.get("min_count", 0)
     if min_count > 0:
+        original_aggregation = snowpark_aggregation
+
         # Create a case statement to check if the number of non-null values exceeds min_count
         # when min_count > 0, if the number of not NULL values is < min_count, return NULL.
-        def agg_func_wrapper(fn: Callable) -> Callable:
-            return lambda *cols: when(
-                _columns_count(*cols) < min_count, pandas_lit(None)
-            ).otherwise(fn(*cols))
+        def snowpark_aggregation(*cols: SnowparkColumn) -> SnowparkColumn:
+            return when(_columns_count(*cols) < min_count, pandas_lit(None)).otherwise(
+                original_aggregation(*cols)
+            )
 
-        return snowflake_agg_func and agg_func_wrapper(snowflake_agg_func)
-    return snowflake_agg_func
+    return SnowflakeAggFunc(
+        snowpark_aggregation,
+        preserves_snowpark_pandas_types=snowpark_pandas_aggregation.preserves_snowpark_pandas_types,
+    )
 
 
-def is_supported_snowflake_agg_func(
-    agg_func: AggFuncTypeBase, agg_kwargs: dict[str, Any], axis: int
+def _is_supported_snowflake_agg_func(
+    agg_func: AggFuncTypeBase, agg_kwargs: dict[str, Any], axis: Literal[0, 1]
 ) -> bool:
     """
     check if the aggregation function is supported with snowflake. Current supported
@@ -570,15 +702,11 @@ def is_supported_snowflake_agg_func(
         # For named aggregations, like `df.agg(new_col=("old_col", "sum"))`,
         # take the second part of the named aggregation.
         agg_func = agg_func[0]
-    return (
-        (agg_func in SNOWFLAKE_COLUMNS_AGG_FUNC_MAP)
-        if axis == 1
-        else (get_axis_0_snowpark_pandas_agg_func(agg_func, agg_kwargs) is not None)
-    )
+    return get_snowflake_agg_func(agg_func, agg_kwargs, axis) is not None
 
 
-def are_all_agg_funcs_supported_by_snowflake(
-    agg_funcs: list[AggFuncTypeBase], agg_kwargs: dict[str, Any], axis: int
+def _are_all_agg_funcs_supported_by_snowflake(
+    agg_funcs: list[AggFuncTypeBase], agg_kwargs: dict[str, Any], axis: Literal[0, 1]
 ) -> bool:
     """
     Check if all aggregation functions in the given list are snowflake supported
@@ -589,14 +717,14 @@ def are_all_agg_funcs_supported_by_snowflake(
         return False.
     """
     return all(
-        is_supported_snowflake_agg_func(func, agg_kwargs, axis) for func in agg_funcs
+        _is_supported_snowflake_agg_func(func, agg_kwargs, axis) for func in agg_funcs
     )
 
 
 def check_is_aggregation_supported_in_snowflake(
     agg_func: AggFuncType,
     agg_kwargs: dict[str, Any],
-    axis: int,
+    axis: Literal[0, 1],
 ) -> bool:
     """
     check if distributed implementation with snowflake is available for the aggregation
@@ -615,18 +743,18 @@ def check_is_aggregation_supported_in_snowflake(
     if is_dict_like(agg_func):
         return all(
             (
-                are_all_agg_funcs_supported_by_snowflake(value, agg_kwargs, axis)
+                _are_all_agg_funcs_supported_by_snowflake(value, agg_kwargs, axis)
                 if is_list_like(value) and not is_named_tuple(value)
-                else is_supported_snowflake_agg_func(value, agg_kwargs, axis)
+                else _is_supported_snowflake_agg_func(value, agg_kwargs, axis)
             )
             for value in agg_func.values()
         )
     elif is_list_like(agg_func):
-        return are_all_agg_funcs_supported_by_snowflake(agg_func, agg_kwargs, axis)
-    return is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis)
+        return _are_all_agg_funcs_supported_by_snowflake(agg_func, agg_kwargs, axis)
+    return _is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis)
 
 
-def is_snowflake_numeric_type_required(snowflake_agg_func: Callable) -> bool:
+def _is_snowflake_numeric_type_required(snowflake_agg_func: Callable) -> bool:
     """
     Is the given snowflake aggregation function needs to be applied on the numeric column.
     """
@@ -704,7 +832,7 @@ def drop_non_numeric_data_columns(
     )
 
 
-def generate_aggregation_column(
+def _generate_aggregation_column(
     agg_column_op_params: AggregateColumnOpParameters,
     agg_kwargs: dict[str, Any],
     is_groupby_agg: bool,
@@ -728,18 +856,14 @@ def generate_aggregation_column(
         SnowparkColumn after the aggregation function. The column is also aliased back to the original name
     """
     snowpark_column = agg_column_op_params.snowflake_quoted_identifier
-    (
-        snowpark_agg_func,
-        preserves_snowpark_pandas_type,
-    ) = agg_column_op_params.snowpark_pandas_agg_func
+    snowflake_agg_func = agg_column_op_params.snowflake_agg_func.snowpark_aggregation
 
-    if (
-        isinstance(agg_column_op_params.data_type, TimedeltaType)
-        and snowpark_agg_func is variance
+    if snowflake_agg_func in (variance, var_pop) and isinstance(
+        agg_column_op_params.data_type, TimedeltaType
     ):
         raise TypeError("timedelta64 type does not support var operations")
 
-    if is_snowflake_numeric_type_required(snowpark_agg_func) and isinstance(
+    if _is_snowflake_numeric_type_required(snowflake_agg_func) and isinstance(
         agg_column_op_params.data_type, BooleanType
     ):
         # if the column is a boolean column and the aggregation function requires numeric values,
@@ -749,7 +873,7 @@ def generate_aggregation_column(
             agg_column_op_params.snowflake_quoted_identifier, IntegerType()
         )
 
-    if snowpark_agg_func == sum_:
+    if snowflake_agg_func == sum_:
         if isinstance(agg_column_op_params.data_type, StringType):
             agg_snowpark_column = listagg(snowpark_column).within_group(
                 [
@@ -762,50 +886,50 @@ def generate_aggregation_column(
             # where sum on a column with all NaN in pandas result in 0, but sum on a column with all NULL result
             # in NULL. Therefore, a post process on the result to replace the NULL result with 0 using coalesce.
             agg_snowpark_column = coalesce(
-                snowpark_agg_func(snowpark_column), pandas_lit(0)
+                snowflake_agg_func(snowpark_column), pandas_lit(0)
             )
-    elif snowpark_agg_func == array_agg:
+    elif snowflake_agg_func == array_agg:
         # Array aggregation requires the ordering columns, which we have to
         # pass in here.
         # note that we always assume keepna for array_agg. TODO(SNOW-1040398):
         # make keepna treatment consistent across array_agg and other
         # aggregation methods.
-        agg_snowpark_column = array_agg_keepna(
+        agg_snowpark_column = _array_agg_keepna(
             snowpark_column, ordering_columns=agg_column_op_params.ordering_columns
         )
     elif (
-        isinstance(snowpark_agg_func, partial)
-        and snowpark_agg_func.func == _columns_coalescing_idxmax_idxmin_helper
+        isinstance(snowflake_agg_func, partial)
+        and snowflake_agg_func.func == _columns_coalescing_idxmax_idxmin_helper
     ):
         agg_snowpark_column = _columns_coalescing_idxmax_idxmin_helper(
             snowpark_column,
             axis=0,
-            func=snowpark_agg_func.keywords["func"],
+            func=snowflake_agg_func.keywords["func"],
             keepna=not agg_kwargs.get("skipna", True),
             pandas_column_labels=index_column_snowflake_quoted_identifier,  # type: ignore
             is_groupby=is_groupby_agg,
         )
-    elif snowpark_agg_func == count_distinct:
+    elif snowflake_agg_func == count_distinct:
         if agg_kwargs.get("dropna", True) is False:
             # count_distinct does only count distinct non-NULL values.
             # Check if NULL is contained, then add +1 in this case.
             if not isinstance(snowpark_column, SnowparkColumn):
                 snowpark_column = col(snowpark_column)
-            agg_snowpark_column = snowpark_agg_func(snowpark_column) + iff(
+            agg_snowpark_column = snowflake_agg_func(snowpark_column) + iff(
                 sum_(snowpark_column.is_null().cast(IntegerType())) > pandas_lit(0),
                 pandas_lit(1),
                 pandas_lit(0),
             )
         else:
-            agg_snowpark_column = snowpark_agg_func(snowpark_column)
+            agg_snowpark_column = snowflake_agg_func(snowpark_column)
     else:
-        agg_snowpark_column = snowpark_agg_func(snowpark_column)
+        agg_snowpark_column = snowflake_agg_func(snowpark_column)
 
     # Handle min_count and skipna parameters
     min_count = -1
     skipna = True
-    is_groupby_min_max = is_groupby_agg and snowpark_agg_func in [min_, max_]
-    if snowpark_agg_func is sum_ or is_groupby_min_max:
+    is_groupby_min_max = is_groupby_agg and snowflake_agg_func in [min_, max_]
+    if snowflake_agg_func is sum_ or is_groupby_min_max:
         # min_count parameter is only valid for groupby min/max/sum, dataframe sum and series sum
         min_count = agg_kwargs.get("min_count", -1)
     if not is_groupby_agg:
@@ -844,7 +968,7 @@ def generate_aggregation_column(
 
     if (
         isinstance(agg_column_op_params.data_type, TimedeltaType)
-        and preserves_snowpark_pandas_type
+        and agg_column_op_params.snowflake_agg_func.preserves_snowpark_pandas_types
     ):
         # timedelta aggregations that produce timedelta results might produce
         # a decimal type in snowflake, e.g.
@@ -887,7 +1011,7 @@ def aggregate_with_ordered_dataframe(
 
     is_groupby_agg = groupby_columns is not None
     agg_list: list[SnowparkColumn] = [
-        generate_aggregation_column(
+        _generate_aggregation_column(
             agg_column_op_params=agg_col_op,
             agg_kwargs=agg_kwargs,
             is_groupby_agg=is_groupby_agg,
@@ -1003,7 +1127,7 @@ def get_pandas_aggr_func_name(aggfunc: AggFuncTypeBase) -> str:
     )
 
 
-def generate_pandas_labels_for_agg_result_columns(
+def _generate_pandas_labels_for_agg_result_columns(
     pandas_label: Hashable,
     num_levels: int,
     agg_func_list: list[AggFuncInfo],
@@ -1132,7 +1256,7 @@ def generate_column_agg_info(
         )
         # generate the pandas label and quoted identifier for the result aggregation columns, one
         # for each aggregation function to apply.
-        agg_col_labels = generate_pandas_labels_for_agg_result_columns(
+        agg_col_labels = _generate_pandas_labels_for_agg_result_columns(
             pandas_label_to_identifier.pandas_label,
             num_levels,
             agg_func_list,  # type: ignore[arg-type]
@@ -1153,13 +1277,11 @@ def generate_column_agg_info(
             is_dummy_agg = func_info.is_dummy_agg
             agg_func_col = pandas_lit(None) if is_dummy_agg else quoted_identifier
             data_type = identifier_to_snowflake_type[quoted_identifier]
-            snowpark_pandas_agg_func = get_axis_0_snowpark_pandas_agg_func(
-                func, agg_kwargs
-            )
+            snowflake_agg_func = get_snowflake_agg_func(func, agg_kwargs, axis=0)
             # once reach here, we require all func have a corresponding snowflake aggregation function.
             # check_is_aggregation_supported_in_snowflake can be used to help performing the check.
             assert (
-                snowpark_pandas_agg_func
+                snowflake_agg_func
             ), f"no snowflake aggregation function found for {func}"
             column_agg_ops.append(
                 AggregateColumnOpParameters(
@@ -1167,7 +1289,7 @@ def generate_column_agg_info(
                     data_type=data_type,
                     agg_pandas_label=label,
                     agg_snowflake_quoted_identifier=identifier,
-                    snowpark_pandas_agg_func=snowpark_pandas_agg_func,
+                    snowflake_agg_func=snowflake_agg_func,
                     ordering_columns=internal_frame.ordering_columns,
                 )
             )
