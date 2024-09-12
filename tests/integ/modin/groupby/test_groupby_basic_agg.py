@@ -1124,6 +1124,7 @@ def test_timedelta(agg_func, by):
     )
 
 
+@sql_count_checker(query_count=1)
 def test_groupby_timedelta_var():
     """
     Test that we can group by a timedelta column and take var() of an integer column.
