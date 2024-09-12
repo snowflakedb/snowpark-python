@@ -2256,9 +2256,8 @@ class DataFrame:
         column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
         unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
 
-        df: DataFrame
-        if self._select_statement:
-            df = self._with_plan(
+        df: DataFrame = (
+            self._with_plan(
                 SelectStatement(
                     from_=SelectSnowflakePlan(
                         unpivot_plan, analyzer=self._session._analyzer
@@ -2266,8 +2265,9 @@ class DataFrame:
                     analyzer=self._session._analyzer,
                 )
             )
-        else:
-            df = self._with_plan(unpivot_plan)
+            if self._select_statement
+            else self._with_plan(unpivot_plan)
+        )
         df._ast_id = stmt.var_id.bitfield1
         return df
 
