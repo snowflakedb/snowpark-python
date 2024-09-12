@@ -13,7 +13,13 @@ from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.parameters import CONNECTION_PARAMETERS
-from tests.utils import TEST_SCHEMA, Utils, running_on_jenkins, running_on_public_ci
+from tests.utils import (
+    TEST_SCHEMA,
+    TestFiles,
+    Utils,
+    running_on_jenkins,
+    running_on_public_ci,
+)
 
 
 def print_help() -> None:
@@ -235,3 +241,18 @@ def temp_schema(connection, session, local_testing_mode) -> None:
             )
             yield temp_schema_name
             cursor.execute(f"DROP SCHEMA IF EXISTS {temp_schema_name}")
+
+
+@pytest.fixture(scope="module")
+def temp_stage(session, resources_path, local_testing_mode):
+    tmp_stage_name = Utils.random_stage_name()
+    test_files = TestFiles(resources_path)
+
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    Utils.upload_to_stage(
+        session, tmp_stage_name, test_files.test_file_parquet, compress=False
+    )
+    yield tmp_stage_name
+    if not local_testing_mode:
+        Utils.drop_stage(session, tmp_stage_name)
