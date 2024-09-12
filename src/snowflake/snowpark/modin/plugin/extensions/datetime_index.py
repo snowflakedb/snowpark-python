@@ -26,7 +26,7 @@ Module houses ``DatetimeIndex`` class, that is distributed version of
 
 from __future__ import annotations
 
-from datetime import tzinfo
+from datetime import timedelta, tzinfo
 
 import modin
 import numpy as np
@@ -1489,7 +1489,6 @@ default 'raise'
                datetime.datetime(2018, 3, 1, 0, 0)], dtype=object)
         """
 
-    @datetime_index_not_implemented()
     def mean(
         self, *, skipna: bool = True, axis: AxisInt | None = 0
     ) -> native_pd.Timestamp:
@@ -1520,11 +1519,16 @@ default 'raise'
         >>> idx = pd.date_range('2001-01-01 00:00', periods=3)
         >>> idx
         DatetimeIndex(['2001-01-01', '2001-01-02', '2001-01-03'], dtype='datetime64[ns]', freq=None)
-        >>> idx.mean()  # doctest: +SKIP
+        >>> idx.mean()
         Timestamp('2001-01-02 00:00:00')
         """
+        return (
+            self.to_series()
+            .agg("mean", axis=axis, skipna=skipna)
+            .to_pandas()
+            .squeeze(axis=1)
+        )
 
-    @datetime_index_not_implemented()
     def std(
         self,
         axis=None,
@@ -1533,7 +1537,7 @@ default 'raise'
         ddof: int = 1,
         keepdims: bool = False,
         skipna: bool = True,
-    ):
+    ) -> timedelta:
         """
         Return sample standard deviation over requested axis.
 
@@ -1568,6 +1572,16 @@ default 'raise'
         >>> idx = pd.date_range('2001-01-01 00:00', periods=3)
         >>> idx
         DatetimeIndex(['2001-01-01', '2001-01-02', '2001-01-03'], dtype='datetime64[ns]', freq=None)
-        >>> idx.std()  # doctest: +SKIP
+        >>> idx.std()
         Timedelta('1 days 00:00:00')
         """
+        kwargs = {
+            "dtype": dtype,
+            "out": out,
+            "ddof": ddof,
+            "keepdims": keepdims,
+            "skipna": skipna,
+        }
+        return (
+            self.to_series().agg("std", axis=axis, **kwargs).to_pandas().squeeze(axis=1)
+        )
