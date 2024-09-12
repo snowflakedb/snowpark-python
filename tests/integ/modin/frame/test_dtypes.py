@@ -351,7 +351,7 @@ def test_insert_multiindex_multi_label(label1, label2):
                 native_pd.Timestamp(1513393355, unit="s", tz="US/Pacific"),
             ],
             "datetime64[ns, America/Los_Angeles]",
-            "datetime64[ns, America/Los_Angeles]",
+            "datetime64[ns, UTC-08:00]",
             "datetime64[ns]",
         ),
         (
@@ -372,7 +372,7 @@ def test_insert_multiindex_multi_label(label1, label2):
                 native_pd.Timestamp(1513393355, unit="s", tz="US/Pacific"),
             ],
             "object",
-            "datetime64[ns, America/Los_Angeles]",
+            "datetime64[ns, UTC-08:00]",
             "datetime64[ns]",
         ),
     ],

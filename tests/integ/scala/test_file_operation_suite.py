@@ -14,7 +14,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
     SnowparkUploadFileException,
 )
-from tests.utils import IS_IN_STORED_PROC, IS_WINDOWS, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_WINDOWS, Utils
 
 
 def random_alphanumeric_name():
@@ -72,21 +72,6 @@ def path4(temp_source_directory):
     with gzip.open(filename, "wb") as f:
         f.write(b"abc, 123,\n")
     yield filename
-
-
-@pytest.fixture(scope="module")
-def temp_stage(session, resources_path, local_testing_mode):
-    tmp_stage_name = Utils.random_stage_name()
-    test_files = TestFiles(resources_path)
-
-    if not local_testing_mode:
-        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-    Utils.upload_to_stage(
-        session, tmp_stage_name, test_files.test_file_parquet, compress=False
-    )
-    yield tmp_stage_name
-    if not local_testing_mode:
-        Utils.drop_stage(session, tmp_stage_name)
 
 
 def test_put_with_one_file(
