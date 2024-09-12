@@ -71,6 +71,41 @@ _CONSTRUCTOR_DEFAULTS = {
 }
 
 
+class IndexParent:
+    def __init__(self) -> None:
+        """
+        Initialize the IndexParent object.
+
+        IndexParent is used to keep track of the parent object that the Index is a part of.
+        It tracks the parent object and the parent object's query compiler at the time of creation.
+        """
+        self._parent = None
+        self._parent_qc = None
+
+    def set_parent(self, parent: Series | DataFrame) -> None:
+        """
+        Set the parent object and its query compiler.
+
+        Parameters
+        ----------
+        parent : Series or DataFrame
+            The parent object that the Index is a part of.
+        """
+        self._parent = parent
+        self._parent_qc = parent._query_compiler
+
+    def check_and_update_parent_qc_index_names(self, names: list) -> None:
+        """
+        Update the Index and its parent's index names if the parent's current query compiler matches
+        the recorded query compiler (`_parent_qc`).
+        """
+        if self._parent is not None and self._parent._query_compiler is self._parent_qc:
+            new_query_compiler = self._parent_qc.set_index_names(names)
+            self._parent._update_inplace(new_query_compiler=new_query_compiler)
+            # Update the query compiler after naming operation.
+            self._parent_qc = new_query_compiler
+
+
 class Index(metaclass=TelemetryMeta):
 
     # Equivalent index type in native pandas
@@ -135,11 +170,8 @@ class Index(metaclass=TelemetryMeta):
         index = object.__new__(cls)
         # Initialize the Index
         index._query_compiler = query_compiler
-        # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
-        # `_parent_qc` keeps track of the original query compiler of the parent object.
-        # These fields are used with the name APIs.
-        index._parent = None
-        index._parent_qc = None
+        # `_parent` keeps track of the parent object that this Index is a part of.
+        index._parent = IndexParent()
         return index
 
     def __init__(
@@ -410,13 +442,6 @@ class Index(metaclass=TelemetryMeta):
         Returns: Type of the instance.
         """
         return type(self)
-
-    def _set_parent(self, parent: Series | DataFrame):
-        """
-        Set the parent object of the current Index to a given Series or DataFrame.
-        """
-        self._parent = parent
-        self._parent_qc = parent._query_compiler
 
     @property
     def values(self) -> ArrayLike:
@@ -731,11 +756,9 @@ class Index(metaclass=TelemetryMeta):
             raise TypeError(f"{type(self).__name__}.name must be a hashable type")
         self._query_compiler = self._query_compiler.set_index_names([value])
         # Update the name of the parent's index only if the parent's current query compiler
-        # matches the recorded query compiler (_parent_qc).
-        if self._parent is not None and self._parent_qc is self._parent._query_compiler:
-            self._parent._update_inplace(
-                new_query_compiler=self._parent._query_compiler.set_index_names([value])
-            )
+        # matches the recorded query compiler.
+        if self._parent is not None:
+            self._parent.check_and_update_parent_qc_index_names([value])
 
     def _get_names(self) -> list[Hashable]:
         """
@@ -762,11 +785,9 @@ class Index(metaclass=TelemetryMeta):
             values = values.to_list()
         self._query_compiler = self._query_compiler.set_index_names(values)
         # Update the name of the parent's index only if the parent's current query compiler
-        # matches the recorded query compiler (_parent_qc).
-        if self._parent is not None and self._parent_qc is self._parent._query_compiler:
-            self._parent._update_inplace(
-                new_query_compiler=self._parent._query_compiler.set_index_names(values)
-            )
+        # matches the recorded query compiler.
+        if self._parent is not None:
+            self._parent.check_and_update_parent_qc_index_names(values)
 
     names = property(fset=_set_names, fget=_get_names)
 
