@@ -67,7 +67,8 @@ def derive_dependent_columns_with_duplication(
     """
     result = []
     for exp in expressions:
-        result.extend(exp.dependent_column_names_with_duplication())
+        if exp is not None:
+            result.extend(exp.dependent_column_names_with_duplication())
     return result
 
 
@@ -326,7 +327,8 @@ class UnresolvedAttribute(Expression, NamedExpression):
     def dependent_column_names_with_duplication(self) -> List[str]:
         return (
             []
-            if self._dependent_column_names == COLUMN_DEPENDENCY_ALL
+            if (self._dependent_column_names == COLUMN_DEPENDENCY_ALL)
+            or (self._dependent_column_names is None)
             else list(self._dependent_column_names)
         )
 

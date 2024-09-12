@@ -49,7 +49,7 @@ class GroupingSetsExpression(Expression):
         flattened_args = [exp for sublist in self.args for exp in sublist]
         return derive_dependent_columns(*flattened_args)
 
-    def dependent_column_names_with_duplication(self) -> list[str]:
+    def dependent_column_names_with_duplication(self) -> List[str]:
         flattened_args = [exp for sublist in self.args for exp in sublist]
         return derive_dependent_columns_with_duplication(*flattened_args)
 
