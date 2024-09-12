@@ -2310,18 +2310,19 @@ class Session:
             Therefore, if you switch database or schema during the session, the stage will not be re-created
             in the new database or schema, and still references the stage in the old database or schema.
         """
-        if not self._session_stage:
-            full_qualified_stage_name = self.get_fully_qualified_name_if_possible(
-                random_name_for_temp_object(TempObjectType.STAGE)
-            )
-            self._run_query(
-                f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
-                stage if not exists {full_qualified_stage_name}",
-                is_ddl_on_temp_object=True,
-                statement_params=statement_params,
-            )
-            # set the value after running the query to ensure atomicity
-            self._session_stage = full_qualified_stage_name
+        with self._lock:
+            if not self._session_stage:
+                full_qualified_stage_name = self.get_fully_qualified_name_if_possible(
+                    random_name_for_temp_object(TempObjectType.STAGE)
+                )
+                self._run_query(
+                    f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
+                    stage if not exists {full_qualified_stage_name}",
+                    is_ddl_on_temp_object=True,
+                    statement_params=statement_params,
+                )
+                # set the value after running the query to ensure atomicity
+                self._session_stage = full_qualified_stage_name
         return f"{STAGE_PREFIX}{self._session_stage}"
 
     def _write_modin_pandas_helper(
