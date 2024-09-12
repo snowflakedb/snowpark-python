@@ -279,6 +279,8 @@ Series
     Series.dt.seconds
     Series.dt.microseconds
     Series.dt.nanoseconds
+    Series.dt.tz_convert
+    Series.dt.tz_localize
 
 
 .. rubric:: String accessor methods
