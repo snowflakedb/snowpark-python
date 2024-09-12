@@ -209,6 +209,13 @@ def join(
     assert how in get_args(
         JoinTypeLit
     ), f"Invalid join type: {how}. Allowed values are {get_args(JoinTypeLit)}"
+
+    left_on = left_on or []
+    right_on = right_on or []
+    assert len(left_on) == len(
+        right_on
+    ), "left_on and right_on must be of same length or both be None"
+
     if how == "asof":
         assert (
             left_match_col
@@ -219,19 +226,18 @@ def join(
         assert (
             match_comparator
         ), "ASOF join was not provided a comparator for the match condition"
-        if join_key_coalesce_config is not None:
-            assert (
-                len(join_key_coalesce_config) == 1
-            ), "ASOF join join_key_coalesce_config must be 1 since there is only one match condition"
         left_join_key = [left_match_col]
         right_join_key = [right_match_col]
+        left_join_key.extend(left_on)
+        right_join_key.extend(right_on)
+        if join_key_coalesce_config is not None:
+            assert len(join_key_coalesce_config) == len(
+                left_join_key
+            ), "ASOF join join_key_coalesce_config must be of same length as left_join_key and right_join_key"
         assert_snowpark_pandas_types_match(left, right, left_join_key, right_join_key)
     else:
-        left_join_key = left_on or []
-        right_join_key = right_on or []
-        assert len(left_join_key) == len(
-            right_join_key
-        ), "left_on and right_on must be of same length or both be None"
+        left_join_key = left_on
+        right_join_key = right_on
         assert (
             left_match_col is None
             and right_match_col is None
@@ -241,9 +247,7 @@ def join(
             assert len(join_key_coalesce_config) == len(
                 left_join_key
             ), "join_key_coalesce_config must be of same length as left_on and right_on"
-            assert_snowpark_pandas_types_match(
-                left, right, left_join_key, right_join_key
-            )
+        assert_snowpark_pandas_types_match(left, right, left_join_key, right_join_key)
 
     # Re-project the active columns to make sure all active columns of the internal frame participate
     # in the join operation, and unnecessary columns are dropped from the projected columns.
@@ -259,7 +263,6 @@ def join(
         match_comparator=match_comparator,
         how=how,
     )
-
     return _create_internal_frame_with_join_or_align_result(
         joined_ordered_dataframe,
         left,
@@ -1450,6 +1453,8 @@ class JoinOrAlignOrderedDataframeResultHelper:
             )
         elif self._how == "right":
             ordering_column_identifiers = mapped_right_on
+        elif self._how == "asof":
+            ordering_column_identifiers = [mapped_left_on[0]]
         else:  # left join, inner join, left align, coalesce align
             ordering_column_identifiers = mapped_left_on
 
@@ -1462,7 +1467,6 @@ class JoinOrAlignOrderedDataframeResultHelper:
         ordering_columns = [
             OrderingColumn(key) for key in ordering_column_identifiers
         ] + join_or_align_result.ordering_columns
-
         # reset the order of the ordered_dataframe to the final order
         self.join_or_align_result = join_or_align_result.sort(ordering_columns)
 

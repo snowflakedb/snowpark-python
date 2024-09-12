@@ -11,6 +11,7 @@
 #### New Features
 
 - Added support for `TimedeltaIndex.mean` method.
+- Added support for `by`, `left_by`, and `right_by` for `pd.merge_asof`.
 
 ## 1.22.0 (2024-09-10)
 
