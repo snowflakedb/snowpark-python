@@ -565,7 +565,7 @@ class TestToDatetime:
         assert_index_equal(res, expected)
         # Set utc=True to make sure timezone aware in to_datetime
         res = to_datetime(pd.Index(["2020-01-01 17:00:00 -0100", d2]), utc=True)
-        expected = pd.DatetimeIndex([d1, d2])
+        expected = pd.DatetimeIndex([d1, d2], tz="UTC")
         assert_index_equal(res, expected)
 
     @pytest.mark.parametrize(
