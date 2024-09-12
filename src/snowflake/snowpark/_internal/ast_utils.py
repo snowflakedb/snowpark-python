@@ -45,6 +45,7 @@ SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
 SRC_POSITION_TEST_MODE = False
 
 
+# Use python's builtin ast and NodeVisitor class.
 class ExtractAssignmentVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
         super().__init__()
@@ -71,24 +72,21 @@ def extract_assign_targets(source_line: str) -> Optional[Union[str, List[str]]]:
     Returns:
         None if extraction fails, or list of strings for the symbol names, or a single string if it is a single target.
     """
+    # It may happen that an incomplete source line is submitted that can't be
+    # successfully parsed into a python ast tree.
+    # Ultimately, for an assign statement of the form <left> = <right>
+    # in this function we only care about extracting <left>.
+    # For this reason, when '=' is found, replace <right> with w.l.o.g. None.
+    if "=" in source_line:
+        source_line = source_line[: source_line.find("=")] + " = None"
+
     try:
         tree = ast.parse(source_line.strip())
         v = ExtractAssignmentVisitor()
         v.visit(tree)
         return v.symbols
     except Exception:
-        # It may happen that an incomplete source line is submitted.
-        # For this reason, try to parse one more time if '=' is found.
-        if "=" in source_line:
-            source_line = source_line[: source_line.find("=")] + " = None"
-            try:
-                tree = ast.parse(source_line.strip())
-                v = ExtractAssignmentVisitor()
-                v.visit(tree)
-                return v.symbols
-            except Exception:
-                # If this fails, return None for parse error.
-                pass
+        # Indicate parse/extraction failure with None.
         return None
 
 
