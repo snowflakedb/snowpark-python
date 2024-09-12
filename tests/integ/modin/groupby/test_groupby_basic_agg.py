@@ -1124,6 +1124,26 @@ def test_timedelta(agg_func, by):
     )
 
 
+def test_groupby_timedelta_var():
+    """
+    Test that we can group by a timedelta column and take var() of an integer column.
+
+    Note that we can't take the groupby().var() of the timedelta column because
+    var() is not defined for timedelta, in pandas or in Snowpark pandas.
+    """
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            {
+                "A": native_pd.to_timedelta(
+                    ["1 days 06:05:01.00003", "16us", "nan", "16us"]
+                ),
+                "B": [8, 8, 12, 10],
+            }
+        ),
+        lambda df: df.groupby("A").var(),
+    )
+
+
 def test_timedelta_groupby_agg():
     native_df = native_pd.DataFrame(
         {
