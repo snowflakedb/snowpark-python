@@ -1213,6 +1213,7 @@ class OrderedDataFrame:
             assert match_comparator, "match_comparator was not provided to ASOF Join"
             snowpark_dataframe = left_snowpark_dataframe_ref.snowpark_dataframe.join(
                 right=right_snowpark_dataframe_ref.snowpark_dataframe,
+                on=on,
                 how=how,
                 match_condition=getattr(left_match_col, match_comparator.value)(
                     right_match_col

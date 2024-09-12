@@ -7457,8 +7457,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             left=left_frame,
             right=right_frame,
             how="asof",
-            left_on=[left_match_col],
-            right_on=[right_match_col],
             left_match_col=left_match_col,
             right_match_col=right_match_col,
             match_comparator=match_comparator,
