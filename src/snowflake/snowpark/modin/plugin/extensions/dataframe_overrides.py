@@ -16,7 +16,7 @@ from pandas.core.dtypes.common import is_dict_like, is_list_like
 
 from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_accessor
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
-    is_pandas_agg_func,
+    is_snowflake_agg_func,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
@@ -147,7 +147,7 @@ def transform(
     # if the function is an aggregation function, we'll produce
     # some bogus results while pandas will throw the error the
     # code below is throwing. So we do the same.
-    if is_pandas_agg_func(func):
+    if is_snowflake_agg_func(func):
         raise ValueError("Function did not transform")
 
     return self.apply(func, axis, False, args=args, **kwargs)

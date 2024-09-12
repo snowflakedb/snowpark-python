@@ -5866,7 +5866,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     data_column_types=[
                         col.data_type
                         if isinstance(col.data_type, SnowparkPandasType)
-                        and col.snowpark_pandas_agg_func.preserves_snowpark_pandas_type
+                        and col.snowflake_agg_func.preserves_snowpark_pandas_types
                         else None
                         for col in col_agg_infos
                     ],
