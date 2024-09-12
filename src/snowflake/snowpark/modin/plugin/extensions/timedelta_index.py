@@ -36,6 +36,7 @@ from snowflake.snowpark import functions as fn
 from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     AggregateColumnOpParameters,
+    SnowflakeAggFunc,
     aggregate_with_ordered_dataframe,
 )
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
@@ -440,7 +441,14 @@ class TimedeltaIndex(Index):
             pandas_labels=["mean"]
         )[0]
         agg_column_op_params = AggregateColumnOpParameters(
-            index_id, LongType(), "mean", new_index_id, fn.mean, []
+            index_id,
+            LongType(),
+            "mean",
+            new_index_id,
+            snowflake_agg_func=SnowflakeAggFunc(
+                preserves_snowpark_pandas_types=True, snowpark_aggregation=fn.mean
+            ),
+            ordering_columns=[],
         )
         mean_value = aggregate_with_ordered_dataframe(
             frame.ordered_dataframe, [agg_column_op_params], {"skipna": skipna}
