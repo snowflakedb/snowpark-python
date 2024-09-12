@@ -757,8 +757,7 @@ class Index(metaclass=TelemetryMeta):
         self._query_compiler = self._query_compiler.set_index_names([value])
         # Update the name of the parent's index only if the parent's current query compiler
         # matches the recorded query compiler.
-        if self._parent is not None:
-            self._parent.check_and_update_parent_qc_index_names([value])
+        self._parent.check_and_update_parent_qc_index_names([value])
 
     def _get_names(self) -> list[Hashable]:
         """
@@ -786,8 +785,7 @@ class Index(metaclass=TelemetryMeta):
         self._query_compiler = self._query_compiler.set_index_names(values)
         # Update the name of the parent's index only if the parent's current query compiler
         # matches the recorded query compiler.
-        if self._parent is not None:
-            self._parent.check_and_update_parent_qc_index_names(values)
+        self._parent.check_and_update_parent_qc_index_names(values)
 
     names = property(fset=_set_names, fget=_get_names)
 
