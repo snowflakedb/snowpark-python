@@ -2262,7 +2262,7 @@ def _get_index(self):
         return self._query_compiler.index
 
     idx = Index(query_compiler=self._query_compiler)
-    idx._set_parent(self)
+    idx._parent.set_parent(self)
     return idx
 
 
