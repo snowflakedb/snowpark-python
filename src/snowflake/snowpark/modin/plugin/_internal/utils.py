@@ -27,8 +27,8 @@ from snowflake.snowpark._internal.utils import (
     SNOWFLAKE_OBJECT_RE_PATTERN,
     TempObjectType,
     generate_random_alphanumeric,
-    random_name_for_temp_object,
     get_temp_type_for_object,
+    random_name_for_temp_object,
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import SnowparkSQLException
