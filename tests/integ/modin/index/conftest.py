@@ -33,11 +33,11 @@ NATIVE_INDEX_TEST_DATA = [
     native_pd.Index(["a", "b", "c", "d"]),
     native_pd.DatetimeIndex(
         ["2020-01-01 10:00:00+00:00", "2020-02-01 11:00:00+00:00"],
-        tz="America/Los_Angeles",
+        tz="UTC-08:00",
     ),
     native_pd.DatetimeIndex(
         ["2020-01-01 10:00:00+05:00", "2020-02-01 11:00:00+05:00"],
-        tz="America/Los_Angeles",
+        tz="UTC",
     ),
     native_pd.DatetimeIndex([1262347200000000000, 1262347400000000000]),
     native_pd.TimedeltaIndex(["0 days", "1 days", "3 days"]),
@@ -55,11 +55,11 @@ NATIVE_INDEX_UNIQUE_TEST_DATA = [
     native_pd.Index(["a", "b", 1, 2, None, "a", 2], name="mixed index"),
     native_pd.DatetimeIndex(
         ["2020-01-01 10:00:00+00:00", "2020-02-01 11:00:00+00:00"],
-        tz="America/Los_Angeles",
+        tz="UTC",
     ),
     native_pd.DatetimeIndex(
         ["2020-01-01 10:00:00+00:00", "2020-01-01 10:00:00+00:00"],
-        tz="America/Los_Angeles",
+        tz="UTC-08:00",
     ),
 ]
 

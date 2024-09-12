@@ -337,16 +337,6 @@ def test_axis_1_apply_args_kwargs():
 
 
 class TestNotImplemented:
-    @pytest.mark.parametrize(
-        "data, func, return_type", BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP
-    )
-    @sql_count_checker(query_count=0)
-    def test_axis_0(self, data, func, return_type):
-        snow_df = pd.DataFrame(data)
-        msg = "Snowpark pandas apply API doesn't yet support axis == 0"
-        with pytest.raises(NotImplementedError, match=msg):
-            snow_df.apply(func)
-
     @pytest.mark.parametrize("result_type", ["reduce", "expand", "broadcast"])
     @sql_count_checker(query_count=0)
     def test_result_type(self, result_type):
@@ -554,33 +544,70 @@ def test_apply_variant_json_null():
         ]
 
 
-TRANSFORM_DATA_FUNC_MAP = [
-    [[[0, 1, 2], [1, 2, 3]], lambda x: x + 1],
-    [[[0, 1, 2], [1, 2, 3]], np.exp],
-    [[[0, 1, 2], [1, 2, 3]], "exp"],
-    [[["Leonhard", "Jianzhun"]], lambda x: x + " is awesome!!"],
-    [[[1.3, 2.5]], np.sqrt],
-    [[[1.3, 2.5]], "sqrt"],
-    [[[1.3, 2.5]], np.log],
-    [[[1.3, 2.5]], "log"],
-    [[[1.3, 2.5]], np.square],
-    [[[1.3, 2.5]], "square"],
+@pytest.mark.xfail(
+    strict=True,
+    raises=SnowparkSQLException,
+    reason="SNOW-1650918: Apply on dataframe data columns containing NULL fails with invalid arguments to udtf function",
+)
+@pytest.mark.parametrize(
+    "data, apply_func",
     [
-        [[None, "abcd"]],
-        lambda x: x + " are first 4 letters of alphabet" if x is not None else None,
+        [
+            [[None, "abcd"]],
+            lambda x: x + " are first 4 letters of alphabet" if x is not None else None,
+        ],
+        [
+            [[123, None]],
+            lambda x: x + 100 if x is not None else None,
+        ],
     ],
-    [[[1.5, float("nan")]], lambda x: np.sqrt(x)],
+)
+def test_apply_bug_1650918(data, apply_func):
+    native_df = native_pd.DataFrame(data)
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda x: x.apply(apply_func, axis=1),
+    )
+
+
+TRANSFORM_TEST_MAP = [
+    [[[0, 1, 2], [1, 2, 3]], lambda x: x + 1, 16],
+    [[[0, 1, 2], [1, 2, 3]], np.exp, 16],
+    [[[0, 1, 2], [1, 2, 3]], "exp", None],
+    [[["Leonhard", "Jianzhun"]], lambda x: x + " is awesome!!", 11],
+    [[[1.3, 2.5]], np.sqrt, 11],
+    [[[1.3, 2.5]], "sqrt", None],
+    [[[1.3, 2.5]], np.log, 11],
+    [[[1.3, 2.5]], "log", None],
+    [[[1.3, 2.5]], np.square, 11],
+    [[[1.3, 2.5]], "square", None],
+    [[[1.5, float("nan")]], lambda x: np.sqrt(x), 11],
 ]
 
 
 @pytest.mark.modin_sp_precommit
-@pytest.mark.parametrize("data, apply_func", TRANSFORM_DATA_FUNC_MAP)
-@sql_count_checker(query_count=0)
-def test_basic_dataframe_transform(data, apply_func):
-    msg = "Snowpark pandas apply API doesn't yet support axis == 0"
-    with pytest.raises(NotImplementedError, match=msg):
+@pytest.mark.parametrize("data, apply_func, expected_query_count", TRANSFORM_TEST_MAP)
+def test_basic_dataframe_transform(data, apply_func, expected_query_count):
+    if expected_query_count is None:
+        msg = "Snowpark pandas apply API only supports callables func"
+        with SqlCounter(query_count=0):
+            with pytest.raises(NotImplementedError, match=msg):
+                snow_df = pd.DataFrame(data)
+                snow_df.transform(apply_func)
+    else:
+        msg = "SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function"
+        native_df = native_pd.DataFrame(data)
         snow_df = pd.DataFrame(data)
-        snow_df.transform(apply_func)
+        with SqlCounter(
+            query_count=expected_query_count,
+            high_count_expected=True,
+            high_count_reason=msg,
+        ):
+            eval_snowpark_pandas_result(
+                snow_df, native_df, lambda x: x.transform(apply_func)
+            )
 
 
 AGGREGATION_FUNCTIONS = [
@@ -610,7 +637,7 @@ def test_dataframe_transform_invalid_function_name_negative(session):
     snow_df = pd.DataFrame([[0, 1, 2], [1, 2, 3]])
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas apply API doesn't yet support axis == 0",
+        match="Snowpark pandas apply API only supports callables func",
     ):
         snow_df.transform("mxyzptlk")
 

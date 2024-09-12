@@ -56,12 +56,16 @@ def test_df_index_copy(native_df):
     assert_index_equal(snow_df.columns, new_columns)
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA[2:])
 def test_index_drop(native_index):
     snow_index = pd.Index(native_index)
     labels = [native_index[0]]
-    assert_index_equal(snow_index.drop(labels), native_index.drop(labels))
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Index.drop",
+    ):
+        assert_index_equal(snow_index.drop(labels), native_index.drop(labels))
 
 
 @sql_count_checker(query_count=3, join_count=1)
@@ -79,26 +83,33 @@ def test_df_index_equals(native_df):
     assert snow_df.index.equals(native_df.index)
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=0)
 def test_index_union():
     idx1 = pd.Index([1, 2, 3, 4])
     idx2 = pd.Index([3, 4, 5, 6])
-    union = idx1.union(idx2)
-    assert_index_equal(union, pd.Index([1, 2, 3, 4, 5, 6], dtype="int64"))
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Index.union",
+    ):
+        idx1.union(idx2)
     idx1 = pd.Index(["a", "b", "c", "d"])
     idx2 = pd.Index([1, 2, 3, 4])
-    union = idx1.union(idx2)
-    assert_index_equal(
-        union, pd.Index(["a", "b", "c", "d", 1, 2, 3, 4], dtype="object")
-    )
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Index.union",
+    ):
+        idx1.union(idx2)
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=0)
 def test_index_difference():
     idx1 = pd.Index([2, 1, 3, 4])
     idx2 = pd.Index([3, 4, 5, 6])
-    diff = idx1.difference(idx2)
-    assert_index_equal(diff, pd.Index([1, 2], dtype="int64"))
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Index.difference",
+    ):
+        idx1.difference(idx2)
 
 
 @sql_count_checker(query_count=4)
@@ -109,20 +120,32 @@ def test_index_intersection():
     assert_index_equal(diff, pd.Index([3, 4], dtype="int64"))
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=0)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_get_level_values(native_index):
     snow_index = pd.Index(native_index)
-    assert_index_equal(snow_index.get_level_values(0), snow_index)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Index.get_level_values",
+    ):
+        assert_index_equal(snow_index.get_level_values(0), snow_index)
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_slice_indexer():
     idx = pd.Index(list("abcd"))
-    s = idx.slice_indexer(start="a", end="c")
-    assert s != slice(1, 3, None)
-    s = idx.slice_indexer(start="b", end="c")
-    assert s == slice(1, 3, None)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Index.slice_indexer",
+    ):
+        s = idx.slice_indexer(start="a", end="c")
+        assert s != slice(1, 3, None)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Index.slice_indexer",
+    ):
+        s = idx.slice_indexer(start="b", end="c")
+        assert s == slice(1, 3, None)
 
 
 @sql_count_checker(query_count=1)

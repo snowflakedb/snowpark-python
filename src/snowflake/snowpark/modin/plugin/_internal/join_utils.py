@@ -1075,7 +1075,7 @@ def join_on_index_columns(
 
     Returns:
         An InternalFrame for the joined result.
-        A JoinOrAlignResultColumnMapper that provides quited identifiers mapping from the
+        A JoinOrAlignResultColumnMapper that provides quoted identifiers mapping from the
             original left and right dataframe to the joined dataframe, it is guaranteed to
             include mapping for index + data columns, ordering columns and row position column
             if exists.
@@ -1263,7 +1263,7 @@ def align_on_index(
             * outer: use union of index from both frames, sort index lexicographically.
     Returns:
         An InternalFrame for the aligned result.
-        A JoinOrAlignResultColumnMapper that provides quited identifiers mapping from the
+        A JoinOrAlignResultColumnMapper that provides quoted identifiers mapping from the
             original left and right dataframe to the aligned dataframe, it is guaranteed to
             include mapping for index + data columns, ordering columns and row position column
             if exists.
