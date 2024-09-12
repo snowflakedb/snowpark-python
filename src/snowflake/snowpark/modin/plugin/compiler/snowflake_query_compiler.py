@@ -16740,9 +16740,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "column must be datetime or timedelta"
             )  # pragma: no cover
 
-        if ambiguous != "raise":
+        if not isinstance(ambiguous, str) or ambiguous != "raise":
             ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
-        if nonexistent != "raise":
+        if not isinstance(nonexistent, str) or nonexistent != "raise":
             ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
 
         if is_datetime64_any_dtype(dtype):
@@ -16820,9 +16820,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             raise AssertionError(
                 "column must be datetime or timedelta"
             )  # pragma: no cover
-        if ambiguous != "raise":
+
+        if not isinstance(ambiguous, str) or ambiguous != "raise":
             ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
-        if nonexistent != "raise":
+        if not isinstance(nonexistent, str) or nonexistent != "raise":
             ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
 
         if is_datetime64_any_dtype(dtype):
@@ -16978,9 +16979,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             raise AssertionError(
                 "column must be datetime or timedelta"
             )  # pragma: no cover
-        if ambiguous != "raise":
+
+        if not isinstance(ambiguous, str) or ambiguous != "raise":
             ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
-        if nonexistent != "raise":
+        if not isinstance(nonexistent, str) or nonexistent != "raise":
             ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
 
         if is_datetime64_any_dtype(dtype):
