@@ -158,7 +158,7 @@ def test_tabular_entity_registry(test_table):
     num_threads = 10
 
     def write_read_and_drop_table():
-        table_name = "test_table"
+        table_name = Utils.random_table_name()
         table_emulator = TableEmulator()
 
         entity_registry.write_table(table_name, table_emulator, SaveMode.OVERWRITE)
@@ -170,7 +170,7 @@ def test_tabular_entity_registry(test_table):
         entity_registry.drop_table(table_name)
 
     def write_read_and_drop_view():
-        view_name = "test_view"
+        view_name = Utils.random_view_name()
         empty_logical_plan = LogicalPlan()
         plan = MockExecutionPlan(empty_logical_plan, None)
 
