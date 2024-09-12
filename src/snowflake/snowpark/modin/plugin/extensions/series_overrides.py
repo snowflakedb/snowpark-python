@@ -438,9 +438,9 @@ def __init__(
             labels = index
             if isinstance(labels, Index):
                 labels = labels.to_series()._query_compiler
-            elif isinstance(labels, Series):
-                labels = labels._query_compiler  # pragma: no cover
-            else:
+            elif isinstance(labels, Series):  # pragma: no cover
+                labels = labels._query_compiler
+            else:  # pragma: no cover
                 labels = Index(labels).to_series()._query_compiler
             query_compiler = query_compiler.reindex(axis=0, labels=labels)
 
@@ -470,7 +470,7 @@ def __init__(
                         ]
                     ]
                 else:
-                    index_qc_list = [Series(index)._query_compiler]
+                    index_qc_list = [Series(index)._query_compiler]  # pragma: no cover
             query_compiler = query_compiler.set_index(index_qc_list)
 
     # Set the query compiler and name fields.
