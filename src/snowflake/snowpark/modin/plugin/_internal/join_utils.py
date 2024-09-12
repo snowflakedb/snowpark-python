@@ -311,6 +311,7 @@ def _create_internal_frame_with_join_or_align_result(
     Returns:
         InternalFrame for the join/aligned result with all fields set accordingly.
     """
+
     result_helper = JoinOrAlignOrderedDataframeResultHelper(
         left.ordered_dataframe,
         right.ordered_dataframe,
@@ -1454,6 +1455,7 @@ class JoinOrAlignOrderedDataframeResultHelper:
         elif self._how == "right":
             ordering_column_identifiers = mapped_right_on
         elif self._how == "asof":
+            # Order only by the left match_condition column
             ordering_column_identifiers = [mapped_left_on[0]]
         else:  # left join, inner join, left align, coalesce align
             ordering_column_identifiers = mapped_left_on
@@ -1467,6 +1469,7 @@ class JoinOrAlignOrderedDataframeResultHelper:
         ordering_columns = [
             OrderingColumn(key) for key in ordering_column_identifiers
         ] + join_or_align_result.ordering_columns
+
         # reset the order of the ordered_dataframe to the final order
         self.join_or_align_result = join_or_align_result.sort(ordering_columns)
 
