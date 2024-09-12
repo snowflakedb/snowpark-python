@@ -1,11 +1,10 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+import ast
 import datetime
 import decimal
 import inspect
-import re
 import sys
 from functools import reduce
 from pathlib import Path
@@ -44,6 +43,51 @@ SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
 
 # Test mode. In test mode, the source filename is ignored.
 SRC_POSITION_TEST_MODE = False
+
+
+# Use python's builtin ast and NodeVisitor class.
+class ExtractAssignmentVisitor(ast.NodeVisitor):
+    def __init__(self) -> None:
+        super().__init__()
+        self.symbols: Optional[Union[str, List[str]]] = None
+
+    def visit_Assign(self, node) -> None:
+        assert len(node.targets) == 1
+        target = node.targets[0]
+
+        if isinstance(target, ast.Name):
+            self.symbols = target.id
+        elif isinstance(target, ast.Tuple):
+            self.symbols = [name.id for name in target.elts]
+        else:
+            raise ValueError(f"Unsupported target {ast.dump(target)}")
+
+
+def extract_assign_targets(source_line: str) -> Optional[Union[str, List[str]]]:
+    """
+    Extracts the targets as strings for a python assignment.
+    Args:
+        source_line: A string, e.g. "a, b, c = df.random_split([0.2, 0.3, 0.5])"
+
+    Returns:
+        None if extraction fails, or list of strings for the symbol names, or a single string if it is a single target.
+    """
+    # It may happen that an incomplete source line is submitted that can't be
+    # successfully parsed into a python ast tree.
+    # Ultimately, for an assign statement of the form <left> = <right>
+    # in this function we only care about extracting <left>.
+    # For this reason, when '=' is found, replace <right> with w.l.o.g. None.
+    if "=" in source_line:
+        source_line = source_line[: source_line.find("=")] + " = None"
+
+    try:
+        tree = ast.parse(source_line.strip())
+        v = ExtractAssignmentVisitor()
+        v.visit(tree)
+        return v.symbols
+    except Exception:
+        # Indicate parse/extraction failure with None.
+        return None
 
 
 def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
@@ -385,14 +429,12 @@ def set_builtin_fn_alias(ast: proto.Expr, alias: str) -> None:
     _set_fn_name(alias, ast.apply_expr.fn.builtin_fn)
 
 
-assignment_re = re.compile(r"^\s*([a-zA-Z_]\w*)\s*=.*$", re.DOTALL)
-
-
 def with_src_position(
     expr_ast: proto.Expr,
     assign: Optional[proto.Assign] = None,
     caller_frame_depth: Optional[int] = None,
     debug: bool = False,
+    target_idx: Optional[int] = None,
 ) -> proto.Expr:
     """
     Sets the src_position on the supplied Expr AST node and returns it.
@@ -403,6 +445,7 @@ def with_src_position(
         assign: The Assign AST node to set the symbol value on.
         caller_frame_depth: The number of frames to step back from the current frame to find the code of interest.
                             If this is not provided, the filename for each frame is probed to find the code of interest.
+        target_idx: If an integer, tries to extract from an assign statement the {target_idx}th symbol. If None, assumes a single target.
     """
     src = expr_ast.src
     frame = inspect.currentframe()
@@ -481,8 +524,13 @@ def with_src_position(
         if assign is not None:
             if code := frame_info.code_context:
                 source_line = code[frame_info.index]
-                if match := assignment_re.fullmatch(source_line):
-                    assign.symbol.value = match.group(1)
+                symbols = extract_assign_targets(source_line)
+                if symbols is not None:
+                    if target_idx is not None:
+                        if isinstance(symbols, list):
+                            assign.symbol.value = symbols[target_idx]
+                    elif isinstance(symbols, str):
+                        assign.symbol.value = symbols
     finally:
         del frame
 
