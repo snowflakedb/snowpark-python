@@ -626,9 +626,9 @@ class DataFrame(BasePandasDataset):
 
         See Also
         --------
-        :func:`Series.apply <snowflake.snowpark.modin.pandas.Series.apply>` : For applying more complex functions on a Series.
+        :func:`Series.apply <modin.pandas.Series.apply>` : For applying more complex functions on a Series.
 
-        :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
+        :func:`DataFrame.apply <modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
 
         Examples
         --------
@@ -730,15 +730,13 @@ class DataFrame(BasePandasDataset):
         Parameters
         ----------
         func : function
-            A Python function object to apply to each column or row, or a Python function decorated with @udf.
+            A Python function object to apply to each column or row.
 
         axis : {0 or 'index', 1 or 'columns'}, default 0
             Axis along which the function is applied:
 
             * 0 or 'index': apply function to each column.
             * 1 or 'columns': apply function to each row.
-
-            Snowpark pandas does not yet support ``axis=0``.
 
         raw : bool, default False
             Determines if row or column is passed as a Series or ndarray object:
@@ -775,9 +773,9 @@ class DataFrame(BasePandasDataset):
 
         See Also
         --------
-        :func:`Series.apply <snowflake.snowpark.modin.pandas.Series.apply>` : For applying more complex functions on a Series.
+        :func:`Series.apply <modin.pandas.Series.apply>` : For applying more complex functions on a Series.
 
-        :func:`DataFrame.applymap <snowflake.snowpark.modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
+        :func:`DataFrame.applymap <modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
 
         Notes
         -----
@@ -810,8 +808,6 @@ class DataFrame(BasePandasDataset):
 
         7. When ``func`` uses any first-party modules or third-party packages inside the function,
         you need to add these dependencies via ``session.add_import()`` and ``session.add_packages()``.
-        Alternatively. specify third-party packages with the @udf decorator. When using the @udf decorator,
-        annotations using PandasSeriesType or PandasDataFrameType are not supported.
 
         8. The Snowpark pandas module cannot currently be referenced inside the definition of
         ``func``. If you need to call a general pandas API like ``pd.Timestamp`` inside ``func``,
@@ -851,22 +847,6 @@ class DataFrame(BasePandasDataset):
         0     1.00
         1    14.50
         2    24.25
-        dtype: float64
-
-        or annotate the function
-        with the @udf decorator from Snowpark https://docs.snowflake.com/en/developer-guide/snowpark/reference/python/latest/api/snowflake.snowpark.functions.udf.
-
-        >>> from snowflake.snowpark.functions import udf
-        >>> from snowflake.snowpark.types import DoubleType
-        >>> @udf(packages=['statsmodels>0.12'], return_type=DoubleType())
-        ... def autocorr(column):
-        ...    import pandas as pd
-        ...    import statsmodels.tsa.stattools
-        ...    return pd.Series(statsmodels.tsa.stattools.pacf_ols(column.values)).mean()
-        ...
-        >>> df.apply(autocorr, axis=0)  # doctest: +SKIP
-        A    0.857143
-        B    0.428571
         dtype: float64
         """
 
@@ -1060,8 +1040,6 @@ class DataFrame(BasePandasDataset):
 
         axis : {0 or 'index', 1 or 'columns'}, default 0
             If 0 or 'index': apply function to each column. If 1 or 'columns': apply function to each row.
-
-            Snowpark pandas currently only supports axis=1, and does not yet support axis=0.
 
         *args
             Positional arguments to pass to `func`.
@@ -1307,7 +1285,7 @@ class DataFrame(BasePandasDataset):
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.DataFrame`
             The result of the comparison.
 
 
@@ -2679,7 +2657,7 @@ class DataFrame(BasePandasDataset):
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.DataFrame`
 
         Notes
         -----
@@ -4458,7 +4436,7 @@ class DataFrame(BasePandasDataset):
 
         See Also
         --------
-        :func:`Series.value_counts <snowflake.snowpark.modin.pandas.Series.value_counts>` : Equivalent method on Series.
+        :func:`Series.value_counts <modin.pandas.Series.value_counts>` : Equivalent method on Series.
 
         Notes
         -----

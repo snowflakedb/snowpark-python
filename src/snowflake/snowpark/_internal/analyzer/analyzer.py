@@ -956,10 +956,7 @@ class Analyzer:
                 schema_query = schema_query_for_values_statement(logical_plan.output)
 
             if logical_plan.data:
-                if (
-                    len(logical_plan.output) * len(logical_plan.data)
-                    < ARRAY_BIND_THRESHOLD
-                ):
+                if not logical_plan.is_large_local_data:
                     return self.plan_builder.query(
                         values_statement(logical_plan.output, logical_plan.data),
                         logical_plan,

@@ -1180,7 +1180,7 @@ def doc_replace_dataframe_with_link(_obj: Any, doc: str) -> str:
     """
     return re.sub(
         r"(?<=\s)DataFrame(?=[\s,])",
-        ":class:`~snowflake.snowpark.modin.pandas.DataFrame`",
+        ":class:`~modin.pandas.DataFrame`",
         doc,
     )
 
