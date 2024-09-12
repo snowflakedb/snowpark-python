@@ -846,7 +846,7 @@ def _generate_aggregation_column(
             - snowflake_quoted_identifier: the snowflake quoted identifier for the column to apply aggregation on
             - data_type: the Snowpark datatype for the column to apply aggregation on
             - agg_snowflake_quoted_identifier: The snowflake quoted identifier used for the result column after aggregation
-            - snowpark_pandas_agg_func: The aggregation to apply on the given column
+            - snowflake_agg_func: The Snowflake aggregation function to apply on the given column
             - ordering_columns: the list of snowflake quoted identifiers corresponding to the ordering columns
         agg_kwargs: keyword argument passed for the aggregation function, such as ddof, min_count etc.
         is_groupby_agg: is the aggregation function applied after groupby or not.
@@ -1276,7 +1276,6 @@ def generate_column_agg_info(
             func = func_info.func
             is_dummy_agg = func_info.is_dummy_agg
             agg_func_col = pandas_lit(None) if is_dummy_agg else quoted_identifier
-            data_type = identifier_to_snowflake_type[quoted_identifier]
             snowflake_agg_func = get_snowflake_agg_func(func, agg_kwargs, axis=0)
             # once reach here, we require all func have a corresponding snowflake aggregation function.
             # check_is_aggregation_supported_in_snowflake can be used to help performing the check.
@@ -1286,7 +1285,7 @@ def generate_column_agg_info(
             column_agg_ops.append(
                 AggregateColumnOpParameters(
                     snowflake_quoted_identifier=agg_func_col,
-                    data_type=data_type,
+                    data_type=identifier_to_snowflake_type[quoted_identifier],
                     agg_pandas_label=label,
                     agg_snowflake_quoted_identifier=identifier,
                     snowflake_agg_func=snowflake_agg_func,
