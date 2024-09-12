@@ -57,6 +57,11 @@ def test_concurrent_dataframe_operations(session):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query and query listeners are not supported",
+    run=False,
+)
 def test_query_listener(session):
     def run_select(session_, thread_id):
         session_.sql(f"SELECT {thread_id} as A").collect()
@@ -72,6 +77,11 @@ def test_query_listener(session):
         assert f"SELECT {i} as A" in queries_sent
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Query tag is a SQL feature",
+    run=False,
+)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="show parameters is not supported in stored procedure"
 )
@@ -87,6 +97,11 @@ def test_query_tagging(session):
     assert actual_query_tag == session.query_tag
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query is not supported",
+    run=False,
+)
 def test_session_stage_created_once(session):
     with patch.object(
         session._conn, "run_query", wraps=session._conn.run_query
