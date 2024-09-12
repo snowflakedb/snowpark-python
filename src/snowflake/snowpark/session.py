@@ -582,9 +582,6 @@ class Session:
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
-        if self._auto_clean_up_temp_table_enabled:
-            self._temp_table_auto_cleaner.start()
-
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -623,8 +620,8 @@ class Session:
             raise SnowparkClientExceptionMessages.SERVER_FAILED_CLOSE_SESSION(str(ex))
         finally:
             try:
-                self._conn.close()
                 self._temp_table_auto_cleaner.stop()
+                self._conn.close()
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
@@ -658,10 +655,33 @@ class Session:
         :meth:`DataFrame.cache_result` in the current session when the DataFrame is no longer referenced (i.e., gets garbage collected).
         The default value is ``False``.
 
+        Example::
+
+            >>> import gc
+            >>>
+            >>> def f(session: Session) -> str:
+            ...     df = session.create_dataframe(
+            ...         [[1, 2], [3, 4]], schema=["a", "b"]
+            ...     ).cache_result()
+            ...     return df.table_name
+            ...
+            >>> session.auto_clean_up_temp_table_enabled = True
+            >>> table_name = f(session)
+            >>> assert table_name
+            >>> gc.collect() # doctest: +SKIP
+            >>>
+            >>> # The temporary table created by cache_result will be dropped when the DataFrame is no longer referenced
+            >>> # outside the function
+            >>> session.sql(f"show tables like '{table_name}'").count()
+            0
+
+            >>> session.auto_clean_up_temp_table_enabled = False
+
         Note:
-            Even if this parameter is ``False``, Snowpark still records temporary tables when
-            their corresponding DataFrame are garbage collected. Therefore, if you turn it on in the middle of your session or after turning it off,
-            the target temporary tables will still be cleaned up accordingly.
+            Temporary tables will only be dropped if this parameter is enabled during garbage collection.
+            If a temporary table is no longer referenced when the parameter is on, it will be dropped during garbage collection.
+            However, if garbage collection occurs while the parameter is off, the table will not be removed.
+            Note that Python's garbage collection is triggered opportunistically, with no guaranteed timing.
         """
         return self._auto_clean_up_temp_table_enabled
 
@@ -755,11 +775,6 @@ class Session:
                 self._session_id, value
             )
             self._auto_clean_up_temp_table_enabled = value
-            is_alive = self._temp_table_auto_cleaner.is_alive()
-            if value and not is_alive:
-                self._temp_table_auto_cleaner.start()
-            elif not value and is_alive:
-                self._temp_table_auto_cleaner.stop()
         else:
             raise ValueError(
                 "value for auto_clean_up_temp_table_enabled must be True or False!"
