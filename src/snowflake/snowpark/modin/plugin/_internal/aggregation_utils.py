@@ -10,16 +10,7 @@ from collections.abc import Hashable, Iterable
 from functools import partial
 from inspect import getmembers
 from types import BuiltinFunctionType, MappingProxyType
-from typing import (
-    Any,
-    Callable,
-    Literal,
-    Mapping,
-    NamedTuple,
-    Optional,
-    Union,
-    cast as python_cast,
-)
+from typing import Any, Callable, Literal, Mapping, NamedTuple, Optional, Union
 
 import numpy as np
 from pandas._typing import AggFuncType, AggFuncTypeBase
@@ -426,6 +417,23 @@ def _columns_coalescing_sum(*cols: SnowparkColumn) -> Callable:
     return sum(builtin("zeroifnull")(col) for col in cols)
 
 
+def _create_pandas_to_snowpark_pandas_aggregation_map(
+    pandas_functions: Iterable[AggFuncTypeBase],
+    snowpark_pandas_aggregation: _SnowparkPandasAggregation,
+) -> MappingProxyType[AggFuncTypeBase, _SnowparkPandasAggregation]:
+    """
+    Create a map from the given pandas functions to the given _SnowparkPandasAggregation.
+
+    Args;
+        pandas_functions: The pandas functions that map to the given aggregation.
+        snowpark_pandas_aggregation: The aggregation to map to
+
+    Returns:
+        The map.
+    """
+    return MappingProxyType({k: snowpark_pandas_aggregation for k in pandas_functions})
+
+
 # Map between the pandas input aggregation function (str or numpy function) and
 # _SnowparkPandasAggregation representing information about applying the
 # aggregation in Snowpark pandas.
@@ -438,33 +446,34 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
             axis_1_aggregation_skipna=_columns_count,
             preserves_snowpark_pandas_types=False,
         ),
-        **{
-            k: _SnowparkPandasAggregation(
+        **_create_pandas_to_snowpark_pandas_aggregation_map(
+            ("mean", np.mean),
+            _SnowparkPandasAggregation(
                 axis_0_aggregation=mean,
                 preserves_snowpark_pandas_types=True,
-            )
-            for k in python_cast(tuple[AggFuncTypeBase], ("mean", np.mean))
-        },
-        **{
-            k: _SnowparkPandasAggregation(
+            ),
+        ),
+        **_create_pandas_to_snowpark_pandas_aggregation_map(
+            ("min", np.min),
+            _SnowparkPandasAggregation(
                 axis_0_aggregation=min_,
                 axis_1_aggregation_keepna=least,
                 axis_1_aggregation_skipna=_columns_coalescing_min,
                 preserves_snowpark_pandas_types=True,
-            )
-            for k in python_cast(tuple[AggFuncTypeBase], ("min", np.min))
-        },
-        **{
-            k: _SnowparkPandasAggregation(
+            ),
+        ),
+        **_create_pandas_to_snowpark_pandas_aggregation_map(
+            ("max", np.max),
+            _SnowparkPandasAggregation(
                 axis_0_aggregation=max_,
                 axis_1_aggregation_keepna=greatest,
                 axis_1_aggregation_skipna=_columns_coalescing_max,
                 preserves_snowpark_pandas_types=True,
-            )
-            for k in python_cast(tuple[AggFuncTypeBase], ("max", np.max))
-        },
-        **{
-            k: _SnowparkPandasAggregation(
+            ),
+        ),
+        **_create_pandas_to_snowpark_pandas_aggregation_map(
+            ("sum", np.sum),
+            _SnowparkPandasAggregation(
                 axis_0_aggregation=sum_,
                 # IMPORTANT: count and sum use python builtin sum to invoke
                 # __add__ on each column rather than Snowpark sum_, since
@@ -472,16 +481,15 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
                 axis_1_aggregation_keepna=lambda *cols: sum(cols),
                 axis_1_aggregation_skipna=_columns_coalescing_sum,
                 preserves_snowpark_pandas_types=True,
-            )
-            for k in python_cast(tuple[AggFuncTypeBase], ("sum", np.sum))
-        },
-        **{
-            k: _SnowparkPandasAggregation(
+            ),
+        ),
+        **_create_pandas_to_snowpark_pandas_aggregation_map(
+            ("median", np.median),
+            _SnowparkPandasAggregation(
                 axis_0_aggregation=median,
                 preserves_snowpark_pandas_types=True,
-            )
-            for k in python_cast(tuple[AggFuncTypeBase], ("median", np.median))
-        },
+            ),
+        ),
         "idxmax": _SnowparkPandasAggregation(
             axis_0_aggregation=functools.partial(
                 _columns_coalescing_idxmax_idxmin_helper, func="idxmax"
@@ -516,22 +524,22 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
             ),
             preserves_snowpark_pandas_types=False,
         ),
-        **{
-            k: _SnowparkPandasAggregation(
+        **_create_pandas_to_snowpark_pandas_aggregation_map(
+            ("std", np.std),
+            _SnowparkPandasAggregation(
                 axis_0_aggregation=stddev,
                 preserves_snowpark_pandas_types=True,
-            )
-            for k in python_cast(tuple[AggFuncTypeBase], ("std", np.std))
-        },
-        **{
-            k: _SnowparkPandasAggregation(
+            ),
+        ),
+        **_create_pandas_to_snowpark_pandas_aggregation_map(
+            ("var", np.var),
+            _SnowparkPandasAggregation(
                 axis_0_aggregation=variance,
                 # variance units are the square of the input column units, so
                 # variance does not preserve types.
                 preserves_snowpark_pandas_types=False,
-            )
-            for k in python_cast(tuple[AggFuncTypeBase], ("var", np.var))
-        },
+            ),
+        ),
         "array_agg": _SnowparkPandasAggregation(
             axis_0_aggregation=array_agg,
             preserves_snowpark_pandas_types=False,
