@@ -380,7 +380,12 @@ def test_floor_ceil_round(datetime_index_value, func, freq):
     [
         ("1w", "raise", "raise"),
         ("1h", "infer", "raise"),
+        ("1h", "NaT", "raise"),
+        ("1h", np.array([True, True, False]), "raise"),
         ("1h", "raise", "shift_forward"),
+        ("1h", "raise", "shift_backward"),
+        ("1h", "raise", "NaT"),
+        ("1h", "raise", pd.Timedelta("1h")),
         ("1w", "infer", "shift_forward"),
     ],
 )
