@@ -5058,9 +5058,10 @@ class DataFrame:
             if _emit_ast:
                 # Assign each Dataframe in res_dfs a __getitem__ from random_split.
                 for i, df in enumerate(res_dfs):
-                    obj_stmt = (
-                        self._session._ast_batch.assign()
-                    )  # TODO: symbol capture for multiple.
+                    obj_stmt = self._session._ast_batch.assign()
+
+                    # To enable symbol capture for multiple targets (e.g., a, b, c = ...), we hint
+                    # with_src_position with a target_idx.
                     obj_expr = with_src_position(
                         obj_stmt.expr.object_get_item, obj_stmt, target_idx=i
                     )

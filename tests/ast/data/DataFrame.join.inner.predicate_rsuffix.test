@@ -12,7 +12,7 @@ df1 = session.table("test_table")
 
 df2 = session.table("test_table")
 
-df3 = df1.join(df2, on=((df1["num"] < df2["num"]) & (df1["str"] == df2["str"])), how="inner", rsuffix="_2")
+df3 = df1.join(df2, on=(df1["num"] < df2["num"]) & (df1["str"] == df2["str"]), how="inner", rsuffix="_2")
 
 df3 = df3.select("*")
 
