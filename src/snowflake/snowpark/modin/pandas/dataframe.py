@@ -257,7 +257,7 @@ class DataFrame(BasePandasDataset):
                     if index is not None:
                         if isinstance(index, Index):  # pragma: no cover
                             index = index.to_series()._query_compiler
-                        elif isinstance(index, Series):
+                        elif isinstance(index, Series):  # pragma: no cover
                             index = index._query_compiler
                         new_qc = new_qc.reindex(axis=0, labels=index)
                     if columns is not None:
@@ -354,7 +354,9 @@ class DataFrame(BasePandasDataset):
                             ]
                         ]
                     else:
-                        index_qc_list = [Series(index)._query_compiler]
+                        index_qc_list = [
+                            Series(index)._query_compiler
+                        ]  # pragma: no cover
                 query_compiler = query_compiler.set_index(index_qc_list)
 
         if isinstance(data, DataFrame):

@@ -507,6 +507,32 @@ def test_create_series_with_list_of_lists_index():
     assert_series_equal(snow_series, native_series)
 
 
+@sql_count_checker(query_count=1, join_count=2)
+def test_create_series_with_index_data_and_list_of_lists_index():
+    # When given a list of lists as the index, this index needs to be converted to a MultiIndex before processing.
+    arrays = [
+        ["qux", "qux", "foo", "foo", "baz", "baz", "bar", "bar"],
+        ["two", "one", "two", "one", "two", "one", "two", "one"],
+    ]
+    data = native_pd.Index([1, 2, 3, 4, 5, 6, 7, 8])
+    native_series = native_pd.Series(data, index=arrays)
+    snow_series = pd.Series(pd.Index(data), index=arrays)
+    assert_series_equal(snow_series, native_series)
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_create_df_with_index_data_and_list_of_lists_index():
+    # When given a list of lists as the index, this index needs to be converted to a MultiIndex before processing.
+    arrays = [
+        ["qux", "qux", "foo", "foo", "baz", "baz", "bar", "bar"],
+        ["two", "one", "two", "one", "two", "one", "two", "one"],
+    ]
+    data = native_pd.Index([1, 2, 3, 4, 5, 6, 7, 8])
+    native_df = native_pd.DataFrame(data, index=arrays)
+    snow_df = pd.DataFrame(pd.Index(data), index=arrays)
+    assert_frame_equal(snow_df, native_df)
+
+
 @sql_count_checker(query_count=1)
 def test_create_series_with_none_data_and_non_empty_index():
     # When creating an empty Series with a non-empty index, the index should be used as the index of the Series.
