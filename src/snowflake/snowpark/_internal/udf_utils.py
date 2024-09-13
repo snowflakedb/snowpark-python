@@ -1122,13 +1122,10 @@ def resolve_imports_and_packages(
 
     # Upload closure to stage if it is beyond inline closure size limit
     handler = inline_code = upload_file_stage_location = None
-    custom_python_runtime_version_allowed = False
+    # As cloudpickle is being used, we cannot allow a custom runtime
+    custom_python_runtime_version_allowed = not isinstance(func, Callable)
     if session is not None:
         if isinstance(func, Callable):
-            custom_python_runtime_version_allowed = (
-                False  # As cloudpickle is being used, we cannot allow a custom runtime
-            )
-
             # generate a random name for udf py file
             # and we compress it first then upload it
             udf_file_name_base = f"udf_py_{random_number()}"
@@ -1173,7 +1170,6 @@ def resolve_imports_and_packages(
                 upload_file_stage_location = None
                 handler = _DEFAULT_HANDLER_NAME
         else:
-            custom_python_runtime_version_allowed = True
             udf_file_name = os.path.basename(func[0])
             # for a compressed file, it might have multiple extensions
             # and we should remove all extensions
@@ -1198,11 +1194,6 @@ def resolve_imports_and_packages(
                     skip_upload_on_content_match=skip_upload_on_content_match,
                 )
                 all_urls.append(upload_file_stage_location)
-    else:
-        if isinstance(func, Callable):
-            custom_python_runtime_version_allowed = False
-        else:
-            custom_python_runtime_version_allowed = True
 
     # build imports and packages string
     all_imports = ",".join(
@@ -1245,12 +1236,13 @@ def create_python_udf_or_sp(
     statement_params: Optional[Dict[str, str]] = None,
     comment: Optional[str] = None,
     native_app_params: Optional[Dict[str, Any]] = None,
+    runtime_version: Optional[str] = None,
 ) -> None:
-    with session._lock:
-        if session is not None and session._runtime_version_from_requirement:
-            runtime_version = session._runtime_version_from_requirement
-        else:
-            runtime_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    runtime_version = (
+        f"{sys.version_info[0]}.{sys.version_info[1]}"
+        if not runtime_version
+        else runtime_version
+    )
 
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
