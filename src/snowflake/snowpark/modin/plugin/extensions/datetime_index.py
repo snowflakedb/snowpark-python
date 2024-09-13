@@ -1024,6 +1024,7 @@ class DatetimeIndex(Index):
                        '2014-08-01 09:00:00'],
                         dtype='datetime64[ns]', freq='h')
         """
+        # TODO (SNOW-1660843): Support tz in pd.date_range and unskip the doctests.
         return DatetimeIndex(
             query_compiler=self._query_compiler.dt_tz_convert(
                 tz,
@@ -1108,8 +1109,8 @@ default 'raise'
 
         Localize DatetimeIndex in US/Eastern time zone:
 
-        >>> tz_aware = tz_naive.tz_localize(tz='US/Eastern')  # doctest: +SKIP
-        >>> tz_aware  # doctest: +SKIP
+        >>> tz_aware = tz_naive.tz_localize(tz='US/Eastern')
+        >>> tz_aware
         DatetimeIndex(['2018-03-01 09:00:00-05:00',
                        '2018-03-02 09:00:00-05:00',
                        '2018-03-03 09:00:00-05:00'],
@@ -1118,11 +1119,12 @@ default 'raise'
         With the ``tz=None``, we can remove the time zone information
         while keeping the local time (not converted to UTC):
 
-        >>> tz_aware.tz_localize(None)  # doctest: +SKIP
+        >>> tz_aware.tz_localize(None)
         DatetimeIndex(['2018-03-01 09:00:00', '2018-03-02 09:00:00',
                        '2018-03-03 09:00:00'],
                       dtype='datetime64[ns]', freq=None)
         """
+        # TODO (SNOW-1660843): Support tz in pd.date_range and unskip the doctests.
         return DatetimeIndex(
             query_compiler=self._query_compiler.dt_tz_localize(
                 tz,

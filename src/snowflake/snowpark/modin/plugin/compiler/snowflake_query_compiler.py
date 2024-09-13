@@ -16674,10 +16674,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         dtype = self.index_dtypes[0] if include_index else self.dtypes[0]
         if not include_index:
             method_name = "Series.dt.tz_localize"
-        elif is_datetime64_any_dtype(dtype):
-            method_name = "DatetimeIndex.tz_localize"
         else:
-            raise AssertionError("column must be datetime")  # pragma: no cover
+            assert is_datetime64_any_dtype(dtype), "column must be datetime"
+            method_name = "DatetimeIndex.tz_localize"
 
         if not isinstance(ambiguous, str) or ambiguous != "raise":
             ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
