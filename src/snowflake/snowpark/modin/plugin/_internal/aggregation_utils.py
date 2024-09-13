@@ -56,6 +56,7 @@ from snowflake.snowpark.functions import (
     stddev,
     stddev_pop,
     sum as sum_,
+    trunc,
     var_pop,
     variance,
     when,
@@ -698,6 +699,8 @@ def _is_supported_snowflake_agg_func(
         is_valid: bool. Whether it is valid to implement with snowflake or not.
     """
     if isinstance(agg_func, tuple) and len(agg_func) == 2:
+        # For named aggregations, like `df.agg(new_col=("old_col", "sum"))`,
+        # take the second part of the named aggregation.
         agg_func = agg_func[0]
     return get_snowflake_agg_func(agg_func, agg_kwargs, axis) is not None
 
@@ -962,6 +965,19 @@ def _generate_aggregation_column(
             case_expr is not None
         ), f"No case expression is constructed with skipna({skipna}), min_count({min_count})"
         agg_snowpark_column = case_expr.otherwise(agg_snowpark_column)
+
+    if (
+        isinstance(agg_column_op_params.data_type, TimedeltaType)
+        and agg_column_op_params.snowflake_agg_func.preserves_snowpark_pandas_types
+    ):
+        # timedelta aggregations that produce timedelta results might produce
+        # a decimal type in snowflake, e.g.
+        # pd.Series([pd.Timestamp(1), pd.Timestamp(2)]).mean() produces 1.5 in
+        # Snowflake. We truncate the decimal part of the result, as pandas
+        # does.
+        agg_snowpark_column = cast(
+            trunc(agg_snowpark_column), agg_column_op_params.data_type.snowpark_type
+        )
 
     # rename the column to agg_column_quoted_identifier
     agg_snowpark_column = agg_snowpark_column.as_(
