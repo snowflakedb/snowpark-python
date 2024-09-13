@@ -17,6 +17,10 @@
 - Fixed a bug where an `Index` object created from a `Series`/`DataFrame` incorrectly updates the `Series`/`DataFrame`'s index name when it is not supposed to.
 
 
+## 1.22.1 (2024-09-11)
+This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for detailed release content.
+
+
 ## 1.22.0 (2024-09-10)
 
 ### Snowpark Python API Updates
@@ -123,6 +127,7 @@
 - Added support for string indexing with `Timedelta` objects.
 - Added support for `Series.dt.total_seconds` method.
 - Added support for `DataFrame.apply(axis=0)`.
+- Added support for `Series.dt.tz_convert` and `Series.dt.tz_localize`.
 
 #### Improvements
 
@@ -135,6 +140,7 @@
 - Raise a warning whenever MultiIndex values are pulled in locally.
 - Improve warning message for `pd.read_snowflake` include the creation reason when temp table creation is triggered.
 - Improve performance for `DataFrame.set_index`, or setting `DataFrame.index` or `Series.index` by avoiding checks require eager evaluation. As a consequence, when the new index that does not match the current `Series`/`DataFrame` object length, a `ValueError` is no longer raised. Instead, when the `Series`/`DataFrame` object is longer than the provided index, the `Series`/`DataFrame`'s new index is filled with `NaN` values for the "extra" elements. Otherwise, the extra values in the provided index are ignored.
+- Properly raise `NotImplementedError` when ambiguous/nonexistent are non-string in `ceil`/`floor`/`round`.
 
 #### Bug Fixes
 
