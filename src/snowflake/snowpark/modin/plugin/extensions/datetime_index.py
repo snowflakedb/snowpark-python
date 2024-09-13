@@ -1111,8 +1111,7 @@ default 'raise'
 
         >>> tz_aware = tz_naive.tz_localize(tz='US/Eastern')
         >>> tz_aware
-        DatetimeIndex(['2018-03-01 09:00:00-05:00',
-                       '2018-03-02 09:00:00-05:00',
+        DatetimeIndex(['2018-03-01 09:00:00-05:00', '2018-03-02 09:00:00-05:00',
                        '2018-03-03 09:00:00-05:00'],
                       dtype='datetime64[ns, UTC-05:00]', freq=None)
 
