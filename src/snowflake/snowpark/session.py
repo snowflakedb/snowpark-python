@@ -944,8 +944,8 @@ class Session:
         with self._lock:
             self._import_paths.clear()
 
+    @staticmethod
     def _resolve_import_path(
-        self,
         path: str,
         import_path: Optional[str] = None,
         chunk_size: int = 8192,
