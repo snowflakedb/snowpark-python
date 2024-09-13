@@ -234,7 +234,6 @@ def join(
             assert len(join_key_coalesce_config) == len(
                 left_join_key
             ), "ASOF join join_key_coalesce_config must be of same length as left_join_key and right_join_key"
-        assert_snowpark_pandas_types_match(left, right, left_join_key, right_join_key)
     else:
         left_join_key = left_on
         right_join_key = right_on
@@ -247,7 +246,8 @@ def join(
             assert len(join_key_coalesce_config) == len(
                 left_join_key
             ), "join_key_coalesce_config must be of same length as left_on and right_on"
-        assert_snowpark_pandas_types_match(left, right, left_join_key, right_join_key)
+
+    assert_snowpark_pandas_types_match(left, right, left_join_key, right_join_key)
 
     # Re-project the active columns to make sure all active columns of the internal frame participate
     # in the join operation, and unnecessary columns are dropped from the projected columns.
