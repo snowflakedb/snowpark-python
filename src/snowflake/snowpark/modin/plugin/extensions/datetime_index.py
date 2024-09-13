@@ -41,7 +41,6 @@ from pandas._typing import (
     TimeAmbiguous,
     TimeNonexistent,
 )
-from pandas.core.dtypes.common import is_datetime64_any_dtype
 
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
@@ -136,8 +135,7 @@ class DatetimeIndex(Index):
         """
         if query_compiler:
             # Raise error if underlying type is not a TimestampType.
-            current_dtype = query_compiler.index_dtypes[0]
-            if not current_dtype == np.dtype("datetime64[ns]"):
+            if not query_compiler.is_datetime64_any_dtype(idx=0, is_index=True):
                 raise ValueError(
                     "DatetimeIndex can only be created from a query compiler with TimestampType."
                 )
@@ -158,7 +156,7 @@ class DatetimeIndex(Index):
             data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs
         )
         # Convert to datetime64 if not already.
-        if not is_datetime64_any_dtype(query_compiler.index_dtypes[0]):
+        if not query_compiler.is_datetime64_any_dtype(idx=0, is_index=True):
             query_compiler = query_compiler.series_to_datetime(include_index=True)
         index._query_compiler = query_compiler
         # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
