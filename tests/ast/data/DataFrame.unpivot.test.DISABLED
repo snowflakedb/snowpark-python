@@ -1,0 +1,14 @@
+## TEST CASE
+
+# TODO(SNOW-1663699): Re-enable the test.
+
+df = session.create_dataframe(
+    [(1, "electronics", 100, 200), (2, "clothes", 100, 300)],
+    schema=["empid", "dept", "jan", "feb"],
+)
+df = df.unpivot("sales", "month", ["jan", "feb"]).sort("empid")
+
+
+## EXPECTED UNPARSER OUTPUT
+
+## EXPECTED ENCODED AST
