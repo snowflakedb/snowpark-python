@@ -509,9 +509,28 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
     def ffill(self, limit=None):
         ErrorMessage.method_not_implemented_error(name="ffill", class_="GroupBy")
 
-    def fillna(self, *args, **kwargs):
+    def fillna(
+        self,
+        value: Any = None,
+        method: FillnaOptions | None = None,
+        axis: Axis | None = None,
+        inplace: bool = False,
+        limit: int | None = None,
+        downcast: dict | None = None,
+    ):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="fillna", class_="GroupBy")
+        query_compiler = self._query_compiler.groupby_fillna(
+            self._by,
+            self._axis,
+            self._kwargs,
+            value,
+            method,
+            axis,
+            inplace,
+            limit,
+            downcast,
+        )
+        return pd.DataFrame(query_compiler=query_compiler)
 
     def first(self, numeric_only=False, min_count=-1, skipna=True):
         return self._wrap_aggregation(

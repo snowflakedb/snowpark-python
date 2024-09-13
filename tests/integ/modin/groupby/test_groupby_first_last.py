@@ -83,7 +83,7 @@ def test_groupby_first_last(by, as_index, skipna, method):
     # TODO: Add sort when SNOW-1481281 is resolved
     snowpark_pandas_df = pd.DataFrame(data_dictionary)
     pandas_df = snowpark_pandas_df.to_pandas()
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_counƒt=1):
         eval_snowpark_pandas_result(
             snowpark_pandas_df,
             pandas_df,
