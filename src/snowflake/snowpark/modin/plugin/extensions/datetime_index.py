@@ -46,7 +46,7 @@ from pandas.core.dtypes.common import is_datetime64_any_dtype
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
-from snowflake.snowpark.modin.plugin.extensions.index import Index, IndexParent
+from snowflake.snowpark.modin.plugin.extensions.index import Index
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     datetime_index_not_implemented,
 )
@@ -162,7 +162,7 @@ class DatetimeIndex(Index):
             query_compiler = query_compiler.series_to_datetime(include_index=True)
         index._query_compiler = query_compiler
         # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
-        index._parent = IndexParent()
+        index._parent = None
         return index
 
     def __init__(
