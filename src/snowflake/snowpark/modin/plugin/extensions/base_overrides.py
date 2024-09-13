@@ -100,9 +100,6 @@ def register_base_override(method_name: str):
             series_method = series_method.fget
         if series_method is None or series_method is parent_method:
             register_series_accessor(method_name)(base_method)
-        # TODO: SNOW-1063346
-        # Since we still use the vendored version of DataFrame and the overrides for the top-level
-        # namespace haven't been performed yet, we need to set properties on the vendored version
         df_method = getattr(pd.DataFrame, method_name, None)
         if isinstance(df_method, property):
             df_method = df_method.fget

@@ -1424,9 +1424,7 @@ def set_axis(
     )
 
 
-# TODO: SNOW-1063346
-# Modin does a relative import (from .dataframe import DataFrame). We should revisit this once
-# our vendored copy of DataFrame is removed.
+# Snowpark pandas does different validation.
 @register_series_accessor("rename")
 def rename(
     self,
@@ -1476,10 +1474,7 @@ def rename(
             return self_cp
 
 
-# TODO: SNOW-1063346
-# Modin does a relative import (from .dataframe import DataFrame). We should revisit this once
-# our vendored copy of DataFrame is removed.
-# Modin also defaults to pandas for some arguments for unstack
+# Modin defaults to pandas for some arguments for unstack
 @register_series_accessor("unstack")
 def unstack(
     self,
