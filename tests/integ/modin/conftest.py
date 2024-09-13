@@ -739,5 +739,6 @@ def timedelta_native_df() -> pandas.DataFrame:
                 pd.Timedelta(nanoseconds=0),
                 pd.Timedelta(nanoseconds=4),
             ],
+            "D": pandas.to_timedelta([pd.NaT] * 4),
         }
     )
