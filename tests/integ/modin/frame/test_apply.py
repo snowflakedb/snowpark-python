@@ -599,6 +599,15 @@ def test_basic_dataframe_transform(data, apply_func, expected_query_count):
     else:
         msg = "SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function"
         native_df = native_pd.DataFrame(data)
+        snow_df = pd.DataFrame(data)
+        with SqlCounter(
+            query_count=expected_query_count,
+            high_count_expected=True,
+            high_count_reason=msg,
+        ):
+            eval_snowpark_pandas_result(
+                snow_df, native_df, lambda x: x.transform(apply_func)
+            )
 
 
 AGGREGATION_FUNCTIONS = [
