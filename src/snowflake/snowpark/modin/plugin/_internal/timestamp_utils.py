@@ -525,7 +525,7 @@ def tz_convert_column(column: Column, tz: Union[str, dt.tzinfo]) -> Column:
         The column after conversion to the specified timezone
     """
     if tz is None:
-        return convert_timezone(pandas_lit("UTC"), column)
+        return to_timestamp_ntz(convert_timezone(pandas_lit("UTC"), column))
     else:
         if isinstance(tz, dt.tzinfo):
             tz_name = tz.tzname(None)
