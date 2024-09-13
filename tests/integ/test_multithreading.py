@@ -6,10 +6,12 @@ import hashlib
 import os
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Tuple  # noqa: F401
 from unittest.mock import patch
 
 import pytest
 
+from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType
 
 try:
@@ -399,11 +401,98 @@ def add_{thread_id}(x: int) -> int:
             executor.submit(register_and_test_udf, session, i)
 
 
-@pytest.mark.parametrize("from_file", [True, False])
-def test_concurrent_udtf_register(session, from_file):
-    pass
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="UDTFs is not supported in local testing mode",
+    run=False,
+)
+def test_concurrent_udtf_register(session, tmpdir):
+    def register_and_test_udtf(session_, thread_id):
+        udtf_body = f"""
+from typing import List, Tuple
+
+class UDTFEcho:
+    def process(
+        self,
+        num: int,
+    ) -> List[Tuple[int]]:
+        return [(num + {thread_id},)]
+"""
+        prefix = Utils.random_alphanumeric_str(10)
+        file_path = os.path.join(tmpdir, f"{prefix}_udtf_echo_{thread_id}.py")
+        with open(file_path, "w") as f:
+            f.write(udtf_body)
+            f.flush()
+
+        d = {}
+        exec(udtf_body, {**globals(), **locals()}, d)
+        echo_udtf_from_file = session_.udtf.register_from_file(
+            file_path, "UDTFEcho", output_schema=["num"]
+        )
+        echo_udtf = session_.udtf.register(d["UDTFEcho"], output_schema=["num"])
+
+        df_local = session.table_function(echo_udtf(lit(1)))
+        df_from_file = session.table_function(echo_udtf_from_file(lit(1)))
+        assert df_local.collect() == [(thread_id + 1,)]
+        assert df_from_file.collect() == [(thread_id + 1,)]
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        for i in range(10):
+            executor.submit(register_and_test_udtf, session, i)
 
 
-@pytest.mark.parametrize("from_file", [True, False])
-def test_concurrent_udaf_register(session, from_file):
-    pass
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="UDAFs is not supported in local testing mode",
+    run=False,
+)
+def test_concurrent_udaf_register(session: Session, tmpdir):
+    df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
+
+    def register_and_test_udaf(session_, thread_id):
+        udaf_body = f"""
+class OffsetSumUDAFHandler:
+    def __init__(self) -> None:
+        self._sum = 0
+
+    @property
+    def aggregate_state(self):
+        return self._sum
+
+    def accumulate(self, input_value):
+        self._sum += input_value
+
+    def merge(self, other_sum):
+        self._sum += other_sum
+
+    def finish(self):
+        return self._sum + {thread_id}
+    """
+        prefix = Utils.random_alphanumeric_str(10)
+        file_path = os.path.join(tmpdir, f"{prefix}_udaf_{thread_id}.py")
+        with open(file_path, "w") as f:
+            f.write(udaf_body)
+            f.flush()
+        d = {}
+        exec(udaf_body, {**globals(), **locals()}, d)
+
+        offset_sum_udaf_from_file = session_.udaf.register_from_file(
+            file_path,
+            "OffsetSumUDAFHandler",
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+        )
+        offset_sum_udaf = session_.udaf.register(
+            d["OffsetSumUDAFHandler"],
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+        )
+
+        Utils.check_answer(
+            df.agg(offset_sum_udaf_from_file(df.a)), [Row(6 + thread_id)]
+        )
+        Utils.check_answer(df.agg(offset_sum_udaf(df.a)), [Row(6 + thread_id)])
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        for i in range(10):
+            executor.submit(register_and_test_udaf, session, i)
