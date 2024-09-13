@@ -5,6 +5,7 @@
 
 import os
 from functools import partial
+from unittest.mock import patch
 
 import pytest
 
@@ -717,6 +718,31 @@ def test_eliminate_numeric_sql_value_cast_optimization_enabled_on_session(
         assert new_session.eliminate_numeric_sql_value_cast_enabled is False
         with pytest.raises(ValueError):
             new_session.eliminate_numeric_sql_value_cast_enabled = None
+
+
+def test_large_query_breakdown_complexity_bounds(session):
+    original_bounds = session.large_query_breakdown_complexity_bounds
+    try:
+        with pytest.raises(ValueError, match="Expecting a tuple of two integers"):
+            session.large_query_breakdown_complexity_bounds = (1, 2, 3)
+
+        with pytest.raises(
+            ValueError, match="Expecting a tuple of lower and upper bound"
+        ):
+            session.large_query_breakdown_complexity_bounds = (3, 2)
+
+        with patch.object(
+            session._conn._telemetry_client,
+            "send_large_query_breakdown_update_complexity_bounds",
+        ) as patch_send:
+            session.large_query_breakdown_complexity_bounds = (1, 2)
+            assert session.large_query_breakdown_complexity_bounds == (1, 2)
+            assert patch_send.call_count == 1
+            assert patch_send.call_args[0][0] == session.session_id
+            assert patch_send.call_args[0][1] == 1
+            assert patch_send.call_args[0][2] == 2
+    finally:
+        session.large_query_breakdown_complexity_bounds = original_bounds
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
