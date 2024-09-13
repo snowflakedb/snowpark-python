@@ -961,7 +961,6 @@ class DatetimeIndex(Index):
         DatetimeIndex(['2023-01-01', '2023-01-01', '2023-02-01', '2023-02-01'], dtype='datetime64[ns]', freq=None)
         """
 
-    @datetime_index_not_implemented()
     def tz_convert(self, tz) -> DatetimeIndex:
         """
         Convert tz-aware Datetime Array/Index from one time zone to another.
@@ -1026,8 +1025,14 @@ class DatetimeIndex(Index):
                        '2014-08-01 09:00:00'],
                         dtype='datetime64[ns]', freq='h')
         """
+        # TODO (SNOW-1660843): Support tz in pd.date_range and unskip the doctests.
+        return DatetimeIndex(
+            query_compiler=self._query_compiler.dt_tz_convert(
+                tz,
+                include_index=True,
+            )
+        )
 
-    @datetime_index_not_implemented()
     def tz_localize(
         self,
         tz,
@@ -1105,21 +1110,29 @@ default 'raise'
 
         Localize DatetimeIndex in US/Eastern time zone:
 
-        >>> tz_aware = tz_naive.tz_localize(tz='US/Eastern')  # doctest: +SKIP
-        >>> tz_aware  # doctest: +SKIP
-        DatetimeIndex(['2018-03-01 09:00:00-05:00',
-                       '2018-03-02 09:00:00-05:00',
+        >>> tz_aware = tz_naive.tz_localize(tz='US/Eastern')
+        >>> tz_aware
+        DatetimeIndex(['2018-03-01 09:00:00-05:00', '2018-03-02 09:00:00-05:00',
                        '2018-03-03 09:00:00-05:00'],
-                      dtype='datetime64[ns, US/Eastern]', freq=None)
+                      dtype='datetime64[ns, UTC-05:00]', freq=None)
 
         With the ``tz=None``, we can remove the time zone information
         while keeping the local time (not converted to UTC):
 
-        >>> tz_aware.tz_localize(None)  # doctest: +SKIP
+        >>> tz_aware.tz_localize(None)
         DatetimeIndex(['2018-03-01 09:00:00', '2018-03-02 09:00:00',
                        '2018-03-03 09:00:00'],
                       dtype='datetime64[ns]', freq=None)
         """
+        # TODO (SNOW-1660843): Support tz in pd.date_range and unskip the doctests.
+        return DatetimeIndex(
+            query_compiler=self._query_compiler.dt_tz_localize(
+                tz,
+                ambiguous,
+                nonexistent,
+                include_index=True,
+            )
+        )
 
     def round(
         self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
