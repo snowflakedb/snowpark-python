@@ -41,7 +41,7 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
-from snowflake.snowpark.modin.plugin.extensions.index import Index, IndexParent
+from snowflake.snowpark.modin.plugin.extensions.index import Index
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     timedelta_index_not_implemented,
 )
@@ -118,7 +118,7 @@ class TimedeltaIndex(Index):
             data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs
         )
         # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
-        tdi._parent = IndexParent()
+        tdi._parent = None
         return tdi
 
     def __init__(

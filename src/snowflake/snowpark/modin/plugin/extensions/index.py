@@ -72,25 +72,19 @@ _CONSTRUCTOR_DEFAULTS = {
 
 
 class IndexParent:
-    def __init__(self) -> None:
+    def __init__(self, parent: DataFrame | Series) -> None:
         """
         Initialize the IndexParent object.
 
         IndexParent is used to keep track of the parent object that the Index is a part of.
         It tracks the parent object and the parent object's query compiler at the time of creation.
-        """
-        self._parent = None
-        self._parent_qc = None
-
-    def set_parent(self, parent: Series | DataFrame) -> None:
-        """
-        Set the parent object and its query compiler.
 
         Parameters
         ----------
-        parent : Series or DataFrame
+        parent : DataFrame or Series
             The parent object that the Index is a part of.
         """
+        assert isinstance(parent, (DataFrame, Series))
         self._parent = parent
         self._parent_qc = parent._query_compiler
 
@@ -171,7 +165,7 @@ class Index(metaclass=TelemetryMeta):
         # Initialize the Index
         index._query_compiler = query_compiler
         # `_parent` keeps track of the parent object that this Index is a part of.
-        index._parent = IndexParent()
+        index._parent = None
         return index
 
     def __init__(
@@ -286,6 +280,17 @@ class Index(metaclass=TelemetryMeta):
                     # native pandas index object should raise a not implemented error for now.
                     ErrorMessage.not_implemented(f"Index.{key} is not yet implemented")
             raise err
+
+    def _set_parent(self, parent: Series | DataFrame) -> None:
+        """
+        Set the parent object and its query compiler.
+
+        Parameters
+        ----------
+        parent : Series or DataFrame
+            The parent object that the Index is a part of.
+        """
+        self._parent = IndexParent(parent)
 
     def _binary_ops(self, method: str, other: Any) -> Index:
         if isinstance(other, Index):
