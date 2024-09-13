@@ -1076,6 +1076,7 @@ def resolve_imports_and_packages(
             )
         )
 
+    all_urls = []
     if session is not None:
         import_only_stage = (
             unwrap_stage_location_single_quote(stage_location)
@@ -1089,7 +1090,6 @@ def resolve_imports_and_packages(
             else session.get_session_stage(statement_params=statement_params)
         )
 
-        all_urls = []
         if imports:
             udf_level_imports = {}
             for udf_import in imports:
