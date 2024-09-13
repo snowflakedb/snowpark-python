@@ -312,15 +312,14 @@ class SnowflakePlan(LogicalPlan):
         else:
             return []
 
-    def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
+    def replace_repeated_subquery_with_cte(
+        self, cte_optimization_enabled: bool, query_compilation_stage_enabled: bool
+    ) -> "SnowflakePlan":
         # parameter protection
         # the common subquery elimination will be applied if cte_optimization is not enabled
         # and the new compilation stage is not enabled. When new compilation stage is enabled,
         # the common subquery elimination will be done through the new plan transformation.
-        if (
-            not self.session._cte_optimization_enabled
-            or self.session._query_compilation_stage_enabled
-        ):
+        if not cte_optimization_enabled or query_compilation_stage_enabled:
             return self
 
         # if source_plan or placeholder_query is none, it must be a leaf node,
@@ -452,7 +451,7 @@ class SnowflakePlan(LogicalPlan):
         self._cumulative_node_complexity = value
 
     def __copy__(self) -> "SnowflakePlan":
-        if self.session._cte_optimization_enabled:
+        if self.cte_optimization_enabled:
             return SnowflakePlan(
                 copy.deepcopy(self.queries) if self.queries else [],
                 self.schema_query,
@@ -531,6 +530,21 @@ class SnowflakePlanBuilder:
         # on the optimized plan. During the final query generation, no schema query is needed,
         # this helps reduces un-necessary overhead for the describing call.
         self._skip_schema_query = skip_schema_query
+        # TODO: describe
+        self._cte_optimization_enabled: Optional[bool] = None
+        self._query_compilation_stage_enabled: Optional[bool] = None
+
+    @property
+    def cte_optimization_enabled(self) -> bool:
+        if self._cte_optimization_enabled is None:
+            return self.session.cte_optimization_enabled
+        return self._cte_optimization_enabled
+
+    @property
+    def query_compilation_stage_enabled(self) -> bool:
+        if self._query_compilation_stage_enabled is None:
+            return self.session._query_compilation_stage_enabled
+        return self._query_compilation_stage_enabled
 
     @SnowflakePlan.Decorator.wrap_exception
     def build(
@@ -566,7 +580,7 @@ class SnowflakePlanBuilder:
 
         placeholder_query = (
             sql_generator(select_child._id)
-            if self.session._cte_optimization_enabled and select_child._id is not None
+            if self.cte_optimization_enabled and select_child._id is not None
             else None
         )
 
@@ -605,7 +619,7 @@ class SnowflakePlanBuilder:
 
         placeholder_query = (
             sql_generator(select_left._id, select_right._id)
-            if self.session._cte_optimization_enabled
+            if self.cte_optimization_enabled
             and select_left._id is not None
             and select_right._id is not None
             else None
@@ -636,10 +650,7 @@ class SnowflakePlanBuilder:
                 post_actions.append(copy.copy(post_action))
 
         referenced_ctes: Set[str] = set()
-        if (
-            self.session.cte_optimization_enabled
-            and self.session._query_compilation_stage_enabled
-        ):
+        if self.cte_optimization_enabled and self.query_compilation_stage_enabled:
             # When the cte optimization and the new compilation stage is enabled,
             # the referred cte tables are propagated from left and right can have
             # duplicated queries if there is a common CTE block referenced by
@@ -928,7 +939,9 @@ class SnowflakePlanBuilder:
                 column_definition_with_hidden_columns,
             )
 
-        child = child.replace_repeated_subquery_with_cte()
+        child = child.replace_repeated_subquery_with_cte(
+            self.cte_optimization_enabled, self.query_compilation_stage_enabled
+        )
 
         def get_create_table_as_select_plan(child: SnowflakePlan, replace, error):
             return self.build(
@@ -1116,7 +1129,9 @@ class SnowflakePlanBuilder:
         if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
 
-        child = child.replace_repeated_subquery_with_cte()
+        child = child.replace_repeated_subquery_with_cte(
+            self.cte_optimization_enabled, self.query_compilation_stage_enabled
+        )
         return self.build(
             lambda x: create_or_replace_view_statement(name, x, is_temp, comment),
             child,
@@ -1159,7 +1174,9 @@ class SnowflakePlanBuilder:
             # should never reach here
             raise ValueError(f"Unknown create mode: {create_mode}")  # pragma: no cover
 
-        child = child.replace_repeated_subquery_with_cte()
+        child = child.replace_repeated_subquery_with_cte(
+            self.cte_optimization_enabled, self.query_compilation_stage_enabled
+        )
         return self.build(
             lambda x: create_or_replace_dynamic_table_statement(
                 name=name,
@@ -1462,7 +1479,9 @@ class SnowflakePlanBuilder:
         header: bool = False,
         **copy_options: Optional[Any],
     ) -> SnowflakePlan:
-        query = query.replace_repeated_subquery_with_cte()
+        query = query.replace_repeated_subquery_with_cte(
+            self.cte_optimization_enabled, self.query_compilation_stage_enabled
+        )
         return self.build(
             lambda x: copy_into_location(
                 query=x,
@@ -1489,7 +1508,9 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if source_data:
-            source_data = source_data.replace_repeated_subquery_with_cte()
+            source_data = source_data.replace_repeated_subquery_with_cte(
+                self.cte_optimization_enabled, self.query_compilation_stage_enabled
+            )
             return self.build(
                 lambda x: update_statement(
                     table_name,
@@ -1520,7 +1541,9 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if source_data:
-            source_data = source_data.replace_repeated_subquery_with_cte()
+            source_data = source_data.replace_repeated_subquery_with_cte(
+                self.cte_optimization_enabled, self.query_compilation_stage_enabled
+            )
             return self.build(
                 lambda x: delete_statement(
                     table_name,
@@ -1549,7 +1572,9 @@ class SnowflakePlanBuilder:
         clauses: List[str],
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        source_data = source_data.replace_repeated_subquery_with_cte()
+        source_data = source_data.replace_repeated_subquery_with_cte(
+            self.cte_optimization_enabled, self.query_compilation_stage_enabled
+        )
         return self.build(
             lambda x: merge_statement(table_name, x, join_expr, clauses),
             source_data,

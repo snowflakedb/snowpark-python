@@ -225,10 +225,11 @@ def generate_irregular_range(
 
     # TODO: SNOW-1646883 fix invalid identifier error when sql_simplifier_enabled is True
     session = get_active_session()
-    sql_simplifier_enabled = session.sql_simplifier_enabled
-    session.sql_simplifier_enabled = False
-    num_offsets = session.range(start=0, end=periods, step=1)
-    session.sql_simplifier_enabled = sql_simplifier_enabled
+    with session._lock:
+        sql_simplifier_enabled = session.sql_simplifier_enabled
+        session.sql_simplifier_enabled = False
+        num_offsets = session.range(start=0, end=periods, step=1)
+        session.sql_simplifier_enabled = sql_simplifier_enabled
     sf_date_or_time_part = _offset_name_to_sf_date_or_time_part(offset.name)
     dt_col = builtin("DATEADD")(
         sf_date_or_time_part,
