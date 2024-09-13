@@ -5,6 +5,7 @@
 import logging
 import os
 import pickle
+import threading
 from unittest import mock
 
 import pytest
@@ -249,6 +250,7 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
         "random_package_one": "random_package_one",
         "random_package_two": "random_package_two",
     }
+    fake_session._lock = threading.RLock()
     result = add_snowpark_package_to_sproc_packages(session=fake_session, packages=None)
 
     major, minor, patch = VERSION
