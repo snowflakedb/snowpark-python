@@ -1879,7 +1879,7 @@ class DataFrame:
             self,
             rollup_exprs,
             snowflake.snowpark.relational_grouped_dataframe._RollupType(),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
@@ -1943,7 +1943,7 @@ class DataFrame:
             self,
             grouping_exprs,
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
         if _emit_ast:
@@ -2001,7 +2001,7 @@ class DataFrame:
             self,
             [gs._to_expression for gs in parse_positional_args_to_list(*grouping_sets)],
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
@@ -2028,7 +2028,7 @@ class DataFrame:
             self,
             cube_exprs,
             snowflake.snowpark.relational_grouped_dataframe._CubeType(),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
     @df_api_usage
@@ -2210,7 +2210,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._PivotType(
                 pc[0], pivot_values, default_on_null
             ),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
     @df_api_usage
