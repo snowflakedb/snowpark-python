@@ -153,6 +153,13 @@ class MockAnalyzer:
         self.subquery_plans = []
         self.alias_maps_to_use = None
         self._conn = self.session._conn
+        self._eliminate_numeric_sql_value_cast_enabled: Optional[bool] = None
+
+    @property
+    def eliminate_numeric_sql_value_cast_enabled(self) -> bool:
+        if self._eliminate_numeric_sql_value_cast_enabled is None:
+            return self.session.eliminate_numeric_sql_value_cast_enabled
+        return self._eliminate_numeric_sql_value_cast_enabled
 
     def analyze(
         self,
@@ -226,7 +233,7 @@ class MockAnalyzer:
         if isinstance(expr, MultipleExpression):
             block_expressions = []
             for expression in expr.expressions:
-                if self.session.eliminate_numeric_sql_value_cast_enabled:
+                if self.eliminate_numeric_sql_value_cast_enabled:
                     resolved_expr = self.to_sql_try_avoid_cast(
                         expression,
                         expr_to_alias,
@@ -245,7 +252,7 @@ class MockAnalyzer:
         if isinstance(expr, InExpression):
             in_values = []
             for expression in expr.values:
-                if self.session.eliminate_numeric_sql_value_cast_enabled:
+                if self.eliminate_numeric_sql_value_cast_enabled:
                     in_value = self.to_sql_try_avoid_cast(
                         expression,
                         expr_to_alias,
@@ -553,7 +560,7 @@ class MockAnalyzer:
         expr_to_alias: Dict[str, str],
         parse_local_name=False,
     ) -> str:
-        if self.session.eliminate_numeric_sql_value_cast_enabled:
+        if self.eliminate_numeric_sql_value_cast_enabled:
             left_sql_expr = self.to_sql_try_avoid_cast(
                 expr.left, expr_to_alias, parse_local_name
             )
@@ -618,8 +625,12 @@ class MockAnalyzer:
         self.subquery_plans = []
         if expr_to_alias is None:
             expr_to_alias = {}
+        self._eliminate_numeric_sql_value_cast_enabled = (
+            self.session.eliminate_numeric_sql_value_cast_enabled
+        )
         result = self.do_resolve(logical_plan, expr_to_alias)
 
+        self._eliminate_numeric_sql_value_cast_enabled = None
         return result
 
     def do_resolve(

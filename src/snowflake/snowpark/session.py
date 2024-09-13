@@ -525,11 +525,6 @@ class Session:
         self._udtf_registration = UDTFRegistration(self)
         self._udaf_registration = UDAFRegistration(self)
 
-        self._plan_builder = (
-            SnowflakePlanBuilder(self)
-            if isinstance(self._conn, ServerConnection)
-            else MockSnowflakePlanBuilder(self)
-        )
         self._last_action_id = 0
         self._last_canceled_id = 0
         self._use_scoped_temp_objects: bool = (
@@ -615,6 +610,16 @@ class Session:
                 else MockAnalyzer(self)
             )
         return self._thread_store.analyzer
+
+    @property
+    def _plan_builder(self):
+        if not hasattr(self._thread_store, "plan_builder"):
+            self._thread_store.plan_builder = (
+                SnowflakePlanBuilder(self)
+                if isinstance(self._conn, ServerConnection)
+                else MockSnowflakePlanBuilder(self)
+            )
+        return self._thread_store.plan_builder
 
     def close(self) -> None:
         """Close this session."""
@@ -722,25 +727,27 @@ class Session:
 
     @sql_simplifier_enabled.setter
     def sql_simplifier_enabled(self, value: bool) -> None:
-        self._conn._telemetry_client.send_sql_simplifier_telemetry(
-            self._session_id, value
-        )
-        try:
-            self._conn._cursor.execute(
-                f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
+        with self._lock:
+            self._conn._telemetry_client.send_sql_simplifier_telemetry(
+                self._session_id, value
             )
-        except Exception:
-            pass
-        self._sql_simplifier_enabled = value
+            try:
+                self._conn._cursor.execute(
+                    f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
+                )
+            except Exception:
+                pass
+            self._sql_simplifier_enabled = value
 
     @cte_optimization_enabled.setter
     @experimental_parameter(version="1.15.0")
     def cte_optimization_enabled(self, value: bool) -> None:
-        if value:
-            self._conn._telemetry_client.send_cte_optimization_telemetry(
-                self._session_id
-            )
-        self._cte_optimization_enabled = value
+        with self._lock:
+            if value:
+                self._conn._telemetry_client.send_cte_optimization_telemetry(
+                    self._session_id
+                )
+            self._cte_optimization_enabled = value
 
     @eliminate_numeric_sql_value_cast_enabled.setter
     @experimental_parameter(version="1.20.0")
@@ -748,10 +755,11 @@ class Session:
         """Set the value for eliminate_numeric_sql_value_cast_enabled"""
 
         if value in [True, False]:
-            self._conn._telemetry_client.send_eliminate_numeric_sql_value_cast_telemetry(
-                self._session_id, value
-            )
-            self._eliminate_numeric_sql_value_cast_enabled = value
+            with self._lock:
+                self._conn._telemetry_client.send_eliminate_numeric_sql_value_cast_telemetry(
+                    self._session_id, value
+                )
+                self._eliminate_numeric_sql_value_cast_enabled = value
         else:
             raise ValueError(
                 "value for eliminate_numeric_sql_value_cast_enabled must be True or False!"
