@@ -3255,6 +3255,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ignore_index: bool,
         key: Optional[IndexKeyFunc] = None,
         include_indexer: bool = False,
+        include_index: bool = True,
     ) -> "SnowflakeQueryCompiler":
         """
         Reorder the rows based on the lexicographic order of the given columns.
@@ -3270,6 +3271,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             key: Apply the key function to the values before sorting.
             include_indexer: If True, add a data column with the original row numbers in the same order as
                 the index, i.e., add an indexer column. This is used with Index.sort_values.
+            include_index: If True, include index columns in the sort.
 
         Returns:
             A new SnowflakeQueryCompiler instance after applying the sort.
@@ -3297,7 +3299,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         matched_identifiers = (
             self._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-                columns
+                columns, include_index
             )
         )
 
