@@ -3553,7 +3553,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_col_ops, new_data_column_index_names = generate_column_agg_info(
             internal_frame, column_to_agg_func, agg_kwargs, is_series_groupby
         )
-
         # the pandas label and quoted identifier generated for each result column
         # after aggregation will be used as new pandas label and quoted identifiers.
         new_data_column_pandas_labels = []
@@ -3570,7 +3569,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 and agg_col_op.snowflake_agg_func.preserves_snowpark_pandas_types
                 else None
             )
-
         # The ordering of the named aggregations is changed by us when we process
         # the agg_kwargs into the func dict (named aggregations on the same
         # column are moved to be contiguous, see groupby.py::aggregate for an
@@ -5636,8 +5634,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             args: the arguments passed for the aggregation
             kwargs: keyword arguments passed for the aggregation function.
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         numeric_only = kwargs.get("numeric_only", False)
         # Call fallback if the aggregation function passed in the arg is currently not supported
         # by snowflake engine.
@@ -5683,6 +5679,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             not is_list_like(value) for value in func.values()
         )
         if axis == 1:
+            if any(
+                isinstance(t, TimedeltaType)
+                for t in internal_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.values()
+            ):
+                ErrorMessage.not_implemented_for_timedelta("agg(axis=1)")
             if self.is_multiindex():
                 # TODO SNOW-1010307 fix axis=1 behavior with MultiIndex
                 ErrorMessage.not_implemented(
@@ -5862,7 +5863,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     index_column_snowflake_quoted_identifiers=[
                         agg_name_col_quoted_identifier
                     ],
-                    data_column_types=None,
+                    data_column_types=[
+                        col.data_type
+                        if isinstance(col.data_type, SnowparkPandasType)
+                        and col.snowflake_agg_func.preserves_snowpark_pandas_types
+                        else None
+                        for col in col_agg_infos
+                    ],
                     index_column_types=None,
                 )
                 return SnowflakeQueryCompiler(single_agg_dataframe)
@@ -9108,7 +9115,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler
                 Transposed new QueryCompiler object.
         """
-        self._raise_not_implemented_error_for_timedelta()
+        if len(set(self._modin_frame.cached_data_column_snowpark_pandas_types)) > 1:
+            # In this case, transpose may lose types.
+            self._raise_not_implemented_error_for_timedelta()
 
         frame = self._modin_frame
 
@@ -12492,8 +12501,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         column would allow us to create an accurate row position column, but would require a
         potentially expensive JOIN operator afterwards to apply the correct index labels.
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         assert len(self._modin_frame.data_column_pandas_labels) == 1
 
         if index is not None:
@@ -12558,7 +12565,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ],
             index_column_pandas_labels=[None],
             index_column_snowflake_quoted_identifiers=[index_identifier],
-            data_column_types=None,
+            data_column_types=original_frame.cached_data_column_snowpark_pandas_types,
             index_column_types=None,
         )
         # We cannot call astype() directly to convert an index column, so we replicate
@@ -14566,8 +14573,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         return self._idxmax_idxmin(
             func="idxmax", axis=axis, skipna=skipna, numeric_only=numeric_only
         )
@@ -14592,8 +14597,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         return self._idxmax_idxmin(
             func="idxmin", axis=axis, skipna=skipna, numeric_only=numeric_only
         )

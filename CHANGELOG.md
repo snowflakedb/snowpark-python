@@ -11,6 +11,7 @@
 #### New Features
 
 - Added support for `TimedeltaIndex.mean` method.
+- Added support for some cases of aggregating `Timedelta` columns on `axis=0` with `agg` or `aggregate`.
 
 
 ## 1.22.1 (2024-09-11)
