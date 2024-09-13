@@ -11,6 +11,7 @@
 #### New Features
 
 - Added support for `TimedeltaIndex.mean` method.
+- Added support for `DatetimeIndex.mean` and `DatetimeIndex.std` methods.
 
 
 ## 1.22.1 (2024-09-11)

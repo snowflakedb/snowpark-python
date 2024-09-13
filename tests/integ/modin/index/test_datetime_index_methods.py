@@ -294,3 +294,97 @@ def test_floor_ceil_round_negative(func, freq, ambiguous, nonexistent):
         getattr(snow_index, func)(
             freq=freq, ambiguous=ambiguous, nonexistent=nonexistent
         )
+
+
+@pytest.mark.parametrize(
+    "native_index",
+    [
+        native_pd.date_range("2021-01-01", periods=5),
+        native_pd.date_range("2021-01-01", periods=5, freq="2D"),
+        pytest.param(
+            native_pd.DatetimeIndex(
+                [
+                    "2014-04-04 23:56:01.000000001",
+                    "2014-07-18 21:24:02.000000002",
+                    "2015-11-22 22:14:03.000000003",
+                    "2015-11-23 20:12:04.1234567890",
+                    pd.NaT,
+                ],
+                tz="US/Eastern",
+            ),
+            marks=pytest.mark.xfail(reason="Snowpark pandas does not support timezone"),
+        ),
+        native_pd.DatetimeIndex(
+            [
+                "2014-04-04 23:56",
+                pd.NaT,
+                "2014-07-18 21:24",
+                "2015-11-22 22:14",
+                pd.NaT,
+            ]
+        ),
+    ],
+)
+@pytest.mark.parametrize("skipna", [True, False])
+@sql_count_checker(query_count=1)
+def test_datetime_index_mean(native_index, skipna):
+    snow_index = pd.DatetimeIndex(native_index)
+    native_res = native_index.mean(skipna=skipna)
+    snow_res = snow_index.mean(skipna=skipna)
+    if native_res is pd.NaT:
+        assert snow_res is pd.NaT
+    else:
+        assert snow_res == native_res
+
+
+@pytest.mark.parametrize(
+    "native_index",
+    [
+        native_pd.date_range("2021-01-01", periods=5),
+        native_pd.date_range("2021-01-01", periods=5, freq="2D"),
+        # TODO: SNOW-1625233 Remove xfail when timezone is supported.
+        pytest.param(
+            native_pd.DatetimeIndex(
+                [
+                    "2014-04-04 23:56:01.000000001",
+                    "2014-07-18 21:24:02.000000002",
+                    "2015-11-22 22:14:03.000000003",
+                    "2015-11-23 20:12:04.1234567890",
+                    pd.NaT,
+                ],
+                tz="US/Eastern",
+            ),
+            marks=pytest.mark.xfail(reason="Snowpark pandas does not support timezone"),
+        ),
+        native_pd.DatetimeIndex(
+            [
+                "2014-04-04 23:56",
+                pd.NaT,
+                "2014-07-18 21:24",
+                "2015-11-22 22:14",
+                pd.NaT,
+            ]
+        ),
+    ],
+)
+@pytest.mark.parametrize("ddof", [1])
+@pytest.mark.parametrize("skipna", [True, False])
+@sql_count_checker(query_count=1)
+def test_datetime_index_std(native_index, ddof, skipna):
+    snow_index = pd.DatetimeIndex(native_index)
+    native_res = native_index.std(ddof=ddof, skipna=skipna)
+    snow_res = snow_index.std(ddof=ddof, skipna=skipna)
+    # Since the Snowpark pandas implementation converts timestamp values to float values,
+    # there is some loss in accuracy. Hence, we use approx to compare the results.
+    pytest.approx(snow_res, native_res, nan_ok=True)
+
+
+@pytest.mark.parametrize("ops", ["mean", "std"])
+@sql_count_checker(query_count=0)
+def test_datetime_index_agg_ops_axis_negative(ops):
+    snow_index = pd.DatetimeIndex(["2021-01-01", "2021-01-02", "2021-01-03"])
+    msg = (
+        "axis=1 is not supported, this parameter is ignored. 0 is the only valid axis."
+    )
+    with pytest.raises(ValueError, match=msg):
+        getattr(snow_index, ops)(axis=1)
