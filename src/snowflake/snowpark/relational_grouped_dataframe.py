@@ -147,13 +147,13 @@ class RelationalGroupedDataFrame:
         df: DataFrame,
         grouping_exprs: List[Expression],
         group_type: _GroupType,
-        ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Assign] = None,
     ) -> None:
         self._df = df
         self._grouping_exprs = grouping_exprs
         self._group_type = group_type
         self._df_api_call = None
-        self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
+        self._ast_id = _ast_stmt.var_id.bitfield1 if _ast_stmt is not None else None
 
     def _to_df(
         self,
