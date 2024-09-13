@@ -7381,46 +7381,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler
         """
         # TODO: SNOW-1634547: Implement remaining parameters by leveraging `merge` implementation
-        if (
-            by
-            or left_by
-            or right_by
-            or left_index
-            or right_index
-            or tolerance
-            or suffixes != ("_x", "_y")
-        ):
+        if left_index or right_index or tolerance or suffixes != ("_x", "_y"):
             ErrorMessage.not_implemented(
                 "Snowpark pandas merge_asof method does not currently support parameters "
-                + "'by', 'left_by', 'right_by', 'left_index', 'right_index', "
-                + "'suffixes', or 'tolerance'"
+                + "'left_index', 'right_index', 'suffixes', or 'tolerance'"
             )
         if direction not in ("backward", "forward"):
             ErrorMessage.not_implemented(
                 "Snowpark pandas merge_asof method only supports directions 'forward' and 'backward'"
             )
-
-        left_frame = self._modin_frame
-        right_frame = right._modin_frame
-        left_keys, right_keys = join_utils.get_join_keys(
-            left=left_frame,
-            right=right_frame,
-            on=on,
-            left_on=left_on,
-            right_on=right_on,
-            left_index=left_index,
-            right_index=right_index,
-        )
-        left_match_col = (
-            left_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-                left_keys
-            )[0][0]
-        )
-        right_match_col = (
-            right_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-                right_keys
-            )[0][0]
-        )
 
         if direction == "backward":
             match_comparator = (
@@ -7435,18 +7404,75 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 else MatchComparator.LESS_THAN
             )
 
-        coalesce_config = join_utils.get_coalesce_config(
-            left_keys=left_keys, right_keys=right_keys, external_join_keys=[]
+        left_frame = self._modin_frame
+        right_frame = right._modin_frame
+        # Get the left and right matching key and quoted identifier corresponding to the match_condition
+        # There will only be matching key/identifier for each table as there is only a single match condition
+        left_match_keys, right_match_keys = join_utils.get_join_keys(
+            left=left_frame,
+            right=right_frame,
+            on=on,
+            left_on=left_on,
+            right_on=right_on,
+            left_index=left_index,
+            right_index=right_index,
         )
+        left_match_identifier = (
+            left_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                left_match_keys
+            )[0][0]
+        )
+        right_match_identifier = (
+            right_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                right_match_keys
+            )[0][0]
+        )
+        coalesce_config = join_utils.get_coalesce_config(
+            left_keys=left_match_keys,
+            right_keys=right_match_keys,
+            external_join_keys=[],
+        )
+
+        # Get the left and right matching keys and quoted identifiers corresponding to the 'on' condition
+        if by or (left_by and right_by):
+            left_on_keys, right_on_keys = join_utils.get_join_keys(
+                left=left_frame,
+                right=right_frame,
+                on=by,
+                left_on=left_by,
+                right_on=right_by,
+            )
+            left_on_identifiers = [
+                ids[0]
+                for ids in left_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    left_on_keys
+                )
+            ]
+            right_on_identifiers = [
+                ids[0]
+                for ids in right_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    right_on_keys
+                )
+            ]
+            coalesce_config.extend(
+                join_utils.get_coalesce_config(
+                    left_keys=left_on_keys,
+                    right_keys=right_on_keys,
+                    external_join_keys=[],
+                )
+            )
+        else:
+            left_on_identifiers = []
+            right_on_identifiers = []
 
         joined_frame, _ = join_utils.join(
             left=left_frame,
             right=right_frame,
+            left_on=left_on_identifiers,
+            right_on=right_on_identifiers,
             how="asof",
-            left_on=[left_match_col],
-            right_on=[right_match_col],
-            left_match_col=left_match_col,
-            right_match_col=right_match_col,
+            left_match_col=left_match_identifier,
+            right_match_col=right_match_identifier,
             match_comparator=match_comparator,
             join_key_coalesce_config=coalesce_config,
             sort=True,
