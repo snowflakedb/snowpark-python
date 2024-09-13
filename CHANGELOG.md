@@ -13,6 +13,7 @@
 - Added support for `TimedeltaIndex.mean` method.
 - Added support for some cases of aggregating `Timedelta` columns on `axis=0` with `agg` or `aggregate`.
 - Added support for `by`, `left_by`, `right_by`, `left_index`, and `right_index` for `pd.merge_asof`.
+- Added support for passing parameter `include_describe` to `Session.query_history`.
 
 #### Bug Fixes
 
@@ -79,7 +80,6 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 - Added support for type coercion when passing columns as input to UDF calls.
 - Added support for `Index.identical`.
-- Added support for passing parameter `include_describe` to `Session.query_history`.
 
 #### Bug Fixes
 
