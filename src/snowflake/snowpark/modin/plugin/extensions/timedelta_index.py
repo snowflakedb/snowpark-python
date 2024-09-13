@@ -33,12 +33,6 @@ from pandas._libs import lib
 from pandas._typing import ArrayLike, AxisInt, Dtype, Frequency, Hashable
 from pandas.core.dtypes.common import is_timedelta64_dtype
 
-from snowflake.snowpark import functions as fn
-from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
-    AggregateColumnOpParameters,
-    SnowflakeAggFunc,
-    aggregate_with_ordered_dataframe,
-)
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -46,7 +40,6 @@ from snowflake.snowpark.modin.plugin.extensions.index import Index
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     timedelta_index_not_implemented,
 )
-from snowflake.snowpark.types import LongType
 
 _CONSTRUCTOR_DEFAULTS = {
     "unit": lib.no_default,
@@ -434,26 +427,25 @@ class TimedeltaIndex(Index):
             raise ValueError(
                 f"axis should be 0 for TimedeltaIndex.mean, found '{axis}'"
             )
-        # TODO SNOW-1620439: Reuse code from Series.mean.
-        frame = self._query_compiler._modin_frame
-        index_id = frame.index_column_snowflake_quoted_identifiers[0]
-        new_index_id = frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
-            pandas_labels=["mean"]
-        )[0]
-        agg_column_op_params = AggregateColumnOpParameters(
-            index_id,
-            LongType(),
-            "mean",
-            new_index_id,
-            snowflake_agg_func=SnowflakeAggFunc(
-                preserves_snowpark_pandas_types=True, snowpark_aggregation=fn.mean
-            ),
-            ordering_columns=[],
+        pandas_dataframe_result = (
+            # reset_index(drop=False) copies the index column of
+            # self._query_compiler into a new data column. Use `drop=False`
+            # so that we don't have to use SQL row_number() to generate a new
+            # index column.
+            self._query_compiler.reset_index(drop=False)
+            # Aggregate the data column.
+            .agg("mean", axis=0, args=(), kwargs={"skipna": skipna})
+            # convert the query compiler to a pandas dataframe with
+            # dimensions 1x1 (note that the frame has a single row even
+            # if `self` is empty.)
+            .to_pandas()
         )
-        mean_value = aggregate_with_ordered_dataframe(
-            frame.ordered_dataframe, [agg_column_op_params], {"skipna": skipna}
-        ).collect()[0][0]
-        return native_pd.Timedelta(np.nan if mean_value is None else int(mean_value))
+        assert pandas_dataframe_result.shape == (
+            1,
+            1,
+        ), "Internal error: aggregation result is not 1x1."
+        # Return the only element in the frame.
+        return pandas_dataframe_result.iloc[0, 0]
 
     @timedelta_index_not_implemented()
     def as_unit(self, unit: str) -> TimedeltaIndex:

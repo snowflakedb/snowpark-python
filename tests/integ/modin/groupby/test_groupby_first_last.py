@@ -46,6 +46,17 @@ data_dictionary = {
             [np.nan],
         ]
     ),
+    "col11_timedelta": [
+        pd.Timedelta("1 days"),
+        None,
+        pd.Timedelta("2 days"),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    ],
 }
 
 

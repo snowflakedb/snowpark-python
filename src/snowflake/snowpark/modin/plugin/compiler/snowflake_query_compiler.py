@@ -3553,7 +3553,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_col_ops, new_data_column_index_names = generate_column_agg_info(
             internal_frame, column_to_agg_func, agg_kwargs, is_series_groupby
         )
-
         # the pandas label and quoted identifier generated for each result column
         # after aggregation will be used as new pandas label and quoted identifiers.
         new_data_column_pandas_labels = []
@@ -3570,7 +3569,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 and agg_col_op.snowflake_agg_func.preserves_snowpark_pandas_types
                 else None
             )
-
         # The ordering of the named aggregations is changed by us when we process
         # the agg_kwargs into the func dict (named aggregations on the same
         # column are moved to be contiguous, see groupby.py::aggregate for an
@@ -5636,8 +5634,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             args: the arguments passed for the aggregation
             kwargs: keyword arguments passed for the aggregation function.
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         numeric_only = kwargs.get("numeric_only", False)
         # Call fallback if the aggregation function passed in the arg is currently not supported
         # by snowflake engine.
@@ -5683,6 +5679,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             not is_list_like(value) for value in func.values()
         )
         if axis == 1:
+            if any(
+                isinstance(t, TimedeltaType)
+                for t in internal_frame.snowflake_quoted_identifier_to_snowpark_pandas_type.values()
+            ):
+                ErrorMessage.not_implemented_for_timedelta("agg(axis=1)")
             if self.is_multiindex():
                 # TODO SNOW-1010307 fix axis=1 behavior with MultiIndex
                 ErrorMessage.not_implemented(
@@ -5862,7 +5863,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     index_column_snowflake_quoted_identifiers=[
                         agg_name_col_quoted_identifier
                     ],
-                    data_column_types=None,
+                    data_column_types=[
+                        col.data_type
+                        if isinstance(col.data_type, SnowparkPandasType)
+                        and col.snowflake_agg_func.preserves_snowpark_pandas_types
+                        else None
+                        for col in col_agg_infos
+                    ],
                     index_column_types=None,
                 )
                 return SnowflakeQueryCompiler(single_agg_dataframe)
@@ -7374,46 +7381,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler
         """
         # TODO: SNOW-1634547: Implement remaining parameters by leveraging `merge` implementation
-        if (
-            by
-            or left_by
-            or right_by
-            or left_index
-            or right_index
-            or tolerance
-            or suffixes != ("_x", "_y")
-        ):
+        if left_index or right_index or tolerance or suffixes != ("_x", "_y"):
             ErrorMessage.not_implemented(
                 "Snowpark pandas merge_asof method does not currently support parameters "
-                + "'by', 'left_by', 'right_by', 'left_index', 'right_index', "
-                + "'suffixes', or 'tolerance'"
+                + "'left_index', 'right_index', 'suffixes', or 'tolerance'"
             )
         if direction not in ("backward", "forward"):
             ErrorMessage.not_implemented(
                 "Snowpark pandas merge_asof method only supports directions 'forward' and 'backward'"
             )
-
-        left_frame = self._modin_frame
-        right_frame = right._modin_frame
-        left_keys, right_keys = join_utils.get_join_keys(
-            left=left_frame,
-            right=right_frame,
-            on=on,
-            left_on=left_on,
-            right_on=right_on,
-            left_index=left_index,
-            right_index=right_index,
-        )
-        left_match_col = (
-            left_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-                left_keys
-            )[0][0]
-        )
-        right_match_col = (
-            right_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-                right_keys
-            )[0][0]
-        )
 
         if direction == "backward":
             match_comparator = (
@@ -7428,18 +7404,75 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 else MatchComparator.LESS_THAN
             )
 
-        coalesce_config = join_utils.get_coalesce_config(
-            left_keys=left_keys, right_keys=right_keys, external_join_keys=[]
+        left_frame = self._modin_frame
+        right_frame = right._modin_frame
+        # Get the left and right matching key and quoted identifier corresponding to the match_condition
+        # There will only be matching key/identifier for each table as there is only a single match condition
+        left_match_keys, right_match_keys = join_utils.get_join_keys(
+            left=left_frame,
+            right=right_frame,
+            on=on,
+            left_on=left_on,
+            right_on=right_on,
+            left_index=left_index,
+            right_index=right_index,
         )
+        left_match_identifier = (
+            left_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                left_match_keys
+            )[0][0]
+        )
+        right_match_identifier = (
+            right_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                right_match_keys
+            )[0][0]
+        )
+        coalesce_config = join_utils.get_coalesce_config(
+            left_keys=left_match_keys,
+            right_keys=right_match_keys,
+            external_join_keys=[],
+        )
+
+        # Get the left and right matching keys and quoted identifiers corresponding to the 'on' condition
+        if by or (left_by and right_by):
+            left_on_keys, right_on_keys = join_utils.get_join_keys(
+                left=left_frame,
+                right=right_frame,
+                on=by,
+                left_on=left_by,
+                right_on=right_by,
+            )
+            left_on_identifiers = [
+                ids[0]
+                for ids in left_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    left_on_keys
+                )
+            ]
+            right_on_identifiers = [
+                ids[0]
+                for ids in right_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    right_on_keys
+                )
+            ]
+            coalesce_config.extend(
+                join_utils.get_coalesce_config(
+                    left_keys=left_on_keys,
+                    right_keys=right_on_keys,
+                    external_join_keys=[],
+                )
+            )
+        else:
+            left_on_identifiers = []
+            right_on_identifiers = []
 
         joined_frame, _ = join_utils.join(
             left=left_frame,
             right=right_frame,
+            left_on=left_on_identifiers,
+            right_on=right_on_identifiers,
             how="asof",
-            left_on=[left_match_col],
-            right_on=[right_match_col],
-            left_match_col=left_match_col,
-            right_match_col=right_match_col,
+            left_match_col=left_match_identifier,
+            right_match_col=right_match_identifier,
             match_comparator=match_comparator,
             join_key_coalesce_config=coalesce_config,
             sort=True,
@@ -9108,7 +9141,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler
                 Transposed new QueryCompiler object.
         """
-        self._raise_not_implemented_error_for_timedelta()
+        if len(set(self._modin_frame.cached_data_column_snowpark_pandas_types)) > 1:
+            # In this case, transpose may lose types.
+            self._raise_not_implemented_error_for_timedelta()
 
         frame = self._modin_frame
 
@@ -12492,8 +12527,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         column would allow us to create an accurate row position column, but would require a
         potentially expensive JOIN operator afterwards to apply the correct index labels.
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         assert len(self._modin_frame.data_column_pandas_labels) == 1
 
         if index is not None:
@@ -12558,7 +12591,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ],
             index_column_pandas_labels=[None],
             index_column_snowflake_quoted_identifiers=[index_identifier],
-            data_column_types=None,
+            data_column_types=original_frame.cached_data_column_snowpark_pandas_types,
             index_column_types=None,
         )
         # We cannot call astype() directly to convert an index column, so we replicate
@@ -14566,8 +14599,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         return self._idxmax_idxmin(
             func="idxmax", axis=axis, skipna=skipna, numeric_only=numeric_only
         )
@@ -14592,8 +14623,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         return self._idxmax_idxmin(
             func="idxmin", axis=axis, skipna=skipna, numeric_only=numeric_only
         )
@@ -16657,6 +16686,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         tz: Union[str, tzinfo],
         ambiguous: str = "raise",
         nonexistent: str = "raise",
+        include_index: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Localize tz-naive to tz-aware.
@@ -16664,39 +16694,50 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             tz : str, pytz.timezone, optional
             ambiguous : {"raise", "inner", "NaT"} or bool mask, default: "raise"
             nonexistent : {"raise", "shift_forward", "shift_backward, "NaT"} or pandas.timedelta, default: "raise"
+            include_index: Whether to include the index columns in the operation.
 
         Returns:
             BaseQueryCompiler
                 New QueryCompiler containing values with localized time zone.
         """
+        dtype = self.index_dtypes[0] if include_index else self.dtypes[0]
+        if not include_index:
+            method_name = "Series.dt.tz_localize"
+        else:
+            assert is_datetime64_any_dtype(dtype), "column must be datetime"
+            method_name = "DatetimeIndex.tz_localize"
+
         if not isinstance(ambiguous, str) or ambiguous != "raise":
-            ErrorMessage.parameter_not_implemented_error(
-                "ambiguous", "Series.dt.tz_localize"
-            )
+            ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
         if not isinstance(nonexistent, str) or nonexistent != "raise":
-            ErrorMessage.parameter_not_implemented_error(
-                "nonexistent", "Series.dt.tz_localize"
-            )
+            ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
-                lambda column: tz_localize_column(column, tz)
+                lambda column: tz_localize_column(column, tz),
+                include_index,
             )
         )
 
-    def dt_tz_convert(self, tz: Union[str, tzinfo]) -> "SnowflakeQueryCompiler":
+    def dt_tz_convert(
+        self,
+        tz: Union[str, tzinfo],
+        include_index: bool = False,
+    ) -> "SnowflakeQueryCompiler":
         """
         Convert time-series data to the specified time zone.
 
         Args:
             tz : str, pytz.timezone
+            include_index: Whether to include the index columns in the operation.
 
         Returns:
             A new QueryCompiler containing values with converted time zone.
         """
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
-                lambda column: tz_convert_column(column, tz)
+                lambda column: tz_convert_column(column, tz),
+                include_index,
             )
         )
 
