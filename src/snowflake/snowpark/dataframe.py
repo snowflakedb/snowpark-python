@@ -104,6 +104,7 @@ from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_snowpark_column_or_col_name,
     build_expr_from_snowpark_column_or_sql_str,
     build_expr_from_snowpark_column_or_table_fn,
+    build_proto_from_pivot_values,
     fill_ast_for_column,
     with_src_position,
 )
@@ -1878,7 +1879,7 @@ class DataFrame:
             self,
             rollup_exprs,
             snowflake.snowpark.relational_grouped_dataframe._RollupType(),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
@@ -1942,7 +1943,7 @@ class DataFrame:
             self,
             grouping_exprs,
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
         if _emit_ast:
@@ -2000,7 +2001,7 @@ class DataFrame:
             self,
             [gs._to_expression for gs in parse_positional_args_to_list(*grouping_sets)],
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
@@ -2027,7 +2028,7 @@ class DataFrame:
             self,
             cube_exprs,
             snowflake.snowpark.relational_grouped_dataframe._CubeType(),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
     @df_api_usage
@@ -2192,7 +2193,12 @@ class DataFrame:
         """
 
         if _emit_ast:
-            raise NotImplementedError("TODO SNOW-1491297: Add coverage for pivot.")
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_pivot, stmt)
+            self.set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.pivot_col, pivot_col)
+            build_proto_from_pivot_values(ast.values, values)
+            build_expr_from_python_val(ast.default_on_null, default_on_null)
 
         target_df, pc, pivot_values, default_on_null = prepare_pivot_arguments(
             self, "DataFrame.pivot", pivot_col, values, default_on_null
@@ -2204,11 +2210,16 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._PivotType(
                 pc[0], pivot_values, default_on_null
             ),
+            _ast_stmt=stmt,
         )
 
     @df_api_usage
     def unpivot(
-        self, value_column: str, name_column: str, column_list: List[ColumnOrName]
+        self,
+        value_column: str,
+        name_column: str,
+        column_list: List[ColumnOrName],
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Rotates a table by transforming columns into rows.
         UNPIVOT is a relational operator that accepts two columns (from a table or subquery), along with a list of columns, and generates a row for each column specified in the list. In a query, it is specified in the FROM clause after the table name or subquery.
@@ -2237,11 +2248,22 @@ class DataFrame:
             ---------------------------------------------
             <BLANKLINE>
         """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_unpivot, stmt)
+            self.set_ast_ref(ast.df)
+            ast.value_column = value_column
+            ast.name_column = name_column
+            for c in column_list:
+                build_expr_from_snowpark_column_or_col_name(ast.column_list.add(), c)
+
         column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
         unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
 
-        if self._select_statement:
-            return self._with_plan(
+        df: DataFrame = (
+            self._with_plan(
                 SelectStatement(
                     from_=SelectSnowflakePlan(
                         unpivot_plan, analyzer=self._session._analyzer
@@ -2249,7 +2271,12 @@ class DataFrame:
                     analyzer=self._session._analyzer,
                 )
             )
-        return self._with_plan(unpivot_plan)
+            if self._select_statement
+            else self._with_plan(unpivot_plan)
+        )
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
+        return df
 
     @df_api_usage
     def limit(
