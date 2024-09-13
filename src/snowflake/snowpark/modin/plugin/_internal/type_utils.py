@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-from functools import reduce
+from functools import lru_cache, reduce
 from typing import Any, Callable, Union
 
 import numpy as np
@@ -31,6 +31,7 @@ from pandas.core.dtypes.common import is_bool_dtype, is_float_dtype, is_integer_
 
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.type_utils import infer_type, merge_type
+from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.functions import (
     builtin,
     cast,
@@ -39,6 +40,7 @@ from snowflake.snowpark.functions import (
     floor,
     iff,
     length,
+    to_char,
     to_varchar,
     to_variant,
 )
@@ -446,3 +448,23 @@ def is_compatible_snowpark_types(sp_type_1: DataType, sp_type_2: DataType) -> bo
     if isinstance(sp_type_1, StringType) and isinstance(sp_type_2, StringType):
         return True
     return False
+
+
+@lru_cache
+def _get_timezone_from_timestamp_tz(
+    snowpark_dataframe: SnowparkDataFrame, snowflake_quoted_identifier: str
+) -> Union[str, DatetimeTZDtype]:
+    tz_df = (
+        snowpark_dataframe.filter(col(snowflake_quoted_identifier).is_not_null())
+        .select(to_char(col(snowflake_quoted_identifier), format="TZHTZM").as_("tz"))
+        .group_by(["tz"])
+        .agg()
+        .limit(2)
+        .to_pandas()
+    )
+    assert (
+        len(tz_df) > 0
+    ), f"col {snowflake_quoted_identifier} does not contain valid timezone offset"
+    if len(tz_df) == 2:  # multi timezone cases
+        return "object"
+    return DatetimeTZDtype(tz="UTC" + tz_df.iloc[0, 0].replace("Z", ""))

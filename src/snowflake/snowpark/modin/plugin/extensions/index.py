@@ -45,7 +45,6 @@ from pandas.core.dtypes.common import (
     is_integer_dtype,
     is_numeric_dtype,
     is_object_dtype,
-    is_timedelta64_dtype,
     pandas_dtype,
 )
 from pandas.core.dtypes.inference import is_hashable
@@ -127,10 +126,9 @@ class Index(metaclass=TelemetryMeta):
         query_compiler = cls._init_query_compiler(
             data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs
         )
-        dtype = query_compiler.index_dtypes[0]
-        if is_datetime64_any_dtype(dtype):
+        if query_compiler.is_datetime64_any_dtype(idx=0, is_index=True):
             return DatetimeIndex(query_compiler=query_compiler)
-        if is_timedelta64_dtype(dtype):
+        if query_compiler.is_timedelta64_dtype(idx=0, is_index=True):
             return TimedeltaIndex(query_compiler=query_compiler)
         index = object.__new__(cls)
         # Initialize the Index

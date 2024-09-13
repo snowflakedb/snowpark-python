@@ -10,6 +10,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pandas import DatetimeTZDtype
 from pandas.core.arrays.boolean import BooleanDtype
 from pandas.core.arrays.floating import Float32Dtype, Float64Dtype
 from pandas.core.arrays.integer import (
@@ -218,11 +219,11 @@ def test_astype_to_DatetimeTZDtype(from_dtype, to_tz):
                 # use dypte=str instead of StringDType
                 native_pd.Series(seed, dtype=str).astype(to_dtype)
     else:
-        with SqlCounter(query_count=1):
+        with SqlCounter(query_count=2):
             s = pd.Series(seed, dtype=from_dtype).astype(to_dtype)
             # Snowflake timestamp_tz column's metadata does not contain the tzinfo so it cannot provide dtype as
             # datetime64[ns, UTC], so its dtype returns datetime64 or <M8[ns]
-            assert s.dtype == np.dtype("<M8[ns]")
+            assert s.dtype == DatetimeTZDtype(tz=offset_map[to_tz])
             #
             # native_pd.Series([0,1,2], dtype="float64").astype("datetime64[ns, Asia/Tokyo]")
             # 0             1970-01-01 00:00:00+09:00
@@ -286,7 +287,7 @@ def test_astype_from_DatetimeTZDtype_to_datetime64(from_tz):
     native = native_pd.Series([0, 1, 2, 3], dtype=from_dtype)
     snow = pd.Series(native)
     expected_dtype = get_expected_dtype(to_dtype)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=3):
         s = snow.astype(to_dtype)
         assert s.dtype == expected_dtype
         # Native pandas after 2.0 disallows using astype to convert from timzone-aware to timezone-naive
@@ -393,9 +394,9 @@ def test_python_datetime_astype_DatetimeTZDtype(seed):
             with pytest.raises(TypeError, match="cannot be converted"):
                 s.astype(to_dtype).to_pandas()
     else:
-        with SqlCounter(query_count=1):
+        with SqlCounter(query_count=2):
             snow = s.astype(to_dtype)
-            assert snow.dtype == np.dtype("<M8[ns]")
+            assert snow.dtype == to_dtype
             expected_to_pandas = native.astype(to_dtype)
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 snow,
