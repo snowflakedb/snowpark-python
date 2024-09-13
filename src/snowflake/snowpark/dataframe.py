@@ -2215,7 +2215,11 @@ class DataFrame:
 
     @df_api_usage
     def unpivot(
-        self, value_column: str, name_column: str, column_list: List[ColumnOrName]
+        self,
+        value_column: str,
+        name_column: str,
+        column_list: List[ColumnOrName],
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Rotates a table by transforming columns into rows.
         UNPIVOT is a relational operator that accepts two columns (from a table or subquery), along with a list of columns, and generates a row for each column specified in the list. In a query, it is specified in the FROM clause after the table name or subquery.
@@ -2245,13 +2249,15 @@ class DataFrame:
             <BLANKLINE>
         """
         # AST.
-        stmt = self._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_unpivot, stmt)
-        self.set_ast_ref(ast.df)
-        ast.value_column = value_column
-        ast.name_column = name_column
-        for c in column_list:
-            build_expr_from_snowpark_column_or_col_name(ast.column_list.add(), c)
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_unpivot, stmt)
+            self.set_ast_ref(ast.df)
+            ast.value_column = value_column
+            ast.name_column = name_column
+            for c in column_list:
+                build_expr_from_snowpark_column_or_col_name(ast.column_list.add(), c)
 
         column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
         unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
@@ -2268,7 +2274,8 @@ class DataFrame:
             if self._select_statement
             else self._with_plan(unpivot_plan)
         )
-        df._ast_id = stmt.var_id.bitfield1
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
         return df
 
     @df_api_usage
