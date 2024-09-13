@@ -11,16 +11,13 @@
 #### New Features
 
 - Added support for `TimedeltaIndex.mean` method.
-<<<<<<< asof_join_refactor
-- Added support for `by`, `left_by`, and `right_by` for `pd.merge_asof`.
-=======
 - Added support for some cases of aggregating `Timedelta` columns on `axis=0` with `agg` or `aggregate`.
+- Added support for `by`, `left_by`, and `right_by` for `pd.merge_asof`.
 
 
 ## 1.22.1 (2024-09-11)
 This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for detailed release content.
 
->>>>>>> main
 
 ## 1.22.0 (2024-09-10)
 
