@@ -34,20 +34,29 @@ else:
     from collections.abc import Iterable
 
 
-def _convert_boundary_to_expr(start: int, end: int) -> Tuple[Expression, Expression]:
-    if start == 0:
-        boundary_start = CurrentRow()
-    elif start <= Window.UNBOUNDED_PRECEDING:
-        boundary_start = UnboundedPreceding()
+def _convert_boundary_to_expr(
+    start: Union[int, "snowflake.snowpark.Column"],
+    end: Union[int, "snowflake.snowpark.Column"],
+) -> Tuple[Expression, Expression]:
+    if isinstance(start, int):
+        if start == 0:
+            boundary_start = CurrentRow()
+        elif start <= Window.UNBOUNDED_PRECEDING:
+            boundary_start = UnboundedPreceding()
+        else:
+            boundary_start = Literal(start)
     else:
-        boundary_start = Literal(start)
+        boundary_start = start._expression
 
-    if end == 0:
-        boundary_end = CurrentRow()
-    elif end >= Window.UNBOUNDED_FOLLOWING:
-        boundary_end = UnboundedFollowing()
+    if isinstance(end, int):
+        if end == 0:
+            boundary_end = CurrentRow()
+        elif end >= Window.UNBOUNDED_FOLLOWING:
+            boundary_end = UnboundedFollowing()
+        else:
+            boundary_end = Literal(end)
     else:
-        boundary_end = Literal(end)
+        boundary_end = end._expression
 
     return boundary_start, boundary_end
 
@@ -132,9 +141,27 @@ class Window:
         return Window._spec().rows_between(start, end)
 
     @staticmethod
-    def range_between(start: int, end: int) -> "WindowSpec":
+    def range_between(
+        start: Union[int, "snowflake.snowpark.Column"],
+        end: Union[int, "snowflake.snowpark.Column"],
+    ) -> "WindowSpec":
         """
         Returns a :class:`WindowSpec` object with the range frame clause.
+        ``start`` and ``end`` can be
+
+            - an integer representing the relative position from the current row, or
+
+            - :attr:`Window.UNBOUNDED_PRECEDING`, :attr:`Window.UNBOUNDED_FOLLOWING`
+              and :attr:`Window.CURRENT_ROW`, which represent unbounded preceding,
+              unbounded following and current row respectively, or
+
+            - a :class:`~snowflake.snowpark.column.Column` object created by
+              :func:`~snowflake.snowpark.functions.make_interval` to use
+              `Interval constants <https://docs.snowflake.com/en/sql-reference/data-types-datetime#interval-constants>`_.
+              Interval constants can only be used with this function when the order by column is TIMESTAMP or DATE type
+              See more details how to use interval constants in
+              `RANGE BETWEEN <https://docs.snowflake.com/sql-reference/functions-analytic#label-range-between-syntax-desc>`_
+              clause. However, you cannot mix the numeric values and interval constants in the same range frame clause.
 
         Args:
             start: The relative position from the current row as a boundary start (inclusive).
@@ -144,10 +171,52 @@ class Window:
                 The frame is unbounded if this is :attr:`Window.UNBOUNDED_FOLLOWING`, or any
                 value greater than or equal to 9223372036854775807 (``sys.maxsize``).
 
-        Note:
-            You can use :attr:`Window.UNBOUNDED_PRECEDING`, :attr:`Window.UNBOUNDED_FOLLOWING`,
-            and :attr:`Window.CURRENT_ROW` to specify ``start`` and ``end``, instead of using
-            integral values directly.
+        Example 1
+            Use numeric values to specify the range frame:
+
+            >>> from snowflake.snowpark.functions import col, count, make_interval
+            >>>
+            >>> df = session.range(5)
+            >>> window = Window.order_by("id").range_between(-1, Window.CURRENT_ROW)
+            >>> df.select(col("id"), count("id").over(window).as_("count")).show()
+            ------------------
+            |"ID"  |"COUNT"  |
+            ------------------
+            |0     |1        |
+            |1     |2        |
+            |2     |2        |
+            |3     |2        |
+            |4     |2        |
+            ------------------
+            <BLANKLINE>
+
+        Example 2
+            Use interval constants to specify the range frame:
+
+            >>> import datetime
+            >>> from snowflake.snowpark.types import StructType, StructField, TimestampType, TimestampTimeZone
+            >>>
+            >>> df = session.create_dataframe(
+            ...    [
+            ...        datetime.datetime(2021, 12, 21, 9, 12, 56),
+            ...        datetime.datetime(2021, 12, 21, 8, 12, 56),
+            ...        datetime.datetime(2021, 12, 21, 7, 12, 56),
+            ...        datetime.datetime(2021, 12, 21, 6, 12, 56),
+            ...    ],
+            ...    schema=StructType([StructField("a", TimestampType(TimestampTimeZone.NTZ))]),
+            ... )
+            >>> window = Window.order_by(col("a").desc()).range_between(-make_interval(hours=1), make_interval(hours=1))
+            >>> df.select(col("a"), count("a").over(window).as_("count")).show()
+            ---------------------------------
+            |"A"                  |"COUNT"  |
+            ---------------------------------
+            |2021-12-21 09:12:56  |2        |
+            |2021-12-21 08:12:56  |3        |
+            |2021-12-21 07:12:56  |3        |
+            |2021-12-21 06:12:56  |2        |
+            ---------------------------------
+            <BLANKLINE>
+
         """
         return Window._spec().range_between(start, end)
 
@@ -241,7 +310,11 @@ class WindowSpec:
             SpecifiedWindowFrame(RowFrame(), boundary_start, boundary_end),
         )
 
-    def range_between(self, start: int, end: int) -> "WindowSpec":
+    def range_between(
+        self,
+        start: Union[int, "snowflake.snowpark.Column"],
+        end: Union[int, "snowflake.snowpark.Column"],
+    ) -> "WindowSpec":
         """
         Returns a new :class:`WindowSpec` object with the new range frame clause.
 
