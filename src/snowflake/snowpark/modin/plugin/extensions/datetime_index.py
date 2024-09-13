@@ -43,6 +43,7 @@ from pandas._typing import (
 )
 from pandas.core.dtypes.common import is_datetime64_any_dtype
 
+from snowflake.snowpark.modin.pandas import to_datetime, to_timedelta
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -1500,6 +1501,8 @@ default 'raise'
         skipna : bool, default True
             Whether to ignore any NaT elements.
         axis : int, optional, default 0
+            The axis to calculate the mean over.
+            This parameter is ignored - 0 is the only valid axis.
 
         Returns
         -------
@@ -1522,21 +1525,22 @@ default 'raise'
         >>> idx.mean()
         Timestamp('2001-01-02 00:00:00')
         """
-        return (
-            self.to_series()
-            .agg("mean", axis=axis, skipna=skipna)
-            .to_pandas()
-            .squeeze(axis=1)
+        # Need to convert timestamp to int value (nanoseconds) before aggregating.
+        # TODO: SNOW-1625233 When `tz` is supported, add a `tz` parameter to `to_datetime` for correct timezone result.
+        if axis not in [None, 0]:
+            raise ValueError(
+                f"axis={axis} is not supported, this parameter is ignored. 0 is the only valid axis."
+            )
+        return to_datetime(
+            self.to_series().astype("int64").agg("mean", axis=0, skipna=skipna)
         )
 
     def std(
         self,
-        axis=None,
-        dtype=None,
-        out=None,
+        axis: AxisInt | None = None,
         ddof: int = 1,
-        keepdims: bool = False,
         skipna: bool = True,
+        **kwargs,
     ) -> timedelta:
         """
         Return sample standard deviation over requested axis.
@@ -1546,11 +1550,12 @@ default 'raise'
         Parameters
         ----------
         axis : int, optional
-            Axis for the function to be applied on. For :class:`pandas.Series`
-            this parameter is unused and defaults to ``None``.
+            The axis to calculate the standard deviation over.
+            This parameter is ignored - 0 is the only valid axis.
         ddof : int, default 1
             Degrees of Freedom. The divisor used in calculations is `N - ddof`,
             where `N` represents the number of elements.
+            This parameter is not yet supported.
         skipna : bool, default True
             Exclude NA/null values. If an entire row/column is ``NA``, the result
             will be ``NA``.
@@ -1575,13 +1580,19 @@ default 'raise'
         >>> idx.std()
         Timedelta('1 days 00:00:00')
         """
-        kwargs = {
-            "dtype": dtype,
-            "out": out,
-            "ddof": ddof,
-            "keepdims": keepdims,
-            "skipna": skipna,
-        }
-        return (
-            self.to_series().agg("std", axis=axis, **kwargs).to_pandas().squeeze(axis=1)
+        if axis not in [None, 0]:
+            raise ValueError(
+                f"axis={axis} is not supported, this parameter is ignored. 0 is the only valid axis."
+            )
+        if ddof != 1:
+            raise NotImplementedError(
+                "`ddof` parameter is not yet supported for `std`."
+            )
+        # Need to convert timestamp to a float type to prevent overflow when aggregating.
+        # Cannot directly convert a timestamp to a float; therefore, first convert it to an int then a float.
+        return to_timedelta(
+            self.to_series()
+            .astype(int)
+            .astype(float)
+            .agg("std", axis=0, ddof=ddof, skipna=skipna, **kwargs)
         )
