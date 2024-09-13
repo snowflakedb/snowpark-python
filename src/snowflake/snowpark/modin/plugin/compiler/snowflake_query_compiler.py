@@ -16660,6 +16660,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         tz: Union[str, tzinfo],
         ambiguous: str = "raise",
         nonexistent: str = "raise",
+        include_index: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Localize tz-naive to tz-aware.
@@ -16667,39 +16668,50 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             tz : str, pytz.timezone, optional
             ambiguous : {"raise", "inner", "NaT"} or bool mask, default: "raise"
             nonexistent : {"raise", "shift_forward", "shift_backward, "NaT"} or pandas.timedelta, default: "raise"
+            include_index: Whether to include the index columns in the operation.
 
         Returns:
             BaseQueryCompiler
                 New QueryCompiler containing values with localized time zone.
         """
+        dtype = self.index_dtypes[0] if include_index else self.dtypes[0]
+        if not include_index:
+            method_name = "Series.dt.tz_localize"
+        else:
+            assert is_datetime64_any_dtype(dtype), "column must be datetime"
+            method_name = "DatetimeIndex.tz_localize"
+
         if not isinstance(ambiguous, str) or ambiguous != "raise":
-            ErrorMessage.parameter_not_implemented_error(
-                "ambiguous", "Series.dt.tz_localize"
-            )
+            ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
         if not isinstance(nonexistent, str) or nonexistent != "raise":
-            ErrorMessage.parameter_not_implemented_error(
-                "nonexistent", "Series.dt.tz_localize"
-            )
+            ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
-                lambda column: tz_localize_column(column, tz)
+                lambda column: tz_localize_column(column, tz),
+                include_index,
             )
         )
 
-    def dt_tz_convert(self, tz: Union[str, tzinfo]) -> "SnowflakeQueryCompiler":
+    def dt_tz_convert(
+        self,
+        tz: Union[str, tzinfo],
+        include_index: bool = False,
+    ) -> "SnowflakeQueryCompiler":
         """
         Convert time-series data to the specified time zone.
 
         Args:
             tz : str, pytz.timezone
+            include_index: Whether to include the index columns in the operation.
 
         Returns:
             A new QueryCompiler containing values with converted time zone.
         """
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
-                lambda column: tz_convert_column(column, tz)
+                lambda column: tz_convert_column(column, tz),
+                include_index,
             )
         )
 

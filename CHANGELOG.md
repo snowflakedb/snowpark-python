@@ -125,6 +125,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Added support for `Series.dt.total_seconds` method.
 - Added support for `DataFrame.apply(axis=0)`.
 - Added support for `Series.dt.tz_convert` and `Series.dt.tz_localize`.
+- Added support for `DatetimeIndex.tz_convert` and `DatetimeIndex.tz_localize`.
 
 #### Improvements
 
