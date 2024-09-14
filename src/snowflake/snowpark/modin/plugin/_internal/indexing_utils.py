@@ -585,8 +585,6 @@ def _get_adjusted_key_frame_by_row_pos_int_frame(
         key,
         count_frame,
         "cross",
-        left_on=[],
-        right_on=[],
         inherit_join_index=InheritJoinIndex.FROM_LEFT,
     )
 

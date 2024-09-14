@@ -18,6 +18,7 @@ from tests.integ.modin.utils import (
     MAP_DATA_AND_TYPE,
     MIXED_NUMERIC_STR_DATA_AND_TYPE,
     TIMESTAMP_DATA_AND_TYPE,
+    create_test_dfs,
     eval_snowpark_pandas_result,
 )
 
@@ -559,20 +560,12 @@ def test_groupby_agg_invalid_min_count(
 
 
 @sql_count_checker(query_count=0)
-def test_groupby_var_no_support_for_timedelta():
-    native_df = native_pd.DataFrame(
-        {
-            "A": native_pd.to_timedelta(
-                ["1 days 06:05:01.00003", "15.5us", "nan", "16us"]
-            ),
-            "B": [8, 8, 12, 10],
-        }
-    )
-    snow_df = pd.DataFrame(native_df)
-    with pytest.raises(
-        NotImplementedError,
-        match=re.escape(
-            "SnowflakeQueryCompiler::groupby_agg is not yet implemented for Timedelta Type"
+def test_timedelta_var_invalid():
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            [["key0", pd.Timedelta(1)]],
         ),
-    ):
-        snow_df.groupby("B").var()
+        lambda df: df.groupby(0).var(),
+        expect_exception=True,
+        expect_exception_type=TypeError,
+    )

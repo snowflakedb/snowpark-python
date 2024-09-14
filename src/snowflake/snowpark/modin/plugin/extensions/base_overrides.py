@@ -60,7 +60,6 @@ from pandas.util._validators import (
     validate_percentile,
 )
 
-import snowflake.snowpark.modin.pandas as spd
 from snowflake.snowpark.modin.pandas.api.extensions import (
     register_dataframe_accessor,
     register_series_accessor,
@@ -88,8 +87,6 @@ def register_base_override(method_name: str):
     for directly overriding methods on BasePandasDataset, we mock this by performing the override on
     DataFrame and Series, and manually performing a `setattr` on the base class. These steps are necessary
     to allow both the docstring extension and method dispatch to work properly.
-
-    Methods annotated here also are automatically instrumented with Snowpark pandas telemetry.
     """
 
     def decorator(base_method: Any):
@@ -103,10 +100,7 @@ def register_base_override(method_name: str):
             series_method = series_method.fget
         if series_method is None or series_method is parent_method:
             register_series_accessor(method_name)(base_method)
-        # TODO: SNOW-1063346
-        # Since we still use the vendored version of DataFrame and the overrides for the top-level
-        # namespace haven't been performed yet, we need to set properties on the vendored version
-        df_method = getattr(spd.dataframe.DataFrame, method_name, None)
+        df_method = getattr(pd.DataFrame, method_name, None)
         if isinstance(df_method, property):
             df_method = df_method.fget
         if df_method is None or df_method is parent_method:
@@ -174,6 +168,22 @@ def filter(
     self, items=None, like=None, regex=None, axis=None
 ):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
+
+
+@register_base_not_implemented()
+def interpolate(
+    self,
+    method="linear",
+    *,
+    axis=0,
+    limit=None,
+    inplace=False,
+    limit_direction: str | None = None,
+    limit_area=None,
+    downcast=lib.no_default,
+    **kwargs,
+):  # noqa: PR01, RT01, D200
+    pass
 
 
 @register_base_not_implemented()
@@ -813,7 +823,7 @@ def _binary_op(
         **kwargs,
     )
 
-    from snowflake.snowpark.modin.pandas.dataframe import DataFrame
+    from modin.pandas.dataframe import DataFrame
 
     # Modin Bug: https://github.com/modin-project/modin/issues/7236
     # For a Series interacting with a DataFrame, always return a DataFrame

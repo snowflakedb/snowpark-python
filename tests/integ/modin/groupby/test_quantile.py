@@ -64,6 +64,14 @@ from tests.utils import running_on_public_ci
         # ),
         # All NA
         ([np.nan] * 5, [np.nan] * 5),
+        pytest.param(
+            pd.timedelta_range(
+                "1 days",
+                "5 days",
+            ),
+            pd.timedelta_range("1 second", "5 second"),
+            id="timedelta",
+        ),
     ],
 )
 @pytest.mark.parametrize("q", [0, 0.5, 1])
