@@ -13,6 +13,7 @@ import numpy as np
 import pandas as native_pd
 from pandas._typing import Scalar
 from pandas.core.dtypes.common import is_integer_dtype, is_object_dtype, is_scalar
+from pandas.core.dtypes.inference import is_list_like
 
 import snowflake.snowpark.modin.pandas as pd
 import snowflake.snowpark.modin.plugin._internal.statement_params_constants as STATEMENT_PARAMS
@@ -1995,3 +1996,68 @@ def create_frame_with_data_columns(
 def rindex(lst: list, value: int) -> int:
     """Find the last index in the list of item value."""
     return len(lst) - lst[::-1].index(value) - 1
+
+
+def convert_index_to_qc(index: Any) -> Any:
+    """
+    Method to convert an object representing an index into a query compiler for set_index or reindex.
+
+    Parameters
+    ----------
+    index: Any
+        The object to convert to a query compiler.
+
+    Returns
+    -------
+    SnowflakeQueryCompiler
+        The converted query compiler.
+    """
+    from modin.pandas import Series
+
+    from snowflake.snowpark.modin.plugin.extensions.index import Index
+
+    if isinstance(index, Index):
+        idx_qc = index.to_series()._query_compiler
+    elif isinstance(index, Series):
+        idx_qc = index._query_compiler
+    else:
+        idx_qc = Series(index)._query_compiler
+    return idx_qc
+
+
+def convert_index_to_list_of_qcs(index: Any) -> list:
+    """
+    Method to convert an object representing an index into a list of query compilers for set_index.
+
+    Parameters
+    ----------
+    index: Any
+        The object to convert to a list of query compilers.
+
+    Returns
+    -------
+    list
+        The list of query compilers.
+    """
+    from modin.pandas import Series
+
+    from snowflake.snowpark.modin.plugin.extensions.index import Index
+
+    if (
+        not isinstance(index, (native_pd.MultiIndex, Series, Index))
+        and is_list_like(index)
+        and len(index) > 0
+        and all((is_list_like(i) and not isinstance(i, tuple)) for i in index)
+    ):
+        # If given a list of lists, convert it to a MultiIndex.
+        index = native_pd.MultiIndex.from_arrays(index)
+    if isinstance(index, native_pd.MultiIndex):
+        index_qc_list = [
+            s._query_compiler
+            for s in [
+                Series(index.get_level_values(level)) for level in range(index.nlevels)
+            ]
+        ]
+    else:
+        index_qc_list = [convert_index_to_qc(index)]
+    return index_qc_list

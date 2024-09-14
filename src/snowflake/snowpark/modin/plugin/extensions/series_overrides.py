@@ -51,6 +51,10 @@ from pandas.util._validators import validate_bool_kwarg
 from snowflake.snowpark.modin import pandas as spd  # noqa: F401
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
 from snowflake.snowpark.modin.pandas.utils import from_pandas, is_scalar
+from snowflake.snowpark.modin.plugin._internal.utils import (
+    convert_index_to_list_of_qcs,
+    convert_index_to_qc,
+)
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -374,13 +378,29 @@ def __init__(
 
     from snowflake.snowpark.modin.plugin.extensions.index import Index
 
-    if query_compiler:
-        # CASE 1: query_compiler
+    # 0. Setting the query compiler
+    # -----------------------------
+    if query_compiler is not None:
+        # CASE I: query_compiler
         # If a query_compiler is passed in, only use the query_compiler and name fields to create a new Series.
+        assert (
+            data is None
+        ), "Invalid Series construction! Cannot pass both data and query_compiler."
+        assert (
+            index is None
+        ), "Invalid Series construction! Cannot pass both index and query_compiler."
         self._query_compiler = query_compiler.columnarize()
         if name is not None:
             self.name = name
         return
+
+    if isinstance(index, spd.DataFrame):  # pandas raises the same error
+        raise ValueError("Index data must be 1-dimensional")
+
+    if isinstance(data, spd.DataFrame):
+        # pandas raises an ambiguous error:
+        # ValueError: The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().
+        raise ValueError("Data cannot be a DataFrame")
 
     # The logic followed here is:
     # 1. Create a query_compiler from the provided data.
@@ -388,36 +408,50 @@ def __init__(
     # 3. The resultant query_compiler is columnarized and set as the query_compiler for the Series.
     # 4. If a name is provided, set the name.
 
+    # 1. Setting the data
+    # -------------------
     if isinstance(data, Index):
-        # CASE 2: Index
+        # CASE II: Index
         # If the data is an Index object, convert it to a Series, and get the query_compiler.
         query_compiler = (
             data.to_series(index=None, name=name).reset_index(drop=True)._query_compiler
         )
 
     elif isinstance(data, type(self)):
-        # CASE 3: Series
+        # CASE III: Series
         # If the data is a Series object, copy the query_compiler.
         query_compiler = data._query_compiler.copy()
 
     else:
-        # CASE 4: Non-Snowpark pandas data
+        # CASE IV: Non-Snowpark pandas data
         # If the data is not a Snowpark pandas object, convert it to a query compiler.
-        name = MODIN_UNNAMED_SERIES_LABEL if name is None else name
-        dummy_index = None
-        if not isinstance(index, (Index, type(self))):
-            dummy_index = index
+        name = name or MODIN_UNNAMED_SERIES_LABEL
         if (
             isinstance(data, (native_pd.Series, native_pd.Index))
             and data.name is not None
         ):
             name = data.name
+        # If any of the values are Snowpark pandas objects, convert them to native pandas objects.
+        if not isinstance(
+            data, (native_pd.DataFrame, native_pd.Series, native_pd.Index)
+        ) and is_list_like(data):
+            if is_dict_like(data):
+                data = {
+                    k: v.to_list() if isinstance(v, (Index, BasePandasDataset)) else v
+                    for k, v in data.items()
+                }
+            else:
+                data = [
+                    v.to_list() if isinstance(v, (Index, BasePandasDataset)) else v
+                    for v in data
+                ]
         query_compiler = from_pandas(
             native_pd.DataFrame(
                 native_pd.Series(
                     data=data,
                     dtype=dtype,
-                    index=dummy_index,
+                    # Handle setting the index, if it is a lazy index, outside this block.
+                    index=None if isinstance(index, (Index, Series)) else index,
                     name=name,
                     copy=copy,
                     fastpath=fastpath,
@@ -425,8 +459,10 @@ def __init__(
             )
         )._query_compiler
 
-    # The index is already set if the data is a non-Snowpark pandas object. If either the data or the index is
-    # a Snowpark pandas object, set the index here.
+    # 2. Setting the index
+    # --------------------
+    # The index is already set if the data is a non-Snowpark pandas object.
+    # If either the data or the index is a Snowpark pandas object, set the index here.
     if index is not None and (
         isinstance(index, (Index, type(self))) or isinstance(data, (Index, type(self)))
     ):
@@ -435,45 +471,17 @@ def __init__(
             # If a value in `index` is not present in `data`'s index, it will be filled with a NaN value.
             # If data is None and an index is provided, all the values in the Series will be NaN and the index
             # will be the provided index.
-            labels = index
-            if isinstance(labels, Index):
-                labels = labels.to_series()._query_compiler
-            elif isinstance(labels, Series):  # pragma: no cover
-                labels = labels._query_compiler
-            else:  # pragma: no cover
-                labels = Index(labels).to_series()._query_compiler
-            query_compiler = query_compiler.reindex(axis=0, labels=labels)
-
+            query_compiler = query_compiler.reindex(
+                axis=0, labels=convert_index_to_qc(index)
+            )
         else:
             # Performing set index to directly set the index column (joining on row-position instead of index).
-            if isinstance(index, Series):
-                index_qc_list = [index._query_compiler]
-            elif isinstance(index, Index):
-                index_qc_list = [index.to_series()._query_compiler]
-            else:
-                if (
-                    not isinstance(index, native_pd.MultiIndex)
-                    and is_list_like(index)
-                    and len(index) > 0
-                    and all(
-                        (not isinstance(i, tuple) and is_list_like(i)) for i in index
-                    )
-                ):
-                    # If given a list of lists, convert it to a MultiIndex.
-                    index = native_pd.MultiIndex.from_arrays(index)
-                if isinstance(index, native_pd.MultiIndex):
-                    index_qc_list = [
-                        s._query_compiler
-                        for s in [
-                            pd.Series(index.get_level_values(level))
-                            for level in range(index.nlevels)
-                        ]
-                    ]
-                else:
-                    index_qc_list = [Series(index)._query_compiler]  # pragma: no cover
-            query_compiler = query_compiler.set_index(index_qc_list)
+            query_compiler = query_compiler.set_index(
+                convert_index_to_list_of_qcs(index)
+            )
 
-    # Set the query compiler and name fields.
+    # 3 and 4. Setting the query compiler and name
+    # --------------------------------------------
     self._query_compiler = query_compiler.columnarize()
     if name is not None:
         self.name = name
