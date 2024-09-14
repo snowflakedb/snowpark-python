@@ -69,6 +69,7 @@ _inherit_docstrings = snowflake.snowpark.modin.utils._inherit_docstrings
 
 inherit_modules = [
     (docstrings.base.BasePandasDataset, modin.pandas.base.BasePandasDataset),
+    (docstrings.dataframe.DataFrame, modin.pandas.dataframe.DataFrame),
     (docstrings.series.Series, modin.pandas.series.Series),
     (docstrings.series_utils.StringMethods, modin.pandas.series_utils.StringMethods),
     (
@@ -90,17 +91,3 @@ for (doc_module, target_object) in inherit_modules:
 snowflake.snowpark._internal.utils.should_warn_dynamic_pivot_is_in_private_preview = (
     False
 )
-
-
-# TODO: SNOW-1504302: Modin upgrade - use Snowpark pandas DataFrame for isocalendar
-# OSS Modin's DatetimeProperties frontend class wraps the returned query compiler with `modin.pandas.DataFrame`.
-# Since we currently replace `pd.DataFrame` with our own Snowpark pandas DataFrame object, this causes errors
-# since OSS Modin explicitly imports its own DataFrame class here. This override can be removed once the frontend
-# DataFrame class is removed from our codebase.
-def isocalendar(self):  # type: ignore
-    from snowflake.snowpark.modin.pandas import DataFrame
-
-    return DataFrame(query_compiler=self._query_compiler.dt_isocalendar())
-
-
-modin.pandas.series_utils.DatetimeProperties.isocalendar = isocalendar
