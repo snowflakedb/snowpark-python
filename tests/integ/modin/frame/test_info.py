@@ -13,9 +13,7 @@ from tests.integ.modin.sql_counter import sql_count_checker
 
 def _assert_info_lines_equal(modin_info: list[str], pandas_info: list[str]):
     # class is different
-    assert (
-        modin_info[0] == "<class 'snowflake.snowpark.modin.pandas.dataframe.DataFrame'>"
-    )
+    assert modin_info[0] == "<class 'modin.pandas.dataframe.DataFrame'>"
     assert pandas_info[0] == "<class 'pandas.core.frame.DataFrame'>"
 
     # index is different

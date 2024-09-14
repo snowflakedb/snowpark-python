@@ -1276,7 +1276,7 @@ def check_snowpark_pandas_object_in_arg(arg: Any) -> bool:
             if check_snowpark_pandas_object_in_arg(v):
                 return True
     else:
-        from snowflake.snowpark.modin.pandas import DataFrame, Series
+        from modin.pandas import DataFrame, Series
 
         return isinstance(arg, (DataFrame, Series))
 
