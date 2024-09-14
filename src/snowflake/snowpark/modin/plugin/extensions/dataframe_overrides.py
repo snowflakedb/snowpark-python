@@ -125,10 +125,8 @@ def register_dataframe_not_implemented():
 # Avoid overwriting builtin `map` by accident
 @register_dataframe_accessor("map")
 @dataframe_not_implemented()
-def _map(
-    self, func, na_action: str | None = None, **kwargs
-) -> DataFrame:  # pragma: no cover
-    pass
+def _map(self, func, na_action: str | None = None, **kwargs) -> DataFrame:
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
@@ -146,38 +144,38 @@ def boxplot(
     backend=None,
     **kwargs,
 ):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
 def combine(
     self, other, func, fill_value=None, overwrite=True
 ):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
 def corrwith(
     self, other, axis=0, drop=False, method="pearson", numeric_only=False
 ):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
 def cov(
     self, min_periods=None, ddof: int | None = 1, numeric_only=False
 ):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
 def dot(self, other):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
 def eval(self, expr, inplace=False, **kwargs):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
@@ -198,12 +196,12 @@ def hist(
     bins=10,
     **kwds,
 ):
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
 def isetitem(self, loc, value):
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
@@ -215,7 +213,7 @@ def prod(
     min_count=0,
     **kwargs,
 ):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 register_dataframe_accessor("product")(prod)
@@ -223,7 +221,7 @@ register_dataframe_accessor("product")(prod)
 
 @register_dataframe_not_implemented()
 def query(self, expr, inplace=False, **kwargs):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
@@ -235,12 +233,12 @@ def reindex_like(
     limit=None,
     tolerance=None,
 ) -> DataFrame:  # pragma: no cover
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
 def to_feather(self, path, **kwargs):  # pragma: no cover # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
@@ -257,12 +255,12 @@ def to_gbq(
     progress_bar=True,
     credentials=None,
 ):  # pragma: no cover # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
 def to_orc(self, path=None, *, engine="pyarrow", index=None, engine_kwargs=None):
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
@@ -292,7 +290,7 @@ def to_html(
     render_links=False,
     encoding=None,
 ):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
@@ -306,21 +304,21 @@ def to_parquet(
     storage_options: StorageOptions = None,
     **kwargs,
 ):
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
 def to_period(
     self, freq=None, axis=0, copy=True
 ):  # pragma: no cover # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
 def to_records(
     self, index=True, column_dtypes=None, index_dtypes=None
 ):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
@@ -340,7 +338,7 @@ def to_stata(
     *,
     value_labels: dict[Hashable, dict[float | int, str]] | None = None,
 ):
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
@@ -363,41 +361,41 @@ def to_xml(
     compression="infer",
     storage_options=None,
 ):
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
 def __delitem__(self, key):
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_accessor("attrs")
 @dataframe_not_implemented()
 @property
 def attrs(self):  # noqa: RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_accessor("style")
 @dataframe_not_implemented()
 @property
 def style(self):  # noqa: RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
 def __reduce__(self):
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
 def __divmod__(self, other):
-    pass
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()
 def __rdivmod__(self, other):
-    pass
+    pass  # pragma: no cover
 
 
 # The from_dict and from_records accessors are class methods and cannot be overridden via the
@@ -407,7 +405,7 @@ def __rdivmod__(self, other):
 def from_dict(
     cls, data, orient="columns", dtype=None, columns=None
 ):  # pragma: no cover # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 DataFrame.from_dict = from_dict
@@ -423,7 +421,7 @@ def from_records(
     coerce_float=False,
     nrows=None,
 ):  # pragma: no cover # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 DataFrame.from_records = from_records
