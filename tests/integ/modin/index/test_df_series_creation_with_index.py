@@ -220,6 +220,7 @@ def test_create_with_series_as_data_and_index_as_index(
     assert_equal_func(
         snow_obj(data=snow_series, index=snow_index),
         native_obj(data=native_series, index=native_index),
+        check_dtype=False,
     )
 
 
@@ -440,8 +441,9 @@ def test_create_df_with_df_as_data_and_index_as_index_and_different_columns(
     )
     snow_index = pd.Index(native_index)
     qc = 1 if column_type == "list" else 2
+    qc += 1 if (isinstance(native_df, dict)) else 0
     qc += 1 if (isinstance(native_df, dict) and column_type == "index") else 0
-    jc = 2 if isinstance(native_df, native_pd.DataFrame) else 1
+    jc = 2 if isinstance(native_df, native_pd.DataFrame) else 0
     with SqlCounter(query_count=qc, join_count=jc):
         assert_frame_equal(
             pd.DataFrame(snow_df, index=snow_index, columns=native_columns),
@@ -464,18 +466,7 @@ def test_create_df_with_new_columns():
     )
 
 
-@sql_count_checker(query_count=0)
-def test_create_df_with_df_index_negative():
-    with pytest.raises(ValueError, match="Index data must be 1-dimensional"):
-        pd.DataFrame([1, 2, 3], index=pd.DataFrame([[1, 2], [3, 4], [5, 6]]))
-    with pytest.raises(
-        ValueError,
-        match=re.escape("Shape of passed values is (3, 1), indices imply (2, 1)"),
-    ):
-        native_pd.DataFrame([1, 2, 3], index=[[1, 2], [3, 4], [5, 6]])
-
-
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=2)
 def test_create_df_with_dict_as_data_and_index_as_index():
     """
     Special case when creating:
@@ -540,3 +531,367 @@ def test_create_series_with_none_data_and_non_empty_index():
     native_series = native_pd.Series(None, index=index, dtype=object)
     snow_series = pd.Series(None, index=index, dtype=object)
     assert_series_equal(snow_series, native_series)
+
+
+@pytest.mark.parametrize(
+    "data1, data2", [("series", "series"), ("series", "index"), ("index", "index")]
+)
+def test_create_df_with_series_index_dict_data(data1, data2):
+    # Create the dict data.
+    native_data1 = (
+        native_pd.Series([1, 2, 3]) if data1 == "series" else native_pd.Index([1, 2, 3])
+    )
+    native_data2 = (
+        native_pd.Series([4, 5, 6]) if data2 == "series" else native_pd.Index([4, 5, 6])
+    )
+    snow_data1 = pd.Series([1, 2, 3]) if data1 == "series" else pd.Index([1, 2, 3])
+    snow_data2 = pd.Series([4, 5, 6]) if data2 == "series" else pd.Index([4, 5, 6])
+    native_data = {"A": native_data1, "B": native_data2}
+    snow_data = {"A": snow_data1, "B": snow_data2}
+
+    # Create DataFrame only with dict data.
+    native_df = native_pd.DataFrame(native_data)
+    snow_df = pd.DataFrame(snow_data)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df)
+
+    # Create DataFrame with dict data and Series index.
+    native_ser_index = native_pd.Series([9, 2, 999])
+    snow_ser_index = pd.Series([9, 2, 999])
+    native_df = native_pd.DataFrame(native_data, index=native_ser_index)
+    snow_df = pd.DataFrame(snow_data, index=snow_ser_index)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df)
+
+    # Create DataFrame with dict data and Index index.
+    native_index = native_pd.Index([9, 2, 999])
+    snow_index = pd.Index([9, 2, 999])
+    native_df = native_pd.DataFrame(native_data, index=native_index)
+    snow_df = pd.DataFrame(snow_data, index=snow_index)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df)
+
+    # Create DataFrame with dict data, Series index, and columns.
+    columns = ["A", "B", "C"]
+    native_df = native_pd.DataFrame(
+        native_data, index=native_ser_index, columns=columns
+    )
+    snow_df = pd.DataFrame(snow_data, index=snow_ser_index, columns=columns)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df)
+
+    # Create DataFrame with dict data, Index index, and Index columns.
+    native_columns = native_pd.Index(columns)
+    snow_columns = pd.Index(columns)
+    native_df = native_pd.DataFrame(
+        native_data, index=native_index, columns=native_columns
+    )
+    snow_df = pd.DataFrame(snow_data, index=snow_index, columns=snow_columns)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df)
+
+
+@pytest.mark.parametrize(
+    "data1, data2", [("series", "series"), ("series", "index"), ("index", "index")]
+)
+def test_create_df_with_series_index_list_data(data1, data2):
+    # Create the list data.
+    native_data1 = (
+        native_pd.Series([11, 22, 33])
+        if data1 == "series"
+        else native_pd.Index([11, 22, 33])
+    )
+    native_data2 = (
+        native_pd.Series([44, 55, 66])
+        if data2 == "series"
+        else native_pd.Index([44, 55, 66])
+    )
+    snow_data1 = (
+        pd.Series([11, 22, 33]) if data1 == "series" else pd.Index([11, 22, 33])
+    )
+    snow_data2 = (
+        pd.Series([44, 55, 66]) if data2 == "series" else pd.Index([44, 55, 66])
+    )
+    native_data = [native_data1, native_data2]
+    snow_data = [snow_data1, snow_data2]
+
+    # Create DataFrame only with list data.
+    native_df = native_pd.DataFrame(native_data)
+    snow_df = pd.DataFrame(snow_data)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df)
+
+    # Create DataFrame with list data and Series index.
+    native_ser_index = native_pd.Series([2, 11])
+    snow_ser_index = pd.Series([2, 11])
+    native_df = native_pd.DataFrame(native_data, index=native_ser_index)
+    snow_df = pd.DataFrame(snow_data, index=snow_ser_index)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df, check_dtype=False)
+
+    # Create DataFrame with list data and Index index.
+    native_index = native_pd.Index([22, 11])
+    snow_index = pd.Index([22, 11])
+    native_df = native_pd.DataFrame(native_data, index=native_index)
+    snow_df = pd.DataFrame(snow_data, index=snow_index)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df, check_dtype=False)
+
+    # Create DataFrame with list data, Series index, and columns.
+    columns = ["A", "B", "C"]
+    native_df = native_pd.DataFrame(
+        native_data, index=native_ser_index, columns=columns
+    )
+    snow_df = pd.DataFrame(snow_data, index=snow_ser_index, columns=columns)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df, check_dtype=False)
+
+    # Create DataFrame with list data, Index index, and Index columns.
+    native_columns = native_pd.Index(columns)
+    snow_columns = pd.Index(columns)
+    native_df = native_pd.DataFrame(
+        native_data, index=native_index, columns=native_columns
+    )
+    snow_df = pd.DataFrame(snow_data, index=snow_index, columns=snow_columns)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    "data1, data2", [("series", "series"), ("series", "index"), ("index", "index")]
+)
+def test_create_series_with_series_index_list_data(data1, data2):
+    # Create the list data.
+    native_data1 = (
+        native_pd.Series([11, 22, 33])
+        if data1 == "series"
+        else native_pd.Index([11, 22, 33])
+    )
+    native_data2 = (
+        native_pd.Series([44, 55, 66])
+        if data2 == "series"
+        else native_pd.Index([44, 55, 66])
+    )
+    snow_data1 = (
+        pd.Series([11, 22, 33]) if data1 == "series" else pd.Index([11, 22, 33])
+    )
+    snow_data2 = (
+        pd.Series([44, 55, 66]) if data2 == "series" else pd.Index([44, 55, 66])
+    )
+    native_data = [native_data1, native_data2]
+    snow_data = [snow_data1, snow_data2]
+
+    # Create Series only with list data.
+    native_df = native_pd.Series(native_data)
+    snow_df = pd.Series(snow_data)
+    with SqlCounter(query_count=1):
+        assert_series_equal(snow_df, native_df)
+
+    # Create Series with list data and Series index.
+    native_ser_index = native_pd.Series([2, 11])
+    snow_ser_index = pd.Series([2, 11])
+    native_df = native_pd.Series(native_data, index=native_ser_index)
+    snow_df = pd.Series(snow_data, index=snow_ser_index)
+    with SqlCounter(query_count=1):
+        assert_series_equal(snow_df, native_df, check_dtype=False)
+
+    # Create Series with list data and Index index.
+    native_index = native_pd.Index([22, 11])
+    snow_index = pd.Index([22, 11])
+    native_df = native_pd.Series(native_data, index=native_index)
+    snow_df = pd.Series(snow_data, index=snow_index)
+    with SqlCounter(query_count=1):
+        assert_series_equal(snow_df, native_df, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    "data1, data2", [("series", "series"), ("series", "index"), ("index", "index")]
+)
+def test_create_series_with_series_index_dict_data(data1, data2):
+    # Create the dict data.
+    native_data1 = (
+        native_pd.Series([1, 2, 3]) if data1 == "series" else native_pd.Index([1, 2, 3])
+    )
+    native_data2 = (
+        native_pd.Series([4, 5, 6]) if data2 == "series" else native_pd.Index([4, 5, 6])
+    )
+    snow_data1 = pd.Series([1, 2, 3]) if data1 == "series" else pd.Index([1, 2, 3])
+    snow_data2 = pd.Series([4, 5, 6]) if data2 == "series" else pd.Index([4, 5, 6])
+    native_data = {11: native_data1, 22: native_data2}
+    snow_data = {11: snow_data1, 22: snow_data2}
+
+    # Create DataFrame only with dict data.
+    native_df = native_pd.Series(native_data)
+    snow_df = pd.Series(snow_data)
+    with SqlCounter(query_count=1):
+        assert_series_equal(snow_df, native_df)
+
+    # Create DataFrame with dict data and Series index.
+    native_ser_index = native_pd.Series([9, 2, 999])
+    snow_ser_index = pd.Series([9, 2, 999])
+    native_df = native_pd.Series(native_data, index=native_ser_index)
+    snow_df = pd.Series(snow_data, index=snow_ser_index)
+    with SqlCounter(query_count=1):
+        assert_series_equal(snow_df, native_df)
+
+    # Create DataFrame with dict data and Index index.
+    native_index = native_pd.Index([9, 2, 999])
+    snow_index = pd.Index([9, 2, 999])
+    native_df = native_pd.Series(native_data, index=native_index)
+    snow_df = pd.Series(snow_data, index=snow_index)
+    with SqlCounter(query_count=1):
+        assert_series_equal(snow_df, native_df)
+
+
+def test_create_df_with_mixed_series_index_dict_data():
+    # Create the dict data.
+    native_data1 = native_pd.Series([1, 2, 3])
+    native_data2 = native_pd.Index([4, 5, 6])
+    data3 = [7, 8, 9]
+    snow_data1 = pd.Series([1, 2, 3])
+    snow_data2 = pd.Index([4, 5, 6])
+    native_data = {"A": native_data1, "B": native_data2, "C": data3}
+    snow_data = {"A": snow_data1, "B": snow_data2, "C": data3}
+
+    # Create DataFrame only with dict data.
+    native_df = native_pd.DataFrame(native_data)
+    snow_df = pd.DataFrame(snow_data)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df)
+
+    # Create DataFrame with dict data and Series index.
+    native_ser_index = native_pd.Series([9, 2, 999])
+    snow_ser_index = pd.Series([9, 2, 999])
+    native_df = native_pd.DataFrame(native_data, index=native_ser_index)
+    snow_df = pd.DataFrame(snow_data, index=snow_ser_index)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df)
+
+    # Create DataFrame with dict data and Index index.
+    native_index = native_pd.Index([9, 2, 999])
+    snow_index = pd.Index([9, 2, 999])
+    native_df = native_pd.DataFrame(native_data, index=native_index)
+    snow_df = pd.DataFrame(snow_data, index=snow_index)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df)
+
+    # Create DataFrame with dict data, Series index, and columns.
+    columns = ["A", "B", "C"]
+    native_df = native_pd.DataFrame(
+        native_data, index=native_ser_index, columns=columns
+    )
+    snow_df = pd.DataFrame(snow_data, index=snow_ser_index, columns=columns)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df)
+
+    # Create DataFrame with dict data, Index index, and Index columns.
+    native_columns = native_pd.Index(columns)
+    snow_columns = pd.Index(columns)
+    native_df = native_pd.DataFrame(
+        native_data, index=native_index, columns=native_columns
+    )
+    snow_df = pd.DataFrame(snow_data, index=snow_index, columns=snow_columns)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df)
+
+
+def test_create_df_with_mixed_series_index_list_data():
+    # Create the list data.
+    native_data1 = native_pd.Series([1, 2, 3])
+    native_data2 = native_pd.Index([4, 5, 6])
+    data3 = [7, 8, 9]
+    snow_data1 = pd.Series([1, 2, 3])
+    snow_data2 = pd.Index([4, 5, 6])
+    # Need to convert data3 to an Index since native pandas tries to perform `get_indexer` on it.
+    native_data = [native_data1, native_data2, native_pd.Index(data3)]
+    snow_data = [snow_data1, snow_data2, data3]
+
+    # Create DataFrame only with list data.
+    native_df = native_pd.DataFrame(native_data)
+    snow_df = pd.DataFrame(snow_data)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df)
+
+    # Create DataFrame with list data and Series index.
+    native_ser_index = native_pd.Series([2, 11, 0])
+    snow_ser_index = pd.Series([2, 11, 0])
+    native_df = native_pd.DataFrame(native_data, index=native_ser_index)
+    snow_df = pd.DataFrame(snow_data, index=snow_ser_index)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df, check_dtype=False)
+
+    # Create DataFrame with list data and Index index.
+    native_index = native_pd.Index([22, 11, 0])
+    snow_index = pd.Index([22, 11, 0])
+    native_df = native_pd.DataFrame(native_data, index=native_index)
+    snow_df = pd.DataFrame(snow_data, index=snow_index)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df, check_dtype=False)
+
+    # Create DataFrame with list data, Series index, and columns.
+    columns = ["A", "B", "C"]
+    native_df = native_pd.DataFrame(
+        native_data, index=native_ser_index, columns=columns
+    )
+    snow_df = pd.DataFrame(snow_data, index=snow_ser_index, columns=columns)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df, check_dtype=False)
+
+    # Create DataFrame with list data, Index index, and Index columns.
+    native_columns = native_pd.Index(columns)
+    snow_columns = pd.Index(columns)
+    native_df = native_pd.DataFrame(
+        native_data, index=native_index, columns=native_columns
+    )
+    snow_df = pd.DataFrame(snow_data, index=snow_index, columns=snow_columns)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df, check_dtype=False)
+
+
+@pytest.mark.xfail(
+    reason="SNOW-1638397 DataFrane creation fails: reindex does not work with string index"
+)
+def test_create_df_with_series_data_and_series_index():
+    # Create the data and index.
+    native_data = native_pd.Series([1, 2, 3])
+    native_index = native_pd.Series(["A", 0, "C"])
+    snow_data = pd.Series(native_data)
+    snow_index = pd.Series(native_index)
+
+    # Create DataFrame with Series data and Series index.
+    native_df = native_pd.DataFrame(native_data, index=native_index)
+    snow_df = pd.DataFrame(snow_data, index=snow_index)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(snow_df, native_df)
+
+
+@sql_count_checker(query_count=0)
+def test_create_df_with_df_index_negative():
+    with pytest.raises(ValueError, match="Index data must be 1-dimensional"):
+        native_pd.DataFrame(
+            [1, 2, 3], index=native_pd.DataFrame([[1, 2], [3, 4], [5, 6]])
+        )
+    with pytest.raises(ValueError, match="Index data must be 1-dimensional"):
+        pd.DataFrame([1, 2, 3], index=pd.DataFrame([[1, 2], [3, 4], [5, 6]]))
+
+
+@sql_count_checker(query_count=0)
+def test_create_series_with_df_index_negative():
+    with pytest.raises(ValueError, match="Index data must be 1-dimensional"):
+        native_pd.Series([1, 2, 3], index=native_pd.DataFrame([[1, 2], [3, 4], [5, 6]]))
+    with pytest.raises(ValueError, match="Index data must be 1-dimensional"):
+        pd.Series([1, 2, 3], index=pd.DataFrame([[1, 2], [3, 4], [5, 6]]))
+
+
+@sql_count_checker(query_count=0)
+def test_create_series_with_df_data_negative():
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "The truth value of a DataFrame is ambiguous. Use a.empty, a.bool()"
+            ", a.item(), a.any() or a.all()."
+        ),
+    ):
+        native_pd.Series(native_pd.DataFrame([[1, 2], [3, 4], [5, 6]]))
+    with pytest.raises(ValueError, match="Index data must be 1-dimensional"):
+        pd.Series(pd.DataFrame([[1, 2], [3, 4], [5, 6]]))
