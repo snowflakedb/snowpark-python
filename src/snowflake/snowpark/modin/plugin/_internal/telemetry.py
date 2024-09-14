@@ -567,9 +567,7 @@ class TelemetryMeta(type):
             attrs (Dict[str, Any]): The attributes of the class.
 
         Returns:
-            Union[snowflake.snowpark.modin.pandas.series.Series,
-                snowflake.snowpark.modin.pandas.dataframe.DataFrame,
-                snowflake.snowpark.modin.pandas.groupby.DataFrameGroupBy,
+            Union[snowflake.snowpark.modin.pandas.groupby.DataFrameGroupBy,
                 snowflake.snowpark.modin.pandas.resample.Resampler,
                 snowflake.snowpark.modin.pandas.window.Window,
                 snowflake.snowpark.modin.pandas.window.Rolling]:
