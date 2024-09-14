@@ -401,6 +401,10 @@ def test_range_between_should_include_rows_equal_to_current_row(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1358946: Interval is not supported in Local Testing",
+)
 def test_range_between_timestamp(
     session,
 ):
@@ -490,6 +494,10 @@ def test_range_between_timestamp(
         df.select(count("a").over(window)).collect()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1358946: Interval is not supported in Local Testing",
+)
 def test_range_between_date(
     session,
 ):
