@@ -465,7 +465,9 @@ def test_datetime_index_mean(native_index, skipna):
                 ],
                 tz="US/Eastern",
             ),
-            marks=pytest.mark.xfail(reason="Snowpark pandas does not support timezone"),
+            marks=pytest.mark.xfail(
+                reason="SNOW-1664175 Snowpark pandas `to_datetime` does not support tz"
+            ),
         ),
         native_pd.DatetimeIndex(
             [
@@ -494,8 +496,17 @@ def test_datetime_index_std(native_index, ddof, skipna):
 @sql_count_checker(query_count=0)
 def test_datetime_index_agg_ops_axis_negative(ops):
     snow_index = pd.DatetimeIndex(["2021-01-01", "2021-01-02", "2021-01-03"])
-    msg = (
-        "axis=1 is not supported, this parameter is ignored. 0 is the only valid axis."
-    )
-    with pytest.raises(ValueError, match=msg):
+    with pytest.raises(
+        ValueError,
+        match="axis=1 is not supported, this parameter is ignored. 0 is the only valid axis.",
+    ):
         getattr(snow_index, ops)(axis=1)
+
+
+@sql_count_checker(query_count=0)
+def test_datetime_index_std_ddof_negative():
+    snow_index = pd.DatetimeIndex(["2021-01-01", "2021-01-02", "2021-01-03"])
+    with pytest.raises(
+        NotImplementedError, match="`ddof` parameter is not yet supported for `std`."
+    ):
+        snow_index.std(ddof=2)
