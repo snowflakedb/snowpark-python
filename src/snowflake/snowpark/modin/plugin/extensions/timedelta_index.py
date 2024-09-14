@@ -28,11 +28,11 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as native_pd
+from modin.pandas import DataFrame, Series
 from pandas._libs import lib
 from pandas._typing import ArrayLike, AxisInt, Dtype, Frequency, Hashable
 from pandas.core.dtypes.common import is_timedelta64_dtype
 
-from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )

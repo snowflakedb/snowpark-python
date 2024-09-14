@@ -388,7 +388,7 @@ class TelemetryClient:
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
-                TelemetryField.SQL_SIMPLIFIER_ENABLED.value: True,
+                TelemetryField.SQL_SIMPLIFIER_ENABLED.value: sql_simplifier_enabled,
             },
         }
         self.send(message)
@@ -442,7 +442,7 @@ class TelemetryClient:
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
-                TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: True,
+                TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: value,
             },
         }
         self.send(message)
@@ -513,6 +513,25 @@ class TelemetryClient:
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION_TABLE_NAME.value: table_name,
                 TelemetryField.TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION_MESSAGE.value: exception_message,
+            },
+        }
+        self.send(message)
+
+    def send_large_query_breakdown_update_complexity_bounds(
+        self, session_id: int, lower_bound: int, upper_bound: int
+    ):
+        message = {
+            **self._create_basic_telemetry_data(
+                CompilationStageTelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_UPDATE_COMPLEXITY_BOUNDS.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.KEY_DATA.value: {
+                    CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: (
+                        lower_bound,
+                        upper_bound,
+                    ),
+                },
             },
         }
         self.send(message)

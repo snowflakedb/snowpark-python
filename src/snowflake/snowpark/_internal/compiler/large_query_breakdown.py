@@ -58,11 +58,6 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.session import Session
 
-# The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
-# in Snowflake. This is the limit where we start seeing compilation errors.
-COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
-COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
-
 _logger = logging.getLogger(__name__)
 
 
@@ -123,6 +118,12 @@ class LargeQueryBreakdown:
         self._query_generator = query_generator
         self.logical_plans = logical_plans
         self._parent_map = defaultdict(set)
+        self.complexity_score_lower_bound = (
+            session.large_query_breakdown_complexity_bounds[0]
+        )
+        self.complexity_score_upper_bound = (
+            session.large_query_breakdown_complexity_bounds[1]
+        )
 
     def apply(self) -> List[LogicalPlan]:
         if is_active_transaction(self.session):
@@ -183,13 +184,13 @@ class LargeQueryBreakdown:
         complexity_score = get_complexity_score(root.cumulative_node_complexity)
         _logger.debug(f"Complexity score for root {type(root)} is: {complexity_score}")
 
-        if complexity_score <= COMPLEXITY_SCORE_UPPER_BOUND:
+        if complexity_score <= self.complexity_score_upper_bound:
             # Skip optimization if the complexity score is within the upper bound.
             return [root]
 
         plans = []
         # TODO: SNOW-1617634 Have a one pass algorithm to find the valid node for partitioning
-        while complexity_score > COMPLEXITY_SCORE_UPPER_BOUND:
+        while complexity_score > self.complexity_score_upper_bound:
             child = self._find_node_to_breakdown(root)
             if child is None:
                 _logger.debug(
@@ -277,7 +278,9 @@ class LargeQueryBreakdown:
         """
         score = get_complexity_score(node.cumulative_node_complexity)
         valid_node = (
-            COMPLEXITY_SCORE_LOWER_BOUND < score < COMPLEXITY_SCORE_UPPER_BOUND
+            self.complexity_score_lower_bound
+            < score
+            < self.complexity_score_upper_bound
         ) and self._is_node_pipeline_breaker(node)
         if valid_node:
             _logger.debug(

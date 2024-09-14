@@ -12,6 +12,7 @@
 
 - Added support for `TimedeltaIndex.mean` method.
 - Added support for some cases of aggregating `Timedelta` columns on `axis=0` with `agg` or `aggregate`.
+- Added support for `by`, `left_by`, and `right_by` for `pd.merge_asof`.
 - Added support for `DatetimeIndex.mean` and `DatetimeIndex.std` methods.
 
 

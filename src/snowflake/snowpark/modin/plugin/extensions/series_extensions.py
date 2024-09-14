@@ -181,7 +181,6 @@ def to_pandas(
 
     See Also:
         - :func:`to_pandas <snowflake.snowpark.modin.pandas.to_pandas>`
-        - :func:`DataFrame.to_pandas <modin.pandas.DataFrame.to_pandas>`
 
     Returns:
         pandas Series

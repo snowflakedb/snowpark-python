@@ -9,10 +9,10 @@ under the `pd` namespace, such as `pd.read_snowflake`.
 import inspect
 from typing import Any, Iterable, Literal, Optional, Union
 
+from modin.pandas import DataFrame, Series
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark import DataFrame as SnowparkDataFrame
-from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.api.extensions import register_pd_accessor
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_standalone_function_decorator,
