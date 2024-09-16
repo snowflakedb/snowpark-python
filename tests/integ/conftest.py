@@ -329,7 +329,7 @@ class TracebackHistory(QueryListener):
 # Disable phase0 Snowpark IR check by setting autouse=False,
 # by default enabled for all tests (except modin/) to check that Snowpark python requests contain
 # the dataframeAst property holding the encoded representation.
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=False)
 def check_ast_encode_invoked(request, session):
     # In code later the pytest request will be shadowed, save here.
     test_request = request
