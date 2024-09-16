@@ -107,3 +107,14 @@ def test_timedelta_not_supported():
         match="SnowflakeQueryCompiler::groupby_groups is not yet implemented for Timedelta Type",
     ):
         df.groupby("a").groups()
+
+
+@sql_count_checker(query_count=1)
+def test_aggregation_does_not_print_internal_warning_SNOW_1664064():
+    import warnings
+
+    from pandas.errors import SettingWithCopyWarning
+
+    with warnings.catch_warnings():
+        warnings.simplefilter(category=SettingWithCopyWarning, action="error")
+        pd.Series(pd.Timedelta(1)).max()

@@ -1519,7 +1519,7 @@ def snowpark_to_pandas_helper(
             downcast_pandas_df.columns, cached_snowpark_pandas_types
         ):
             if snowpark_pandas_type is not None and snowpark_pandas_type == timedelta_t:
-                downcast_pandas_df[pandas_label] = pandas_df[pandas_label].apply(
+                downcast_pandas_df.loc[:, pandas_label] = pandas_df[pandas_label].apply(
                     convert_str_to_timedelta
                 )
 
