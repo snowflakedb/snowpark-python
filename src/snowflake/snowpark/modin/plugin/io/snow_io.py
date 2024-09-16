@@ -5,6 +5,7 @@
 # this module houses classes for IO and interacting with Snowflake engine
 
 import inspect
+from collections import OrderedDict
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -18,6 +19,7 @@ from typing import (
 )
 
 import pandas
+from modin.core.io import BaseIO
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     CSVEngine,
@@ -29,7 +31,6 @@ from pandas._typing import (
 )
 from pandas.core.dtypes.common import is_list_like
 
-from snowflake.snowpark.modin.core.execution.dispatching.factories.baseio import BaseIO
 from snowflake.snowpark.modin.plugin._internal.io_utils import (
     is_local_filepath,
     is_snowflake_stage_path,
@@ -175,6 +176,28 @@ class PandasOnSnowflakeIO(BaseIO):
             df: An existing (native) pandas DataFrame
         """
         return cls.query_compiler_cls.from_pandas(df, pandas.DataFrame)
+
+    @classmethod
+    def read_excel(cls, **kwargs):  # noqa: PR01
+        """
+        Read an excel file into a query compiler.
+
+        Snowpark pandas has a slightly different error message from the upstream modin version.
+        """
+        try:
+            intermediate = pandas.read_excel(**kwargs)
+        except ImportError as e:
+            raise ImportError(
+                "Snowpark Pandas requires an additional package to read excel files such as openpyxl, pyxlsb, or xlrd",
+                e,
+            )
+        if isinstance(intermediate, (OrderedDict, dict)):
+            parsed = type(intermediate)()
+            for key in intermediate.keys():
+                parsed[key] = cls.from_pandas(intermediate.get(key))
+            return parsed
+        else:
+            return cls.from_pandas(intermediate)
 
     @classmethod
     def read_snowflake(

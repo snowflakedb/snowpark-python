@@ -82,6 +82,27 @@ for (doc_module, target_object) in inherit_modules:
     _inherit_docstrings(doc_module, overwrite_existing=True)(target_object)
 
 
+# Configure Modin engine so it detects our Snowflake I/O classes.
+# This is necessary to define the `from_pandas` method for each Modin backend, which is called in I/O methods.
+
+from modin.config import Engine  # isort: skip  # noqa: E402
+
+# Secretly insert our factory class into Modin so the dispatcher can find it
+from modin.core.execution.dispatching.factories import (  # isort: skip  # noqa: E402
+    factories as modin_factories,
+)
+
+from snowflake.snowpark.modin.core.execution.dispatching.factories.factories import (  # isort: skip  # noqa: E402
+    PandasOnSnowflakeFactory,
+)
+
+modin_factories.PandasOnSnowflakeFactory = PandasOnSnowflakeFactory
+# modin_dispatcher.FactoryDispatcher = FactoryDispatcher
+
+Engine.add_option("Snowflake")
+Engine.put("Snowflake")
+
+
 # Don't warn the user about our internal usage of private preview pivot
 # features. The user should have already been warned that Snowpark pandas
 # is in public or private preview. They likely don't know or care that we are
