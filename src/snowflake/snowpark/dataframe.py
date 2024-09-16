@@ -2192,6 +2192,7 @@ class DataFrame:
             default_on_null: Expression to replace empty result values.
         """
 
+        stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_pivot, stmt)
