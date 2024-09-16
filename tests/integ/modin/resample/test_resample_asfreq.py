@@ -19,7 +19,7 @@ interval = pytest.mark.parametrize("interval", [1, 2, 3, 5, 15])
 
 @freq
 @interval
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=3, join_count=1)
 def test_asfreq_no_method(freq, interval):
     rule = f"{interval}{freq}"
     eval_snowpark_pandas_result(
@@ -32,7 +32,7 @@ def test_asfreq_no_method(freq, interval):
     )
 
 
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=3, join_count=1)
 def test_asfreq_ffill():
     eval_snowpark_pandas_result(
         *create_test_dfs(

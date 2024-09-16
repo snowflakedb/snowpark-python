@@ -12,6 +12,7 @@ from typing import Any, Callable, Optional, Union
 import numpy as np
 import pandas as native_pd
 from pandas._typing import Scalar
+from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_integer_dtype, is_object_dtype, is_scalar
 from pandas.core.dtypes.inference import is_list_like
 
@@ -1996,6 +1997,28 @@ def create_frame_with_data_columns(
 def rindex(lst: list, value: int) -> int:
     """Find the last index in the list of item value."""
     return len(lst) - lst[::-1].index(value) - 1
+
+
+def error_checking_for_init(
+    index: Any, dtype: Union[str, np.dtype, ExtensionDtype]
+) -> None:
+    """
+    Common error messages for the Series and DataFrame constructors.
+
+    Parameters
+    ----------
+    index: Any
+        The index to check.
+    dtype: str, numpy.dtype, or ExtensionDtype
+        The dtype to check.
+    """
+    from modin.pandas import DataFrame
+
+    if isinstance(index, DataFrame):  # pandas raises the same error
+        raise ValueError("Index data must be 1-dimensional")
+
+    if dtype == "category":
+        raise NotImplementedError("pandas type category is not implemented")
 
 
 def convert_index_to_qc(index: Any) -> Any:

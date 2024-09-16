@@ -4,7 +4,6 @@
 import functools
 import numbers
 import random
-import re
 
 import modin.pandas as pd
 import numpy as np
@@ -1451,10 +1450,7 @@ def test_series_loc_set_df_key_negative(item, default_index_native_series):
         native_ser.loc[df_key] = item
 
     # Snowpark pandas error verification.
-    err_msg = re.escape(
-        "The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), "
-        "a.any() or a.all()."
-    )
+    err_msg = "Data cannot be a DataFrame"
     with pytest.raises(ValueError, match=err_msg):
         snowpark_ser.loc[pd.DataFrame(df_key)] = item
         assert_series_equal(snowpark_ser, native_ser)

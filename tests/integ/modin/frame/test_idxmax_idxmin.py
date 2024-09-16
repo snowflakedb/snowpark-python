@@ -194,7 +194,7 @@ def test_idxmax_idxmin_with_dates(func, axis):
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 @pytest.mark.parametrize("func", ["idxmax", "idxmin"])
 @pytest.mark.parametrize(
     "axis",
