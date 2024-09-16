@@ -87,6 +87,7 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
 from snowflake.snowpark.modin.plugin._internal.utils import (
     convert_index_to_list_of_qcs,
     convert_index_to_qc,
+    error_checking_for_init,
     is_repr_truncated,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike
@@ -484,8 +485,7 @@ def __init__(
         self._query_compiler = query_compiler
         return
 
-    if isinstance(index, DataFrame):  # pandas raises the same error
-        raise ValueError("Index data must be 1-dimensional")
+    error_checking_for_init(index, dtype)
 
     # The logic followed here is:
     # 1. Create a query_compiler from the provided data. If columns are provided, add/select the columns.
@@ -500,6 +500,7 @@ def __init__(
         # If the data is an Index object, convert it to a DataFrame to make sure that the values are in the
         # correct format: the values are a data column, not an index column.
         if data.name is None:
+            # If no name is provided, the default name is 0.
             new_name = 0 if columns is None else columns[0]
         else:
             new_name = data.name
@@ -510,6 +511,7 @@ def __init__(
         query_compiler = data._query_compiler.copy()
         # We set the column name if it is not in the provided Series `data`.
         if data.name is None:
+            # If no name is provided, the default name is 0.
             query_compiler = query_compiler.set_columns(columns or [0])
         if columns is not None and data.name not in columns:
             # If the columns provided are not in the named Series, pandas clears
@@ -607,9 +609,7 @@ def __init__(
                         if all(isinstance(v, Index) for v in data):
                             # Special case: if all the values are Index objects, they are always present in the
                             # final result with the provided column names. Therefore, rename the columns.
-                            new_qc = new_qc.set_columns(
-                                try_convert_index_to_native(columns)
-                            )
+                            new_qc = new_qc.set_columns(columns)
                         else:
                             new_qc = new_qc.reindex(axis=1, labels=columns)
                     self._query_compiler = new_qc
@@ -618,14 +618,16 @@ def __init__(
                 # If only some data is a Snowpark pandas object, convert it to pandas objects.
                 res = []
                 for v in data:
-                    if isinstance(v, (Index)):
+                    if isinstance(v, (Index, BasePandasDataset)):
                         res.append(v.to_pandas())
-                    elif isinstance(v, BasePandasDataset):
-                        res.append(v.to_pandas())
+                    # elif is_dict_like(v) or isinstance(v, (native_pd.Series, native_pd.DataFrame, native_pd.Index)):
+                    #     res.append(v)
                     else:
-                        # Need to convert this is a native pandas object since native pandas incorrectly
-                        # tries to perform `get_indexer` on it.
-                        res.append(native_pd.Index(v if is_list_like(v) else [v]))
+                        # # Need to convert this is a native pandas object since native pandas incorrectly
+                        # # tries to perform `get_indexer` on it. Specify dtype=object so that pandas does not
+                        # # cast the data provided. In some cases, None turns to NaN, which is not desired.
+                        # res.append(native_pd.Index(v, dtype=object) if is_list_like(v) else v)
+                        res.append(v)
                 data = res
 
         query_compiler = from_pandas(
@@ -662,13 +664,14 @@ def __init__(
 
     # 3. If data is a DataFrame, filter result
     # ----------------------------------------
-    if isinstance(data, DataFrame):
-        # To select the required index and columns for the resultant DataFrame,
-        # perform .loc[] on the created query compiler.
-        index = slice(None) if index is None else index
-        columns = slice(None) if columns is None else columns
+    if isinstance(data, DataFrame) and columns is not None:
+        # To select the columns for the resultant DataFrame, perform .loc[] on the created query compiler.
+        # This step is performed to ensure that the right columns are picked from the InternalFrame since we
+        # never explicitly drop the unwanted columns.
         query_compiler = (
-            DataFrame(query_compiler=query_compiler).loc[index, columns]._query_compiler
+            DataFrame(query_compiler=query_compiler)
+            .loc[slice(None), columns]
+            ._query_compiler
         )
 
     # 4. Setting the query compiler
@@ -1181,6 +1184,9 @@ def insert(
     # Dictionary keys are treated as index column and this should be joined with
     # index of target dataframe. This behavior is similar to 'value' being DataFrame
     # or Series, so we simply create Series from dict data here.
+    if isinstance(value, set):
+        raise TypeError(f"'{type(value).__name__}' type is unordered")
+
     if isinstance(value, dict):
         value = Series(value, name=column)
 

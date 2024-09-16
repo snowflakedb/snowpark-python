@@ -298,7 +298,7 @@ def test_create_with_series_as_data_and_index_as_index(
         ),  # no index values match
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_create_df_with_df_as_data_and_index_as_index(native_df, native_index):
     """
     Creating a DataFrame where the data is a DataFrame and the index is an Index.
@@ -329,7 +329,7 @@ def test_create_df_with_df_as_data_and_index_as_index(native_df, native_index):
         ({}, native_pd.Index([10, 0, 1], name="non-empty index")),
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_create_df_with_empty_df_as_data_and_index_as_index(native_df, native_index):
     """
     Creating a DataFrame where the data is an empty DataFrame and the index is an Index.
@@ -443,7 +443,7 @@ def test_create_df_with_df_as_data_and_index_as_index_and_different_columns(
     qc = 1 if column_type == "list" else 2
     qc += 1 if (isinstance(native_df, dict)) else 0
     qc += 1 if (isinstance(native_df, dict) and column_type == "index") else 0
-    jc = 2 if isinstance(native_df, native_pd.DataFrame) else 0
+    jc = 1 if isinstance(native_df, native_pd.DataFrame) else 0
     with SqlCounter(query_count=qc, join_count=jc):
         assert_frame_equal(
             pd.DataFrame(snow_df, index=snow_index, columns=native_columns),
@@ -795,57 +795,22 @@ def test_create_df_with_mixed_series_index_dict_data():
         assert_frame_equal(snow_df, native_df)
 
 
-def test_create_df_with_mixed_series_index_list_data():
+@sql_count_checker(query_count=2)
+def test_create_df_with_mixed_series_index_list_data_negative():
+    """
+    Since Snowpark pandas relies on native pandas for initialization a DataFrame with mixed data types,
+    they both raise the same error.
+    """
     # Create the list data.
-    native_data1 = native_pd.Series([1, 2, 3])
-    native_data2 = native_pd.Index([4, 5, 6])
+    data1 = native_pd.Series([1, 2, 3])
+    data2 = native_pd.Index([4, 5, 6])
     data3 = [7, 8, 9]
-    snow_data1 = pd.Series([1, 2, 3])
-    snow_data2 = pd.Index([4, 5, 6])
     # Need to convert data3 to an Index since native pandas tries to perform `get_indexer` on it.
-    native_data = [native_data1, native_data2, native_pd.Index(data3)]
-    snow_data = [snow_data1, snow_data2, data3]
-
-    # Create DataFrame only with list data.
-    native_df = native_pd.DataFrame(native_data)
-    snow_df = pd.DataFrame(snow_data)
-    with SqlCounter(query_count=1):
-        assert_frame_equal(snow_df, native_df)
-
-    # Create DataFrame with list data and Series index.
-    native_ser_index = native_pd.Series([2, 11, 0])
-    snow_ser_index = pd.Series([2, 11, 0])
-    native_df = native_pd.DataFrame(native_data, index=native_ser_index)
-    snow_df = pd.DataFrame(snow_data, index=snow_ser_index)
-    with SqlCounter(query_count=1):
-        assert_frame_equal(snow_df, native_df, check_dtype=False)
-
-    # Create DataFrame with list data and Index index.
-    native_index = native_pd.Index([22, 11, 0])
-    snow_index = pd.Index([22, 11, 0])
-    native_df = native_pd.DataFrame(native_data, index=native_index)
-    snow_df = pd.DataFrame(snow_data, index=snow_index)
-    with SqlCounter(query_count=1):
-        assert_frame_equal(snow_df, native_df, check_dtype=False)
-
-    # Create DataFrame with list data, Series index, and columns.
-    columns = ["A", "B", "C"]
-    native_df = native_pd.DataFrame(
-        native_data, index=native_ser_index, columns=columns
-    )
-    snow_df = pd.DataFrame(snow_data, index=snow_ser_index, columns=columns)
-    with SqlCounter(query_count=1):
-        assert_frame_equal(snow_df, native_df, check_dtype=False)
-
-    # Create DataFrame with list data, Index index, and Index columns.
-    native_columns = native_pd.Index(columns)
-    snow_columns = pd.Index(columns)
-    native_df = native_pd.DataFrame(
-        native_data, index=native_index, columns=native_columns
-    )
-    snow_df = pd.DataFrame(snow_data, index=snow_index, columns=snow_columns)
-    with SqlCounter(query_count=1):
-        assert_frame_equal(snow_df, native_df, check_dtype=False)
+    err_msg = "'builtin_function_or_method' object has no attribute 'get_indexer'"
+    with pytest.raises(AttributeError, match=err_msg):
+        native_pd.DataFrame([data1, data2, data3])
+    with pytest.raises(AttributeError, match=err_msg):
+        pd.DataFrame([pd.Series(data1), pd.Index(data2), data3])
 
 
 @pytest.mark.xfail(

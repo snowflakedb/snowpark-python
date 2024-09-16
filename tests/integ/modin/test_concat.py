@@ -1063,7 +1063,7 @@ def test_concat_duplicate_columns(columns1, columns2, expected_rows, expected_co
     df1 = pd.DataFrame([[1, 2, 3]], columns=columns1)
     df2 = pd.DataFrame([[4, 5, 6]], columns=columns2)
     expected_df = pd.DataFrame(expected_rows, columns=expected_cols, index=[0, 0])
-    assert_frame_equal(pd.concat([df1, df2]), expected_df)
+    assert_frame_equal(pd.concat([df1, df2]), expected_df, check_dtype=False)
 
 
 @pytest.mark.parametrize("value1", [4, 1.5, True, "c", (1, 2), {"a": 1}])

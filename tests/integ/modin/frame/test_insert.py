@@ -212,7 +212,7 @@ def test_insert_dataframe_shape_negative(native_df):
         (np.ones((1, 1)), 1),
         ([1, 2], 1),  # len < number of rows
         ((6, 7, 8, 9), 1),  # len > number of rows
-        ({"a", "b", "c"}, 1),  # python set
+        ({"a", "b", "c"}, 0),  # python set
     ],
 )
 def test_insert_value_negative(native_df, value, expected_query_count):
@@ -725,12 +725,10 @@ def test_insert_multiindex_column_negative(snow_df, columns, insert_label):
         [["a", "b", "b", "d", "e"], ["x", "y", "z", "u", "u"], True],
     ],
 )
-@sql_count_checker(query_count=1, join_count=3)
+@sql_count_checker(query_count=3, join_count=1)
 def test_insert_with_unique_and_duplicate_index_values(
     index_values, other_index_values, expect_mismatch
 ):
-    # Two of the three joins come from creating the DataFrame with non-Snowpark pandas data
-    # and a Snowpark pandas Index. The third join is from the insert operation.
     data = list(range(5))
     data1 = {"foo": data}
     data2 = {"bar": [val * 10 for val in data]}

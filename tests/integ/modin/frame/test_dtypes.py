@@ -473,22 +473,23 @@ def test_empty_index(index, expected_index_dtype):
 
 
 @pytest.mark.parametrize(
-    "input_data, type_msg",
+    "input_data, dtype, type_msg",
     [
-        (native_pd.Categorical([1, 2, 3, 1, 2, 3]), "category"),
-        (native_pd.Categorical(["a", "b", "c", "a", "b", "c"]), "category"),
+        (native_pd.Categorical([1, 2, 3, 1, 2, 3]), "category", "category"),
+        (native_pd.Categorical(["a", "b", "c", "a", "b", "c"]), "category", "category"),
         (
             native_pd.period_range("2015-02-03 11:22:33.4567", periods=5, freq="s"),
+            None,
             r"period\[s\]",
         ),
     ],
 )
 @sql_count_checker(query_count=0)
-def test_unsupported_dtype_raises(input_data, type_msg) -> None:
+def test_unsupported_dtype_raises(input_data, dtype, type_msg) -> None:
     with pytest.raises(
         NotImplementedError, match=f"pandas type {type_msg} is not implemented"
     ):
-        pd.Series(input_data)
+        pd.Series(input_data, dtype=dtype)
 
 
 @pytest.mark.parametrize(

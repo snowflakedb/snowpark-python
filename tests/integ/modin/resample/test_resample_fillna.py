@@ -17,7 +17,7 @@ agg_func = pytest.mark.parametrize("agg_func", ["ffill", "bfill"])
 
 @interval
 @agg_func
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_fill(interval, agg_func):
     datecol = native_pd.to_datetime(
         [
@@ -69,7 +69,7 @@ def test_resample_fill_ser(interval, agg_func):
 
 @interval
 @agg_func
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_ffill_one_gap(interval, agg_func):
     datecol = native_pd.to_datetime(
         [
@@ -113,7 +113,7 @@ def resample_ffill_ser_one_gap(agg_func):
 
 @interval
 @agg_func
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_ffill_missing_in_middle(interval, agg_func):
     datecol = native_pd.to_datetime(
         [
@@ -163,7 +163,7 @@ def test_resample_ffill_ser_missing_in_middle(interval, agg_func):
 
 @interval
 @agg_func
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_ffill_ffilled_with_none(interval, agg_func):
     datecol = native_pd.to_datetime(
         [
@@ -187,7 +187,7 @@ def test_resample_ffill_ffilled_with_none(interval, agg_func):
 
 @interval
 @agg_func
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_ffill_large_gaps(interval, agg_func):
     datecol = native_pd.to_datetime(
         [
@@ -209,7 +209,7 @@ def test_resample_ffill_large_gaps(interval, agg_func):
 
 @interval
 @pytest.mark.parametrize("method", ["ffill", "pad", "backfill", "bfill"])
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_fillna(interval, method):
     datecol = native_pd.to_datetime(
         [

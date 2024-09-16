@@ -276,13 +276,13 @@ def _verify_merge(
 
 
 @pytest.mark.parametrize("on", ["A", "B", ["A", "B"], ("A", "B")])
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_on(left_df, right_df, on, how, sort):
     _verify_merge(left_df, right_df, how, on=on, sort=sort)
 
 
 @pytest.mark.parametrize("on", ["left_i", "right_i"])
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_on_index_columns(left_df, right_df, how, on, sort):
     # Change left_df to: columns=["right_i", "B", "left_c", "left_d"] index=["left_i"]
     left_df = left_df.rename(columns={"A": "right_i"})
@@ -361,7 +361,7 @@ def test_join_type_mismatch_diff_with_native_pandas(index1, index2, expected_res
 
 
 @pytest.mark.parametrize("on", ["A", "B", "C"])
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_on_index_columns_with_multiindex(left_df, right_df, how, on, sort):
     # Change left_df to: columns = ["C", "left_d"] index = ["A", "B"]
     left_df = left_df.rename(columns={"left_c": "C"}).set_index(["A", "B"])
@@ -370,7 +370,7 @@ def test_merge_on_index_columns_with_multiindex(left_df, right_df, how, on, sort
     _verify_merge(left_df, right_df, how, on=on, sort=sort)
 
 
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_on_multiindex_with_non_multiindex(left_df, right_df, how, sort):
     # Change left_df to: columns = ["A", "B"] index = ["left_c", "left_d"]
     left_df = left_df.set_index(["left_c", "left_d"])
@@ -392,29 +392,29 @@ def test_merge_on_multiindex_with_non_multiindex(left_df, right_df, how, sort):
         (["A", "left_i"], ["B", "right_i"]),  # Mix of index and data join keys
     ],
 )
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_left_on_right_on(left_df, right_df, how, left_on, right_on, sort):
     _verify_merge(left_df, right_df, how, left_on=left_on, right_on=right_on, sort=sort)
 
 
 @pytest.mark.parametrize("left_on", ["left_i", "A", "B"])
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_left_on_right_index(left_df, right_df, how, left_on, sort):
     _verify_merge(left_df, right_df, how, left_on=left_on, right_index=True, sort=sort)
 
 
 @pytest.mark.parametrize("right_on", ["right_i", "A", "B"])
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_left_index_right_on(left_df, right_df, how, right_on, sort):
     _verify_merge(left_df, right_df, how, left_index=True, right_on=right_on, sort=sort)
 
 
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_on_index_single_index(left_df, right_df, how, sort):
     _verify_merge(left_df, right_df, how, left_index=True, right_index=True, sort=sort)
 
 
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_on_index_multiindex_common_labels(left_df, right_df, how, sort):
     left_df = left_df.set_index("A", append=True)  # index columns ['left_i', 'A']
     right_df = right_df.set_index("A", append=True)  # index columns ['right_i', 'A']
@@ -444,7 +444,7 @@ def test_merge_on_index_multiindex_common_labels_with_none(
         )
 
 
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_on_index_multiindex_equal_labels(left_df, right_df, how, sort):
     # index columns ['A', 'B]
     left_df = left_df.set_index(["A", "B"])
@@ -463,7 +463,7 @@ def test_merge_left_index_right_index_single_to_multi(left_df, right_df, how, so
         if how == "inner" and sort is False:
             pytest.skip("pandas bug: https://github.com/pandas-dev/pandas/issues/55774")
         else:
-            with SqlCounter(query_count=3, join_count=5):
+            with SqlCounter(query_count=3, join_count=1):
                 _verify_merge(
                     left_df,
                     right_df,
@@ -489,7 +489,7 @@ def test_merge_left_index_right_index_single_to_multi(left_df, right_df, how, so
             .merge(right_df.to_pandas(), how=how, on="left_i", sort=sort)
             .reset_index(drop=True)
         )
-        with SqlCounter(query_count=1, join_count=3):
+        with SqlCounter(query_count=1, join_count=1):
             assert_snowpark_pandas_equal_to_pandas(
                 snow_res.reset_index(drop=True), native_res
             )
@@ -500,7 +500,7 @@ def test_merge_left_index_right_index_multi_to_single(left_df, right_df, how, so
         "right_i", append=True
     )  # index columns ['left_i', 'right_i']
     if how in ("left", "inner"):
-        with SqlCounter(query_count=3, join_count=5):
+        with SqlCounter(query_count=3, join_count=1):
             _verify_merge(
                 left_df, right_df, how=how, left_index=True, right_index=True, sort=sort
             )
@@ -519,13 +519,13 @@ def test_merge_left_index_right_index_multi_to_single(left_df, right_df, how, so
             .merge(right_df.to_pandas(), how=how, on="right_i", sort=sort)
             .reset_index(drop=True)
         )
-        with SqlCounter(query_count=1, join_count=3):
+        with SqlCounter(query_count=1, join_count=1):
             assert_snowpark_pandas_equal_to_pandas(
                 snow_res.reset_index(drop=True), native_res
             )
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2)
 def test_merge_left_index_right_index_no_common_names_negative(left_df, right_df):
     left_df = left_df.set_index("B", append=True)  # index columns ['left_i', 'B']
     right_df = right_df.set_index("A", append=True)  # index columns ['right_i', 'A']
@@ -543,7 +543,7 @@ def test_merge_left_index_right_index_no_common_names_negative(left_df, right_df
     )
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2)
 def test_merge_left_index_right_index_none_as_common_label_negative(left_df, right_df):
     # index columns [None, 'B']
     left_df = left_df.reset_index(drop=True).set_index("B", append=True)
@@ -563,7 +563,7 @@ def test_merge_left_index_right_index_none_as_common_label_negative(left_df, rig
     )
 
 
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_cross(left_df, right_df, sort):
     eval_snowpark_pandas_result(
         left_df,
@@ -587,7 +587,7 @@ def test_merge_cross(left_df, right_df, sort):
         {"left_index": True, "right_on": "A"},
     ],
 )
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=3)
 def test_merge_non_empty_with_empty(left_df, empty_df, how, kwargs, sort):
     _verify_merge(left_df, empty_df, how, sort=sort, **kwargs)
 
@@ -601,7 +601,7 @@ def test_merge_non_empty_with_empty(left_df, empty_df, how, kwargs, sort):
         {"left_index": True, "right_on": "A"},
     ],
 )
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=3)
 def test_merge_empty_with_non_empty(empty_df, right_df, how, kwargs, sort):
     # Native pandas returns incorrect column order when left frame is empty.
     # https://github.com/pandas-dev/pandas/issues/51929
@@ -637,7 +637,7 @@ def test_merge_empty_with_non_empty(empty_df, right_df, how, kwargs, sort):
         (None, None, ["A", "B"], True, False),  # left.num_index_levels != len(right_on)
     ],
 )
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2)
 def test_merge_mis_specified_negative(
     left_df, right_df, on, left_on, right_on, left_index, right_index
 ):
@@ -666,7 +666,7 @@ def test_merge_mis_specified_negative(
         (None, None, None, False, True),  # right_index is set to True
     ],
 )
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2)
 def test_merge_cross_mis_specified_negative(
     left_df, right_df, on, left_on, right_on, left_index, right_index
 ):
@@ -704,7 +704,7 @@ def test_merge_cross_mis_specified_negative(
         (0.0, 0.0, {"suffixes": ("_x", None)}),
     ],
 )
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_suffix(left_df, right_df, left_col, right_col, kwargs):
     left_df = left_df.rename(columns={"A": left_col})
     right_df = right_df.rename(columns={"A": right_col})
@@ -720,7 +720,7 @@ def test_merge_suffix(left_df, right_df, left_col, right_col, kwargs):
     )
 
 
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_duplicate_suffix(left_df, right_df):
     eval_snowpark_pandas_result(
         left_df,
@@ -734,7 +734,7 @@ def test_merge_duplicate_suffix(left_df, right_df):
     )
 
 
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_label_conflict_with_suffix(left_df, right_df):
     # Test the behavior when adding suffix crates a conflict with another label.
     # Note: This raises a warning in pandas 2.0 and will raise an error in future
@@ -758,7 +758,7 @@ def test_merge_label_conflict_with_suffix(left_df, right_df):
     )
 
 
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_non_str_suffix(left_df, right_df):
     eval_snowpark_pandas_result(
         left_df,
@@ -776,7 +776,7 @@ def test_merge_non_str_suffix(left_df, right_df):
     "suffixes",
     [(None, None), ("", None), (None, ""), ("", "")],
 )
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2)
 def test_merge_empty_suffix_negative(left_df, right_df, suffixes):
     eval_snowpark_pandas_result(
         left_df,
@@ -794,7 +794,7 @@ def test_merge_empty_suffix_negative(left_df, right_df, suffixes):
     "suffixes",
     [("a", "b", "c"), tuple("a")],
 )
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2)
 def test_merge_suffix_length_error_negative(left_df, right_df, suffixes):
     eval_snowpark_pandas_result(
         left_df,
@@ -808,7 +808,7 @@ def test_merge_suffix_length_error_negative(left_df, right_df, suffixes):
     )
 
 
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_duplicate_labels(left_df, right_df):
     # Change left_df columns to ["A", "B", "left_c", "left_c"]
     # 'left_c' is a duplicate label.
@@ -824,7 +824,7 @@ def test_merge_duplicate_labels(left_df, right_df):
     )
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2)
 def test_merge_duplicate_join_keys_negative(left_df, right_df):
     # Change left_df columns to ["A", "B", "left_c", "left_c"]
     # 'left_c' is a duplicate label. This can not be used as join key.
@@ -860,14 +860,14 @@ def test_merge_with_self():
 
 
 @pytest.mark.parametrize("on", ["A", "B"])
-@sql_count_checker(query_count=4, join_count=4)
+@sql_count_checker(query_count=4, join_count=1)
 def test_merge_with_series(left_df, right_df, how, on, sort):
     native_series = right_df.to_pandas()[on]
     snow_series = pd.Series(native_series)
     _verify_merge(left_df, snow_series, how=how, on=on, sort=sort)
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1)
 def test_merge_with_unnamed_series_negative(left_df):
     native_series = native_pd.Series([1, 2, 3])
     snow_series = pd.Series(native_series)
@@ -922,7 +922,7 @@ def test_merge_outer_with_nan(dtype):
     _verify_merge(right, left, "outer", on="key")
 
 
-@sql_count_checker(query_count=5, join_count=5)
+@sql_count_checker(query_count=5, join_count=1)
 def test_merge_different_index_names():
     left = pd.DataFrame({"a": [1]}, index=pd.Index([1], name="c"))
     right = pd.DataFrame({"a": [1]}, index=pd.Index([1], name="d"))
@@ -937,13 +937,13 @@ def test_merge_different_index_names():
     )
 
 
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_no_join_keys(left_df, right_df, how, sort):
     _verify_merge(left_df, right_df, how, sort=sort)
 
 
 @pytest.mark.parametrize("left_name, right_name", [("left_a", "right_a"), (1, "1")])
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2)
 def test_merge_no_join_keys_negative(left_name, right_name, left_df, right_df):
     left_df = left_df.rename(columns={"A": left_name, "B": "left_b"})
     right_df = right_df.rename(columns={"A": right_name, "B": "right_b"})
@@ -978,7 +978,7 @@ def test_merge_no_join_keys_common_index_negative(left_df, right_df):
     )
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2)
 def test_merge_no_join_keys_common_index_with_data_negative(left_df, right_df):
     left_df = left_df.rename(columns={"A": "left_a", "B": "left_b"})
     right_df = right_df.rename(columns={"A": "right_a", "B": "left_i"})
@@ -1002,16 +1002,16 @@ def test_merge_no_join_keys_common_index_with_data_negative(left_df, right_df):
 @pytest.mark.parametrize(
     "left_on, right_on, expected_query_count, expected_join_count",
     [
-        (np.array(["a", "b", "c", "x", "y"]), "right_d", 5, 7),
-        ([np.array(["a", "b", "c", "x", "y"]), "A"], ["right_d", "A"], 5, 7),
-        ("left_d", np.array(["a", "b", "c", "x", "y"]), 5, 7),
-        (["left_d", "A"], [np.array(["a", "b", "c", "x", "y"]), "A"], 5, 7),
-        (["left_d", "A"], (np.array(["a", "b", "c", "x", "y"]), "A"), 5, 7),  # tuple
+        (np.array(["a", "b", "c", "x", "y"]), "right_d", 5, 2),
+        ([np.array(["a", "b", "c", "x", "y"]), "A"], ["right_d", "A"], 5, 2),
+        ("left_d", np.array(["a", "b", "c", "x", "y"]), 5, 2),
+        (["left_d", "A"], [np.array(["a", "b", "c", "x", "y"]), "A"], 5, 2),
+        (["left_d", "A"], (np.array(["a", "b", "c", "x", "y"]), "A"), 5, 2),  # tuple
         (
             np.array(["a", "b", "c", "x", "y"]),
             np.array(["x", "y", "c", "a", "b"]),
             7,
-            9,
+            3,
         ),
     ],
 )
@@ -1022,7 +1022,7 @@ def test_merge_on_array_like_keys(
         _verify_merge(left_df, right_df, how=how, left_on=left_on, right_on=right_on)
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2)
 def test_merge_on_array_like_keys_conflict_negative(left_df, right_df):
     left_on = np.array(["a", "b", "c", "x", "y"])
     right_on = np.array(["x", "y", "c", "a", "b"])
@@ -1049,7 +1049,7 @@ def test_merge_on_array_like_keys_conflict_negative(left_df, right_df):
         np.array(["a", "b", "c", "a", "b", "c"]),  # too long
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=2)
 def test_merge_on_array_like_keys_length_mismatch_negative(left_df, right_df, left_on):
     # Native pandas raises
     # ValueError: The truth value of an array with more than one element is ambiguous
@@ -1061,22 +1061,22 @@ def test_merge_on_array_like_keys_length_mismatch_negative(left_df, right_df, le
         left_df.merge(right_df, left_on=left_on, right_on="right_d")
 
 
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_with_indicator(left_df, right_df, how):
     _verify_merge(left_df, right_df, how, on="A", indicator=True)
 
 
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_with_indicator_cross_join(left_df, right_df):
     _verify_merge(left_df, right_df, how="cross", indicator=True)
 
 
-@sql_count_checker(query_count=3, join_count=5)
+@sql_count_checker(query_count=3, join_count=1)
 def test_merge_with_indicator_explicit_name(left_df, right_df):
     _verify_merge(left_df, right_df, "outer", on="A", indicator="indicator_col")
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2)
 def test_merge_with_invalid_indicator_type_negative(left_df, right_df):
     eval_snowpark_pandas_result(
         left_df,
@@ -1092,7 +1092,7 @@ def test_merge_with_invalid_indicator_type_negative(left_df, right_df):
     )
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2)
 def test_merge_with_indicator_explicit_name_negative(left_df, right_df):
     left_df = left_df.rename(columns={"left_c": "_merge"})
     eval_snowpark_pandas_result(

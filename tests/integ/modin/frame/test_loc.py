@@ -3945,12 +3945,12 @@ def test_raise_set_cell_with_list_like_value_error():
                 reason="SNOW-1652608 result series name incorrectly set"
             ),
         ),  # 1 join fron df creation, 1 join from squeeze, 2 joins from to_pandas during eval
-        (["1 day", "3 days"], 1, 2),
-        ([True, False, False], 1, 2),
-        (slice(None, "4 days"), 1, 1),
-        (slice(None, "4 days", 2), 1, 1),
-        (slice("1 day", "2 days"), 1, 1),
-        (slice("1 day 1 hour", "2 days 2 hours", -1), 1, 1),
+        (["1 day", "3 days"], 1, 1),
+        ([True, False, False], 1, 1),
+        (slice(None, "4 days"), 1, 0),
+        (slice(None, "4 days", 2), 1, 0),
+        (slice("1 day", "2 days"), 1, 0),
+        (slice("1 day 1 hour", "2 days 2 hours", -1), 1, 0),
     ],
 )
 def test_df_loc_get_with_timedelta(key, query_count, join_count):
@@ -4017,7 +4017,7 @@ def test_df_loc_get_with_timedelta(key, query_count, join_count):
         ),
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=2)
 def test_df_loc_get_with_timedelta_behavior_difference(key, expected_result):
     # In these test cases, native pandas raises a KeyError but Snowpark pandas works correctly.
     data = {
@@ -4037,7 +4037,7 @@ def test_df_loc_get_with_timedelta_behavior_difference(key, expected_result):
     assert_frame_equal(actual_result, expected_result)
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=3, join_count=1)
 def test_df_loc_get_with_timedeltaindex_key():
     data = {
         "A": [1, 2, 3],

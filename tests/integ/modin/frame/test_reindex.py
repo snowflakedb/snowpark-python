@@ -209,7 +209,7 @@ class TestReindexAxis0:
             perform_reindex,
         )
 
-    @sql_count_checker(query_count=1, join_count=2)
+    @sql_count_checker(query_count=2, join_count=1)
     @pytest.mark.parametrize("limit", [None, 1, 2, 100])
     @pytest.mark.parametrize("method", ["bfill", "backfill", "pad", "ffill"])
     def test_reindex_index_datetime_with_fill(self, limit, method):
@@ -248,7 +248,7 @@ class TestReindexAxis0:
             snow_df, native_df, lambda df: df.reindex(axis=0, labels=list("EFG"))
         )
 
-    @sql_count_checker(query_count=1, join_count=2)
+    @sql_count_checker(query_count=2, join_count=1)
     def test_reindex_index_non_overlapping_datetime_index(self):
         date_index = native_pd.date_range("1/1/2010", periods=6, freq="D")
         native_df = native_pd.DataFrame(
@@ -273,7 +273,7 @@ class TestReindexAxis0:
             snow_df, native_df, perform_reindex, check_freq=False
         )
 
-    @sql_count_checker(query_count=0)
+    @sql_count_checker(query_count=1)
     def test_reindex_index_non_overlapping_different_types_index_negative(self):
         date_index = pd.date_range("1/1/2010", periods=6, freq="D")
         snow_df = pd.DataFrame(

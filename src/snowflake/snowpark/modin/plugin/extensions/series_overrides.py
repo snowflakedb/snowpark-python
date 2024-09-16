@@ -45,6 +45,7 @@ from snowflake.snowpark.modin.pandas.utils import from_pandas, is_scalar
 from snowflake.snowpark.modin.plugin._internal.utils import (
     convert_index_to_list_of_qcs,
     convert_index_to_qc,
+    error_checking_for_init,
 )
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
@@ -367,8 +368,7 @@ def __init__(
             self.name = name
         return
 
-    if isinstance(index, spd.DataFrame):  # pandas raises the same error
-        raise ValueError("Index data must be 1-dimensional")
+    error_checking_for_init(index, dtype)
 
     if isinstance(data, spd.DataFrame):
         # pandas raises an ambiguous error:
@@ -398,11 +398,12 @@ def __init__(
     else:
         # CASE IV: Non-Snowpark pandas data
         # If the data is not a Snowpark pandas object, convert it to a query compiler.
+        # The query compiler uses the '__reduced__' name internally as a column name to represent pandas
+        # Series objects that are not explicitly assigned a name.
+        # This helps to distinguish between an N-element Series and 1xN DataFrame.
         name = name or MODIN_UNNAMED_SERIES_LABEL
-        if (
-            isinstance(data, (native_pd.Series, native_pd.Index))
-            and data.name is not None
-        ):
+        if hasattr(data, "name") and data.name is not None:
+            # If data is an object that has a name field, use that as the name of the new Series.
             name = data.name
         # If any of the values are Snowpark pandas objects, convert them to native pandas objects.
         if not isinstance(
@@ -422,9 +423,9 @@ def __init__(
             native_pd.DataFrame(
                 native_pd.Series(
                     data=data,
-                    dtype=dtype,
-                    # Handle setting the index, if it is a lazy index, outside this block.
+                    # If the index is a lazy index, handle setting it outside this block.
                     index=None if isinstance(index, (Index, Series)) else index,
+                    dtype=dtype,
                     name=name,
                     copy=copy,
                     fastpath=fastpath,

@@ -444,7 +444,7 @@ def test_df_setitem_single_column_length_mismatch(key, value):
         [["a", "b", "b", "d", "e"], ["x", "y", "z", "u", "u"], True],
     ],
 )
-@sql_count_checker(query_count=1, join_count=3)
+@sql_count_checker(query_count=3, join_count=1)
 def test_df_setitem_with_unique_and_duplicate_index_values(
     index_values, other_index_values, expect_mismatch
 ):
