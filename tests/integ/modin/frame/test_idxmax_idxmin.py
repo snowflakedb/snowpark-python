@@ -196,8 +196,18 @@ def test_idxmax_idxmin_with_dates(func, axis):
 
 @sql_count_checker(query_count=1)
 @pytest.mark.parametrize("func", ["idxmax", "idxmin"])
-@pytest.mark.parametrize("axis", [0, 1])
-@pytest.mark.xfail(reason="SNOW-1625380 TODO")
+@pytest.mark.parametrize(
+    "axis",
+    [
+        0,
+        pytest.param(
+            1,
+            marks=pytest.mark.xfail(
+                strict=True, raises=NotImplementedError, reason="SNOW-1653126"
+            ),
+        ),
+    ],
+)
 def test_idxmax_idxmin_with_timedelta(func, axis):
     native_df = native_pd.DataFrame(
         data={
