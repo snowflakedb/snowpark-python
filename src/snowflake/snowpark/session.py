@@ -605,13 +605,8 @@ class Session:
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
-<<<<<<< SNOW-1527717
-        if self._auto_clean_up_temp_table_enabled:
-            self._temp_table_auto_cleaner.start()
         self.profiler = None
 
-=======
->>>>>>> main
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
