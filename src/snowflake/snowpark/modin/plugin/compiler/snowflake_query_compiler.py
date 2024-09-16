@@ -9442,9 +9442,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 f"Snowpark pandas astype API doesn't yet support errors == '{errors}'"
             )
-        col_dtypes_curr = {
-            k: v for k, v in self.dtypes.to_dict().items() if k in col_dtypes_map
-        }
 
         astype_mapping = {}
         labels = list(col_dtypes_map.keys())
@@ -9463,17 +9460,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             for id in ids:
                 to_dtype = col_dtypes_map[label]
                 to_sf_type = TypeMapper.to_snowflake(to_dtype)
-                from_dtype = col_dtypes_curr[label]
                 from_sf_type = self._modin_frame.get_snowflake_type(id)
                 if isinstance(from_sf_type, StringType) and isinstance(
                     to_sf_type, TimedeltaType
                 ):
                     # Raise NotImplementedError as there is no Snowflake SQL function converting
                     # string (e.g. 1 day, 3 hours, 2 minutes) to Timedelta
+                    from_dtype = self.dtypes.to_dict()[label]
                     ErrorMessage.not_implemented(
                         f"dtype {pandas_dtype(from_dtype)} cannot be converted to {pandas_dtype(to_dtype)}"
                     )
                 elif is_astype_type_error(from_sf_type, to_sf_type):
+                    from_dtype = self.dtypes.to_dict()[label]
                     raise TypeError(
                         f"dtype {pandas_dtype(from_dtype)} cannot be converted to {pandas_dtype(to_dtype)}"
                     )

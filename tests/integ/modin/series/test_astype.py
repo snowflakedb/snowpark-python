@@ -287,7 +287,7 @@ def test_astype_from_DatetimeTZDtype_to_datetime64(from_tz):
     native = native_pd.Series([0, 1, 2, 3], dtype=from_dtype)
     snow = pd.Series(native)
     expected_dtype = get_expected_dtype(to_dtype)
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=1):
         s = snow.astype(to_dtype)
         assert s.dtype == expected_dtype
         # Native pandas after 2.0 disallows using astype to convert from timzone-aware to timezone-naive
