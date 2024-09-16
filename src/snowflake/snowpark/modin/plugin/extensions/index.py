@@ -90,8 +90,8 @@ class IndexParent:
 
     def check_and_update_parent_qc_index_names(self, names: list) -> None:
         """
-        Update the Index and its parent's index names if the parent's current query compiler matches
-        the recorded query compiler (`_parent_qc`).
+        Update the Index and its parent's index names if the query compiler associated with the parent is
+        different from the original query compiler recorded, i.e., an inplace update has been applied to the parent.
         """
         if self._parent._query_compiler is self._parent_qc:
             new_query_compiler = self._parent_qc.set_index_names(names)
@@ -760,8 +760,9 @@ class Index(metaclass=TelemetryMeta):
         if not is_hashable(value):
             raise TypeError(f"{type(self).__name__}.name must be a hashable type")
         self._query_compiler = self._query_compiler.set_index_names([value])
-        # Update the name of the parent's index only if the parent's current query compiler
-        # matches the recorded query compiler.
+        # Update the name of the parent's index only if an inplace update is performed on
+        # the parent object, i.e., the parent's current query compiler matches the originally
+        # recorded query compiler.
         if self._parent is not None:
             self._parent.check_and_update_parent_qc_index_names([value])
 

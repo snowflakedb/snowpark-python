@@ -14,7 +14,7 @@
 
 #### Bug Fixes
 
-- Fixed a bug where an `Index` object created from a `Series`/`DataFrame` incorrectly updates the `Series`/`DataFrame`'s index name when it is not supposed to.
+- Fixed a bug where an `Index` object created from a `Series`/`DataFrame` incorrectly updates the `Series`/`DataFrame`'s index name after an inplace update has been applied to the original `Series`/`DataFrame`.
 
 
 ## 1.22.1 (2024-09-11)
