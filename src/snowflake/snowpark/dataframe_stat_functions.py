@@ -85,6 +85,8 @@ class DataFrameStatFunctions:
         if not percentile or not col:
             return []
 
+        kwargs = {}
+
         if _emit_ast:
             # Add an assign node that applies SpDataframeStatsApproxQuantile() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
@@ -113,17 +115,8 @@ class DataFrameStatFunctions:
 
             self._dataframe._session._ast_batch.eval(repr)
 
-        if self._dataframe._session._conn.is_phase1_enabled():
-            # TODO: Logic here should be
-            # ast = self._dataframe._session._ast_batch.flush()
-            # res = self._dataframe._session._conn.ast_query(ast)
-            raise NotImplementedError(
-                "TODO: Implement approx_quantile() with EvalResult in Phase1."
-            )
-
-        # Phase 0 flushes AST and encodes it as part of the query.
-        kwargs = {}
-        _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+            # Flush the AST and encode it as part of the query.
+            _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
 
         temp_col_name = "t"
         if isinstance(col, (Column, str)):
@@ -196,6 +189,8 @@ class DataFrameStatFunctions:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
 
+        kwargs = {}
+
         if _emit_ast:
             # Add an assign node that applies SpDataframeStatsCorr() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
@@ -213,17 +208,8 @@ class DataFrameStatFunctions:
 
             self._dataframe._session._ast_batch.eval(repr)
 
-        if self._dataframe._session._conn.is_phase1_enabled():
-            # TODO: Logic here should be
-            # ast = self._dataframe._session._ast_batch.flush()
-            # res = self._dataframe._session._conn.ast_query(ast)
-            raise NotImplementedError(
-                "TODO: Implement corr() with EvalResult in Phase1."
-            )
-
-        # Phase 0 flushes AST and encodes it as part of the query.
-        kwargs = {}
-        _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+            # Flush the AST and encode it as part of the query.
+            _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
 
         df = self._dataframe.select(corr_func(col1, col2), _emit_ast=False)
         adjust_api_subcalls(df, "DataFrameStatFunctions.corr", len_subcalls=1)
@@ -256,6 +242,8 @@ class DataFrameStatFunctions:
             If there is not enough data to generate the covariance, the method returns None.
         """
 
+        kwargs = {}
+
         if _emit_ast:
             # Add an assign node that applies SpDataframeStatsCov() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
@@ -273,17 +261,8 @@ class DataFrameStatFunctions:
 
             self._dataframe._session._ast_batch.eval(repr)
 
-        if self._dataframe._session._conn.is_phase1_enabled():
-            # TODO: Logic here should be
-            # ast = self._dataframe._session._ast_batch.flush()
-            # res = self._dataframe._session._conn.ast_query(ast)
-            raise NotImplementedError(
-                "TODO: Implement corr() with EvalResult in Phase1."
-            )
-
-            # Phase 0 flushes AST and encodes it as part of the query.
-        kwargs = {}
-        _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+            # Flush the AST and encode it as part of the query.
+            _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
 
         df = self._dataframe.select(covar_samp(col1, col2), _emit_ast=False)
         adjust_api_subcalls(df, "DataFrameStatFunctions.corr", len_subcalls=1)
