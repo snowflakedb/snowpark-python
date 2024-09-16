@@ -88,6 +88,31 @@ import modin.pandas
 
 # TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
 from modin.pandas import plotting  # type: ignore[import]
+from modin.pandas import (  # don't import stuff defined in pd_overrides
+    ExcelFile,
+    HDFStore,
+    read_clipboard,
+    read_excel,
+    read_feather,
+    read_fwf,
+    read_gbq,
+    read_hdf,
+    read_html,
+    read_pickle,
+    read_sas,
+    read_spss,
+    read_sql,
+    read_sql_query,
+    read_sql_table,
+    read_stata,
+    read_table,
+    to_pickle,
+)
+from modin.pandas.api.extensions import (
+    register_dataframe_accessor,
+    register_pd_accessor,
+    register_series_accessor,
+)
 from modin.pandas.dataframe import DataFrame
 from modin.pandas.series import Series
 
@@ -122,37 +147,12 @@ from snowflake.snowpark.modin.plugin.extensions.general_overrides import (  # is
     value_counts,
     wide_to_long,
 )
-from snowflake.snowpark.modin.pandas.io import (  # isort: skip  # noqa: E402,F401
-    # read_json is provided by overrides module
-    ExcelFile,
-    HDFStore,
-    json_normalize,
-    read_clipboard,
-    read_csv,
-    read_excel,
-    read_feather,
-    read_fwf,
-    read_gbq,
-    read_hdf,
-    read_html,
-    read_orc,
-    read_parquet,
-    read_pickle,
-    read_sas,
-    read_spss,
-    read_sql,
-    read_sql_query,
-    read_sql_table,
-    read_stata,
-    read_table,
-    read_xml,
-    to_pickle,
-)
 from snowflake.snowpark.modin.plugin._internal.session import (  # isort: skip  # noqa: E402,F401
     SnowpandasSessionHolder,
 )
 from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip  # noqa: E402,F401
     TELEMETRY_PRIVATE_METHODS,
+    snowpark_pandas_telemetry_standalone_function_decorator,
     try_add_telemetry_to_attribute,
 )
 from snowflake.snowpark.modin.plugin.utils.frontend_constants import (  # isort: skip  # noqa: E402,F401
@@ -165,11 +165,18 @@ _PD_EXTENSIONS_: dict = {}
 
 
 import snowflake.snowpark.modin.plugin.extensions.pd_extensions as pd_extensions  # isort: skip  # noqa: E402,F401
-import snowflake.snowpark.modin.plugin.extensions.pd_overrides  # isort: skip  # noqa: E402,F401
-from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: skip  # noqa: E402,F401
+from snowflake.snowpark.modin.plugin.extensions.pd_extensions import (  # isort: skip  # noqa: E402,F401
     Index,
     DatetimeIndex,
     TimedeltaIndex,
+)
+import snowflake.snowpark.modin.plugin.extensions.pd_io_overrides  # isort: skip  # noqa: E402,F401
+from snowflake.snowpark.modin.plugin.extensions.pd_io_overrides import (  # isort: skip  # noqa: E402,F401
+    read_xml,
+    json_normalize,
+    read_orc,
+    read_csv,
+    read_parquet,
     read_json,
 )
 
@@ -209,6 +216,41 @@ for attr_name in dir(DataFrame):
         register_dataframe_accessor(attr_name)(
             try_add_telemetry_to_attribute(attr_name, getattr(DataFrame, attr_name))
         )
+
+
+# Add telemetry to I/O methods. Like DataFrame/Series, we don't care whether or not the methods
+# were defined via override or not. Functions not defined in modin (like read_snowflake) should still
+# have explicit telemetry annotations.
+_io_functions = [
+    "read_xml",
+    "read_csv",
+    "read_table",
+    "read_parquet",
+    "read_json",
+    "read_gbq",
+    "read_html",
+    "read_clipboard",
+    "read_excel",
+    "read_hdf",
+    "read_feather",
+    "read_stata",
+    "read_sas",
+    "read_pickle",
+    "read_sql",
+    "read_fwf",
+    "read_sql_table",
+    "read_sql_query",
+    "to_pickle",
+    "read_spss",
+    "json_normalize",
+    "read_orc",
+]
+for attr_name in _io_functions:
+    register_pd_accessor(attr_name)(
+        snowpark_pandas_telemetry_standalone_function_decorator(
+            getattr(modin.pandas, attr_name)
+        )
+    )
 
 
 def __getattr__(name: str) -> Any:
