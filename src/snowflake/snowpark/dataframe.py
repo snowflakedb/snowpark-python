@@ -93,10 +93,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
-from snowflake.snowpark._internal.ast import (
-    check_response,
-    decode_ast_response_from_snowpark,
-)
+
 from snowflake.snowpark._internal.ast_utils import (
     FAIL_ON_MISSING_AST,
     build_expr_from_python_val,
