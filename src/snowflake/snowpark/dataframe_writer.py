@@ -205,6 +205,7 @@ class DataFrameWriter:
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
 
+        kwargs = {}
         if _emit_ast:
             # Add an Assign node that applies SpWriteTable() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
@@ -261,17 +262,7 @@ class DataFrameWriter:
 
             self._dataframe._session._ast_batch.eval(repr)
 
-        if self._dataframe._session._conn.is_phase1_enabled():
-            # TODO: Logic here should be
-            # ast = self._dataframe._session._ast_batch.flush()
-            # res = self._dataframe._session._conn.ast_query(ast)
-            raise NotImplementedError(
-                "TODO: Implement save_as_table() with EvalResult in Phase1."
-            )
-
-        # Phase 0 flushes AST and encodes it as part of the query.
-        kwargs = {}
-        if _emit_ast:
+            # Flush the AST and encode it as part of the query.
             _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
 
         with open_telemetry_context_manager(self.save_as_table, self._dataframe):
@@ -425,6 +416,7 @@ class DataFrameWriter:
             LAST_NAME: [["Berry","Berry","Davis"]]
         """
 
+        kwargs = {}
         if _emit_ast:
             # Add an Assign node that applies SpWriteCopyIntoLocation() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
@@ -457,17 +449,8 @@ class DataFrameWriter:
 
             self._dataframe._session._ast_batch.eval(repr)
 
-        if self._dataframe._session._conn.is_phase1_enabled():
-            # TODO: Logic here should be
-            # ast = self._dataframe._session._ast_batch.flush()
-            # res = self._dataframe._session._conn.ast_query(ast)
-            raise NotImplementedError(
-                "TODO: Implement copy_inyo_location() with EvalResult in Phase1."
-            )
-
-        # Phase 0 flushes AST and encodes it as part of the query.
-        kwargs = {}
-        _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+            # Flush the AST and encode it as part of the query.
+            _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
 
         stage_location = normalize_remote_file_or_dir(location)
         if isinstance(partition_by, str):
