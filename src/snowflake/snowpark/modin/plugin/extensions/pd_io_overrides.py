@@ -6,6 +6,7 @@ from __future__ import annotations
 import inspect
 from typing import TYPE_CHECKING, Any, Callable, Hashable, Literal, Sequence
 
+import modin.pandas as pd
 import pandas as native_pd
 from modin.pandas import DataFrame
 from pandas._libs.lib import NoDefault, no_default
@@ -23,7 +24,6 @@ from pandas._typing import (
     XMLParsers,
 )
 
-import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark.modin.pandas.api.extensions import register_pd_accessor
 from snowflake.snowpark.modin.plugin.io.snow_io import (
     READ_CSV_DEFAULTS,
@@ -68,7 +68,7 @@ def read_xml(
     compression: CompressionOptions = "infer",
     storage_options: StorageOptions = None,
     dtype_backend: DtypeBackend | NoDefault = no_default,
-) -> DataFrame:
+) -> pd.DataFrame:
     # TODO(https://github.com/modin-project/modin/issues/7104):
     # modin needs to remove defaults to pandas at API layer
     pass
@@ -86,7 +86,7 @@ def json_normalize(
     errors: str | None = "raise",
     sep: str = ".",
     max_level: int | None = None,
-) -> DataFrame:  # noqa: PR01, RT01, D200
+) -> pd.DataFrame:  # noqa: PR01, RT01, D200
     """
     Normalize semi-structured JSON data into a flat table.
     """
@@ -104,7 +104,7 @@ def read_orc(
     dtype_backend: DtypeBackend | NoDefault = no_default,
     filesystem=None,
     **kwargs,
-) -> DataFrame:  # noqa: PR01, RT01, D200
+) -> pd.DataFrame:  # noqa: PR01, RT01, D200
     """
     Load an ORC object from the file path, returning a DataFrame.
     """
@@ -175,7 +175,7 @@ def read_csv(
     | None = READ_CSV_DEFAULTS["float_precision"],
     storage_options: StorageOptions = READ_CSV_DEFAULTS["storage_options"],
     dtype_backend: DtypeBackend = READ_CSV_DEFAULTS["dtype_backend"],
-) -> DataFrame:
+) -> pd.DataFrame:
     """
     Read csv file(s) into a Snowpark pandas DataFrame. This API can read
     files stored locally or on a Snowflake stage.
@@ -332,7 +332,7 @@ def read_csv(
 
     Returns
     -------
-    SnowparkPandasDataFrame
+    Snowpark pandas DataFrame
 
     Raises
     ------
@@ -443,7 +443,7 @@ def read_json(
     storage_options: StorageOptions = None,
     dtype_backend: DtypeBackend = no_default,
     engine: Literal["ujson", "pyarrow"] | None = None,
-) -> DataFrame:
+) -> pd.DataFrame:
     """
     Read new-line delimited json file(s) into a Snowpark pandas DataFrame. This API can read
     files stored locally or on a Snowflake stage.

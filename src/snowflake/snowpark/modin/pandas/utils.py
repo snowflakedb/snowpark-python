@@ -28,6 +28,7 @@ from typing import Any, Callable
 
 import numpy as np
 import pandas
+from modin.core.execution.dispatching.factories.dispatcher import FactoryDispatcher
 from modin.core.storage_formats import BaseQueryCompiler  # pragma: no cover
 from pandas._libs import lib
 from pandas._typing import (
@@ -43,9 +44,6 @@ from pandas.core.dtypes.common import is_array_like, is_dict_like, is_list_like
 from pandas.errors import SpecificationError
 
 import snowflake.snowpark.modin.pandas as pd
-from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
-    FactoryDispatcher,
-)
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     AggFuncWithLabel,
     get_pandas_aggr_func_name,
@@ -120,10 +118,6 @@ def from_arrow(at):
     """
     from modin.pandas import DataFrame
 
-    from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
-        FactoryDispatcher,
-    )
-
     return DataFrame(query_compiler=FactoryDispatcher.from_arrow(at))
 
 
@@ -144,10 +138,6 @@ def from_dataframe(df):
         A new Modin DataFrame object.
     """
     from modin.pandas import DataFrame
-
-    from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
-        FactoryDispatcher,
-    )
 
     return DataFrame(query_compiler=FactoryDispatcher.from_dataframe(df))
 
