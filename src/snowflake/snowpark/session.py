@@ -647,10 +647,6 @@ class Session:
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
 
-        # Initialize the server-side session.
-        if self._conn.is_phase1_enabled():
-            self._conn.create_coprocessor()
-
         self._ast_batch = AstBatch(self)
 
         _logger.info("Snowpark Session information: %s", self._session_info)
