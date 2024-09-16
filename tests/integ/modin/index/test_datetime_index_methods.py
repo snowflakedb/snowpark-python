@@ -423,7 +423,7 @@ def test_floor_ceil_round_negative(func, freq, ambiguous, nonexistent):
                 ],
                 tz="US/Eastern",
             ),
-            marks=pytest.mark.xfail(reason="Snowpark pandas does not support timezone"),
+            marks=pytest.mark.xfail(reason="TODO: SNOW-1625233 Snowpark pandas to_datetime does not support timezone"),
         ),
         native_pd.DatetimeIndex(
             [
