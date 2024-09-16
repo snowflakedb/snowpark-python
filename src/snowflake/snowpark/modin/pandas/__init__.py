@@ -95,37 +95,14 @@ from snowflake.snowpark.modin.pandas.api.extensions import (
     register_dataframe_accessor,
     register_series_accessor,
 )
-from snowflake.snowpark.modin.pandas.io import (  # read_json is provided by overrides module
-    ExcelFile,
-    HDFStore,
-    json_normalize,
-    read_clipboard,
-    read_csv,
-    read_excel,
-    read_feather,
-    read_fwf,
-    read_gbq,
-    read_hdf,
-    read_html,
-    read_orc,
-    read_parquet,
-    read_pickle,
-    read_sas,
-    read_spss,
-    read_sql,
-    read_sql_query,
-    read_sql_table,
-    read_stata,
-    read_table,
-    read_xml,
-    to_pickle,
-)
 from snowflake.snowpark.modin.plugin._internal.session import SnowpandasSessionHolder
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     TELEMETRY_PRIVATE_METHODS,
     try_add_telemetry_to_attribute,
 )
-from snowflake.snowpark.modin.plugin.extensions.general import (
+from snowflake.snowpark.modin.plugin.utils.frontend_constants import _ATTRS_NO_LOOKUP
+
+from snowflake.snowpark.modin.plugin.extensions.general import (  # isort: skip  # noqa: E402,F401
     bdate_range,
     concat,
     crosstab,
@@ -151,7 +128,32 @@ from snowflake.snowpark.modin.plugin.extensions.general import (
     value_counts,
     wide_to_long,
 )
-from snowflake.snowpark.modin.plugin.utils.frontend_constants import _ATTRS_NO_LOOKUP
+from snowflake.snowpark.modin.pandas.io import (  # isort: skip  # noqa: E402,F401
+    # read_json is provided by overrides module
+    ExcelFile,
+    HDFStore,
+    json_normalize,
+    read_clipboard,
+    read_csv,
+    read_excel,
+    read_feather,
+    read_fwf,
+    read_gbq,
+    read_hdf,
+    read_html,
+    read_orc,
+    read_parquet,
+    read_pickle,
+    read_sas,
+    read_spss,
+    read_sql,
+    read_sql_query,
+    read_sql_table,
+    read_stata,
+    read_table,
+    read_xml,
+    to_pickle,
+)
 
 # The extensions assigned to this module
 _PD_EXTENSIONS_: dict = {}
