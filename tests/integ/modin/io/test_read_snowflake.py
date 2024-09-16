@@ -20,6 +20,7 @@ from snowflake.snowpark.modin.plugin.utils.exceptions import (
     SnowparkPandasErrorCode,
     SnowparkPandasException,
 )
+from snowflake.snowpark.session import Session
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     BASIC_TYPE_DATA1,
@@ -33,22 +34,68 @@ from tests.integ.modin.utils import (
 )
 from tests.utils import Utils
 
+paramList = [False, True]
 
-def call_read_snowflake(table_name: str, as_query: bool, **kwargs) -> pd.DataFrame:
+
+@pytest.fixture(params=paramList, autouse=True)
+def setup_uo(request, session):
+    is_cte_optimization_enabled = session._cte_optimization_enabled
+    is_query_compilation_enabled = session._query_compilation_stage_enabled
+    session._query_compilation_stage_enabled = request.param
+    session._cte_optimization_enabled = True
+    yield
+    session._cte_optimization_enabled = is_cte_optimization_enabled
+    session._query_compilation_stage_enabled = is_query_compilation_enabled
+
+
+def read_snowflake_and_verify_snapshot_creation(
+    session: Session,
+    table_name: str,
+    as_query: bool,
+    materialization_expected: bool,
+    **kwargs,
+) -> pd.DataFrame:
     """
-    Helper method to call `read_snowflake`, either with the table name directly, or with `SELECT * FROM {table_name}`.
+    Helper method with following capability:
+    1) call `read_snowflake`, either with the table name directly, or with `SELECT * FROM {table_name}`.
+    2) check proper read only table is created during read_snowflake.
 
     Args:
         table_name: The name of the table to call.
         as_query: Whether to call `read_snowflake` with a query or the table name.
+        materialization_expected: Whether extra temp table creation is expected. If true, extra check will be applied
+                            to verify that extra temp table is created during read_snowflake.
         kwargs: Keyword arguments to pass to `read_snowflake`.
 
-    Returns:
-        The resulting Snowpark pandas DataFrame.
+        Returns:
+            The resulting Snowpark pandas DataFrame.
     """
+
     if as_query:
-        return pd.read_snowflake(f"SELECT * FROM {table_name}", **kwargs)
-    return pd.read_snowflake(table_name, **kwargs)
+        table_name_or_query = f"SELECT * FROM {table_name}"
+    else:
+        table_name_or_query = table_name
+
+    with session.query_history() as query_history:
+        df = pd.read_snowflake(table_name_or_query, **kwargs)
+
+    if materialization_expected:
+        # when materialization happens, two queries are executed during read_snowflake:
+        # 1) temp table creation out of the current table or query
+        # 2) read only temp table creation
+        assert len(query_history.queries) == 2
+    else:
+        assert len(query_history.queries) == 1
+
+    # test if the scoped snapshot is created
+    scoped_pattern = " SCOPED " if session._use_scoped_temp_objects else " "
+    table_create_sql = query_history.queries[-1].sql_text
+    table_create_pattern = f"CREATE OR REPLACE{scoped_pattern}TEMPORARY READ ONLY TABLE SNOWPARK_TEMP_TABLE_[0-9A-Z]+.*{READ_ONLY_TABLE_SUFFIX}.*"
+    assert re.match(table_create_pattern, table_create_sql) is not None
+
+    assert READ_ONLY_TABLE_SUFFIX in table_create_sql
+
+    return df
 
 
 @sql_count_checker(query_count=5)
@@ -72,29 +119,7 @@ def test_read_snowflake_basic(session, as_query):
         names_list = [table_name, fully_qualified_name]
     # create snowpark pandas dataframe
     for name in names_list:
-        with session.query_history() as query_history:
-            df = call_read_snowflake(name, as_query)
-
-        # test if the scoped snapshot is created
-        table_create_sql = query_history.queries[-1].sql_text
-        table_create_pattern = "CREATE OR REPLACE SCOPED TEMPORARY READ ONLY TABLE "
-        assert table_create_pattern in table_create_sql
-
-        # test if the df is loading from the read only snapshot
-        # the table name should match the following reg expression
-        # "^SNOWPARK_TEMP_TABLE_[0-9A-Z]+$")
-        sql = df._query_compiler._modin_frame.ordered_dataframe.queries["queries"][-1]
-        temp_table_pattern = (
-            f".*SNOWPARK_TEMP_TABLE_[0-9A-Z]+.*{READ_ONLY_TABLE_SUFFIX}"
-        )
-        assert re.match(temp_table_pattern, sql) is not None
-        assert READ_ONLY_TABLE_SUFFIX in sql
-
-        # check the row position snowflake quoted identifier is set
-        assert (
-            df._query_compiler._modin_frame.row_position_snowflake_quoted_identifier
-            is not None
-        )
+        df = read_snowflake_and_verify_snapshot_creation(session, name, as_query, False)
 
         pdf = df.to_pandas()
         assert pdf.values[0].tolist() == BASIC_TYPE_DATA1
@@ -113,7 +138,9 @@ def test_read_snowflake_semi_structured_types(session, as_query):
     )
 
     # create snowpark pandas dataframe
-    df = call_read_snowflake(table_name, as_query)
+    df = read_snowflake_and_verify_snapshot_creation(
+        session, table_name, as_query, verify_materialization=False
+    )
 
     pdf = df.to_pandas()
     for res, expected_res in zip(pdf.values[0].tolist(), SEMI_STRUCTURED_TYPE_DATA):
@@ -132,7 +159,9 @@ def test_read_snowflake_none_nan(session, as_query):
     )
 
     # create snowpark pandas dataframe
-    df = call_read_snowflake(table_name, as_query)
+    df = read_snowflake_and_verify_snapshot_creation(
+        session, table_name, as_query, verify_materialization=False
+    )
 
     pdf = df.to_pandas()
     assert np.isnan(pdf.values[0][0])
@@ -150,7 +179,9 @@ def test_read_snowflake_column_names(session, col_name, as_query):
     Utils.create_table(session, table_name, f"{col_name} int", is_temporary=True)
 
     # create snowpark pandas dataframe
-    df = call_read_snowflake(table_name, as_query)
+    df = read_snowflake_and_verify_snapshot_creation(
+        session, table_name, as_query, verify_materialization=False
+    )
 
     pdf = df.to_pandas()
     assert pdf.index.dtype == np.int64
@@ -182,7 +213,9 @@ def test_read_snowflake_index_col(session, col_name1, col_name2, as_query):
     )
 
     # create snowpark pandas dataframe
-    df = call_read_snowflake(table_name, as_query, index_col=col_label1)
+    df = read_snowflake_and_verify_snapshot_creation(
+        session, table_name, as_query, False, index_col=col_label1
+    )
 
     pdf = df.to_pandas()
     assert pdf.index.name == col_label1
@@ -206,7 +239,9 @@ def test_read_snowflake_index_col_multiindex(session, as_query):
     session.sql(f"insert into {table_name} values ('A', 'B', 'C', 'D')").collect()
 
     # create snowpark pandas dataframe
-    df = call_read_snowflake(table_name, as_query, index_col=["COL1", "COL2", "COL3"])
+    df = read_snowflake_and_verify_snapshot_creation(
+        session, table_name, as_query, False, index_col=["COL1", "COL2", "COL3"]
+    )
 
     assert_index_equal(
         df.index,
@@ -360,17 +395,19 @@ def test_read_snowflake_with_views(
         table_name = test_table_name
         view_name = None
         try:
+            verify_materialization = False
             if table_type in ["view", "SECURE VIEW", "TEMP VIEW"]:
                 view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
                 session.sql(
                     f"create or replace {table_type} {view_name} (col1, s) as select * from {test_table_name}"
                 ).collect()
                 table_name = view_name
+                verify_materialization = True
             caplog.clear()
-            with caplog.at_level(
-                logging.WARNING
-            ), session.query_history() as query_history:
-                df = call_read_snowflake(table_name, as_query)
+            with caplog.at_level(logging.WARNING):
+                df = read_snowflake_and_verify_snapshot_creation(
+                    session, table_name, as_query, verify_materialization
+                )
             assert df.columns.tolist() == ["COL1", "S"]
             failing_reason = "SQL compilation error: Cannot clone from a view object"
             materialize_log = f"Data from source table/view '{table_name}' is being copied into a new temporary table"
@@ -378,21 +415,9 @@ def test_read_snowflake_with_views(
                 # verify temporary table is materialized for view, secure view and temp view
                 assert materialize_log in caplog.text
                 assert failing_reason in caplog.text
-
-                # verify scoped temp table is created
-                temp_table_create_sql = query_history.queries[-2].sql_text
-                temp_table_create_pattern = (
-                    "CREATE OR REPLACE SCOPED TEMPORARY TABLE SNOWPARK_TEMP_TABLE"
-                )
-                assert temp_table_create_pattern in temp_table_create_sql
             else:
                 # verify no temporary table is materialized for regular table
                 assert not (materialize_log in caplog.text)
-            readonly_table_create_sql = query_history.queries[-1].sql_text
-            readonly_table_create_pattern = (
-                "CREATE OR REPLACE SCOPED TEMPORARY READ ONLY TABLE SNOWPARK_TEMP_TABLE"
-            )
-            assert readonly_table_create_pattern in readonly_table_create_sql
         finally:
             if view_name:
                 Utils.drop_view(session, view_name)
@@ -469,7 +494,9 @@ def test_decimal(
     )
     session.sql(f"insert into {test_table_name} values {values_string}").collect()
     # create row access policy that there is no access to the row
-    df = call_read_snowflake(test_table_name, as_query)
+    df = read_snowflake_and_verify_snapshot_creation(
+        session, test_table_name, as_query, False
+    )
 
     assert_series_equal(df.dtypes, native_pd.Series([logical_dtype], index=[colname]))
     pandas_df = df.to_pandas()
@@ -505,7 +532,9 @@ def test_read_snowflake_with_table_in_different_db(session, caplog, as_query) ->
 
         caplog.clear()
         with caplog.at_level(logging.DEBUG):
-            df = call_read_snowflake(table_name, as_query)
+            df = read_snowflake_and_verify_snapshot_creation(
+                session, table_name, as_query, True
+            )
         # verify no temporary table is materialized for regular table
         assert not ("Materialize temporary table" in caplog.text)
         assert df.columns.tolist() == ["X", "Y"]
