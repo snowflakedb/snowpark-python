@@ -747,14 +747,6 @@ class MockServerConnection:
         result_set, _ = self.get_result_set(plan, to_iter=True, **kwargs)
         return result_set["sfqid"]
 
-    def create_coprocessor(self):
-        # It's not necessary to mock this call.
-        pass
-
-    def is_phase1_enabled(self):
-        # We don't yet mock Phase 1.
-        return False
-
     @property
     def max_string_size(self) -> int:
         return DEFAULT_STRING_SIZE

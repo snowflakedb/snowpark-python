@@ -367,14 +367,9 @@ class ServerConnection:
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
-
         results_cursor = self._cursor.execute(query, **kwargs)
-        notify_kwargs = {"requestId": str(results_cursor._request_id)}
-        if "_dataframe_ast" in kwargs:
-            notify_kwargs["dataframeAst"] = kwargs["_dataframe_ast"]
-
         self.notify_query_listeners(
-            QueryRecord(results_cursor.sfqid, results_cursor.query), **notify_kwargs
+            QueryRecord(results_cursor.sfqid, results_cursor.query)
         )
         return results_cursor
 
@@ -718,33 +713,6 @@ class ServerConnection:
             if self._conn._session_parameters
             else default_value
         )
-
-    def create_coprocessor(self) -> None:
-        """Invoked during session initialization to create a server-side coprocessor."""
-        id = str(uuid.uuid4())
-        logger.debug(f"create cp start rid={id}")
-        self._conn._rest.request(
-            f"/queries/v1/query-request?requestId={id}",
-            {"dataframeAst": "new-session"},
-            _no_results=True,
-        )
-        time.sleep(5)  # TODO: need to send a response once the TCM is created.
-        logger.debug("create cp complete")
-
-    # TODO: This function is currently invoked to prototype Phase 1 while maintaining most of the code
-    # targeting Phase 0. This function will likely disappear once Phase 1 is placed in a separate branch.
-    def ast_query(self, request_id__ast) -> Any:
-        (request_id, ast) = request_id__ast
-        req = {
-            "dataframeAst": ast,
-        }
-        logger.debug(f"query rid={request_id}")
-        return self._conn._rest.request(
-            f"/queries/v1/query-request?requestId={request_id}", req
-        )
-
-    def is_phase1_enabled(self) -> bool:
-        return os.getenv("SNOWPARK_PHASE_1", False)
 
 
 def _fix_pandas_df_fixed_type(
