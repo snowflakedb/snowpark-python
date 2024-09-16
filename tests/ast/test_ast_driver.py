@@ -4,6 +4,7 @@
 
 import base64
 import importlib.util
+import logging
 import os
 import pathlib
 import subprocess
@@ -13,6 +14,7 @@ import time
 from dataclasses import dataclass
 from typing import List, Union
 
+import google.protobuf
 import pytest
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -250,6 +252,8 @@ def run_test(session):
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
 def test_ast(session, test_case):
+    logging.info(f"Testing AST encoding with protobuf {google.protobuf.__version__}.")
+
     actual, base64_str = run_test(
         session, test_case.filename.replace(".", "_"), test_case.source
     )
@@ -278,6 +282,11 @@ def test_ast(session, test_case):
                 base64.b64decode(test_case.expected_ast_base64.strip())
             )
 
+            # Actual and expected may have been encoded by different client language versions, e.g. Python 3.8.10 and
+            # Python 3.9.3. Make comparison here client-language agnostic by removing the data from the message.
+            actual_message.ClearField("client_language")
+            expected_message.ClearField("client_language")
+
             det_actual_message = actual_message.SerializeToString(deterministic=True)
             det_expected_message = expected_message.SerializeToString(
                 deterministic=True
@@ -289,6 +298,21 @@ def test_ast(session, test_case):
                 assert actual.strip() == test_case.expected_ast_unparsed.strip()
 
         except AssertionError as e:
+
+            actual_lines = str(actual_message).splitlines()
+            expected_lines = str(expected_message).splitlines()
+
+            from difflib import Differ
+
+            differ = Differ()
+            diffed_lines = [
+                line for line in differ.compare(actual_lines, expected_lines)
+            ]
+
+            logging.error(
+                "expected vs. actual encoded protobuf:\n" + "\n".join(diffed_lines)
+            )
+
             raise AssertionError(
                 f"If the expectation is incorrect, run pytest --update-expectations:\n\n{base64_str}\n{e}"
             ) from e
