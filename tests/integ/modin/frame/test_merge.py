@@ -922,6 +922,7 @@ def test_merge_outer_with_nan(dtype):
     _verify_merge(right, left, "outer", on="key")
 
 
+# Two extra queries to convert to native index for dataframe constructor when creating left and right
 @sql_count_checker(query_count=5, join_count=1)
 def test_merge_different_index_names():
     left = pd.DataFrame({"a": [1]}, index=pd.Index([1], name="c"))
