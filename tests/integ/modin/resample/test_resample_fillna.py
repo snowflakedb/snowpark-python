@@ -15,6 +15,7 @@ interval = pytest.mark.parametrize("interval", [1, 2, 3, 5, 15])
 agg_func = pytest.mark.parametrize("agg_func", ["ffill", "bfill"])
 
 
+# One extra query to convert index to native pandas for dataframe constructor
 @interval
 @agg_func
 @sql_count_checker(query_count=3, join_count=1)
