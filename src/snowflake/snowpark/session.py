@@ -3462,11 +3462,14 @@ class Session:
         Args:
             include_describe: Include query notifications for describe queries
 
-        >>> with session.query_history() as query_history:
+        >>> with session.query_history(True) as query_history:
         ...     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
         ...     df = df.filter(df.a == 1)
         ...     res = df.collect()
-        >>> assert len(query_history.queries) == 1
+        >>> assert len(query_history.queries) == 2
+        >>> assert query_history.queries[0].is_describe
+        >>> assert query_history.queries[1].is_describe
+        >>> assert not query_history.queries[2].is_describe
         """
         query_listener = QueryHistory(self, include_describe)
         self._conn.add_query_listener(query_listener)
