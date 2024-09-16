@@ -72,13 +72,19 @@ def test_read_snowflake_basic(session, as_query):
         names_list = [table_name, fully_qualified_name]
     # create snowpark pandas dataframe
     for name in names_list:
-        df = call_read_snowflake(name, as_query)
+        with session.query_history() as query_history:
+            df = call_read_snowflake(name, as_query)
 
-        # test if the snapshot is created
+        # test if the scoped snapshot is created
+        table_create_sql = query_history.queries[-1].sql_text
+        table_create_pattern = "CREATE OR REPLACE SCOPED TEMPORARY READ ONLY TABLE "
+        assert table_create_pattern in table_create_sql
+
+        # test if the df is loading from the read only snapshot
         # the table name should match the following reg expression
         # "^SNOWPARK_TEMP_TABLE_[0-9A-Z]+$")
         sql = df._query_compiler._modin_frame.ordered_dataframe.queries["queries"][-1]
-        temp_table_pattern = ".*SNOWPARK_TEMP_TABLE_[0-9A-Z]+.*$"
+        temp_table_pattern = f".*SNOWPARK_TEMP_TABLE_[0-9A-Z]+.*{READ_ONLY_TABLE_SUFFIX}"
         assert re.match(temp_table_pattern, sql) is not None
         assert READ_ONLY_TABLE_SUFFIX in sql
 
