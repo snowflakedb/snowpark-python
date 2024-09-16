@@ -78,7 +78,7 @@ def from_non_pandas(df, index, columns, dtype):
 
     new_qc = FactoryDispatcher.from_non_pandas(df, index, columns, dtype)
     if new_qc is not None:
-        from snowflake.snowpark.modin.pandas import DataFrame
+        from modin.pandas import DataFrame
 
         return DataFrame(query_compiler=new_qc)
     return new_qc
@@ -99,7 +99,7 @@ def from_pandas(df):
         A new Modin DataFrame object.
     """
     # from modin.core.execution.dispatching.factories.dispatcher import FactoryDispatcher
-    from snowflake.snowpark.modin.pandas import DataFrame
+    from modin.pandas import DataFrame
 
     return DataFrame(query_compiler=FactoryDispatcher.from_pandas(df))
 
@@ -118,10 +118,11 @@ def from_arrow(at):
     DataFrame
         A new Modin DataFrame object.
     """
+    from modin.pandas import DataFrame
+
     from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
         FactoryDispatcher,
     )
-    from snowflake.snowpark.modin.pandas import DataFrame
 
     return DataFrame(query_compiler=FactoryDispatcher.from_arrow(at))
 
@@ -142,10 +143,11 @@ def from_dataframe(df):
     DataFrame
         A new Modin DataFrame object.
     """
+    from modin.pandas import DataFrame
+
     from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
         FactoryDispatcher,
     )
-    from snowflake.snowpark.modin.pandas import DataFrame
 
     return DataFrame(query_compiler=FactoryDispatcher.from_dataframe(df))
 
@@ -226,7 +228,7 @@ def from_modin_frame_to_mi(df, sortorder=None, names=None):
     pandas.MultiIndex
         The pandas.MultiIndex representation of the given DataFrame.
     """
-    from snowflake.snowpark.modin.pandas import DataFrame
+    from modin.pandas import DataFrame
 
     if isinstance(df, DataFrame):
         df = df._to_pandas()

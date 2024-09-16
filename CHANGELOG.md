@@ -1,12 +1,31 @@
 # Release History
 
-## 1.22.0 (TBD)
+## 1.23.0 (TBD)
+
+### Snowpark pandas API Updates
+
+#### Improvements
+
+- Improved `to_pandas` to persist the original timezone offset for TIMESTAMP_TZ type.
+
+#### New Features
+
+- Added support for `TimedeltaIndex.mean` method.
+- Added support for some cases of aggregating `Timedelta` columns on `axis=0` with `agg` or `aggregate`.
+- Added support for `by`, `left_by`, and `right_by` for `pd.merge_asof`.
+
+
+## 1.22.1 (2024-09-11)
+This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for detailed release content.
+
+
+## 1.22.0 (2024-09-10)
 
 ### Snowpark Python API Updates
 
 ### New Features
 
-- Added following new functions in `snowflake.snowpark.functions`:
+- Added the following new functions in `snowflake.snowpark.functions`:
   - `array_remove`
   - `ln`
 - Added snowpark python API for profiler.
@@ -47,14 +66,14 @@
 - Fixed a bug in `session.read.csv` that caused an error when setting `PARSE_HEADER = True` in an externally defined file format.
 - Fixed a bug in query generation from set operations that allowed generation of duplicate queries when children have common subqueries.
 - Fixed a bug in `session.get_session_stage` that referenced a non-existing stage after switching database or schema.
-- Fixed a bug where calling `DataFrame.to_snowpark_pandas_dataframe` without explicitly initializing the Snowpark pandas plugin caused an error.
+- Fixed a bug where calling `DataFrame.to_snowpark_pandas` without explicitly initializing the Snowpark pandas plugin caused an error.
 - Fixed a bug where using the `explode` function in dynamic table creation caused a SQL compilation error due to improper boolean type casting on the `outer` parameter.
 
 ### Snowpark Local Testing Updates
 
 #### New Features
 
-- Added support for type coercion when passing columns as input to udf calls
+- Added support for type coercion when passing columns as input to UDF calls.
 - Added support for `Index.identical`.
 
 #### Bug Fixes
@@ -106,6 +125,9 @@
 - Added support for creating a `DatetimeIndex` from an `Index` of numeric or string type.
 - Added support for string indexing with `Timedelta` objects.
 - Added support for `Series.dt.total_seconds` method.
+- Added support for `DataFrame.apply(axis=0)`.
+- Added support for `Series.dt.tz_convert` and `Series.dt.tz_localize`.
+- Added support for `DatetimeIndex.tz_convert` and `DatetimeIndex.tz_localize`.
 
 #### Improvements
 
@@ -114,9 +136,11 @@
 - Improved `pd.to_datetime` to handle all local input cases. 
 - Create a lazy index from another lazy index without pulling data to client.
 - Raised `NotImplementedError` for Index bitwise operators.
-- Display a clearer error message when `Index.names` is set to a non-like-like object.
+- Display a more clear error message when `Index.names` is set to a non-like-like object.
 - Raise a warning whenever MultiIndex values are pulled in locally.
 - Improve warning message for `pd.read_snowflake` include the creation reason when temp table creation is triggered.
+- Improve performance for `DataFrame.set_index`, or setting `DataFrame.index` or `Series.index` by avoiding checks require eager evaluation. As a consequence, when the new index that does not match the current `Series`/`DataFrame` object length, a `ValueError` is no longer raised. Instead, when the `Series`/`DataFrame` object is longer than the provided index, the `Series`/`DataFrame`'s new index is filled with `NaN` values for the "extra" elements. Otherwise, the extra values in the provided index are ignored.
+- Properly raise `NotImplementedError` when ambiguous/nonexistent are non-string in `ceil`/`floor`/`round`.
 
 #### Bug Fixes
 
@@ -126,10 +150,6 @@
 - Fixed `inplace` argument for Series objects derived from DataFrame columns.
 - Fixed a bug where `Series.reindex` and `DataFrame.reindex` did not update the result index's name correctly.
 - Fixed a bug where `Series.take` did not error when `axis=1` was specified.
-
-#### Behavior Change
-
-- When calling `DataFrame.set_index`, or setting `DataFrame.index` or `Series.index`, with a new index that does not match the current length of the `Series`/`DataFrame` object, a `ValueError` is no longer raised. When the `Series`/`DataFrame` object is longer than the new index, the `Series`/`DataFrame`'s new index is filled with `NaN` values for the "extra" elements. When the `Series`/`DataFrame` object is shorter than the new index, the extra values in the new index are ignored—`Series` and `DataFrame` stay the same length `n`, and use only the first `n` values of the new index.
 
 
 ## 1.21.1 (2024-09-05)
