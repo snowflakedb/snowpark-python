@@ -84,7 +84,9 @@ def test_read_snowflake_basic(session, as_query):
         # the table name should match the following reg expression
         # "^SNOWPARK_TEMP_TABLE_[0-9A-Z]+$")
         sql = df._query_compiler._modin_frame.ordered_dataframe.queries["queries"][-1]
-        temp_table_pattern = f".*SNOWPARK_TEMP_TABLE_[0-9A-Z]+.*{READ_ONLY_TABLE_SUFFIX}"
+        temp_table_pattern = (
+            f".*SNOWPARK_TEMP_TABLE_[0-9A-Z]+.*{READ_ONLY_TABLE_SUFFIX}"
+        )
         assert re.match(temp_table_pattern, sql) is not None
         assert READ_ONLY_TABLE_SUFFIX in sql
 
@@ -365,7 +367,9 @@ def test_read_snowflake_with_views(
                 ).collect()
                 table_name = view_name
             caplog.clear()
-            with caplog.at_level(logging.WARNING):
+            with caplog.at_level(
+                logging.WARNING
+            ), session.query_history() as query_history:
                 df = call_read_snowflake(table_name, as_query)
             assert df.columns.tolist() == ["COL1", "S"]
             failing_reason = "SQL compilation error: Cannot clone from a view object"
@@ -374,9 +378,21 @@ def test_read_snowflake_with_views(
                 # verify temporary table is materialized for view, secure view and temp view
                 assert materialize_log in caplog.text
                 assert failing_reason in caplog.text
+
+                # verify scoped temp table is created
+                temp_table_create_sql = query_history.queries[-2].sql_text
+                temp_table_create_pattern = (
+                    "CREATE OR REPLACE SCOPED TEMPORARY TABLE SNOWPARK_TEMP_TABLE"
+                )
+                assert temp_table_create_pattern in temp_table_create_sql
             else:
                 # verify no temporary table is materialized for regular table
                 assert not (materialize_log in caplog.text)
+            readonly_table_create_sql = query_history.queries[-1].sql_text
+            readonly_table_create_pattern = (
+                "CREATE OR REPLACE SCOPED TEMPORARY READ ONLY TABLE SNOWPARK_TEMP_TABLE"
+            )
+            assert readonly_table_create_pattern in readonly_table_create_sql
         finally:
             if view_name:
                 Utils.drop_view(session, view_name)
