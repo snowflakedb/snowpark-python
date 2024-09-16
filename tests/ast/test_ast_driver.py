@@ -7,6 +7,7 @@ import importlib.util
 import logging
 import os
 import pathlib
+import platform
 import subprocess
 import sys
 import tempfile
@@ -321,8 +322,11 @@ def test_ast(session, test_case):
 def override_time_zone() -> None:
     # Use any time zone other than America/Los_Angeles and UTC, to minimize the
     # odds of tests passing by luck.
-    os.environ["TZ"] = "America/New_York"
-    time.tzset()
+
+    # This works only under Unix systems, no-op under windows.
+    if platform.system() != "Windows":
+        os.environ["TZ"] = "America/New_York"
+        time.tzset()
 
 
 if __name__ == "__main__":
