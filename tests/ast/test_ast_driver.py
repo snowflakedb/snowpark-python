@@ -28,6 +28,7 @@ class TestCase:
     source: str
     expected_ast_base64: str
     expected_ast_unparsed: str
+    __test__: bool = False  # Add this to suppress pytest collection warning
 
 
 def parse_file(file):
