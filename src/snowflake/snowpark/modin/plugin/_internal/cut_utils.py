@@ -189,8 +189,6 @@ def compute_bin_indices(
         values_frame,
         cuts_frame,
         how="asof",
-        left_on=[],
-        right_on=[],
         left_match_col=values_frame.data_column_snowflake_quoted_identifiers[0],
         right_match_col=cuts_frame.data_column_snowflake_quoted_identifiers[0],
         match_comparator=MatchComparator.LESS_THAN_OR_EQUAL_TO

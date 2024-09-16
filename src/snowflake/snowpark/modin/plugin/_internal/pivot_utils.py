@@ -520,12 +520,15 @@ def single_pivot_helper(
             data_column_snowflake_quoted_identifiers: new data column snowflake quoted identifiers this pivot result
             data_column_pandas_labels: new data column pandas labels for this pivot result
     """
-    snowpark_aggr_func = get_snowflake_agg_func(pandas_aggr_func_name, {})
-    if not is_supported_snowflake_pivot_agg_func(snowpark_aggr_func):
+    snowflake_agg_func = get_snowflake_agg_func(pandas_aggr_func_name, {}, axis=0)
+    if snowflake_agg_func is None or not is_supported_snowflake_pivot_agg_func(
+        snowflake_agg_func.snowpark_aggregation
+    ):
         # TODO: (SNOW-853334) Add support for any non-supported snowflake pivot aggregations
         raise ErrorMessage.not_implemented(
             f"Snowpark pandas DataFrame.pivot_table does not yet support the aggregation {repr_aggregate_function(original_aggfunc, agg_kwargs={})} with the given arguments."
         )
+    snowpark_aggr_func = snowflake_agg_func.snowpark_aggregation
 
     pandas_aggr_label, aggr_snowflake_quoted_identifier = value_label_to_identifier_pair
 
@@ -1231,17 +1234,19 @@ def get_margin_aggregation(
     Returns:
         Snowpark column expression for the aggregation function result.
     """
-    resolved_aggfunc = get_snowflake_agg_func(aggfunc, {})
+    resolved_aggfunc = get_snowflake_agg_func(aggfunc, {}, axis=0)
 
     # This would have been resolved during the original pivot at an early stage.
     assert resolved_aggfunc is not None, "resolved_aggfunc is None"
 
-    aggfunc_expr = resolved_aggfunc(snowflake_quoted_identifier)
+    aggregation_expression = resolved_aggfunc.snowpark_aggregation(
+        snowflake_quoted_identifier
+    )
 
-    if resolved_aggfunc == sum_:
-        aggfunc_expr = coalesce(aggfunc_expr, pandas_lit(0))
+    if resolved_aggfunc.snowpark_aggregation == sum_:
+        aggregation_expression = coalesce(aggregation_expression, pandas_lit(0))
 
-    return aggfunc_expr
+    return aggregation_expression
 
 
 def expand_pivot_result_with_pivot_table_margins_no_groupby_columns(

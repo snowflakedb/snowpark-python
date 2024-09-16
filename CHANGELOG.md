@@ -11,6 +11,8 @@
 #### New Features
 
 - Added support for `TimedeltaIndex.mean` method.
+- Added support for some cases of aggregating `Timedelta` columns on `axis=0` with `agg` or `aggregate`.
+- Added support for `by`, `left_by`, and `right_by` for `pd.merge_asof`.
 
 #### Bug Fixes
 
@@ -128,6 +130,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Added support for `Series.dt.total_seconds` method.
 - Added support for `DataFrame.apply(axis=0)`.
 - Added support for `Series.dt.tz_convert` and `Series.dt.tz_localize`.
+- Added support for `DatetimeIndex.tz_convert` and `DatetimeIndex.tz_localize`.
 
 #### Improvements
 

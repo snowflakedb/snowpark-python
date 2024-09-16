@@ -16,8 +16,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.compiler.large_query_breakdown import (
-    COMPLEXITY_SCORE_LOWER_BOUND,
-    COMPLEXITY_SCORE_UPPER_BOUND,
     LargeQueryBreakdown,
 )
 from snowflake.snowpark._internal.compiler.repeated_subquery_elimination import (
@@ -128,10 +126,7 @@ class PlanCompiler:
             summary_value = {
                 TelemetryField.CTE_OPTIMIZATION_ENABLED.value: session.cte_optimization_enabled,
                 TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: session.large_query_breakdown_enabled,
-                CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: (
-                    COMPLEXITY_SCORE_LOWER_BOUND,
-                    COMPLEXITY_SCORE_UPPER_BOUND,
-                ),
+                CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: session.large_query_breakdown_complexity_bounds,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_COMPILATION.value: total_time,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_DEEP_COPY_PLAN.value: deep_copy_time,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_CTE_OPTIMIZATION.value: cte_time,
