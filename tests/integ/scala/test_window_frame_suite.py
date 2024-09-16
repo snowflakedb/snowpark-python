@@ -585,6 +585,10 @@ def test_range_between_date(
         df.select(count("a").over(window)).collect()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1358946: Interval is not supported in Local Testing",
+)
 def test_range_between_interval_negative(session):
     df = session.range(10)
     window = Window.order_by("id").range_between(-make_interval(mins=1), 0)
