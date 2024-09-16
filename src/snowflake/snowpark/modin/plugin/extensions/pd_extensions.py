@@ -17,6 +17,17 @@ from snowflake.snowpark.modin.pandas.api.extensions import register_pd_accessor
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_standalone_function_decorator,
 )
+from snowflake.snowpark.modin.plugin.extensions.datetime_index import (  # noqa: F401
+    DatetimeIndex,
+)
+from snowflake.snowpark.modin.plugin.extensions.index import Index  # noqa: F401
+from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (  # noqa: F401
+    TimedeltaIndex,
+)
+
+register_pd_accessor("Index")(Index)
+register_pd_accessor("DatetimeIndex")(DatetimeIndex)
+register_pd_accessor("TimedeltaIndex")(TimedeltaIndex)
 
 
 def _snowpark_pandas_obj_check(obj: Union[DataFrame, Series]):
