@@ -591,10 +591,6 @@ class Session:
         if self._auto_clean_up_temp_table_enabled:
             self._temp_table_auto_cleaner.start()
 
-        # Initialize the server-side session.
-        if self._conn.is_phase1_enabled():
-            self._conn.create_coprocessor()
-
         self._ast_batch = AstBatch(self)
 
         _logger.info("Snowpark Session information: %s", self._session_info)

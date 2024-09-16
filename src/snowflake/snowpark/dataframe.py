@@ -93,10 +93,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
-from snowflake.snowpark._internal.ast import (
-    check_response,
-    decode_ast_response_from_snowpark,
-)
+
 from snowflake.snowpark._internal.ast_utils import (
     FAIL_ON_MISSING_AST,
     build_expr_from_python_val,
@@ -650,6 +647,7 @@ class DataFrame:
             :meth:`collect_nowait()`
         """
 
+        kwargs = {}
         if _emit_ast:
             # Add an Assign node that applies SpDataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
@@ -674,17 +672,8 @@ class DataFrame:
 
             self._session._ast_batch.eval(repr)
 
-        if self._session._conn.is_phase1_enabled():
-            # TODO: Logic here should be
-            # ast = self._session._ast_batch.flush()
-            # res = self._session._conn.ast_query(ast)
-            raise NotImplementedError(
-                "TODO: Implement collect() with EvalResult in Phase1."
-            )
-
-        # Phase 0 flushes AST and encodes it as part of the query.
-        kwargs = {}
-        _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            # Flush the AST and encode it as part of the query.
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
         with open_telemetry_context_manager(self.collect, self):
             return self._internal_collect_with_tag_no_telemetry(
@@ -716,6 +705,7 @@ class DataFrame:
         See also:
             :meth:`collect()`
         """
+        kwargs = {}
         if _emit_ast:
             # Add an Assign node that applies SpDataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
@@ -739,17 +729,8 @@ class DataFrame:
 
             self._session._ast_batch.eval(repr)
 
-        if self._session._conn.is_phase1_enabled():
-            # TODO: Logic here should be
-            # ast = self._session._ast_batch.flush()
-            # res = self._session._conn.ast_query(ast)
-            raise NotImplementedError(
-                "TODO: Implement collect() with EvalResult in Phase1."
-            )
-
-        # Phase 0 flushes AST and encodes it as part of the query.
-        kwargs = {}
-        _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            # Flush AST and encode it as part of the query.
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
         with open_telemetry_context_manager(self.collect_nowait, self):
             return self._internal_collect_with_tag_no_telemetry(
@@ -3646,6 +3627,7 @@ class DataFrame:
                 asynchronously and returns an :class:`AsyncJob`.
         """
 
+        kwargs = {}
         if _emit_ast:
             # Add an Assign node that applies SpDataframeCount() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
@@ -3667,17 +3649,8 @@ class DataFrame:
 
             self._session._ast_batch.eval(repr)
 
-        if self._session._conn.is_phase1_enabled():
-            # TODO: Logic here should be
-            # ast = self._session._ast_batch.flush()
-            # res = self._session._conn.ast_query(ast)
-            raise NotImplementedError(
-                "TODO: Implement collect() with EvalResult in Phase1."
-            )
-
-        # Phase 0 flushes AST and encodes it as part of the query.
-        kwargs = {}
-        _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            # Flush AST and encode it as part of the query.
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
         with open_telemetry_context_manager(self.count, self):
             df = self.agg(("*", "count"), _emit_ast=False)
@@ -4103,103 +4076,86 @@ class DataFrame:
             repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
         self._session._ast_batch.eval(repr)
 
-        if self._session._conn.is_phase1_enabled():
-            ast = self._session._ast_batch.flush()
-            res = self._session._conn.ast_query(ast)
+        _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
-            _logger.debug(f"AST response: {res}")
-
-            # In Phase 1, the code to format the result set to a string
-            # is run on the server, retrieve simply the result here.
-            response = decode_ast_response_from_snowpark(
-                res, self._session._conn._conn._session_parameters
+        if is_sql_select_statement(query):
+            result, meta = self._session._conn.get_result_and_metadata(
+                self.limit(n, _emit_ast=False)._plan, **kwargs
             )
-
-            check_response(response)
-
-            return response.body[0].eval_ok.data.string_val.v
         else:
-            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
-
-            # Phase 0 code where string gets formatted.
-            if is_sql_select_statement(query):
-                result, meta = self._session._conn.get_result_and_metadata(
-                    self.limit(n, _emit_ast=False)._plan, **kwargs
-                )
-            else:
-                res, meta = self._session._conn.get_result_and_metadata(
-                    self._plan, **kwargs
-                )
-                result = res[:n]
-
-            # The query has been executed
-            col_count = len(meta)
-            col_width = []
-            header = []
-            for field in meta:
-                name = field.name
-                col_width.append(len(name))
-                header.append(name)
-
-            body = []
-            for row in result:
-                lines = []
-                for i, v in enumerate(row):
-                    texts = str(v).split("\n") if v is not None else ["NULL"]
-                    for t in texts:
-                        col_width[i] = max(len(t), col_width[i])
-                        col_width[i] = min(max_width, col_width[i])
-                    lines.append(texts)
-
-                # max line number in this row
-                line_count = max(len(li) for li in lines)
-                res = []
-                for line_number in range(line_count):
-                    new_line = []
-                    for colIndex in range(len(lines)):
-                        n = (
-                            lines[colIndex][line_number]
-                            if len(lines[colIndex]) > line_number
-                            else ""
-                        )
-                        new_line.append(n)
-                    res.append(new_line)
-                body.extend(res)
-
-            # Add 2 more spaces in each column
-            col_width = [w + 2 for w in col_width]
-
-            total_width = sum(col_width) + col_count + 1
-            line = "-" * total_width + "\n"
-
-            def row_to_string(row: List[str]) -> str:
-                tokens = []
-                if row:
-                    for segment, size in zip(row, col_width):
-                        if len(segment) > max_width:
-                            # if truncated, add ... to the end
-                            formatted = (segment[: max_width - 3] + "...").ljust(
-                                size, " "
-                            )
-                        else:
-                            formatted = segment.ljust(size, " ")
-                        tokens.append(formatted)
-                else:
-                    tokens = [" " * size for size in col_width]
-                return f"|{'|'.join(tok for tok in tokens)}|\n"
-
-            return (
-                line
-                + row_to_string(header)
-                + line
-                # `body` of an empty df is empty
-                + (
-                    "".join(row_to_string(b) for b in body)
-                    if body
-                    else row_to_string([])
-                )
-                + line
+            res, meta = self._session._conn.get_result_and_metadata(
+                self._plan, **kwargs
             )
+            result = res[:n]
+
+        # The query has been executed
+        col_count = len(meta)
+        col_width = []
+        header = []
+        for field in meta:
+            name = field.name
+            col_width.append(len(name))
+            header.append(name)
+
+        body = []
+        for row in result:
+            lines = []
+            for i, v in enumerate(row):
+                texts = str(v).split("\n") if v is not None else ["NULL"]
+                for t in texts:
+                    col_width[i] = max(len(t), col_width[i])
+                    col_width[i] = min(max_width, col_width[i])
+                lines.append(texts)
+
+            # max line number in this row
+            line_count = max(len(li) for li in lines)
+            res = []
+            for line_number in range(line_count):
+                new_line = []
+                for colIndex in range(len(lines)):
+                    n = (
+                        lines[colIndex][line_number]
+                        if len(lines[colIndex]) > line_number
+                        else ""
+                    )
+                    new_line.append(n)
+                res.append(new_line)
+            body.extend(res)
+
+        # Add 2 more spaces in each column
+        col_width = [w + 2 for w in col_width]
+
+        total_width = sum(col_width) + col_count + 1
+        line = "-" * total_width + "\n"
+
+        def row_to_string(row: List[str]) -> str:
+            tokens = []
+            if row:
+                for segment, size in zip(row, col_width):
+                    if len(segment) > max_width:
+                        # if truncated, add ... to the end
+                        formatted = (segment[: max_width - 3] + "...").ljust(
+                            size, " "
+                        )
+                    else:
+                        formatted = segment.ljust(size, " ")
+                    tokens.append(formatted)
+            else:
+                tokens = [" " * size for size in col_width]
+            return f"|{'|'.join(tok for tok in tokens)}|\n"
+
+        return (
+            line
+            + row_to_string(header)
+            + line
+            # `body` of an empty df is empty
+            + (
+                "".join(row_to_string(b) for b in body)
+                if body
+                else row_to_string([])
+            )
+            + line
+        )
 
     @df_collect_api_telemetry
     def create_or_replace_view(
