@@ -375,7 +375,6 @@ class ServerConnection:
 
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query), **notify_kwargs
-            QueryRecord(results_cursor.sfqid, results_cursor.query)
         )
         return results_cursor
 
