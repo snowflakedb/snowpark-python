@@ -1169,7 +1169,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             # of that error, we can throw this error instead that will make it more clear to users
             # what went wrong.
             raise ValueError(
-                f"GroupBy aggregations like sum take a numeric_only argument that needs to be a bool, but a {type(numeric_only).__name__} value was passed in."
+                f"GroupBy aggregations like 'sum' take a 'numeric_only' argument that needs to be a bool, but a {type(numeric_only).__name__} value was passed in."
             )
 
         agg_args = tuple() if agg_args is None else agg_args
