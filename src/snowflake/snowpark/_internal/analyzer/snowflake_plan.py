@@ -457,7 +457,7 @@ class SnowflakePlan(LogicalPlan):
         self._cumulative_node_complexity = value
 
     def __copy__(self) -> "SnowflakePlan":
-        if self.session.cte_optimization_enabled:
+        if self.session._cte_optimization_enabled:
             return SnowflakePlan(
                 copy.deepcopy(self.queries) if self.queries else [],
                 self.schema_query,
