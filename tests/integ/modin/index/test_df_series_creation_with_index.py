@@ -858,5 +858,5 @@ def test_create_series_with_df_data_negative():
         ),
     ):
         native_pd.Series(native_pd.DataFrame([[1, 2], [3, 4], [5, 6]]))
-    with pytest.raises(ValueError, match="Index data must be 1-dimensional"):
+    with pytest.raises(ValueError, match="Data cannot be a DataFrame"):
         pd.Series(pd.DataFrame([[1, 2], [3, 4], [5, 6]]))

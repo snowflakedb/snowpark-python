@@ -615,20 +615,23 @@ def __init__(
                     self._query_compiler = new_qc
                     return
 
-                # If only some data is a Snowpark pandas object, convert it to pandas objects.
-                res = []
-                for v in data:
-                    if isinstance(v, (Index, BasePandasDataset)):
-                        res.append(v.to_pandas())
-                    # elif is_dict_like(v) or isinstance(v, (native_pd.Series, native_pd.DataFrame, native_pd.Index)):
-                    #     res.append(v)
-                    else:
-                        # # Need to convert this is a native pandas object since native pandas incorrectly
-                        # # tries to perform `get_indexer` on it. Specify dtype=object so that pandas does not
-                        # # cast the data provided. In some cases, None turns to NaN, which is not desired.
-                        # res.append(native_pd.Index(v, dtype=object) if is_list_like(v) else v)
-                        res.append(v)
-                data = res
+                if not isinstance(data, np.ndarray):
+                    # Sometimes the ndarray representation of a list is different from a regular list.
+                    # For instance, [(1, 2, 3), (4, 5, 6), (7, 8, 9)], dtype=[("a", "i4"), ("b", "i4"), ("c", "i4")]
+                    # is different from np.array([(1, 2, 3), (4, 5, 6), (7, 8, 9)], dtype=[("a", "i4"), ("b", "i4"), ("c", "i4")]).
+                    # The list has the shape (3, 3) while the ndarray has the shape (3,).
+                    # If only some data is a Snowpark pandas object, convert it to pandas objects.
+                    res = []
+                    for v in data:
+                        if isinstance(v, (Index, BasePandasDataset)):
+                            res.append(v.to_pandas())
+                        else:
+                            # # Need to convert this is a native pandas object since native pandas incorrectly
+                            # # tries to perform `get_indexer` on it. Specify dtype=object so that pandas does not
+                            # # cast the data provided. In some cases, None turns to NaN, which is not desired.
+                            # res.append(native_pd.Index(v, dtype=object) if is_list_like(v) else v)
+                            res.append(v)
+                    data = res
 
         query_compiler = from_pandas(
             native_pd.DataFrame(
