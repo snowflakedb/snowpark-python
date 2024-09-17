@@ -776,15 +776,16 @@ class Session:
     def auto_clean_up_temp_table_enabled(self, value: bool) -> None:
         """Set the value for auto_clean_up_temp_table_enabled"""
         if value in [True, False]:
-            self._conn._telemetry_client.send_auto_clean_up_temp_table_telemetry(
-                self._session_id, value
-            )
-            self._auto_clean_up_temp_table_enabled = value
-            is_alive = self._temp_table_auto_cleaner.is_alive()
-            if value and not is_alive:
-                self._temp_table_auto_cleaner.start()
-            elif not value and is_alive:
-                self._temp_table_auto_cleaner.stop()
+            with self._lock:
+                self._conn._telemetry_client.send_auto_clean_up_temp_table_telemetry(
+                    self._session_id, value
+                )
+                self._auto_clean_up_temp_table_enabled = value
+                is_alive = self._temp_table_auto_cleaner.is_alive()
+                if value and not is_alive:
+                    self._temp_table_auto_cleaner.start()
+                elif not value and is_alive:
+                    self._temp_table_auto_cleaner.stop()
         else:
             raise ValueError(
                 "value for auto_clean_up_temp_table_enabled must be True or False!"
