@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import logging
+import re
 from typing import Any
 
 import modin.pandas as pd
@@ -393,7 +394,9 @@ def test_groupby_sum_string_argument_exception():
     snow_df = pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=["key_col", "col1", "col2"])
     with pytest.raises(
         ValueError,
-        match="GroupBy aggregations like sum take a numeric_only argument that needs to be a bool, but a str value was passed in.",
+        match=re.escape(
+            "GroupBy aggregations like 'sum' take a 'numeric_only' argument that needs to be a bool, but a str value was passed in."
+        ),
     ):
         snow_df.groupby("key_col").sum("col1")
 
