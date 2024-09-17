@@ -86,49 +86,6 @@ def _set_attribute_on_obj(
     return decorator
 
 
-def register_dataframe_accessor(name: str):
-    """
-    Registers a dataframe attribute with the name provided.
-    This is a decorator that assigns a new attribute to DataFrame. It can be used
-    with the following syntax:
-    ```
-    @register_dataframe_accessor("new_method")
-    def my_new_dataframe_method(*args, **kwargs):
-        # logic goes here
-        return
-    ```
-    The new attribute can then be accessed with the name provided:
-    ```
-    df.new_method(*my_args, **my_kwargs)
-    ```
-
-    If you want a property accessor, you must annotate with @property
-    after the call to this function:
-    ```
-    @register_dataframe_accessor("new_prop")
-    @property
-    def my_new_dataframe_property(*args, **kwargs):
-        return _prop
-    ```
-
-    Parameters
-    ----------
-    name : str
-        The name of the attribute to assign to DataFrame.
-    Returns
-    -------
-    decorator
-        Returns the decorator function.
-    """
-    import snowflake.snowpark.modin.pandas as pd
-
-    return _set_attribute_on_obj(
-        name,
-        pd.dataframe._DATAFRAME_EXTENSIONS_,
-        pd.dataframe.DataFrame,
-    )
-
-
 def register_pd_accessor(name: str):
     """
     Registers a pd namespace attribute with the name provided.

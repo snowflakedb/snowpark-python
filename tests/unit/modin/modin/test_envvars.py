@@ -166,6 +166,7 @@ class TestDocModule:
         # Test for pandas doc when function is not defined on module.
         assert pandas.read_table.__doc__ in pd.read_table.__doc__
 
+    @pytest.mark.xfail(strict=True, reason=DOC_OVERRIDE_XFAIL_REASON)
     def test_not_redefining_classes_modin_issue_7138(self):
         original_dataframe_class = pd.DataFrame
         _init_doc_module()

@@ -2,10 +2,12 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
+import warnings
 
 import modin.pandas as pd
 import pandas as native_pd
 import pytest
+from pandas.errors import SettingWithCopyWarning
 
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
@@ -107,3 +109,10 @@ def test_timedelta_not_supported():
         match="SnowflakeQueryCompiler::groupby_groups is not yet implemented for Timedelta Type",
     ):
         df.groupby("a").groups()
+
+
+@sql_count_checker(query_count=1)
+def test_aggregation_does_not_print_internal_warning_SNOW_1664064():
+    with warnings.catch_warnings():
+        warnings.simplefilter(category=SettingWithCopyWarning, action="error")
+        pd.Series(pd.Timedelta(1)).max()

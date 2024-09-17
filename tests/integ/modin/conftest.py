@@ -715,3 +715,30 @@ def numeric_test_data_4x4():
         "C": [7, 10, 13, 16],
         "D": [8, 11, 14, 17],
     }
+
+
+@pytest.fixture
+def timedelta_native_df() -> pandas.DataFrame:
+    return pandas.DataFrame(
+        {
+            "A": [
+                pd.Timedelta(days=1),
+                pd.Timedelta(days=2),
+                pd.Timedelta(days=3),
+                pd.Timedelta(days=4),
+            ],
+            "B": [
+                pd.Timedelta(minutes=-1),
+                pd.Timedelta(minutes=0),
+                pd.Timedelta(minutes=5),
+                pd.Timedelta(minutes=6),
+            ],
+            "C": [
+                None,
+                pd.Timedelta(nanoseconds=5),
+                pd.Timedelta(nanoseconds=0),
+                pd.Timedelta(nanoseconds=4),
+            ],
+            "D": pandas.to_timedelta([pd.NaT] * 4),
+        }
+    )
