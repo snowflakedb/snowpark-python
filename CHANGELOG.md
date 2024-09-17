@@ -7,6 +7,7 @@
 #### Improvements
 
 - Improved `to_pandas` to persist the original timezone offset for TIMESTAMP_TZ type.
+- Improved error message when passing non-bool value to `numeric_only` for groupby aggregations.
 
 #### New Features
 
