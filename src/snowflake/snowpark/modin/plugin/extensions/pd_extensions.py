@@ -6,7 +6,6 @@
 File containing top-level APIs defined in Snowpark pandas but not the Modin API layer
 under the `pd` namespace, such as `pd.read_snowflake`.
 """
-import inspect
 from typing import Any, Iterable, Literal, Optional, Union
 
 from modin.pandas import DataFrame, Series
@@ -360,17 +359,10 @@ def read_snowflake(
         To see what are the Normalized Snowflake Identifiers for columns of a Snowflake table, you can call SQL query
         `SELECT * FROM TABLE` or `DESCRIBE TABLE` to see the column names.
     """
-    _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
-    # mangle_dupe_cols has no effect starting in pandas 1.5. Exclude it from
-    # kwargs so pandas doesn't spuriously warn people not to use it.
-    f_locals.pop("mangle_dupe_cols", None)
-
-    from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
-        FactoryDispatcher,
-    )
+    from modin.core.execution.dispatching.factories.dispatcher import FactoryDispatcher
 
     return DataFrame(
-        query_compiler=FactoryDispatcher.read_snowflake(
+        query_compiler=FactoryDispatcher.get_factory()._read_snowflake(
             name_or_query, index_col=index_col, columns=columns
         )
     )

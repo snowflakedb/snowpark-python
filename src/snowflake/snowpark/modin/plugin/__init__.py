@@ -97,7 +97,6 @@ from snowflake.snowpark.modin.core.execution.dispatching.factories.factories imp
 )
 
 modin_factories.PandasOnSnowflakeFactory = PandasOnSnowflakeFactory
-# modin_dispatcher.FactoryDispatcher = FactoryDispatcher
 
 Engine.add_option("Snowflake")
 Engine.put("Snowflake")
