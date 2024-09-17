@@ -13,11 +13,13 @@ import subprocess
 import sys
 import tempfile
 import time
+from ctypes import c_char_p, c_int
 from dataclasses import dataclass
 from typing import List, Union
 
 import google.protobuf
 import pytest
+from _ctypes import addressof
 from dateutil.tz import tzlocal
 from pytz import timezone
 
@@ -341,6 +343,18 @@ def override_time_zone(tz_name: str = "America/New_York") -> None:
 
         cdll.msvcrt._putenv(f"TZ={tz_code}")
         cdll.msvcrt._tzset()
+
+        # test:
+        dTime = time.time()
+        nTime = int(dTime)
+        intTime = c_int(nTime)
+        a = time.ctime
+        b = c_char_p(cdll.msvcrt.ctime(addressof(intTime))).value
+        from tzlocal import get_localzone
+
+        c = get_localzone()
+
+        logging.debug(f"Windows: time.ctime={a}, msvcrt.ctime={b}, tzlocal={c}")
 
     tz_name = datetime.datetime.now(tzlocal()).tzname()
     logging.debug(f"Local time zone is now: {tz_name}.")
