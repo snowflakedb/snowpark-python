@@ -58,6 +58,7 @@ DataFrame
     DataFrame.join
     DataFrame.join_table_function
     DataFrame.limit
+    DataFrame.map
     DataFrame.minus
     DataFrame.natural_join
     DataFrame.orderBy
