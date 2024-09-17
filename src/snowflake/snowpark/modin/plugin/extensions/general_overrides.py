@@ -64,6 +64,7 @@ from pandas.errors import MergeError
 from pandas.util._validators import validate_inclusive
 
 # add this line to make doctests runnable
+from snowflake.snowpark import modin
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 from snowflake.snowpark.modin.pandas.utils import (
     is_scalar,
@@ -1061,8 +1062,8 @@ def qcut(
 
 @snowpark_pandas_telemetry_standalone_function_decorator
 def merge(
-    left: DataFrame | Series,
-    right: DataFrame | Series,
+    left: modin.pandas.DataFrame | Series,
+    right: modin.pandas.DataFrame | Series,
     how: str | None = "inner",
     on: IndexLabel | None = None,
     left_on: None
@@ -1338,7 +1339,7 @@ def merge_asof(
     tolerance: int | Timedelta | None = None,
     allow_exact_matches: bool = True,
     direction: str = "backward",
-) -> DataFrame:
+) -> modin.pandas.DataFrame:
     """
     Perform a merge by key distance.
 
@@ -1538,7 +1539,10 @@ def merge_asof(
 
 @snowpark_pandas_telemetry_standalone_function_decorator
 def concat(
-    objs: (Iterable[DataFrame | Series] | Mapping[Hashable, DataFrame | Series]),
+    objs: (
+        Iterable[modin.pandas.DataFrame | Series]
+        | Mapping[Hashable, modin.pandas.DataFrame | Series]
+    ),
     axis: Axis = 0,
     join: str = "outer",
     ignore_index: bool = False,
@@ -1548,7 +1552,7 @@ def concat(
     verify_integrity: bool = False,
     sort: bool = False,
     copy: bool = True,
-) -> DataFrame | Series:
+) -> modin.pandas.DataFrame | Series:
     """
     Concatenate pandas objects along a particular axis.
 
@@ -2272,7 +2276,10 @@ def to_numeric(
 
 @snowpark_pandas_telemetry_standalone_function_decorator
 def to_datetime(
-    arg: DatetimeScalarOrArrayConvertible | DictConvertible | DataFrame | Series,
+    arg: DatetimeScalarOrArrayConvertible
+    | DictConvertible
+    | modin.pandas.DataFrame
+    | Series,
     errors: DateTimeErrorChoices = "raise",
     dayfirst: bool = False,
     yearfirst: bool = False,
