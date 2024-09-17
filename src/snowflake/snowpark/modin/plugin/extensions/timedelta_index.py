@@ -28,11 +28,11 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as native_pd
+from modin.pandas import DataFrame, Series
 from pandas._libs import lib
 from pandas._typing import ArrayLike, AxisInt, Dtype, Frequency, Hashable
 from pandas.core.dtypes.common import is_timedelta64_dtype
 
-from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -392,12 +392,11 @@ class TimedeltaIndex(Index):
                datetime.timedelta(days=3)], dtype=object)
         """
 
-    @timedelta_index_not_implemented()
     def mean(
         self, *, skipna: bool = True, axis: AxisInt | None = 0
-    ) -> native_pd.Timestamp:
+    ) -> native_pd.Timedelta:
         """
-        Return the mean value of the Array.
+        Return the mean value of the Timedelta values.
 
         Parameters
         ----------
@@ -407,17 +406,46 @@ class TimedeltaIndex(Index):
 
         Returns
         -------
-            scalar Timestamp
+            scalar Timedelta
+
+        Examples
+        --------
+        >>> idx = pd.to_timedelta([1, 2, 3, 1], unit='D')
+        >>> idx
+        TimedeltaIndex(['1 days', '2 days', '3 days', '1 days'], dtype='timedelta64[ns]', freq=None)
+        >>> idx.mean()
+        Timedelta('1 days 18:00:00')
 
         See Also
         --------
         numpy.ndarray.mean : Returns the average of array elements along a given axis.
         Series.mean : Return the mean value in a Series.
-
-        Notes
-        -----
-        mean is only defined for Datetime and Timedelta dtypes, not for Period.
         """
+        if axis:
+            # Native pandas raises IndexError: tuple index out of range
+            # We raise a different more user-friendly error message.
+            raise ValueError(
+                f"axis should be 0 for TimedeltaIndex.mean, found '{axis}'"
+            )
+        pandas_dataframe_result = (
+            # reset_index(drop=False) copies the index column of
+            # self._query_compiler into a new data column. Use `drop=False`
+            # so that we don't have to use SQL row_number() to generate a new
+            # index column.
+            self._query_compiler.reset_index(drop=False)
+            # Aggregate the data column.
+            .agg("mean", axis=0, args=(), kwargs={"skipna": skipna})
+            # convert the query compiler to a pandas dataframe with
+            # dimensions 1x1 (note that the frame has a single row even
+            # if `self` is empty.)
+            .to_pandas()
+        )
+        assert pandas_dataframe_result.shape == (
+            1,
+            1,
+        ), "Internal error: aggregation result is not 1x1."
+        # Return the only element in the frame.
+        return pandas_dataframe_result.iloc[0, 0]
 
     @timedelta_index_not_implemented()
     def as_unit(self, unit: str) -> TimedeltaIndex:
