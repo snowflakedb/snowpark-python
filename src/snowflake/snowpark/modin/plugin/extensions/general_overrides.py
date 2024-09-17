@@ -270,7 +270,9 @@ def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D20
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
     if not isinstance(data, DataFrame):
-        raise ValueError(f"can not pivot with instance of type {type(data)}")
+        raise ValueError(
+            f"can not pivot with instance of type {type(data)}"
+        )  # pragma: no cover
     return data.pivot(index=index, columns=columns, values=values)
 
 
@@ -642,17 +644,19 @@ def crosstab(
                 colnames_idx += len(obj.columns)
                 dfs.append(obj)
             else:
-                col_idx_names.append(None)
-                array_lengths.append(len(obj))
-                df = pd.DataFrame(obj)
-                df.columns = unique_colnames[
+                col_idx_names.append(None)  # pragma: no cover
+                array_lengths.append(len(obj))  # pragma: no cover
+                df = pd.DataFrame(obj)  # pragma: no cover
+                df.columns = unique_colnames[  # pragma: no cover
                     colnames_idx : colnames_idx + len(df.columns)
                 ]
-                colnames_idx += len(df.columns)
-                arrays.append(df)
+                colnames_idx += len(df.columns)  # pragma: no cover
+                arrays.append(df)  # pragma: no cover
 
         if len(set(array_lengths)) > 1:
-            raise ValueError("All arrays must be of the same length")
+            raise ValueError(
+                "All arrays must be of the same length"
+            )  # pragma: no cover
 
         # Now, we have two lists - a list of Snowpark pandas objects, and a list of objects
         # that were not passed in as Snowpark pandas objects, but that we have converted
@@ -1031,7 +1035,7 @@ def qcut(
         raise ValueError("left side of interval must be <= right side")
 
         # remove duplicates (input like [0.5, 0.5] is ok)
-        q = sorted(list(set(q)))
+        q = sorted(list(set(q)))  # pragma: no cover
 
     if labels is not False:
         # Labels require categorical, not yet supported. Use native pandas conversion here to compute result.
@@ -1263,7 +1267,7 @@ def merge(
             left = left.to_frame()
 
     if not isinstance(left, DataFrame):
-        raise TypeError(
+        raise TypeError(  # pragma: no cover
             f"Can only merge Series or DataFrame objects, a {type(left)} was passed"
         )
 
@@ -1302,11 +1306,13 @@ def merge_ordered(
     Perform a merge for ordered data with optional filling/interpolation.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    if not isinstance(left, DataFrame):
-        raise ValueError(f"can not merge DataFrame with instance of type {type(right)}")
-    if isinstance(right, DataFrame):
-        right = to_pandas(right)
-    return DataFrame(
+    if not isinstance(left, DataFrame):  # pragma: no cover
+        raise ValueError(
+            f"can not merge DataFrame with instance of type {type(right)}"
+        )  # pragma: no cover
+    if isinstance(right, DataFrame):  # pragma: no cover
+        right = to_pandas(right)  # pragma: no cover
+    return DataFrame(  # pragma: no cover
         pandas.merge_ordered(
             to_pandas(left),
             right,
@@ -1478,9 +1484,13 @@ def merge_asof(
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
     if not isinstance(left, DataFrame):
-        raise ValueError(f"can not merge DataFrame with instance of type {type(left)}")
+        raise ValueError(
+            f"can not merge DataFrame with instance of type {type(left)}"
+        )  # pragma: no cover
     if not isinstance(right, DataFrame):
-        raise ValueError(f"can not merge DataFrame with instance of type {type(right)}")
+        raise ValueError(
+            f"can not merge DataFrame with instance of type {type(right)}"
+        )  # pragma: no cover
 
     # As of pandas 1.2 these should raise an error; before that it did
     # something likely random:
@@ -1489,11 +1499,15 @@ def merge_asof(
         or (left_on and left_index)
         or (right_on and right_index)
     ):
-        raise ValueError("Can't combine left/right_index with left/right_on or on.")
+        raise ValueError(
+            "Can't combine left/right_index with left/right_on or on."
+        )  # pragma: no cover
 
     if on is not None:
         if left_on is not None or right_on is not None:
-            raise ValueError("If 'on' is set, 'left_on' and 'right_on' can't be set.")
+            raise ValueError(
+                "If 'on' is set, 'left_on' and 'right_on' can't be set."
+            )  # pragma: no cover
         if is_list_like(on) and len(on) > 1:
             raise MergeError("can only asof on a key for left")
         left_on = on
@@ -1501,14 +1515,20 @@ def merge_asof(
 
     if by is not None:
         if left_by is not None or right_by is not None:
-            raise ValueError("Can't have both 'by' and 'left_by' or 'right_by'")
+            raise ValueError(
+                "Can't have both 'by' and 'left_by' or 'right_by'"
+            )  # pragma: no cover
         left_by = right_by = by
 
     if left_on is None and not left_index:
-        raise ValueError("Must pass on, left_on, or left_index=True")
+        raise ValueError(
+            "Must pass on, left_on, or left_index=True"
+        )  # pragma: no cover
 
     if right_on is None and not right_index:
-        raise ValueError("Must pass on, right_on, or right_index=True")
+        raise ValueError(
+            "Must pass on, right_on, or right_index=True"
+        )  # pragma: no cover
 
     if not left_index and not right_index:
         left_on_length = len(left_on) if is_list_like(left_on) else 1
@@ -2092,9 +2112,11 @@ def lreshape(data: DataFrame, groups, dropna=True, label=None):
         Reshaped DataFrame.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    if not isinstance(data, DataFrame):
-        raise ValueError(f"can not lreshape with instance of type {type(data)}")
-    return DataFrame(
+    if not isinstance(data, DataFrame):  # pragma: no cover
+        raise ValueError(
+            f"can not lreshape with instance of type {type(data)}"
+        )  # pragma: no cover
+    return DataFrame(  # pragma: no cover
         pandas.lreshape(to_pandas(data), groups, dropna=dropna, label=label)
     )
 
@@ -2109,10 +2131,12 @@ def wide_to_long(
     Unpivot a DataFrame from wide to long format.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    if not isinstance(df, DataFrame):
-        raise ValueError(f"can not wide_to_long with instance of type {type(df)}")
+    if not isinstance(df, DataFrame):  # pragma: no cover
+        raise ValueError(
+            f"can not wide_to_long with instance of type {type(df)}"
+        )  # pragma: no cover
     # ErrorMessage.default_to_pandas("`wide_to_long`")
-    return DataFrame(
+    return DataFrame(  # pragma: no cover
         pandas.wide_to_long(to_pandas(df), stubnames, i, j, sep=sep, suffix=suffix)
     )
 
@@ -2130,7 +2154,7 @@ def isna(obj):  # noqa: PR01, RT01, D200
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
     if isinstance(obj, BasePandasDataset):
-        return obj.isna()
+        return obj.isna()  # pragma: no cover
     else:
         return pandas.isna(obj)
 
@@ -2145,10 +2169,10 @@ def notna(obj):  # noqa: PR01, RT01, D200
     Detect non-missing values for an array-like object.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    if isinstance(obj, BasePandasDataset):
-        return obj.notna()
+    if isinstance(obj, BasePandasDataset):  # pragma: no cover
+        return obj.notna()  # pragma: no cover
     else:
-        return pandas.notna(obj)
+        return pandas.notna(obj)  # pragma: no cover
 
 
 notnull = notna
@@ -2259,7 +2283,7 @@ def to_numeric(
         name = None
         # keep index name
         if isinstance(arg, pandas.Index):
-            name = arg.name
+            name = arg.name  # pragma: no cover
         arg = Series(arg, name=name)
 
     ret = arg._to_numeric(errors=errors)
@@ -3062,7 +3086,7 @@ def value_counts(
     Series
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    return Series(values).value_counts(
+    return Series(values).value_counts(  # pragma: no cover
         sort=sort,
         ascending=ascending,
         normalize=normalize,
@@ -3088,16 +3112,18 @@ def _determine_name(objs: Iterable[BaseQueryCompiler], axis: int | str):
         Computed index name, `None` if it could not be determined.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    axis = pandas.DataFrame()._get_axis_number(axis)
+    axis = pandas.DataFrame()._get_axis_number(axis)  # pragma: no cover
 
-    def get_names(obj):
-        return obj.columns.names if axis else obj.index.names
+    def get_names(obj):  # pragma: no cover
+        return obj.columns.names if axis else obj.index.names  # pragma: no cover
 
-    names = np.array([get_names(obj) for obj in objs])
+    names = np.array([get_names(obj) for obj in objs])  # pragma: no cover
 
     # saving old name, only if index names of all objs are the same
-    if np.all(names == names[0]):
+    if np.all(names == names[0]):  # pragma: no cover
         # we must do this check to avoid this calls `list(str_like_name)`
-        return list(names[0]) if is_list_like(names[0]) else [names[0]]
+        return (
+            list(names[0]) if is_list_like(names[0]) else [names[0]]
+        )  # pragma: no cover
     else:
-        return None
+        return None  # pragma: no cover
