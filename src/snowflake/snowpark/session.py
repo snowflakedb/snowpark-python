@@ -331,38 +331,44 @@ class Session:
                 "use_constant_subquery_alias": True,
                 "flatten_select_after_filter_and_orderby": True,
             }  # For config that's temporary/to be removed soon
+            self._lock = self._session._lock
             for key, val in conf.items():
                 if self.is_mutable(key):
                     self.set(key, val)
 
         def get(self, key: str, default=None) -> Any:
-            if hasattr(Session, key):
-                return getattr(self._session, key)
-            if hasattr(self._session._conn._conn, key):
-                return getattr(self._session._conn._conn, key)
-            return self._conf.get(key, default)
+            with self._lock:
+                if hasattr(Session, key):
+                    return getattr(self._session, key)
+                if hasattr(self._session._conn._conn, key):
+                    return getattr(self._session._conn._conn, key)
+                return self._conf.get(key, default)
 
         def is_mutable(self, key: str) -> bool:
-            if hasattr(Session, key) and isinstance(getattr(Session, key), property):
-                return getattr(Session, key).fset is not None
-            if hasattr(SnowflakeConnection, key) and isinstance(
-                getattr(SnowflakeConnection, key), property
-            ):
-                return getattr(SnowflakeConnection, key).fset is not None
-            return key in self._conf
+            with self._lock:
+                if hasattr(Session, key) and isinstance(
+                    getattr(Session, key), property
+                ):
+                    return getattr(Session, key).fset is not None
+                if hasattr(SnowflakeConnection, key) and isinstance(
+                    getattr(SnowflakeConnection, key), property
+                ):
+                    return getattr(SnowflakeConnection, key).fset is not None
+                return key in self._conf
 
         def set(self, key: str, value: Any) -> None:
-            if self.is_mutable(key):
-                if hasattr(Session, key):
-                    setattr(self._session, key, value)
-                if hasattr(SnowflakeConnection, key):
-                    setattr(self._session._conn._conn, key, value)
-                if key in self._conf:
-                    self._conf[key] = value
-            else:
-                raise AttributeError(
-                    f'Configuration "{key}" does not exist or is not mutable in runtime'
-                )
+            with self._lock:
+                if self.is_mutable(key):
+                    if hasattr(Session, key):
+                        setattr(self._session, key, value)
+                    if hasattr(SnowflakeConnection, key):
+                        setattr(self._session._conn._conn, key, value)
+                    if key in self._conf:
+                        self._conf[key] = value
+                else:
+                    raise AttributeError(
+                        f'Configuration "{key}" does not exist or is not mutable in runtime'
+                    )
 
     class SessionBuilder:
         """
@@ -794,10 +800,11 @@ class Session:
         """
 
         if value in [True, False]:
-            self._conn._telemetry_client.send_large_query_breakdown_telemetry(
-                self._session_id, value
-            )
-            self._large_query_breakdown_enabled = value
+            with self._lock:
+                self._conn._telemetry_client.send_large_query_breakdown_telemetry(
+                    self._session_id, value
+                )
+                self._large_query_breakdown_enabled = value
         else:
             raise ValueError(
                 "value for large_query_breakdown_enabled must be True or False!"
@@ -806,7 +813,10 @@ class Session:
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
     def custom_package_usage_config(self, config: Dict) -> None:
-        self._custom_package_usage_config = {k.lower(): v for k, v in config.items()}
+        with self._lock:
+            self._custom_package_usage_config = {
+                k.lower(): v for k, v in config.items()
+            }
 
     def cancel_all(self) -> None:
         """
@@ -1405,7 +1415,8 @@ class Session:
             statement_params=statement_params,
         )
 
-        custom_package_usage_config = self._custom_package_usage_config.copy()
+        with self._lock:
+            custom_package_usage_config = self._custom_package_usage_config.copy()
 
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
