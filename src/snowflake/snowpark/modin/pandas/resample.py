@@ -280,8 +280,24 @@ class Resampler(metaclass=TelemetryMeta):
             )
         return getattr(self, method)(limit=limit)
 
-    def asfreq(self, fill_value: Optional[Any] = None):  # pragma: no cover
-        self._method_not_implemented("asfreq")
+    def asfreq(self, fill_value: Optional[Any] = None):
+        is_series = not self._dataframe._is_dataframe
+
+        if fill_value is not None:
+            # TODO: SNOW-1660802: Implement `fill_value` parameter once `GroupBy.fillna` is supported
+            ErrorMessage.not_implemented(
+                "Parameter fill_value of resample.asfreq has not been implemented."
+            )
+
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.resample(
+                self.resample_kwargs,
+                "first",
+                (),
+                {},
+                is_series,
+            )
+        )
 
     def interpolate(
         self,
