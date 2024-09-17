@@ -405,7 +405,7 @@ def _update_inplace(self, new_query_compiler) -> None:
     super(Series, self)._update_inplace(new_query_compiler=new_query_compiler)
     # Propagate changes back to parent so that column in dataframe had the same contents
     if self._parent is not None:
-        if isinstance(self._parent, DataFrame):
+        if self._parent_axis == 1 and isinstance(self._parent, DataFrame):
             self._parent[self.name] = self
         else:
             self._parent.loc[self.index] = self
