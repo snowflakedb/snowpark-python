@@ -9,7 +9,6 @@ import inspect
 import os
 import sys
 import time
-import uuid
 from logging import getLogger
 from typing import (
     IO,

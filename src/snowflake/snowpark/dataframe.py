@@ -93,7 +93,6 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
-
 from snowflake.snowpark._internal.ast_utils import (
     FAIL_ON_MISSING_AST,
     build_expr_from_python_val,
@@ -4134,9 +4133,7 @@ class DataFrame:
                 for segment, size in zip(row, col_width):
                     if len(segment) > max_width:
                         # if truncated, add ... to the end
-                        formatted = (segment[: max_width - 3] + "...").ljust(
-                            size, " "
-                        )
+                        formatted = (segment[: max_width - 3] + "...").ljust(size, " ")
                     else:
                         formatted = segment.ljust(size, " ")
                     tokens.append(formatted)
@@ -4149,11 +4146,7 @@ class DataFrame:
             + row_to_string(header)
             + line
             # `body` of an empty df is empty
-            + (
-                "".join(row_to_string(b) for b in body)
-                if body
-                else row_to_string([])
-            )
+            + ("".join(row_to_string(b) for b in body) if body else row_to_string([]))
             + line
         )
 
