@@ -285,7 +285,6 @@ def _create_read_only_table(
             else STATEMENT_PARAMS.UNKNOWN,
         }
         statement_params.update(new_params)
-        # TODO: use snowpark save_as_table when user facing scoped object is supported
         session.sql(
             f"CREATE OR REPLACE {get_temp_type_for_object(use_scoped_temp_objects=use_scoped_temp_table, is_generated=True)} TABLE {temp_table_name} AS {ctas_query}"
         ).collect(statement_params=statement_params)
@@ -300,7 +299,7 @@ def _create_read_only_table(
             STATEMENT_PARAMS.READONLY_TABLE_NAME: readonly_table_name,
         }
     )
-    # TODO: pushing read only table creation down to snowpark for general usage
+    # TODO (SNOW-1669224): pushing read only table creation down to snowpark for general usage
     session.sql(
         f"CREATE OR REPLACE {get_temp_type_for_object(use_scoped_temp_objects=use_scoped_temp_table, is_generated=True)} READ ONLY TABLE {readonly_table_name} CLONE {table_name}"
     ).collect(statement_params=statement_params)
