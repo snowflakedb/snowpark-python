@@ -11,6 +11,9 @@ class CompilationStageTelemetryField(Enum):
         "snowpark_large_query_breakdown_optimization_skipped"
     )
     TYPE_COMPILATION_STAGE_STATISTICS = "snowpark_compilation_stage_statistics"
+    TYPE_LARGE_QUERY_BREAKDOWN_UPDATE_COMPLEXITY_BOUNDS = (
+        "snowpark_large_query_breakdown_update_complexity_bounds"
+    )
 
     # keys
     KEY_REASON = "reason"
