@@ -354,8 +354,14 @@ class SnowflakePlan(LogicalPlan):
         # create CTE query
         final_query = create_cte_query(self, duplicate_plan_set)
 
+        with self.session._lock:
+            # copy depends on the cte_optimization_enabled value. We should keep it
+            # consistent with the current context.
+            original_cte_optimization = self.session.cte_optimization_enabled
+            self.session.cte_optimization_enabled = cte_optimization_enabled
+            plan = copy.copy(self)
+            self.session.cte_optimization_enabled = original_cte_optimization
         # all other parts of query are unchanged, but just replace the original query
-        plan = copy.copy(self)
         plan.queries[-1].sql = final_query
         return plan
 
@@ -451,7 +457,7 @@ class SnowflakePlan(LogicalPlan):
         self._cumulative_node_complexity = value
 
     def __copy__(self) -> "SnowflakePlan":
-        if self.cte_optimization_enabled:
+        if self.session.cte_optimization_enabled:
             return SnowflakePlan(
                 copy.deepcopy(self.queries) if self.queries else [],
                 self.schema_query,
