@@ -158,9 +158,7 @@ def read_excel(
     # TODO this implementation is identical to modin, but we don't have a proper docstring override
     # mechanism yet
     _, _, _, kwargs = inspect.getargvalues(inspect.currentframe())
-    from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
-        FactoryDispatcher,
-    )
+    from modin.core.execution.dispatching.factories.dispatcher import FactoryDispatcher
 
     intermediate = FactoryDispatcher.read_excel(**kwargs)
     if isinstance(intermediate, (OrderedDict, dict)):
