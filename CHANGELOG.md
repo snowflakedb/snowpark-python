@@ -14,6 +14,7 @@
 
 - Improved `to_pandas` to persist the original timezone offset for TIMESTAMP_TZ type.
 - Improved `dtype` results for TIMESTAMP_TZ type to show correct timezone offset.
+- Removed unnecessary warning about sort algorithm in `sort_values`.
 
 #### New Features
 
