@@ -18,6 +18,7 @@ from typing import List, Union
 
 import google.protobuf
 import pytest
+from dateutil.tz import tzlocal
 from pytz import timezone
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -340,6 +341,9 @@ def override_time_zone(tz_name: str = "America/New_York") -> None:
 
         cdll.msvcrt._putenv(f"TZ={tz_code}")
         cdll.msvcrt._tzset()
+
+    tz_name = datetime.datetime.now(tzlocal()).tzname()
+    logging.debug(f"Local time zone is now: {tz_name}.")
 
 
 if __name__ == "__main__":
