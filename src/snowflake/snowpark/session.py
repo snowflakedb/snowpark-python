@@ -3468,8 +3468,7 @@ class Session:
         ...     res = df.collect()
         >>> assert len(query_history.queries) == 2
         >>> assert query_history.queries[0].is_describe
-        >>> assert query_history.queries[1].is_describe
-        >>> assert not query_history.queries[2].is_describe
+        >>> assert not query_history.queries[1].is_describe
         """
         query_listener = QueryHistory(self, include_describe)
         self._conn.add_query_listener(query_listener)
