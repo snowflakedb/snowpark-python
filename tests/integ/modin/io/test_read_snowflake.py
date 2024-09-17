@@ -138,7 +138,7 @@ def test_read_snowflake_semi_structured_types(
 
     # create snowpark pandas dataframe
     df = read_snowflake_and_verify_snapshot_creation(
-        session, table_name, as_query, verify_materialization=False
+        session, table_name, as_query, False
     )
 
     pdf = df.to_pandas()
@@ -179,7 +179,7 @@ def test_read_snowflake_column_names(session, col_name, as_query):
 
     # create snowpark pandas dataframe
     df = read_snowflake_and_verify_snapshot_creation(
-        session, table_name, as_query, verify_materialization=False
+        session, table_name, as_query, False
     )
 
     pdf = df.to_pandas()
