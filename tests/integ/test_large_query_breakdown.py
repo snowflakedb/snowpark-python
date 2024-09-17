@@ -4,12 +4,18 @@
 
 
 import logging
+from unittest.mock import patch
 
 import pytest
 
 from snowflake.snowpark._internal.analyzer import analyzer
-from snowflake.snowpark._internal.compiler import large_query_breakdown
 from snowflake.snowpark.functions import col, lit, sum_distinct, when_matched
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.session import (
+    DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND,
+    DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
+    Session,
+)
 from tests.utils import Utils
 
 pytestmark = [
@@ -19,9 +25,6 @@ pytestmark = [
         run=False,
     )
 ]
-
-DEFAULT_LOWER_BOUND = large_query_breakdown.COMPLEXITY_SCORE_LOWER_BOUND
-DEFAULT_UPPER_BOUND = large_query_breakdown.COMPLEXITY_SCORE_UPPER_BOUND
 
 
 @pytest.fixture(autouse=True)
@@ -48,20 +51,24 @@ def setup(session):
     is_query_compilation_stage_enabled = session._query_compilation_stage_enabled
     session._query_compilation_stage_enabled = True
     session._large_query_breakdown_enabled = True
+    set_bounds(session, 300, 600)
     yield
     session._query_compilation_stage_enabled = is_query_compilation_stage_enabled
     session._cte_optimization_enabled = cte_optimization_enabled
     session._large_query_breakdown_enabled = large_query_breakdown_enabled
-    reset_bounds()
+    reset_bounds(session)
 
 
-def set_bounds(lower_bound: int, upper_bound: int):
-    large_query_breakdown.COMPLEXITY_SCORE_LOWER_BOUND = lower_bound
-    large_query_breakdown.COMPLEXITY_SCORE_UPPER_BOUND = upper_bound
+def set_bounds(session: Session, lower_bound: int, upper_bound: int):
+    session._large_query_breakdown_complexity_bounds = (lower_bound, upper_bound)
 
 
-def reset_bounds():
-    set_bounds(DEFAULT_LOWER_BOUND, DEFAULT_UPPER_BOUND)
+def reset_bounds(session: Session):
+    set_bounds(
+        session,
+        DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND,
+        DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
+    )
 
 
 def check_result_with_and_without_breakdown(session, df):
@@ -80,8 +87,6 @@ def check_result_with_and_without_breakdown(session, df):
 
 def test_no_valid_nodes_found(session, large_query_df, caplog):
     """Test large query breakdown works with default bounds"""
-    set_bounds(300, 600)
-
     base_df = session.sql("select 1 as A, 2 as B")
     df1 = base_df.with_column("A", col("A") + lit(1))
     df2 = base_df.with_column("B", col("B") + lit(1))
@@ -102,7 +107,6 @@ def test_no_valid_nodes_found(session, large_query_df, caplog):
 
 def test_large_query_breakdown_with_cte_optimization(session):
     """Test large query breakdown works with cte optimized plan"""
-    set_bounds(300, 600)
     session._cte_optimization_enabled = True
     df0 = session.sql("select 2 as b, 32 as c")
     df1 = session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
@@ -129,7 +133,6 @@ def test_large_query_breakdown_with_cte_optimization(session):
 
 
 def test_save_as_table(session, large_query_df):
-    set_bounds(300, 600)
     table_name = Utils.random_table_name()
     with session.query_history() as history:
         large_query_df.write.save_as_table(table_name, mode="overwrite")
@@ -144,7 +147,6 @@ def test_save_as_table(session, large_query_df):
 
 
 def test_update_delete_merge(session, large_query_df):
-    set_bounds(300, 600)
     session._large_query_breakdown_enabled = True
     table_name = Utils.random_table_name()
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
@@ -184,7 +186,6 @@ def test_update_delete_merge(session, large_query_df):
 
 
 def test_copy_into_location(session, large_query_df):
-    set_bounds(300, 600)
     remote_file_path = f"{session.get_session_stage()}/df.parquet"
     with session.query_history() as history:
         large_query_df.write.copy_into_location(
@@ -202,7 +203,6 @@ def test_copy_into_location(session, large_query_df):
 
 
 def test_pivot_unpivot(session):
-    set_bounds(300, 600)
     session.sql(
         """create or replace temp table monthly_sales(A int, B int, month text)
                 as select * from values
@@ -241,7 +241,6 @@ def test_pivot_unpivot(session):
 
 
 def test_sort(session):
-    set_bounds(300, 600)
     base_df = session.sql("select 1 as A, 2 as B")
     df1 = base_df.with_column("A", col("A") + lit(1))
     df2 = base_df.with_column("B", col("B") + lit(1))
@@ -274,7 +273,6 @@ def test_sort(session):
 
 
 def test_multiple_query_plan(session, large_query_df):
-    set_bounds(300, 600)
     original_threshold = analyzer.ARRAY_BIND_THRESHOLD
     try:
         analyzer.ARRAY_BIND_THRESHOLD = 2
@@ -312,7 +310,6 @@ def test_multiple_query_plan(session, large_query_df):
 
 def test_optimization_skipped_with_transaction(session, large_query_df, caplog):
     """Test large query breakdown is skipped when transaction is enabled"""
-    set_bounds(300, 600)
     session.sql("begin").collect()
     assert Utils.is_active_transaction(session)
     with caplog.at_level(logging.DEBUG):
@@ -328,7 +325,6 @@ def test_optimization_skipped_with_transaction(session, large_query_df, caplog):
 
 def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
     """Test large query breakdown is skipped plan is a view or dynamic table"""
-    set_bounds(300, 600)
     source_table = Utils.random_table_name()
     table_name = Utils.random_table_name()
     view_name = Utils.random_view_name()
@@ -358,7 +354,6 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
 
 def test_async_job_with_large_query_breakdown(session, large_query_df):
     """Test large query breakdown gives same result for async and non-async jobs"""
-    set_bounds(300, 600)
     job = large_query_df.collect(block=False)
     result = job.result()
     assert result == large_query_df.collect()
@@ -373,11 +368,30 @@ def test_async_job_with_large_query_breakdown(session, large_query_df):
     )
 
 
+def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
+    with patch.object(
+        session._conn, "run_query", wraps=session._conn.run_query
+    ) as patched_run_query:
+        result = large_query_df.collect()
+        Utils.check_answer(result, [Row(1, 4954), Row(2, 4953)])
+
+        plan = large_query_df._plan
+        # 1 for current transaction, 1 for partition, 1 for main query, 1 for post action
+        assert patched_run_query.call_count == 4
+
+        for i, call in enumerate(patched_run_query.call_args_list):
+            if i == 0:
+                assert call.args[0] == "SELECT CURRENT_TRANSACTION()"
+            else:
+                assert "_statement_params" in call.kwargs
+                assert call.kwargs["_statement_params"]["_PLAN_UUID"] == plan.uuid
+
+
 def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     """Test complexity bounds affect number of partitions.
     Also test that when partitions are added, drop table queries are added.
     """
-    set_bounds(300, 600)
+    set_bounds(session, 300, 600)
     assert len(large_query_df.queries["queries"]) == 2
     assert len(large_query_df.queries["post_actions"]) == 1
     assert large_query_df.queries["queries"][0].startswith(
@@ -387,7 +401,7 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
         "DROP  TABLE  If  EXISTS"
     )
 
-    set_bounds(300, 412)
+    set_bounds(session, 300, 412)
     assert len(large_query_df.queries["queries"]) == 3
     assert len(large_query_df.queries["post_actions"]) == 2
     assert large_query_df.queries["queries"][0].startswith(
@@ -403,11 +417,11 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
         "DROP  TABLE  If  EXISTS"
     )
 
-    set_bounds(0, 300)
+    set_bounds(session, 0, 300)
     assert len(large_query_df.queries["queries"]) == 1
     assert len(large_query_df.queries["post_actions"]) == 0
 
-    reset_bounds()
+    reset_bounds(session)
     assert len(large_query_df.queries["queries"]) == 1
     assert len(large_query_df.queries["post_actions"]) == 0
 

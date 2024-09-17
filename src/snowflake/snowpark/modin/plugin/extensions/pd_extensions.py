@@ -9,10 +9,10 @@ under the `pd` namespace, such as `pd.read_snowflake`.
 import inspect
 from typing import Any, Iterable, Literal, Optional, Union
 
+from modin.pandas import DataFrame, Series
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark import DataFrame as SnowparkDataFrame
-from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.api.extensions import register_pd_accessor
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_standalone_function_decorator,
@@ -41,12 +41,12 @@ def read_snowflake(
         columns: A list of column names to select from the table. If not specified, select all columns.
 
     See also:
-        - :func:`to_snowflake <snowflake.snowpark.modin.pandas.io.to_snowflake>`
+        - :func:`to_snowflake <snowflake.snowpark.modin.pandas.to_snowflake>`
 
     Notes:
         Transformations applied to the returned Snowpark pandas Dataframe do not affect the underlying Snowflake table
         (or object). Use
-        - :func:`snowflake.snowpark.modin.pandas.to_snowpark <snowflake.snowpark.modin.pandas.io.to_snowflake>`
+        - :func:`modin.pandas.to_snowpark <snowflake.snowpark.modin.pandas.to_snowpark>`
         to write the Snowpark pandas DataFrame back to a Snowpark table.
 
         This API supports table names, SELECT queries (including those that use CTEs), CTEs with anonymous stored procedures
@@ -398,9 +398,9 @@ def to_snowflake(
             types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
 
     See also:
-        - :func:`DataFrame.to_snowflake <snowflake.snowpark.modin.pandas.DataFrame.to_snowflake>`
-        - :func:`Series.to_snowflake <snowflake.snowpark.modin.pandas.Series.to_snowflake>`
-        - :func:`read_snowflake <snowflake.snowpark.modin.pandas.io.read_snowflake>`
+        - :func:`DataFrame.to_snowflake <modin.pandas.DataFrame.to_snowflake>`
+        - :func:`Series.to_snowflake <modin.pandas.Series.to_snowflake>`
+        - :func:`read_snowflake <snowflake.snowpark.modin.pandas.read_snowflake>`
     """
     _snowpark_pandas_obj_check(obj)
 
@@ -444,13 +444,13 @@ def to_snowpark(
 
     See also:
         - :func:`Snowpark.DataFrame.to_snowpark_pandas <snowflake.snowpark.DataFrame.to_snowpark_pandas>`
-        - :func:`DataFrame.to_snowpark <snowflake.snowpark.modin.pandas.DataFrame.to_snowpark>`
-        - :func:`Series.to_snowpark <snowflake.snowpark.modin.pandas.Series.to_snowpark>`
+        - :func:`DataFrame.to_snowpark <modin.pandas.DataFrame.to_snowpark>`
+        - :func:`Series.to_snowpark <modin.pandas.Series.to_snowpark>`
 
     Note:
         The labels of the Snowpark pandas DataFrame or index_label provided will be used as Normalized Snowflake
         Identifiers of the Snowpark DataFrame.
-        For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~snowflake.snowpark.modin.pandas.io.read_snowflake`
+        For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~snowflake.snowpark.modin.pandas.read_snowflake`
 
     Examples::
 
@@ -578,8 +578,8 @@ def to_pandas(
         pandas DataFrame or Series
 
     See also:
-        - :func:`DataFrame.to_pandas <snowflake.snowpark.modin.pandas.DataFrame.to_pandas>`
-        - :func:`Series.to_pandas <snowflake.snowpark.modin.pandas.Series.to_pandas>`
+        - :func:`DataFrame.to_pandas <modin.pandas.DataFrame.to_pandas>`
+        - :func:`Series.to_pandas <modin.pandas.Series.to_pandas>`
 
     Examples:
 

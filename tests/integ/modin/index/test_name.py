@@ -8,7 +8,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import assert_frame_equal
+from tests.integ.modin.utils import assert_frame_equal, eval_snowpark_pandas_result
 
 
 @sql_count_checker(query_count=0)
@@ -317,3 +317,103 @@ def test_index_SNOW_1021837():
     native_df_reset = native_df.reset_index()
     snow_df_reset = snow_df.reset_index()
     assert_frame_equal(snow_df_reset, native_df_reset)
+
+
+@sql_count_checker(query_count=0)
+def test_index_non_list_like_names_negative():
+    """
+    Bug SNOW-1650853:
+    Test that the correct error is raised.
+    """
+    native_df = native_pd.DataFrame(list(range(10)))
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: setattr(df.index, "names", 10),
+        expect_exception=True,
+        check_exception_type=ValueError,
+    )
+
+
+@sql_count_checker(query_count=2)
+def test_index_names_with_lazy_index():
+    # 1 query to convert index to list, 1 query for comparison of DataFrames.
+    native_df = native_pd.DataFrame(list(range(10)))
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: setattr(
+            df.index,
+            "names",
+            pd.Index(["A"]) if isinstance(df, pd.DataFrame) else native_pd.Index(["A"]),
+        ),
+        inplace=True,
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_index_names_replace_behavior():
+    """
+    Check that the index name of a DataFrame cannot be updated after the DataFrame has been modified.
+    """
+    data = {
+        "A": [0, 1, 2, 3, 4, 4],
+        "B": ["a", "b", "c", "d", "e", "f"],
+    }
+    idx = [1, 2, 3, 4, 5, 6]
+    native_df = native_pd.DataFrame(data, native_pd.Index(idx, name="test"))
+    snow_df = pd.DataFrame(data, index=pd.Index(idx, name="test"))
+
+    # Get a reference to the index of the DataFrames.
+    snow_index = snow_df.index
+    native_index = native_df.index
+
+    # Change the names.
+    snow_index.name = "test2"
+    native_index.name = "test2"
+
+    # Compare the names.
+    assert snow_index.name == native_index.name == "test2"
+    assert snow_df.index.name == native_df.index.name == "test2"
+
+    # Change the query compiler the DataFrame is referring to, change the names.
+    snow_df.dropna(inplace=True)
+    native_df.dropna(inplace=True)
+    snow_index.name = "test3"
+    native_index.name = "test3"
+
+    # Compare the names. Changing the index name should not change the DataFrame's index name.
+    assert snow_index.name == native_index.name == "test3"
+    assert snow_df.index.name == native_df.index.name == "test2"
+
+
+@sql_count_checker(query_count=1)
+def test_index_names_multiple_renames():
+    """
+    Check that the index name of a DataFrame can be renamed any number of times.
+    """
+    data = {
+        "A": [0, 1, 2, 3, 4, 4],
+        "B": ["a", "b", "c", "d", "e", "f"],
+    }
+    idx = [1, 2, 3, 4, 5, 6]
+    native_df = native_pd.DataFrame(data, native_pd.Index(idx, name="test"))
+    snow_df = pd.DataFrame(data, index=pd.Index(idx, name="test"))
+
+    # Get a reference to the index of the DataFrames.
+    snow_index = snow_df.index
+    native_index = native_df.index
+
+    # Change and compare the names.
+    snow_index.name = "test2"
+    native_index.name = "test2"
+    assert snow_index.name == native_index.name == "test2"
+    assert snow_df.index.name == native_df.index.name == "test2"
+
+    # Change the names again and compare.
+    snow_index.name = "test3"
+    native_index.name = "test3"
+    assert snow_index.name == native_index.name == "test3"
+    assert snow_df.index.name == native_df.index.name == "test3"

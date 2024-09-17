@@ -11,7 +11,8 @@ from typing import Literal, Optional, Union
 import numpy as np
 import pandas as native_pd
 from pandas._libs import lib
-from pandas._typing import DateTimeErrorChoices
+from pandas._libs.tslibs import to_offset
+from pandas._typing import DateTimeErrorChoices, Frequency
 from pandas.api.types import is_datetime64_any_dtype, is_float_dtype, is_integer_dtype
 
 from snowflake.snowpark import Column
@@ -21,9 +22,17 @@ from snowflake.snowpark.functions import (
     cast,
     convert_timezone,
     date_part,
+    dayofmonth,
+    hour,
     iff,
+    minute,
+    month,
+    second,
+    timestamp_tz_from_parts,
     to_decimal,
+    to_timestamp_ntz,
     trunc,
+    year,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
@@ -168,11 +177,24 @@ def col_to_s(col: Column, unit: Literal["D", "s", "ms", "us", "ns"]) -> Column:
         return col / 10**9
 
 
+def timedelta_freq_to_nanos(freq: Frequency) -> int:
+    """
+    Convert a pandas frequency string to nanoseconds.
+
+    Args:
+        freq: Timedelta frequency string or offset.
+
+    Returns:
+        int: nanoseconds
+    """
+    return to_offset(freq).nanos
+
+
 def col_to_timedelta(col: Column, unit: str) -> Column:
     """
     Converts ``col`` (stored in the specified units) to timedelta nanoseconds.
     """
-    td_unit = VALID_PANDAS_TIMEDELTA_ABBREVS.get(unit)
+    td_unit = VALID_PANDAS_TIMEDELTA_ABBREVS.get(unit.lower())
     if not td_unit:
         # Same error as native pandas.
         raise ValueError(f"invalid unit abbreviation: {unit}")
@@ -453,3 +475,60 @@ def convert_dateoffset_to_interval(
             )
         interval_kwargs[new_param] = offset
     return Interval(**interval_kwargs)
+
+
+def tz_localize_column(column: Column, tz: Union[str, dt.tzinfo]) -> Column:
+    """
+        Localize tz-naive to tz-aware.
+        Args:
+            tz : str, pytz.timezone, optional
+    Localize a tz-naive datetime column to tz-aware
+
+    Args:
+        column: the Snowpark datetime column
+        tz: time zone for time. Corresponding timestamps would be converted to this time zone of the Datetime Array/Index. A tz of None will convert to UTC and remove the timezone information.
+
+    Returns:
+        The column after tz localization
+    """
+    if tz is None:
+        # If this column is already a TIMESTAMP_NTZ, this cast does nothing.
+        # If the column is a TIMESTAMP_TZ, the cast drops the timezone and converts
+        # to TIMESTAMP_NTZ.
+        return to_timestamp_ntz(column)
+    else:
+        if isinstance(tz, dt.tzinfo):
+            tz_name = tz.tzname(None)
+        else:
+            tz_name = tz
+        return timestamp_tz_from_parts(
+            year(column),
+            month(column),
+            dayofmonth(column),
+            hour(column),
+            minute(column),
+            second(column),
+            date_part("nanosecond", column),
+            pandas_lit(tz_name),
+        )
+
+
+def tz_convert_column(column: Column, tz: Union[str, dt.tzinfo]) -> Column:
+    """
+    Converts a datetime column to the specified timezone
+
+    Args:
+        column: the Snowpark datetime column
+        tz: the target timezone
+
+    Returns:
+        The column after conversion to the specified timezone
+    """
+    if tz is None:
+        return to_timestamp_ntz(convert_timezone(pandas_lit("UTC"), column))
+    else:
+        if isinstance(tz, dt.tzinfo):
+            tz_name = tz.tzname(None)
+        else:
+            tz_name = tz
+        return convert_timezone(pandas_lit(tz_name), column)

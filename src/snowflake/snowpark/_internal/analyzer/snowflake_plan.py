@@ -254,12 +254,17 @@ class SnowflakePlan(LogicalPlan):
         # In the placeholder query, subquery (child) is held by the ID of query plan
         # It is used for optimization, by replacing a subquery with a CTE
         self.placeholder_query = placeholder_query
-        # encode an id for CTE optimization
+        # encode an id for CTE optimization. This is generated based on the main
+        # query and the associated query parameters. We use this id for equality comparison
+        # to determine if two plans are the same.
         self._id = encode_id(queries[-1].sql, queries[-1].params)
         self.referenced_ctes: Set[str] = (
             referenced_ctes.copy() if referenced_ctes else set()
         )
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
+        # UUID for the plan to uniquely identify the SnowflakePlan object. We also use this
+        # to UUID track queries that are generated from the same plan.
+        self._uuid = str(uuid.uuid4())
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         if not isinstance(other, SnowflakePlan):
@@ -271,6 +276,10 @@ class SnowflakePlan(LogicalPlan):
 
     def __hash__(self) -> int:
         return hash(self._id) if self._id else super().__hash__()
+
+    @property
+    def uuid(self) -> str:
+        return self._uuid
 
     @property
     def execution_queries(self) -> Dict["PlanQueryType", List["Query"]]:

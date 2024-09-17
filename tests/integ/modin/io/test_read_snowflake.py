@@ -362,10 +362,12 @@ def test_read_snowflake_with_views(
             with caplog.at_level(logging.WARNING):
                 df = call_read_snowflake(table_name, as_query)
             assert df.columns.tolist() == ["COL1", "S"]
+            failing_reason = "SQL compilation error: Cannot clone from a view object"
             materialize_log = f"Data from source table/view '{table_name}' is being copied into a new temporary table"
             if table_type in ["view", "SECURE VIEW", "TEMP VIEW"]:
                 # verify temporary table is materialized for view, secure view and temp view
                 assert materialize_log in caplog.text
+                assert failing_reason in caplog.text
             else:
                 # verify no temporary table is materialized for regular table
                 assert not (materialize_log in caplog.text)

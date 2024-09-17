@@ -105,6 +105,7 @@ def left_right_timestamp_data():
                 pd.Timestamp("2016-05-25 13:30:00.072"),
                 pd.Timestamp("2016-05-25 13:30:00.075"),
             ],
+            "ticker": ["GOOG", "MSFT", "MSFT", "MSFT", "GOOG", "AAPL", "GOOG", "MSFT"],
             "bid": [720.50, 51.95, 51.97, 51.99, 720.50, 97.99, 720.50, 52.01],
             "ask": [720.93, 51.96, 51.98, 52.00, 720.93, 98.01, 720.88, 52.03],
         }
@@ -118,6 +119,7 @@ def left_right_timestamp_data():
                 pd.Timestamp("2016-05-25 13:30:00.048"),
                 pd.Timestamp("2016-05-25 13:30:00.048"),
             ],
+            "ticker": ["MSFT", "MSFT", "GOOG", "GOOG", "AAPL"],
             "price": [51.95, 51.95, 720.77, 720.92, 98.0],
             "quantity": [75, 155, 100, 100, 100],
         }
@@ -229,14 +231,70 @@ def test_merge_asof_left_right_on(
     assert_snowpark_pandas_equal_to_pandas(snow_output, native_output)
 
 
+@allow_exact_matches
+@direction
 @sql_count_checker(query_count=1, join_count=1)
-def test_merge_asof_timestamps(left_right_timestamp_data):
+def test_merge_asof_left_right_index(allow_exact_matches, direction):
+    native_left = native_pd.DataFrame({"left_val": ["a", "b", "c"]}, index=[1, 5, 10])
+    native_right = native_pd.DataFrame(
+        {"right_val": [1, 2, 3, 6, 7]}, index=[1, 2, 3, 6, 7]
+    )
+
+    snow_left = pd.DataFrame(native_left)
+    snow_right = pd.DataFrame(native_right)
+
+    native_output = native_pd.merge_asof(
+        native_left,
+        native_right,
+        left_index=True,
+        right_index=True,
+        direction=direction,
+        allow_exact_matches=allow_exact_matches,
+    )
+    snow_output = pd.merge_asof(
+        snow_left,
+        snow_right,
+        left_index=True,
+        right_index=True,
+        direction=direction,
+        allow_exact_matches=allow_exact_matches,
+    )
+    assert_snowpark_pandas_equal_to_pandas(snow_output, native_output)
+
+
+@pytest.mark.parametrize("by", ["ticker", ["ticker"]])
+@sql_count_checker(query_count=1, join_count=1)
+def test_merge_asof_by(left_right_timestamp_data, by):
     left_native_df, right_native_df = left_right_timestamp_data
     left_snow_df, right_snow_df = pd.DataFrame(left_native_df), pd.DataFrame(
         right_native_df
     )
-    native_output = native_pd.merge_asof(left_native_df, right_native_df, on="time")
-    snow_output = pd.merge_asof(left_snow_df, right_snow_df, on="time")
+    native_output = native_pd.merge_asof(
+        left_native_df, right_native_df, on="time", by=by
+    )
+    snow_output = pd.merge_asof(left_snow_df, right_snow_df, on="time", by=by)
+    assert_snowpark_pandas_equal_to_pandas(snow_output, native_output)
+
+
+@pytest.mark.parametrize(
+    "left_by, right_by",
+    [
+        ("ticker", "ticker"),
+        (["ticker", "bid"], ["ticker", "price"]),
+    ],
+)
+@sql_count_checker(query_count=1, join_count=1)
+def test_merge_asof_left_right_by(left_right_timestamp_data, left_by, right_by):
+    left_native_df, right_native_df = left_right_timestamp_data
+    left_snow_df, right_snow_df = pd.DataFrame(left_native_df), pd.DataFrame(
+        right_native_df
+    )
+    native_output = native_pd.merge_asof(
+        left_native_df, right_native_df, on="time", left_by=left_by, right_by=right_by
+    )
+    snow_output = pd.merge_asof(
+        left_snow_df, right_snow_df, on="time", left_by=left_by, right_by=right_by
+    )
     assert_snowpark_pandas_equal_to_pandas(snow_output, native_output)
 
 
@@ -248,8 +306,10 @@ def test_merge_asof_date(left_right_timestamp_data):
     left_snow_df, right_snow_df = pd.DataFrame(left_native_df), pd.DataFrame(
         right_native_df
     )
-    native_output = native_pd.merge_asof(left_native_df, right_native_df, on="time")
-    snow_output = pd.merge_asof(left_snow_df, right_snow_df, on="time")
+    native_output = native_pd.merge_asof(
+        left_native_df, right_native_df, on="time", by="ticker"
+    )
+    snow_output = pd.merge_asof(left_snow_df, right_snow_df, on="time", by="ticker")
     assert_snowpark_pandas_equal_to_pandas(snow_output, native_output)
 
 
@@ -360,9 +420,7 @@ def test_merge_asof_params_unsupported(left_right_timestamp_data):
     with pytest.raises(
         NotImplementedError,
         match=(
-            "Snowpark pandas merge_asof method does not currently support parameters "
-            "'by', 'left_by', 'right_by', 'left_index', 'right_index', "
-            "'suffixes', or 'tolerance'"
+            "Snowpark pandas merge_asof method only supports directions 'forward' and 'backward'"
         ),
     ):
         pd.merge_asof(
@@ -372,28 +430,7 @@ def test_merge_asof_params_unsupported(left_right_timestamp_data):
         NotImplementedError,
         match=(
             "Snowpark pandas merge_asof method does not currently support parameters "
-            "'by', 'left_by', 'right_by', 'left_index', 'right_index', "
-            "'suffixes', or 'tolerance'"
-        ),
-    ):
-        pd.merge_asof(
-            left_snow_df, right_snow_df, on="time", left_by="price", right_by="quantity"
-        )
-    with pytest.raises(
-        NotImplementedError,
-        match=(
-            "Snowpark pandas merge_asof method does not currently support parameters "
-            "'by', 'left_by', 'right_by', 'left_index', 'right_index', "
-            "'suffixes', or 'tolerance'"
-        ),
-    ):
-        pd.merge_asof(left_snow_df, right_snow_df, left_index=True, right_index=True)
-    with pytest.raises(
-        NotImplementedError,
-        match=(
-            "Snowpark pandas merge_asof method does not currently support parameters "
-            "'by', 'left_by', 'right_by', 'left_index', 'right_index', "
-            "'suffixes', or 'tolerance'"
+            + "'suffixes', or 'tolerance'"
         ),
     ):
         pd.merge_asof(
@@ -406,8 +443,7 @@ def test_merge_asof_params_unsupported(left_right_timestamp_data):
         NotImplementedError,
         match=(
             "Snowpark pandas merge_asof method does not currently support parameters "
-            "'by', 'left_by', 'right_by', 'left_index', 'right_index', "
-            "'suffixes', or 'tolerance'"
+            + "'suffixes', or 'tolerance'"
         ),
     ):
         pd.merge_asof(
