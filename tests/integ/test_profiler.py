@@ -35,6 +35,7 @@ def test_profiler_with_context_manager(session, db_parameters):
         res = session.show_profiles()
     session.register_profiler_modules([])
     assert res is not None
+    print(type(res))
     assert "Modules Profiled" in res
 
 
