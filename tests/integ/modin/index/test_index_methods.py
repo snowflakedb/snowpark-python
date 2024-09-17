@@ -393,13 +393,13 @@ def test_index_parent():
     # DataFrame case.
     df = pd.DataFrame([[1, 2], [3, 4]], index=native_idx1)
     snow_idx = df.index
-    assert_frame_equal(snow_idx._parent, df)
+    assert_frame_equal(snow_idx._parent._parent, df)
     assert_index_equal(snow_idx, native_idx1)
 
     # Series case.
     s = pd.Series([1, 2, 4, 5, 6, 7], index=native_idx2, name="zyx")
     snow_idx = s.index
-    assert_series_equal(snow_idx._parent, s)
+    assert_series_equal(snow_idx._parent._parent, s)
     assert_index_equal(snow_idx, native_idx2)
 
 
