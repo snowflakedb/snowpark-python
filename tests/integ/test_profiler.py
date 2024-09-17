@@ -48,26 +48,32 @@ def test_profiler_with_context_manager(session, db_parameters):
     reason="session.sql is not supported in localtesting",
 )
 def test_profiler_with_profiler_class(session, db_parameters):
+    another_tmp_stage_name = Utils.random_stage_name()
+
     @sproc(name="table_sp", replace=True)
     def table_sp(session: snowflake.snowpark.Session) -> DataFrame:
         return session.sql("select 1")
 
-    profiler = Profiler()
-    profiler.register_profiler_modules(["table_sp"])
-    profiler.set_active_profiler("LINE")
-    profiler.set_targeted_stage(
+    pro = Profiler()
+    pro.register_profiler_modules(["table_sp"])
+    pro.set_active_profiler("LINE")
+    pro.set_targeted_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
     )
-    session.register_profiler(profiler)
+    session.register_profiler(pro)
 
-    profiler.enable_profiler()
+    pro.set_targeted_stage(
+        f"{db_parameters['database']}.{db_parameters['schema']}.{another_tmp_stage_name}"
+    )
+
+    pro.enable_profiler()
 
     session.call("table_sp").collect()
     res = session.show_profiles()
 
-    profiler.disable_profiler()
+    pro.disable_profiler()
 
-    profiler.register_profiler_modules([])
+    pro.register_profiler_modules([])
     assert res is not None
     assert "Modules Profiled" in res
 
@@ -114,3 +120,54 @@ def test_anonymous_procedure(session, db_parameters):
     session.register_profiler_modules([])
     assert res is not None
     assert "Modules Profiled" in res
+
+
+def test_not_set_profiler_error(session, tmpdir):
+    with pytest.raises(ValueError) as e:
+        session.show_profiles()
+    assert "profiler is not set, use session.register_profiler or profiler context manager" in str(e)
+
+    with pytest.raises(ValueError) as e:
+        session.dump_profiles(tmpdir.join("file.txt"))
+    assert "profiler is not set, use session.register_profiler or profiler context manager" in str(e)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
+def test_register_module_without_profiler(session, db_parameters):
+    session.register_profiler_modules(["fake_module"])
+    res = session.sql("show parameters like 'python_profiler_modules'").collect()
+    assert res[0].value == "fake_module"
+    session.register_profiler_modules([])
+
+
+def test_set_incorrect_active_profiler():
+    pro = Profiler()
+    with pytest.raises(ValueError) as e:
+        pro.set_active_profiler("wrong_active_profiler")
+    assert "active_profiler expect 'LINE' or 'MEMORY', got wrong_active_profiler instead" in str(e)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
+def test_dump_profile_to_file(session, db_parameters, tmpdir):
+    file = tmpdir.join("profile.lprof")
+    def single_value_sp(session: snowflake.snowpark.Session) -> str:
+        return "success"
+
+    single_value_sp = session.sproc.register(single_value_sp, anonymous=True)
+    session.register_profiler_modules(["table_sp"])
+    with profiler(
+        stage=f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}",
+        active_profiler="LINE",
+        session=session,
+    ):
+        single_value_sp()
+        session.dump_profiles(file)
+    session.register_profiler_modules([])
+    with open(file, "r") as f:
+        assert "Modules Profiled" in f.read()

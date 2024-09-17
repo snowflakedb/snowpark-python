@@ -86,9 +86,9 @@ class Profiler:
             active_profiler: String that represent active_profiler, must be either 'LINE' or 'MEMORY' (case-sensitive).
 
         """
-        if self.active_profiler not in ["LINE", "MEMORY"]:
+        if active_profiler not in ["LINE", "MEMORY"]:
             raise ValueError(
-                f"active_profiler expect 'LINE' or 'MEMORY', got {self.active_profiler} instead"
+                f"active_profiler expect 'LINE' or 'MEMORY', got {active_profiler} instead"
             )
         self.active_profiler = active_profiler
         self._prepare_sql()
