@@ -16,8 +16,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.compiler.large_query_breakdown import (
-    COMPLEXITY_SCORE_LOWER_BOUND,
-    COMPLEXITY_SCORE_UPPER_BOUND,
     LargeQueryBreakdown,
 )
 from snowflake.snowpark._internal.compiler.repeated_subquery_elimination import (
@@ -56,6 +54,7 @@ class PlanCompiler:
         self.query_compilation_stage_enabled = (
             current_session._query_compilation_stage_enabled
         )
+        self.complexity_bounds = current_session.large_query_breakdown_complexity_bounds
 
     def should_start_query_compilation(self) -> bool:
         """
@@ -111,7 +110,10 @@ class PlanCompiler:
             # Large query breakdown
             if self.large_query_breakdown_enabled:
                 large_query_breakdown = LargeQueryBreakdown(
-                    self._plan.session, query_generator, logical_plans
+                    self._plan.session,
+                    query_generator,
+                    logical_plans,
+                    self.complexity_bounds,
                 )
                 logical_plans = large_query_breakdown.apply()
 
@@ -133,10 +135,7 @@ class PlanCompiler:
             summary_value = {
                 TelemetryField.CTE_OPTIMIZATION_ENABLED.value: self.cte_optimization_enabled,
                 TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: self.large_query_breakdown_enabled,
-                CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: (
-                    COMPLEXITY_SCORE_LOWER_BOUND,
-                    COMPLEXITY_SCORE_UPPER_BOUND,
-                ),
+                CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: self.complexity_bounds,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_COMPILATION.value: total_time,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_DEEP_COPY_PLAN.value: deep_copy_time,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_CTE_OPTIMIZATION.value: cte_time,

@@ -250,7 +250,7 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
         "random_package_one": "random_package_one",
         "random_package_two": "random_package_two",
     }
-    fake_session._lock = threading.RLock()
+    fake_session._package_lock = threading.RLock()
     result = add_snowpark_package_to_sproc_packages(session=fake_session, packages=None)
 
     major, minor, patch = VERSION
