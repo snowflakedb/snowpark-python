@@ -13,7 +13,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from ctypes import c_char_p, c_int
+from ctypes import c_char_p, c_int64
 from dataclasses import dataclass
 from typing import List, Union
 
@@ -347,8 +347,8 @@ def override_time_zone(tz_name: str = "America/New_York") -> None:
         # test:
         dTime = time.time()
         nTime = int(dTime)
-        intTime = c_int(nTime)
-        a = time.ctime
+        intTime = c_int64(nTime)
+        a = time.ctime()
         b = c_char_p(cdll.msvcrt.ctime(addressof(intTime))).value
         from tzlocal import get_localzone
 
