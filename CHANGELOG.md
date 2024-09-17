@@ -17,6 +17,7 @@
 - Improved `dtype` results for TIMESTAMP_LTZ type to show correct timezone.
 - Improved error message when passing non-bool value to `numeric_only` for groupby aggregations.
 - Removed unnecessary warning about sort algorithm in `sort_values`.
+- Use SCOPED object for internal create temp tables.
 
 #### New Features
 
