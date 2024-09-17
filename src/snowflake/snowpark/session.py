@@ -867,11 +867,12 @@ class Session:
             raise ValueError(
                 f"Expecting a tuple of lower and upper bound with the lower bound less than the upper bound. Got (lower, upper) = ({value[0], value[1]})"
             )
-        self._conn._telemetry_client.send_large_query_breakdown_update_complexity_bounds(
-            self._session_id, value[0], value[1]
-        )
+        with self._lock:
+            self._conn._telemetry_client.send_large_query_breakdown_update_complexity_bounds(
+                self._session_id, value[0], value[1]
+            )
 
-        self._large_query_breakdown_complexity_bounds = value
+            self._large_query_breakdown_complexity_bounds = value
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
