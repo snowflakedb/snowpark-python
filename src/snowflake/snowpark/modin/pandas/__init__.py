@@ -170,8 +170,8 @@ from snowflake.snowpark.modin.plugin.extensions.pd_extensions import (  # isort:
     DatetimeIndex,
     TimedeltaIndex,
 )
-import snowflake.snowpark.modin.plugin.extensions.pd_io_overrides  # isort: skip  # noqa: E402,F401
-from snowflake.snowpark.modin.plugin.extensions.pd_io_overrides import (  # isort: skip  # noqa: E402,F401
+import snowflake.snowpark.modin.plugin.extensions.io_overrides  # isort: skip  # noqa: E402,F401
+from snowflake.snowpark.modin.plugin.extensions.io_overrides import (  # isort: skip  # noqa: E402,F401
     read_xml,
     json_normalize,
     read_orc,
