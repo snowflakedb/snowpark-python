@@ -20,6 +20,10 @@ def setup(session, resources_path, local_testing_mode):
         session.add_packages("snowflake-snowpark-python")
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
 def test_profiler_with_context_manager(session, db_parameters):
     @sproc(name="table_sp", replace=True)
     def table_sp(session: snowflake.snowpark.Session) -> DataFrame:
@@ -39,6 +43,10 @@ def test_profiler_with_context_manager(session, db_parameters):
     assert "Modules Profiled" in res
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
 def test_profiler_with_profiler_class(session, db_parameters):
     @sproc(name="table_sp", replace=True)
     def table_sp(session: snowflake.snowpark.Session) -> DataFrame:
@@ -64,6 +72,10 @@ def test_profiler_with_profiler_class(session, db_parameters):
     assert "Modules Profiled" in res
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
 def test_single_return_value_of_sp(session, db_parameters):
     @sproc(name="single_value_sp", replace=True)
     def single_value_sp(session: snowflake.snowpark.Session) -> str:
@@ -82,6 +94,10 @@ def test_single_return_value_of_sp(session, db_parameters):
     assert "Modules Profiled" in res
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
 def test_anonymous_procedure(session, db_parameters):
     def single_value_sp(session: snowflake.snowpark.Session) -> str:
         return "success"
