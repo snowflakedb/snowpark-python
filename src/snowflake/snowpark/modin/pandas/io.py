@@ -92,7 +92,7 @@ from snowflake.snowpark.modin.utils import (
 
 # below logic is to handle circular imports without errors
 if TYPE_CHECKING:  # pragma: no cover
-    from .dataframe import DataFrame
+    from modin.pandas.dataframe import DataFrame
 
 # TODO: SNOW-1265551: add inherit_docstrings decorators once docstring overrides are available
 
@@ -106,7 +106,7 @@ class ModinObjects:
     def DataFrame(cls):
         """Get ``modin.pandas.DataFrame`` class."""
         if cls._dataframe is None:
-            from .dataframe import DataFrame
+            from modin.pandas.dataframe import DataFrame
 
             cls._dataframe = DataFrame
         return cls._dataframe

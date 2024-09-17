@@ -1197,22 +1197,29 @@ class OrderedDataFrame:
         # get the new mapped right on identifier
         right_on_cols = [right_identifiers_rename_map[key] for key in right_on_cols]
 
-        # Generate sql ON clause 'EQUAL_NULL(col1, col2) and EQUAL_NULL(col3, col4) ...'
-        on = None
-        for left_col, right_col in zip(left_on_cols, right_on_cols):
-            eq = Column(left_col).equal_null(Column(right_col))
-            on = eq if on is None else on & eq
-
         if how == "asof":
-            assert left_match_col, "left_match_col was not provided to ASOF Join"
+            assert (
+                left_match_col
+            ), "ASOF join was not provided a column identifier to match on for the left table"
             left_match_col = Column(left_match_col)
             # Get the new mapped right match condition identifier
-            assert right_match_col, "right_match_col was not provided to ASOF Join"
+            assert (
+                right_match_col
+            ), "ASOF join was not provided a column identifier to match on for the right table"
             right_match_col = Column(right_identifiers_rename_map[right_match_col])
             # ASOF Join requires the use of match_condition
-            assert match_comparator, "match_comparator was not provided to ASOF Join"
+            assert (
+                match_comparator
+            ), "ASOF join was not provided a comparator for the match condition"
+
+            on = None
+            for left_col, right_col in zip(left_on_cols, right_on_cols):
+                eq = Column(left_col).__eq__(Column(right_col))
+                on = eq if on is None else on & eq
+
             snowpark_dataframe = left_snowpark_dataframe_ref.snowpark_dataframe.join(
                 right=right_snowpark_dataframe_ref.snowpark_dataframe,
+                on=on,
                 how=how,
                 match_condition=getattr(left_match_col, match_comparator.value)(
                     right_match_col
@@ -1224,6 +1231,12 @@ class OrderedDataFrame:
                 right_snowpark_dataframe_ref.snowpark_dataframe, how=how
             )
         else:
+            # Generate sql ON clause 'EQUAL_NULL(col1, col2) and EQUAL_NULL(col3, col4) ...'
+            on = None
+            for left_col, right_col in zip(left_on_cols, right_on_cols):
+                eq = Column(left_col).equal_null(Column(right_col))
+                on = eq if on is None else on & eq
+
             snowpark_dataframe = left_snowpark_dataframe_ref.snowpark_dataframe.join(
                 right_snowpark_dataframe_ref.snowpark_dataframe, on, how
             )

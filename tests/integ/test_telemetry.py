@@ -1223,3 +1223,51 @@ def test_post_compilation_stage_telemetry(session):
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
     assert data == expected_data
     assert type_ == "snowpark_compilation_stage_statistics"
+
+
+def test_temp_table_cleanup(session):
+    client = session._conn._telemetry_client
+
+    def send_telemetry():
+        client.send_temp_table_cleanup_telemetry(
+            session.session_id,
+            temp_table_cleaner_enabled=True,
+            num_temp_tables_cleaned=2,
+            num_temp_tables_created=5,
+        )
+
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    expected_data = {
+        "session_id": session.session_id,
+        "temp_table_cleaner_enabled": True,
+        "num_temp_tables_cleaned": 2,
+        "num_temp_tables_created": 5,
+    }
+
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
+    assert data == expected_data
+    assert type_ == "snowpark_temp_table_cleanup"
+
+
+def test_temp_table_cleanup_exception(session):
+    client = session._conn._telemetry_client
+
+    def send_telemetry():
+        client.send_temp_table_cleanup_abnormal_exception_telemetry(
+            session.session_id,
+            table_name="table_name_placeholder",
+            exception_message="exception_message_placeholder",
+        )
+
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    expected_data = {
+        "session_id": session.session_id,
+        "temp_table_cleanup_abnormal_exception_table_name": "table_name_placeholder",
+        "temp_table_cleanup_abnormal_exception_message": "exception_message_placeholder",
+    }
+
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
+    assert data == expected_data
+    assert type_ == "snowpark_temp_table_cleanup_abnormal_exception"

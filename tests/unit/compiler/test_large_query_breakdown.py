@@ -105,7 +105,12 @@ empty_selectable = SelectSQL("dummy_query", analyzer=mock.create_autospec(Analyz
     ],
 )
 def test_pipeline_breaker_node(mock_session, mock_analyzer, node_generator, expected):
-    large_query_breakdown = LargeQueryBreakdown(mock_session, mock_analyzer, [])
+    large_query_breakdown = LargeQueryBreakdown(
+        mock_session,
+        mock_analyzer,
+        [],
+        mock_session.large_query_breakdown_complexity_bounds,
+    )
     node = node_generator(mock_analyzer)
 
     assert (

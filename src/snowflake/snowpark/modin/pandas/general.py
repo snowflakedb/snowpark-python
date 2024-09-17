@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING, Any, Literal, Union
 import numpy as np
 import pandas
 import pandas.core.common as common
-from modin.pandas import Series
+from modin.pandas import DataFrame, Series
 from modin.pandas.base import BasePandasDataset
 from pandas import IntervalIndex, NaT, Timedelta, Timestamp
 from pandas._libs import NaTType, lib
@@ -65,7 +65,6 @@ from pandas.util._validators import validate_inclusive
 
 # add this line to make doctests runnable
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
-from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.pandas.utils import (
     is_scalar,
     raise_if_native_pandas_objects,
@@ -92,9 +91,8 @@ if TYPE_CHECKING:
     # linking to `snowflake.snowpark.DataFrame`, we need to explicitly
     # qualify return types in this file with `modin.pandas.DataFrame`.
     # SNOW-1233342: investigate how to fix these links without using absolute paths
+    import modin
     from modin.core.storage_formats import BaseQueryCompiler  # pragma: no cover
-
-    import snowflake  # pragma: no cover
 
 _logger = getLogger(__name__)
 
@@ -137,8 +135,8 @@ notnull = notna
 
 @snowpark_pandas_telemetry_standalone_function_decorator
 def merge(
-    left: snowflake.snowpark.modin.pandas.DataFrame | Series,
-    right: snowflake.snowpark.modin.pandas.DataFrame | Series,
+    left: modin.pandas.DataFrame | Series,
+    right: modin.pandas.DataFrame | Series,
     how: str | None = "inner",
     on: IndexLabel | None = None,
     left_on: None
@@ -414,7 +412,7 @@ def merge_asof(
     tolerance: int | Timedelta | None = None,
     allow_exact_matches: bool = True,
     direction: str = "backward",
-) -> snowflake.snowpark.modin.pandas.DataFrame:
+) -> modin.pandas.DataFrame:
     """
     Perform a merge by key distance.
 
@@ -1105,8 +1103,8 @@ def value_counts(
 @snowpark_pandas_telemetry_standalone_function_decorator
 def concat(
     objs: (
-        Iterable[snowflake.snowpark.modin.pandas.DataFrame | Series]
-        | Mapping[Hashable, snowflake.snowpark.modin.pandas.DataFrame | Series]
+        Iterable[modin.pandas.DataFrame | Series]
+        | Mapping[Hashable, modin.pandas.DataFrame | Series]
     ),
     axis: Axis = 0,
     join: str = "outer",
@@ -1117,7 +1115,7 @@ def concat(
     verify_integrity: bool = False,
     sort: bool = False,
     copy: bool = True,
-) -> snowflake.snowpark.modin.pandas.DataFrame | Series:
+) -> modin.pandas.DataFrame | Series:
     """
     Concatenate pandas objects along a particular axis.
 
@@ -1490,7 +1488,7 @@ def concat(
 def to_datetime(
     arg: DatetimeScalarOrArrayConvertible
     | DictConvertible
-    | snowflake.snowpark.modin.pandas.DataFrame
+    | modin.pandas.DataFrame
     | Series,
     errors: DateTimeErrorChoices = "raise",
     dayfirst: bool = False,
