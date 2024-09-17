@@ -349,10 +349,17 @@ def override_time_zone(tz_name: str = "America/New_York") -> None:
         nTime = int(dTime)
         intTime = c_int64(nTime)
         a = time.ctime()
-        b = c_char_p(cdll.msvcrt.ctime(addressof(intTime))).value
         from tzlocal import get_localzone
 
         c = get_localzone()
+        logging.debug(f"get_localzone(): {c}")
+        logging.debug(f"intTime: {intTime}")
+        logging.debug(f"addressof(intTime)): {addressof(intTime)}")
+        logging.debug(
+            f"cdll.msvcrt._ctime64(addressof(intTime)): {cdll.msvcrt._ctime64(addressof(intTime))}"
+        )
+
+        b = c_char_p(cdll.msvcrt._ctime64(addressof(intTime))).value
 
         logging.debug(f"Windows: time.ctime={a}, msvcrt.ctime={b}, tzlocal={c}")
 
