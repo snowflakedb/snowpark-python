@@ -80,3 +80,21 @@ def test_single_return_value_of_sp(session, db_parameters):
     session.register_profiler_modules([])
     assert res is not None
     assert "Modules Profiled" in res
+
+
+def test_anonymous_procedure(session, db_parameters):
+    def single_value_sp(session: snowflake.snowpark.Session) -> str:
+        return "success"
+
+    single_value_sp = session.sproc.register(single_value_sp, anonymous=True)
+    session.register_profiler_modules(["table_sp"])
+    with profiler(
+        stage=f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}",
+        active_profiler="LINE",
+        session=session,
+    ):
+        single_value_sp()
+        res = session.show_profiles()
+    session.register_profiler_modules([])
+    assert res is not None
+    assert "Modules Profiled" in res
