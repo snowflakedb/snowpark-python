@@ -15,6 +15,7 @@ from typing import (
 )
 
 import pandas as native_pd
+from modin.pandas import DataFrame
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     CSVEngine,
@@ -26,7 +27,6 @@ from pandas._typing import (
 )
 
 import snowflake.snowpark.modin.pandas as pd
-from snowflake.snowpark.modin.pandas import DataFrame
 from snowflake.snowpark.modin.pandas.api.extensions import register_pd_accessor
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_standalone_function_decorator,

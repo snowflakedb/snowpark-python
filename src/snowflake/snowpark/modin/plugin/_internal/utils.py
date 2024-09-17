@@ -1276,7 +1276,7 @@ def check_snowpark_pandas_object_in_arg(arg: Any) -> bool:
             if check_snowpark_pandas_object_in_arg(v):
                 return True
     else:
-        from snowflake.snowpark.modin.pandas import DataFrame, Series
+        from modin.pandas import DataFrame, Series
 
         return isinstance(arg, (DataFrame, Series))
 
@@ -1519,9 +1519,15 @@ def snowpark_to_pandas_helper(
             downcast_pandas_df.columns, cached_snowpark_pandas_types
         ):
             if snowpark_pandas_type is not None and snowpark_pandas_type == timedelta_t:
-                downcast_pandas_df[pandas_label] = pandas_df[pandas_label].apply(
-                    convert_str_to_timedelta
-                )
+                # By default, pandas warns, "A value is trying to be set on a
+                # copy of a slice from a DataFrame" here because we are
+                # assigning a column to downcast_pandas_df, which is a copy of
+                # a slice of pandas_df. We don't care what happens to pandas_df,
+                # so the warning isn't useful to us.
+                with native_pd.option_context("mode.chained_assignment", None):
+                    downcast_pandas_df[pandas_label] = pandas_df[pandas_label].apply(
+                        convert_str_to_timedelta
+                    )
 
     # Step 7. postprocessing for return types
     if index_only:
