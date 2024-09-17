@@ -536,7 +536,9 @@ class SnowflakePlanBuilder:
         # on the optimized plan. During the final query generation, no schema query is needed,
         # this helps reduces un-necessary overhead for the describing call.
         self._skip_schema_query = skip_schema_query
-        # TODO: describe
+        # Value of cte_optimization_enabled and query_compilation_stage_enabled can change during
+        # resolution step. We need to cache the value at the beginning of resolve process and use
+        # the cached value during the plan build process.
         self._cte_optimization_enabled: Optional[bool] = None
         self._query_compilation_stage_enabled: Optional[bool] = None
 
