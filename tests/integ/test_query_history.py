@@ -71,6 +71,16 @@ def test_query_history_two_listeners(session):
 
 
 def test_query_history_multiple_actions(session):
+    with session.query_history(True) as query_history:
+        df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        df = df.filter(df.a == 1)
+        res = df.collect()
+
+    assert len(query_history.queries) == 3
+    assert query_history.queries[0].is_describe
+    assert query_history.queries[1].is_describe
+    assert not query_history.queries[2].is_describe
+
     with session.query_history() as query_listener:
         session.sql("select 0").collect()
         session.sql("select 1").collect()
