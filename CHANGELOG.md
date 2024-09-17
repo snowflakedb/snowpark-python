@@ -16,6 +16,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug where an `Index` object created from a `Series`/`DataFrame` incorrectly updates the `Series`/`DataFrame`'s index name after an inplace update has been applied to the original `Series`/`DataFrame`.
+- Suppressed an unhelpful `SettingWithCopyWarning` that sometimes appeared when printing `Timedelta` columns.
 - Fixed `inplace` argument for Series objects derived from Series objects.
 
 ## 1.22.1 (2024-09-11)
