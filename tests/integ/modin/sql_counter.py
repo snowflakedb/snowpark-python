@@ -258,11 +258,20 @@ class SqlCounter:
 
         # If there are any failures, print out all the captured queries so clear which are being counted.
         if failed:
-            title = f"{'='*20} SqlCounter Captured Queries {'='*20}"
+            title = f"\n{'='*20} SqlCounter Captured Queries {'='*20}\n"
             print(title, file=sys.stderr)
             for query in self._get_actual_queries():
                 print(query, file=sys.stderr)
             print("=" * len(title), file=sys.stderr)
+
+            title = f"\n{'='*20} SqlCounter Captured Describes {'='*20}\n"
+            describe_set = set()
+            print(title, file=sys.stderr)
+            for query in self.get_describe_queries():
+                print(query, file=sys.stderr)
+                describe_set.add(query)
+            print("=" * len(title), file=sys.stderr)
+            print(f'Number of describe queries {len(self.get_describe_queries())} and number of unique describe queries {len(describe_set)}\n', file=sys.stderr)
 
         self.clear()
 
@@ -343,6 +352,9 @@ class SqlCounter:
 
     def actual_describe_count(self):
         return len([q for q in self._queries if q.is_describe])
+
+    def get_describe_queries(self):
+        return [q.sql_text for q in self._queries if q.is_describe]
 
     def get_actual_counts(self):
         """Retrieve all actual counts so far."""
