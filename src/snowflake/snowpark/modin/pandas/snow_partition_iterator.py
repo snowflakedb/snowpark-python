@@ -5,9 +5,8 @@
 from collections.abc import Iterator
 from typing import Any, Callable
 
+import modin.pandas.dataframe as DataFrame
 import pandas
-
-import snowflake.snowpark.modin.pandas.dataframe as DataFrame
 
 PARTITION_SIZE = 4096
 

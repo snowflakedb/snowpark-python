@@ -2,11 +2,10 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import logging
+import threading
 import weakref
 from collections import defaultdict
-from queue import Empty, Queue
-from threading import Event, RLock, Thread
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Dict
 
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
 
@@ -33,14 +32,8 @@ class TempTableAutoCleaner:
         # to its reference count for later temp table management
         # this dict will still be maintained even if the cleaner is stopped (`stop()` is called)
         self.ref_count_map: Dict[str, int] = defaultdict(int)
-        # unused temp table will be put into the queue for cleanup
-        self.queue: Queue = Queue()
-        # thread for removing temp tables (running DROP TABLE sql)
-        self.cleanup_thread: Optional[Thread] = None
-        # An event managing a flag that indicates whether the cleaner is started
-        self.stop_event = Event()
         # Lock to protect the ref_count_map
-        self.lock = RLock()
+        self.lock = threading.RLock()
 
     def add(self, table: SnowflakeTable) -> None:
         with self.lock:
@@ -49,60 +42,64 @@ class TempTableAutoCleaner:
         # and this table will be dropped finally
         _ = weakref.finalize(table, self._delete_ref_count, table.name)
 
-    def _delete_ref_count(self, name: str) -> None:
+    def _delete_ref_count(self, name: str) -> None:  # pragma: no cover
         """
         Decrements the reference count of a temporary table,
         and if the count reaches zero, puts this table in the queue for cleanup.
         """
         with self.lock:
             self.ref_count_map[name] -= 1
-            if self.ref_count_map[name] == 0:
-                self.ref_count_map.pop(name)
-                # clean up
-                self.queue.put(name)
-            elif self.ref_count_map[name] < 0:
-                logging.debug(
-                    f"Unexpected reference count {self.ref_count_map[name]} for table {name}"
-                )
-
-    def process_cleanup(self) -> None:
-        while not self.stop_event.is_set():
-            try:
-                # it's non-blocking after timeout and become interruptable with stop_event
-                # it will raise an `Empty` exception if queue is empty after timeout,
-                # then we catch this exception and avoid breaking loop
-                table_name = self.queue.get(timeout=1)
-                self.drop_table(table_name)
-            except Empty:
-                continue
-
-    def drop_table(self, name: str) -> None:
-        common_log_text = f"temp table {name} in session {self.session.session_id}"
-        logging.debug(f"Cleanup Thread: Ready to drop {common_log_text}")
-        try:
-            self.session._run_query(
-                f"drop table if exists {name} /* internal query to drop unused temp table */",
-                statement_params={DROP_TABLE_STATEMENT_PARAM_NAME: name},
+            current_ref_count = self.ref_count_map[name]
+        if current_ref_count == 0:
+            if self.session.auto_clean_up_temp_table_enabled:
+                self.drop_table(name)
+        elif current_ref_count < 0:
+            logging.debug(
+                f"Unexpected reference count {current_ref_count} for table {name}"
             )
-            logging.debug(f"Cleanup Thread: Successfully dropped {common_log_text}")
-        except Exception as ex:
-            logging.warning(
-                f"Cleanup Thread: Failed to drop {common_log_text}, exception: {ex}"
-            )  # pragma: no cover
 
-    def is_alive(self) -> bool:
-        return self.cleanup_thread is not None and self.cleanup_thread.is_alive()
-
-    def start(self) -> None:
-        self.stop_event.clear()
-        if not self.is_alive():
-            self.cleanup_thread = Thread(target=self.process_cleanup)
-            self.cleanup_thread.start()
+    def drop_table(self, name: str) -> None:  # pragma: no cover
+        common_log_text = f"temp table {name} in session {self.session.session_id}"
+        logging.debug(f"Ready to drop {common_log_text}")
+        query_id = None
+        try:
+            async_job = self.session.sql(
+                f"drop table if exists {name} /* internal query to drop unused temp table */",
+            )._internal_collect_with_tag_no_telemetry(
+                block=False, statement_params={DROP_TABLE_STATEMENT_PARAM_NAME: name}
+            )
+            query_id = async_job.query_id
+            logging.debug(f"Dropping {common_log_text} with query id {query_id}")
+        except Exception as ex:  # pragma: no cover
+            warning_message = f"Failed to drop {common_log_text}, exception: {ex}"
+            logging.warning(warning_message)
+            if query_id is None:
+                # If no query_id is available, it means the query haven't been accepted by gs,
+                # and it won't occur in our job_etl_view, send a separate telemetry for recording.
+                self.session._conn._telemetry_client.send_temp_table_cleanup_abnormal_exception_telemetry(
+                    self.session.session_id,
+                    name,
+                    str(ex),
+                )
 
     def stop(self) -> None:
         """
-        The cleaner will stop immediately and leave unfinished temp tables in the queue.
+        Stops the cleaner (no-op) and sends the telemetry.
         """
-        self.stop_event.set()
-        if self.is_alive():
-            self.cleanup_thread.join()
+        self.session._conn._telemetry_client.send_temp_table_cleanup_telemetry(
+            self.session.session_id,
+            temp_table_cleaner_enabled=self.session.auto_clean_up_temp_table_enabled,
+            num_temp_tables_cleaned=self.num_temp_tables_cleaned,
+            num_temp_tables_created=self.num_temp_tables_created,
+        )
+
+    @property
+    def num_temp_tables_created(self) -> int:
+        with self.lock:
+            return len(self.ref_count_map)
+
+    @property
+    def num_temp_tables_cleaned(self) -> int:
+        # TODO SNOW-1662536: we may need a separate counter for the number of tables cleaned when parameter is enabled
+        with self.lock:
+            return sum(v == 0 for v in self.ref_count_map.values())

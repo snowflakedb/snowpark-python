@@ -2832,6 +2832,7 @@ class BasePandasDataset:
         """
         Implement shared functionality between DataFrame and Series for shift. axis argument is only relevant for
         Dataframe, and should be 0 for Series.
+
         Args:
             periods : int | Sequence[int]
                 Number of periods to shift. Can be positive or negative. If an iterable of ints,

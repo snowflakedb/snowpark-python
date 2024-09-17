@@ -4072,3 +4072,22 @@ def test_df_loc_get_with_timedelta_and_none_key():
     # Compare with an empty DataFrame, since native pandas raises a KeyError.
     expected_df = native_pd.DataFrame()
     assert_frame_equal(snow_df.loc[None], expected_df, check_column_type=False)
+
+
+@sql_count_checker(query_count=0)
+def test_df_loc_invalid_key():
+    # Bug fix: SNOW-1320674
+    native_df = native_pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]})
+    snow_df = pd.DataFrame(native_df)
+
+    def op(df):
+        df["C"] = df["A"] / df["D"]
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        op,
+        expect_exception=True,
+        expect_exception_type=KeyError,
+        expect_exception_match="D",
+    )

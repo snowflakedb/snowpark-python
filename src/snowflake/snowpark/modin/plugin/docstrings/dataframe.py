@@ -1749,7 +1749,7 @@ class DataFrame(BasePandasDataset):
             ...                    'COL2': ['A', 'B', 'C']})
 
             >>> df.info() # doctest: +NORMALIZE_WHITESPACE
-            <class 'snowflake.snowpark.modin.pandas.dataframe.DataFrame'>
+            <class 'modin.pandas.dataframe.DataFrame'>
             SnowflakeIndex
             Data columns (total 2 columns):
              #   Column  Non-Null Count  Dtype

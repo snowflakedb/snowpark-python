@@ -224,6 +224,16 @@ _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = (
 _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION = (
     "PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION"
 )
+_PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND = (
+    "PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND"
+)
+_PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND = (
+    "PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND"
+)
+# The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
+# in Snowflake. This is the limit where we start seeing compilation errors.
+DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
+DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
@@ -508,6 +518,11 @@ class Session:
         self._conn = conn
         self._thread_store = threading.local()
         self._lock = threading.RLock()
+
+        # this lock is used to protect _packages. We use introduce a new lock because add_packages
+        # launches a query to snowflake to get all version of packages available in snowflake. This
+        # query can be slow and prevent other threads from moving on waiting for _lock.
+        self._package_lock = threading.RLock()
         self._query_tag = None
         self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
         self._packages: Dict[str, str] = {}
@@ -578,14 +593,22 @@ class Session:
                 _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION, False
             )
         )
+        # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
+        # in Snowflake. This is the limit where we start seeing compilation errors.
+        self._large_query_breakdown_complexity_bounds: Tuple[int, int] = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND,
+                DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND,
+            ),
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND,
+                DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
+            ),
+        )
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
-        self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
-        if self._auto_clean_up_temp_table_enabled:
-            self._temp_table_auto_cleaner.start()
-
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -645,8 +668,8 @@ class Session:
             raise SnowparkClientExceptionMessages.SERVER_FAILED_CLOSE_SESSION(str(ex))
         finally:
             try:
-                self._conn.close()
                 self._temp_table_auto_cleaner.stop()
+                self._conn.close()
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
@@ -680,16 +703,43 @@ class Session:
         :meth:`DataFrame.cache_result` in the current session when the DataFrame is no longer referenced (i.e., gets garbage collected).
         The default value is ``False``.
 
+        Example::
+
+            >>> import gc
+            >>>
+            >>> def f(session: Session) -> str:
+            ...     df = session.create_dataframe(
+            ...         [[1, 2], [3, 4]], schema=["a", "b"]
+            ...     ).cache_result()
+            ...     return df.table_name
+            ...
+            >>> session.auto_clean_up_temp_table_enabled = True
+            >>> table_name = f(session)
+            >>> assert table_name
+            >>> gc.collect() # doctest: +SKIP
+            >>>
+            >>> # The temporary table created by cache_result will be dropped when the DataFrame is no longer referenced
+            >>> # outside the function
+            >>> session.sql(f"show tables like '{table_name}'").count()
+            0
+
+            >>> session.auto_clean_up_temp_table_enabled = False
+
         Note:
-            Even if this parameter is ``False``, Snowpark still records temporary tables when
-            their corresponding DataFrame are garbage collected. Therefore, if you turn it on in the middle of your session or after turning it off,
-            the target temporary tables will still be cleaned up accordingly.
+            Temporary tables will only be dropped if this parameter is enabled during garbage collection.
+            If a temporary table is no longer referenced when the parameter is on, it will be dropped during garbage collection.
+            However, if garbage collection occurs while the parameter is off, the table will not be removed.
+            Note that Python's garbage collection is triggered opportunistically, with no guaranteed timing.
         """
         return self._auto_clean_up_temp_table_enabled
 
     @property
     def large_query_breakdown_enabled(self) -> bool:
         return self._large_query_breakdown_enabled
+
+    @property
+    def large_query_breakdown_complexity_bounds(self) -> Tuple[int, int]:
+        return self._large_query_breakdown_complexity_bounds
 
     @property
     def custom_package_usage_config(self) -> Dict:
@@ -781,11 +831,6 @@ class Session:
                     self._session_id, value
                 )
                 self._auto_clean_up_temp_table_enabled = value
-                is_alive = self._temp_table_auto_cleaner.is_alive()
-                if value and not is_alive:
-                    self._temp_table_auto_cleaner.start()
-                elif not value and is_alive:
-                    self._temp_table_auto_cleaner.stop()
         else:
             raise ValueError(
                 "value for auto_clean_up_temp_table_enabled must be True or False!"
@@ -810,6 +855,24 @@ class Session:
             raise ValueError(
                 "value for large_query_breakdown_enabled must be True or False!"
             )
+
+    @large_query_breakdown_complexity_bounds.setter
+    def large_query_breakdown_complexity_bounds(self, value: Tuple[int, int]) -> None:
+        """Set the lower and upper bounds for the complexity score used in large query breakdown optimization."""
+
+        if len(value) != 2:
+            raise ValueError(
+                f"Expecting a tuple of two integers. Got a tuple of length {len(value)}"
+            )
+        if value[0] >= value[1]:
+            raise ValueError(
+                f"Expecting a tuple of lower and upper bound with the lower bound less than the upper bound. Got (lower, upper) = ({value[0], value[1]})"
+            )
+        self._conn._telemetry_client.send_large_query_breakdown_update_complexity_bounds(
+            self._session_id, value[0], value[1]
+        )
+
+        self._large_query_breakdown_complexity_bounds = value
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
@@ -1135,7 +1198,7 @@ class Session:
         The key of this ``dict`` is the package name and the value of this ``dict``
         is the corresponding requirement specifier.
         """
-        with self._lock:
+        with self._package_lock:
             return self._packages.copy()
 
     def add_packages(
@@ -1227,7 +1290,7 @@ class Session:
             0
         """
         package_name = pkg_resources.Requirement.parse(package).key
-        with self._lock:
+        with self._package_lock:
             if package_name in self._packages:
                 self._packages.pop(package_name)
             else:
@@ -1237,7 +1300,7 @@ class Session:
         """
         Clears all third-party packages of a user-defined function (UDF).
         """
-        with self._lock:
+        with self._package_lock:
             self._packages.clear()
 
     def add_requirements(self, file_path: str) -> None:
@@ -1587,25 +1650,26 @@ class Session:
         if isinstance(self._conn, MockServerConnection):
             # in local testing we don't resolve the packages, we just return what is added
             errors = []
-            with self._lock:
-                result_dict = self._packages.copy()
-            for pkg_name, _, pkg_req in package_dict.values():
-                if pkg_name in result_dict and str(pkg_req) != result_dict[pkg_name]:
-                    errors.append(
-                        ValueError(
-                            f"Cannot add package '{str(pkg_req)}' because {result_dict[pkg_name]} "
-                            "is already added."
+            with self._package_lock:
+                result_dict = self._packages
+                for pkg_name, _, pkg_req in package_dict.values():
+                    if (
+                        pkg_name in result_dict
+                        and str(pkg_req) != result_dict[pkg_name]
+                    ):
+                        errors.append(
+                            ValueError(
+                                f"Cannot add package '{str(pkg_req)}' because {result_dict[pkg_name]} "
+                                "is already added."
+                            )
                         )
-                    )
-                else:
-                    result_dict[pkg_name] = str(pkg_req)
-            if len(errors) == 1:
-                raise errors[0]
-            elif len(errors) > 0:
-                raise RuntimeError(errors)
+                    else:
+                        result_dict[pkg_name] = str(pkg_req)
+                if len(errors) == 1:
+                    raise errors[0]
+                elif len(errors) > 0:
+                    raise RuntimeError(errors)
 
-            with self._lock:
-                self._packages.update(result_dict)
             return list(result_dict.values())
 
         package_table = "information_schema.packages"
@@ -1620,50 +1684,47 @@ class Session:
         #  'python-dateutil': 'python-dateutil==2.8.2'}
         # Add to packages dictionary. Make a copy of existing packages
         # dictionary to avoid modifying it during intermediate steps.
-        with self._lock:
+        with self._package_lock:
             result_dict = (
-                existing_packages_dict.copy()
-                if existing_packages_dict is not None
-                else {}
+                existing_packages_dict if existing_packages_dict is not None else {}
             )
 
-        # Retrieve list of dependencies that need to be added
-        dependency_packages = self._get_dependency_packages(
-            package_dict,
-            validate_package,
-            package_table,
-            result_dict,
-            statement_params=statement_params,
-        )
+            # Retrieve list of dependencies that need to be added
+            dependency_packages = self._get_dependency_packages(
+                package_dict,
+                validate_package,
+                package_table,
+                result_dict,
+                statement_params=statement_params,
+            )
 
-        # Add dependency packages
-        for package in dependency_packages:
-            name = package.name
-            version = package.specs[0][1] if package.specs else None
+            # Add dependency packages
+            for package in dependency_packages:
+                name = package.name
+                version = package.specs[0][1] if package.specs else None
 
-            if name in result_dict:
-                if version is not None:
-                    added_package_has_version = "==" in result_dict[name]
-                    if added_package_has_version and result_dict[name] != str(package):
-                        raise ValueError(
-                            f"Cannot add dependency package '{name}=={version}' "
-                            f"because {result_dict[name]} is already added."
-                        )
+                if name in result_dict:
+                    if version is not None:
+                        added_package_has_version = "==" in result_dict[name]
+                        if added_package_has_version and result_dict[name] != str(
+                            package
+                        ):
+                            raise ValueError(
+                                f"Cannot add dependency package '{name}=={version}' "
+                                f"because {result_dict[name]} is already added."
+                            )
+                        result_dict[name] = str(package)
+                else:
                     result_dict[name] = str(package)
-            else:
-                result_dict[name] = str(package)
 
-        # Always include cloudpickle
-        extra_modules = [cloudpickle]
-        if include_pandas:
-            extra_modules.append("pandas")
+            # Always include cloudpickle
+            extra_modules = [cloudpickle]
+            if include_pandas:
+                extra_modules.append("pandas")
 
-        with self._lock:
-            if existing_packages_dict is not None:
-                existing_packages_dict.update(result_dict)
-        return list(result_dict.values()) + self._get_req_identifiers_list(
-            extra_modules, result_dict
-        )
+            return list(result_dict.values()) + self._get_req_identifiers_list(
+                extra_modules, result_dict
+            )
 
     def _upload_unsupported_packages(
         self,
@@ -1697,8 +1758,8 @@ class Session:
 
         try:
             # Setup a temporary directory and target folder where pip install will take place.
-            self._tmpdir_handler = tempfile.TemporaryDirectory()
-            tmpdir = self._tmpdir_handler.name
+            tmpdir_handler = tempfile.TemporaryDirectory()
+            tmpdir = tmpdir_handler.name
             target = os.path.join(tmpdir, "unsupported_packages")
             if not os.path.exists(target):
                 os.makedirs(target)
@@ -1783,9 +1844,7 @@ class Session:
                         for requirement in supported_dependencies + new_dependencies
                     ]
                 )
-                metadata_local_path = os.path.join(
-                    self._tmpdir_handler.name, metadata_file
-                )
+                metadata_local_path = os.path.join(tmpdir_handler.name, metadata_file)
                 with open(metadata_local_path, "w") as file:
                     for key, value in metadata.items():
                         file.write(f"{key},{value}\n")
@@ -1821,9 +1880,8 @@ class Session:
                 f"-third-party-packages-from-anaconda-in-a-udf."
             )
         finally:
-            if self._tmpdir_handler:
-                self._tmpdir_handler.cleanup()
-                self._tmpdir_handler = None
+            if tmpdir_handler:
+                tmpdir_handler.cleanup()
 
         return supported_dependencies + new_dependencies
 
