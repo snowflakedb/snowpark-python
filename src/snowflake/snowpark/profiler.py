@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import re
 from contextlib import contextmanager
 from typing import List, Optional
 
@@ -109,8 +110,11 @@ class Profiler:
         self.session.sql(self.disable_profiler_sql).collect()
 
     def _get_last_query_id(self):
+        pattern = r"WITH\s+.*?\s+AS\s+PROCEDURE\s+.*?\s+CALL\s+.*"
         for query in self.query_history.queries[::-1]:
-            if query.sql_text.startswith("CALL"):
+            if query.sql_text.startswith("CALL") or re.match(
+                pattern, query.sql_text, re.DOTALL
+            ):
                 return query.query_id
         return None
 
