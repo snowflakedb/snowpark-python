@@ -24,10 +24,10 @@ class Profiler:
         self.disable_profiler_sql = ""
         self.set_active_profiler_sql = ""
         self.session = session
-        self.prepare_sql()
+        self._prepare_sql()
         self.query_history = None
 
-    def prepare_sql(self):
+    def _prepare_sql(self):
         self.register_modules_sql = f"alter session set python_profiler_modules='{','.join(self.modules_to_register)}'"
         self.set_targeted_stage_sql = (
             f'alter session set PYTHON_PROFILER_TARGET_STAGE ="{self.stage}"'
@@ -37,25 +37,53 @@ class Profiler:
         self.set_active_profiler_sql = f"alter session set ACTIVE_PYTHON_PROFILER = '{self.active_profiler.upper()}'"
 
     def register_profiler_modules(self, modules: List[str]):
+        """
+        Register stored procedures to generate profiles for them.
+
+        Note:
+            Registered nodules will be overwritten by this function,
+            use this function with an empty string will remove registered modules.
+        Args:
+            modules: List of names of stored procedures.
+        """
         self.modules_to_register = modules
-        self.prepare_sql()
+        self._prepare_sql()
         if self.session is not None:
             self._register_modules()
 
     def set_targeted_stage(self, stage: str):
+        """
+        Set targeted stage for profiler output.
+
+        Note:
+            The stage name must be a fully qualified name.
+
+        Args:
+            stage: String of fully qualified name of targeted stage
+        """
         validate_object_name(stage)
         self.stage = stage
-        self.prepare_sql()
+        self._prepare_sql()
         if self.session is not None:
             self._set_targeted_stage()
 
     def set_active_profiler(self, active_profiler: str):
+        """
+        Set active profiler.
+
+        Note:
+            Active profiler must be either 'LINE' or 'MEMORY' (case-sensitive),
+            active profiler is set to 'LINE' by default.
+        Args:
+            active_profiler: String that represent active_profiler, must be either 'LINE' or 'MEMORY' (case-sensitive).
+
+        """
         if self.active_profiler not in ["LINE", "MEMORY"]:
             raise ValueError(
                 f"active_profiler expect 'LINE' or 'MEMORY', got {self.active_profiler} instead"
             )
         self.active_profiler = active_profiler
-        self.prepare_sql()
+        self._prepare_sql()
         if self.session is not None:
             self._set_active_profiler()
 
@@ -69,9 +97,15 @@ class Profiler:
         self.session.sql(self.set_active_profiler_sql).collect()
 
     def enable_profiler(self):
+        """
+        Enable profiler. Profiles will be generated until profiler is disabled.
+        """
         self.session.sql(self.enable_profiler_sql).collect()
 
     def disable_profiler(self):
+        """
+        Disable profiler.
+        """
         self.session.sql(self.disable_profiler_sql).collect()
 
     def _get_last_query_id(self):
@@ -80,7 +114,13 @@ class Profiler:
                 return query.query_id
         return None
 
-    def show_profiles(self):
+    def show_profiles(self) -> str:
+        """
+        Return and show the profiles of last executed stored procedure.
+
+        Note:
+            This function must be called right after the execution of stored procedure you want to profile.
+        """
         query_id = self._get_last_query_id()
         sql = f"select snowflake.core.get_python_profiler_output('{query_id}');"
         res = self.session.sql(sql).collect()
@@ -88,6 +128,15 @@ class Profiler:
         return res[0][0]
 
     def dump_profiles(self, dst_file: str):
+        """
+        Write the profiles of last executed stored procedure to given file.
+
+        Note:
+            This function must be called right after the execution of stored procedure you want to profile.
+
+        Args:
+            dst_file: String of file name that you want to store the profiles.
+        """
         query_id = self._get_last_query_id()
         sql = f"select snowflake.core.get_python_profiler_output('{query_id}');"
         res = self.session.sql(sql).collect()

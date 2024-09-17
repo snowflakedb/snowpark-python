@@ -3476,8 +3476,13 @@ class Session:
         self.profiler._set_active_profiler()
         self.profiler.query_history = self.query_history()
 
-    def show_profiles(self):
-        """Gather and return result of profiler, results are also print to console"""
+    def show_profiles(self) -> str:
+        """
+        Return and show the profiles of last executed stored procedure.
+
+        Note:
+            This function must be called right after the execution of stored procedure you want to profile.
+        """
         if self.profiler is not None and isinstance(self.profiler, Profiler):
             return self.profiler.show_profiles()
         else:
@@ -3486,7 +3491,15 @@ class Session:
             )
 
     def dump_profiles(self, dst_file: str):
-        """Gather result of a profiler and redirect it to a file"""
+        """
+        Write the profiles of last executed stored procedure to given file.
+
+        Note:
+            This function must be called right after the execution of stored procedure you want to profile.
+
+        Args:
+            dst_file: String of file name that you want to store the profiles.
+        """
         if self.profiler is not None and isinstance(self.profiler, Profiler):
             self.profiler.dump_profiles(dst_file=dst_file)
         else:
@@ -3495,7 +3508,15 @@ class Session:
             )
 
     def register_profiler_modules(self, modules: List[str]):
-        """Register modules want to create profile"""
+        """
+        Register stored procedures to generate profiles for them.
+
+        Note:
+            Registered nodules will be overwritten by this function,
+            use this function with an empty string will remove registered modules.
+        Args:
+            modules: List of names of stored procedures.
+        """
         if self.profiler is not None and isinstance(self.profiler, Profiler):
             self.profiler.register_profiler_modules(modules)
         else:
