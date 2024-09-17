@@ -981,7 +981,7 @@ def add_snowpark_package_to_sproc_packages(
         if session is None:
             packages = [this_package]
         else:
-            with session._lock:
+            with session._package_lock:
                 session_packages = session._packages.copy()
             if package_name not in session_packages:
                 packages = list(session_packages.values()) + [this_package]

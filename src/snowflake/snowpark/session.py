@@ -502,6 +502,11 @@ class Session:
         self._conn = conn
         self._thread_store = threading.local()
         self._lock = threading.RLock()
+
+        # this lock is used to protect _packages. We use introduce a new lock because add_packages
+        # launches a query to snowflake to get all version of packages available in snowflake. This
+        # query can be slow and prevent other threads from moving on waiting for _lock.
+        self._package_lock = threading.RLock()
         self._query_tag = None
         self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
         self._packages: Dict[str, str] = {}
@@ -1116,7 +1121,7 @@ class Session:
         The key of this ``dict`` is the package name and the value of this ``dict``
         is the corresponding requirement specifier.
         """
-        with self._lock:
+        with self._package_lock:
             return self._packages.copy()
 
     def add_packages(
@@ -1208,7 +1213,7 @@ class Session:
             0
         """
         package_name = pkg_resources.Requirement.parse(package).key
-        with self._lock:
+        with self._package_lock:
             if package_name in self._packages:
                 self._packages.pop(package_name)
             else:
@@ -1218,7 +1223,7 @@ class Session:
         """
         Clears all third-party packages of a user-defined function (UDF).
         """
-        with self._lock:
+        with self._package_lock:
             self._packages.clear()
 
     def add_requirements(self, file_path: str) -> None:
@@ -1567,25 +1572,26 @@ class Session:
         if isinstance(self._conn, MockServerConnection):
             # in local testing we don't resolve the packages, we just return what is added
             errors = []
-            with self._lock:
-                result_dict = self._packages.copy()
-            for pkg_name, _, pkg_req in package_dict.values():
-                if pkg_name in result_dict and str(pkg_req) != result_dict[pkg_name]:
-                    errors.append(
-                        ValueError(
-                            f"Cannot add package '{str(pkg_req)}' because {result_dict[pkg_name]} "
-                            "is already added."
+            with self._package_lock:
+                result_dict = self._packages
+                for pkg_name, _, pkg_req in package_dict.values():
+                    if (
+                        pkg_name in result_dict
+                        and str(pkg_req) != result_dict[pkg_name]
+                    ):
+                        errors.append(
+                            ValueError(
+                                f"Cannot add package '{str(pkg_req)}' because {result_dict[pkg_name]} "
+                                "is already added."
+                            )
                         )
-                    )
-                else:
-                    result_dict[pkg_name] = str(pkg_req)
-            if len(errors) == 1:
-                raise errors[0]
-            elif len(errors) > 0:
-                raise RuntimeError(errors)
+                    else:
+                        result_dict[pkg_name] = str(pkg_req)
+                if len(errors) == 1:
+                    raise errors[0]
+                elif len(errors) > 0:
+                    raise RuntimeError(errors)
 
-            with self._lock:
-                self._packages.update(result_dict)
             return list(result_dict.values())
 
         package_table = "information_schema.packages"
@@ -1600,50 +1606,47 @@ class Session:
         #  'python-dateutil': 'python-dateutil==2.8.2'}
         # Add to packages dictionary. Make a copy of existing packages
         # dictionary to avoid modifying it during intermediate steps.
-        with self._lock:
+        with self._package_lock:
             result_dict = (
-                existing_packages_dict.copy()
-                if existing_packages_dict is not None
-                else {}
+                existing_packages_dict if existing_packages_dict is not None else {}
             )
 
-        # Retrieve list of dependencies that need to be added
-        dependency_packages = self._get_dependency_packages(
-            package_dict,
-            validate_package,
-            package_table,
-            result_dict,
-            statement_params=statement_params,
-        )
+            # Retrieve list of dependencies that need to be added
+            dependency_packages = self._get_dependency_packages(
+                package_dict,
+                validate_package,
+                package_table,
+                result_dict,
+                statement_params=statement_params,
+            )
 
-        # Add dependency packages
-        for package in dependency_packages:
-            name = package.name
-            version = package.specs[0][1] if package.specs else None
+            # Add dependency packages
+            for package in dependency_packages:
+                name = package.name
+                version = package.specs[0][1] if package.specs else None
 
-            if name in result_dict:
-                if version is not None:
-                    added_package_has_version = "==" in result_dict[name]
-                    if added_package_has_version and result_dict[name] != str(package):
-                        raise ValueError(
-                            f"Cannot add dependency package '{name}=={version}' "
-                            f"because {result_dict[name]} is already added."
-                        )
+                if name in result_dict:
+                    if version is not None:
+                        added_package_has_version = "==" in result_dict[name]
+                        if added_package_has_version and result_dict[name] != str(
+                            package
+                        ):
+                            raise ValueError(
+                                f"Cannot add dependency package '{name}=={version}' "
+                                f"because {result_dict[name]} is already added."
+                            )
+                        result_dict[name] = str(package)
+                else:
                     result_dict[name] = str(package)
-            else:
-                result_dict[name] = str(package)
 
-        # Always include cloudpickle
-        extra_modules = [cloudpickle]
-        if include_pandas:
-            extra_modules.append("pandas")
+            # Always include cloudpickle
+            extra_modules = [cloudpickle]
+            if include_pandas:
+                extra_modules.append("pandas")
 
-        with self._lock:
-            if existing_packages_dict is not None:
-                existing_packages_dict.update(result_dict)
-        return list(result_dict.values()) + self._get_req_identifiers_list(
-            extra_modules, result_dict
-        )
+            return list(result_dict.values()) + self._get_req_identifiers_list(
+                extra_modules, result_dict
+            )
 
     def _upload_unsupported_packages(
         self,
