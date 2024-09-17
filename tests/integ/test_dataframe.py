@@ -4206,3 +4206,61 @@ def test_dataframe_to_local_iterator_with_to_pandas_isolation(
     # local testing always give 1 chunk
     if not local_testing_mode:
         assert batch_count > 1
+
+
+def test_map(session):
+    """Test `dataframe.map`"""
+
+    df1 = session.create_dataframe(
+        [[True, i, f"w{i}"] for i in range(15)], schema=["A", "B", "C"]
+    )
+
+    # map call with a function accesing row columns by index
+    new_df = df1.map(lambda row: row[1] + 10, output_types=[IntegerType()])
+    res = sorted(new_df.collect(), key=lambda r: r[0])
+    expected = [Row(i + 10) for i in range(15)]
+    assert res == expected
+
+    # map call with a function that uses column names
+    new_df = df1.map(
+        lambda row: (row.B * 2, row.C), output_types=[IntegerType(), StringType()]
+    )
+    res = sorted(new_df.collect(), key=lambda r: r[0])
+    expected = [Row(i * 2, f"w{i}") for i in range(15)]
+    assert res == expected
+
+    # map call with a function that receives a scalar value
+    df2 = session.create_dataframe([(i,) for i in range(10)], schema=["V"])
+    new_df = df2.map(lambda x: x * x, output_types=[IntegerType()], wrap_row=False)
+    res = sorted(new_df.collect(), key=lambda r: r[0])
+    expected = [Row(i * i) for i in range(10)]
+
+    # map with a function that returns a Row instance
+    new_df = df1.map(
+        lambda x: Row(x.B * x.B, f"-{x.C}"), output_types=[IntegerType(), StringType()]
+    )
+    res = sorted(new_df.collect(), key=lambda r: r[0])
+    expected = [Row(C_1=i * i, C_2=f"-w{i}") for i in range(15)]
+    assert res == expected
+
+    # chained map calls
+    new_df = df1.map(
+        lambda x: (x.B * x.B, f"_{x.C}_"), output_types=[IntegerType(), StringType()]
+    ).map(lambda x: len(x[1]) + x[0], output_types=[IntegerType()])
+    res = [r[0] for r in sorted(new_df.collect(), key=lambda r: r[0])]
+    expected = [len(f"_w{i}_") + i * i for i in range(15)]
+    assert res == expected
+
+    # chained calls with repeated column names
+    new_df = df1.map(
+        lambda x: Row(x.B * x.B, f"_{x.C}_"),
+        output_types=[IntegerType(), StringType()],
+        output_column_names=["A", "B"],
+    ).map(
+        lambda x: Row(len(x.B) + x.A),
+        output_types=[IntegerType()],
+        output_column_names=["A"],
+    )
+    res = [r[0] for r in sorted(new_df.collect(), key=lambda r: r[0])]
+    expected = [len(f"_w{i}_") + i * i for i in range(15)]
+    assert res == expected
