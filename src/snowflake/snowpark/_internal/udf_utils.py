@@ -1081,6 +1081,7 @@ def resolve_imports_and_packages(
             if stage_location
             else session.get_session_stage(statement_params=statement_params)
         )
+
         upload_and_import_stage = (
             import_only_stage
             if is_permanent
