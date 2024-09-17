@@ -3355,7 +3355,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # This error message is different from native pandas hence, hence it is kept here instead
                 # of moving this to frontend layer.
                 raise ValueError(f"sort kind must be 'stable' or None (got '{kind}')")
-            if kind != "stable":
+            # Do not show warning for 'quicksort' as this the default option.
+            if kind not in ("stable", "quicksort"):
                 logging.warning(
                     f"choice of sort algorithm '{kind}' is ignored. sort kind must be 'stable' or None"
                 )
