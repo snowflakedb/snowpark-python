@@ -42,3 +42,17 @@ SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SERIES_ERROR_MESSAGE = (
 SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SCALAR_ERROR_MESSAGE = (
     "Scalar key incompatible with {} value"
 )
+
+DF_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE = (
+    "Currently do not support Series or list-like keys with range-like values"
+)
+
+DF_SETITEM_SLICE_AS_SCALAR_VALUE = (
+    "Currently do not support assigning a slice value as if it's a scalar value"
+)
+
+DF_ITERROWS_ITERTUPLES_WARNING_MESSAGE = (
+    "{} will result eager evaluation and potential data pulling, which is inefficient. For efficient Snowpark "
+    "pandas usage, consider rewriting the code with an operator (such as DataFrame.apply or DataFrame.applymap) which "
+    "can work on the entire DataFrame in one shot."
+)

@@ -187,6 +187,108 @@ def test_string_sum_with_nulls():
     assert_series_equal(snow_result.to_pandas(), native_pd.Series(["ab"]))
 
 
+class TestTimedelta:
+    """Test aggregating dataframes containing timedelta columns."""
+
+    @pytest.mark.parametrize(
+        "func, union_count",
+        [
+            param(
+                lambda df: df.aggregate(["min"]),
+                0,
+                id="aggregate_list_with_one_element",
+            ),
+            param(lambda df: df.aggregate(x=("A", "max")), 0, id="single_named_agg"),
+            # this works since all results are timedelta and we don't need to do any concats.
+            param(
+                lambda df: df.aggregate({"B": "mean", "A": "sum"}),
+                0,
+                id="dict_producing_two_timedeltas",
+            ),
+            # this works since even though we need to do concats, all the results are non-timdelta.
+            param(
+                lambda df: df.aggregate(x=("B", "all"), y=("B", "any")),
+                1,
+                id="named_agg_producing_two_bools",
+            ),
+            # note following aggregation requires transpose
+            param(lambda df: df.aggregate(max), 0, id="aggregate_max"),
+            param(lambda df: df.min(), 0, id="min"),
+            param(lambda df: df.max(), 0, id="max"),
+            param(lambda df: df.count(), 0, id="count"),
+            param(lambda df: df.sum(), 0, id="sum"),
+            param(lambda df: df.mean(), 0, id="mean"),
+            param(lambda df: df.median(), 0, id="median"),
+            param(lambda df: df.std(), 0, id="std"),
+            param(lambda df: df.quantile(), 0, id="single_quantile"),
+            param(lambda df: df.quantile([0.01, 0.99]), 1, id="two_quantiles"),
+        ],
+    )
+    def test_supported_axis_0(self, func, union_count, timedelta_native_df):
+        with SqlCounter(query_count=1, union_count=union_count):
+            eval_snowpark_pandas_result(
+                *create_test_dfs(timedelta_native_df),
+                func,
+            )
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.xfail(strict=True, raises=NotImplementedError, reason="SNOW-1653126")
+    def test_axis_1(self, timedelta_native_df):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(timedelta_native_df), lambda df: df.sum(axis=1)
+        )
+
+    @sql_count_checker(query_count=0)
+    def test_var_invalid(self, timedelta_native_df):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(timedelta_native_df),
+            lambda df: df.var(),
+            expect_exception=True,
+            expect_exception_type=TypeError,
+            assert_exception_equal=False,
+            expect_exception_match=re.escape(
+                "timedelta64 type does not support var operations"
+            ),
+        )
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.xfail(
+        strict=True,
+        raises=NotImplementedError,
+        reason="requires concat(), which we cannot do with Timedelta.",
+    )
+    @pytest.mark.parametrize(
+        "operation",
+        [
+            lambda df: df.aggregate({"A": ["count", "max"], "B": [max, "min"]}),
+            lambda df: df.aggregate({"B": ["count"], "A": "sum", "C": ["max", "min"]}),
+            lambda df: df.aggregate(
+                x=pd.NamedAgg("A", "max"), y=("B", "min"), c=("A", "count")
+            ),
+            lambda df: df.aggregate(["min", np.max]),
+            lambda df: df.aggregate(x=("A", "max"), y=("C", "min"), z=("A", "min")),
+            lambda df: df.aggregate(x=("A", "max"), y=pd.NamedAgg("A", "max")),
+            lambda df: df.aggregate(
+                {"B": ["idxmax"], "A": "sum", "C": ["max", "idxmin"]}
+            ),
+        ],
+    )
+    def test_agg_requires_concat_with_timedelta(self, timedelta_native_df, operation):
+        eval_snowpark_pandas_result(*create_test_dfs(timedelta_native_df), operation)
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.xfail(
+        strict=True,
+        raises=NotImplementedError,
+        reason="requires transposing a one-row frame with integer and timedelta.",
+    )
+    def test_agg_produces_timedelta_and_non_timedelta_type(self, timedelta_native_df):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(timedelta_native_df),
+            lambda df: df.aggregate({"B": "idxmax", "A": "sum"}),
+        )
+
+
 @pytest.mark.parametrize(
     "func, expected_union_count",
     [
