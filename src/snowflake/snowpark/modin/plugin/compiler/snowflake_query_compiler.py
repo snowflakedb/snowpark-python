@@ -7381,10 +7381,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler
         """
         # TODO: SNOW-1634547: Implement remaining parameters by leveraging `merge` implementation
-        if left_index or right_index or tolerance or suffixes != ("_x", "_y"):
+        if tolerance or suffixes != ("_x", "_y"):
             ErrorMessage.not_implemented(
                 "Snowpark pandas merge_asof method does not currently support parameters "
-                + "'left_index', 'right_index', 'suffixes', or 'tolerance'"
+                + "'suffixes', or 'tolerance'"
             )
         if direction not in ("backward", "forward"):
             ErrorMessage.not_implemented(
