@@ -4,7 +4,8 @@
 from __future__ import annotations
 
 import inspect
-from typing import TYPE_CHECKING, Any, Callable, Hashable, Literal, Sequence
+from collections import OrderedDict
+from typing import TYPE_CHECKING, Any, Callable, Hashable, Iterable, Literal, Sequence
 
 import modin.pandas as pd
 import pandas as native_pd
@@ -18,6 +19,7 @@ from pandas._typing import (
     DtypeBackend,
     FilePath,
     IndexLabel,
+    IntStrT,
     ParseDatesArg,
     ReadBuffer,
     StorageOptions,
@@ -29,7 +31,7 @@ from snowflake.snowpark.modin.plugin.io.snow_io import (
     READ_CSV_DEFAULTS,
     PandasOnSnowflakeIO,
 )
-from snowflake.snowpark.modin.utils import _inherit_docstrings
+from snowflake.snowpark.modin.utils import _inherit_docstrings, expanduser_path_arg
 
 if TYPE_CHECKING:  # pragma: no cover
     import csv
@@ -111,6 +113,63 @@ def read_orc(
     # TODO(https://github.com/modin-project/modin/issues/7104):
     # modin needs to remove defaults to pandas at API layer
     pass
+
+
+@register_pd_accessor("read_excel")
+@expanduser_path_arg("io")
+def read_excel(
+    io,
+    sheet_name: str | int | list[IntStrT] | None = 0,
+    *,
+    header: int | Sequence[int] | None = 0,
+    names: list[str] | None = None,
+    index_col: int | Sequence[int] | None = None,
+    usecols: int
+    | str
+    | Sequence[int]
+    | Sequence[str]
+    | Callable[[str], bool]
+    | None = None,
+    dtype: DtypeArg | None = None,
+    engine: Literal[("xlrd", "openpyxl", "odf", "pyxlsb")] | None = None,
+    converters: dict[str, Callable] | dict[int, Callable] | None = None,
+    true_values: Iterable[Hashable] | None = None,
+    false_values: Iterable[Hashable] | None = None,
+    skiprows: Sequence[int] | int | Callable[[int], object] | None = None,
+    nrows: int | None = None,
+    na_values=None,
+    keep_default_na: bool = True,
+    na_filter: bool = True,
+    verbose: bool = False,
+    parse_dates: list | dict | bool = False,
+    date_parser: Callable | NoDefault = no_default,
+    date_format=None,
+    thousands: str | None = None,
+    decimal: str = ".",
+    comment: str | None = None,
+    skipfooter: int = 0,
+    storage_options: StorageOptions = None,
+    dtype_backend: DtypeBackend | NoDefault = no_default,
+    engine_kwargs: dict | None = None,
+) -> pd.DataFrame | dict[IntStrT, pd.DataFrame]:
+    """
+    Read an Excel file into a Snowpark pandas DataFrame.
+    """
+    # TODO this implementation is identical to modin, but we don't have a proper docstring override
+    # mechanism yet
+    _, _, _, kwargs = inspect.getargvalues(inspect.currentframe())
+    from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
+        FactoryDispatcher,
+    )
+
+    intermediate = FactoryDispatcher.read_excel(**kwargs)
+    if isinstance(intermediate, (OrderedDict, dict)):
+        parsed = type(intermediate)()
+        for key in intermediate.keys():
+            parsed[key] = pd.DataFrame(query_compiler=intermediate.get(key))
+        return parsed
+    else:
+        return pd.DataFrame(query_compiler=intermediate)
 
 
 @_inherit_docstrings(native_pd.read_csv, apilink="pandas.read_csv")
