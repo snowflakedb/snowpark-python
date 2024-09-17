@@ -10,6 +10,13 @@ from snowflake.snowpark._internal.utils import validate_object_name
 
 
 class Profiler:
+    """
+    Setup profiler to receive profiles of stored procedures.
+
+    Note:
+        This feature cannot be used in owner's right SP because owner's right SP will not be able to set session-level parameters.
+    """
+
     def __init__(
         self,
         stage: Optional[str] = "",
