@@ -125,11 +125,17 @@ def test_anonymous_procedure(session, db_parameters):
 def test_not_set_profiler_error(session, tmpdir):
     with pytest.raises(ValueError) as e:
         session.show_profiles()
-    assert "profiler is not set, use session.register_profiler or profiler context manager" in str(e)
+    assert (
+        "profiler is not set, use session.register_profiler or profiler context manager"
+        in str(e)
+    )
 
     with pytest.raises(ValueError) as e:
         session.dump_profiles(tmpdir.join("file.txt"))
-    assert "profiler is not set, use session.register_profiler or profiler context manager" in str(e)
+    assert (
+        "profiler is not set, use session.register_profiler or profiler context manager"
+        in str(e)
+    )
 
 
 @pytest.mark.skipif(
@@ -147,7 +153,10 @@ def test_set_incorrect_active_profiler():
     pro = Profiler()
     with pytest.raises(ValueError) as e:
         pro.set_active_profiler("wrong_active_profiler")
-    assert "active_profiler expect 'LINE' or 'MEMORY', got wrong_active_profiler instead" in str(e)
+    assert (
+        "active_profiler expect 'LINE' or 'MEMORY', got wrong_active_profiler instead"
+        in str(e)
+    )
 
 
 @pytest.mark.skipif(
@@ -156,6 +165,7 @@ def test_set_incorrect_active_profiler():
 )
 def test_dump_profile_to_file(session, db_parameters, tmpdir):
     file = tmpdir.join("profile.lprof")
+
     def single_value_sp(session: snowflake.snowpark.Session) -> str:
         return "success"
 
@@ -169,5 +179,5 @@ def test_dump_profile_to_file(session, db_parameters, tmpdir):
         single_value_sp()
         session.dump_profiles(file)
     session.register_profiler_modules([])
-    with open(file, "r") as f:
+    with open(file) as f:
         assert "Modules Profiled" in f.read()
