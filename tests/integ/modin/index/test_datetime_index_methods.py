@@ -4,8 +4,10 @@
 import re
 
 import modin.pandas as pd
+import numpy as np
 import pandas as native_pd
 import pytest
+import pytz
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
@@ -14,6 +16,46 @@ from tests.integ.modin.utils import (
     assert_index_equal,
     assert_series_equal,
     eval_snowpark_pandas_result,
+)
+
+timezones = pytest.mark.parametrize(
+    "tz",
+    [
+        None,
+        # Use a subset of pytz.common_timezones containing a few timezones in each
+        *[
+            param_for_one_tz
+            for tz in [
+                "Africa/Abidjan",
+                "Africa/Timbuktu",
+                "America/Adak",
+                "America/Yellowknife",
+                "Antarctica/Casey",
+                "Asia/Dhaka",
+                "Asia/Manila",
+                "Asia/Shanghai",
+                "Atlantic/Stanley",
+                "Australia/Sydney",
+                "Canada/Pacific",
+                "Europe/Chisinau",
+                "Europe/Luxembourg",
+                "Indian/Christmas",
+                "Pacific/Chatham",
+                "Pacific/Wake",
+                "US/Arizona",
+                "US/Central",
+                "US/Eastern",
+                "US/Hawaii",
+                "US/Mountain",
+                "US/Pacific",
+                "UTC",
+            ]
+            for param_for_one_tz in (
+                pytz.timezone(tz),
+                tz,
+            )
+        ],
+    ],
 )
 
 
@@ -100,13 +142,13 @@ def test_index_parent():
     # DataFrame case.
     df = pd.DataFrame({"A": [1]}, index=native_idx1)
     snow_idx = df.index
-    assert_frame_equal(snow_idx._parent, df)
+    assert_frame_equal(snow_idx._parent._parent, df)
     assert_index_equal(snow_idx, native_idx1)
 
     # Series case.
     s = pd.Series([1, 2], index=native_idx2, name="zyx")
     snow_idx = s.index
-    assert_series_equal(snow_idx._parent, s)
+    assert_series_equal(snow_idx._parent._parent, s)
     assert_index_equal(snow_idx, native_idx2)
 
 
@@ -232,6 +274,76 @@ def test_normalize():
     )
 
 
+@sql_count_checker(query_count=1, join_count=1)
+@timezones
+def test_tz_convert(tz):
+    native_index = native_pd.date_range(
+        start="2021-01-01", periods=5, freq="7h", tz="US/Eastern"
+    )
+    native_index = native_index.append(
+        native_pd.DatetimeIndex([pd.NaT], tz="US/Eastern")
+    )
+    snow_index = pd.DatetimeIndex(native_index)
+
+    # Using eval_snowpark_pandas_result() was not possible because currently
+    # Snowpark pandas DatetimeIndex only mainains a timzeone-naive dtype
+    # even if the data contains a timezone.
+    assert snow_index.tz_convert(tz).equals(
+        pd.DatetimeIndex(native_index.tz_convert(tz))
+    )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+@timezones
+def test_tz_localize(tz):
+    native_index = native_pd.DatetimeIndex(
+        [
+            "2014-04-04 23:56:01.000000001",
+            "2014-07-18 21:24:02.000000002",
+            "2015-11-22 22:14:03.000000003",
+            "2015-11-23 20:12:04.1234567890",
+            pd.NaT,
+        ],
+    )
+    snow_index = pd.DatetimeIndex(native_index)
+
+    # Using eval_snowpark_pandas_result() was not possible because currently
+    # Snowpark pandas DatetimeIndex only mainains a timzeone-naive dtype
+    # even if the data contains a timezone.
+    assert snow_index.tz_localize(tz).equals(
+        pd.DatetimeIndex(native_index.tz_localize(tz))
+    )
+
+
+@pytest.mark.parametrize(
+    "ambiguous, nonexistent",
+    [
+        ("infer", "raise"),
+        ("NaT", "raise"),
+        (np.array([True, True, False]), "raise"),
+        ("raise", "shift_forward"),
+        ("raise", "shift_backward"),
+        ("raise", "NaT"),
+        ("raise", pd.Timedelta("1h")),
+        ("infer", "shift_forward"),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_tz_localize_negative(ambiguous, nonexistent):
+    native_index = native_pd.DatetimeIndex(
+        [
+            "2014-04-04 23:56:01.000000001",
+            "2014-07-18 21:24:02.000000002",
+            "2015-11-22 22:14:03.000000003",
+            "2015-11-23 20:12:04.1234567890",
+            pd.NaT,
+        ],
+    )
+    snow_index = pd.DatetimeIndex(native_index)
+    with pytest.raises(NotImplementedError):
+        snow_index.tz_localize(tz=None, ambiguous=ambiguous, nonexistent=nonexistent)
+
+
 @pytest.mark.parametrize(
     "datetime_index_value",
     [
@@ -268,7 +380,12 @@ def test_floor_ceil_round(datetime_index_value, func, freq):
     [
         ("1w", "raise", "raise"),
         ("1h", "infer", "raise"),
+        ("1h", "NaT", "raise"),
+        ("1h", np.array([True, True, False]), "raise"),
         ("1h", "raise", "shift_forward"),
+        ("1h", "raise", "shift_backward"),
+        ("1h", "raise", "NaT"),
+        ("1h", "raise", pd.Timedelta("1h")),
         ("1w", "infer", "shift_forward"),
     ],
 )
