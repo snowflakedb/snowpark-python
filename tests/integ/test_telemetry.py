@@ -5,6 +5,7 @@
 
 import decimal
 import sys
+import threading
 import uuid
 from functools import partial
 from typing import Any, Dict, Tuple
@@ -595,12 +596,14 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
     query_plan_height = 2 if sql_simplifier_enabled else 3
     filter = 1 if sql_simplifier_enabled else 2
     low_impact = 3 if sql_simplifier_enabled else 2
+    thread_ident = threading.get_ident()
 
     assert df._plan.api_calls == [
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
             "plan_uuid": df._plan.uuid,
+            "thread_ident": thread_ident,
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {
@@ -624,6 +627,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
             "plan_uuid": df._plan.uuid,
+            "thread_ident": thread_ident,
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {
@@ -647,6 +651,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
             "plan_uuid": df._plan.uuid,
+            "thread_ident": thread_ident,
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {
@@ -670,6 +675,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
             "plan_uuid": df._plan.uuid,
+            "thread_ident": thread_ident,
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {
@@ -693,6 +699,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
             "plan_uuid": df._plan.uuid,
+            "thread_ident": thread_ident,
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {
@@ -839,11 +846,13 @@ def test_dataframe_stat_functions_api_calls(session):
     # therefore we can't predict it. We check that the uuid for crosstab is same as
     # that for df.
     uuid = df._plan.api_calls[0]["plan_uuid"]
+    thread_ident = threading.get_ident()
     assert crosstab._plan.api_calls == [
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
             "plan_uuid": uuid,
+            "thread_ident": thread_ident,
             "query_plan_height": 4,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {"group_by": 1, "column": column, "literal": 48},
@@ -863,6 +872,7 @@ def test_dataframe_stat_functions_api_calls(session):
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
             "plan_uuid": uuid,
+            "thread_ident": thread_ident,
             "query_plan_height": 4,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {"group_by": 1, "column": column, "literal": 48},

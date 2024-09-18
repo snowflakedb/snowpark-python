@@ -4,6 +4,7 @@
 #
 
 import functools
+import threading
 from enum import Enum, unique
 from typing import Any, Dict, List, Optional
 
@@ -93,6 +94,8 @@ class TelemetryField(Enum):
     TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION_MESSAGE = (
         "temp_table_cleanup_abnormal_exception_message"
     )
+    # multi-threading
+    THREAD_IDENTIFIER = "thread_ident"
 
 
 # These DataFrame APIs call other DataFrame APIs
@@ -194,6 +197,7 @@ def df_collect_api_telemetry(func):
                 key.value: value
                 for key, value in plan.cumulative_node_complexity.items()
             }
+            api_calls[0][TelemetryField.THREAD_IDENTIFIER.value] = threading.get_ident()
         except Exception:
             pass
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
