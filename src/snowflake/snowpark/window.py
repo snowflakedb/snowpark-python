@@ -45,8 +45,10 @@ def _convert_boundary_to_expr(
             boundary_start = UnboundedPreceding()
         else:
             boundary_start = Literal(start)
-    else:
+    elif isinstance(start, snowflake.snowpark.Column):
         boundary_start = start._expression
+    else:
+        raise ValueError("start must be an integer or a Column")
 
     if isinstance(end, int):
         if end == 0:
@@ -55,8 +57,10 @@ def _convert_boundary_to_expr(
             boundary_end = UnboundedFollowing()
         else:
             boundary_end = Literal(end)
-    else:
+    elif isinstance(start, snowflake.snowpark.Column):
         boundary_end = end._expression
+    else:
+        raise ValueError("end must be an integer or a Column")
 
     return boundary_start, boundary_end
 

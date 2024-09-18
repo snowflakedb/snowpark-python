@@ -589,8 +589,21 @@ def test_range_between_date(
     "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1358946: Interval is not supported in Local Testing",
 )
-def test_range_between_interval_negative(session):
+def test_range_between_negative(session):
     df = session.range(10)
+
+    with pytest.raises(
+        ValueError,
+        match="start must be an integer or a Column",
+    ):
+        Window.order_by("id").range_between("-1", 0)
+
+    with pytest.raises(
+        ValueError,
+        match="end must be an integer or a Column",
+    ):
+        Window.order_by("id").range_between(0, 1.1)
+
     window = Window.order_by("id").range_between(-make_interval(mins=1), 0)
     with pytest.raises(
         SnowparkSQLException,
