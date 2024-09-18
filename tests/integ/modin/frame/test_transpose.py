@@ -21,6 +21,7 @@ from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
+    create_test_dfs,
     eval_snowpark_pandas_result,
 )
 from tests.utils import running_on_public_ci
@@ -58,6 +59,42 @@ def test_dataframe_transpose_set_single_index(
             snow_df,
             native_df,
             lambda df: transpose_operation(df.set_index(["name"])),
+        )
+
+
+@pytest.mark.parametrize(
+    "transpose_operation, expected_query_count",
+    [
+        (lambda df: df.T, 1),
+        pytest.param(
+            lambda df: df.T.T,
+            1,
+            marks=pytest.mark.xfail(
+                raises=NotImplementedError, strict=True, reason="SNOW-886400"
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "index",
+    [
+        [[pd.Timedelta("-1 days"), pd.NaT, pd.Timedelta("2 days")]],
+        native_pd.MultiIndex.from_tuples(
+            [
+                (pd.Timedelta("-1 days"), -1),
+                (pd.NaT, None),
+                (pd.Timedelta("2 days"), 2),
+            ]
+        ),
+    ],
+)
+def test_dataframe_transpose_set_timedelta_index_SNOW_1652608(
+    transpose_operation, expected_query_count, score_test_data, index
+):
+    with SqlCounter(query_count=expected_query_count):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(score_test_data),
+            lambda df: transpose_operation(df.set_index(index))
         )
 
 
