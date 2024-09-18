@@ -1601,11 +1601,11 @@ default 'raise'
             raise NotImplementedError(
                 "`ddof` parameter is not yet supported for `std`."
             )
-        # Need to convert timestamp to a float type to prevent overflow when aggregating.
+        # Need to convert timestamp to seconds to prevent overflow when aggregating.
         # Cannot directly convert a timestamp to a float; therefore, first convert it to an int then a float.
         return to_timedelta(
-            self.to_series()
-            .astype(int)
-            .astype(float)
-            .agg("std", axis=0, ddof=ddof, skipna=skipna, **kwargs)
+            (self.to_series().astype(int) / 1e9).agg(
+                "std", axis=0, ddof=ddof, skipna=skipna, **kwargs
+            )
+            * 1e9
         )
