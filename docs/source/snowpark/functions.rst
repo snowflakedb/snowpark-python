@@ -202,6 +202,7 @@ Functions
     lower
     lpad
     ltrim
+    make_interval
     max
     md5
     mean
