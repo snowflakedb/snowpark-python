@@ -96,6 +96,46 @@ def extract_assign_targets(source_line: str) -> Optional[Union[str, List[str]]]:
         return None
 
 
+def fill_timezone(
+    ast: proto.Expr, obj: Union[datetime.datetime, datetime.time]
+) -> None:
+
+    datetime_val = (
+        obj
+        if isinstance(obj, datetime.datetime)
+        else datetime.datetime.combine(datetime.date.today(), obj)
+    )
+
+    if obj.tzinfo is not None:
+        ast.tz.offset_seconds = int(obj.tzinfo.utcoffset(datetime_val).total_seconds())
+        tz = obj.tzinfo.tzname(datetime_val)
+        if tz is not None:
+            ast.tz.name.value = tz
+    else:
+        # tzinfo=None means that the local timezone will be used.
+        # Retrieve name of the local timezone and encode as part of the AST.
+        if platform.system() == "Windows":
+            # Windows is a special case, msvcrt is broken so timezones are not properly propagated. Relying on
+            # environment variable for test. Cf. override_time_zone in test_ast_driver.py for details.
+            tz_env = os.environ.get("TZ")
+            if tz_env:
+                tz = dateutil.tz.gettz(tz_env)
+                tz_name = tz.tzname(datetime.datetime.now())
+                ast.tz.offset_seconds = int(tz.utcoffset(datetime_val).total_seconds())
+            else:
+                logging.warn(
+                    "Assuming UTC timezone for Windows, but actual timezone may be different."
+                )
+                ast.tz.offset_seconds = int(tzlocal().utcoffset(obj).total_seconds())
+                tz_name = datetime.datetime.now(tzlocal()).tzname()
+        else:
+            ast.tz.offset_seconds = int(
+                tzlocal().utcoffset(datetime_val).total_seconds()
+            )
+            tz_name = datetime.datetime.now(tzlocal()).tzname()
+        ast.tz.name.value = tz_name
+
+
 def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
     """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance
 
@@ -166,34 +206,8 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
 
     elif isinstance(obj, datetime.datetime):
         ast = with_src_position(expr_builder.python_timestamp_val)
-        if obj.tzinfo is not None:
-            ast.tz.offset_seconds = int(obj.tzinfo.utcoffset(obj).total_seconds())
-            tz = obj.tzinfo.tzname(obj)
-            if tz is not None:
-                ast.tz.name.value = tz
-        else:
-            # tzinfo=None means that the local timezone will be used.
-            # Retrieve name of the local timezone and encode as part of the AST.
-            if platform.system() == "Windows":
-                # Windows is a special case, msvcrt is broken so timezones are not properly propagated. Relying on
-                # environment variable for test. Cf. override_time_zone in test_ast_driver.py for details.
-                tz_env = os.environ.get("TZ")
-                if tz_env:
-                    tz = dateutil.tz.gettz(tz_env)
-                    tz_name = tz.tzname(datetime.datetime.now())
-                    ast.tz.offset_seconds = int(tz.utcoffset(obj).total_seconds())
-                else:
-                    logging.warn(
-                        "Assuming UTC timezone for Windows, but actual timezone may be different."
-                    )
-                    ast.tz.offset_seconds = int(
-                        tzlocal().utcoffset(obj).total_seconds()
-                    )
-                    tz_name = datetime.datetime.now(tzlocal()).tzname()
-            else:
-                ast.tz.offset_seconds = int(tzlocal().utcoffset(obj).total_seconds())
-                tz_name = datetime.datetime.now(tzlocal()).tzname()
-            ast.tz.name.value = tz_name
+
+        fill_timezone(ast, obj)
 
         ast.year = obj.year
         ast.month = obj.month
@@ -211,16 +225,8 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
 
     elif isinstance(obj, datetime.time):
         ast = with_src_position(expr_builder.python_time_val)
-        datetime_val = datetime.datetime.combine(datetime.date.today(), obj)
-        if obj.tzinfo is not None:
-            ast.tz.offset_seconds = int(
-                obj.tzinfo.utcoffset(datetime_val).total_seconds()
-            )
-            tz = obj.tzinfo.tzname(datetime_val)
-            if tz is not None:
-                ast.tz.name.value = tz
-        else:
-            obj = datetime_val.astimezone(datetime.timezone.utc)
+
+        fill_timezone(ast, obj)
 
         ast.hour = obj.hour
         ast.minute = obj.minute
