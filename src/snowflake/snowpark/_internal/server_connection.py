@@ -262,12 +262,13 @@ class ServerConnection:
     ) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:
         result_metadata = run_new_describe(cursor, query)
 
-        for listener in filter(
-            lambda listener: hasattr(listener, "include_describe")
-            and listener.include_describe,
-            self._query_listener,
-        ):
-            listener._add_query(QueryRecord(cursor.sfqid, query, True))
+        with self._lock:
+            for listener in filter(
+                lambda listener: hasattr(listener, "include_describe")
+                and listener.include_describe,
+                self._query_listener,
+            ):
+                listener._add_query(QueryRecord(cursor.sfqid, query, True))
 
         return result_metadata
 
