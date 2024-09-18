@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import gc
 import hashlib
 import os
 import tempfile
@@ -496,3 +497,33 @@ class OffsetSumUDAFHandler:
     with ThreadPoolExecutor(max_workers=10) as executor:
         for i in range(10):
             executor.submit(register_and_test_udaf, session, i)
+
+
+def test_auto_temp_table_cleaner(session):
+    session.auto_clean_up_temp_table_enabled = True
+
+    def create_temp_table(session_, thread_id):
+        df = session.sql(f"select {thread_id} as A").cache_result()
+        table_name = df.table_name
+        return table_name
+
+    def create_table_and_garbage_collect(session_, thread_id):
+        name = create_temp_table(session_, thread_id)
+        gc.collect()
+        return name
+
+    with session.query_history() as history:
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = []
+            table_names = []
+            for i in range(10):
+                futures.append(
+                    executor.submit(create_table_and_garbage_collect, session, i)
+                )
+
+        for future in as_completed(futures):
+            table_names.append(future.result())
+
+    query_texts = [query.sql_text for query in history.queries]
+    for table_name in table_names:
+        assert any(table_name in query_text for query_text in query_texts)
