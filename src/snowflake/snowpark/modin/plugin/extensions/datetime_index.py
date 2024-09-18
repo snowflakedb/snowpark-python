@@ -1601,11 +1601,15 @@ default 'raise'
             raise NotImplementedError(
                 "`ddof` parameter is not yet supported for `std`."
             )
-        # Need to convert timestamp to seconds to prevent overflow when aggregating.
-        # Cannot directly convert a timestamp to a float; therefore, first convert it to an int then a float.
+        # Snowflake cannot directly perform `std` on a timestamp; therefore, convert the timestamp to an integer.
+        # By default, the integer version of a timestamp is in nanoseconds. Directly performing computations with
+        # nanoseconds can lead to results with integer size much larger than the original integer size. Therefore,
+        # convert the nanoseconds to seconds and then compute the standard deviation.
+        # The timestamp is converted to seconds instead of the float version of nanoseconds since that can lead to
+        # floating point precision issues
         return to_timedelta(
-            (self.to_series().astype(int) / 1e9).agg(
+            (self.to_series().astype(int) / 1_000_000_000).agg(
                 "std", axis=0, ddof=ddof, skipna=skipna, **kwargs
             )
-            * 1e9
+            * 1_000_000_000
         )
