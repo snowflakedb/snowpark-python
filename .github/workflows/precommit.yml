@@ -281,6 +281,10 @@ jobs:
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
         run: python -m pip install tox
+      - name: Set up windows environment
+        if: runner.os == 'Windows'
+        run: |
+            "TZ=EDT" >> $env:GITHUB_ENV
       - name: Run tests
         run: python -m tox -e "py${PYTHON_VERSION/\./}-ast"
         env:
