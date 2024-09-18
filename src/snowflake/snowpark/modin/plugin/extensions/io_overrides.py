@@ -76,8 +76,8 @@ def read_xml(
     pass
 
 
-@register_pd_accessor("json_normalize")
 @_inherit_docstrings(native_pd.json_normalize, apilink="pandas.json_normalize")
+@register_pd_accessor("json_normalize")
 @pandas_module_level_function_not_implemented()
 def json_normalize(
     data: dict | list[dict],
@@ -97,8 +97,8 @@ def json_normalize(
     pass
 
 
-@register_pd_accessor("json_normalize")
 @_inherit_docstrings(native_pd.read_orc, apilink="pandas.read_orc")
+@register_pd_accessor("read_orc")
 @pandas_module_level_function_not_implemented()
 def read_orc(
     path,
