@@ -6,6 +6,7 @@ import gc
 import hashlib
 import os
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple  # noqa: F401
 from unittest.mock import patch
@@ -500,30 +501,40 @@ class OffsetSumUDAFHandler:
 
 
 def test_auto_temp_table_cleaner(session):
+    session._temp_table_auto_cleaner.ref_count_map.clear()
+    original_auto_clean_up_temp_table_enabled = session.auto_clean_up_temp_table_enabled
     session.auto_clean_up_temp_table_enabled = True
 
     def create_temp_table(session_, thread_id):
         df = session.sql(f"select {thread_id} as A").cache_result()
         table_name = df.table_name
+        del df
         return table_name
 
     def create_table_and_garbage_collect(session_, thread_id):
         name = create_temp_table(session_, thread_id)
-        gc.collect()
         return name
 
-    with session.query_history() as history:
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = []
-            table_names = []
-            for i in range(10):
-                futures.append(
-                    executor.submit(create_table_and_garbage_collect, session, i)
-                )
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = []
+        table_names = []
+        for i in range(10):
+            futures.append(
+                executor.submit(create_table_and_garbage_collect, session, i)
+            )
 
         for future in as_completed(futures):
             table_names.append(future.result())
 
-    query_texts = [query.sql_text for query in history.queries]
-    for table_name in table_names:
-        assert any(table_name in query_text for query_text in query_texts)
+    gc.collect()
+    time.sleep(1)
+
+    try:
+        for table_name in table_names:
+            assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 0
+        assert session._temp_table_auto_cleaner.num_temp_tables_created == 10
+        assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 10
+    finally:
+        session.auto_clean_up_temp_table_enabled = (
+            original_auto_clean_up_temp_table_enabled
+        )
