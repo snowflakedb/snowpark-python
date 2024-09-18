@@ -92,7 +92,7 @@ def test_standalone_api_telemetry():
     ]
     assert newdf._query_compiler.snowpark_pandas_api_calls == [
         {
-            "name": "general.to_numeric",
+            "name": "general_overrides.to_numeric",
         }
     ]
 
@@ -110,7 +110,7 @@ def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
 
     df1_expected_api_calls = [
         {"name": "TestClass.test_func"},
-        {"name": "DataFrame.DataFrame.dropna", "argument": ["inplace"]},
+        {"name": "DataFrame.dropna", "argument": ["inplace"]},
     ]
     assert df1._query_compiler.snowpark_pandas_api_calls == df1_expected_api_calls
 
@@ -121,7 +121,7 @@ def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
     assert df1._query_compiler.snowpark_pandas_api_calls == df1_expected_api_calls
     df2_expected_api_calls = df1_expected_api_calls + [
         {
-            "name": "DataFrame.DataFrame.dropna",
+            "name": "DataFrame.dropna",
         },
     ]
     assert df2._query_compiler.snowpark_pandas_api_calls == df2_expected_api_calls
@@ -336,10 +336,7 @@ def test_telemetry_with_update_inplace():
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     df.insert(1, "newcol", [99, 99, 90])
     assert len(df._query_compiler.snowpark_pandas_api_calls) == 1
-    assert (
-        df._query_compiler.snowpark_pandas_api_calls[0]["name"]
-        == "DataFrame.DataFrame.insert"
-    )
+    assert df._query_compiler.snowpark_pandas_api_calls[0]["name"] == "DataFrame.insert"
 
 
 @sql_count_checker(query_count=1)
@@ -403,8 +400,8 @@ def test_telemetry_getitem_setitem():
     df["a"] = 0
     df["b"] = 0
     assert df._query_compiler.snowpark_pandas_api_calls == [
-        {"name": "DataFrame.DataFrame.__setitem__"},
-        {"name": "DataFrame.DataFrame.__setitem__"},
+        {"name": "DataFrame.__setitem__"},
+        {"name": "DataFrame.__setitem__"},
     ]
     # Clear connector telemetry client buffer to avoid flush triggered by the next API call, ensuring log extraction.
     s._query_compiler._modin_frame.ordered_dataframe.session._conn._telemetry_client.telemetry.send_batch()
@@ -422,13 +419,17 @@ def test_telemetry_getitem_setitem():
 
 
 @pytest.mark.parametrize(
-    "name, method, expected_query_count",
+    "name, expected_func_name, method, expected_query_count",
     [
-        ["__repr__", lambda df: df.__repr__(), 1],
-        ["__iter__", lambda df: df.__iter__(), 0],
+        # __repr__ is an extension method, so the class name is shown only once.
+        ["__repr__", "DataFrame.__repr__", lambda df: df.__repr__(), 1],
+        # __iter__ was defined on the DataFrame class, so it is shown twice.
+        ["__iter__", "DataFrame.DataFrame.__iter__", lambda df: df.__iter__(), 0],
     ],
 )
-def test_telemetry_private_method(name, method, expected_query_count):
+def test_telemetry_private_method(
+    name, expected_func_name, method, expected_query_count
+):
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     # Clear connector telemetry client buffer to avoid flush triggered by the next API call, ensuring log extraction.
     df._query_compiler._modin_frame.ordered_dataframe.session._conn._telemetry_client.telemetry.send_batch()
@@ -439,10 +440,10 @@ def test_telemetry_private_method(name, method, expected_query_count):
     # the telemetry log from the connector to validate
 
     data = _extract_snowpark_pandas_telemetry_log_data(
-        expected_func_name=f"DataFrame.DataFrame.{name}",
+        expected_func_name=expected_func_name,
         session=df._query_compiler._modin_frame.ordered_dataframe.session,
     )
-    assert data["api_calls"] == [{"name": f"DataFrame.DataFrame.{name}"}]
+    assert data["api_calls"] == [{"name": expected_func_name}]
 
 
 @sql_count_checker(query_count=0)
@@ -562,15 +563,67 @@ def test_telemetry_copy():
         {"name": "Series.property.name_set"},
         {"name": "Series.BasePandasDataset.copy"},
     ]
+    # DataFrame is currently still vendored, and inherits copy from BasePandasDataset
+    df = pd.DataFrame([1])
+    copied_df = df.copy()
+    assert df._query_compiler.snowpark_pandas_api_calls == []
+    assert copied_df._query_compiler.snowpark_pandas_api_calls == [
+        {"name": "DataFrame.BasePandasDataset.copy"}
+    ]
 
 
 @sql_count_checker(query_count=0)
 def test_telemetry_series_describe():
-    # describe() is defined in upstream Modin's Series class, and not overridden by Snowpark pandas.
+    # describe() is defined in upstream Modin's Series class, and calls super().describe().
+    # Snowpark pandas overrides the BasePandasDataset superclass implementation, but telemetry on it
+    # is not recorded because we only add telemetry to the implementation of the child class.
     s = pd.Series([1, 2, 3, 4])
     result = s.describe()
     assert result._query_compiler.snowpark_pandas_api_calls == [
         {"name": "Series.property.name_set"},
-        {"name": "Series.describe"},
         {"name": "Series.Series.describe"},
+    ]
+
+
+@sql_count_checker(query_count=0)
+def test_telemetry_series_isin():
+    # isin is overridden in both series_overrides.py and base_overrides.py
+    # This test ensures we only report telemetry for one
+    s = pd.Series([1, 2, 3, 4])
+    result = s.isin([1])
+    assert result._query_compiler.snowpark_pandas_api_calls == [
+        {"name": "Series.property.name_set"},
+        {"name": "Series.isin"},
+    ]
+
+
+@sql_count_checker(query_count=0)
+def test_telemetry_quantile():
+    # quantile is overridden in base_overrides.py
+    s = pd.Series([1, 2, 3, 4])
+    result_s = s.quantile(q=[0.1, 0.2])
+    assert result_s._query_compiler.snowpark_pandas_api_calls == [
+        {"name": "Series.property.name_set"},
+        {"argument": ["q"], "name": "Series.Series.quantile"},
+    ]
+    df = pd.DataFrame([1, 2, 3, 4])
+    result_df = df.quantile(q=[0.1, 0.2])
+    assert result_df._query_compiler.snowpark_pandas_api_calls == [
+        {"argument": ["q"], "name": "DataFrame.DataFrame.quantile"},
+    ]
+
+
+@sql_count_checker(query_count=2)
+def test_telemetry_cache_result():
+    # cache_result exists only in Snowpark pandas
+    s = pd.Series([1, 2, 3, 4])
+    result_s = s.cache_result()
+    assert result_s._query_compiler.snowpark_pandas_api_calls == [
+        {"name": "Series.property.name_set"},
+        {"name": "Series.cache_result"},
+    ]
+    df = pd.DataFrame([1, 2, 3, 4])
+    result_df = df.cache_result()
+    assert result_df._query_compiler.snowpark_pandas_api_calls == [
+        {"name": "DataFrame.cache_result"},
     ]

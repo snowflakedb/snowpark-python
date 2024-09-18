@@ -4140,3 +4140,22 @@ def test_df_loc_full_set_row_from_series_errors():
     ):
         snow_df.loc[:] = pd.Series([1, 4, 9], index=list("ABC"))
         snow_df.to_pandas()  # Force materialization.
+
+
+@sql_count_checker(query_count=0)
+def test_df_loc_invalid_key():
+    # Bug fix: SNOW-1320674
+    native_df = native_pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]})
+    snow_df = pd.DataFrame(native_df)
+
+    def op(df):
+        df["C"] = df["A"] / df["D"]
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        op,
+        expect_exception=True,
+        expect_exception_type=KeyError,
+        expect_exception_match="D",
+    )

@@ -26,7 +26,7 @@ Module houses ``DatetimeIndex`` class, that is distributed version of
 
 from __future__ import annotations
 
-from datetime import tzinfo
+from datetime import timedelta, tzinfo
 
 import modin
 import numpy as np
@@ -43,6 +43,7 @@ from pandas._typing import (
 )
 from pandas.core.dtypes.common import is_datetime64_any_dtype
 
+from snowflake.snowpark.modin.pandas import to_datetime, to_timedelta
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -229,7 +230,7 @@ class DatetimeIndex(Index):
         --------
         >>> idx = pd.DatetimeIndex(["1/1/2020 10:00:00+00:00", "2/1/2020 11:00:00+00:00"], tz="America/Los_Angeles")
         >>> idx
-        DatetimeIndex(['2020-01-01 02:00:00-08:00', '2020-02-01 03:00:00-08:00'], dtype='datetime64[ns, America/Los_Angeles]', freq=None)
+        DatetimeIndex(['2020-01-01 02:00:00-08:00', '2020-02-01 03:00:00-08:00'], dtype='datetime64[ns, UTC-08:00]', freq=None)
         """
         # DatetimeIndex is already initialized in __new__ method. We keep this method
         # only for docstring generation.
@@ -960,7 +961,6 @@ class DatetimeIndex(Index):
         DatetimeIndex(['2023-01-01', '2023-01-01', '2023-02-01', '2023-02-01'], dtype='datetime64[ns]', freq=None)
         """
 
-    @datetime_index_not_implemented()
     def tz_convert(self, tz) -> DatetimeIndex:
         """
         Convert tz-aware Datetime Array/Index from one time zone to another.
@@ -1025,8 +1025,14 @@ class DatetimeIndex(Index):
                        '2014-08-01 09:00:00'],
                         dtype='datetime64[ns]', freq='h')
         """
+        # TODO (SNOW-1660843): Support tz in pd.date_range and unskip the doctests.
+        return DatetimeIndex(
+            query_compiler=self._query_compiler.dt_tz_convert(
+                tz,
+                include_index=True,
+            )
+        )
 
-    @datetime_index_not_implemented()
     def tz_localize(
         self,
         tz,
@@ -1104,21 +1110,29 @@ default 'raise'
 
         Localize DatetimeIndex in US/Eastern time zone:
 
-        >>> tz_aware = tz_naive.tz_localize(tz='US/Eastern')  # doctest: +SKIP
-        >>> tz_aware  # doctest: +SKIP
-        DatetimeIndex(['2018-03-01 09:00:00-05:00',
-                       '2018-03-02 09:00:00-05:00',
+        >>> tz_aware = tz_naive.tz_localize(tz='US/Eastern')
+        >>> tz_aware
+        DatetimeIndex(['2018-03-01 09:00:00-05:00', '2018-03-02 09:00:00-05:00',
                        '2018-03-03 09:00:00-05:00'],
-                      dtype='datetime64[ns, US/Eastern]', freq=None)
+                      dtype='datetime64[ns, UTC-05:00]', freq=None)
 
         With the ``tz=None``, we can remove the time zone information
         while keeping the local time (not converted to UTC):
 
-        >>> tz_aware.tz_localize(None)  # doctest: +SKIP
+        >>> tz_aware.tz_localize(None)
         DatetimeIndex(['2018-03-01 09:00:00', '2018-03-02 09:00:00',
                        '2018-03-03 09:00:00'],
                       dtype='datetime64[ns]', freq=None)
         """
+        # TODO (SNOW-1660843): Support tz in pd.date_range and unskip the doctests.
+        return DatetimeIndex(
+            query_compiler=self._query_compiler.dt_tz_localize(
+                tz,
+                ambiguous,
+                nonexistent,
+                include_index=True,
+            )
+        )
 
     def round(
         self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
@@ -1133,6 +1147,7 @@ default 'raise'
             frequency like 'S' (second) not 'ME' (month end). See
             frequency aliases for a list of possible `freq` values.
         ambiguous : 'infer', bool-ndarray, 'NaT', default 'raise'
+            This parameter is only supported for 'raise'.
             Only relevant for DatetimeIndex:
 
             - 'infer' will attempt to infer fall dst-transition hours based on
@@ -1145,6 +1160,7 @@ default 'raise'
               times.
 
         nonexistent : 'shift_forward', 'shift_backward', 'NaT', timedelta, default 'raise'
+            This parameter is only supported for 'raise'.
             A nonexistent time does not exist in a particular timezone
             where clocks moved forward due to DST.
 
@@ -1199,6 +1215,7 @@ default 'raise'
             frequency like 'S' (second) not 'ME' (month end). See
             frequency aliases for a list of possible `freq` values.
         ambiguous : 'infer', bool-ndarray, 'NaT', default 'raise'
+            This parameter is only supported for 'raise'.
             Only relevant for DatetimeIndex:
 
             - 'infer' will attempt to infer fall dst-transition hours based on
@@ -1211,6 +1228,7 @@ default 'raise'
               times.
 
         nonexistent : 'shift_forward', 'shift_backward', 'NaT', timedelta, default 'raise'
+            This parameter is only supported for 'raise'.
             A nonexistent time does not exist in a particular timezone
             where clocks moved forward due to DST.
 
@@ -1265,6 +1283,7 @@ default 'raise'
             frequency like 'S' (second) not 'ME' (month end). See
             frequency aliases for a list of possible `freq` values.
         ambiguous : 'infer', bool-ndarray, 'NaT', default 'raise'
+            This parameter is only supported for 'raise'.
             Only relevant for DatetimeIndex:
 
             - 'infer' will attempt to infer fall dst-transition hours based on
@@ -1277,6 +1296,7 @@ default 'raise'
               times.
 
         nonexistent : 'shift_forward', 'shift_backward', 'NaT', timedelta, default 'raise'
+            This parameter is only supported for 'raise'.
             A nonexistent time does not exist in a particular timezone
             where clocks moved forward due to DST.
 
@@ -1483,7 +1503,6 @@ default 'raise'
                datetime.datetime(2018, 3, 1, 0, 0)], dtype=object)
         """
 
-    @datetime_index_not_implemented()
     def mean(
         self, *, skipna: bool = True, axis: AxisInt | None = 0
     ) -> native_pd.Timestamp:
@@ -1495,6 +1514,8 @@ default 'raise'
         skipna : bool, default True
             Whether to ignore any NaT elements.
         axis : int, optional, default 0
+            The axis to calculate the mean over.
+            This parameter is ignored - 0 is the only valid axis.
 
         Returns
         -------
@@ -1514,20 +1535,26 @@ default 'raise'
         >>> idx = pd.date_range('2001-01-01 00:00', periods=3)
         >>> idx
         DatetimeIndex(['2001-01-01', '2001-01-02', '2001-01-03'], dtype='datetime64[ns]', freq=None)
-        >>> idx.mean()  # doctest: +SKIP
+        >>> idx.mean()
         Timestamp('2001-01-02 00:00:00')
         """
+        # Need to convert timestamp to int value (nanoseconds) before aggregating.
+        # TODO: SNOW-1625233 When `tz` is supported, add a `tz` parameter to `to_datetime` for correct timezone result.
+        if axis not in [None, 0]:
+            raise ValueError(
+                f"axis={axis} is not supported, this parameter is ignored. 0 is the only valid axis."
+            )
+        return to_datetime(
+            self.to_series().astype("int64").agg("mean", axis=0, skipna=skipna)
+        )
 
-    @datetime_index_not_implemented()
     def std(
         self,
-        axis=None,
-        dtype=None,
-        out=None,
+        axis: AxisInt | None = None,
         ddof: int = 1,
-        keepdims: bool = False,
         skipna: bool = True,
-    ):
+        **kwargs,
+    ) -> timedelta:
         """
         Return sample standard deviation over requested axis.
 
@@ -1536,11 +1563,12 @@ default 'raise'
         Parameters
         ----------
         axis : int, optional
-            Axis for the function to be applied on. For :class:`pandas.Series`
-            this parameter is unused and defaults to ``None``.
+            The axis to calculate the standard deviation over.
+            This parameter is ignored - 0 is the only valid axis.
         ddof : int, default 1
             Degrees of Freedom. The divisor used in calculations is `N - ddof`,
             where `N` represents the number of elements.
+            This parameter is not yet supported.
         skipna : bool, default True
             Exclude NA/null values. If an entire row/column is ``NA``, the result
             will be ``NA``.
@@ -1562,6 +1590,26 @@ default 'raise'
         >>> idx = pd.date_range('2001-01-01 00:00', periods=3)
         >>> idx
         DatetimeIndex(['2001-01-01', '2001-01-02', '2001-01-03'], dtype='datetime64[ns]', freq=None)
-        >>> idx.std()  # doctest: +SKIP
+        >>> idx.std()
         Timedelta('1 days 00:00:00')
         """
+        if axis not in [None, 0]:
+            raise ValueError(
+                f"axis={axis} is not supported, this parameter is ignored. 0 is the only valid axis."
+            )
+        if ddof != 1:
+            raise NotImplementedError(
+                "`ddof` parameter is not yet supported for `std`."
+            )
+        # Snowflake cannot directly perform `std` on a timestamp; therefore, convert the timestamp to an integer.
+        # By default, the integer version of a timestamp is in nanoseconds. Directly performing computations with
+        # nanoseconds can lead to results with integer size much larger than the original integer size. Therefore,
+        # convert the nanoseconds to seconds and then compute the standard deviation.
+        # The timestamp is converted to seconds instead of the float version of nanoseconds since that can lead to
+        # floating point precision issues
+        return to_timedelta(
+            (self.to_series().astype(int) // 1_000_000_000).agg(
+                "std", axis=0, ddof=ddof, skipna=skipna, **kwargs
+            )
+            * 1_000_000_000
+        )

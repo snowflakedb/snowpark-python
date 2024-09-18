@@ -41,6 +41,7 @@ from snowflake.snowpark.functions import (
     mean,
     min as min_,
     sum as sum_,
+    to_char,
     to_timestamp_ntz,
     to_timestamp_tz,
     typeof,
@@ -75,6 +76,8 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
+    TimestampType,
     VariantType,
     _FractionalType,
 )
@@ -265,8 +268,9 @@ def _create_read_only_table(
         temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
 
         _logger.warning(
-            f"Data from source table/view '{table_name}' is being copied into a new "
-            f"temporary table '{temp_table_name}'. DataFrame creation might take some time."
+            f"Snapshot source table/view '{table_name}' failed due to reason: `{materialization_reason}'. Data from "
+            f"source table/view '{table_name}' is being copied into a new "
+            f"temporary table '{temp_table_name}' for snapshotting. DataFrame creation might take some time."
         )
 
         statement_params = get_default_snowpark_pandas_statement_params()
@@ -1272,7 +1276,7 @@ def check_snowpark_pandas_object_in_arg(arg: Any) -> bool:
             if check_snowpark_pandas_object_in_arg(v):
                 return True
     else:
-        from snowflake.snowpark.modin.pandas import DataFrame, Series
+        from modin.pandas import DataFrame, Series
 
         return isinstance(arg, (DataFrame, Series))
 
@@ -1288,14 +1292,23 @@ def snowpark_to_pandas_helper(
 ) -> Union[native_pd.Index, native_pd.DataFrame]:
     """
     The helper function retrieves a pandas dataframe from an OrderedDataFrame. Performs necessary type
-    conversions for variant types on the client. This function issues 2 queries, one metadata query
-    to retrieve the schema and one query to retrieve the data values.
+    conversions including
+    1. For VARIANT types, OrderedDataFrame.to_pandas may convert datetime like types to string. So we add one `typeof`
+    column for each variant column and use that metadata to convert datetime like types back to their original types.
+    2. For TIMESTAMP_TZ type, OrderedDataFrame.to_pandas will convert them into the local session timezone and lose the
+    original timezone. So we cast TIMESTAMP_TZ columns to string first and then convert them back after to_pandas to
+    preserve the original timezone. Note that the actual timezone will be lost in Snowflake backend but only the offset
+    preserved.
+    3. For Timedelta columns, since currently we represent the values using integers, here we need to explicitly cast
+    them back to Timedelta.
 
     Args:
         frame: The internal frame to convert to pandas Dataframe (or Index if index_only is true)
         index_only: if true, only turn the index columns into a pandas Index
-        statement_params: Dictionary of statement level parameters to be passed to conversion function of ordered dataframe abstraction.
-        kwargs: Additional keyword-only args to pass to internal `to_pandas` conversion for orderded dataframe abstraction.
+        statement_params: Dictionary of statement level parameters to be passed to conversion function of ordered
+        dataframe abstraction.
+        kwargs: Additional keyword-only args to pass to internal `to_pandas` conversion for ordered dataframe
+        abstraction.
 
     Returns:
         pandas dataframe
@@ -1364,7 +1377,7 @@ def snowpark_to_pandas_helper(
     )
     variant_type_identifiers = list(map(lambda t: t[0], variant_type_columns_info))
 
-    # Step 3: Create for each variant type column a separate type column (append at end), and retrieve data values
+    # Step 3.1: Create for each variant type column a separate type column (append at end), and retrieve data values
     # (and types for variant type columns).
     variant_type_typeof_identifiers = (
         ordered_dataframe.generate_snowflake_quoted_identifiers(
@@ -1383,10 +1396,36 @@ def snowpark_to_pandas_helper(
             [typeof(col(id)) for id in variant_type_identifiers],
         )
 
+    # Step 3.2: cast timestamp_tz to string to preserve their original timezone offsets
+    timestamp_tz_identifiers = [
+        info[0]
+        for info in columns_info
+        if info[1] == TimestampType(TimestampTimeZone.TZ)
+    ]
+    timestamp_tz_str_identifiers = (
+        ordered_dataframe.generate_snowflake_quoted_identifiers(
+            pandas_labels=[
+                f"{unquote_name_if_quoted(id)}_str" for id in timestamp_tz_identifiers
+            ],
+            excluded=column_identifiers,
+        )
+    )
+    if len(timestamp_tz_identifiers):
+        ordered_dataframe = append_columns(
+            ordered_dataframe,
+            timestamp_tz_str_identifiers,
+            [
+                to_char(col(id), format="YYYY-MM-DD HH24:MI:SS.FF9 TZHTZM")
+                for id in timestamp_tz_identifiers
+            ],
+        )
+
     # ensure that snowpark_df has unique identifiers, so the native pandas DataFrame object created here
     # also does have unique column names which is a prerequisite for the post-processing logic following.
     assert is_duplicate_free(
-        column_identifiers + variant_type_typeof_identifiers
+        column_identifiers
+        + variant_type_typeof_identifiers
+        + timestamp_tz_str_identifiers
     ), "Snowpark DataFrame to convert must have unique column identifiers"
     pandas_df = ordered_dataframe.to_pandas(statement_params=statement_params, **kwargs)
 
@@ -1399,7 +1438,9 @@ def snowpark_to_pandas_helper(
             # Step 3a: post-process variant type columns, if any exist.
             id_to_label_mapping = dict(
                 zip(
-                    column_identifiers + variant_type_typeof_identifiers,
+                    column_identifiers
+                    + variant_type_typeof_identifiers
+                    + timestamp_tz_str_identifiers,
                     pandas_df.columns,
                 )
             )
@@ -1438,6 +1479,25 @@ def snowpark_to_pandas_helper(
                         id_to_label_mapping[quoted_name]
                     ].apply(lambda value: None if value is None else json.loads(value))
 
+        # Convert timestamp_tz in string back to datetime64tz.
+        if any(
+            dtype == TimestampType(TimestampTimeZone.TZ) for (_, dtype) in columns_info
+        ):
+            id_to_label_mapping = dict(
+                zip(
+                    column_identifiers
+                    + variant_type_typeof_identifiers
+                    + timestamp_tz_str_identifiers,
+                    pandas_df.columns,
+                )
+            )
+            for ts_id, ts_str_id in zip(
+                timestamp_tz_identifiers, timestamp_tz_str_identifiers
+            ):
+                pandas_df[id_to_label_mapping[ts_id]] = native_pd.to_datetime(
+                    pandas_df[id_to_label_mapping[ts_str_id]]
+                )
+
     # Step 5. Return the original amount of columns by stripping any typeof(...) columns appended if
     # schema contained VariantType.
     downcast_pandas_df = pandas_df[pandas_df.columns[: len(columns_info)]]
@@ -1459,9 +1519,15 @@ def snowpark_to_pandas_helper(
             downcast_pandas_df.columns, cached_snowpark_pandas_types
         ):
             if snowpark_pandas_type is not None and snowpark_pandas_type == timedelta_t:
-                downcast_pandas_df[pandas_label] = pandas_df[pandas_label].apply(
-                    convert_str_to_timedelta
-                )
+                # By default, pandas warns, "A value is trying to be set on a
+                # copy of a slice from a DataFrame" here because we are
+                # assigning a column to downcast_pandas_df, which is a copy of
+                # a slice of pandas_df. We don't care what happens to pandas_df,
+                # so the warning isn't useful to us.
+                with native_pd.option_context("mode.chained_assignment", None):
+                    downcast_pandas_df[pandas_label] = pandas_df[pandas_label].apply(
+                        convert_str_to_timedelta
+                    )
 
     # Step 7. postprocessing for return types
     if index_only:
@@ -1492,7 +1558,11 @@ def snowpark_to_pandas_helper(
             # multiple timezones. So here we cast the index to the index_type when ret = pd.Index(...) above cannot
             # figure out a non-object dtype. Note that the index_type is a logical type may not be 100% accurate.
             if is_object_dtype(ret.dtype) and not is_object_dtype(index_type):
-                ret = ret.astype(index_type)
+                # TODO: SNOW-1657460 fix index_type for timestamp_tz
+                try:
+                    ret = ret.astype(index_type)
+                except ValueError:  # e.g., Tz-aware datetime.datetime cannot be converted to datetime64
+                    pass
             return ret
 
     # to_pandas() does not preserve the index information and will just return a
