@@ -73,6 +73,18 @@ class Profiler:
         self.stage = stage
         self._prepare_sql()
         if self.session is not None:
+            if (
+                len(self.session.sql(f"show stages like '{self.stage}'").collect()) == 0
+                and len(
+                    self.session.sql(
+                        f"show stages like '{self.stage.split('.')[-1]}'"
+                    ).collect()
+                )
+                == 0
+            ):
+                self.session.sql(
+                    f"create temp stage {self.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
+                ).collect()
             self._set_targeted_stage()
 
     def set_active_profiler(self, active_profiler: str):
@@ -133,7 +145,7 @@ class Profiler:
             This function must be called right after the execution of stored procedure you want to profile.
         """
         query_id = self._get_last_query_id()
-        sql = f"select snowflake.core.get_python_profiler_output('{query_id}');"
+        sql = f"select snowflake.core.get_python_profiler_output('{query_id}')"
         res = self.session.sql(sql).collect()
         print(res[0][0])  # noqa: T201: we need to print here.
         return res[0][0]
@@ -149,7 +161,7 @@ class Profiler:
             dst_file: String of file name that you want to store the profiles.
         """
         query_id = self._get_last_query_id()
-        sql = f"select snowflake.core.get_python_profiler_output('{query_id}');"
+        sql = f"select snowflake.core.get_python_profiler_output('{query_id}')"
         res = self.session.sql(sql).collect()
         with open(dst_file, "w") as f:
             f.write(str(res[0][0]))
@@ -167,6 +179,20 @@ def profiler(
     internal_profiler.query_history = session.query_history()
     modules = modules or []
     try:
+        # create stage if not exist
+        if (
+            len(session.sql(f"show stages like '{internal_profiler.stage}'").collect())
+            == 0
+            and len(
+                session.sql(
+                    f"show stages like '{internal_profiler.stage.split('.')[-1]}'"
+                ).collect()
+            )
+            == 0
+        ):
+            session.sql(
+                f"create temp stage {internal_profiler.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
+            ).collect()
         # set up phase
         internal_profiler._set_targeted_stage()
         internal_profiler._set_active_profiler()

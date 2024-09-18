@@ -10,13 +10,16 @@ from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.profiler import Profiler, profiler
 from tests.utils import Utils
 
-tmp_stage_name = Utils.random_stage_name()
+
+@pytest.fixture(scope="function")
+def tmp_stage_name():
+    tmp_stage_name = Utils.random_stage_name()
+    yield tmp_stage_name
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def setup(profiler_session, resources_path, local_testing_mode):
     if not local_testing_mode:
-        Utils.create_stage(profiler_session, tmp_stage_name, is_temporary=True)
         profiler_session.add_packages("snowflake-snowpark-python")
 
 
@@ -24,9 +27,9 @@ def setup(profiler_session, resources_path, local_testing_mode):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_profiler_with_context_manager(profiler_session, db_parameters):
+def test_profiler_with_context_manager(profiler_session, db_parameters, tmp_stage_name):
     @sproc(name="table_sp", replace=True)
-    def table_sp(session: snowflake.snowpark.session) -> DataFrame:
+    def table_sp(session: snowflake.snowpark.Session) -> DataFrame:
         return session.sql("select 1")
 
     profiler_session.register_profiler_modules(["table_sp"])
@@ -39,7 +42,6 @@ def test_profiler_with_context_manager(profiler_session, db_parameters):
         res = profiler_session.show_profiles()
     profiler_session.register_profiler_modules([])
     assert res is not None
-    print(type(res))
     assert "Modules Profiled" in res
 
 
@@ -47,11 +49,11 @@ def test_profiler_with_context_manager(profiler_session, db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_profiler_with_profiler_class(profiler_session, db_parameters):
+def test_profiler_with_profiler_class(profiler_session, db_parameters, tmp_stage_name):
     another_tmp_stage_name = Utils.random_stage_name()
 
     @sproc(name="table_sp", replace=True)
-    def table_sp(session: snowflake.snowpark.session) -> DataFrame:
+    def table_sp(session: snowflake.snowpark.Session) -> DataFrame:
         return session.sql("select 1")
 
     pro = Profiler()
@@ -82,9 +84,9 @@ def test_profiler_with_profiler_class(profiler_session, db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_single_return_value_of_sp(profiler_session, db_parameters):
+def test_single_return_value_of_sp(profiler_session, db_parameters, tmp_stage_name):
     @sproc(name="single_value_sp", replace=True)
-    def single_value_sp(session: snowflake.snowpark.profiler_session) -> str:
+    def single_value_sp(session: snowflake.snowpark.Session) -> str:
         return "success"
 
     profiler_session.register_profiler_modules(["table_sp"])
@@ -104,8 +106,8 @@ def test_single_return_value_of_sp(profiler_session, db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_anonymous_procedure(profiler_session, db_parameters):
-    def single_value_sp(session: snowflake.snowpark.profiler_session) -> str:
+def test_anonymous_procedure(profiler_session, db_parameters, tmp_stage_name):
+    def single_value_sp(session: snowflake.snowpark.Session) -> str:
         return "success"
 
     single_value_sp = profiler_session.sproc.register(single_value_sp, anonymous=True)
@@ -165,10 +167,10 @@ def test_set_incorrect_active_profiler():
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_dump_profile_to_file(profiler_session, db_parameters, tmpdir):
+def test_dump_profile_to_file(profiler_session, db_parameters, tmpdir, tmp_stage_name):
     file = tmpdir.join("profile.lprof")
 
-    def single_value_sp(session: snowflake.snowpark.profiler_session) -> str:
+    def single_value_sp(session: snowflake.snowpark.Session) -> str:
         return "success"
 
     single_value_sp = profiler_session.sproc.register(single_value_sp, anonymous=True)

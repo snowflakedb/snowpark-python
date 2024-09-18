@@ -3463,9 +3463,19 @@ class Session:
         """Register a profiler to current session, all action are actually executed during this function"""
         self.profiler = profiler
         self.profiler.session = self
-        if len(self.sql(f"show stages like '{profiler.stage}'").collect()) == 0:
+        self.sql(f"show stages like '{profiler.stage}'").show()
+        self.sql(f"show stages like '{profiler.stage.split('.')[-1]}'").show()
+        if (
+            len(self.sql(f"show stages like '{profiler.stage}'").collect()) == 0
+            and len(
+                self.sql(
+                    f"show stages like '{profiler.stage.split('.')[-1]}'"
+                ).collect()
+            )
+            == 0
+        ):
             self.sql(
-                f"create or replace temp stage {profiler.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
+                f"create temp stage {profiler.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
             ).collect()
         self.profiler._register_modules()
         self.profiler._set_targeted_stage()
