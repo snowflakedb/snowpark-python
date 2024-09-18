@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 from collections.abc import Hashable
-from typing import Union
+from typing import Optional, Union
 
 import pandas as native_pd
 from modin.core.dataframe.algebra.default2pandas import DataFrameDefault  # type: ignore
@@ -12,6 +12,9 @@ from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
     OrderingColumn,
+)
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    SnowparkPandasType,
 )
 from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
     UnpivotResultInfo,
@@ -108,6 +111,73 @@ def prepare_and_unpivot_for_transpose(
     )
 
 
+def _convert_transpose_result_snowpark_pandas_column_labels_to_pandas(
+    pandas_label: Union[Hashable, tuple[Hashable]],
+    cached_types: list[Optional[SnowparkPandasType]],
+) -> Union[Hashable, tuple[Hashable]]:
+    """
+    Convert a transpose result's SnowparkPandasType column labels, if they exist, to pandas.
+
+    When we transpose a frame where the type of at least one level of the index
+    is a SnowparkPandasType, the intermediate transpose result for each column
+    uses the Snowpark representation of the row label rather than the Snowpark
+    pandas representation. For example, if a row has pandas label
+    pd.Timedelta(7), then that row's label in Snowpark is the number 7, so the
+    intermediate transpose result would have a column named 7 instead of
+    pd.Timedelta(7). This method uses the index types of the original frame to
+    fix the pandas labels of column levels that come from SnowparkPandasType
+    index levels.
+
+    Examples
+    --------
+
+    >>> from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import TimedeltaType
+
+
+    Transposing a frame with a single timedelta index level:
+
+    >>> _convert_transpose_result_snowpark_pandas_column_labels_to_pandas(native_pd.Timedelta(1), [TimedeltaType()])
+    Timedelta('0 days 00:00:00.000000001')
+
+    Transposing a frame with a timedelta index level and a string level:
+
+    >>> _convert_transpose_result_snowpark_pandas_column_labels_to_pandas(("a", native_pd.Timedelta(1)), [None, TimedeltaType()])
+    ('a', Timedelta('0 days 00:00:00.000000001'))
+
+    >>>
+
+    Args
+    ----
+        pandas_label: transpose result label. This is a tuple if the result has
+                      multiple column levels.
+        cached_types: SnowparkPandasType for each index level of the original
+                      frame.
+
+    Returns
+    -------
+        The pandas label with levels that are instances of SnowparkPandasType
+        converted to the corresponding pandas type.
+    """
+    if isinstance(pandas_label, tuple):
+        return tuple(
+            (
+                index_type.to_pandas(level_label)
+                if index_type is not None
+                else level_label
+            )
+            for index_type, level_label in zip(cached_types, pandas_label)
+        )
+    assert len(cached_types) == 1, (
+        "Internal error: If the transpose result has a single column level, "
+        + "then the input should have a single index level with a single "
+        + "SnowparkPandasType."
+    )
+    cached_type = cached_types[0]
+    return (
+        cached_type.to_pandas(pandas_label) if cached_type is not None else pandas_label
+    )
+
+
 def clean_up_transpose_result_index_and_labels(
     original_frame: InternalFrame,
     ordered_transposed_df: OrderedDataFrame,
@@ -179,8 +249,10 @@ def clean_up_transpose_result_index_and_labels(
 
     # If it's a single level, we store the label, otherwise we store tuple for each level.
     new_data_column_pandas_labels = [
-        data_column_object_identifier[0]
-        for data_column_object_identifier, _ in data_column_object_identifier_pairs
+        _convert_transpose_result_snowpark_pandas_column_labels_to_pandas(
+            pandas_label, original_frame.cached_index_column_snowpark_pandas_types
+        )
+        for (pandas_label, _), _ in data_column_object_identifier_pairs
     ]
 
     new_data_column_snowflake_quoted_identifiers = [
