@@ -345,6 +345,7 @@ class TelemetryClient:
                 TelemetryField.KEY_CATEGORY.value: TelemetryField.PERF_CAT_UPLOAD_FILE.value,
                 TelemetryField.KEY_FUNC_NAME.value: func_name,
                 TelemetryField.KEY_DURATION.value: duration,
+                TelemetryField.THREAD_IDENTIFIER.value: threading.get_ident(),
             },
         }
         self.send(message)
