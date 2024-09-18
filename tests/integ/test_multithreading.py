@@ -189,3 +189,9 @@ def test_file_io(session, resources_path, temp_stage, use_stream):
         with ThreadPoolExecutor(max_workers=10) as executor:
             for file_path in resources_files:
                 executor.submit(put_and_get_file, file_path, download_dir)
+
+        if not use_stream:
+            # assert all files are downloaded
+            assert set(os.listdir(download_dir)) == {
+                os.path.basename(file_path) for file_path in resources_files
+            }
