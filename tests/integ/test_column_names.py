@@ -8,8 +8,7 @@ from typing import List, Optional
 
 import pytest
 
-from snowflake.snowpark import Column, Row, Session, Window
-from snowflake.snowpark._internal.analyzer.expression import Interval
+from snowflake.snowpark import Row, Session, Window
 from snowflake.snowpark._internal.utils import TempObjectType, quote_name
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import (
@@ -25,6 +24,7 @@ from snowflake.snowpark.functions import (
     lead,
     listagg,
     lit,
+    make_interval,
     rank,
     upper,
     when,
@@ -385,19 +385,17 @@ def test_interval(session):
     )
     df2 = df1.select(
         df1["a"]
-        + Column(
-            Interval(
-                quarter=1,
-                month=1,
-                week=2,
-                day=2,
-                hour=2,
-                minute=3,
-                second=3,
-                millisecond=3,
-                microsecond=4,
-                nanosecond=4,
-            )
+        + make_interval(
+            quarters=1,
+            months=1,
+            weeks=2,
+            days=2,
+            hours=2,
+            minutes=3,
+            seconds=3,
+            milliseconds=3,
+            microseconds=4,
+            nanoseconds=4,
         )
     )
     verify_column_result(
