@@ -74,7 +74,7 @@ def test_query_history_multiple_actions(session):
     with session.query_history(True) as query_history:
         df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
         df = df.filter(df.a == 1)
-        res = df.collect()
+        df.collect()
 
     assert len(query_history.queries) == 3
     assert query_history.queries[0].is_describe
