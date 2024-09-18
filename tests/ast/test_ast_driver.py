@@ -355,17 +355,11 @@ def override_time_zone(tz_name: str = "America/New_York") -> None:
 
         # Use direct msvcrt.dll override (only for this process, does not work for child processes).
         # cf. https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/tzset?view=msvc-170
-        from ctypes import cdll
+        from tzlocal import get_localzone
 
-        from tzlocal import get_localzone, reload_localzone
-
-        logging.debug(f"Windows: tzlocal={get_localzone()}")
-
-        logging.debug(f"Modifying env with TZ={tz_code}")
-        cdll.msvcrt._putenv(f"TZ={tz_code}")
-        cdll.msvcrt._tzset()
-        reload_localzone()
-        logging.debug(f"Windows: tzlocal={get_localzone()}")
+        logging.debug(
+            f"Windows: tzlocal={get_localzone()} TZ={env_tz}, will be using TZ when encoding for AST."
+        )
 
     tz_name = datetime.datetime.now(tzlocal()).tzname()
     logging.debug(f"Local time zone is now: {tz_name}.")

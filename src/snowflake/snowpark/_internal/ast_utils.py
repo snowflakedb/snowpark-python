@@ -5,12 +5,16 @@ import ast
 import datetime
 import decimal
 import inspect
+import logging
+import os
+import platform
 import sys
 from functools import reduce
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
+import pytz
 from dateutil.tz import tzlocal
 
 import snowflake.snowpark
@@ -170,8 +174,25 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
         else:
             # tzinfo=None means that the local timezone will be used.
             # Retrieve name of the local timezone and encode as part of the AST.
-            ast.tz.offset_seconds = int(tzlocal().utcoffset(obj).total_seconds())
-            tz_name = datetime.datetime.now(tzlocal()).tzname()
+            if platform.system() == "Windows":
+                # Windows is a special case, msvcrt is broken so timezones are not properly propagated. Relying on
+                # environment variable for test. Cf. override_time_zone in test_ast_driver.py for details.
+                tz_env = os.environ.get("TZ")
+                if tz_env:
+                    tz = pytz.timezone(tz_env)
+                    tz_name = tz.tzname(datetime.datetime.now())
+                    ast.tz.offset_seconds = int(tz.utcoffset(obj).total_seconds())
+                else:
+                    logging.warn(
+                        "Assuming UTC timezone for Windows, but actual timezone may be different."
+                    )
+                    ast.tz.offset_seconds = int(
+                        tzlocal().utcoffset(obj).total_seconds()
+                    )
+                    tz_name = datetime.datetime.now(tzlocal()).tzname()
+            else:
+                ast.tz.offset_seconds = int(tzlocal().utcoffset(obj).total_seconds())
+                tz_name = datetime.datetime.now(tzlocal()).tzname()
             ast.tz.name.value = tz_name
 
         ast.year = obj.year
