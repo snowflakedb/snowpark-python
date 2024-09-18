@@ -31,6 +31,7 @@ class Profiler:
         self.enable_profiler_sql = ""
         self.disable_profiler_sql = ""
         self.set_active_profiler_sql = ""
+        self.pattern = r"WITH\s+.*?\s+AS\s+PROCEDURE\s+.*?\s+CALL\s+.*"
         self.session = session
         self._prepare_sql()
         self.query_history = None
@@ -83,7 +84,7 @@ class Profiler:
                 == 0
             ):
                 self.session.sql(
-                    f"create temp stage {self.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
+                    f"create temp stage if not exist {self.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
                 ).collect()
             self._set_targeted_stage()
 
@@ -128,11 +129,13 @@ class Profiler:
         """
         self.session.sql(self.disable_profiler_sql).collect()
 
+    def _is_sp_call(self, query):
+        return re.match(self.pattern, query, re.DOTALL) is not None
+
     def _get_last_query_id(self):
-        pattern = r"WITH\s+.*?\s+AS\s+PROCEDURE\s+.*?\s+CALL\s+.*"
         for query in self.query_history.queries[::-1]:
-            if query.sql_text.startswith("CALL") or re.match(
-                pattern, query.sql_text, re.DOTALL
+            if query.sql_text.upper().startswith("CALL") or self._is_sp_call(
+                query.sql_text
             ):
                 return query.query_id
         return None
@@ -191,7 +194,7 @@ def profiler(
             == 0
         ):
             session.sql(
-                f"create temp stage {internal_profiler.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
+                f"create temp stage if not exist {internal_profiler.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
             ).collect()
         # set up phase
         internal_profiler._set_targeted_stage()
