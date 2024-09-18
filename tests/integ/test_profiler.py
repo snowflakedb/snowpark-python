@@ -27,6 +27,17 @@ def setup(profiler_session, resources_path, local_testing_mode):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+def test_profiler_function_exist(profiler_session):
+    res = profiler_session.sql(
+        "show functions like 'GET_PYTHON_PROFILER_OUTPUT' in snowflake.core"
+    ).collect()
+    assert len(res) != 0
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
 def test_profiler_with_context_manager(profiler_session, db_parameters, tmp_stage_name):
     @sproc(name="table_sp", replace=True)
     def table_sp(session: snowflake.snowpark.Session) -> DataFrame:
