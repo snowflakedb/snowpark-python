@@ -231,6 +231,37 @@ def test_merge_asof_left_right_on(
     assert_snowpark_pandas_equal_to_pandas(snow_output, native_output)
 
 
+@allow_exact_matches
+@direction
+@sql_count_checker(query_count=1, join_count=1)
+def test_merge_asof_left_right_index(allow_exact_matches, direction):
+    native_left = native_pd.DataFrame({"left_val": ["a", "b", "c"]}, index=[1, 5, 10])
+    native_right = native_pd.DataFrame(
+        {"right_val": [1, 2, 3, 6, 7]}, index=[1, 2, 3, 6, 7]
+    )
+
+    snow_left = pd.DataFrame(native_left)
+    snow_right = pd.DataFrame(native_right)
+
+    native_output = native_pd.merge_asof(
+        native_left,
+        native_right,
+        left_index=True,
+        right_index=True,
+        direction=direction,
+        allow_exact_matches=allow_exact_matches,
+    )
+    snow_output = pd.merge_asof(
+        snow_left,
+        snow_right,
+        left_index=True,
+        right_index=True,
+        direction=direction,
+        allow_exact_matches=allow_exact_matches,
+    )
+    assert_snowpark_pandas_equal_to_pandas(snow_output, native_output)
+
+
 @pytest.mark.parametrize("by", ["ticker", ["ticker"]])
 @sql_count_checker(query_count=1, join_count=1)
 def test_merge_asof_by(left_right_timestamp_data, by):
@@ -399,15 +430,7 @@ def test_merge_asof_params_unsupported(left_right_timestamp_data):
         NotImplementedError,
         match=(
             "Snowpark pandas merge_asof method does not currently support parameters "
-            + "'left_index', 'right_index', 'suffixes', or 'tolerance'"
-        ),
-    ):
-        pd.merge_asof(left_snow_df, right_snow_df, left_index=True, right_index=True)
-    with pytest.raises(
-        NotImplementedError,
-        match=(
-            "Snowpark pandas merge_asof method does not currently support parameters "
-            + "'left_index', 'right_index', 'suffixes', or 'tolerance'"
+            + "'suffixes', or 'tolerance'"
         ),
     ):
         pd.merge_asof(
@@ -420,7 +443,7 @@ def test_merge_asof_params_unsupported(left_right_timestamp_data):
         NotImplementedError,
         match=(
             "Snowpark pandas merge_asof method does not currently support parameters "
-            + "'left_index', 'right_index', 'suffixes', or 'tolerance'"
+            + "'suffixes', or 'tolerance'"
         ),
     ):
         pd.merge_asof(

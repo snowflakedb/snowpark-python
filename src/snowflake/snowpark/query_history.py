@@ -12,6 +12,7 @@ class QueryRecord(NamedTuple):
 
     query_id: str
     sql_text: str
+    is_describe: bool = False
 
 
 class QueryHistory:
@@ -21,9 +22,14 @@ class QueryHistory:
         :meth:`snowflake.snowpark.Session.query_history`.
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+    def __init__(
+        self,
+        session: "snowflake.snowpark.session.Session",
+        include_describe: bool = False,
+    ) -> None:
         self.session = session
         self._queries: List[QueryRecord] = []
+        self._include_describe = include_describe
 
     def __enter__(self):
         return self
@@ -37,3 +43,7 @@ class QueryHistory:
     @property
     def queries(self) -> List[QueryRecord]:
         return self._queries
+
+    @property
+    def include_describe(self) -> bool:
+        return self._include_describe
