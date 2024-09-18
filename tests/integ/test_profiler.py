@@ -14,30 +14,30 @@ tmp_stage_name = Utils.random_stage_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path, local_testing_mode):
+def setup(profiler_session, resources_path, local_testing_mode):
     if not local_testing_mode:
-        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-        session.add_packages("snowflake-snowpark-python")
+        Utils.create_stage(profiler_session, tmp_stage_name, is_temporary=True)
+        profiler_session.add_packages("snowflake-snowpark-python")
 
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_profiler_with_context_manager(session, db_parameters):
+def test_profiler_with_context_manager(profiler_session, db_parameters):
     @sproc(name="table_sp", replace=True)
-    def table_sp(session: snowflake.snowpark.Session) -> DataFrame:
-        return session.sql("select 1")
+    def table_sp(profiler_session: snowflake.snowpark.profiler_session) -> DataFrame:
+        return profiler_session.sql("select 1")
 
-    session.register_profiler_modules(["table_sp"])
+    profiler_session.register_profiler_modules(["table_sp"])
     with profiler(
         stage=f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}",
         active_profiler="LINE",
-        session=session,
+        session=profiler_session,
     ):
-        session.call("table_sp").collect()
-        res = session.show_profiles()
-    session.register_profiler_modules([])
+        profiler_session.call("table_sp").collect()
+        res = profiler_session.show_profiles()
+    profiler_session.register_profiler_modules([])
     assert res is not None
     print(type(res))
     assert "Modules Profiled" in res
@@ -47,12 +47,12 @@ def test_profiler_with_context_manager(session, db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_profiler_with_profiler_class(session, db_parameters):
+def test_profiler_with_profiler_class(profiler_session, db_parameters):
     another_tmp_stage_name = Utils.random_stage_name()
 
     @sproc(name="table_sp", replace=True)
-    def table_sp(session: snowflake.snowpark.Session) -> DataFrame:
-        return session.sql("select 1")
+    def table_sp(profiler_session: snowflake.snowpark.profiler_session) -> DataFrame:
+        return profiler_session.sql("select 1")
 
     pro = Profiler()
     pro.register_profiler_modules(["table_sp"])
@@ -60,7 +60,7 @@ def test_profiler_with_profiler_class(session, db_parameters):
     pro.set_targeted_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
     )
-    session.register_profiler(pro)
+    profiler_session.register_profiler(pro)
 
     pro.set_targeted_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{another_tmp_stage_name}"
@@ -68,8 +68,8 @@ def test_profiler_with_profiler_class(session, db_parameters):
 
     pro.enable_profiler()
 
-    session.call("table_sp").collect()
-    res = session.show_profiles()
+    profiler_session.call("table_sp").collect()
+    res = profiler_session.show_profiles()
 
     pro.disable_profiler()
 
@@ -82,20 +82,20 @@ def test_profiler_with_profiler_class(session, db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_single_return_value_of_sp(session, db_parameters):
+def test_single_return_value_of_sp(profiler_session, db_parameters):
     @sproc(name="single_value_sp", replace=True)
-    def single_value_sp(session: snowflake.snowpark.Session) -> str:
+    def single_value_sp(profiler_session: snowflake.snowpark.profiler_session) -> str:
         return "success"
 
-    session.register_profiler_modules(["table_sp"])
+    profiler_session.register_profiler_modules(["table_sp"])
     with profiler(
         stage=f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}",
         active_profiler="LINE",
-        session=session,
+        session=profiler_session,
     ):
-        session.call("single_value_sp")
-        res = session.show_profiles()
-    session.register_profiler_modules([])
+        profiler_session.call("single_value_sp")
+        res = profiler_session.show_profiles()
+    profiler_session.register_profiler_modules([])
     assert res is not None
     assert "Modules Profiled" in res
 
@@ -104,36 +104,36 @@ def test_single_return_value_of_sp(session, db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_anonymous_procedure(session, db_parameters):
-    def single_value_sp(session: snowflake.snowpark.Session) -> str:
+def test_anonymous_procedure(profiler_session, db_parameters):
+    def single_value_sp(profiler_session: snowflake.snowpark.profiler_session) -> str:
         return "success"
 
-    single_value_sp = session.sproc.register(single_value_sp, anonymous=True)
-    session.register_profiler_modules(["table_sp"])
+    single_value_sp = profiler_session.sproc.register(single_value_sp, anonymous=True)
+    profiler_session.register_profiler_modules(["table_sp"])
     with profiler(
         stage=f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}",
         active_profiler="LINE",
-        session=session,
+        session=profiler_session,
     ):
         single_value_sp()
-        res = session.show_profiles()
-    session.register_profiler_modules([])
+        res = profiler_session.show_profiles()
+    profiler_session.register_profiler_modules([])
     assert res is not None
     assert "Modules Profiled" in res
 
 
-def test_not_set_profiler_error(session, tmpdir):
+def test_not_set_profiler_error(profiler_session, tmpdir):
     with pytest.raises(ValueError) as e:
-        session.show_profiles()
+        profiler_session.show_profiles()
     assert (
-        "profiler is not set, use session.register_profiler or profiler context manager"
+        "profiler is not set, use profiler_session.register_profiler or profiler context manager"
         in str(e)
     )
 
     with pytest.raises(ValueError) as e:
-        session.dump_profiles(tmpdir.join("file.txt"))
+        profiler_session.dump_profiles(tmpdir.join("file.txt"))
     assert (
-        "profiler is not set, use session.register_profiler or profiler context manager"
+        "profiler is not set, use profiler_session.register_profiler or profiler context manager"
         in str(e)
     )
 
@@ -142,11 +142,13 @@ def test_not_set_profiler_error(session, tmpdir):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_register_module_without_profiler(session, db_parameters):
-    session.register_profiler_modules(["fake_module"])
-    res = session.sql("show parameters like 'python_profiler_modules'").collect()
+def test_register_module_without_profiler(profiler_session, db_parameters):
+    profiler_session.register_profiler_modules(["fake_module"])
+    res = profiler_session.sql(
+        "show parameters like 'python_profiler_modules'"
+    ).collect()
     assert res[0].value == "fake_module"
-    session.register_profiler_modules([])
+    profiler_session.register_profiler_modules([])
 
 
 def test_set_incorrect_active_profiler():
@@ -163,21 +165,21 @@ def test_set_incorrect_active_profiler():
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_dump_profile_to_file(session, db_parameters, tmpdir):
+def test_dump_profile_to_file(profiler_session, db_parameters, tmpdir):
     file = tmpdir.join("profile.lprof")
 
-    def single_value_sp(session: snowflake.snowpark.Session) -> str:
+    def single_value_sp(profiler_session: snowflake.snowpark.profiler_session) -> str:
         return "success"
 
-    single_value_sp = session.sproc.register(single_value_sp, anonymous=True)
-    session.register_profiler_modules(["table_sp"])
+    single_value_sp = profiler_session.sproc.register(single_value_sp, anonymous=True)
+    profiler_session.register_profiler_modules(["table_sp"])
     with profiler(
         stage=f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}",
         active_profiler="LINE",
-        session=session,
+        session=profiler_session,
     ):
         single_value_sp()
-        session.dump_profiles(file)
-    session.register_profiler_modules([])
+        profiler_session.dump_profiles(file)
+    profiler_session.register_profiler_modules([])
     with open(file) as f:
         assert "Modules Profiled" in f.read()
