@@ -3358,7 +3358,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # Do not show warning for 'quicksort' as this the default option.
             if kind not in ("stable", "quicksort"):
                 logging.warning(
-                    f"choice of sort algorithm '{kind}' is ignored. sort kind must be 'stable' or None"
+                    f"choice of sort algorithm '{kind}' is ignored. sort kind must be 'stable', 'quicksort', or None"
                 )
 
         matched_identifiers = (
