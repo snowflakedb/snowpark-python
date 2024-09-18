@@ -8,6 +8,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import (
@@ -63,15 +64,15 @@ def test_dataframe_transpose_set_single_index(
 
 
 @pytest.mark.parametrize(
-    "transpose_operation, expected_query_count",
+    "operation",
     [
-        (lambda df: df.T, 1),
-        pytest.param(
+        param(lambda df: df.T, id="transpose_once"),
+        param(
             lambda df: df.T.T,
-            1,
             marks=pytest.mark.xfail(
                 raises=NotImplementedError, strict=True, reason="SNOW-886400"
             ),
+            id="transpose_twice",
         ),
     ],
 )
@@ -89,12 +90,11 @@ def test_dataframe_transpose_set_single_index(
     ],
 )
 def test_dataframe_transpose_set_timedelta_index_SNOW_1652608(
-    transpose_operation, expected_query_count, score_test_data, index
+    operation, score_test_data, index
 ):
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
-            *create_test_dfs(score_test_data),
-            lambda df: transpose_operation(df.set_index(index))
+            *create_test_dfs(score_test_data), lambda df: operation(df.set_index(index))
         )
 
 

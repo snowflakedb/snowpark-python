@@ -128,6 +128,18 @@ def _convert_transpose_result_snowpark_pandas_column_labels_to_pandas(
     fix the pandas labels of column levels that come from SnowparkPandasType
     index levels.
 
+    Args
+    ----
+        pandas_label: transpose result label. This is a tuple if the result has
+                      multiple column levels.
+        cached_types: SnowparkPandasType for each index level of the original
+                      frame.
+
+    Returns
+    -------
+        The pandas label with levels that are instances of SnowparkPandasType
+        converted to the corresponding pandas type.
+
     Examples
     --------
 
@@ -144,19 +156,6 @@ def _convert_transpose_result_snowpark_pandas_column_labels_to_pandas(
     >>> _convert_transpose_result_snowpark_pandas_column_labels_to_pandas(("a", native_pd.Timedelta(1)), [None, TimedeltaType()])
     ('a', Timedelta('0 days 00:00:00.000000001'))
 
-    >>>
-
-    Args
-    ----
-        pandas_label: transpose result label. This is a tuple if the result has
-                      multiple column levels.
-        cached_types: SnowparkPandasType for each index level of the original
-                      frame.
-
-    Returns
-    -------
-        The pandas label with levels that are instances of SnowparkPandasType
-        converted to the corresponding pandas type.
     """
     if isinstance(pandas_label, tuple):
         return tuple(
