@@ -2,7 +2,7 @@
 Input/Output
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.pandas
+.. currentmodule:: modin.pandas
 
 .. rubric:: Flat file
 
