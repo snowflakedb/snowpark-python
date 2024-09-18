@@ -110,7 +110,6 @@ from modin.pandas import (  # don't import stuff defined in pd_overrides
 )
 from modin.pandas.api.extensions import (
     register_dataframe_accessor,
-    register_pd_accessor,
     register_series_accessor,
 )
 from modin.pandas.dataframe import DataFrame
@@ -246,11 +245,10 @@ _io_functions = [
     "read_orc",
 ]
 for attr_name in _io_functions:
-    register_pd_accessor(attr_name)(
-        snowpark_pandas_telemetry_standalone_function_decorator(
-            getattr(modin.pandas, attr_name)
-        )
+    telemtry_fn = snowpark_pandas_telemetry_standalone_function_decorator(
+        getattr(modin.pandas, attr_name)
     )
+    _PD_EXTENSIONS_[attr_name] = telemtry_fn
 
 
 def __getattr__(name: str) -> Any:
@@ -401,8 +399,6 @@ _SKIP_TOP_LEVEL_ATTRS = [
     # would override register_pd_accessor and similar methods defined in our own modin.pandas.extensions
     # module.
     "api",
-    # We're already using the upstream copy of the Series class, so there's no need to re-export it.
-    "Series",
 ]
 
 # Manually re-export the members of the pd_extensions namespace, which are not declared in __all__.
