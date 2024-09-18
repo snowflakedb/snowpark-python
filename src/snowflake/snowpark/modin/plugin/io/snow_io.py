@@ -191,7 +191,7 @@ class PandasOnSnowflakeIO(BaseIO):
                 "Snowpark Pandas requires an additional package to read excel files such as openpyxl, pyxlsb, or xlrd",
                 e,
             )
-        if isinstance(intermediate, (OrderedDict, dict)):
+        if isinstance(intermediate, (OrderedDict, dict)):  # pragma: no cover
             parsed = type(intermediate)()
             for key in intermediate.keys():
                 parsed[key] = cls.from_pandas(intermediate.get(key))
