@@ -601,7 +601,6 @@ class Session:
         )
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
-        self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         _logger.info("Snowpark Session information: %s", self._session_info)
@@ -1710,8 +1709,8 @@ class Session:
 
         try:
             # Setup a temporary directory and target folder where pip install will take place.
-            self._tmpdir_handler = tempfile.TemporaryDirectory()
-            tmpdir = self._tmpdir_handler.name
+            tmpdir_handler = tempfile.TemporaryDirectory()
+            tmpdir = tmpdir_handler.name
             target = os.path.join(tmpdir, "unsupported_packages")
             if not os.path.exists(target):
                 os.makedirs(target)
@@ -1796,9 +1795,7 @@ class Session:
                         for requirement in supported_dependencies + new_dependencies
                     ]
                 )
-                metadata_local_path = os.path.join(
-                    self._tmpdir_handler.name, metadata_file
-                )
+                metadata_local_path = os.path.join(tmpdir_handler.name, metadata_file)
                 with open(metadata_local_path, "w") as file:
                     for key, value in metadata.items():
                         file.write(f"{key},{value}\n")
@@ -1834,9 +1831,8 @@ class Session:
                 f"-third-party-packages-from-anaconda-in-a-udf."
             )
         finally:
-            if self._tmpdir_handler:
-                self._tmpdir_handler.cleanup()
-                self._tmpdir_handler = None
+            if tmpdir_handler:
+                tmpdir_handler.cleanup()
 
         return supported_dependencies + new_dependencies
 
@@ -3460,16 +3456,21 @@ class Session:
         set_api_call_source(df, "Session.flatten")
         return df
 
-    def query_history(self) -> QueryHistory:
+    def query_history(self, include_describe: bool = False) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
 
-        >>> with session.query_history() as query_history:
+        Args:
+            include_describe: Include query notifications for describe queries
+
+        >>> with session.query_history(True) as query_history:
         ...     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
         ...     df = df.filter(df.a == 1)
         ...     res = df.collect()
-        >>> assert len(query_history.queries) == 1
+        >>> assert len(query_history.queries) == 2
+        >>> assert query_history.queries[0].is_describe
+        >>> assert not query_history.queries[1].is_describe
         """
-        query_listener = QueryHistory(self)
+        query_listener = QueryHistory(self, include_describe)
         self._conn.add_query_listener(query_listener)
         return query_listener
 
