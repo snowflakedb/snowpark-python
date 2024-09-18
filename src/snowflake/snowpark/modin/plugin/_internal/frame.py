@@ -9,6 +9,7 @@ from types import MappingProxyType
 from typing import Any, Callable, NamedTuple, Optional, Union
 
 import pandas as native_pd
+from pandas import DatetimeTZDtype
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -30,6 +31,9 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
 )
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
     SnowparkPandasType,
+)
+from snowflake.snowpark.modin.plugin._internal.type_utils import (
+    _get_timezone_from_timestamp_tz,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
     DEFAULT_DATA_COLUMN_LABEL,
@@ -1472,6 +1476,18 @@ class InternalFrame:
             )
         )
         return self.rename_snowflake_identifiers(renamed_quoted_identifier_mapping)
+
+    def get_datetime64tz_from_timestamp_tz(
+        self, timestamp_tz_snowfalke_quoted_identifier: str
+    ) -> DatetimeTZDtype:
+        """
+        map a snowpark timestamp type to datetime64 type.
+        """
+
+        return _get_timezone_from_timestamp_tz(
+            self.ordered_dataframe._dataframe_ref.snowpark_dataframe,
+            timestamp_tz_snowfalke_quoted_identifier,
+        )
 
     # END: Internal Frame mutation APIs.
     ###########################################################################

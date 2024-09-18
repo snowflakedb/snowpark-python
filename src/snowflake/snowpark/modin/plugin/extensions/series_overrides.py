@@ -9,7 +9,7 @@ pandas, such as `Series.memory_usage`.
 
 from __future__ import annotations
 
-from typing import IO, Any, Callable, Hashable, Literal, Mapping, Sequence
+from typing import IO, Any, Callable, Hashable, Literal, Mapping, Sequence, get_args
 
 import modin.pandas as pd
 import numpy as np
@@ -27,17 +27,13 @@ from pandas._typing import (
     IndexKeyFunc,
     IndexLabel,
     Level,
+    NaPosition,
     Renamer,
     Scalar,
 )
-from pandas.api.types import (
-    is_datetime64_any_dtype,
-    is_string_dtype,
-    is_timedelta64_dtype,
-)
 from pandas.core.common import apply_if_callable, is_bool_indexer
 from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
-from pandas.util._validators import validate_bool_kwarg
+from pandas.util._validators import validate_ascending, validate_bool_kwarg
 
 from snowflake.snowpark.modin import pandas as spd  # noqa: F401
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
@@ -1182,10 +1178,9 @@ def dt(self):  # noqa: RT01, D200
     Accessor object for datetimelike properties of the Series values.
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    current_dtype = self.dtype
-    if not is_datetime64_any_dtype(current_dtype) and not is_timedelta64_dtype(
-        current_dtype
-    ):
+    if not self._query_compiler.is_datetime64_any_dtype(
+        idx=0, is_index=False
+    ) and not self._query_compiler.is_timedelta64_dtype(idx=0, is_index=False):
         raise AttributeError("Can only use .dt accessor with datetimelike values")
 
     from modin.pandas.series_utils import DatetimeProperties
@@ -1202,8 +1197,7 @@ def _str(self):  # noqa: RT01, D200
     Vectorized string functions for Series and Index.
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    current_dtype = self.dtype
-    if not is_string_dtype(current_dtype):
+    if not self._query_compiler.is_string_dtype(idx=0, is_index=False):
         raise AttributeError("Can only use .str accessor with string values!")
 
     from modin.pandas.series_utils import StringMethods
@@ -1538,7 +1532,6 @@ def sort_values(
     Sort by the values.
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    from modin.pandas.dataframe import DataFrame
 
     if is_list_like(ascending) and len(ascending) != 1:
         raise ValueError(f"Length of ascending ({len(ascending)}) must be 1 for Series")
@@ -1546,25 +1539,26 @@ def sort_values(
     if axis is not None:
         # Validate `axis`
         self._get_axis_number(axis)
+    # Validate inplace, ascending and na_position.
+    inplace = validate_bool_kwarg(inplace, "inplace")
+    ascending = validate_ascending(ascending)
+    if na_position not in get_args(NaPosition):
+        # Same error message as native pandas for invalid 'na_position' value.
+        raise ValueError(f"invalid na_position: {na_position}")
 
-    # When we convert to a DataFrame, the name is automatically converted to 0 if it
-    # is None, so we do this to avoid a KeyError.
-    by = self.name if self.name is not None else 0
-    result = (
-        DataFrame(self.copy())
-        .sort_values(
-            by=by,
-            ascending=ascending,
-            inplace=False,
-            kind=kind,
-            na_position=na_position,
-            ignore_index=ignore_index,
-            key=key,
-        )
-        .squeeze(axis=1)
+    # Convert 'ascending' to sequence if needed.
+    if not isinstance(ascending, Sequence):
+        ascending = [ascending]
+    result = self._query_compiler.sort_rows_by_column_values(
+        self._query_compiler.columns,
+        ascending,
+        kind,
+        na_position,
+        ignore_index,
+        key,
+        include_index=False,
     )
-    result.name = self.name
-    return self._create_or_update_from_compiler(result._query_compiler, inplace=inplace)
+    return self._create_or_update_from_compiler(result, inplace=inplace)
 
 
 # Upstream Modin defaults at the frontend layer.
