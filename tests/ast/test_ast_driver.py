@@ -16,10 +16,10 @@ import time
 from dataclasses import dataclass
 from typing import List, Union
 
+import dateutil
 import google.protobuf
 import pytest
 from dateutil.tz import tzlocal
-from pytz import timezone
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
@@ -326,7 +326,7 @@ def override_time_zone(tz_name: str = "America/New_York") -> None:
     # Use any time zone other than America/Los_Angeles and UTC, to minimize the
     # odds of tests passing by luck.
 
-    tz = timezone(tz_name)
+    tz = dateutil.tz.gettz(tz_name)
     tz_code = tz.tzname(datetime.datetime.now())
     logging.debug(f"Overriding time zone to {tz_name} ({tz_code}).")
 
@@ -349,9 +349,18 @@ def override_time_zone(tz_name: str = "America/New_York") -> None:
         )
 
         # Possible modification code (not working)
-        # from ctypes import cdll
-        # cdll.msvcrt._putenv(f"TZ={tz_code}")
-        # cdll.msvcrt._tzset()
+        logging.debug(
+            f"Windows current time (before msvcrt set): {datetime.datetime.now()}"
+        )
+
+        from ctypes import cdll
+
+        cdll.msvcrt._putenv(f"TZ={tz_code}")
+        cdll.msvcrt._tzset()
+
+        logging.debug(
+            f"Windows current time (after msvcrt set): {datetime.datetime.now()}"
+        )
 
         # Use direct msvcrt.dll override (only for this process, does not work for child processes).
         # cf. https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/tzset?view=msvc-170

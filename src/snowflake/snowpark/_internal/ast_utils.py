@@ -14,7 +14,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
-import pytz
+import dateutil
 from dateutil.tz import tzlocal
 
 import snowflake.snowpark
@@ -179,7 +179,7 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
                 # environment variable for test. Cf. override_time_zone in test_ast_driver.py for details.
                 tz_env = os.environ.get("TZ")
                 if tz_env:
-                    tz = pytz.timezone(tz_env)
+                    tz = dateutil.tz.gettz(tz_env)
                     tz_name = tz.tzname(datetime.datetime.now())
                     ast.tz.offset_seconds = int(tz.utcoffset(obj).total_seconds())
                 else:
