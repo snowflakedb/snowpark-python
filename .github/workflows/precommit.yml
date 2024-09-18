@@ -289,6 +289,7 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+          TZ: EDT
         shell: bash
 
   test-enable-cte-optimization:
