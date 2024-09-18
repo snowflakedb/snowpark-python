@@ -924,7 +924,7 @@ class _LocIndexer(_LocationIndexerBase):
         row_loc, col_loc = self._parse_get_row_and_column_locators(key)
         row_loc = self._try_partial_string_indexing(row_loc)
 
-        # Check if self or its index is a TimedeltaIndex. `index_dtypes` retrieves the dtypes of the index columns.
+        # Check if self or its index is a TimedeltaIndex.
         if self.df._query_compiler.is_timedelta64_dtype(idx=0, is_index=True):
             # Convert row_loc to timedelta format to perform exact matching for TimedeltaIndex.
             row_loc = self._convert_to_timedelta(row_loc)
