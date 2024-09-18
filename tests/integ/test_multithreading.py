@@ -500,6 +500,11 @@ class OffsetSumUDAFHandler:
             executor.submit(register_and_test_udaf, session, i)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in local testing mode",
+    run=False,
+)
 def test_auto_temp_table_cleaner(session):
     session._temp_table_auto_cleaner.ref_count_map.clear()
     original_auto_clean_up_temp_table_enabled = session.auto_clean_up_temp_table_enabled
@@ -511,17 +516,11 @@ def test_auto_temp_table_cleaner(session):
         del df
         return table_name
 
-    def create_table_and_garbage_collect(session_, thread_id):
-        name = create_temp_table(session_, thread_id)
-        return name
-
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = []
         table_names = []
         for i in range(10):
-            futures.append(
-                executor.submit(create_table_and_garbage_collect, session, i)
-            )
+            futures.append(executor.submit(create_temp_table, session, i))
 
         for future in as_completed(futures):
             table_names.append(future.result())
