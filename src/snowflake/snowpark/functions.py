@@ -256,6 +256,18 @@ def col(name1: str, name2: Optional[str] = None) -> Column:
     else:
         return Column(name1, name2)
 
+def cortex_translate(
+    col1: ColumnOrName,
+    source_language: str,
+    target_language: str,
+) -> Column:
+    return call_function("SNOWFLAKE.CORTEX.TRANSLATE", col1, source_language, target_language)
+
+def cortex_complete(
+    col1: ColumnOrName,
+    model: str,
+) -> Column:
+    return call_function("SNOWFLAKE.CORTEX.COMPLETE", model,col1)
 
 @overload
 def column(col_name: str) -> Column:

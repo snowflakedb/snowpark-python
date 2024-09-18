@@ -24,6 +24,7 @@ import modin.pandas as pd
 import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
+from modin.logging import ClassLogger
 from modin.pandas import Series
 from modin.pandas.base import BasePandasDataset
 from pandas._libs.lib import NoDefault, is_integer, no_default
@@ -55,6 +56,7 @@ from snowflake.snowpark.modin.pandas.utils import (
     is_scalar,
     try_convert_index_to_native,
 )
+from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -1200,6 +1202,33 @@ def dt(self):  # noqa: RT01, D200
 
     return DatetimeProperties(self)
 
+class SnowflakeAccessor(ClassLogger):
+    def __init__(self, data):
+        self._series = data
+        self._query_compiler = data._query_compiler
+
+    def get(self, *args, **kwargs):
+        return Series(query_compiler=self._query_compiler.sf_property("get", *args, **kwargs))
+
+    def func(self, name, *args, **kwargs):
+        return Series(query_compiler=self._query_compiler.sf_property(name, *args, **kwargs))
+
+    @property
+    def cortex(self):
+        return SnowflakeCortexAccessor(self)
+
+
+class SnowflakeCortexAccessor(SnowflakeAccessor):
+    def translate(self, *args, **kwargs):
+        return Series(query_compiler=self._query_compiler.sf_property("SNOWFLAKE.CORTEX.TRANSLATE", *args, **kwargs))
+
+    def complete(self, model, *args, **kwargs):
+        return Series(query_compiler=self._query_compiler.sf_property("SNOWFLAKE.CORTEX.COMPLETE", first_arg=pandas_lit(model), *args, **kwargs))
+
+@register_series_accessor("sf")
+@property
+def sf(self):
+    return SnowflakeAccessor(self)
 
 # Snowpark pandas performs type validation that Modin does not.
 # Avoid naming the object "str" to avoid overwriting Python built-in "str".

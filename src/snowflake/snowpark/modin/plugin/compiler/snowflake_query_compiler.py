@@ -65,6 +65,7 @@ from pandas.io.formats.format import format_percentiles
 from pandas.io.formats.printing import PrettyDict
 
 import snowflake.snowpark.modin.pandas as pd
+from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
@@ -140,7 +141,7 @@ from snowflake.snowpark.functions import (
     uniform,
     upper,
     when,
-    year,
+    year, get, function, call_function,
 )
 from snowflake.snowpark.modin.plugin._internal import (
     concat_utils,
@@ -8162,6 +8163,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     func, raw, result_type, args, column_index, input_types, **kwargs
                 )
 
+    def applymap_snowpark_function(self,
+        snowpark_function: Callable,
+        *args,
+        include_index: bool = False,
+        # first_arg = None,
+        ):
+        #args = (pandas_lit(arg) for arg in args)
+        # if first_arg is not None:
+        #     sf_function = lambda col: snowpark_function(first_arg, col, *new_args)
+        # else:
+        sf_function = lambda col: snowpark_function(col, *args)
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                sf_function, include_index
+            )
+        )
+
     def applymap(
         self,
         func: AggFuncType,
@@ -8181,7 +8199,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         **kwargs : dict
         """
         self._raise_not_implemented_error_for_timedelta()
-
+        func_module = inspect.getmodule(func)
+        if functions == func_module:
+            return self.applymap_snowpark_function(func, *args, **kwargs)
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.
         # The fix will not land soon, so we are going to raise not implemented error for now.
@@ -11147,6 +11167,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def dt_end_time(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("end_time")
+
+    def sf_property(self,
+                    property_name: str,
+                    *args,
+                    include_index: bool = False,
+                    first_arg = None,
+                    **kwargs
+                    ):
+        # sf_function = lambda col: builtin(property_name)(col, *args, **kwargs)
+        if first_arg is not None:
+            sf_function = lambda col: call_function(property_name, first_arg, col, *args, **kwargs)
+        else:
+            sf_function = lambda col: call_function(property_name, col, *args, **kwargs)
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                sf_function, include_index
+            )
+        )
 
     def dt_property(
         self, property_name: str, include_index: bool = False
