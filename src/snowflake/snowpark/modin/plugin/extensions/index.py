@@ -71,6 +71,35 @@ _CONSTRUCTOR_DEFAULTS = {
 }
 
 
+class IndexParent:
+    def __init__(self, parent: DataFrame | Series) -> None:
+        """
+        Initialize the IndexParent object.
+
+        IndexParent is used to keep track of the parent object that the Index is a part of.
+        It tracks the parent object and the parent object's query compiler at the time of creation.
+
+        Parameters
+        ----------
+        parent : DataFrame or Series
+            The parent object that the Index is a part of.
+        """
+        assert isinstance(parent, (DataFrame, Series))
+        self._parent = parent
+        self._parent_qc = parent._query_compiler
+
+    def check_and_update_parent_qc_index_names(self, names: list) -> None:
+        """
+        Update the Index and its parent's index names if the query compiler associated with the parent is
+        different from the original query compiler recorded, i.e., an inplace update has been applied to the parent.
+        """
+        if self._parent._query_compiler is self._parent_qc:
+            new_query_compiler = self._parent_qc.set_index_names(names)
+            self._parent._update_inplace(new_query_compiler=new_query_compiler)
+            # Update the query compiler after naming operation.
+            self._parent_qc = new_query_compiler
+
+
 class Index(metaclass=TelemetryMeta):
 
     # Equivalent index type in native pandas
@@ -135,7 +164,7 @@ class Index(metaclass=TelemetryMeta):
         index = object.__new__(cls)
         # Initialize the Index
         index._query_compiler = query_compiler
-        # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
+        # `_parent` keeps track of the parent object that this Index is a part of.
         index._parent = None
         return index
 
@@ -251,6 +280,17 @@ class Index(metaclass=TelemetryMeta):
                     # native pandas index object should raise a not implemented error for now.
                     ErrorMessage.not_implemented(f"Index.{key} is not yet implemented")
             raise err
+
+    def _set_parent(self, parent: Series | DataFrame) -> None:
+        """
+        Set the parent object and its query compiler.
+
+        Parameters
+        ----------
+        parent : Series or DataFrame
+            The parent object that the Index is a part of.
+        """
+        self._parent = IndexParent(parent)
 
     def _binary_ops(self, method: str, other: Any) -> Index:
         if isinstance(other, Index):
@@ -407,12 +447,6 @@ class Index(metaclass=TelemetryMeta):
         Returns: Type of the instance.
         """
         return type(self)
-
-    def _set_parent(self, parent: Series | DataFrame):
-        """
-        Set the parent object of the current Index to a given Series or DataFrame.
-        """
-        self._parent = parent
 
     @property
     def values(self) -> ArrayLike:
@@ -726,10 +760,11 @@ class Index(metaclass=TelemetryMeta):
         if not is_hashable(value):
             raise TypeError(f"{type(self).__name__}.name must be a hashable type")
         self._query_compiler = self._query_compiler.set_index_names([value])
+        # Update the name of the parent's index only if an inplace update is performed on
+        # the parent object, i.e., the parent's current query compiler matches the originally
+        # recorded query compiler.
         if self._parent is not None:
-            self._parent._update_inplace(
-                new_query_compiler=self._parent._query_compiler.set_index_names([value])
-            )
+            self._parent.check_and_update_parent_qc_index_names([value])
 
     def _get_names(self) -> list[Hashable]:
         """
@@ -755,10 +790,10 @@ class Index(metaclass=TelemetryMeta):
         if isinstance(values, Index):
             values = values.to_list()
         self._query_compiler = self._query_compiler.set_index_names(values)
+        # Update the name of the parent's index only if the parent's current query compiler
+        # matches the recorded query compiler.
         if self._parent is not None:
-            self._parent._update_inplace(
-                new_query_compiler=self._parent._query_compiler.set_index_names(values)
-            )
+            self._parent.check_and_update_parent_qc_index_names(values)
 
     names = property(fset=_set_names, fget=_get_names)
 
