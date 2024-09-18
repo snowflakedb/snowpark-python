@@ -347,14 +347,12 @@ def test_df_index_to_frame(native_df, index, name):
     )
 
 
-@sql_count_checker(query_count=0)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_dtype(native_index):
-    snow_index = pd.Index(native_index)
-    if isinstance(native_index, native_pd.DatetimeIndex):
-        # Snowpark pandas does not include timezone info in dtype datetime64[ns],
-        assert snow_index.dtype == "datetime64[ns]"
-    else:
+    with SqlCounter(
+        query_count=1 if getattr(native_index.dtype, "tz", None) is not None else 0
+    ):
+        snow_index = pd.Index(native_index)
         assert snow_index.dtype == native_index.dtype
 
 
@@ -393,13 +391,13 @@ def test_index_parent():
     # DataFrame case.
     df = pd.DataFrame([[1, 2], [3, 4]], index=native_idx1)
     snow_idx = df.index
-    assert_frame_equal(snow_idx._parent, df)
+    assert_frame_equal(snow_idx._parent._parent, df)
     assert_index_equal(snow_idx, native_idx1)
 
     # Series case.
     s = pd.Series([1, 2, 4, 5, 6, 7], index=native_idx2, name="zyx")
     snow_idx = s.index
-    assert_series_equal(snow_idx._parent, s)
+    assert_series_equal(snow_idx._parent._parent, s)
     assert_index_equal(snow_idx, native_idx2)
 
 

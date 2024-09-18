@@ -51,11 +51,9 @@ from pandas._typing import AnyArrayLike, Scalar
 from pandas.api.types import is_bool, is_list_like
 from pandas.core.dtypes.common import (
     is_bool_dtype,
-    is_datetime64_any_dtype,
     is_integer,
     is_integer_dtype,
     is_numeric_dtype,
-    is_timedelta64_dtype,
     pandas_dtype,
 )
 from pandas.core.indexing import IndexingError
@@ -846,7 +844,7 @@ class _LocIndexer(_LocationIndexerBase):
             period = pd.Period(parsed, freq=reso.attr_abbrev)
 
             # partial string indexing only works for DatetimeIndex
-            if is_datetime64_any_dtype(self.df._query_compiler.index_dtypes[0]):
+            if self.df._query_compiler.is_datetime64_any_dtype(idx=0, is_index=True):
                 return slice(
                     pd.Timestamp(period.start_time, tzinfo=tzinfo),
                     pd.Timestamp(period.end_time, tzinfo=tzinfo),
@@ -926,8 +924,8 @@ class _LocIndexer(_LocationIndexerBase):
         row_loc, col_loc = self._parse_get_row_and_column_locators(key)
         row_loc = self._try_partial_string_indexing(row_loc)
 
-        # Check if self or its index is a TimedeltaIndex. `index_dtypes` retrieves the dtypes of the index columns.
-        if is_timedelta64_dtype(self.df._query_compiler.index_dtypes[0]):
+        # Check if self or its index is a TimedeltaIndex.
+        if self.df._query_compiler.is_timedelta64_dtype(idx=0, is_index=True):
             # Convert row_loc to timedelta format to perform exact matching for TimedeltaIndex.
             row_loc = self._convert_to_timedelta(row_loc)
 
