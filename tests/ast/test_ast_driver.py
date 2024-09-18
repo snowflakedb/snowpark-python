@@ -322,7 +322,7 @@ def test_ast(session, test_case):
             ) from e
 
 
-def override_time_zone(tz_name: str = "America/New_York") -> None:
+def override_time_zone(tz_name: str = "EST") -> None:
     # Use any time zone other than America/Los_Angeles and UTC, to minimize the
     # odds of tests passing by luck.
 
