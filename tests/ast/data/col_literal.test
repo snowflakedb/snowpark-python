@@ -70,7 +70,7 @@ df = df.select(col("A") + bytes("test", "utf-8"))
 
 df = df.select(col("A") + bytes("test", "utf-8"))
 
-df = df.select(col("A") + datetime.datetime(2024, 6, 7, 23, 15, 33, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=-14400), name="EDT")))
+df = df.select(col("A") + datetime.datetime(2024, 6, 7, 23, 15, 33, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=-14400), name="EST")))
 
 df = df.select(col("A") + datetime.datetime(2024, 6, 7, 23, 15, 33, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=11700), name="test")))
 
