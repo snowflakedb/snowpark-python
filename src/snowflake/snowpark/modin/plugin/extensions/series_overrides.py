@@ -392,6 +392,25 @@ def __init__(
         self.name = name
 
 
+@register_series_accessor("_update_inplace")
+def _update_inplace(self, new_query_compiler) -> None:
+    """
+    Update the current Series in-place using `new_query_compiler`.
+
+    Parameters
+    ----------
+    new_query_compiler : BaseQueryCompiler
+        QueryCompiler to use to manage the data.
+    """
+    super(Series, self)._update_inplace(new_query_compiler=new_query_compiler)
+    # Propagate changes back to parent so that column in dataframe had the same contents
+    if self._parent is not None:
+        if self._parent_axis == 1 and isinstance(self._parent, DataFrame):
+            self._parent[self.name] = self
+        else:
+            self._parent.loc[self.index] = self
+
+
 # Since Snowpark pandas leaves all data on the warehouse, memory_usage's report of local memory
 # usage isn't meaningful and is set to always return 0.
 @_inherit_docstrings(native_pd.Series.memory_usage, apilink="pandas.Series")
