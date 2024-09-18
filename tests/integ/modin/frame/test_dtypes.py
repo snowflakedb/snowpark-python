@@ -390,10 +390,7 @@ def test_time(dataframe_input, input_dtype, expected_dtype, logical_dtype):
         # For snowpark pandas type mapping
         assert created.dtype == logical_dtype
         roundtripped = created.to_pandas()
-        assert_series_equal(
-            roundtripped, expected, check_dtype=False, check_index_type=False
-        )
-        assert roundtripped.dtype == expected.dtype
+        assert_series_equal(roundtripped, expected, check_index_type=False)
 
 
 @pytest.mark.parametrize(

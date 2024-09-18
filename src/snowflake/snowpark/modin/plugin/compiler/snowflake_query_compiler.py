@@ -478,6 +478,28 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return wrap
 
+    def _get_dtypes(
+        self, snowflake_quoted_identifiers: List[str]
+    ) -> List[Union[np.dtype, ExtensionDtype]]:
+        """
+        Get dtypes for the input columns.
+
+        Args:
+            snowflake_quoted_identifiers: input column identifiers
+
+        Returns:
+            a list of the dtypes.
+        """
+        type_map = self._modin_frame.quoted_identifier_to_snowflake_type(
+            snowflake_quoted_identifiers
+        )
+        return [
+            self._modin_frame.get_datetime64tz_from_timestamp_tz(i)
+            if t == TimestampType(TimestampTimeZone.TZ)
+            else TypeMapper.to_pandas(t)
+            for i, t in type_map.items()
+        ]
+
     @property
     def dtypes(self) -> native_pd.Series:
         """
@@ -488,18 +510,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         pandas.Series
             Series with dtypes of each column.
         """
-        type_map = self._modin_frame.quoted_identifier_to_snowflake_type(
-            self._modin_frame.data_column_snowflake_quoted_identifiers
-        )
-        types = [
-            self._modin_frame.get_datetime64tz_from_timestamp_tz(i)
-            if t == TimestampType(TimestampTimeZone.TZ)
-            else TypeMapper.to_pandas(t)
-            for i, t in type_map.items()
-        ]
-
         return native_pd.Series(
-            data=types,
+            data=self._get_dtypes(
+                self._modin_frame.data_column_snowflake_quoted_identifiers
+            ),
             index=self._modin_frame.data_columns_index,
             dtype=object,
         )
@@ -514,18 +528,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         pandas.Series
             Series with dtypes of each column.
         """
-        type_map = self._modin_frame.quoted_identifier_to_snowflake_type(
+        return self._get_dtypes(
             self._modin_frame.index_column_snowflake_quoted_identifiers
         )
-        return [
-            self._modin_frame.get_datetime64tz_from_timestamp_tz(i)
-            if t == TimestampType(TimestampTimeZone.TZ)
-            else TypeMapper.to_pandas(t)
-            for i, t in type_map.items()
-        ]
 
     def is_timestamp_type(self, idx: int, is_index: bool = True) -> bool:
-        """Return True if index is TIMESTAMP TYPE.
+        """Return True if column at the index is TIMESTAMP TYPE.
 
         Args:
             idx: the index of the column
@@ -547,9 +555,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             idx: the index of the column
             is_index: whether it is an index or data column
         """
-        return self.is_timestamp_type(idx, is_index) or is_datetime64_any_dtype(
-            self.index_dtypes[idx] if is_index else self.dtypes[idx]
-        )
+        return self.is_timestamp_type(idx, is_index)
 
     def is_timedelta64_dtype(self, idx: int, is_index: bool = True) -> bool:
         """Helper method similar to is_timedelta_dtype, but it avoids extra query for DatetimeTZDtype.
@@ -558,9 +564,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             idx: the index of the column
             is_index: whether it is an index or data column
         """
-        return not self.is_timestamp_type(idx, is_index) and is_timedelta64_dtype(
-            self.index_dtypes[idx] if is_index else self.dtypes[idx]
+        id = (
+            self._modin_frame.index_column_snowflake_quoted_identifiers[idx]
+            if is_index
+            else self._modin_frame.data_column_snowflake_quoted_identifiers[idx]
         )
+        return self._modin_frame.get_snowflake_type(id) == TimedeltaType()
 
     def is_string_dtype(self, idx: int, is_index: bool = True) -> bool:
         """Helper method similar to is_timedelta_dtype, but it avoids extra query for DatetimeTZDtype.

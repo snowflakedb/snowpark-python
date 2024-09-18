@@ -221,8 +221,6 @@ def test_astype_to_DatetimeTZDtype(from_dtype, to_tz):
     else:
         with SqlCounter(query_count=2):
             s = pd.Series(seed, dtype=from_dtype).astype(to_dtype)
-            # Snowflake timestamp_tz column's metadata does not contain the tzinfo so it cannot provide dtype as
-            # datetime64[ns, UTC], so its dtype returns datetime64 or <M8[ns]
             assert s.dtype == DatetimeTZDtype(tz=offset_map[to_tz])
             #
             # native_pd.Series([0,1,2], dtype="float64").astype("datetime64[ns, Asia/Tokyo]")
