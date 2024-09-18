@@ -132,7 +132,7 @@ class SnowflakeFile(RawIOBase):
         Returns a :class:`~snowflake.snowpark.file.SnowflakeFile`.
         In UDF and Stored Procedures, the object works like a Python IOBase object and as a wrapper for an IO stream of remote files. The IO Stream is to support the file operations defined in this class.
 
-        You can use this particular scoped URL to access files from within Snowflake (through another UDF or the COPY FILES command), but not from outside of Snowflake as a pre-signed URL. The scoped URL is valid for 24 hours.
+        This stream will open a writable result file that will be materialized when it's returned by a UDF or Stored Procedure. When the file is materialized then file_uri will be set to a scoped URL that temporarily references this file.
 
         Args:
             mode: A string used to mark the type of an IO stream.
