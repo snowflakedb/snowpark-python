@@ -536,7 +536,10 @@ def test_groupby_agg_invalid_numeric_only(
     # treated as True. This behavior is confusing to customer, in Snowpark pandas, we do an
     # explicit type check, an errors it out if an invalid value is given.
     with pytest.raises(
-        ValueError, match=re.escape('For argument "numeric_only" expected type bool')
+        ValueError,
+        match=re.escape(
+            "GroupBy aggregations like 'sum' take a 'numeric_only' argument that needs to be a bool, but a str value was passed in."
+        ),
     ):
         getattr(basic_snowpark_pandas_df.groupby("col1"), agg_method_name)(
             numeric_only=numeric_only
