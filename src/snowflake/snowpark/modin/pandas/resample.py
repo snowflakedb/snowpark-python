@@ -285,9 +285,7 @@ class Resampler(metaclass=TelemetryMeta):
 
         if fill_value is not None:
             # TODO: SNOW-1660802: Implement `fill_value` parameter once `GroupBy.fillna` is supported
-            ErrorMessage.not_implemented(
-                "Parameter fill_value of resample.asfreq has not been implemented."
-            )
+            ErrorMessage.parameter_not_implemented_error("fill_value", "Resampler.asfreq")
 
         return self._dataframe.__constructor__(
             query_compiler=self._query_compiler.resample(
