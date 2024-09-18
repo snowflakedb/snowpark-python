@@ -115,11 +115,6 @@ from modin.pandas.api.extensions import (
 from modin.pandas.dataframe import DataFrame
 from modin.pandas.series import Series
 
-from snowflake.snowpark.modin.pandas.api.extensions import (
-    register_dataframe_accessor,
-    register_series_accessor,
-)
-
 from snowflake.snowpark.modin.plugin.extensions.general_overrides import (  # isort: skip  # noqa: E402,F401
     bdate_range,
     concat,
