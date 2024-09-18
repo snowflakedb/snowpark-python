@@ -344,7 +344,7 @@ def override_time_zone(tz_name: str = "America/New_York") -> None:
         env_tz = os.environ.get("TZ") or ""
         assert env_tz == tz_code, (
             f"Testing with timezone={tz_name} ({tz_code}) but"
-            f" not set as environment variable(is: '{env_tz}'). Add TZ={tz_code} to environment"
+            f" not set as environment variable(is: '{env_tz}'). Add TZ=\"{tz_name}\" to environment"
             f" and restart process."
         )
 

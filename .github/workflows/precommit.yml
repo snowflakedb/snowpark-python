@@ -282,7 +282,7 @@ jobs:
       - name: Install tox
         run: python -m pip install tox
       - name: Run tests
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-ast"
+        run: TZ="America/New_York" python -m tox -e "py${PYTHON_VERSION/\./}-ast"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
