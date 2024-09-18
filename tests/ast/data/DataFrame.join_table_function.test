@@ -29,6 +29,12 @@ df4 = df1.join_table_function(
     .alias("original_row_number", "token_number", "token")
 )
 
+df5 = df1.join_table_function(
+    tokenize_text_ref(df1["text"], lit(" ,"))
+    .over(partition_by="name", order_by="text")
+    .alias("row_number", "token_number", "token")
+)
+
 ## EXPECTED UNPARSER OUTPUT
 
 ## EXPECTED ENCODED AST
