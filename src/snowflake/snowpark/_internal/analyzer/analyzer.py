@@ -724,6 +724,7 @@ class Analyzer:
         boundary: Expression,
         df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
     ) -> str:
+        # it means interval preceding
         if isinstance(boundary, UnaryMinus) and isinstance(boundary.child, Interval):
             return window_frame_boundary_expression(
                 boundary.child.sql, is_following=False
@@ -731,6 +732,7 @@ class Analyzer:
         elif isinstance(boundary, Interval):
             return window_frame_boundary_expression(boundary.sql, is_following=True)
         else:
+            # boundary should be an integer
             offset = self.to_sql_try_avoid_cast(
                 boundary, df_aliased_col_name_to_real_col_name
             )
