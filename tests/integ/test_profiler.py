@@ -26,8 +26,8 @@ def setup(profiler_session, resources_path, local_testing_mode):
 )
 def test_profiler_with_context_manager(profiler_session, db_parameters):
     @sproc(name="table_sp", replace=True)
-    def table_sp(profiler_session: snowflake.snowpark.profiler_session) -> DataFrame:
-        return profiler_session.sql("select 1")
+    def table_sp(session: snowflake.snowpark.session) -> DataFrame:
+        return session.sql("select 1")
 
     profiler_session.register_profiler_modules(["table_sp"])
     with profiler(
@@ -51,8 +51,8 @@ def test_profiler_with_profiler_class(profiler_session, db_parameters):
     another_tmp_stage_name = Utils.random_stage_name()
 
     @sproc(name="table_sp", replace=True)
-    def table_sp(profiler_session: snowflake.snowpark.profiler_session) -> DataFrame:
-        return profiler_session.sql("select 1")
+    def table_sp(session: snowflake.snowpark.session) -> DataFrame:
+        return session.sql("select 1")
 
     pro = Profiler()
     pro.register_profiler_modules(["table_sp"])
@@ -84,7 +84,7 @@ def test_profiler_with_profiler_class(profiler_session, db_parameters):
 )
 def test_single_return_value_of_sp(profiler_session, db_parameters):
     @sproc(name="single_value_sp", replace=True)
-    def single_value_sp(profiler_session: snowflake.snowpark.profiler_session) -> str:
+    def single_value_sp(session: snowflake.snowpark.profiler_session) -> str:
         return "success"
 
     profiler_session.register_profiler_modules(["table_sp"])
@@ -105,7 +105,7 @@ def test_single_return_value_of_sp(profiler_session, db_parameters):
     reason="session.sql is not supported in localtesting",
 )
 def test_anonymous_procedure(profiler_session, db_parameters):
-    def single_value_sp(profiler_session: snowflake.snowpark.profiler_session) -> str:
+    def single_value_sp(session: snowflake.snowpark.profiler_session) -> str:
         return "success"
 
     single_value_sp = profiler_session.sproc.register(single_value_sp, anonymous=True)
@@ -126,14 +126,14 @@ def test_not_set_profiler_error(profiler_session, tmpdir):
     with pytest.raises(ValueError) as e:
         profiler_session.show_profiles()
     assert (
-        "profiler is not set, use profiler_session.register_profiler or profiler context manager"
+        "profiler is not set, use session.register_profiler or profiler context manager"
         in str(e)
     )
 
     with pytest.raises(ValueError) as e:
         profiler_session.dump_profiles(tmpdir.join("file.txt"))
     assert (
-        "profiler is not set, use profiler_session.register_profiler or profiler context manager"
+        "profiler is not set, use session.register_profiler or profiler context manager"
         in str(e)
     )
 
@@ -168,7 +168,7 @@ def test_set_incorrect_active_profiler():
 def test_dump_profile_to_file(profiler_session, db_parameters, tmpdir):
     file = tmpdir.join("profile.lprof")
 
-    def single_value_sp(profiler_session: snowflake.snowpark.profiler_session) -> str:
+    def single_value_sp(session: snowflake.snowpark.profiler_session) -> str:
         return "success"
 
     single_value_sp = profiler_session.sproc.register(single_value_sp, anonymous=True)
