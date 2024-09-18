@@ -459,7 +459,7 @@ def _get_timezone_from_timestamp_tz(
         .select(to_char(col(snowflake_quoted_identifier), format="TZHTZM").as_("tz"))
         .group_by(["tz"])
         .agg()
-        .limit(2)
+        .limit(2)  # only need 2 to check whether it contains multiple timezones
         .to_pandas()
     )
     assert (
