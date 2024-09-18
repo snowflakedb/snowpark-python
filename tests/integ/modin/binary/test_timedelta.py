@@ -3,6 +3,7 @@
 #
 
 import datetime
+import functools
 import re
 
 import modin.pandas as pd
@@ -12,6 +13,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
+
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
@@ -1990,3 +1992,143 @@ class TestDataFrameAndDataFrameAxis1:
             (pandas_lhs, pandas_rhs),
             lambda t: getattr(t[0], op_between_numeric_and_timedelta)(t[1]),
         )
+
+
+    def test_sf(self):
+        df = pd.DataFrame({
+            'id': [1, 2],
+            'json_col': [{'name': 'Alice', 'age': 30}, {'name': 'Bob', 'age': 25}]
+        })
+
+        # Extract the value associated with the 'name' key
+        df['name'] = df['json_col'].sf.get('name')
+
+        print(df)
+
+        # print(df['json_col'].sf.func('get', 'name'))
+
+    @sql_count_checker(query_count=4, udf_count=1)
+    def test_apply_old(self):
+        df = pd.DataFrame({
+            'id': [1, 2],
+            'json_col': [{'name': 'Alice', 'age': 30}, {'name': 'Bob', 'age': 25}]
+        })
+
+        df['name'] = df['json_col'].apply(lambda x: x.get('name'))
+        print(df)
+
+    def test_apply_native(self):
+        df = native_pd.DataFrame({
+            'id': [1, 2],
+            'json_col': [{'name': 'Alice', 'age': 30}, {'name': 'Bob', 'age': 25}]
+        })
+
+        df['name'] = df['json_col'].apply(lambda x: x.get('name'))
+        print(df)
+
+    def test_apply_new(self):
+        df = pd.DataFrame({
+            'id': [1, 2],
+            'json_col': [{'name': 'Alice', 'age': 30}, {'name': 'Bob', 'age': 25}]
+        })
+
+        from snowflake.snowpark.functions import get, lit
+        df['name'] = df['json_col'].apply(get, args=[lit('name')])
+        print(df)
+
+    def test_apply_new_negative(self):
+        df = pd.DataFrame({
+            'id': [1, 2],
+            'json_col': [{'name': 'Alice', 'age': 30}, {'name': 'Bob', 'age': 25}]
+        })
+
+        from snowflake.snowpark.functions import get
+        df['name'] = df['json_col'].apply(get, args=['name'])
+        print(df)
+
+    def test_native_parse_json(self):
+        s = native_pd.Series([
+            # None,
+                       'true',
+                       '-17',
+                       '123.12',
+                       '1.912e2',
+                       '"Om ara pa ca na dhih"',
+                       '[-1, 12, 289, 2188, false]',
+                       '{ "x" : "abc", "y" : false, "z": 10}'
+                       ])
+        import json
+        s = s.apply(json.loads)
+        print(s)
+
+
+    def test_parse_json(self):
+        s = pd.Series([ None,
+                        'true',
+                        '-17',
+                        '123.12',
+                        '1.912e2',
+                        '"Om ara pa ca na dhih"',
+                        '[-1, 12, 289, 2188, false]',
+                        '{ "x" : "abc", "y" : false, "z": 10}'
+                        ])
+        from snowflake.snowpark.functions import parse_json
+        s = s.apply(parse_json)
+        print(s)
+
+
+
+    def test_cortex_translate(self):
+        series = pd.Series([
+            "how old are you",
+            "what is your name",
+            "how many days in a week"
+        ])
+        from snowflake.snowpark.functions import cortex_translate
+        print(series.apply(cortex_translate, args=["en", "zh_CN"]))
+
+    def test_cortex_complete(self):
+        series = pd.Series([
+            "What model am I using right now?",
+            "What is Snowpark pandas API?",
+            "Can you show me an example pandas dataframe?"
+        ])
+        from snowflake.snowpark.functions import cortex_complete
+        print(series.apply(cortex_complete, args=["snowflake-arctic"]))
+
+    def test_np_sum(self):
+        # s = pd.Series([1,2,3])
+        # print(s.apply(np.sum))
+
+        df = pd.DataFrame({"a":[1, 2, 3], "b":[3,3,5]})
+        print(df.apply(np.sum))
+
+    def test_series_np_sum(self):
+        s = pd.Series([1,2,3])
+        print(s.apply(np.sum))
+
+        print(s.apply("sum"))
+
+    def test_agg_np_sum(self):
+        # s = pd.Series([1,2,3])
+        # print(s.agg(np.sum))
+
+        df = pd.DataFrame({"a":[1, 2, 3], "b":[3,3,5]})
+        # print(df.agg(np.sum))
+
+        print(df.apply(np.sum))
+
+    def test_sum(self):
+        s = pd.Series([1,2,3])
+        from snowflake.snowpark.functions import sum
+        print(s.apply(sum))
+
+    def test_sin(self):
+        s = pd.Series([1,2,3])
+        from snowflake.snowpark.functions import sin
+        print(s.apply(sin))
+
+    def test_replace(self):
+        s = pd.Series(["apple", "apple pie", "apple juice"])
+        from snowflake.snowpark.functions import replace
+        print(s.apply(replace, args=("apple", "orange")))

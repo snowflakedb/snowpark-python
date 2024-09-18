@@ -455,7 +455,7 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
             ),
         ),
         **_create_pandas_to_snowpark_pandas_aggregation_map(
-            ("min", np.min),
+            ("min", np.min, min_),
             _SnowparkPandasAggregation(
                 axis_0_aggregation=min_,
                 axis_1_aggregation_keepna=least,
