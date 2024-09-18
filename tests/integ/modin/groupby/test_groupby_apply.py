@@ -1074,9 +1074,9 @@ class TestSeriesGroupBy:
     def test_dataframe_groupby_getitem(self, by, func, dropna, group_keys, sort):
         """Test apply() on a SeriesGroupBy that we get by DataFrameGroupBy.__getitem__"""
         qc = (
-            6
+            QUERY_COUNT_WITH_TRANSFORM_CHECK
             if group_keys is False and not func == get_scalar_from_numeric_series
-            else 5
+            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK
         )
         if (
             func in (get_dataframe_from_numeric_series, get_series_from_numeric_series)
