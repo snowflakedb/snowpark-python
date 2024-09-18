@@ -748,8 +748,8 @@ def test_create_df_with_mixed_series_index_dict_data():
     native_data1 = native_pd.Series([1, 2, 3])
     native_data2 = native_pd.Index([4, 5, 6])
     data3 = [7, 8, 9]
-    snow_data1 = pd.Series([1, 2, 3])
-    snow_data2 = pd.Index([4, 5, 6])
+    snow_data1 = pd.Series(native_data1)
+    snow_data2 = pd.Index(native_data2)
     native_data = {"A": native_data1, "B": native_data2, "C": data3}
     snow_data = {"A": snow_data1, "B": snow_data2, "C": data3}
 
@@ -761,7 +761,7 @@ def test_create_df_with_mixed_series_index_dict_data():
 
     # Create DataFrame with dict data and Series index.
     native_ser_index = native_pd.Series([9, 2, 999])
-    snow_ser_index = pd.Series([9, 2, 999])
+    snow_ser_index = pd.Series(native_ser_index)
     native_df = native_pd.DataFrame(native_data, index=native_ser_index)
     snow_df = pd.DataFrame(snow_data, index=snow_ser_index)
     with SqlCounter(query_count=1):
@@ -769,7 +769,7 @@ def test_create_df_with_mixed_series_index_dict_data():
 
     # Create DataFrame with dict data and Index index.
     native_index = native_pd.Index([9, 2, 999])
-    snow_index = pd.Index([9, 2, 999])
+    snow_index = pd.Index(native_index)
     native_df = native_pd.DataFrame(native_data, index=native_index)
     snow_df = pd.DataFrame(snow_data, index=snow_index)
     with SqlCounter(query_count=1):
@@ -860,3 +860,91 @@ def test_create_series_with_df_data_negative():
         native_pd.Series(native_pd.DataFrame([[1, 2], [3, 4], [5, 6]]))
     with pytest.raises(ValueError, match="Data cannot be a DataFrame"):
         pd.Series(pd.DataFrame([[1, 2], [3, 4], [5, 6]]))
+
+
+@sql_count_checker(query_count=1)
+def test_create_df_with_name_in_columns():
+    # Test DataFrame creation where the data is a named Series and its name is in the columns passed in.
+    # The column sharing the name with the Series takes on its values as the column values; the rest of the
+    # columns are filled with NaNs.
+    native_data = native_pd.Series([1, 2, 3], name="b")
+    snow_data = pd.Series(native_data)
+    columns = ["a", "b"]
+    native_df = native_pd.DataFrame(native_data, columns=columns)
+    snow_df = pd.DataFrame(snow_data, columns=columns)
+    assert_frame_equal(snow_df, native_df)
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_create_df_with_name_not_in_columns_and_index():
+    # Test DataFrame creation where the data is a named Series and its name is not in the columns passed in.
+    # The resultant DataFrame is filled with NaNs; the index and columns are set to the values provided.
+    native_data = native_pd.Series([1, 2, 3], name="b")
+    snow_data = pd.Series(native_data)
+    native_idx = native_pd.Index([1, 2, 3, 4, 5])
+    snow_idx = pd.Index(native_idx)
+    columns = ["a", "c"]
+    native_df = native_pd.DataFrame(native_data, index=native_idx, columns=columns)
+    snow_df = pd.DataFrame(snow_data, index=snow_idx, columns=columns)
+    assert_frame_equal(snow_df, native_df)
+
+
+@sql_count_checker(query_count=1)
+def test_create_df_with_df_and_subset_of_columns():
+    # Test DataFrame creation where data is a DataFrame and only a subset of its columns are passed in.
+    # Only the columns passed in are used; the rest are ignored. In this case with end up with a single
+    # column DataFrame.
+    native_data = native_pd.DataFrame({"a": [1, 2, 3], "b": [3, 4, 5]})
+    snow_data = pd.DataFrame(native_data)
+    columns = ["a"]
+    native_df = native_pd.DataFrame(native_data, columns=columns)
+    snow_df = pd.DataFrame(snow_data, columns=columns)
+    assert_frame_equal(snow_df, native_df)
+
+
+def test_create_df_with_copy():
+    # When copy is True, the data is copied into the DataFrame, and the new DataFrame and data do not share references.
+    data = pd.DataFrame([[1, 2], [3, 4], [5, 6]])
+    df_copy = pd.DataFrame(data, copy=True)
+    df_not_copy = pd.DataFrame(data, copy=False)
+
+    with SqlCounter(query_count=3):
+        # Changing data should also change df_not_copy. It does not change df_copy.
+        data.iloc[0, 0] = 100
+        assert data.iloc[0, 0] == df_not_copy.iloc[0, 0] == 100
+        assert df_copy.iloc[0, 0] == 1
+
+    with SqlCounter(query_count=3):
+        # Similarly, changing df_not_copy should also change data. It does not change df_copy.
+        df_not_copy.iloc[0, 0] = 99
+        assert data.iloc[0, 0] == df_not_copy.iloc[0, 0] == 99
+        assert df_copy.iloc[0, 0] == 1
+
+    with SqlCounter(query_count=2):
+        # Changing df_copy should not change data or df_not_copy.
+        df_copy.iloc[0, 0] = 1000
+        assert data.iloc[0, 0] == df_not_copy.iloc[0, 0] == 99
+
+
+def test_create_series_with_copy():
+    # When copy is True, the data is copied into the Series, and the new Series and data do not share references.
+    data = pd.Series([1, 2, 3, 4, 5])
+    series_copy = pd.Series(data, copy=True)
+    series_not_copy = pd.Series(data, copy=False)
+
+    with SqlCounter(query_count=3):
+        # Changing data should also change series_not_copy. It does not change series_copy.
+        data.iloc[0] = 100
+        assert data.iloc[0] == series_not_copy.iloc[0] == 100
+        assert series_copy.iloc[0] == 1
+
+    with SqlCounter(query_count=3):
+        # Similarly, changing series_not_copy should also change data. It does not change series_copy.
+        series_not_copy.iloc[0] = 99
+        assert data.iloc[0] == series_not_copy.iloc[0] == 99
+        assert series_copy.iloc[0] == 1
+
+    with SqlCounter(query_count=2):
+        # Changing series_copy should not change data or series_not_copy.
+        series_copy.iloc[0] = 1000
+        assert data.iloc[0] == series_not_copy.iloc[0] == 99
