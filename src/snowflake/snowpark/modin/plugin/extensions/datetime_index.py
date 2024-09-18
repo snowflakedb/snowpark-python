@@ -1608,7 +1608,7 @@ default 'raise'
         # The timestamp is converted to seconds instead of the float version of nanoseconds since that can lead to
         # floating point precision issues
         return to_timedelta(
-            (self.to_series().astype(int) / 1_000_000_000).agg(
+            (self.to_series().astype(int) // 1_000_000_000).agg(
                 "std", axis=0, ddof=ddof, skipna=skipna, **kwargs
             )
             * 1_000_000_000
