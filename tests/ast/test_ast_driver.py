@@ -34,7 +34,7 @@ class TestCase:
     source: str
     expected_ast_base64: str
     expected_ast_unparsed: str
-    __test__: bool = False  # Add this to suppress pytest collection warning
+    __test__: bool = False  # Add this to suppress pytest collection warning.
 
 
 def parse_file(file):
@@ -349,6 +349,8 @@ def override_time_zone(tz_name: str = "EST") -> None:
         )
 
         # Possible modification code (not working)
+        # Use direct msvcrt.dll override (only for this process, does not work for child processes).
+        # cf. https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/tzset?view=msvc-170
         logging.debug(
             f"Windows current time (before msvcrt set): {datetime.datetime.now()}"
         )
@@ -357,13 +359,11 @@ def override_time_zone(tz_name: str = "EST") -> None:
 
         cdll.msvcrt._putenv(f"TZ={tz_code}")
         cdll.msvcrt._tzset()
-
+        # If working, we would expect this to show output adjusted to the timezone referred to by tz_code.
         logging.debug(
             f"Windows current time (after msvcrt set): {datetime.datetime.now()}"
         )
-
-        # Use direct msvcrt.dll override (only for this process, does not work for child processes).
-        # cf. https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/tzset?view=msvc-170
+        # Other python libraries would have been updated then as well.
         from tzlocal import get_localzone
 
         logging.debug(
