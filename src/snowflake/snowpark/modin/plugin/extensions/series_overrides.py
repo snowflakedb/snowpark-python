@@ -43,6 +43,7 @@ from snowflake.snowpark.modin import pandas as spd  # noqa: F401
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
 from snowflake.snowpark.modin.pandas.utils import from_pandas, is_scalar
 from snowflake.snowpark.modin.plugin._internal.utils import (
+    assert_fields_are_none,
     convert_index_to_list_of_qcs,
     convert_index_to_qc,
     error_checking_for_init,
@@ -352,37 +353,36 @@ def __init__(
 
     from snowflake.snowpark.modin.plugin.extensions.index import Index
 
-    # 0. Setting the query compiler
-    # -----------------------------
+    # Setting the query compiler
+    # --------------------------
     if query_compiler is not None:
         # CASE I: query_compiler
         # If a query_compiler is passed in, only use the query_compiler and name fields to create a new Series.
-        assert (
-            data is None
-        ), "Invalid Series construction! Cannot pass both data and query_compiler."
-        assert (
-            index is None
-        ), "Invalid Series construction! Cannot pass both index and query_compiler."
+        # Verify that the data and index parameters are None.
+        assert_fields_are_none(class_name="Series", data=data, index=index)
         self._query_compiler = query_compiler.columnarize()
         if name is not None:
             self.name = name
         return
 
+    # A DataFrame cannot be used as an index and Snowpark pandas does not support the Categorical type yet.
+    # Check that index is not a DataFrame and dtype is not "category".
     error_checking_for_init(index, dtype)
 
     if isinstance(data, spd.DataFrame):
+        # data cannot be a DataFrame, raise a clear error message.
         # pandas raises an ambiguous error:
         # ValueError: The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().
         raise ValueError("Data cannot be a DataFrame")
 
     # The logic followed here is:
-    # 1. Create a query_compiler from the provided data.
-    # 2. If an index is provided, set the index. This is either through set_index or reindex.
-    # 3. The resultant query_compiler is columnarized and set as the query_compiler for the Series.
-    # 4. If a name is provided, set the name.
+    # STEP 1: Create a query_compiler from the provided data.
+    # STEP 2: If an index is provided, set the index. This is either through set_index or reindex.
+    # STEP 3: The resultant query_compiler is columnarized and set as the query_compiler for the Series.
+    # STEP 4: If a name is provided, set the name.
 
-    # 1. Setting the data
-    # -------------------
+    # STEP 1: Setting the data
+    # ------------------------
     if isinstance(data, Index):
         # CASE II: Index
         # If the data is an Index object, convert it to a Series, and get the query_compiler.
@@ -390,10 +390,15 @@ def __init__(
             data.to_series(index=None, name=name).reset_index(drop=True)._query_compiler
         )
 
-    elif isinstance(data, type(self)):
+    elif isinstance(data, Series):
         # CASE III: Series
-        # If the data is a Series object, copy the query_compiler.
-        query_compiler = data._query_compiler.copy()
+        # If the data is a Series object, use its query_compiler.
+        query_compiler = data._query_compiler
+        if index is None and name is None and copy is False:
+            # When copy is False and no index and name are provided, the Series is a shallow copy of the original Series.
+            self._query_compiler = query_compiler
+            data._add_sibling(self)
+            return
 
     else:
         # CASE IV: Non-Snowpark pandas data
@@ -433,8 +438,8 @@ def __init__(
             )
         )._query_compiler
 
-    # 2. Setting the index
-    # --------------------
+    # STEP 2: Setting the index
+    # -------------------------
     # The index is already set if the data is a non-Snowpark pandas object.
     # If either the data or the index is a Snowpark pandas object, set the index here.
     if index is not None and (
@@ -454,8 +459,8 @@ def __init__(
                 convert_index_to_list_of_qcs(index)
             )
 
-    # 3 and 4. Setting the query compiler and name
-    # --------------------------------------------
+    # STEP 3 and STEP 4: Setting the query compiler and name
+    # ------------------------------------------------------
     self._query_compiler = query_compiler.columnarize()
     if name is not None:
         self.name = name

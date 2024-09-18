@@ -11,7 +11,7 @@ from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import pandas as native_pd
-from pandas._typing import Scalar
+from pandas._typing import AnyArrayLike, Scalar
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_integer_dtype, is_object_dtype, is_scalar
 from pandas.core.dtypes.inference import is_list_like
@@ -2021,6 +2021,20 @@ def error_checking_for_init(
         raise NotImplementedError("pandas type category is not implemented")
 
 
+def assert_fields_are_none(
+    class_name: str, data: Any, index: Any, columns: Any = None
+) -> None:
+    assert (
+        data is None
+    ), f"Invalid {class_name} construction! Cannot pass both data and query_compiler."
+    assert (
+        index is None
+    ), f"Invalid {class_name} construction! Cannot pass both index and query_compiler."
+    assert (
+        columns is None
+    ), f"Invalid {class_name} construction! Cannot pass both columns and query_compiler."
+
+
 def convert_index_to_qc(index: Any) -> Any:
     """
     Method to convert an object representing an index into a query compiler for set_index or reindex.
@@ -2084,3 +2098,45 @@ def convert_index_to_list_of_qcs(index: Any) -> list:
     else:
         index_qc_list = [convert_index_to_qc(index)]
     return index_qc_list
+
+
+def add_extra_columns_and_select_required_columns(
+    query_compiler: Any,
+    columns: Union[AnyArrayLike, list],
+    data_columns: Union[AnyArrayLike, list],
+) -> Any:
+    """
+    Method to add extra columns to and select the required columns from the provided query compiler.
+    This is used in DataFrame construction in the following cases:
+    - general case when data is a DataFrame
+    - data is a named Series, and this name is in `columns`
+
+    Parameters
+    ----------
+    query_compiler: Any
+        The query compiler to select columns from, i.e., data's query compiler.
+    columns: AnyArrayLike or list
+        The columns to select from the query compiler.
+    data_columns: AnyArrayLike or list
+        The columns in the data. This is data.columns if data is a DataFrame or data.name if data is a Series.
+
+    """
+    from modin.pandas import DataFrame
+
+    # The `columns` parameter is used to select the columns from `data` that will be in the resultant DataFrame.
+    # If a value in `columns` is not present in data's columns, it will be added as a new column filled with NaN values.
+    # These columns are tracked by the `extra_columns` variable.
+    if data_columns is not None and columns is not None:
+        extra_columns = [col for col in columns if col not in data_columns]
+        # To add these new columns to the DataFrame, perform `__getitem__` only with the extra columns
+        # and set them to None.
+        extra_columns_df = DataFrame(query_compiler=query_compiler)
+        extra_columns_df[extra_columns] = None
+        query_compiler = extra_columns_df._query_compiler
+
+    # To select the columns for the resultant DataFrame, perform `.loc[]` on the created query compiler.
+    # This step is performed to ensure that the right columns are picked from the InternalFrame since we
+    # never explicitly drop the unwanted columns. `.loc[]` also ensures that the columns in the resultant
+    # DataFrame are in the same order as the columns in the `columns` parameter.
+    columns = slice(None) if columns is None else columns
+    return DataFrame(query_compiler=query_compiler).loc[:, columns]._query_compiler
