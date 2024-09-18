@@ -73,7 +73,7 @@ def read_xml(
 ) -> pd.DataFrame:
     # TODO(https://github.com/modin-project/modin/issues/7104):
     # modin needs to remove defaults to pandas at API layer
-    pass
+    pass  # pragma: no cover
 
 
 @_inherit_docstrings(native_pd.json_normalize, apilink="pandas.json_normalize")
@@ -94,7 +94,7 @@ def json_normalize(
     """
     # TODO(https://github.com/modin-project/modin/issues/7104):
     # modin needs to remove defaults to pandas at API layer
-    pass
+    pass  # pragma: no cover
 
 
 @_inherit_docstrings(native_pd.read_orc, apilink="pandas.read_orc")
@@ -112,7 +112,7 @@ def read_orc(
     """
     # TODO(https://github.com/modin-project/modin/issues/7104):
     # modin needs to remove defaults to pandas at API layer
-    pass
+    pass  # pragma: no cover
 
 
 @register_pd_accessor("read_excel")
@@ -161,7 +161,7 @@ def read_excel(
     from modin.core.execution.dispatching.factories.dispatcher import FactoryDispatcher
 
     intermediate = FactoryDispatcher.read_excel(**kwargs)
-    if isinstance(intermediate, (OrderedDict, dict)):
+    if isinstance(intermediate, (OrderedDict, dict)):  # pragma: no cover
         parsed = type(intermediate)()
         for key in intermediate.keys():
             parsed[key] = pd.DataFrame(query_compiler=intermediate.get(key))
