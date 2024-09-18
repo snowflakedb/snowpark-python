@@ -9,22 +9,13 @@ pandas, such as `Series.memory_usage`.
 
 from __future__ import annotations
 
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Hashable,
-    Literal,
-    Mapping,
-    Sequence,
-)
+from typing import IO, Any, Callable, Hashable, Literal, Mapping, Sequence, get_args
 
 import modin.pandas as pd
 import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
-from modin.pandas import Series
+from modin.pandas import DataFrame, Series
 from modin.pandas.base import BasePandasDataset
 from pandas._libs.lib import NoDefault, is_integer, no_default
 from pandas._typing import (
@@ -36,6 +27,7 @@ from pandas._typing import (
     IndexKeyFunc,
     IndexLabel,
     Level,
+    NaPosition,
     Renamer,
     Scalar,
 )
@@ -46,7 +38,7 @@ from pandas.api.types import (
 )
 from pandas.core.common import apply_if_callable, is_bool_indexer
 from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
-from pandas.util._validators import validate_bool_kwarg
+from pandas.util._validators import validate_ascending, validate_bool_kwarg
 
 from snowflake.snowpark.modin import pandas as spd  # noqa: F401
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
@@ -54,10 +46,6 @@ from snowflake.snowpark.modin.pandas.utils import (
     from_pandas,
     is_scalar,
     try_convert_index_to_native,
-)
-from snowflake.snowpark.modin.plugin._internal.telemetry import (
-    snowpark_pandas_telemetry_method_decorator,
-    try_add_telemetry_to_attribute,
 )
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
@@ -77,15 +65,10 @@ from snowflake.snowpark.modin.utils import (
     validate_int_kwarg,
 )
 
-if TYPE_CHECKING:
-    from modin.pandas import DataFrame
-
 
 def register_series_not_implemented():
     def decorator(base_method: Any):
-        func = snowpark_pandas_telemetry_method_decorator(
-            series_not_implemented()(base_method)
-        )
+        func = series_not_implemented()(base_method)
         register_series_accessor(base_method.__name__)(func)
         return func
 
@@ -211,21 +194,6 @@ def hist(
     figsize=None,
     bins=10,
     **kwds,
-):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_series_not_implemented()
-def interpolate(
-    self,
-    method="linear",
-    axis=0,
-    limit=None,
-    inplace=False,
-    limit_direction: str | None = None,
-    limit_area=None,
-    downcast=None,
-    **kwargs,
 ):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
@@ -425,11 +393,29 @@ def __init__(
         self.name = name
 
 
+@register_series_accessor("_update_inplace")
+def _update_inplace(self, new_query_compiler) -> None:
+    """
+    Update the current Series in-place using `new_query_compiler`.
+
+    Parameters
+    ----------
+    new_query_compiler : BaseQueryCompiler
+        QueryCompiler to use to manage the data.
+    """
+    super(Series, self)._update_inplace(new_query_compiler=new_query_compiler)
+    # Propagate changes back to parent so that column in dataframe had the same contents
+    if self._parent is not None:
+        if self._parent_axis == 1 and isinstance(self._parent, DataFrame):
+            self._parent[self.name] = self
+        else:
+            self._parent.loc[self.index] = self
+
+
 # Since Snowpark pandas leaves all data on the warehouse, memory_usage's report of local memory
 # usage isn't meaningful and is set to always return 0.
 @_inherit_docstrings(native_pd.Series.memory_usage, apilink="pandas.Series")
 @register_series_accessor("memory_usage")
-@snowpark_pandas_telemetry_method_decorator
 def memory_usage(self, index: bool = True, deep: bool = False) -> int:
     """
     Return zero bytes for memory_usage
@@ -441,7 +427,6 @@ def memory_usage(self, index: bool = True, deep: bool = False) -> int:
 # Snowpark pandas has slightly different type validation from upstream modin.
 @_inherit_docstrings(native_pd.Series.isin, apilink="pandas.Series")
 @register_series_accessor("isin")
-@snowpark_pandas_telemetry_method_decorator
 def isin(self, values: set | ListLike) -> Series:
     """
     Whether elements in Series are contained in `values`.
@@ -529,7 +514,6 @@ def isin(self, values: set | ListLike) -> Series:
 # Snowpark pandas raises a warning before materializing data and passing to `plot`.
 @register_series_accessor("plot")
 @property
-@snowpark_pandas_telemetry_method_decorator
 def plot(
     self,
     kind="line",
@@ -570,7 +554,6 @@ def plot(
 # Upstream Modin has a bug binary operators (except add/radd, ) don't respect fill_value:
 # https://github.com/modin-project/modin/issues/7381
 @register_series_accessor("sub")
-@snowpark_pandas_telemetry_method_decorator
 def sub(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
     """
     Return subtraction of Series and `other`, element-wise (binary operator `sub`).
@@ -583,7 +566,6 @@ register_series_accessor("subtract")(sub)
 
 
 @register_series_accessor("rsub")
-@snowpark_pandas_telemetry_method_decorator
 def rsub(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
     """
     Return subtraction of series and `other`, element-wise (binary operator `rsub`).
@@ -595,7 +577,6 @@ def rsub(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01,
 
 
 @register_series_accessor("mul")
-@snowpark_pandas_telemetry_method_decorator
 def mul(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
     """
     Return multiplication of series and `other`, element-wise (binary operator `mul`).
@@ -608,7 +589,6 @@ register_series_accessor("multiply")(mul)
 
 
 @register_series_accessor("rmul")
-@snowpark_pandas_telemetry_method_decorator
 def rmul(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
     """
     Return multiplication of series and `other`, element-wise (binary operator `mul`).
@@ -620,7 +600,6 @@ def rmul(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01,
 
 
 @register_series_accessor("truediv")
-@snowpark_pandas_telemetry_method_decorator
 def truediv(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
     """
     Return floating division of series and `other`, element-wise (binary operator `truediv`).
@@ -636,7 +615,6 @@ register_series_accessor("divide")(truediv)
 
 
 @register_series_accessor("rtruediv")
-@snowpark_pandas_telemetry_method_decorator
 def rtruediv(
     self, other, level=None, fill_value=None, axis=0
 ):  # noqa: PR01, RT01, D200
@@ -653,7 +631,6 @@ register_series_accessor("rdiv")(rtruediv)
 
 
 @register_series_accessor("floordiv")
-@snowpark_pandas_telemetry_method_decorator
 def floordiv(
     self, other, level=None, fill_value=None, axis=0
 ):  # noqa: PR01, RT01, D200
@@ -667,7 +644,6 @@ def floordiv(
 
 
 @register_series_accessor("rfloordiv")
-@snowpark_pandas_telemetry_method_decorator
 def rfloordiv(
     self, other, level=None, fill_value=None, axis=0
 ):  # noqa: PR01, RT01, D200
@@ -681,7 +657,6 @@ def rfloordiv(
 
 
 @register_series_accessor("mod")
-@snowpark_pandas_telemetry_method_decorator
 def mod(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
     """
     Return Modulo of series and `other`, element-wise (binary operator `mod`).
@@ -691,7 +666,6 @@ def mod(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, 
 
 
 @register_series_accessor("rmod")
-@snowpark_pandas_telemetry_method_decorator
 def rmod(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
     """
     Return modulo of series and `other`, element-wise (binary operator `rmod`).
@@ -703,7 +677,6 @@ def rmod(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01,
 
 
 @register_series_accessor("pow")
-@snowpark_pandas_telemetry_method_decorator
 def pow(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
     """
     Return exponential power of series and `other`, element-wise (binary operator `pow`).
@@ -713,7 +686,6 @@ def pow(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, 
 
 
 @register_series_accessor("rpow")
-@snowpark_pandas_telemetry_method_decorator
 def rpow(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
     """
     Return exponential power of series and `other`, element-wise (binary operator `rpow`).
@@ -726,7 +698,6 @@ def rpow(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01,
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__add__")
-@snowpark_pandas_telemetry_method_decorator
 def __add__(self, right):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.add(right)
@@ -734,7 +705,6 @@ def __add__(self, right):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__radd__")
-@snowpark_pandas_telemetry_method_decorator
 def __radd__(self, left):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.radd(left)
@@ -742,7 +712,6 @@ def __radd__(self, left):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__and__")
-@snowpark_pandas_telemetry_method_decorator
 def __and__(self, other):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return super(Series, self).__and__(other)
@@ -750,7 +719,6 @@ def __and__(self, other):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__rand__")
-@snowpark_pandas_telemetry_method_decorator
 def __rand__(self, other):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return super(Series, self).__rand__(other)
@@ -758,7 +726,6 @@ def __rand__(self, other):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__divmod__")
-@snowpark_pandas_telemetry_method_decorator
 def __divmod__(self, right):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.divmod(right)
@@ -766,7 +733,6 @@ def __divmod__(self, right):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__rdivmod__")
-@snowpark_pandas_telemetry_method_decorator
 def __rdivmod__(self, left):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.rdivmod(left)
@@ -774,7 +740,6 @@ def __rdivmod__(self, left):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__floordiv__")
-@snowpark_pandas_telemetry_method_decorator
 def __floordiv__(self, right):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.floordiv(right)
@@ -782,7 +747,6 @@ def __floordiv__(self, right):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__rfloordiv__")
-@snowpark_pandas_telemetry_method_decorator
 def __rfloordiv__(self, right):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.rfloordiv(right)
@@ -790,7 +754,6 @@ def __rfloordiv__(self, right):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__mod__")
-@snowpark_pandas_telemetry_method_decorator
 def __mod__(self, right):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.mod(right)
@@ -798,7 +761,6 @@ def __mod__(self, right):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__rmod__")
-@snowpark_pandas_telemetry_method_decorator
 def __rmod__(self, left):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.rmod(left)
@@ -806,7 +768,6 @@ def __rmod__(self, left):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__mul__")
-@snowpark_pandas_telemetry_method_decorator
 def __mul__(self, right):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.mul(right)
@@ -814,7 +775,6 @@ def __mul__(self, right):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__rmul__")
-@snowpark_pandas_telemetry_method_decorator
 def __rmul__(self, left):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.rmul(left)
@@ -822,7 +782,6 @@ def __rmul__(self, left):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__or__")
-@snowpark_pandas_telemetry_method_decorator
 def __or__(self, other):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return super(Series, self).__or__(other)
@@ -830,7 +789,6 @@ def __or__(self, other):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__ror__")
-@snowpark_pandas_telemetry_method_decorator
 def __ror__(self, other):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return super(Series, self).__ror__(other)
@@ -838,7 +796,6 @@ def __ror__(self, other):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__xor__")
-@snowpark_pandas_telemetry_method_decorator
 def __xor__(self, other):  # pragma: no cover
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return super(Series, self).__xor__(other)
@@ -846,7 +803,6 @@ def __xor__(self, other):  # pragma: no cover
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__rxor__")
-@snowpark_pandas_telemetry_method_decorator
 def __rxor__(self, other):  # pragma: no cover
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return super(Series, self).__rxor__(other)
@@ -854,7 +810,6 @@ def __rxor__(self, other):  # pragma: no cover
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__pow__")
-@snowpark_pandas_telemetry_method_decorator
 def __pow__(self, right):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.pow(right)
@@ -862,7 +817,6 @@ def __pow__(self, right):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__rpow__")
-@snowpark_pandas_telemetry_method_decorator
 def __rpow__(self, left):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     return self.rpow(left)
@@ -870,28 +824,24 @@ def __rpow__(self, left):
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__sub__")
-@snowpark_pandas_telemetry_method_decorator
 def __sub__(self, right):
     return self.sub(right)
 
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__rsub__")
-@snowpark_pandas_telemetry_method_decorator
 def __rsub__(self, left):
     return self.rsub(left)
 
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__truediv__")
-@snowpark_pandas_telemetry_method_decorator
 def __truediv__(self, right):
     return self.truediv(right)
 
 
 # Modin defaults to pandas for binary operators against native pandas/list objects.
 @register_series_accessor("__rtruediv__")
-@snowpark_pandas_telemetry_method_decorator
 def __rtruediv__(self, left):
     return self.rtruediv(left)
 
@@ -906,7 +856,6 @@ register_series_accessor("__itruediv__")(__truediv__)
 
 # Upstream Modin does validation on func that Snowpark pandas does not.
 @register_series_accessor("aggregate")
-@snowpark_pandas_telemetry_method_decorator
 def aggregate(
     self, func: AggFuncType = None, axis: Axis = 0, *args: Any, **kwargs: Any
 ):
@@ -919,7 +868,6 @@ register_series_accessor("agg")(aggregate)
 
 # Upstream Modin does a significant amount of frontend manipulation and may default to pandas.
 @register_series_accessor("apply")
-@snowpark_pandas_telemetry_method_decorator
 def apply(
     self,
     func: AggFuncType,
@@ -947,7 +895,6 @@ def apply(
 
 # Upstream modin calls to_pandas on the series.
 @register_series_accessor("map")
-@snowpark_pandas_telemetry_method_decorator
 def map(
     self,
     arg: Callable | Mapping | Series,
@@ -962,7 +909,6 @@ def map(
 
 # Snowpark pandas does different validation than upstream Modin.
 @register_series_accessor("argmax")
-@snowpark_pandas_telemetry_method_decorator
 def argmax(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, D200
     """
     Return int position of the largest value in the Series.
@@ -983,7 +929,6 @@ def argmax(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, 
 
 # Snowpark pandas does different validation than upstream Modin.
 @register_series_accessor("argmin")
-@snowpark_pandas_telemetry_method_decorator
 def argmin(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, D200
     """
     Return int position of the smallest value in the Series.
@@ -1005,7 +950,6 @@ def argmin(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, 
 # Modin uses the same implementation as Snowpark pandas starting form 0.31.0.
 # Until then, upstream Modin does not convert arguments in the caselist into query compilers.
 @register_series_accessor("case_when")
-@snowpark_pandas_telemetry_method_decorator
 def case_when(self, caselist) -> Series:  # noqa: PR01, RT01, D200
     """
     Replace values where the conditions are True.
@@ -1026,7 +970,6 @@ def case_when(self, caselist) -> Series:  # noqa: PR01, RT01, D200
 # Upstream Modin has a bug:
 # https://github.com/modin-project/modin/issues/7334
 @register_series_accessor("compare")
-@snowpark_pandas_telemetry_method_decorator
 def compare(
     self,
     other: Series,
@@ -1073,7 +1016,6 @@ def compare(
 
 # Snowpark pandas does not respect `ignore_index`, and upstream Modin does not respect `how`.
 @register_series_accessor("dropna")
-@snowpark_pandas_telemetry_method_decorator
 def dropna(
     self,
     *,
@@ -1091,7 +1033,6 @@ def dropna(
 # Upstream Modin does not preserve the series name.
 # https://github.com/modin-project/modin/issues/7375
 @register_series_accessor("duplicated")
-@snowpark_pandas_telemetry_method_decorator
 def duplicated(self, keep: DropKeep = "first"):
     """
     Indicate duplicate Series values.
@@ -1109,7 +1050,6 @@ def duplicated(self, keep: DropKeep = "first"):
 # Modin has a separate definition in both series.py and base.py. In general, we cannot force base_overrides
 # to override both methods in case the series.py version calls the superclass method.
 @register_series_accessor("sum")
-@snowpark_pandas_telemetry_method_decorator
 def sum(
     self,
     axis: Axis | None = None,
@@ -1132,7 +1072,6 @@ def sum(
 
 # Snowpark pandas handles kwargs differently than modin.
 @register_series_accessor("std")
-@snowpark_pandas_telemetry_method_decorator
 def std(
     self,
     axis: Axis | None = None,
@@ -1157,7 +1096,6 @@ def std(
 
 # Snowpark pandas handles kwargs differently than modin.
 @register_series_accessor("var")
-@snowpark_pandas_telemetry_method_decorator
 def var(
     self,
     axis: Axis | None = None,
@@ -1233,7 +1171,6 @@ class CategoryMethods:
 
 @register_series_accessor("cat")
 @property
-@snowpark_pandas_telemetry_method_decorator
 def cat(self) -> CategoryMethods:
     return CategoryMethods(self)
 
@@ -1241,7 +1178,6 @@ def cat(self) -> CategoryMethods:
 # Snowpark pandas performs type validation that Modin does not.
 @register_series_accessor("dt")
 @property
-@snowpark_pandas_telemetry_method_decorator
 def dt(self):  # noqa: RT01, D200
     """
     Accessor object for datetimelike properties of the Series values.
@@ -1262,7 +1198,6 @@ def dt(self):  # noqa: RT01, D200
 # Avoid naming the object "str" to avoid overwriting Python built-in "str".
 @register_series_accessor("str")
 @property
-@snowpark_pandas_telemetry_method_decorator
 def _str(self):  # noqa: RT01, D200
     """
     Vectorized string functions for Series and Index.
@@ -1297,25 +1232,18 @@ def _set_name(self, name):
     self._update_inplace(new_query_compiler=self._query_compiler.set_columns(columns))
 
 
-register_series_accessor("name")(
-    try_add_telemetry_to_attribute(
-        "name",
-        property(Series._get_name, _set_name),
-    )
-)
+register_series_accessor("name")(property(Series._get_name, _set_name))
 
 
 # Modin uses len(self.index) instead of len(self), which may incur an extra query.
 @register_series_accessor("empty")
 @property
-@snowpark_pandas_telemetry_method_decorator
 def empty(self) -> bool:
     return len(self) == 0
 
 
 # Upstream modin uses squeeze_self instead of self_is_series.
 @register_series_accessor("fillna")
-@snowpark_pandas_telemetry_method_decorator
 def fillna(
     self,
     value: Hashable | Mapping | Series = None,
@@ -1345,7 +1273,6 @@ def fillna(
 
 # Snowpark pandas defines a custom GroupBy object
 @register_series_accessor("groupby")
-@snowpark_pandas_telemetry_method_decorator
 def groupby(
     self,
     by=None,
@@ -1389,7 +1316,6 @@ def groupby(
 # Snowpark pandas should avoid defaulting to pandas (the current Modin upstream version needs
 # Index._is_memory_usage_qualified to be implemented).
 @register_series_accessor("info")
-@snowpark_pandas_telemetry_method_decorator
 def info(
     self,
     verbose: bool | None = None,
@@ -1429,7 +1355,6 @@ def _qcut(
 
 # Snowpark pandas ignores `inplace` (possibly an error?) and performs additional validation.
 @register_series_accessor("replace")
-@snowpark_pandas_telemetry_method_decorator
 def replace(
     self,
     to_replace=None,
@@ -1463,7 +1388,6 @@ def replace(
 
 # Upstream Modin reset_index produces an extra query and performs a relative import of DataFrame.
 @register_series_accessor("reset_index")
-@snowpark_pandas_telemetry_method_decorator
 def reset_index(
     self,
     level=None,
@@ -1501,7 +1425,6 @@ def reset_index(
 
 # Snowpark pandas performs additional type validation.
 @register_series_accessor("set_axis")
-@snowpark_pandas_telemetry_method_decorator
 def set_axis(
     self,
     labels: IndexLabel,
@@ -1521,11 +1444,8 @@ def set_axis(
     )
 
 
-# TODO: SNOW-1063346
-# Modin does a relative import (from .dataframe import DataFrame). We should revisit this once
-# our vendored copy of DataFrame is removed.
+# Snowpark pandas does different validation.
 @register_series_accessor("rename")
-@snowpark_pandas_telemetry_method_decorator
 def rename(
     self,
     index: Renamer | Hashable | None = None,
@@ -1574,60 +1494,8 @@ def rename(
             return self_cp
 
 
-# TODO: SNOW-1063346
-# Modin does a relative import (from .dataframe import DataFrame). We should revisit this once
-# our vendored copy of DataFrame is removed.
-@register_series_accessor("sort_values")
-@snowpark_pandas_telemetry_method_decorator
-def sort_values(
-    self,
-    axis: Axis = 0,
-    ascending: bool | int | Sequence[bool] | Sequence[int] = True,
-    inplace: bool = False,
-    kind: str = "quicksort",
-    na_position: str = "last",
-    ignore_index: bool = False,
-    key: IndexKeyFunc | None = None,
-):
-    """
-    Sort by the values.
-    """
-    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-
-    if is_list_like(ascending) and len(ascending) != 1:
-        raise ValueError(f"Length of ascending ({len(ascending)}) must be 1 for Series")
-
-    if axis is not None:
-        # Validate `axis`
-        self._get_axis_number(axis)
-
-    # When we convert to a DataFrame, the name is automatically converted to 0 if it
-    # is None, so we do this to avoid a KeyError.
-    by = self.name if self.name is not None else 0
-    result = (
-        DataFrame(self.copy())
-        .sort_values(
-            by=by,
-            ascending=ascending,
-            inplace=False,
-            kind=kind,
-            na_position=na_position,
-            ignore_index=ignore_index,
-            key=key,
-        )
-        .squeeze(axis=1)
-    )
-    result.name = self.name
-    return self._create_or_update_from_compiler(result._query_compiler, inplace=inplace)
-
-
-# TODO: SNOW-1063346
-# Modin does a relative import (from .dataframe import DataFrame). We should revisit this once
-# our vendored copy of DataFrame is removed.
-# Modin also defaults to pandas for some arguments for unstack
+# Modin defaults to pandas for some arguments for unstack
 @register_series_accessor("unstack")
-@snowpark_pandas_telemetry_method_decorator
 def unstack(
     self,
     level: int | str | list = -1,
@@ -1638,7 +1506,7 @@ def unstack(
     Unstack, also known as pivot, Series with MultiIndex to produce DataFrame.
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    from snowflake.snowpark.modin.pandas.dataframe import DataFrame
+    from modin.pandas.dataframe import DataFrame
 
     # We can't unstack a Series object, if we don't have a MultiIndex.
     if self._query_compiler.has_multiindex:
@@ -1655,9 +1523,53 @@ def unstack(
     return result
 
 
+# Snowpark pandas does an extra check on `len(ascending)`.
+@register_series_accessor("sort_values")
+def sort_values(
+    self,
+    axis: Axis = 0,
+    ascending: bool | int | Sequence[bool] | Sequence[int] = True,
+    inplace: bool = False,
+    kind: str = "quicksort",
+    na_position: str = "last",
+    ignore_index: bool = False,
+    key: IndexKeyFunc | None = None,
+):
+    """
+    Sort by the values.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+
+    if is_list_like(ascending) and len(ascending) != 1:
+        raise ValueError(f"Length of ascending ({len(ascending)}) must be 1 for Series")
+
+    if axis is not None:
+        # Validate `axis`
+        self._get_axis_number(axis)
+    # Validate inplace, ascending and na_position.
+    inplace = validate_bool_kwarg(inplace, "inplace")
+    ascending = validate_ascending(ascending)
+    if na_position not in get_args(NaPosition):
+        # Same error message as native pandas for invalid 'na_position' value.
+        raise ValueError(f"invalid na_position: {na_position}")
+
+    # Convert 'ascending' to sequence if needed.
+    if not isinstance(ascending, Sequence):
+        ascending = [ascending]
+    result = self._query_compiler.sort_rows_by_column_values(
+        self._query_compiler.columns,
+        ascending,
+        kind,
+        na_position,
+        ignore_index,
+        key,
+        include_index=False,
+    )
+    return self._create_or_update_from_compiler(result, inplace=inplace)
+
+
 # Upstream Modin defaults at the frontend layer.
 @register_series_accessor("where")
-@snowpark_pandas_telemetry_method_decorator
 def where(
     self,
     cond: DataFrame | Series | Callable | AnyArrayLike,
@@ -1681,7 +1593,6 @@ def where(
 
 # Upstream modin defaults to pandas for some arguments.
 @register_series_accessor("value_counts")
-@snowpark_pandas_telemetry_method_decorator
 def value_counts(
     self,
     normalize: bool = False,
@@ -1711,7 +1622,6 @@ def value_counts(
 # https://github.com/pandas-dev/pandas/issues/54806
 # The parameter is ignored in upstream modin, but Snowpark pandas wants to error if the parameter is given.
 @register_series_accessor("shift")
-@snowpark_pandas_telemetry_method_decorator
 def shift(
     self,
     periods: int | Sequence[int] = 1,
@@ -1733,7 +1643,6 @@ def shift(
 
 # Snowpark pandas uses len(self) instead of len(index), saving a query in some cases.
 @register_series_accessor("squeeze")
-@snowpark_pandas_telemetry_method_decorator
 def squeeze(self, axis: Axis | None = None):
     """
     Squeeze 1 dimensional axis objects into scalars.
@@ -1784,7 +1693,6 @@ def _to_datetime(self, **kwargs):
 
 # Modin uses the query compiler to_list method, which we should try to implement instead of calling self.values.
 @register_series_accessor("to_list")
-@snowpark_pandas_telemetry_method_decorator
 def to_list(self) -> list:
     """
     Return a list of the values.
@@ -1797,7 +1705,6 @@ register_series_accessor("tolist")(to_list)
 
 
 @register_series_accessor("to_dict")
-@snowpark_pandas_telemetry_method_decorator
 def to_dict(self, into: type[dict] = dict) -> dict:
     """
     Convert Series to {label -> value} dict or dict-like object.
@@ -1806,66 +1713,7 @@ def to_dict(self, into: type[dict] = dict) -> dict:
     return self._to_pandas().to_dict(into=into)
 
 
-# TODO: SNOW-1063346
-# Modin does a relative import (from .dataframe import DataFrame), so until we stop using the vendored
-# version of DataFrame, we must keep this override.
-@register_series_accessor("_create_or_update_from_compiler")
-def _create_or_update_from_compiler(self, new_query_compiler, inplace=False):
-    """
-    Return or update a Series with given `new_query_compiler`.
-
-    Parameters
-    ----------
-    new_query_compiler : PandasQueryCompiler
-        QueryCompiler to use to manage the data.
-    inplace : bool, default: False
-        Whether or not to perform update or creation inplace.
-
-    Returns
-    -------
-    Series, DataFrame or None
-        None if update was done, Series or DataFrame otherwise.
-    """
-    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    assert (
-        isinstance(new_query_compiler, type(self._query_compiler))
-        or type(new_query_compiler) in self._query_compiler.__class__.__bases__
-    ), f"Invalid Query Compiler object: {type(new_query_compiler)}"
-    if not inplace and new_query_compiler.is_series_like():
-        return self.__constructor__(query_compiler=new_query_compiler)
-    elif not inplace:
-        # This can happen with things like `reset_index` where we can add columns.
-        from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-
-        return DataFrame(query_compiler=new_query_compiler)
-    else:
-        self._update_inplace(new_query_compiler=new_query_compiler)
-
-
-# TODO: SNOW-1063346
-# Modin does a relative import (from .dataframe import DataFrame), so until we stop using the vendored
-# version of DataFrame, we must keep this override.
-@register_series_accessor("to_frame")
-@snowpark_pandas_telemetry_method_decorator
-def to_frame(self, name: Hashable = no_default) -> DataFrame:  # noqa: PR01, RT01, D200
-    """
-    Convert Series to {label -> value} dict or dict-like object.
-    """
-    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-
-    if name is None:
-        name = no_default
-
-    self_cp = self.copy()
-    if name is not no_default:
-        self_cp.name = name
-
-    return DataFrame(self_cp)
-
-
 @register_series_accessor("to_numpy")
-@snowpark_pandas_telemetry_method_decorator
 def to_numpy(
     self,
     dtype: npt.DTypeLike | None = None,
@@ -1891,7 +1739,6 @@ def to_numpy(
 
 # Snowpark pandas has the extra `statement_params` argument.
 @register_series_accessor("_to_pandas")
-@snowpark_pandas_telemetry_method_decorator
 def _to_pandas(
     self,
     *,
@@ -1922,7 +1769,6 @@ def _to_pandas(
 
 # Snowpark pandas does more validation and error checking than upstream Modin.
 @register_series_accessor("__setitem__")
-@snowpark_pandas_telemetry_method_decorator
 def __setitem__(self, key, value):
     """
     Set `value` identified by `key` in the Series.
@@ -2070,7 +1916,6 @@ def __setitem__(self, key, value):
 # Snowpark pandas uses the query compiler build_repr_df method to minimize queries, while upstream
 # modin calls BasePandasDataset.build_repr_df
 @register_series_accessor("__repr__")
-@snowpark_pandas_telemetry_method_decorator
 def __repr__(self):
     """
     Return a string representation for a particular Series.

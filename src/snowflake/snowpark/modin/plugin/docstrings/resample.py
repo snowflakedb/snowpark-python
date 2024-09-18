@@ -170,7 +170,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             A DataFrame with values forward filled for missing resample bins.
 
         Examples
@@ -300,7 +300,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             An upsampled Series or DataFrame with backward filled NaN values.
 
         Examples
@@ -357,7 +357,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             An upsampled Series or DataFrame with missing values filled.
 
         Examples
@@ -406,7 +406,44 @@ class Resampler:
         """
 
     def asfreq():
-        pass
+        """
+        Return the values at the new freq, essentially a reindex.
+
+        Parameters
+        ----------
+        fill_value : scalar, optional
+            This parameter is not supported and will raise NotImplementedError.
+
+        Returns
+        -------
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
+            Values at the specified freq.
+
+        See Also
+        --------
+        Series.asfreq: Convert TimeSeries to specified frequency.
+        DataFrame.asfreq: Convert TimeSeries to specified frequency.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 3], index=pd.date_range('20180101', periods=3, freq='h'))
+        >>> s
+        2018-01-01 00:00:00    1
+        2018-01-01 01:00:00    2
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
+        >>> s.resample("30min").asfreq()
+        2018-01-01 00:00:00    1.0
+        2018-01-01 00:30:00    NaN
+        2018-01-01 01:00:00    2.0
+        2018-01-01 01:30:00    NaN
+        2018-01-01 02:00:00    3.0
+        Freq: None, dtype: float64
+        >>> s.resample("2h").asfreq()
+        2018-01-01 00:00:00    1
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
+        """
 
     def interpolate():
         pass
@@ -417,7 +454,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed count of values within each resample bin.
 
         Examples
@@ -494,7 +531,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             First values within each group.
 
         Examples
@@ -568,7 +605,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Last values within each group.
 
         Examples
@@ -643,7 +680,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed maximum of values within each resample bin.
 
         Examples
@@ -729,7 +766,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed mean of values within each resample bin.
 
         Examples
@@ -822,7 +859,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed median of values within each resample bin.
 
         Examples
@@ -897,7 +934,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed minimum of values within each resample bin.
 
         Examples
@@ -967,7 +1004,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Number of rows in each group as a Series if ``as_index`` is True or a DataFrame if ``as_index`` is False.
 
         Examples
@@ -1049,7 +1086,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed standard deviation of values within each resample bin.
 
         Examples
@@ -1124,7 +1161,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed sum of values within each resample bin.
 
         Examples
@@ -1203,7 +1240,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed variance of values within each resample bin.
 
         Examples

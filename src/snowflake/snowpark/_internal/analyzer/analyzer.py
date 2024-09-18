@@ -124,6 +124,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     Cast,
     UnaryExpression,
+    UnaryMinus,
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
@@ -344,14 +345,10 @@ class Analyzer:
             return specified_window_frame_expression(
                 expr.frame_type.sql,
                 self.window_frame_boundary(
-                    self.to_sql_try_avoid_cast(
-                        expr.lower, df_aliased_col_name_to_real_col_name
-                    )
+                    expr.lower, df_aliased_col_name_to_real_col_name
                 ),
                 self.window_frame_boundary(
-                    self.to_sql_try_avoid_cast(
-                        expr.upper, df_aliased_col_name_to_real_col_name
-                    )
+                    expr.upper, df_aliased_col_name_to_real_col_name
                 ),
             )
         if isinstance(expr, UnspecifiedFrame):
@@ -722,12 +719,28 @@ class Analyzer:
             df_aliased_col_name_to_real_col_name,
         )
 
-    def window_frame_boundary(self, offset: str) -> str:
-        try:
-            num = int(offset)
-            return window_frame_boundary_expression(str(abs(num)), num >= 0)
-        except Exception:
-            return offset
+    def window_frame_boundary(
+        self,
+        boundary: Expression,
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+    ) -> str:
+        # it means interval preceding
+        if isinstance(boundary, UnaryMinus) and isinstance(boundary.child, Interval):
+            return window_frame_boundary_expression(
+                boundary.child.sql, is_following=False
+            )
+        elif isinstance(boundary, Interval):
+            return window_frame_boundary_expression(boundary.sql, is_following=True)
+        else:
+            # boundary should be an integer
+            offset = self.to_sql_try_avoid_cast(
+                boundary, df_aliased_col_name_to_real_col_name
+            )
+            try:
+                num = int(offset)
+                return window_frame_boundary_expression(str(abs(num)), num >= 0)
+            except Exception:
+                return offset
 
     def to_sql_try_avoid_cast(
         self,
@@ -956,10 +969,7 @@ class Analyzer:
                 schema_query = schema_query_for_values_statement(logical_plan.output)
 
             if logical_plan.data:
-                if (
-                    len(logical_plan.output) * len(logical_plan.data)
-                    < ARRAY_BIND_THRESHOLD
-                ):
+                if not logical_plan.is_large_local_data:
                     return self.plan_builder.query(
                         values_statement(logical_plan.output, logical_plan.data),
                         logical_plan,
