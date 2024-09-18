@@ -284,17 +284,17 @@ jobs:
       - name: Set up windows environment
         if: runner.os == 'Windows'
         run: |
-            "TZ=EST" >> $env:GITHUB_ENV
-            echo "TZ=EST" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            "TZ=EDT" >> $env:GITHUB_ENV
+            echo "TZ=EDT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Run tests
-        run: TZ=EST python -m tox -e "py${PYTHON_VERSION/\./}-ast"
+        run: TZ=EDT python -m tox -e "py${PYTHON_VERSION/\./}-ast"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
-          TZ: EST
+          TZ: EDT
         shell: bash
 
   test-enable-cte-optimization:
