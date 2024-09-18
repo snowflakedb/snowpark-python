@@ -406,7 +406,44 @@ class Resampler:
         """
 
     def asfreq():
-        pass
+        """
+        Return the values at the new freq, essentially a reindex.
+
+        Parameters
+        ----------
+        fill_value : scalar, optional
+            This parameter is not supported and will raise NotImplementedError.
+
+        Returns
+        -------
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
+            Values at the specified freq.
+
+        See Also
+        --------
+        Series.asfreq: Convert TimeSeries to specified frequency.
+        DataFrame.asfreq: Convert TimeSeries to specified frequency.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 3], index=pd.date_range('20180101', periods=3, freq='h'))
+        >>> s
+        2018-01-01 00:00:00    1
+        2018-01-01 01:00:00    2
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
+        >>> s.resample("30min").asfreq()
+        2018-01-01 00:00:00    1.0
+        2018-01-01 00:30:00    NaN
+        2018-01-01 01:00:00    2.0
+        2018-01-01 01:30:00    NaN
+        2018-01-01 02:00:00    3.0
+        Freq: None, dtype: float64
+        >>> s.resample("2h").asfreq()
+        2018-01-01 00:00:00    1
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
+        """
 
     def interpolate():
         pass
