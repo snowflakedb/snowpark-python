@@ -15,6 +15,7 @@
 - Added support for `by`, `left_by`, `right_by`, `left_index`, and `right_index` for `pd.merge_asof`.
 - Added support for passing parameter `include_describe` to `Session.query_history`.
 - Added support for `DatetimeIndex.mean` and `DatetimeIndex.std` methods.
+- Added support for `Resampler.asfreq`.
 
 #### Bug Fixes
 
