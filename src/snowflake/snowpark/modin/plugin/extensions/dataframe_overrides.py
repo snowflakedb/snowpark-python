@@ -649,6 +649,10 @@ def _df_init_dict_data_with_snowpark_pandas_values(
     columns: list | AnyArrayLike | Series | Index,
     dtype: str | np.dtype | native_pd.ExtensionDtype | None,
 ):
+    """
+    Helper function for initializing a DataFrame with a dictionary where all the values
+    are Snowpark pandas objects.
+    """
     # Special case: data is a dict where all the values are Snowpark pandas objects.
     # Concat can only be performed with BasePandasDataset objects.
     # If a value is an Index, convert it to a Series where the index is the index to be set since these values
@@ -674,6 +678,10 @@ def _df_init_list_data_with_snowpark_pandas_values(
     columns: list | AnyArrayLike | Series | Index,
     dtype: str | np.dtype | native_pd.ExtensionDtype | None,
 ):
+    """
+    Helper function for initializing a DataFrame with a list where all the values
+    are Snowpark pandas objects.
+    """
     # Special case: data is a list/dict where all the values are Snowpark pandas objects.
     # Concat can only be performed with BasePandasDataset objects.
     # If a value is an Index, convert it to a Series.

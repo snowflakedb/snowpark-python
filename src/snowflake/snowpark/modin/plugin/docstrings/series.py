@@ -78,7 +78,7 @@ class Series(BasePandasDataset):
     c    3
     dtype: int64
 
-    The keys of the dictionary match with the Index values, hence the dictionary
+    The keys of the dictionary match with the Index values, hence the Index
     values have no effect.
 
     >>> d = {'a': 1, 'b': 2, 'c': 3}
