@@ -22,7 +22,6 @@ from tests.utils import Utils
 
 
 @pytest.mark.modin_sp_precommit
-# TODO 849288 verify df.dtypes too
 @pytest.mark.parametrize(
     "col_name_type, samples, expected_dtype, expected_to_pandas_dtype, expected_to_pandas",
     [
@@ -280,7 +279,7 @@ from tests.utils import Utils
         (
             "timestamp_tz timestamp_tz",
             "values ('2023-01-01 00:00:01.001 +0000'), ('2023-12-31 23:59:59.999 +1000')",  # timestamp_tz only supports tz offset
-            dtype("<M8[ns]"),
+            "object",  # multi timezone case
             "object",
             native_pd.DataFrame(
                 [
@@ -336,7 +335,13 @@ def test_read_snowflake_data_types(
     expected_to_pandas_dtype,
     expected_to_pandas,
 ):
-    expected_query_count = 9 if isinstance(samples, list) and len(samples) > 1 else 4
+    expected_query_count = (
+        9
+        if isinstance(samples, list) and len(samples) > 1
+        else 5
+        if "timestamp_tz" in col_name_type
+        else 4
+    )
     with SqlCounter(query_count=expected_query_count):
         Utils.create_table(session, test_table_name, col_name_type, is_temporary=True)
         if not isinstance(samples, list):

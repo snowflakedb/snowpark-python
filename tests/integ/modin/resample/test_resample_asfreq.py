@@ -41,6 +41,19 @@ def test_asfreq_ffill():
     )
 
 
+@sql_count_checker(query_count=3, join_count=1)
+@pytest.mark.parametrize("freq", ["3min", "30S"])
+def test_resampler_asfreq(freq):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            {"A": np.random.randn(15)},
+            index=native_pd.date_range("2020-01-01", periods=15, freq="1min"),
+        ),
+        lambda df: df.resample(freq).asfreq(),
+        check_freq=False,
+    )
+
+
 @sql_count_checker(query_count=0)
 def test_asfreq_negative():
     snow_df = pd.DataFrame(
@@ -53,3 +66,5 @@ def test_asfreq_negative():
         snow_df.asfreq(freq="5s", method="ffill", normalize=True)
     with pytest.raises(NotImplementedError):
         snow_df.asfreq(freq="5s", method="ffill", fill_value=2)
+    with pytest.raises(NotImplementedError):
+        snow_df.resample("5s").asfreq(fill_value=2)
