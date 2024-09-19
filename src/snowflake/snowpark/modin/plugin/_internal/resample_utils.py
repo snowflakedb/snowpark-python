@@ -47,7 +47,7 @@ IMPLEMENTED_AGG_METHODS = [
     "last",
 ]
 IMPLEMENTED_MISC_METHODS = ["ffill"]
-SUPPORTED_RESAMPLE_RULES = ("second", "minute", "hour", "day", "month")
+SUPPORTED_RESAMPLE_RULES = ("second", "minute", "hour", "day", "week", "month", "year")
 RULE_SECOND_TO_DAY = ("second", "minute", "hour", "day")
 RULE_WEEK_TO_YEAR = ("week", "quarter", "month", "year")
 
@@ -84,9 +84,21 @@ ALL_DATEOFFSET_STRINGS = [
     "ns",
 ]
 
-SNOWFLAKE_SUPPORTED_DATEOFFSETS = ["W", "ME", "QE", "QS", "YS", "D", "h", "min", "s"]
+SNOWFLAKE_SUPPORTED_DATEOFFSETS = [
+    "s",
+    "min",
+    "h",
+    "D",
+    "W",
+    "MS",
+    "ME",
+    "QS",
+    "QE",
+    "YS",
+    "YE",
+]
 
-IMPLEMENTED_DATEOFFSET_STRINGS = ["min", "s", "h", "D", "ME"]
+IMPLEMENTED_DATEOFFSET_STRINGS = ["s", "min", "h", "D", "W", "ME", "YE"]
 
 UNSUPPORTED_DATEOFFSET_STRINGS = list(
     # sort so that tests that generate test cases from this last always use the
@@ -136,7 +148,6 @@ def rule_to_snowflake_width_and_slice_unit(rule: Frequency) -> tuple[int, str]:
 
     rule_code = offset.rule_code
     slice_width = offset.n
-
     if rule_code == "s":
         slice_unit = "second"
     elif rule_code == "min":
@@ -145,15 +156,15 @@ def rule_to_snowflake_width_and_slice_unit(rule: Frequency) -> tuple[int, str]:
         slice_unit = "hour"
     elif rule_code == "D":
         slice_unit = "day"
-    elif rule_code[0] == "W":  # pragma: no cover
+    elif rule_code[0] == "W":
         # treat codes like W-MON and W-SUN as "week":
         slice_unit = "week"
     elif rule_code == "ME":
         slice_unit = "month"
-    elif rule_code[0] == "QE":  # pragma: no cover
+    elif "QE" in rule_code:  # pragma: no cover
         # treat codes like Q-DEC and Q-JAN as "quarter":
         slice_unit = "quarter"
-    elif rule_code[0] == "YE":  # pragma: no cover
+    elif "YE" in rule_code:
         # treat codes like A-DEC and A-JAN as "year":
         slice_unit = "year"
     else:

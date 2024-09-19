@@ -343,8 +343,9 @@ Methods
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``resample``                | P                               | ``axis``, ``label``,             | Only DatetimeIndex is supported and its ``freq``   |
 |                             |                                 | ``convention``, ``kind``, ``on`` | will be lost. ``rule`` frequencies 's', 'min',     |
-|                             |                                 | , ``level``, ``origin``,         | 'h', and 'D' are supported. ``rule`` frequency 'ME'|
-|                             |                                 | , ``offset``, ``group_keys``     | is supported with ``closed = "left"``              |
+|                             |                                 | , ``level``, ``origin``,         | 'h', and 'D' are supported. ``rule`` frequency 'W' |
+|                             |                                 | , ``offset``, ``group_keys``     | , 'ME', and 'YE' are supported with                |
+|                             |                                 |                                  | `closed = "left"`                                  |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``reset_index``             | Y                               |                                  |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
