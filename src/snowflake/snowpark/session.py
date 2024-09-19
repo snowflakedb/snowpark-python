@@ -2774,7 +2774,7 @@ class Session:
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
         schema: Optional[Union[StructType, Iterable[str]]] = None,
-        _emit_ast: bool = None,
+        _emit_ast: bool = True,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
