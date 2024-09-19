@@ -22,9 +22,6 @@ from tests.integ.modin.utils import (
 agg_func = pytest.mark.parametrize("agg_func", IMPLEMENTED_AGG_METHODS)
 freq = pytest.mark.parametrize("freq", IMPLEMENTED_DATEOFFSET_STRINGS)
 interval = pytest.mark.parametrize("interval", [1, 2, 3, 5, 15])
-# agg_func = pytest.mark.parametrize("agg_func", ["min"])
-# freq = pytest.mark.parametrize("freq", ["ME"])
-# interval = pytest.mark.parametrize("interval", [3])
 
 
 def randomword(length):
@@ -44,7 +41,7 @@ def test_resample_with_varying_freq_and_interval(freq, interval, agg_func):
             {"A": np.random.randn(15)},
             index=native_pd.date_range("2020-01-01", periods=15, freq=f"1{freq}"),
         ),
-        lambda df: getattr(df.resample(rule=rule), agg_func)(),
+        lambda df: getattr(df.resample(rule=rule, closed="left"), agg_func)(),
         check_freq=False,
     )
 
@@ -105,7 +102,7 @@ def test_resample_missing_data_upsample(agg_func, freq):
     rule = f"1{freq}"
     eval_snowpark_pandas_result(
         *create_test_dfs({"A": np.random.randn(10)}, index=date_data),
-        lambda df: getattr(df.resample(rule=rule), agg_func)(),
+        lambda df: getattr(df.resample(rule=rule, closed="left"), agg_func)(),
         check_freq=False,
     )
 
@@ -162,7 +159,7 @@ def test_resample_series(freq, interval, agg_func):
             range(15),
             index=native_pd.date_range("2020-01-01", periods=15, freq=f"1{freq}"),
         ),
-        lambda ser: getattr(ser.resample(rule=rule), agg_func)(),
+        lambda ser: getattr(ser.resample(rule=rule, closed="left"), agg_func)(),
         check_freq=False,
     )
 

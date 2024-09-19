@@ -7,13 +7,10 @@ import numpy as np
 import pandas as native_pd
 import pytest
 
-from snowflake.snowpark.modin.plugin._internal.resample_utils import (
-    IMPLEMENTED_DATEOFFSET_STRINGS,
-)
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
-freq = pytest.mark.parametrize("freq", IMPLEMENTED_DATEOFFSET_STRINGS)
+freq = pytest.mark.parametrize("freq", ["min", "s", "h", "D"])
 interval = pytest.mark.parametrize("interval", [1, 2, 3, 5, 15])
 
 
