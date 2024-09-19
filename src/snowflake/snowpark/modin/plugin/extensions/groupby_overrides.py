@@ -1173,9 +1173,20 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             Returns the same type as `self._df`.
         """
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        numeric_only = validate_bool_kwarg(
-            numeric_only, "numeric_only", none_allowed=True
-        )
+        try:
+            numeric_only = validate_bool_kwarg(
+                numeric_only, "numeric_only", none_allowed=True
+            )
+        except ValueError:
+            # SNOW-1429199: Snowpark users expect to be able to pass in the column to aggregate
+            # on in the aggregation method, e.g. df.groupby("COL0").sum("COL1"), but the pandas
+            # API's only accept the numeric_only argument, so users get an error complaining that
+            # the numeric_only kwarg expects a bool argument, but a string was passed in. Instead
+            # of that error, we can throw this error instead that will make it more clear to users
+            # what went wrong.
+            raise ValueError(
+                f"GroupBy aggregations like 'sum' take a 'numeric_only' argument that needs to be a bool, but a {type(numeric_only).__name__} value was passed in."
+            )
 
         agg_args = tuple() if agg_args is None else agg_args
         agg_kwargs = dict() if agg_kwargs is None else agg_kwargs
