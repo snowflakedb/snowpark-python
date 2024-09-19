@@ -386,7 +386,7 @@ class DataFrameStatFunctions:
                     build_expr_from_python_val(t._1, k)
                     t._2 = v
 
-            self._dataframe.set_ast_ref(expr.df)
+            self._dataframe._set_ast_ref(expr.df)
 
         if not fractions:
             res_df = self._dataframe.limit(0, _emit_ast=False)

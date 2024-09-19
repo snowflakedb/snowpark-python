@@ -3103,12 +3103,14 @@ class Session:
                     analyzer=self._analyzer,
                 ),
                 ast_stmt=stmt,
+                _emit_ast=False,
             ).select(project_columns, _emit_ast=False)
         else:
             df = DataFrame(
                 self,
                 SnowflakeValues(attrs, converted, schema_query=schema_query),
                 ast_stmt=stmt,
+                _emit_ast=False,
             ).select(project_columns, _emit_ast=False)
         set_api_call_source(df, "Session.create_dataframe[values]")
 

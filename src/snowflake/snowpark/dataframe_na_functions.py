@@ -179,7 +179,7 @@ class DataFrameNaFunctions:
                 ast.subset.list.append(subset)
             elif isinstance(subset, Iterable):
                 ast.subset.list.extend(subset)
-            self._df.set_ast_ref(ast.df)
+            self._df._set_ast_ref(ast.df)
 
         # if subset is not provided, drop will be applied to all columns
         if subset is None:
@@ -349,7 +349,7 @@ class DataFrameNaFunctions:
         # AST.
         stmt = self._df._session._ast_batch.assign()
         ast = with_src_position(stmt.expr.sp_dataframe_na_fill, stmt)
-        self._df.set_ast_ref(ast.df)
+        self._df._set_ast_ref(ast.df)
         if isinstance(value, dict):
             for k, v in value.items():
                 # N.B. In Phase 1, error checking will be incorporated directly here.
@@ -538,7 +538,7 @@ class DataFrameNaFunctions:
         # AST.
         stmt = self._df._session._ast_batch.assign()
         ast = with_src_position(stmt.expr.sp_dataframe_na_replace, stmt)
-        self._df.set_ast_ref(ast.df)
+        self._df._set_ast_ref(ast.df)
 
         if isinstance(to_replace, dict):
             for k, v in to_replace.items():
