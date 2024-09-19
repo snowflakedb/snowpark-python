@@ -162,10 +162,10 @@ def rule_to_snowflake_width_and_slice_unit(rule: Frequency) -> tuple[int, str]:
     elif rule_code == "ME":
         slice_unit = "month"
     elif "QE" in rule_code:  # pragma: no cover
-        # treat codes like Q-DEC and Q-JAN as "quarter":
+        # treat codes like QE-DEC and QE-JAN as "quarter":
         slice_unit = "quarter"
     elif "YE" in rule_code:
-        # treat codes like A-DEC and A-JAN as "year":
+        # treat codes like YE-DEC and YE-JAN as "year":
         slice_unit = "year"
     else:
         raise NotImplementedError(
@@ -217,9 +217,7 @@ def validate_resample_supported_by_snowflake(
     """
     rule = resample_kwargs.get("rule")
 
-    _, slice_unit = rule_to_snowflake_width_and_slice_unit(
-        rule  # type:  ignore[arg-type]
-    )
+    _, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
 
     if slice_unit not in SUPPORTED_RESAMPLE_RULES:
         _argument_not_implemented("rule", rule)
