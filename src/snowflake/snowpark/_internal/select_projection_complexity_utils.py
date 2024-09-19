@@ -3,25 +3,27 @@
 #
 
 from typing import List
-from snowflake.snowpark._internal.analyzer.table_function import (
-    TableFunctionExpression,
-)
-from snowflake.snowpark._internal.analyzer.window_expression import WindowExpression
+
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
-    FunctionExpression
+    FunctionExpression,
 )
+from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
+from snowflake.snowpark._internal.analyzer.window_expression import WindowExpression
 
-
-# aggregation, data generation or nondeterministic with unique reference
-VALID_VIEW_MERGE_FUNCTIONS = (
+# Set of functions (defined in snowpark-python/src/snowflake/snowpark/functions.py) that do not
+# block merge projections of nested select.
+# Be careful when adding functions in this list, it must statisfy the following condition:
+# 1) not aggregation
+# 2) no data generation
+# 3) not nondeterministic with unique reference,
+VALID_PROJECTION_MERGE_FUNCTIONS = (
     "add_months",
     "bitnot",
     "bitshiftleft",
     "bitshiftright",
     "bround",
-    "convert_timezone"
-    "object_construct_keep_null",
+    "convert_timezone" "object_construct_keep_null",
     "object_construct",
     "coalesce",
     "equal_nan",
@@ -137,8 +139,7 @@ VALID_VIEW_MERGE_FUNCTIONS = (
     "is_binary",
     "is_char",
     "is_date",
-    "is_decimal"
-    "is_double",
+    "is_decimal" "is_double",
     "is_real",
     "is_integer",
     "is_null_value",
@@ -159,13 +160,11 @@ VALID_VIEW_MERGE_FUNCTIONS = (
     "json_extract_path_text",
     "parse_json",
     "parse_xml",
-    "strip_null_value"
-    "array_append",
+    "strip_null_value" "array_append",
     "array_cat",
     "array_compact",
     "array_construct",
-    "array_construct_compact"
-    "array_contains",
+    "array_construct_compact" "array_contains",
     "array_insert",
     "array_position",
     "array_prepend",
@@ -202,11 +201,22 @@ VALID_VIEW_MERGE_FUNCTIONS = (
     "iff",
     "in_",
     "greatest",
-    "least"
+    "least",
 )
 
 
-def has_invalid_view_merge_functions(expressions: List[Expression]) -> bool:
+def has_invalid_projection_merge_functions(expressions: List[Expression]) -> bool:
+    """
+    Check if the given list of expressions contains any functions that blocks the merge
+    of projections.
+
+    For each expression, the check is applied recursively to its-self and the child expressions.
+    A function blocks the merge or inlining of projection expression if it is
+    1) a window function
+    2) a table function expression
+    3) a function expression that is data generator or not in the VALID_PROJECTION_MERGE_FUNCTIONS list
+    """
+
     if expressions is None:
         return False
     for exp in expressions:
@@ -214,9 +224,12 @@ def has_invalid_view_merge_functions(expressions: List[Expression]) -> bool:
             return True
         if isinstance(expressions, TableFunctionExpression):
             return True
-        if isinstance(exp, FunctionExpression) and (not exp.name.lower() in VALID_VIEW_MERGE_FUNCTIONS):
+        if isinstance(exp, FunctionExpression) and (
+            exp.is_data_generator
+            or (not exp.name.lower() in VALID_PROJECTION_MERGE_FUNCTIONS)
+        ):
             return True
-        if exp is not None and has_invalid_view_merge_functions(exp.children):
+        if exp is not None and has_invalid_projection_merge_functions(exp.children):
             return True
 
     return False

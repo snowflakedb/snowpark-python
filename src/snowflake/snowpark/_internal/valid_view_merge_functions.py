@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+#
+
 # aggregation, data generation or nondeterministic with unique reference
 VALID_VIEW_MERGE_FUNCTIONS = (
     "add_months",
@@ -5,8 +9,7 @@ VALID_VIEW_MERGE_FUNCTIONS = (
     "bitshiftleft",
     "bitshiftright",
     "bround",
-    "convert_timezone"
-    "object_construct_keep_null",
+    "convert_timezone" "object_construct_keep_null",
     "object_construct",
     "coalesce",
     "equal_nan",
@@ -122,8 +125,7 @@ VALID_VIEW_MERGE_FUNCTIONS = (
     "is_binary",
     "is_char",
     "is_date",
-    "is_decimal"
-    "is_double",
+    "is_decimal" "is_double",
     "is_real",
     "is_integer",
     "is_null_value",
@@ -144,13 +146,11 @@ VALID_VIEW_MERGE_FUNCTIONS = (
     "json_extract_path_text",
     "parse_json",
     "parse_xml",
-    "strip_null_value"
-    "array_append",
+    "strip_null_value" "array_append",
     "array_cat",
     "array_compact",
     "array_construct",
-    "array_construct_compact"
-    "array_contains",
+    "array_construct_compact" "array_contains",
     "array_insert",
     "array_position",
     "array_prepend",
@@ -187,5 +187,5 @@ VALID_VIEW_MERGE_FUNCTIONS = (
     "iff",
     "in_",
     "greatest",
-    "least"
+    "least",
 )
