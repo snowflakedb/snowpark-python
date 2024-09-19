@@ -337,10 +337,10 @@ def override_time_zone(tz_name: str = "EST") -> None:
     else:
         # Under windows the CPython implementation uses localtime_s (https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/localtime-s-localtime32-s-localtime64-s?view=msvc-170)
         # cf. https://github.com/python/cpython/blob/3.8/Python/pytime.c#L1052. However, there's a well-known bug that
-        # the timezone settings get only initialized at process startup (), so they can not be modified from within
-        # the process. Even calling the underlying msvcrt runtime dll won't propagate the changes to localtime_s.
+        # the timezone settings get only initialized at process startup, so they can not be modified from within
+        # the process. Even calling the underlying msvcrt runtime dll will not propagate the changes to localtime_s.
         # As a fix to run testing, the process needs to be started up with the correct environment variable.
-        # Hence, check here that environment variable is present.
+        # Hence, check here that the environment variable TZ is present.
         env_tz = os.environ.get("TZ") or ""
         assert env_tz == tz_code, (
             f"Testing with timezone={tz_name} ({tz_code}) but"
@@ -348,7 +348,7 @@ def override_time_zone(tz_name: str = "EST") -> None:
             f" and restart process."
         )
 
-        # Possible modification code (not working)
+        # Possible modification code (not working):
         # Use direct msvcrt.dll override (only for this process, does not work for child processes).
         # cf. https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/tzset?view=msvc-170
         logging.debug(
