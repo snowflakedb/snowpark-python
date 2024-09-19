@@ -1210,6 +1210,3 @@ class classproperty:
 
     def __get__(self, instance: Any, owner: Any) -> Any:  # noqa: GL08
         return self.fget(owner)
-
-
-# test change
