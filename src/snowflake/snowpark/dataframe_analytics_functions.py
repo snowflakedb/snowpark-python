@@ -345,7 +345,7 @@ class DataFrameAnalyticsFunctions:
         if _emit_ast:
             stmt = self._df._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_analytics_moving_agg, stmt)
-            self._df.set_ast_ref(ast.df)
+            self._df._set_ast_ref(ast.df)
             for col_name, agg_funcs in aggs.items():
                 agg_func_tuple_ast = proto.Tuple_String_List_String()
                 agg_func_tuple_ast._1 = col_name
@@ -450,7 +450,7 @@ class DataFrameAnalyticsFunctions:
             ast = with_src_position(
                 stmt.expr.sp_dataframe_analytics_cumulative_agg, stmt
             )
-            self._df.set_ast_ref(ast.df)
+            self._df._set_ast_ref(ast.df)
             for col_name, agg_funcs in aggs.items():
                 agg_func_tuple_ast = proto.Tuple_String_List_String()
                 agg_func_tuple_ast._1 = col_name
@@ -545,7 +545,7 @@ class DataFrameAnalyticsFunctions:
             ast.lags.extend(lags)
             ast.group_by.extend(group_by)
             ast.order_by.extend(order_by)
-            self._df.set_ast_ref(ast.df)
+            self._df._set_ast_ref(ast.df)
 
         for c in cols:
             for _lag in lags:
@@ -618,7 +618,7 @@ class DataFrameAnalyticsFunctions:
         if _emit_ast:
             stmt = self._df._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lead, stmt)
-            self._df.set_ast_ref(ast.df)
+            self._df._set_ast_ref(ast.df)
             for c in cols:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
             ast.leads.extend(leads)
@@ -736,7 +736,7 @@ class DataFrameAnalyticsFunctions:
             ast.windows.extend(windows)
             ast.group_by.extend(group_by)
             ast.sliding_interval = sliding_interval
-            self._df.set_ast_ref(ast.df)
+            self._df._set_ast_ref(ast.df)
 
             for window in windows:
                 for column, funcs in aggs.items():

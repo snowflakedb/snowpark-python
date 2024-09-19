@@ -43,6 +43,7 @@ def session():
     # Note: Do NOT use Session(MockServerConnection()), as this doesn't setup the correct registrations throughout snowpark.
     # Need to use the Session.builder to properly register this as active session etc.
     with Session.builder.config("local_testing", True).create() as s:
+        s.ast_enabled = True
         yield s
 
 

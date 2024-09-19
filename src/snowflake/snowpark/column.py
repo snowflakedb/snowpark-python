@@ -690,7 +690,7 @@ class Column:
             for val in vals:
                 val_ast = proto_ast.values.add()
                 if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
-                    val.set_ast_ref(val_ast)
+                    val._set_ast_ref(val_ast)
                 else:
                     build_expr_from_python_val(val_ast, val)
 

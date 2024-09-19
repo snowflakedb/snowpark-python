@@ -709,7 +709,16 @@ def publicapi(func) -> Callable:
         # then we use this value directly. If not, but the function supports _emit_ast,
         # we override _emit_ast with the session parameter.
         if "_emit_ast" in func.__code__.co_varnames and "_emit_ast" not in kwargs:
-            if hasattr(args[0], "_session"):
+            if isinstance(args[0], snowflake.snowpark.dataframe.DataFrame):
+                # special case: __init__ called, self._session is then not initialized yet.
+                if func.__qualname__ == "DataFrame.__init__":
+                    assert isinstance(
+                        args[1], snowflake.snowpark.session.Session
+                    ), "DataFrame.__init__ second arg must be session."
+                    kwargs["_emit_ast"] = args[1].ast_enabled
+                else:
+                    kwargs["_emit_ast"] = args[0]._session.ast_enabled
+            elif hasattr(args[0], "_session"):
                 kwargs["_emit_ast"] = args[0]._session.ast_enabled
             elif isinstance(args[0], snowflake.snowpark.session.Session):
                 kwargs["_emit_ast"] = args[0].ast_enabled
