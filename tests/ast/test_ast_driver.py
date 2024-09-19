@@ -3,9 +3,12 @@
 #
 
 import base64
+import datetime
 import importlib.util
+import logging
 import os
 import pathlib
+import platform
 import subprocess
 import sys
 import tempfile
@@ -13,7 +16,10 @@ import time
 from dataclasses import dataclass
 from typing import List, Union
 
+import dateutil
+import google.protobuf
 import pytest
+from dateutil.tz import tzlocal
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
@@ -28,6 +34,7 @@ class TestCase:
     source: str
     expected_ast_base64: str
     expected_ast_unparsed: str
+    __test__: bool = False  # Add this to suppress pytest collection warning.
 
 
 def parse_file(file):
@@ -249,6 +256,8 @@ def run_test(session):
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
 def test_ast(session, test_case):
+    logging.info(f"Testing AST encoding with protobuf {google.protobuf.__version__}.")
+
     actual, base64_str = run_test(
         session, test_case.filename.replace(".", "_"), test_case.source
     )
@@ -277,6 +286,11 @@ def test_ast(session, test_case):
                 base64.b64decode(test_case.expected_ast_base64.strip())
             )
 
+            # Actual and expected may have been encoded by different client language versions, e.g. Python 3.8.10 and
+            # Python 3.9.3. Make comparison here client-language agnostic by removing the data from the message.
+            actual_message.ClearField("client_language")
+            expected_message.ClearField("client_language")
+
             det_actual_message = actual_message.SerializeToString(deterministic=True)
             det_expected_message = expected_message.SerializeToString(
                 deterministic=True
@@ -288,16 +302,76 @@ def test_ast(session, test_case):
                 assert actual.strip() == test_case.expected_ast_unparsed.strip()
 
         except AssertionError as e:
+
+            actual_lines = str(actual_message).splitlines()
+            expected_lines = str(expected_message).splitlines()
+
+            from difflib import Differ
+
+            differ = Differ()
+            diffed_lines = [
+                line for line in differ.compare(actual_lines, expected_lines)
+            ]
+
+            logging.error(
+                "expected vs. actual encoded protobuf:\n" + "\n".join(diffed_lines)
+            )
+
             raise AssertionError(
                 f"If the expectation is incorrect, run pytest --update-expectations:\n\n{base64_str}\n{e}"
             ) from e
 
 
-def override_time_zone() -> None:
+def override_time_zone(tz_name: str = "EST") -> None:
     # Use any time zone other than America/Los_Angeles and UTC, to minimize the
     # odds of tests passing by luck.
-    os.environ["TZ"] = "America/New_York"
-    time.tzset()
+
+    tz = dateutil.tz.gettz(tz_name)
+    tz_code = tz.tzname(datetime.datetime.now())
+    logging.debug(f"Overriding time zone to {tz_name} ({tz_code}).")
+
+    if platform.system() != "Windows":
+        # This works only under Unix systems.
+        os.environ["TZ"] = tz_name
+        time.tzset()
+    else:
+        # Under windows the CPython implementation uses localtime_s (https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/localtime-s-localtime32-s-localtime64-s?view=msvc-170)
+        # cf. https://github.com/python/cpython/blob/3.8/Python/pytime.c#L1052. However, there's a well-known bug that
+        # the timezone settings get only initialized at process startup, so they can not be modified from within
+        # the process. Even calling the underlying msvcrt runtime dll will not propagate the changes to localtime_s.
+        # As a fix to run testing, the process needs to be started up with the correct environment variable.
+        # Hence, check here that the environment variable TZ is present.
+        env_tz = os.environ.get("TZ") or ""
+        assert env_tz == tz_code, (
+            f"Testing with timezone={tz_name} ({tz_code}) but"
+            f" not set as environment variable(is: '{env_tz}'). Add TZ=\"{tz_name}\" to environment"
+            f" and restart process."
+        )
+
+        # Possible modification code (not working):
+        # Use direct msvcrt.dll override (only for this process, does not work for child processes).
+        # cf. https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/tzset?view=msvc-170
+        logging.debug(
+            f"Windows current time (before msvcrt set): {datetime.datetime.now()}"
+        )
+
+        from ctypes import cdll
+
+        cdll.msvcrt._putenv(f"TZ={tz_code}")
+        cdll.msvcrt._tzset()
+        # If working, we would expect this to show output adjusted to the timezone referred to by tz_code.
+        logging.debug(
+            f"Windows current time (after msvcrt set): {datetime.datetime.now()}"
+        )
+        # Other python libraries would have been updated then as well.
+        from tzlocal import get_localzone
+
+        logging.debug(
+            f"Windows: tzlocal={get_localzone()} TZ={env_tz}, will be using TZ when encoding for AST."
+        )
+
+    tz_name = datetime.datetime.now(tzlocal()).tzname()
+    logging.debug(f"Local time zone is now: {tz_name}.")
 
 
 if __name__ == "__main__":
