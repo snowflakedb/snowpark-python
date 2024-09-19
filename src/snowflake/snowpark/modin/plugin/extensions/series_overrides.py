@@ -1281,7 +1281,7 @@ def groupby(
     Group Series using a mapper or by a Series of columns.
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    from snowflake.snowpark.modin.pandas.groupby import (
+    from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
         SeriesGroupBy,
         validate_groupby_args,
     )
