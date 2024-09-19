@@ -44,9 +44,11 @@ TRANSPOSE_OBJ_NAME_COLUMN = "TRANSPOSE_OBJ_NAME"
 def transpose_empty_df(
     original_frame: InternalFrame,
 ) -> "SnowflakeQueryCompiler":  # type: ignore[name-defined] # noqa: F821
-    from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
     from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
         SnowflakeQueryCompiler,
+    )
+    from snowflake.snowpark.modin.plugin.extensions.utils import (
+        try_convert_index_to_native,
     )
 
     return SnowflakeQueryCompiler.from_pandas(

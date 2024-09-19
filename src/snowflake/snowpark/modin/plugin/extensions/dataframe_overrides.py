@@ -32,6 +32,8 @@ import numpy as np
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
 from modin.pandas.base import BasePandasDataset
+from modin.pandas.io import from_non_pandas, from_pandas
+from modin.pandas.utils import is_scalar
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     AggFuncType,
@@ -64,15 +66,15 @@ from pandas.core.indexes.frozen import FrozenList
 from pandas.io.formats.printing import pprint_thing
 from pandas.util._validators import validate_bool_kwarg
 
-from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_accessor
-from snowflake.snowpark.modin.pandas.utils import (
+from snowflake.snowpark.modin.extensions.utils import (
     create_empty_native_pandas_frame,
-    from_non_pandas,
-    from_pandas,
-    is_scalar,
     raise_if_native_pandas_objects,
     replace_external_data_keys_with_empty_pandas_series,
     replace_external_data_keys_with_query_compiler,
+)
+from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_accessor
+from snowflake.snowpark.modin.pandas.snow_partition_iterator import (
+    SnowparkPandasRowPartitionIterator,
 )
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     is_snowflake_agg_func,
@@ -459,7 +461,9 @@ def __init__(
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     # Siblings are other dataframes that share the same query compiler. We
     # use this list to update inplace when there is a shallow copy.
-    from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+    from snowflake.snowpark.modin.plugin.extensions.utils import (
+        try_convert_index_to_native,
+    )
 
     self._siblings = []
 

@@ -1509,7 +1509,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             a new `SnowflakeQueryCompiler` with updated column labels
         """
         # new_pandas_names should be able to convert into an index which is consistent to pandas df.columns behavior
-        from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+        from snowflake.snowpark.modin.plugin.extensions.utils import (
+            try_convert_index_to_native,
+        )
 
         new_pandas_labels = ensure_index(try_convert_index_to_native(new_pandas_labels))
         if len(new_pandas_labels) != len(self._modin_frame.data_column_pandas_labels):
@@ -2027,7 +2029,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 If data in both corresponding DataFrame locations is missing the result will be missing.
                 only arithmetic binary operation has this parameter (e.g., add() has, but eq() doesn't have).
         """
-        from snowflake.snowpark.modin.pandas.utils import is_scalar
+        from modin.pandas.utils import is_scalar
 
         replace_mapping = {}  # map: column identifier -> column expression
         # Convert list-like object to list since the NaN values in the rhs are treated as invalid identifiers
@@ -2106,8 +2108,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         from modin.pandas import Series
         from modin.pandas.dataframe import DataFrame
-
-        from snowflake.snowpark.modin.pandas.utils import is_scalar
+        from modin.pandas.utils import is_scalar
 
         # fail explicitly for unsupported scenarios
         if level is not None:
@@ -8210,7 +8211,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame.data_column_snowflake_quoted_identifiers
             )
 
-            from snowflake.snowpark.modin.pandas.utils import (
+            from snowflake.snowpark.modin.plugin.extensions.utils import (
                 try_convert_index_to_native,
             )
 
@@ -8663,7 +8664,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # If we hit this error, that means that we have attempted a pivot on an empty
             # DataFrame, so we catch the exception and return an empty DataFrame.
             if e.sql_error_code == 1146:
-                from snowflake.snowpark.modin.pandas.utils import from_pandas
+                from modin.pandas.io import from_pandas
 
                 native_df = native_pd.DataFrame(index=self.index, columns=self.columns)
                 native_df.index.names = self.index.names
@@ -9955,7 +9956,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         # Raise not implemented error if level is specified, or other is not snowflake query compiler or
         # involves more complex scalar type (not simple scalar types like int or float)
-        from snowflake.snowpark.modin.pandas.utils import is_scalar
+        from modin.pandas.utils import is_scalar
 
         other_is_series_self_is_not = (getattr(self, "_shape_hint", None) is None) and (
             getattr(other, "_shape_hint", None) == "column"
@@ -10583,7 +10584,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 raise ErrorMessage.not_implemented(
                     "Currently only can fill with dict/Series column by column"
                 )
-            from snowflake.snowpark.modin.pandas.utils import is_scalar
+            from modin.pandas.utils import is_scalar
 
             # prepare label_to_value_map
             if is_scalar(value):
@@ -14350,7 +14351,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
+        Snowpark pandas :class:`~modin.pandas.Series`
             Boolean series for each duplicated rows.
         """
         frame = self._modin_frame.ensure_row_position_column()

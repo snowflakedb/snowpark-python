@@ -24,6 +24,7 @@
 from collections.abc import Hashable
 from typing import Any, Callable, Literal, Optional, Sequence, Union
 
+import modin.pandas as pd
 import numpy as np  # noqa: F401
 import numpy.typing as npt
 import pandas
@@ -36,13 +37,6 @@ from pandas.errors import SpecificationError
 from pandas.io.formats.printing import PrettyDict
 from pandas.util._validators import validate_bool_kwarg
 
-# the following import is used in doctests
-from snowflake.snowpark.modin import pandas as pd  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import (
-    extract_validate_and_try_convert_named_aggs_from_kwargs,
-    raise_if_native_pandas_objects,
-    validate_and_try_convert_agg_func_arg_func_to_str,
-)
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     create_groupby_transform_func,
 )
@@ -50,6 +44,13 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._internal.utils import INDEX_LABEL
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
+)
+
+# the following import is used in doctests
+from snowflake.snowpark.modin.plugin.extensions.utils import (
+    extract_validate_and_try_convert_named_aggs_from_kwargs,
+    raise_if_native_pandas_objects,
+    validate_and_try_convert_agg_func_arg_func_to_str,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
