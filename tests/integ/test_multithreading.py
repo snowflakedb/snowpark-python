@@ -531,9 +531,22 @@ def test_config_context(session):
                 == original_query_compilation_stage_enabled
             )
 
-        assert config_context.cte_optimization_enabled is None
-        assert config_context.eliminate_numeric_sql_value_cast_enabled is None
-        assert config_context._query_compilation_stage_enabled is None
+        assert (
+            config_context.cte_optimization_enabled == session.cte_optimization_enabled
+        )
+        assert (
+            config_context.eliminate_numeric_sql_value_cast_enabled
+            == session.eliminate_numeric_sql_value_cast_enabled
+        )
+        assert (
+            config_context._query_compilation_stage_enabled
+            == session._query_compilation_stage_enabled
+        )
+
+        with pytest.raises(
+            AttributeError, match="ConfigContext has no attribute no_such_config"
+        ):
+            config_context.no_such_config
     finally:
         session.cte_optimization_enabled = original_cte_optimization
         session.eliminate_numeric_sql_value_cast_enabled = (
