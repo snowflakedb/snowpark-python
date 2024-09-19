@@ -20,7 +20,7 @@ jobs:
 
             - name: Verify threadsafety acknowledgement
               run: |
-                CHANGED_FILES=${{ steps.changed_files.outputs.changed_files }}
+                CHANGED_FILES="${{ steps.changed_files.outputs.changed_files }}"
                 # Check if changed files are in snowpark/_internal, snowpark/mock, or snowpark/*.py. We exclude snowpark/modin in this check.
                 if echo "$CHANGED_FILES" | grep -qE '(src/snowflake/snowpark/_internal|src/snowflake/snowpark/mock|src/snowflake/snowpark/[^/]+\.py)'; then
                     echo "Checking PR description for thread-safety acknowledgment..."
