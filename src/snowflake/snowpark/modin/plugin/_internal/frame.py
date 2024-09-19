@@ -1489,5 +1489,14 @@ class InternalFrame:
             timestamp_tz_snowfalke_quoted_identifier,
         )
 
+    def get_datetime64tz_from_timestamp_ltz(self) -> DatetimeTZDtype:
+        """
+        Get DatetimeTZDtype for TIMESTAMP_LTZ by reading the session local timezone.
+        """
+        tz = self.ordered_dataframe.session._conn._get_client_side_session_parameter(
+            "TIMEZONE", default_value="UTC"
+        )
+        return DatetimeTZDtype(tz=tz)
+
     # END: Internal Frame mutation APIs.
     ###########################################################################
