@@ -16,6 +16,7 @@ from snowflake.snowpark._internal.ast_utils import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import adjust_api_subcalls
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
+from snowflake.snowpark._internal.utils import publicapi
 from snowflake.snowpark.functions import (
     _to_col_if_str,
     approx_percentile_accumulate,
@@ -48,10 +49,11 @@ class DataFrameStatFunctions:
 
     def __init__(
         self,
-        df: "snowflake.snowpark.DataFrame",
+        dataframe: "snowflake.snowpark.DataFrame",
     ) -> None:
-        self._dataframe = df
+        self._dataframe = dataframe
 
+    @publicapi
     def approx_quantile(
         self,
         col: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -162,6 +164,7 @@ class DataFrameStatFunctions:
                 "'col' must be a column name, a column object, or a list of them."
             )
 
+    @publicapi
     def corr(
         self,
         col1: ColumnOrName,
@@ -216,6 +219,7 @@ class DataFrameStatFunctions:
         res = df._internal_collect_with_tag(statement_params=statement_params, **kwargs)
         return res[0][0] if res[0] is not None else None
 
+    @publicapi
     def cov(
         self,
         col1: ColumnOrName,
@@ -269,6 +273,7 @@ class DataFrameStatFunctions:
         res = df._internal_collect_with_tag(statement_params=statement_params, **kwargs)
         return res[0][0] if res[0] is not None else None
 
+    @publicapi
     def crosstab(
         self,
         col1: ColumnOrName,
@@ -354,6 +359,7 @@ class DataFrameStatFunctions:
 
         return df
 
+    @publicapi
     def sample_by(
         self,
         col: ColumnOrName,
