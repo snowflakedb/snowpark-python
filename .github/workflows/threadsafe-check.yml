@@ -2,7 +2,7 @@ name: Threadsafe Check
 
 on:
   pull_request:
-    types: [opened, synchronize, labeled, unlabeled]
+    types: [opened, synchronize, labeled, unlabeled, edited]
 
 jobs:
     check_threadsafety:
