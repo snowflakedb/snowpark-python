@@ -6,7 +6,6 @@
 File containing top-level APIs defined in Snowpark pandas but not the Modin API layer
 under the `pd` namespace, such as `pd.read_snowflake`.
 """
-import inspect
 from typing import Any, Iterable, Literal, Optional, Union
 
 from modin.pandas import DataFrame, Series
@@ -17,6 +16,17 @@ from snowflake.snowpark.modin.pandas.api.extensions import register_pd_accessor
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_standalone_function_decorator,
 )
+from snowflake.snowpark.modin.plugin.extensions.datetime_index import (  # noqa: F401
+    DatetimeIndex,
+)
+from snowflake.snowpark.modin.plugin.extensions.index import Index  # noqa: F401
+from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (  # noqa: F401
+    TimedeltaIndex,
+)
+
+register_pd_accessor("Index")(Index)
+register_pd_accessor("DatetimeIndex")(DatetimeIndex)
+register_pd_accessor("TimedeltaIndex")(TimedeltaIndex)
 
 
 def _snowpark_pandas_obj_check(obj: Union[DataFrame, Series]):
@@ -349,17 +359,10 @@ def read_snowflake(
         To see what are the Normalized Snowflake Identifiers for columns of a Snowflake table, you can call SQL query
         `SELECT * FROM TABLE` or `DESCRIBE TABLE` to see the column names.
     """
-    _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
-    # mangle_dupe_cols has no effect starting in pandas 1.5. Exclude it from
-    # kwargs so pandas doesn't spuriously warn people not to use it.
-    f_locals.pop("mangle_dupe_cols", None)
-
-    from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
-        FactoryDispatcher,
-    )
+    from modin.core.execution.dispatching.factories.dispatcher import FactoryDispatcher
 
     return DataFrame(
-        query_compiler=FactoryDispatcher.read_snowflake(
+        query_compiler=FactoryDispatcher.get_factory()._read_snowflake(
             name_or_query, index_col=index_col, columns=columns
         )
     )
