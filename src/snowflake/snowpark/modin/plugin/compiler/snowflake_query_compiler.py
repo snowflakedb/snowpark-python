@@ -11900,6 +11900,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas `asfreq` does not support parameters `how`, `normalize`, or `fill_value`."
             )
 
+        _, slice_unit = rule_to_snowflake_width_and_slice_unit(freq)
+        if slice_unit not in RULE_SECOND_TO_DAY:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas `asfreq` does not yet support frequencies week, month, quarter, or year"
+            )
+
         resample_kwargs = {
             "rule": freq,
             "axis": 0,
