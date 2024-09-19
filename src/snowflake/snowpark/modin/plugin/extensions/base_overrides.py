@@ -1643,9 +1643,7 @@ def to_csv(
     errors: str = "strict",
     storage_options: StorageOptions = None,
 ):  # pragma: no cover
-    from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
-        FactoryDispatcher,
-    )
+    from modin.core.execution.dispatching.factories.dispatcher import FactoryDispatcher
 
     return FactoryDispatcher.to_csv(
         self._query_compiler,
