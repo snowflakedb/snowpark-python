@@ -525,11 +525,13 @@ class SnowflakePlan(LogicalPlan):
 
 class ConfigContext:
     """Class to manage the snapshot of configuration settings in the context of plan
-    building, analysis and resolution. Inside an active context, the configuration will
-    be read from the session object and reset when the context is exited. When no active
-    context is present, the configuration will be read from the session object directly.
+    building, analysis and resolution.
 
-    Supported configs are stored in the `configs` attribute which is a dict of ConfigContext
+    Behavior:
+        - Inside an active context, the configuration will be read from the session
+        object and reset when the context is exited.
+        - When no active context is present, the configuration will be read from the
+        session object directly.
     """
 
     def __init__(self, session) -> None:
@@ -539,21 +541,20 @@ class ConfigContext:
             "_query_compilation_stage_enabled",
             "eliminate_numeric_sql_value_cast_enabled",
         }
-        self.reset()
 
     def __getattr__(self, name: str) -> Any:
         if name in self.configs:
-            return getattr(self, name) or getattr(self.session, name)
-        return AttributeError(f"ConfigContext has no attribute {name}")
+            return getattr(self.session, name)
+        raise AttributeError(f"ConfigContext has no attribute {name}")
 
     def __enter__(self) -> "ConfigContext":
-        self.create_snapshot()
+        self._create_snapshot()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.reset()
+        self._reset()
 
-    def create_snapshot(self) -> "ConfigContext":
+    def _create_snapshot(self) -> "ConfigContext":
         """Reads the configuration settings from the session object and stores them in the
         context object.
         """
@@ -561,9 +562,9 @@ class ConfigContext:
             setattr(self, name, getattr(self.session, name))
         return self
 
-    def reset(self) -> None:
+    def _reset(self) -> None:
         for name in self.configs:
-            setattr(self, name, None)
+            delattr(self, name)
 
 
 class SnowflakePlanBuilder:
