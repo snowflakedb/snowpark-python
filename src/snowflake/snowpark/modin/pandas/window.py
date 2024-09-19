@@ -345,7 +345,7 @@ class Rolling(metaclass=TelemetryMeta):
         # TODO: SNOW-1063358: Modin upgrade - modin.pandas.window.Rolling
         return self._aggregate(
             method_name="corr",
-            other=other._query_compiler,
+            other=other,
             pairwise=pairwise,
             ddof=ddof,
             numeric_only=numeric_only,

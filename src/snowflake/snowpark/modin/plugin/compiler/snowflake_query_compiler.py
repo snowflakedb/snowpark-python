@@ -13704,12 +13704,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 }
             ).frame
         elif agg_func == "corr":
-
-            if min_periods != window:
+            if window_func == WindowFunction.ROLLING and min_periods != window:
                 ErrorMessage.not_implemented(
                     f"min_periods {min_periods} must be == window {window}"
                 )
-            other_qc = agg_kwargs.get("other", None)
+            other = agg_kwargs.get("other", None)
+            other_qc = other._query_compiler
             result_frame, result_column_mapper = join_utils.align(
                 left=frame,
                 right=other_qc._modin_frame,
