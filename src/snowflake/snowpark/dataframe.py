@@ -138,6 +138,7 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list_variadic,
     parse_table_name,
     prepare_pivot_arguments,
+    publicapi,
     quote_name,
     random_name_for_temp_object,
     validate_object_name,
@@ -599,6 +600,7 @@ class DataFrame:
     def analytics(self) -> DataFrameAnalyticsFunctions:
         return self._analytics
 
+    @publicapi
     @overload
     def collect(
         self,
@@ -607,9 +609,11 @@ class DataFrame:
         block: bool = True,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
+        _emit_ast: bool = True,
     ) -> List[Row]:
         ...  # pragma: no cover
 
+    @publicapi
     @overload
     def collect(
         self,
@@ -618,10 +622,12 @@ class DataFrame:
         block: bool = False,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
+        _emit_ast: bool = True,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
     @df_collect_api_telemetry
+    @publicapi
     def collect(
         self,
         *,

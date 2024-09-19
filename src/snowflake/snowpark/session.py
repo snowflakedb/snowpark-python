@@ -118,6 +118,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
     parse_positional_args_to_list_variadic,
+    publicapi,
     quote_name,
     random_name_for_temp_object,
     strip_double_quotes_in_like_statement_in_table_name,
@@ -232,6 +233,11 @@ _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
 _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = (
     "PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED"
 )
+
+# AST encoding.
+_PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
+_PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE = False
+
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
@@ -583,6 +589,10 @@ class Session:
             )
         )
 
+        self._ast_enabled: bool = self._conn._get_client_side_session_parameter(
+            _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
+        )
+
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
@@ -647,6 +657,25 @@ class Session:
         The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled.
         """
         return self._sql_simplifier_enabled
+
+    @property
+    def ast_enabled(self) -> bool:
+        return self._ast_enabled
+
+    @ast_enabled.setter
+    def ast_enabled(self, value: bool) -> None:
+        # TODO: we could send here explicit telemetry if a user changes the behavior.
+        # In addition, we could introduce a server-side parameter to enable AST capture or not.
+        # self._conn._telemetry_client.send_ast_enabled_telemetry(
+        #     self._session_id, value
+        # )
+        # try:
+        #     self._conn._cursor.execute(
+        #         f"alter session set {_PYTHON_SNOWPARK_USE_AST} = {value}"
+        #     )
+        # except Exception:
+        #     pass
+        self._ast_enabled = value
 
     @property
     def cte_optimization_enabled(self) -> bool:
@@ -2732,11 +2761,12 @@ class Session:
                 str(ci_output)
             )
 
+    @publicapi
     def create_dataframe(
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
         schema: Optional[Union[StructType, Iterable[str]]] = None,
-        _emit_ast: bool = True,
+        _emit_ast: Optional[bool] = None,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
