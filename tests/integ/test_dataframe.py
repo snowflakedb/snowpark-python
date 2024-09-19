@@ -4208,6 +4208,10 @@ def test_dataframe_to_local_iterator_with_to_pandas_isolation(
         assert batch_count > 1
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
 def test_map(session):
     """Test `dataframe.map`"""
 
