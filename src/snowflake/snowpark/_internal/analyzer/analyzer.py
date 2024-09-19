@@ -1294,3 +1294,6 @@ class Analyzer:
 
     def create_select_table_function(self, *args, **kwargs):
         return SelectTableFunction(*args, **kwargs)
+
+
+# test change
