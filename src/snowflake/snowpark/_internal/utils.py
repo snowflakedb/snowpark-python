@@ -718,6 +718,35 @@ def publicapi(func) -> Callable:
                     kwargs["_emit_ast"] = args[1].ast_enabled
                 else:
                     kwargs["_emit_ast"] = args[0]._session.ast_enabled
+            elif isinstance(
+                args[0], snowflake.snowpark.dataframe_reader.DataFrameReader
+            ):
+                if func.__qualname__ == "DataFrameReader.__init__":
+                    assert isinstance(
+                        args[1], snowflake.snowpark.session.Session
+                    ), "DataFrameReader.__init__ second arg must be session."
+                    kwargs["_emit_ast"] = args[1].ast_enabled
+                else:
+                    kwargs["_emit_ast"] = args[0]._session.ast_enabled
+            elif isinstance(
+                args[0], snowflake.snowpark.dataframe_writer.DataFrameWriter
+            ):
+                if func.__qualname__ == "DataFrameWriter.__init__":
+                    assert isinstance(
+                        args[1], snowflake.snowpark.DataFrame
+                    ), "DataFrameWriter.__init__ second arg must be dataframe."
+                    kwargs["_emit_ast"] = args[1]._session.ast_enabled
+                else:
+                    kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
+            elif isinstance(
+                args[0],
+                (
+                    snowflake.snowpark.dataframe_stat_functions.DataFrameStatFunctions,
+                    snowflake.snowpark.dataframe_analytics_functions.DataFrameAnalyticsFunctions,
+                    snowflake.snowpark.dataframe_na_functions.DataFrameNaFunctions,
+                ),
+            ):
+                kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
             elif hasattr(args[0], "_session"):
                 kwargs["_emit_ast"] = args[0]._session.ast_enabled
             elif isinstance(args[0], snowflake.snowpark.session.Session):
