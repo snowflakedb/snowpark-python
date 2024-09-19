@@ -86,7 +86,7 @@ ALL_DATEOFFSET_STRINGS = [
 
 SNOWFLAKE_SUPPORTED_DATEOFFSETS = ["W", "ME", "QE", "QS", "YS", "D", "h", "min", "s"]
 
-IMPLEMENTED_DATEOFFSET_STRINGS = ["min", "s", "h", "D"]
+IMPLEMENTED_DATEOFFSET_STRINGS = ["min", "s", "h", "D", "ME"]
 
 UNSUPPORTED_DATEOFFSET_STRINGS = list(
     # sort so that tests that generate test cases from this last always use the
@@ -148,7 +148,7 @@ def rule_to_snowflake_width_and_slice_unit(rule: Frequency) -> tuple[int, str]:
     elif rule_code[0] == "W":  # pragma: no cover
         # treat codes like W-MON and W-SUN as "week":
         slice_unit = "week"
-    elif rule_code == "ME":  # pragma: no cover
+    elif rule_code == "ME":
         slice_unit = "month"
     elif rule_code[0] == "QE":  # pragma: no cover
         # treat codes like Q-DEC and Q-JAN as "quarter":
@@ -218,8 +218,13 @@ def validate_resample_supported_by_snowflake(
         _argument_not_implemented("axis", axis)
 
     closed = resample_kwargs.get("closed")
-    if closed is not None:  # pragma: no cover
+    if closed not in ("left", None) and slice_unit in RULE_SECOND_TO_DAY:
         _argument_not_implemented("closed", closed)
+    if slice_unit in RULE_WEEK_TO_YEAR:
+        if closed != "left":
+            ErrorMessage.not_implemented(
+                f"resample with rule offset {rule} is only implemented with closed='left'"
+            )
 
     label = resample_kwargs.get("label")
     if label is not None:  # pragma: no cover

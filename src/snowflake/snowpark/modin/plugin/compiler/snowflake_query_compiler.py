@@ -11940,7 +11940,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             assert slice_unit in RULE_WEEK_TO_YEAR
             start_date, end_date = frame.ordered_dataframe.agg(
                 last_day(
-                    date_trunc(slice_unit, min_(snowflake_index_column_identifier)),
+                    date_trunc(
+                        slice_unit,
+                        dateadd(
+                            slice_unit,
+                            pandas_lit(slice_width),
+                            min_(snowflake_index_column_identifier),
+                        ),
+                    ),
                     slice_unit,
                 ).as_(min_max_index_column_quoted_identifier[0]),
                 last_day(
@@ -11948,7 +11955,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         slice_unit,
                         dateadd(
                             slice_unit,
-                            pandas_lit(slice_width - 1),
+                            pandas_lit(slice_width),
                             max_(snowflake_index_column_identifier),
                         ),
                     ),
