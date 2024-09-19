@@ -1011,7 +1011,7 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
             # there is no need to flatten the projection complexity since the child
             # select projection is already flattened with the current select.
-            new._can_flatten_projection_complexity = False
+            new._try_merge_projection_complexity = False
         else:
             new = SelectStatement(
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
@@ -1050,6 +1050,7 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
             new.column_states = self.column_states
             new.where = And(self.where, col) if self.where is not None else col
+            new._try_merge_projection_complexity = False
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
@@ -1072,6 +1073,7 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
             new.order_by = cols + (self.order_by or [])
             new.column_states = self.column_states
+            new._try_merge_projection_complexity = False
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
@@ -1158,6 +1160,7 @@ class SelectStatement(Selectable):
             new.column_states = self.column_states
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
+            new._try_merge_projection_complexity = False
         return new
 
 
