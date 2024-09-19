@@ -19,10 +19,6 @@ from snowflake.snowpark.modin.pandas import (
     DataFrame as DataFrameClazz,
     Series as SeriesClazz,
 )
-from snowflake.snowpark.modin.pandas.groupby import (
-    DataFrameGroupBy as DataFrameGroupByClazz,
-    SeriesGroupBy as SeriesGroupByClazz,
-)
 from snowflake.snowpark.modin.pandas.resample import Resampler as ResamplerClazz
 
 # Not in current version of Modin
@@ -30,6 +26,10 @@ from snowflake.snowpark.modin.pandas.resample import Resampler as ResamplerClazz
 from snowflake.snowpark.modin.pandas.window import (
     Rolling as RollingClazz,
     Window as WindowClazz,
+)
+from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
+    DataFrameGroupBy as DataFrameGroupByClazz,
+    SeriesGroupBy as SeriesGroupByClazz,
 )
 
 # Used for instrumenting customer or client code.
