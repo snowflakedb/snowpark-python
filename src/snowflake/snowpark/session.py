@@ -1997,6 +1997,7 @@ class Session:
                     f"Expected query tag to be valid json. Current query tag: {tag_str}"
                 )
 
+    @publicapi
     def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
         """
         Returns a Table that points the specified table.
@@ -2042,6 +2043,7 @@ class Session:
         set_api_call_source(t, "Session.table")
         return t
 
+    @publicapi
     def table_function(
         self,
         func_name: Union[str, List[str], Callable[..., Any], TableFunctionCall],
@@ -2185,6 +2187,7 @@ class Session:
 
         return d
 
+    @publicapi
     def generator(
         self,
         *columns: Column,
@@ -2304,11 +2307,13 @@ class Session:
         set_api_call_source(d, "Session.generator")
         return d
 
+    @publicapi
     def sql(
         self,
         query: str,
         params: Optional[Sequence[Any]] = None,
         _ast_stmt: proto.Assign = None,
+        _emit_ast: bool = True,
     ) -> DataFrame:
         """
         Returns a new DataFrame representing the results of a SQL query.
@@ -2338,15 +2343,17 @@ class Session:
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
         # AST.
-        if _ast_stmt is None:
-            stmt = self._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_sql, stmt)
-            expr.query = query
-            if params is not None:
-                for p in params:
-                    build_expr_from_python_val(expr.params.add(), p)
-        else:
-            stmt = _ast_stmt
+        stmt = None
+        if _emit_ast:
+            if _ast_stmt is None:
+                stmt = self._ast_batch.assign()
+                expr = with_src_position(stmt.expr.sp_sql, stmt)
+                expr.query = query
+                if params is not None:
+                    for p in params:
+                        build_expr_from_python_val(expr.params.add(), p)
+            else:
+                stmt = _ast_stmt
 
         if (
             isinstance(self._conn, MockServerConnection)
@@ -2513,6 +2520,7 @@ class Session:
             table_type=table_type,
         )
 
+    @publicapi
     def write_pandas(
         self,
         df: Union[
@@ -2766,7 +2774,7 @@ class Session:
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
         schema: Optional[Union[StructType, Iterable[str]]] = None,
-        _emit_ast: Optional[bool] = None,
+        _emit_ast: bool = None,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
@@ -3164,6 +3172,7 @@ class Session:
 
         return df
 
+    @publicapi
     def range(
         self,
         start: int,
@@ -3490,12 +3499,14 @@ class Session:
             )
         return False
 
+    @publicapi
     def call(
         self,
         sproc_name: str,
         *args: Any,
         statement_params: Optional[Dict[str, Any]] = None,
         log_on_exception: bool = False,
+        _emit_ast: bool = True,
     ) -> Any:
         """Calls a stored procedure by name.
 
@@ -3539,6 +3550,12 @@ class Session:
             -------------
             <BLANKLINE>
         """
+
+        if _emit_ast:
+            raise NotImplementedError(
+                "TODO SNOW-1672561: Need to implement session.call()"
+            )
+
         return self._call(
             sproc_name,
             *args,
@@ -3605,6 +3622,7 @@ class Session:
         extra_warning_text="Use `Session.table_function()` instead.",
         extra_doc_string="Use :meth:`table_function` instead.",
     )
+    @publicapi
     def flatten(
         self,
         input: ColumnOrName,
@@ -3612,6 +3630,7 @@ class Session:
         outer: bool = False,
         recursive: bool = False,
         mode: str = "BOTH",
+        _emit_ast: bool = True,
     ) -> DataFrame:
         """Creates a new :class:`DataFrame` by flattening compound values into multiple rows.
 
@@ -3669,13 +3688,15 @@ class Session:
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
         # AST.
-        stmt = self._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_flatten, stmt)
-        build_expr_from_python_val(expr.input, input)
-        if path is not None:
-            expr.path.value = path
-        expr.outer = outer
-        expr.recursive = recursive
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_flatten, stmt)
+            build_expr_from_python_val(expr.input, input)
+            if path is not None:
+                expr.path.value = path
+            expr.outer = outer
+            expr.recursive = recursive
 
         mode = mode.upper()
         if mode == "OBJECT":
