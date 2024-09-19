@@ -10,7 +10,6 @@ import os
 import sys
 import threading
 import time
-import uuid
 from logging import getLogger
 from typing import (
     IO,
