@@ -537,7 +537,9 @@ def extract_validate_and_try_convert_named_aggs_from_kwargs(
     """
     from modin.pandas import Series
 
-    from snowflake.snowpark.modin.pandas.groupby import SeriesGroupBy
+    from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
+        SeriesGroupBy,
+    )
 
     is_series_like = isinstance(obj, (Series, SeriesGroupBy))
     named_aggs = {}
