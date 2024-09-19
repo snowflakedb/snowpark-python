@@ -5,6 +5,8 @@
 """
 File containing utilities for the extensions API.
 """
+from __future__ import annotations
+
 from collections.abc import Hashable, Sequence
 from types import BuiltinFunctionType
 from typing import Any, Callable
@@ -13,7 +15,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas
 from modin.core.storage_formats import BaseQueryCompiler  # pragma: no cover
-from pandas._lib import lib
+from pandas._libs import lib
 from pandas._typing import AggFuncType, AggFuncTypeBase, AnyArrayLike, Axes, Scalar
 from pandas.core.dtypes.common import is_array_like, is_dict_like, is_list_like
 from pandas.errors import SpecificationError

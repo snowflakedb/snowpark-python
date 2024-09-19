@@ -66,16 +66,7 @@ from pandas.core.indexes.frozen import FrozenList
 from pandas.io.formats.printing import pprint_thing
 from pandas.util._validators import validate_bool_kwarg
 
-from snowflake.snowpark.modin.extensions.utils import (
-    create_empty_native_pandas_frame,
-    raise_if_native_pandas_objects,
-    replace_external_data_keys_with_empty_pandas_series,
-    replace_external_data_keys_with_query_compiler,
-)
 from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_accessor
-from snowflake.snowpark.modin.pandas.snow_partition_iterator import (
-    SnowparkPandasRowPartitionIterator,
-)
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     is_snowflake_agg_func,
 )
@@ -87,6 +78,12 @@ from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
 )
 from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
     SnowparkPandasRowPartitionIterator,
+)
+from snowflake.snowpark.modin.plugin.extensions.utils import (
+    create_empty_native_pandas_frame,
+    raise_if_native_pandas_objects,
+    replace_external_data_keys_with_empty_pandas_series,
+    replace_external_data_keys_with_query_compiler,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,

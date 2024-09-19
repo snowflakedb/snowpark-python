@@ -14,6 +14,7 @@ from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from typing import Any, Callable, List, Literal, Optional, Union, get_args
 
+import modin.pandas as pd
 import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
@@ -64,7 +65,6 @@ from pandas.core.indexes.base import ensure_index
 from pandas.io.formats.format import format_percentiles
 from pandas.io.formats.printing import PrettyDict
 
-import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
