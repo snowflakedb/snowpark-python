@@ -4,22 +4,34 @@
 
 ### Snowpark pandas API Updates
 
+#### New Features
+
+- Added the following new functions in `snowflake.snowpark.functions`:
+  - `make_interval`
+- Added support for using Snowflake Interval constants with `Window.range_between()` when the order by column is TIMESTAMP or DATE type
+
 #### Improvements
 
 - Improved `to_pandas` to persist the original timezone offset for TIMESTAMP_TZ type.
+- Improved `dtype` results for TIMESTAMP_TZ type to show correct timezone offset.
 
 #### New Features
 
 - Added support for `TimedeltaIndex.mean` method.
 - Added support for some cases of aggregating `Timedelta` columns on `axis=0` with `agg` or `aggregate`.
-- Added support for `by`, `left_by`, and `right_by` for `pd.merge_asof`.
+- Added support for `by`, `left_by`, `right_by`, `left_index`, and `right_index` for `pd.merge_asof`.
+- Added support for passing parameter `include_describe` to `Session.query_history`.
+- Added support for `DatetimeIndex.mean` and `DatetimeIndex.std` methods.
+- Added support for `Resampler.asfreq`.
 - Added support for `resample` frequency `ME` with `closed = "left"`.
 
 #### Bug Fixes
 
 - Fixed a bug where an `Index` object created from a `Series`/`DataFrame` incorrectly updates the `Series`/`DataFrame`'s index name after an inplace update has been applied to the original `Series`/`DataFrame`.
 - Suppressed an unhelpful `SettingWithCopyWarning` that sometimes appeared when printing `Timedelta` columns.
-
+- Fixed `inplace` argument for `Series` objects derived from other `Series` objects.
+- Fixed a bug where `Series.sort_values` failed if series name overlapped with index column name.
+- Fixed a bug where transposing a dataframe would map `Timedelta` index levels to integer column levels.
 
 ## 1.22.1 (2024-09-11)
 This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for detailed release content.

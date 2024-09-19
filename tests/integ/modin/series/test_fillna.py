@@ -3,6 +3,8 @@
 #
 
 
+import string
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -199,5 +201,19 @@ def test_inplace_fillna_from_df():
     eval_snowpark_pandas_result(
         pd.DataFrame([[1, 2, 3], [4, None, 6]], columns=list("ABC")),
         native_pd.DataFrame([[1, 2, 3], [4, None, 6]], columns=list("ABC")),
+        inplace_fillna,
+    )
+
+
+@pytest.mark.parametrize("index", [list(range(8)), list(string.ascii_lowercase[:8])])
+@sql_count_checker(query_count=1, join_count=4)
+def test_inplace_fillna_from_series(index):
+    def inplace_fillna(series):
+        series.iloc[:4].fillna(14, inplace=True)
+        return series
+
+    eval_snowpark_pandas_result(
+        pd.Series([np.nan, 1, 2, 3, 4, 5, 6, 7], index=index),
+        native_pd.Series([np.nan, 1, 2, 3, 4, 5, 6, 7], index=index),
         inplace_fillna,
     )

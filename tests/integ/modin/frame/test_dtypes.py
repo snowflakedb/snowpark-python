@@ -6,7 +6,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
-from pandas.core.dtypes.common import is_integer_dtype
+from pandas.core.dtypes.common import is_datetime64_any_dtype, is_integer_dtype
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.types import (
@@ -18,7 +18,7 @@ from snowflake.snowpark.types import (
     StringType,
     VariantType,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_series_equal,
@@ -352,7 +352,7 @@ def test_insert_multiindex_multi_label(label1, label2):
             ],
             "datetime64[ns, America/Los_Angeles]",
             "datetime64[ns, UTC-08:00]",
-            "datetime64[ns]",
+            "datetime64[ns, UTC-08:00]",
         ),
         (
             [
@@ -373,21 +373,24 @@ def test_insert_multiindex_multi_label(label1, label2):
             ],
             "object",
             "datetime64[ns, UTC-08:00]",
-            "datetime64[ns]",
+            "datetime64[ns, UTC-08:00]",
         ),
     ],
 )
-@sql_count_checker(query_count=1)
 def test_time(dataframe_input, input_dtype, expected_dtype, logical_dtype):
     expected = native_pd.Series(dataframe_input, dtype=expected_dtype)
-    created = pd.Series(dataframe_input, dtype=input_dtype)
-    # For snowpark pandas type mapping
-    assert created.dtype == logical_dtype
-    roundtripped = created.to_pandas()
-    assert_series_equal(
-        roundtripped, expected, check_dtype=False, check_index_type=False
+    qc = (
+        2
+        if is_datetime64_any_dtype(expected.dtype)
+        and getattr(expected.dtype, "tz", None) is not None
+        else 1
     )
-    assert roundtripped.dtype == expected.dtype
+    with SqlCounter(query_count=qc):
+        created = pd.Series(dataframe_input, dtype=input_dtype)
+        # For snowpark pandas type mapping
+        assert created.dtype == logical_dtype
+        roundtripped = created.to_pandas()
+        assert_series_equal(roundtripped, expected, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -528,3 +531,33 @@ def test_str_float_type_with_nan(
     assert native_se.dtype == to_pandas_dtype
     expected = native_pd.Series(input_data, dtype=to_pandas_dtype)
     assert_series_equal(native_se, expected, check_index_type=False)
+
+
+@pytest.mark.parametrize(
+    "ts_data",
+    [
+        native_pd.date_range("2020-01-01", periods=10),
+        native_pd.date_range("2020-01-01", periods=10, tz="US/Pacific"),
+        native_pd.date_range("2020-01-01", periods=10, tz="UTC"),
+        native_pd.date_range("2020-01-01", periods=10, tz="Asia/Tokyo"),
+        native_pd.date_range("2020-01-01", periods=10, tz="UTC+1000"),
+        native_pd.date_range("2020-01-01", periods=10, tz="UTC+1000").append(
+            native_pd.date_range("2020-01-01", periods=10, tz="UTC")
+        ),
+    ],
+)
+def test_tz_dtype(ts_data):
+    with SqlCounter(
+        query_count=1
+        if is_datetime64_any_dtype(ts_data.dtype) and ts_data.tz is None
+        else 2
+    ):
+        s = pd.Series(ts_data)
+        assert s.dtype == s.to_pandas().dtype
+
+
+@sql_count_checker(query_count=1)
+def test_tz_dtype_cache():
+    s = pd.Series(native_pd.date_range("2020-10-01", periods=5, tz="UTC"))
+    for _ in range(50):
+        assert s.dtype == "datetime64[ns, UTC]"
