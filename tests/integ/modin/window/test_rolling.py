@@ -9,7 +9,10 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import (
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    eval_snowpark_pandas_result,
+)
 
 agg_func = pytest.mark.parametrize(
     "agg_func", ["count", "sum", "mean", "var", "std", "min", "max", "sem"]
@@ -140,6 +143,50 @@ def test_rolling_sem_ddof(ddof):
             numeric_only=True, ddof=ddof
         ),
     )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_rolling_corr():
+    native_df = native_pd.DataFrame({"col1": [1, 2, 3, 4, 1], "col3": [1, 2, 3, 4, 5]})
+    other_native_df = native_pd.DataFrame(
+        {"col2": [1, 2, 3, 4, 5], "col3": [1, 2, 3, 7, 6], "col4": [1, 1, 3, 6, 5]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    other_snow_df = pd.DataFrame(other_native_df)
+    snow_df = snow_df.rolling(window=3, min_periods=3).corr(
+        other=other_snow_df,
+        pairwise=None,
+        ddof=1,
+        numeric_only=True,
+    )
+    native_df = native_df.rolling(window=3, min_periods=3).corr(
+        other=other_native_df,
+        pairwise=None,
+        ddof=1,
+        numeric_only=True,
+    )
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_rolling_corr_simple():
+    native_df = native_pd.DataFrame({"col1": [1, 4, 3]})
+    other_native_df = native_pd.DataFrame({"col1": [1, 6, 3]})
+    snow_df = pd.DataFrame(native_df)
+    other_snow_df = pd.DataFrame(other_native_df)
+    snow_df = snow_df.rolling(window=3, min_periods=3).corr(
+        other=other_snow_df,
+        pairwise=None,
+        ddof=1,
+        numeric_only=True,
+    )
+    native_df = native_df.rolling(window=3, min_periods=3).corr(
+        other=other_native_df,
+        pairwise=None,
+        ddof=1,
+        numeric_only=True,
+    )
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
 @sql_count_checker(query_count=0)

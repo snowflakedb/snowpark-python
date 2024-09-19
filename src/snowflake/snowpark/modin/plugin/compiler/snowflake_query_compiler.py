@@ -124,6 +124,7 @@ from snowflake.snowpark.functions import (
     row_number,
     rtrim,
     second,
+    stddev_pop,
     substring,
     sum as sum_,
     sum_distinct,
@@ -12372,8 +12373,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ddof: int = 1,
         numeric_only: bool = False,
         **kwargs: Any,
-    ) -> None:
-        ErrorMessage.method_not_implemented_error(name="corr", class_="Rolling")
+    ) -> "SnowflakeQueryCompiler":
+        if other is None:
+            ErrorMessage.method_not_implemented_error(
+                name="other = None", class_="Rolling corr"
+            )
+        if pairwise:
+            ErrorMessage.method_not_implemented_error(
+                name="pairwise = True", class_="Rolling corr"
+            )
+        return self._window_agg(
+            window_func=WindowFunction.ROLLING,
+            agg_func="corr",
+            window_kwargs=rolling_kwargs,
+            agg_kwargs=dict(
+                numeric_only=numeric_only, other=other, pairwise=pairwise, ddof=ddof
+            ),
+        )
 
     def rolling_cov(
         self,
@@ -12561,6 +12577,105 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
                 }
             ).frame
+        elif agg_func == "corr":
+
+            if min_periods != window:
+                ErrorMessage.not_implemented(
+                    f"min_periods {min_periods} must be == window {window}"
+                )
+            other_qc = agg_kwargs.get("other", None)
+            result_frame, result_column_mapper = join_utils.align(
+                left=frame,
+                right=other_qc._modin_frame,
+                left_on=frame.index_column_snowflake_quoted_identifiers,
+                right_on=other_qc._modin_frame.index_column_snowflake_quoted_identifiers,
+            )
+
+            # columns that exist in both dfs
+            matching_col_list = [
+                x
+                for x in frame.data_column_snowflake_quoted_identifiers
+                if x in other_qc._modin_frame.data_column_snowflake_quoted_identifiers
+            ]
+            unquoted_matching_col_list = [
+                unquote_name_if_quoted(x) for x in matching_col_list
+            ]
+
+            corr_result = result_frame
+
+            # columns that do not exist in both dfs
+            wanted_cols = []
+            wanted_col_values = []
+
+            for x in result_frame.data_column_pandas_labels:
+                if x not in unquoted_matching_col_list:
+                    wanted_cols.append(x)
+                    wanted_col_values.append(pandas_lit(None))
+
+            corr_result = corr_result.project_columns(wanted_cols, wanted_col_values)
+
+            for matching_label in matching_col_list:
+                quoted_identifier = result_column_mapper.left_quoted_identifiers_map[
+                    matching_label
+                ]
+                other_quoted_identifier = (
+                    result_column_mapper.right_quoted_identifiers_map[matching_label]
+                )
+                count_exp = builtin("count_if")(
+                    col(quoted_identifier).is_not_null()
+                    & col(other_quoted_identifier).is_not_null()
+                ).over(window_expr)
+                sig_exp = stddev_pop(
+                    iff(
+                        col(quoted_identifier).is_null(),
+                        pandas_lit(None),
+                        col(other_quoted_identifier),
+                    )
+                ).over(window_expr) * stddev_pop(
+                    iff(
+                        col(other_quoted_identifier).is_null(),
+                        pandas_lit(None),
+                        col(quoted_identifier),
+                    )
+                ).over(
+                    window_expr
+                )
+                top_exp = (
+                    sum_(col(quoted_identifier) * col(other_quoted_identifier)).over(
+                        window_expr
+                    )
+                ) - (
+                    sum_(
+                        iff(
+                            col(quoted_identifier).is_null(),
+                            pandas_lit(None),
+                            col(other_quoted_identifier),
+                        )
+                    ).over(window_expr)
+                    * (
+                        sum_(
+                            iff(
+                                col(other_quoted_identifier).is_null(),
+                                pandas_lit(None),
+                                col(quoted_identifier),
+                            )
+                        ).over(window_expr)
+                    )
+                ) / count_exp
+                new_col = iff(
+                    count_exp.__eq__(window) & (count_exp * sig_exp).__gt__(0),
+                    top_exp / (count_exp * sig_exp),
+                    pandas_lit(None),
+                )
+
+                corr_result = corr_result.append_column(
+                    unquote_name_if_quoted(matching_label), new_col
+                )
+
+            ordered_columns = sorted(corr_result.data_column_pandas_labels)
+            new_qc = SnowflakeQueryCompiler(corr_result)
+            new_qc = new_qc.take_2d_labels(index=slice(None), columns=ordered_columns)
+            new_frame = new_qc._modin_frame
         else:
             new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
                 {
