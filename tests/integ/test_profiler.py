@@ -33,6 +33,9 @@ def test_profiler_function_exist(profiler_session):
     ).collect()
     assert len(res) != 0
 
+    res = profiler_session.sql("select current_role()").collect()
+    assert res[0][0] == "TESTROLE_SNOWPARK_PYTHON"
+
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",

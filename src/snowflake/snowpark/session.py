@@ -3475,7 +3475,7 @@ class Session:
             == 0
         ):
             self.sql(
-                f"create temp stage if not exist {profiler.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
+                f"create temp stage if not exists {profiler.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
             ).collect()
         self.profiler._register_modules()
         self.profiler._set_targeted_stage()

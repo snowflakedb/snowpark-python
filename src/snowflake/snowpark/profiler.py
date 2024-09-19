@@ -84,7 +84,7 @@ class Profiler:
                 == 0
             ):
                 self.session.sql(
-                    f"create temp stage if not exist {self.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
+                    f"create temp stage if not exists {self.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
                 ).collect()
             self._set_targeted_stage()
 
@@ -194,7 +194,7 @@ def profiler(
             == 0
         ):
             session.sql(
-                f"create temp stage if not exist {internal_profiler.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
+                f"create temp stage if not exists {internal_profiler.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
             ).collect()
         # set up phase
         internal_profiler._set_targeted_stage()
