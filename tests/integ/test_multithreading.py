@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
+from snowflake.snowpark._internal.analyzer.snowflake_plan import ConfigContext
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType
 
@@ -496,3 +497,48 @@ class OffsetSumUDAFHandler:
     with ThreadPoolExecutor(max_workers=10) as executor:
         for i in range(10):
             executor.submit(register_and_test_udaf, session, i)
+
+
+def test_config_context(session):
+    config_context = ConfigContext(session)
+    for name in config_context.configs:
+        assert hasattr(session, name)
+
+    try:
+        original_cte_optimization = session.cte_optimization_enabled
+        original_eliminate_numeric_sql_value_cast_enabled = (
+            session.eliminate_numeric_sql_value_cast_enabled
+        )
+        original_query_compilation_stage_enabled = (
+            session._query_compilation_stage_enabled
+        )
+        with config_context:
+            session.cte_optimization_enabled = not original_cte_optimization
+            session.eliminate_numeric_sql_value_cast_enabled = (
+                not original_eliminate_numeric_sql_value_cast_enabled
+            )
+            session._query_compilation_stage_enabled = (
+                not original_query_compilation_stage_enabled
+            )
+
+            assert config_context.cte_optimization_enabled == original_cte_optimization
+            assert (
+                config_context.eliminate_numeric_sql_value_cast_enabled
+                == original_eliminate_numeric_sql_value_cast_enabled
+            )
+            assert (
+                config_context._query_compilation_stage_enabled
+                == original_query_compilation_stage_enabled
+            )
+
+        assert config_context.cte_optimization_enabled is None
+        assert config_context.eliminate_numeric_sql_value_cast_enabled is None
+        assert config_context._query_compilation_stage_enabled is None
+    finally:
+        session.cte_optimization_enabled = original_cte_optimization
+        session.eliminate_numeric_sql_value_cast_enabled = (
+            original_eliminate_numeric_sql_value_cast_enabled
+        )
+        session._query_compilation_stage_enabled = (
+            original_query_compilation_stage_enabled
+        )
