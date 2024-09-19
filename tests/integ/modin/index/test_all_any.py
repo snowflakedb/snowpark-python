@@ -25,6 +25,9 @@ NATIVE_INDEX_NON_BOOL_INT_TEST_DATA = [
     native_pd.Index(["a", "b", "c", "d"]),
     native_pd.Index([5, None, 7]),
     native_pd.Index([], dtype="object"),
+    native_pd.Index([pd.Timedelta(0), None]),
+    native_pd.Index([pd.Timedelta(0)]),
+    native_pd.Index([pd.Timedelta(0), pd.Timedelta(1)]),
 ]
 
 NATIVE_INDEX_EMPTY_DATA = [

@@ -64,7 +64,7 @@ class QueryGenerator(Analyzer):
         # NOTE: the dict used here is an ordered dict, all with query block definition is recorded in the
         # order of when the with query block is visited. The order is important to make sure the dependency
         # between the CTE definition is satisfied.
-        self.resolved_with_query_block: Dict[str, str] = {}
+        self.resolved_with_query_block: Dict[str, Query] = {}
 
     def generate_queries(
         self, logical_plans: List[LogicalPlan]
@@ -89,8 +89,16 @@ class QueryGenerator(Analyzer):
             plan_queries = get_snowflake_plan_queries(
                 snowflake_plan, self.resolved_with_query_block
             )
-            queries.extend(plan_queries[PlanQueryType.QUERIES])
-            post_actions.extend(plan_queries[PlanQueryType.POST_ACTIONS])
+            # we deduplicate the queries and post actions generated across the logical
+            # plans because it is possible for large query breakdown to partition
+            # original plan into multiple plans that may contain the same nodes which
+            # generate the same queries and post actions.
+            for query in plan_queries[PlanQueryType.QUERIES]:
+                if query not in queries:
+                    queries.append(query)
+            for action in plan_queries[PlanQueryType.POST_ACTIONS]:
+                if action not in post_actions:
+                    post_actions.append(action)
 
         return {
             PlanQueryType.QUERIES: queries,
@@ -149,20 +157,26 @@ class QueryGenerator(Analyzer):
             )
             copied_resolved_child.queries = final_queries[PlanQueryType.QUERIES]
             resolved_plan = self.plan_builder.save_as_table(
-                logical_plan.table_name,
-                logical_plan.column_names,
-                logical_plan.mode,
-                logical_plan.table_type,
-                [
+                table_name=logical_plan.table_name,
+                column_names=logical_plan.column_names,
+                mode=logical_plan.mode,
+                table_type=logical_plan.table_type,
+                clustering_keys=[
                     self.analyze(x, df_aliased_col_name_to_real_col_name)
                     for x in logical_plan.clustering_exprs
                 ],
-                logical_plan.comment,
-                copied_resolved_child,
-                logical_plan,
-                self.session._use_scoped_temp_objects,
-                logical_plan.creation_source,
-                child_attributes,
+                comment=logical_plan.comment,
+                enable_schema_evolution=logical_plan.enable_schema_evolution,
+                data_retention_time=logical_plan.data_retention_time,
+                max_data_extension_time=logical_plan.max_data_extension_time,
+                change_tracking=logical_plan.change_tracking,
+                copy_grants=logical_plan.copy_grants,
+                child=copied_resolved_child,
+                source_plan=logical_plan,
+                use_scoped_temp_objects=self.session._use_scoped_temp_objects,
+                creation_source=logical_plan.creation_source,
+                child_attributes=child_attributes,
+                iceberg_config=logical_plan.iceberg_config,
             )
 
         elif isinstance(
@@ -204,7 +218,7 @@ class QueryGenerator(Analyzer):
             if logical_plan.name not in self.resolved_with_query_block:
                 self.resolved_with_query_block[
                     logical_plan.name
-                ] = resolved_child.queries[-1].sql
+                ] = resolved_child.queries[-1]
 
             resolved_plan = self.plan_builder.with_query_block(
                 logical_plan.name,

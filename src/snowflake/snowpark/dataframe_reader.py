@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     TempObjectType,
+    get_aliased_option_name,
     get_copy_into_table_options,
     random_name_for_temp_object,
 )
@@ -43,6 +44,19 @@ else:
 logger = getLogger(__name__)
 
 LOCAL_TESTING_SUPPORTED_FILE_FORMAT = ("JSON",)
+READER_OPTIONS_ALIAS_MAP = {
+    "DELIMITER": "FIELD_DELIMITER",
+    "HEADER": "PARSE_HEADER",
+    "PATHGLOBFILTER": "PATTERN",
+    "FILENAMEPATTERN": "PATTERN",
+    "INFERSCHEMA": "INFER_SCHEMA",
+    "SEP": "FIELD_DELIMITER",
+    "LINESEP": "RECORD_DELIMITER",
+    "QUOTE": "FIELD_OPTIONALLY_ENCLOSED_BY",
+    "NULLVALUE": "NULL_IF",
+    "DATEFORMAT": "DATE_FORMAT",
+    "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
+}
 
 
 class DataFrameReader:
@@ -569,7 +583,8 @@ class DataFrameReader:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
         """
-        self._cur_options[key.upper()] = value
+        aliased_key = get_aliased_option_name(key, READER_OPTIONS_ALIAS_MAP)
+        self._cur_options[aliased_key] = value
         return self
 
     def options(self, configs: Dict) -> "DataFrameReader":

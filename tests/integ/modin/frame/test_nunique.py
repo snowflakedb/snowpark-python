@@ -11,8 +11,13 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
-TEST_LABELS = np.array(["A", "B", "C", "D"])
-TEST_DATA = [[0, 1, 2, 3], [0, 0, 0, 0], [None, 0, None, 0], [None, None, None, None]]
+TEST_LABELS = np.array(["A", "B", "C", "D", "E"])
+TEST_DATA = [
+    [0, 1, 2, 3, pd.Timedelta(4)],
+    [0, 0, 0, 0, pd.Timedelta(0)],
+    [None, 0, None, 0, pd.Timedelta(0)],
+    [None, None, None, None, None],
+]
 
 # which original dataframe (constructed from slicing) to test for
 TEST_SLICES = [
@@ -80,7 +85,7 @@ def test_dataframe_nunique_no_columns(native_df):
     [
         pytest.param(None, id="default_columns"),
         pytest.param(
-            [["bar", "bar", "baz", "foo"], ["one", "two", "one", "two"]],
+            [["bar", "bar", "baz", "foo", "foo"], ["one", "two", "one", "two", "one"]],
             id="2D_columns",
         ),
     ],

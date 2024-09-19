@@ -10,31 +10,35 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
-# (+1 query, +0 join) materialize first frame's index for comparison if multi-index
-# (+1 query, +0 join) materialize second frame's index for comparison if multi-index
+# (+1 query, +0 join) materialize first frame's index for comparison
+# (+1 query, +0 join) materialize second frame's index for comparison
 # (+1 query, +1 join) row count query for joining the two frames and checking
 #                     for columns where all rows match.
 # (+1 query, +1 join) materialize query that joins the two frames and checks
 #                     for columns where all rows match.
 # (+1 query, +1 join) convert final comparison result with join to pandas
-QUERY_COUNT = 5
-JOIN_COUNT = 3
+QUERY_COUNT_MULTI_LEVEL_INDEX = 5
+JOIN_COUNT_MULTI_LEVEL_INDEX = 3
+
+
+# (+1 query, +1 join) execute a query to compare two frames' lazy indexes.
+# (+1 query, +1 join) row count query for joining the two frames and checking
+#                     for columns where all rows match.
+# (+1 query, +1 join) materialize query that joins the two frames and checks
+#                     for columns where all rows match.
+# (+1 query, +1 join) convert final comparison result with join to pandas
+QUERY_COUNT_SINGLE_LEVEL_INDEX = 4
+JOIN_COUNT_SINGLE_LEVEL_INDEX = 4
 
 
 @pytest.fixture
 def base_df() -> native_pd.DataFrame:
     return native_pd.DataFrame(
         [
-            [None, None, 3.1, pd.Timestamp("2024-01-01"), [130]],
-            [
-                "a",
-                1,
-                4.2,
-                pd.Timestamp("2024-02-01"),
-                [131],
-            ],
-            ["b", 2, 5.3, pd.Timestamp("2024-03-01"), [132]],
-            [None, 3, 6.4, pd.Timestamp("2024-04-01"), [133]],
+            [None, None, 3.1, pd.Timestamp("2024-01-01"), [130], pd.Timedelta(1)],
+            ["a", 1, 4.2, pd.Timestamp("2024-02-01"), [131], pd.Timedelta(11)],
+            ["b", 2, 5.3, pd.Timestamp("2024-03-01"), [132], pd.Timedelta(21)],
+            [None, 3, 6.4, pd.Timestamp("2024-04-01"), [133], pd.Timedelta(13)],
         ],
         index=pd.MultiIndex.from_tuples(
             [
@@ -54,6 +58,7 @@ def base_df() -> native_pd.DataFrame:
                 ("group_2", "float_col"),
                 ("group_2", "timestamp_col"),
                 ("group_2", "list_col"),
+                ("group_2", "timedelta_col"),
             ],
             names=["column_level1", "column_level2"],
         ),
@@ -61,7 +66,10 @@ def base_df() -> native_pd.DataFrame:
 
 
 class TestDefaultParameters:
-    @sql_count_checker(query_count=QUERY_COUNT, join_count=JOIN_COUNT)
+    @sql_count_checker(
+        query_count=QUERY_COUNT_MULTI_LEVEL_INDEX,
+        join_count=JOIN_COUNT_MULTI_LEVEL_INDEX,
+    )
     def test_no_diff(self, base_df):
         other_df = base_df.copy()
         eval_snowpark_pandas_result(
@@ -72,6 +80,56 @@ class TestDefaultParameters:
             # In snowpark pandas, the column index of the empty resulting frame
             # has the correct values and names, but the incorrect inferred_type
             # for some of its levels. Ignore that bug for now.
+            # TODO(SNOW-1510921): fix the bug.
+            check_index_type=False,
+            check_column_type=False,
+        )
+
+    @sql_count_checker(
+        # no joins because we can skip the joins when comparing df to df.copy()
+        query_count=QUERY_COUNT_SINGLE_LEVEL_INDEX,
+        join_count=0,
+    )
+    def test_no_diff_timedelta(self):
+        eval_snowpark_pandas_result(
+            *create_test_dfs([pd.Timedelta(1)]),
+            lambda df: df.compare(df.copy()),
+            check_index_type=False,
+            check_column_type=False,
+        )
+
+    @sql_count_checker(
+        query_count=QUERY_COUNT_SINGLE_LEVEL_INDEX,
+        join_count=JOIN_COUNT_SINGLE_LEVEL_INDEX,
+    )
+    def test_one_diff_timedelta(self):
+        base_snow_df, base_pandas_df = create_test_dfs(
+            [[pd.Timedelta(1), pd.Timedelta(2)]]
+        )
+        other_snow_df, other_pandas_df = create_test_dfs(
+            [[pd.Timedelta(1), pd.Timedelta(3)]]
+        )
+        eval_snowpark_pandas_result(
+            (base_snow_df, other_snow_df),
+            (base_pandas_df, other_pandas_df),
+            lambda t: t[0].compare(t[1]),
+            check_index_type=False,
+            check_column_type=False,
+        )
+
+    @sql_count_checker(
+        query_count=QUERY_COUNT_SINGLE_LEVEL_INDEX,
+        join_count=JOIN_COUNT_SINGLE_LEVEL_INDEX,
+    )
+    def test_timedelta_compared_with_int(self):
+        base_snow_df, base_pandas_df = create_test_dfs([[pd.Timedelta(1), 2]])
+        other_snow_df, other_pandas_df = create_test_dfs(
+            [[pd.Timedelta(1), pd.Timedelta(2)]]
+        )
+        eval_snowpark_pandas_result(
+            (base_snow_df, other_snow_df),
+            (base_pandas_df, other_pandas_df),
+            lambda t: t[0].compare(t[1]),
             check_index_type=False,
             check_column_type=False,
         )
@@ -86,7 +144,10 @@ class TestDefaultParameters:
             ((3, 4), [201]),
         ],
     )
-    @sql_count_checker(query_count=QUERY_COUNT, join_count=JOIN_COUNT)
+    @sql_count_checker(
+        query_count=QUERY_COUNT_MULTI_LEVEL_INDEX,
+        join_count=JOIN_COUNT_MULTI_LEVEL_INDEX,
+    )
     def test_single_value_diff(self, base_df, position, new_value):
         # check that we are changing a value, so the test case is meaningful.
         assert not (
@@ -122,7 +183,10 @@ class TestDefaultParameters:
             ),
         )
 
-    @sql_count_checker(query_count=QUERY_COUNT, join_count=JOIN_COUNT)
+    @sql_count_checker(
+        query_count=QUERY_COUNT_MULTI_LEVEL_INDEX,
+        join_count=JOIN_COUNT_MULTI_LEVEL_INDEX,
+    )
     def test_different_value_in_every_column_and_row(self, base_df):
         other_df = base_df.copy()
         other_df.iloc[0, 0] = "c"

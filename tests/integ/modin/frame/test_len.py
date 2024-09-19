@@ -16,6 +16,7 @@ from tests.integ.modin.sql_counter import sql_count_checker
         ({"a": []}, 0),
         ({"a": [1, 2]}, 2),
         ({"a": [1, 2], "b": [1, 2], "c": [1, 2]}, 2),
+        ({"td": native_pd.timedelta_range(1, periods=20)}, 20),
     ],
 )
 @sql_count_checker(query_count=1)

@@ -55,14 +55,14 @@ jobs:
             --signature "${dist_base}.sig" \
             --cert "${dist_base}.crt" \
             --cert-oidc-issuer https://token.actions.githubusercontent.com \
-            --cert-identity ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/build_and_sign_demand.yml@${GITHUB_REF}
+            --cert-identity ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/python-publish.yml@${GITHUB_REF}
 
           # Verify using `.sigstore` bundle;
           python -m \
             sigstore verify identity "${dist}" \
             --bundle "${dist_base}.sigstore" \
             --cert-oidc-issuer https://token.actions.githubusercontent.com \
-            --cert-identity ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/build_and_sign_demand.yml@${GITHUB_REF}
+            --cert-identity ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/python-publish.yml@${GITHUB_REF}
         done
     - name: List artifacts after sign
       run: ls ./dist

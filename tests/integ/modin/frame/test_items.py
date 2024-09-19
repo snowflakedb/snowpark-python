@@ -51,6 +51,7 @@ def assert_items_results_equal(snow_result, pandas_result) -> None:
         ),
         native_pd.DataFrame(index=["a"]),
         native_pd.DataFrame(columns=["a"]),
+        native_pd.DataFrame({"ts": native_pd.timedelta_range(10, periods=10)}),
     ],
 )
 def test_items(dataframe):

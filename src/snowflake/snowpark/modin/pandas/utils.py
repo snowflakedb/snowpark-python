@@ -28,6 +28,7 @@ from typing import Any, Callable
 
 import numpy as np
 import pandas
+from modin.core.execution.dispatching.factories.dispatcher import FactoryDispatcher
 from modin.core.storage_formats import BaseQueryCompiler  # pragma: no cover
 from pandas._libs import lib
 from pandas._typing import (
@@ -43,9 +44,6 @@ from pandas.core.dtypes.common import is_array_like, is_dict_like, is_list_like
 from pandas.errors import SpecificationError
 
 import snowflake.snowpark.modin.pandas as pd
-from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
-    FactoryDispatcher,
-)
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     AggFuncWithLabel,
     get_pandas_aggr_func_name,
@@ -78,7 +76,7 @@ def from_non_pandas(df, index, columns, dtype):
 
     new_qc = FactoryDispatcher.from_non_pandas(df, index, columns, dtype)
     if new_qc is not None:
-        from snowflake.snowpark.modin.pandas import DataFrame
+        from modin.pandas import DataFrame
 
         return DataFrame(query_compiler=new_qc)
     return new_qc
@@ -99,7 +97,7 @@ def from_pandas(df):
         A new Modin DataFrame object.
     """
     # from modin.core.execution.dispatching.factories.dispatcher import FactoryDispatcher
-    from snowflake.snowpark.modin.pandas import DataFrame
+    from modin.pandas import DataFrame
 
     return DataFrame(query_compiler=FactoryDispatcher.from_pandas(df))
 
@@ -118,10 +116,7 @@ def from_arrow(at):
     DataFrame
         A new Modin DataFrame object.
     """
-    from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
-        FactoryDispatcher,
-    )
-    from snowflake.snowpark.modin.pandas import DataFrame
+    from modin.pandas import DataFrame
 
     return DataFrame(query_compiler=FactoryDispatcher.from_arrow(at))
 
@@ -142,10 +137,7 @@ def from_dataframe(df):
     DataFrame
         A new Modin DataFrame object.
     """
-    from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
-        FactoryDispatcher,
-    )
-    from snowflake.snowpark.modin.pandas import DataFrame
+    from modin.pandas import DataFrame
 
     return DataFrame(query_compiler=FactoryDispatcher.from_dataframe(df))
 
@@ -170,9 +162,8 @@ def is_scalar(obj):
     bool
         True if given object is scalar and False otherwise.
     """
+    from modin.pandas.base import BasePandasDataset
     from pandas.api.types import is_scalar as pandas_is_scalar
-
-    from .base import BasePandasDataset
 
     return not isinstance(obj, BasePandasDataset) and pandas_is_scalar(obj)
 
@@ -227,7 +218,7 @@ def from_modin_frame_to_mi(df, sortorder=None, names=None):
     pandas.MultiIndex
         The pandas.MultiIndex representation of the given DataFrame.
     """
-    from snowflake.snowpark.modin.pandas import DataFrame
+    from modin.pandas import DataFrame
 
     if isinstance(df, DataFrame):
         df = df._to_pandas()
@@ -534,8 +525,11 @@ def extract_validate_and_try_convert_named_aggs_from_kwargs(
         A dictionary mapping columns to a tuple containing the aggregation to perform, as well
         as the pandas label to give the aggregated column.
     """
-    from snowflake.snowpark.modin.pandas import Series
-    from snowflake.snowpark.modin.pandas.groupby import SeriesGroupBy
+    from modin.pandas import Series
+
+    from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
+        SeriesGroupBy,
+    )
 
     is_series_like = isinstance(obj, (Series, SeriesGroupBy))
     named_aggs = {}

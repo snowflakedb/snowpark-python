@@ -73,6 +73,8 @@ def test_dataframes(mock_dataframe) -> TestDataFrames:
         data_column_snowflake_quoted_identifiers=['"a"', '"b"', '"C"', '"d"'],
         index_column_pandas_labels=[None],
         index_column_snowflake_quoted_identifiers=['"INDEX"'],
+        data_column_types=None,
+        index_column_types=None,
     )
 
     return TestDataFrames(ordered_dataframe, internal_frame)
@@ -110,6 +112,8 @@ def test_dataframes_with_multiindex_on_column(mock_dataframe) -> TestDataFrames:
         data_column_snowflake_quoted_identifiers=["\"('a', 'C')\"", "\"('b', 'D')\""],
         index_column_pandas_labels=[None],
         index_column_snowflake_quoted_identifiers=['"INDEX"'],
+        data_column_types=None,
+        index_column_types=None,
     )
 
     return TestDataFrames(ordered_dataframe, internal_frame)
@@ -125,6 +129,8 @@ def test_snowflake_quoted_identifier_without_quote_negative(test_dataframes) -> 
             data_column_snowflake_quoted_identifiers=["a", "b", "c"],
             index_column_pandas_labels=[None],
             index_column_snowflake_quoted_identifiers=['"INDEX"'],
+            data_column_types=None,
+            index_column_types=None,
         )
 
     assert "Found not-quoted identifier for 'dataframe column':'a'" in str(exc.value)
@@ -143,6 +149,8 @@ def test_column_labels_and_quoted_identifiers_have_same_length_negative(
             data_column_snowflake_quoted_identifiers=['"a"'],
             index_column_pandas_labels=[None],
             index_column_snowflake_quoted_identifiers=['"INDEX"'],
+            data_column_types=None,
+            index_column_types=None,
         )
 
     # check index columns
@@ -154,6 +162,8 @@ def test_column_labels_and_quoted_identifiers_have_same_length_negative(
             data_column_snowflake_quoted_identifiers=['"a"', '"b"', '"C"'],
             index_column_pandas_labels=[],
             index_column_snowflake_quoted_identifiers=['"INDEX"'],
+            data_column_types=None,
+            index_column_types=None,
         )
 
 
@@ -167,6 +177,8 @@ def test_internal_frame_missing_data_column_negative(test_dataframes):
             data_column_snowflake_quoted_identifiers=['"a"', '"b"', '"D"'],
             index_column_pandas_labels=[None],
             index_column_snowflake_quoted_identifiers=['"INDEX"'],
+            data_column_types=None,
+            index_column_types=None,
         )
 
     assert 'dataframe column="D" not found in snowpark dataframe schema' in str(
@@ -184,6 +196,8 @@ def test_internal_frame_missing_index_column_negative(test_dataframes):
             data_column_snowflake_quoted_identifiers=['"a"', '"b"', '"C"'],
             index_column_pandas_labels=[None],
             index_column_snowflake_quoted_identifiers=['"E"'],
+            data_column_types=None,
+            index_column_types=None,
         )
 
     assert 'dataframe column="E" not found in snowpark dataframe schema' in str(
@@ -230,6 +244,8 @@ def test_pandas_label_as_empty_and_none(test_dataframes) -> None:
         data_column_snowflake_quoted_identifiers=['"a"', '"b"', '"C"'],
         index_column_pandas_labels=[None],
         index_column_snowflake_quoted_identifiers=['"INDEX"'],
+        data_column_types=None,
+        index_column_types=None,
     )
 
     assert internal_frame.data_column_pandas_labels == ["", "b", None]
@@ -286,6 +302,8 @@ def test_internal_frame_ordering_columns(test_dataframes) -> None:
         data_column_snowflake_quoted_identifiers=['"a"', '"b"', '"C"'],
         index_column_pandas_labels=[None],
         index_column_snowflake_quoted_identifiers=['"INDEX"'],
+        data_column_types=None,
+        index_column_types=None,
     )
 
     assert internal_frame.ordering_column_snowflake_quoted_identifiers == [
@@ -306,6 +324,8 @@ def test_internal_frame_ordering_columns(test_dataframes) -> None:
         data_column_snowflake_quoted_identifiers=['"a"'],
         index_column_pandas_labels=[None],
         index_column_snowflake_quoted_identifiers=['"INDEX"'],
+        data_column_types=None,
+        index_column_types=None,
     )
 
     assert internal_frame.ordering_column_snowflake_quoted_identifiers == [
@@ -322,6 +342,8 @@ def test_internal_frame_ordering_columns(test_dataframes) -> None:
         data_column_snowflake_quoted_identifiers=['"a"', '"C"'],
         index_column_pandas_labels=[None],
         index_column_snowflake_quoted_identifiers=['"INDEX"'],
+        data_column_types=None,
+        index_column_types=None,
     )
 
     assert internal_frame.ordering_column_snowflake_quoted_identifiers == [
@@ -344,6 +366,8 @@ def test_data_column_pandas_index_names(pandas_label, test_dataframes) -> None:
         data_column_snowflake_quoted_identifiers=['"a"', '"C"'],
         index_column_pandas_labels=[None],
         index_column_snowflake_quoted_identifiers=['"INDEX"'],
+        data_column_types=None,
+        index_column_types=None,
     )
 
     assert internal_frame.data_column_pandas_index_names == [pandas_label]
@@ -417,6 +441,8 @@ def test_data_column_pandas_multiindex_negative(
             ],
             index_column_pandas_labels=[None],
             index_column_snowflake_quoted_identifiers=['"INDEX"'],
+            data_column_types=None,
+            index_column_types=None,
         )
 
 
@@ -443,6 +469,8 @@ def test_get_snowflake_quoted_identifiers_by_pandas_labels_empty_not_include_ind
         data_column_snowflake_quoted_identifiers=['"a"', '"b"', '"C"'],
         index_column_pandas_labels=["index"],
         index_column_snowflake_quoted_identifiers=['"INDEX"'],
+        data_column_types=None,
+        index_column_types=None,
     )
 
     assert internal_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
@@ -625,6 +653,8 @@ def test_num_levels(mock_dataframe, level0, level1):
         data_column_snowflake_quoted_identifiers=['"x"', '"y"'],
         index_column_pandas_labels=[None] * level0,
         index_column_snowflake_quoted_identifiers=['"a"', '"b"'][:level0],
+        data_column_types=None,
+        index_column_types=None,
     )
     assert frame.num_index_levels(axis=0) == level0
     assert frame.num_index_levels(axis=1) == level1
@@ -704,6 +734,8 @@ def test_validation_duplicated_data_columns_for_labels(
         ],
         index_column_pandas_labels=["F"],
         index_column_snowflake_quoted_identifiers=['"F_INDEX"'],
+        data_column_types=None,
+        index_column_types=None,
     )
 
     if expected_message is not None:

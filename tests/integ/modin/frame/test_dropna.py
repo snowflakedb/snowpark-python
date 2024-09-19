@@ -19,6 +19,7 @@ def test_dropna_df():
             "name": ["Alfred", "Batman", "Catwoman"],
             "toy": [np.nan, "Batmobile", "Bullwhip"],
             "born": [pd.NaT, pd.Timestamp("1940-04-25"), pd.NaT],
+            "dt": [pd.NaT, pd.Timedelta(1), pd.NaT],
         }
     )
 
@@ -83,7 +84,7 @@ def test_axis_1_not_implemented(test_dropna_df):
         df.dropna(axis="columns")
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_dropna_negative(test_dropna_df):
     eval_snowpark_pandas_result(
         pd.DataFrame(test_dropna_df),
@@ -121,14 +122,12 @@ def test_dropna_negative(test_dropna_df):
         expect_exception_match="['invalid']",
     )
 
-    eval_snowpark_pandas_result(
-        pd.DataFrame(test_dropna_df),
-        test_dropna_df,
-        lambda df: df.dropna(subset=["invalid"], axis=1),
-        expect_exception=True,
-        expect_exception_type=KeyError,
-        expect_exception_match="['invalid']",
-    )
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas dropna API doesn't yet support axis == 1",
+    ):
+        df = pd.DataFrame(test_dropna_df)
+        df.dropna(subset=["invalid"], axis=1)
 
 
 @pytest.mark.parametrize(

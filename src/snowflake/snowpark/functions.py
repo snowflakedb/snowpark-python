@@ -169,6 +169,7 @@ import snowflake.snowpark.table_function
 from snowflake.snowpark._internal.analyzer.expression import (
     CaseWhen,
     FunctionExpression,
+    Interval,
     ListAgg,
     Literal,
     MultipleExpression,
@@ -325,6 +326,29 @@ def sql_expr(sql: str) -> Column:
         [Row(A=3, B=4)]
     """
     return Column._expr(sql)
+
+
+def system_reference(
+    object_type: str,
+    object_identifier: str,
+    scope: str = "CALL",
+    privileges: Optional[List[str]] = None,
+):
+    """
+    Returns a reference to an object (a table, view, or function). When you execute SQL actions on a
+    reference to an object, the actions are performed using the role of the user who created the
+    reference.
+
+    Example::
+        >>> df = session.create_dataframe([(1,)], schema=["A"])
+        >>> df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
+        >>> df.select(substr(system_reference("table", "my_table"), 1, 14).alias("identifier")).collect()
+        [Row(IDENTIFIER='ENT_REF_TABLE_')]
+    """
+    privileges = privileges or []
+    return builtin("system$reference")(
+        object_type, object_identifier, scope, *privileges
+    )
 
 
 def current_session() -> Column:
@@ -5310,6 +5334,56 @@ def array_append(array: ColumnOrName, element: ColumnOrName) -> Column:
     return builtin("array_append")(a, e)
 
 
+def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
+    """Given a source ARRAY, returns an ARRAY with elements of the specified value removed.
+
+    Args:
+        array: name of column containing array.
+        element: element to be removed from the array. If the element is a VARCHAR, it needs
+            to be casted into VARIANT data type.
+
+    Examples::
+        >>> from snowflake.snowpark.types import VariantType
+        >>> df = session.create_dataframe([([1, '2', 3.1, 1, 1],)], ['data'])
+        >>> df.select(array_remove(df.data, 1).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |[          |
+        |  "2",     |
+        |  3.1      |
+        |]          |
+        -------------
+        <BLANKLINE>
+
+        >>> df.select(array_remove(df.data, lit('2').cast(VariantType())).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |[          |
+        |  1,       |
+        |  3.1,     |
+        |  1,       |
+        |  1        |
+        |]          |
+        -------------
+        <BLANKLINE>
+
+        >>> df.select(array_remove(df.data, None).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |NULL       |
+        -------------
+        <BLANKLINE>
+
+    See Also:
+        - `ARRAY <https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-array>`_ for more details on semi-structured arrays.
+    """
+    a = _to_col_if_str(array, "array_remove")
+    return builtin("array_remove")(a, element)
+
+
 def array_cat(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     """Returns the concatenation of two ARRAYs.
 
@@ -5906,6 +5980,25 @@ def vector_inner_product(v1: ColumnOrName, v2: ColumnOrName) -> Column:
     v1 = _to_col_if_str(v1, "vector_inner_product")
     v2 = _to_col_if_str(v2, "vector_inner_product")
     return builtin("vector_inner_product")(v1, v2)
+
+
+def ln(c: ColumnOrLiteral) -> Column:
+    """Returns the natrual logarithm of given column expression.
+
+    Example::
+        >>> from snowflake.snowpark.functions import ln
+        >>> from math import e
+        >>> df = session.create_dataframe([[e]], schema=["ln_value"])
+        >>> df.select(ln(col("ln_value")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.0       |
+        ------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(c, "ln")
+    return builtin("ln")(c)
 
 
 def asc(c: ColumnOrName) -> Column:
@@ -8544,3 +8637,66 @@ def locate(expr1: str, expr2: ColumnOrName, start_pos: int = 1) -> Column:
     _substr = lit(expr1)
     _str = _to_col_if_str(expr2, "locate")
     return builtin("charindex")(_substr, _str, lit(start_pos))
+
+
+def make_interval(
+    years: Optional[int] = None,
+    quarters: Optional[int] = None,
+    months: Optional[int] = None,
+    weeks: Optional[int] = None,
+    days: Optional[int] = None,
+    hours: Optional[int] = None,
+    minutes: Optional[int] = None,
+    seconds: Optional[int] = None,
+    milliseconds: Optional[int] = None,
+    microseconds: Optional[int] = None,
+    nanoseconds: Optional[int] = None,
+    mins: Optional[int] = None,
+    secs: Optional[int] = None,
+) -> Column:
+    """
+    Creates an interval column with the specified years, quarters, months, weeks, days, hours,
+    minutes, seconds, milliseconds, microseconds, and nanoseconds. You can find more details in
+    `Interval constants <https://docs.snowflake.com/en/sql-reference/data-types-datetime#interval-constants>`_.
+
+    INTERVAL is not a data type (that is, you can’t define a table column to be of data type INTERVAL).
+    Intervals can only be used in date, time, and timestamp arithmetic. For example,
+    ``df.select(make_interval(days=0))`` is not valid.
+
+    Example::
+
+        >>> import datetime
+        >>> from snowflake.snowpark.functions import to_date
+        >>>
+        >>> df = session.create_dataframe([datetime.datetime(2023, 8, 8, 1, 2, 3)], schema=["ts"])
+        >>> df.select(to_date(col("ts") + make_interval(days=10)).alias("next_day")).show()
+        --------------
+        |"NEXT_DAY"  |
+        --------------
+        |2023-08-18  |
+        --------------
+        <BLANKLINE>
+
+    You can also find some examples to use interval constants with :meth:`~snowflake.snowpark.Window.range_between`
+    method.
+    """
+    # for migration purpose
+    minutes = minutes or mins
+    seconds = seconds or secs
+
+    # create column
+    return Column(
+        Interval(
+            years,
+            quarters,
+            months,
+            weeks,
+            days,
+            hours,
+            minutes,
+            seconds,
+            milliseconds,
+            microseconds,
+            nanoseconds,
+        )
+    )

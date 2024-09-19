@@ -25,7 +25,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils, iceberg_supported
 
 test_file_csv = "testCSV.csv"
 test_file2_csv = "test2CSV.csv"
@@ -243,6 +243,36 @@ def test_copy_csv_basic(session, tmp_stage_name1, tmp_table_name):
             Row(2, "two", 2.2),
         ],
     )
+
+
+def test_copy_into_csv_iceberg(
+    session, tmp_stage_name1, tmp_table_name, local_testing_mode
+):
+    if not iceberg_supported(session, local_testing_mode):
+        pytest.skip("Test requires iceberg support.")
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    df = session.read.schema(user_schema).csv(test_file_on_stage)
+
+    test_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df.copy_into_table(
+        test_table_name,
+        iceberg_config={
+            "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+            "CATALOG": "SNOWFLAKE",
+            "BASE_LOCATION": "snowpark_python_tests",
+        },
+    )
+    try:
+        # Check that table is an iceberg table with correct properties set
+        ddl = session._run_query(f"select get_ddl('table', '{test_table_name}')")
+        assert (
+            ddl[0][0]
+            == f"create or replace ICEBERG TABLE {test_table_name} (\n\tA LONG,\n\tB STRING,\n\tC DOUBLE\n)\n EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n BASE_LOCATION = 'snowpark_python_tests/';"
+        )
+        # Check that a copy_into works on the newly created table.
+        df.copy_into_table(test_table_name)
+    finally:
+        Utils.drop_table(session, test_table_name)
 
 
 def test_copy_csv_create_table_if_not_exists(session, tmp_stage_name1):

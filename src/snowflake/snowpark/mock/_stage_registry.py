@@ -647,30 +647,34 @@ class StageEntityRegistry:
         self._root_dir = tempfile.TemporaryDirectory()
         self._stage_registry = {}
         self._conn = conn
+        self._lock = conn.get_lock()
 
     def create_or_replace_stage(self, stage_name):
-        self._stage_registry[stage_name] = StageEntity(
-            self._root_dir.name, stage_name, self._conn
-        )
+        with self._lock:
+            self._stage_registry[stage_name] = StageEntity(
+                self._root_dir.name, stage_name, self._conn
+            )
 
     def __getitem__(self, stage_name: str):
         # the assumption here is that stage always exists
-        if stage_name not in self._stage_registry:
-            self.create_or_replace_stage(stage_name)
-        return self._stage_registry[stage_name]
+        with self._lock:
+            if stage_name not in self._stage_registry:
+                self.create_or_replace_stage(stage_name)
+            return self._stage_registry[stage_name]
 
     def put(
         self, local_file_name: str, stage_location: str, overwrite: bool = False
     ) -> TableEmulator:
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         # the assumption here is that stage always exists
-        if stage_name not in self._stage_registry:
-            self.create_or_replace_stage(stage_name)
-        return self._stage_registry[stage_name].put_file(
-            local_file_name=local_file_name,
-            stage_prefix=stage_prefix,
-            overwrite=overwrite,
-        )
+        with self._lock:
+            if stage_name not in self._stage_registry:
+                self.create_or_replace_stage(stage_name)
+            return self._stage_registry[stage_name].put_file(
+                local_file_name=local_file_name,
+                stage_prefix=stage_prefix,
+                overwrite=overwrite,
+            )
 
     def upload_stream(
         self,
@@ -681,14 +685,15 @@ class StageEntityRegistry:
     ) -> Dict:
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         # the assumption here is that stage always exists
-        if stage_name not in self._stage_registry:
-            self.create_or_replace_stage(stage_name)
-        return self._stage_registry[stage_name].upload_stream(
-            input_stream=input_stream,
-            stage_prefix=stage_prefix,
-            file_name=file_name,
-            overwrite=overwrite,
-        )
+        with self._lock:
+            if stage_name not in self._stage_registry:
+                self.create_or_replace_stage(stage_name)
+            return self._stage_registry[stage_name].upload_stream(
+                input_stream=input_stream,
+                stage_prefix=stage_prefix,
+                file_name=file_name,
+                overwrite=overwrite,
+            )
 
     def get(
         self,
@@ -701,14 +706,15 @@ class StageEntityRegistry:
                 f"Invalid stage {stage_location}, stage name should start with character '@'"
             )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
-        if stage_name not in self._stage_registry:
-            self.create_or_replace_stage(stage_name)
+        with self._lock:
+            if stage_name not in self._stage_registry:
+                self.create_or_replace_stage(stage_name)
 
-        return self._stage_registry[stage_name].get_file(
-            stage_location=stage_prefix,
-            target_directory=target_directory,
-            options=options,
-        )
+            return self._stage_registry[stage_name].get_file(
+                stage_location=stage_prefix,
+                target_directory=target_directory,
+                options=options,
+            )
 
     def read_file(
         self,
@@ -723,13 +729,14 @@ class StageEntityRegistry:
                 f"Invalid stage {stage_location}, stage name should start with character '@'"
             )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
-        if stage_name not in self._stage_registry:
-            self.create_or_replace_stage(stage_name)
+        with self._lock:
+            if stage_name not in self._stage_registry:
+                self.create_or_replace_stage(stage_name)
 
-        return self._stage_registry[stage_name].read_file(
-            stage_location=stage_prefix,
-            format=format,
-            schema=schema,
-            analyzer=analyzer,
-            options=options,
-        )
+            return self._stage_registry[stage_name].read_file(
+                stage_location=stage_prefix,
+                format=format,
+                schema=schema,
+                analyzer=analyzer,
+                options=options,
+            )

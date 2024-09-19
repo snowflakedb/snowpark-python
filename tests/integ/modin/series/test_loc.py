@@ -1787,3 +1787,108 @@ def test_series_loc_set_none():
     eval_snowpark_pandas_result(
         pd.Series(native_s), native_s, loc_set_helper, inplace=True
     )
+
+
+@pytest.mark.parametrize(
+    "key, query_count, join_count",
+    [
+        ("1 day", 2, 2),  # 1 join from squeeze, 1 join from to_pandas during eval
+        (
+            native_pd.to_timedelta("1 day"),
+            2,
+            2,
+        ),  # 1 join from squeeze, 1 join from to_pandas during eval
+        (["1 day", "3 days"], 1, 1),
+        ([True, False, False], 1, 1),
+        (slice(None, "4 days"), 1, 0),
+        (slice(None, "4 days", 2), 1, 0),
+        (slice("1 day", "2 days"), 1, 0),
+        (slice("1 day 1 hour", "2 days 2 hours", 1), 1, 0),
+    ],
+)
+def test_series_loc_get_with_timedelta(key, query_count, join_count):
+    data = ["A", "B", "C"]
+    idx = ["1 days", "2 days", "3 days"]
+    native_ser = native_pd.Series(data, index=native_pd.to_timedelta(idx))
+    snow_ser = pd.Series(data, index=pd.to_timedelta(idx))
+
+    # Perform loc.
+    with SqlCounter(query_count=query_count, join_count=join_count):
+        snow_res = snow_ser.loc[key]
+        native_res = native_ser.loc[key]
+        if is_scalar(key):
+            assert snow_res == native_res
+        else:
+            assert_series_equal(snow_res, native_res)
+
+
+@pytest.mark.parametrize(
+    "key, expected_result",
+    [
+        (
+            slice(None, "4 days"),
+            native_pd.Series(
+                ["A", "B", "C", "D"],
+                index=native_pd.to_timedelta(
+                    ["1 days", "2 days", "3 days", "1 day 1 hour"]
+                ),
+            ),
+        ),
+        (
+            slice(None, "4 days", 2),
+            native_pd.Series(
+                ["A", "C"], index=native_pd.to_timedelta(["1 day", "3 days"])
+            ),
+        ),
+        (
+            slice("1 day", "2 days"),
+            native_pd.Series(
+                ["A", "B"], index=native_pd.to_timedelta(["1 days", "2 days"])
+            ),
+        ),
+        (
+            slice("1 day 1 hour", "2 days 2 hours", -1),
+            native_pd.Series(
+                ["D", "C"], index=native_pd.to_timedelta(["1 day 1 hour", "3 days"])
+            ),
+        ),
+    ],
+)
+@sql_count_checker(query_count=2)
+def test_series_loc_get_with_timedelta_behavior_difference(key, expected_result):
+    data = ["A", "B", "C", "D"]
+    idx = ["1 days", "2 days", "3 days", "25 hours"]
+    native_ser = native_pd.Series(data, index=native_pd.to_timedelta(idx))
+    snow_ser = pd.Series(data, index=pd.to_timedelta(idx))
+
+    with pytest.raises(KeyError):
+        # The error message is usually of the form KeyError: Timedelta('4 days 23:59:59.999999999').
+        native_ser.loc[key]
+
+    actual_result = snow_ser.loc[key]
+    assert_series_equal(actual_result, expected_result)
+
+
+@sql_count_checker(query_count=3, join_count=1)
+def test_series_loc_get_with_timedeltaindex_key():
+    data = ["A", "B", "C"]
+    idx = ["1 days", "2 days", "3 days"]
+    native_ser = native_pd.Series(data, index=native_pd.to_timedelta(idx))
+    snow_ser = pd.Series(data, index=pd.to_timedelta(idx))
+
+    # Perform loc.
+    key = ["1 days", "3 days"]
+    snow_res = snow_ser.loc[pd.to_timedelta(key)]
+    native_res = native_ser.loc[native_pd.to_timedelta(key)]
+    assert_series_equal(snow_res, native_res)
+
+
+@pytest.mark.xfail(reason="SNOW-1653219 None key does not work with timedelta index")
+@sql_count_checker(query_count=2)
+def test_series_loc_get_with_timedelta_and_none_key():
+    data = ["A", "B", "C"]
+    idx = ["1 days", "2 days", "3 days"]
+    snow_ser = pd.Series(data, index=pd.to_timedelta(idx))
+    # Compare with an empty Series, since native pandas raises a KeyError.
+    expected_ser = native_pd.Series()
+    assert_series_equal(snow_ser.loc[None], expected_ser)

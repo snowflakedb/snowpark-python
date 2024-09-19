@@ -53,11 +53,24 @@ def test_duplicated_with_misspelled_column_name_or_empty_subset(subset):
         (["A"], native_pd.Series([False, False, True, False, True])),
         (["B"], native_pd.Series([False, False, False, True, True])),
         (["A", "B"], native_pd.Series([False, False, False, False, True])),
+        ("C", native_pd.Series([False, False, True, False, True])),
     ],
 )
 @sql_count_checker(query_count=1, join_count=1)
 def test_duplicated_subset(subset, expected):
-    df = pd.DataFrame({"A": [0, 1, 1, 2, 0], "B": ["a", "b", "c", "b", "a"]})
+    df = pd.DataFrame(
+        {
+            "A": [0, 1, 1, 2, 0],
+            "B": ["a", "b", "c", "b", "a"],
+            "C": [
+                pd.Timedelta(1),
+                pd.Timedelta(10),
+                pd.Timedelta(1),
+                pd.Timedelta(0),
+                pd.Timedelta(10),
+            ],
+        }
+    )
 
     result = df.duplicated(subset=subset)
     assert_snowpark_pandas_equal_to_pandas(result, expected)

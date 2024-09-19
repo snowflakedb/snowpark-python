@@ -12,7 +12,7 @@ import pytest
 from pandas.testing import assert_series_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_series,
@@ -149,3 +149,15 @@ class TestCacheResultReducesQueryCount:
                 cached_snow_series,
                 native_series,
             )
+
+
+@sql_count_checker(query_count=1)
+def test_cacheresult_timedelta():
+    native_s = native_pd.Series(
+        [
+            native_pd.Timedelta("1 days"),
+            native_pd.Timedelta("2 days"),
+            native_pd.Timedelta("3 days"),
+        ]
+    )
+    assert "timedelta64[ns]" == pd.Series(native_s).cache_result().dtype

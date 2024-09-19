@@ -13,6 +13,8 @@ from snowflake.snowpark.modin.plugin.docstrings.shared_docs import (
     _shared_docs,
 )
 
+from .base import BasePandasDataset
+
 _doc_binary_op_kwargs = {"returns": "BasePandasDataset", "left": "BasePandasDataset"}
 
 
@@ -49,7 +51,7 @@ axis : int or str, optional
 }
 
 
-class DataFrame:
+class DataFrame(BasePandasDataset):
     """
     Snowpark pandas representation of ``pandas.DataFrame`` with a lazily-evaluated relational dataset.
 
@@ -624,9 +626,9 @@ class DataFrame:
 
         See Also
         --------
-        :func:`Series.apply <snowflake.snowpark.modin.pandas.Series.apply>` : For applying more complex functions on a Series.
+        :func:`Series.apply <modin.pandas.Series.apply>` : For applying more complex functions on a Series.
 
-        :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
+        :func:`DataFrame.apply <modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
 
         Examples
         --------
@@ -728,15 +730,13 @@ class DataFrame:
         Parameters
         ----------
         func : function
-            A Python function object to apply to each column or row, or a Python function decorated with @udf.
+            A Python function object to apply to each column or row.
 
         axis : {0 or 'index', 1 or 'columns'}, default 0
             Axis along which the function is applied:
 
             * 0 or 'index': apply function to each column.
             * 1 or 'columns': apply function to each row.
-
-            Snowpark pandas does not yet support ``axis=0``.
 
         raw : bool, default False
             Determines if row or column is passed as a Series or ndarray object:
@@ -773,9 +773,9 @@ class DataFrame:
 
         See Also
         --------
-        :func:`Series.apply <snowflake.snowpark.modin.pandas.Series.apply>` : For applying more complex functions on a Series.
+        :func:`Series.apply <modin.pandas.Series.apply>` : For applying more complex functions on a Series.
 
-        :func:`DataFrame.applymap <snowflake.snowpark.modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
+        :func:`DataFrame.applymap <modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
 
         Notes
         -----
@@ -808,8 +808,6 @@ class DataFrame:
 
         7. When ``func`` uses any first-party modules or third-party packages inside the function,
         you need to add these dependencies via ``session.add_import()`` and ``session.add_packages()``.
-        Alternatively. specify third-party packages with the @udf decorator. When using the @udf decorator,
-        annotations using PandasSeriesType or PandasDataFrameType are not supported.
 
         8. The Snowpark pandas module cannot currently be referenced inside the definition of
         ``func``. If you need to call a general pandas API like ``pd.Timestamp`` inside ``func``,
@@ -849,22 +847,6 @@ class DataFrame:
         0     1.00
         1    14.50
         2    24.25
-        dtype: float64
-
-        or annotate the function
-        with the @udf decorator from Snowpark https://docs.snowflake.com/en/developer-guide/snowpark/reference/python/latest/api/snowflake.snowpark.functions.udf.
-
-        >>> from snowflake.snowpark.functions import udf
-        >>> from snowflake.snowpark.types import DoubleType
-        >>> @udf(packages=['statsmodels>0.12'], return_type=DoubleType())
-        ... def autocorr(column):
-        ...    import pandas as pd
-        ...    import statsmodels.tsa.stattools
-        ...    return pd.Series(statsmodels.tsa.stattools.pacf_ols(column.values)).mean()
-        ...
-        >>> df.apply(autocorr, axis=0)  # doctest: +SKIP
-        A    0.857143
-        B    0.428571
         dtype: float64
         """
 
@@ -1058,8 +1040,6 @@ class DataFrame:
 
         axis : {0 or 'index', 1 or 'columns'}, default 0
             If 0 or 'index': apply function to each column. If 1 or 'columns': apply function to each row.
-
-            Snowpark pandas currently only supports axis=1, and does not yet support axis=0.
 
         *args
             Positional arguments to pass to `func`.
@@ -1305,7 +1285,7 @@ class DataFrame:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.DataFrame`
             The result of the comparison.
 
 
@@ -1769,7 +1749,7 @@ class DataFrame:
             ...                    'COL2': ['A', 'B', 'C']})
 
             >>> df.info() # doctest: +NORMALIZE_WHITESPACE
-            <class 'snowflake.snowpark.modin.pandas.dataframe.DataFrame'>
+            <class 'modin.pandas.dataframe.DataFrame'>
             SnowflakeIndex
             Data columns (total 2 columns):
              #   Column  Non-Null Count  Dtype
@@ -2677,7 +2657,7 @@ class DataFrame:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.DataFrame`
 
         Notes
         -----
@@ -3320,6 +3300,11 @@ class DataFrame:
         is the previous index value when the data is sorted.
         """
 
+    def reindex_like():
+        """
+        Return an object with matching indices as `other` object.
+        """
+
     def replace():
         """
         Replace values given in `to_replace` with `value`.
@@ -3826,6 +3811,18 @@ class DataFrame:
         -------
         DataFrame or None
             Changed row labels or None if ``inplace=True``.
+
+        Note
+        ----
+        When performing ``DataFrame.set_index`` where the length of the
+        :class:`DataFrame` object does not match with the new index's length,
+        a ``ValueError`` is not raised. When the :class:`DataFrame` object is
+        longer than the new index, the :class:`DataFrame`'s new index is filled
+        with ``NaN`` values for the "extra" elements.  When the :class:`DataFrame`
+        object is shorter than the new index, the extra values in the new index
+        are ignored—the :class:`DataFrame` stays the same length ``n``,
+        and uses only the first ``n`` values of the new index.
+
 
         See Also
         --------
@@ -4439,7 +4436,7 @@ class DataFrame:
 
         See Also
         --------
-        :func:`Series.value_counts <snowflake.snowpark.modin.pandas.Series.value_counts>` : Equivalent method on Series.
+        :func:`Series.value_counts <modin.pandas.Series.value_counts>` : Equivalent method on Series.
 
         Notes
         -----
@@ -4520,6 +4517,11 @@ class DataFrame:
         Anne    1
         Beth    1
         Name: count, dtype: int64
+        """
+
+    def map():
+        """
+        Apply a function to the `DataFrame` elementwise.
         """
 
     def mask():

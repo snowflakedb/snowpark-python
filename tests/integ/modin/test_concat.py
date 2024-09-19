@@ -656,23 +656,13 @@ def test_concat_keys_with_none(df1, df2, axis):
     "name1, name2", [("one", "two"), ("one", None), (None, "two"), (None, None)]
 )
 def test_concat_with_keys_and_names(df1, df2, names, name1, name2, axis):
-    with SqlCounter(query_count=0 if name1 is None or axis == 1 else 3, join_count=0):
+    with SqlCounter(query_count=0):
         df1 = df1.rename_axis(name1, axis=axis)
-    with SqlCounter(query_count=0 if name2 is None or axis == 1 else 3, join_count=0):
+    with SqlCounter(query_count=0):
         df2 = df2.rename_axis(name2, axis=axis)
 
-    expected_join_count = (
-        1 if name1 is not None or name2 is not None or axis == 1 else 0
-    )
-    if axis == 0:
-        if name1 is not None:
-            expected_join_count += 1
-        if name2 is not None:
-            expected_join_count += 1
-        if name1 is not None and name2 is not None:
-            expected_join_count += 1
     # One extra query to convert index to native pandas when creating df
-    with SqlCounter(query_count=3, join_count=expected_join_count):
+    with SqlCounter(query_count=3):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
@@ -1073,3 +1063,46 @@ def test_concat_keys():
     }
     snow_df = pd.concat(data.values(), axis=1, keys=data.keys())
     assert_frame_equal(snow_df, native_df, check_dtype=False)
+
+
+@sql_count_checker(query_count=4, join_count=0)
+def test_concat_series_from_same_df(join):
+    num_cols = 4
+    select_data = [f'{i} as "{i}"' for i in range(num_cols)]
+    query = f"select {', '.join(select_data)}"
+
+    # concat today uses join_on_index to concat all series, we use
+    # read_snowflake here so that the default index is created and
+    # managed by snowpark pandas, which is the same as row position
+    # column. This creates a valid optimization scenario for join, where
+    # join performed on the same row_position column doesn't require
+    # actual join.
+    # This can not be done with pd.DataFrame constructor because the index
+    # and row position column is controlled by client side, which are
+    # different columns.
+    df = pd.read_snowflake(query)
+
+    series = [df[col] for col in df.columns]
+    final_df = pd.concat(series, join=join, axis=1)
+
+    assert_frame_equal(df, final_df)
+
+
+@sql_count_checker(query_count=4, join_count=0)
+def test_df_creation_from_series_from_same_df():
+    num_cols = 6
+    select_data = [f'{i} as "{i}"' for i in range(num_cols)]
+    query = f"select {', '.join(select_data)}"
+
+    df = pd.read_snowflake(query)
+
+    df_dict = {col: df[col] for col in df.columns}
+    final_df = pd.DataFrame(df_dict)
+
+    assert_frame_equal(df, final_df)
+
+
+@sql_count_checker(query_count=0)
+def test_concat_timedelta_not_implemented(df1):
+    with pytest.raises(NotImplementedError):
+        pd.concat([df1, df1, df1.astype({"C": "timedelta64[ns]"})])

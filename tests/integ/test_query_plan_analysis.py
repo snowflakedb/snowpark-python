@@ -98,6 +98,24 @@ def test_range_statement(session: Session):
     )
 
 
+def test_literal_complexity_for_snowflake_values(session: Session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    assert_df_subtree_query_complexity(
+        df1, {PlanNodeCategory.COLUMN: 4, PlanNodeCategory.LITERAL: 4}
+    )
+
+    try:
+        original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        # SELECT "A", "B" from (SELECT * FROM TEMP_TABLE)
+        assert_df_subtree_query_complexity(df2, {PlanNodeCategory.COLUMN: 3})
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+
+
 def test_generator_table_function(session: Session):
     df1 = session.generator(
         seq1(1).as_("seq"), uniform(1, 10, 2).as_("uniform"), rowcount=150

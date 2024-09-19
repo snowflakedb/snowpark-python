@@ -3,6 +3,7 @@
 #
 
 import modin.pandas as pd
+import numpy as np
 import pandas as native_pd
 import pytest
 from numpy.testing import assert_equal
@@ -10,6 +11,7 @@ from pandas._libs import lib
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.index.conftest import (
+    NATIVE_INDEX_SCALAR_TEST_DATA,
     NATIVE_INDEX_TEST_DATA,
     NATIVE_INDEX_UNIQUE_TEST_DATA,
     TEST_DFS,
@@ -20,6 +22,7 @@ from tests.integ.modin.utils import (
     assert_index_equal,
     assert_series_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    eval_snowpark_pandas_result,
 )
 
 
@@ -30,6 +33,13 @@ def test_index_copy(native_index):
     new_index = snow_index.copy()
     assert snow_index is not new_index
     assert_index_equal(snow_index, new_index)
+
+
+@sql_count_checker(query_count=2)
+def test_index_creation_from_lazy_index():
+    i1 = pd.Index([1, 2, 3])
+    i2 = pd.Index(i1)
+    assert_index_equal(i1, i2)
 
 
 @pytest.mark.parametrize("native_df", TEST_DFS)
@@ -46,12 +56,16 @@ def test_df_index_copy(native_df):
     assert_index_equal(snow_df.columns, new_columns)
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA[2:])
 def test_index_drop(native_index):
     snow_index = pd.Index(native_index)
     labels = [native_index[0]]
-    assert_index_equal(snow_index.drop(labels), native_index.drop(labels))
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Index.drop",
+    ):
+        assert_index_equal(snow_index.drop(labels), native_index.drop(labels))
 
 
 @sql_count_checker(query_count=3, join_count=1)
@@ -69,26 +83,33 @@ def test_df_index_equals(native_df):
     assert snow_df.index.equals(native_df.index)
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=0)
 def test_index_union():
     idx1 = pd.Index([1, 2, 3, 4])
     idx2 = pd.Index([3, 4, 5, 6])
-    union = idx1.union(idx2)
-    assert_index_equal(union, pd.Index([1, 2, 3, 4, 5, 6], dtype="int64"))
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Index.union",
+    ):
+        idx1.union(idx2)
     idx1 = pd.Index(["a", "b", "c", "d"])
     idx2 = pd.Index([1, 2, 3, 4])
-    union = idx1.union(idx2)
-    assert_index_equal(
-        union, pd.Index(["a", "b", "c", "d", 1, 2, 3, 4], dtype="object")
-    )
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Index.union",
+    ):
+        idx1.union(idx2)
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=0)
 def test_index_difference():
     idx1 = pd.Index([2, 1, 3, 4])
     idx2 = pd.Index([3, 4, 5, 6])
-    diff = idx1.difference(idx2)
-    assert_index_equal(diff, pd.Index([1, 2], dtype="int64"))
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Index.difference",
+    ):
+        idx1.difference(idx2)
 
 
 @sql_count_checker(query_count=4)
@@ -99,20 +120,32 @@ def test_index_intersection():
     assert_index_equal(diff, pd.Index([3, 4], dtype="int64"))
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=0)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_get_level_values(native_index):
     snow_index = pd.Index(native_index)
-    assert_index_equal(snow_index.get_level_values(0), snow_index)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Index.get_level_values",
+    ):
+        assert_index_equal(snow_index.get_level_values(0), snow_index)
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_slice_indexer():
     idx = pd.Index(list("abcd"))
-    s = idx.slice_indexer(start="a", end="c")
-    assert s != slice(1, 3, None)
-    s = idx.slice_indexer(start="b", end="c")
-    assert s == slice(1, 3, None)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Index.slice_indexer",
+    ):
+        s = idx.slice_indexer(start="a", end="c")
+        assert s != slice(1, 3, None)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Index.slice_indexer",
+    ):
+        s = idx.slice_indexer(start="b", end="c")
+        assert s == slice(1, 3, None)
 
 
 @sql_count_checker(query_count=1)
@@ -314,14 +347,12 @@ def test_df_index_to_frame(native_df, index, name):
     )
 
 
-@sql_count_checker(query_count=0)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_dtype(native_index):
-    snow_index = pd.Index(native_index)
-    if isinstance(native_index, native_pd.DatetimeIndex):
-        # Snowpark pandas does not include timezone info in dtype datetime64[ns],
-        assert snow_index.dtype == "datetime64[ns]"
-    else:
+    with SqlCounter(
+        query_count=1 if getattr(native_index.dtype, "tz", None) is not None else 0
+    ):
+        snow_index = pd.Index(native_index)
         assert snow_index.dtype == native_index.dtype
 
 
@@ -360,13 +391,13 @@ def test_index_parent():
     # DataFrame case.
     df = pd.DataFrame([[1, 2], [3, 4]], index=native_idx1)
     snow_idx = df.index
-    assert_frame_equal(snow_idx._parent, df)
+    assert_frame_equal(snow_idx._parent._parent, df)
     assert_index_equal(snow_idx, native_idx1)
 
     # Series case.
     s = pd.Series([1, 2, 4, 5, 6, 7], index=native_idx2, name="zyx")
     snow_idx = s.index
-    assert_series_equal(snow_idx._parent, s)
+    assert_series_equal(snow_idx._parent._parent, s)
     assert_index_equal(snow_idx, native_idx2)
 
 
@@ -400,3 +431,97 @@ def test_create_index_from_df_negative():
         pd.Index(pd.DataFrame([[1, 2], [3, 4]]))
     with pytest.raises(ValueError):
         pd.DatetimeIndex(pd.DataFrame([[1, 2], [3, 4]]))
+
+
+@sql_count_checker(query_count=3, join_count=3)
+def test_index_identical():
+    i1 = pd.Index(["a", "b", "c"])
+    i2 = pd.Index(["a", "b", "c"])
+
+    assert i1.identical(i2)
+
+    i1 = i1.rename("foo")
+    assert i1.equals(i2)
+    assert not i1.identical(i2)
+
+    i2 = i2.rename("foo")
+    assert i1.identical(i2)
+
+    i3 = pd.Index([("a", "a"), ("a", "b"), ("b", "a")])
+    i4 = pd.Index([("a", "a"), ("a", "b"), ("b", "a")], tupleize_cols=False)
+    assert not i3.identical(i4)
+
+
+@pytest.mark.parametrize("native_index", NATIVE_INDEX_SCALAR_TEST_DATA)
+@pytest.mark.parametrize("func", ["min", "max"])
+@sql_count_checker(query_count=1)
+def test_index_min_max(native_index, func):
+    snow_index = pd.Index(native_index)
+    snow_res = getattr(snow_index, func)()
+    native_res = getattr(native_index, func)()
+    # Snowpark pandas treats np.nan as None.
+    native_res = None if native_res is np.nan else native_res
+    assert snow_res == native_res
+
+
+@pytest.mark.parametrize("func", ["min", "max"])
+@pytest.mark.parametrize("axis", [1, "axis", 0.6, -1])
+@sql_count_checker(query_count=0)
+def test_index_min_max_wrong_axis_negative(func, axis):
+    idx = pd.Index([1, 2, 3])
+    with pytest.raises(ValueError, match="Axis must be None or 0 for Index objects"):
+        getattr(idx, func)(axis=axis)
+
+
+@pytest.mark.parametrize(
+    "native_index",
+    [
+        native_pd.Index(["Apple", "Mango", "Watermelon"]),
+        native_pd.Index(["Apple", "Mango", 2.0]),
+        native_pd.Index([1, 2, 3, 4]),
+        native_pd.Index([1.0, 2.0, 3.0, 4.0]),
+        native_pd.Index([1.0, 2.0, np.nan, 4.0]),
+        native_pd.Index([1, 2, 3, 4.0, np.nan]),
+        native_pd.Index([1, 2, 3, 4.0, np.nan, "Apple"]),
+        native_pd.Index([1, 2, 3, 4.0]),
+        native_pd.Index([True, False, True]),
+        native_pd.Index(["True", "False", "True"]),
+        native_pd.Index([True, False, "True"]),
+    ],
+)
+@pytest.mark.parametrize(
+    "func", ["is_integer", "is_boolean", "is_floating", "is_numeric", "is_object"]
+)
+@sql_count_checker(query_count=0)
+def test_index_is_type(native_index, func):
+    snow_index = pd.Index(native_index)
+    snow_res = getattr(snow_index, func)()
+    native_res = getattr(native_index, func)()
+    assert snow_res == native_res
+
+
+@pytest.mark.parametrize("obj_type", ["df", "series"])
+def test_df_series_set_index_and_reset_index(obj_type):
+    obj = {"A": [1, 2, 3], "B": [4, 5, 6]}
+    original_index = ["A", "B", "C"]
+    assert_equal = assert_frame_equal if obj_type == "df" else assert_series_equal
+    native_obj = (
+        native_pd.DataFrame(obj, index=original_index)
+        if obj_type == "df"
+        else native_pd.Series(obj, index=original_index)
+    )
+    snow_obj = pd.DataFrame(native_obj) if obj_type == "df" else pd.Series(native_obj)
+
+    # Index object to change obj's index to.
+    native_idx = native_pd.Index([11, 22, 33])
+    snow_idx = pd.Index(native_idx)
+
+    # Test that df.index = new_index works with lazy index.
+    with SqlCounter(query_count=1):
+        native_obj.index = native_idx
+        snow_obj.index = snow_idx
+        assert_equal(snow_obj, native_obj)
+
+    # Check if reset_index works with lazy index.
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(snow_obj, native_obj, lambda df: df.reset_index())

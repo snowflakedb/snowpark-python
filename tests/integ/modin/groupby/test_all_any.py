@@ -8,12 +8,17 @@ import re
 
 import modin.pandas as pd
 import numpy as np
+import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.modin.utils import (
+    assert_frame_equal,
+    create_test_dfs,
+    eval_snowpark_pandas_result,
+)
 
 
 @pytest.mark.parametrize(
@@ -34,6 +39,23 @@ def test_all_any_basic(data):
     )
     eval_snowpark_pandas_result(
         *create_test_dfs(data), lambda df: df.groupby("nn").any()
+    )
+
+
+@pytest.mark.parametrize("agg_func", ["all", "any"])
+@pytest.mark.parametrize("by", ["A", "B"])
+@sql_count_checker(query_count=1)
+def test_timedelta(agg_func, by):
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(["1 days 06:05:01.00003", "15.5us", "15.5us"]),
+            "B": [10, 8, 12],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: getattr(df.groupby(by), agg_func)()
     )
 
 
@@ -90,4 +112,28 @@ def test_all_any_chained():
         lambda df: df.groupby("by").apply(
             lambda df: df.apply(lambda ser: ser.str.len())
         )
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_timedelta_any_with_nulls():
+    """
+    Test this case separately because pandas behavior is different from Snowpark pandas behavior.
+
+    pandas bug that does not apply to Snowpark pandas:
+    https://github.com/pandas-dev/pandas/issues/59712
+    """
+    snow_df, native_df = create_test_dfs(
+        {
+            "key": ["a"],
+            "A": native_pd.Series([pd.NaT], dtype="timedelta64[ns]"),
+        },
+    )
+    assert_frame_equal(
+        native_df.groupby("key").any(),
+        native_pd.DataFrame({"A": [True]}, index=native_pd.Index(["a"], name="key")),
+    )
+    assert_frame_equal(
+        snow_df.groupby("key").any(),
+        native_pd.DataFrame({"A": [False]}, index=native_pd.Index(["a"], name="key")),
     )

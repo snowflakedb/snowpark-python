@@ -63,7 +63,6 @@ with warnings.catch_warnings():
         SparseDtype,
         StringDtype,
         Timedelta,
-        TimedeltaIndex,
         Timestamp,
         UInt8Dtype,
         UInt16Dtype,
@@ -71,7 +70,6 @@ with warnings.catch_warnings():
         UInt64Dtype,
         api,
         array,
-        bdate_range,
         eval,
         factorize,
         from_dummies,
@@ -86,11 +84,39 @@ with warnings.catch_warnings():
         timedelta_range,
     )
 
+import modin.pandas
+
 # TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
 from modin.pandas import plotting  # type: ignore[import]
+from modin.pandas import (  # don't import stuff defined in pd_overrides
+    ExcelFile,
+    HDFStore,
+    read_clipboard,
+    read_excel,
+    read_feather,
+    read_fwf,
+    read_gbq,
+    read_hdf,
+    read_html,
+    read_pickle,
+    read_sas,
+    read_spss,
+    read_sql,
+    read_sql_query,
+    read_sql_table,
+    read_stata,
+    read_table,
+    to_pickle,
+)
+from modin.pandas.api.extensions import (
+    register_dataframe_accessor,
+    register_series_accessor,
+)
+from modin.pandas.dataframe import DataFrame
+from modin.pandas.series import Series
 
-from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-from snowflake.snowpark.modin.pandas.general import (
+from snowflake.snowpark.modin.plugin.extensions.general_overrides import (  # isort: skip  # noqa: E402,F401
+    bdate_range,
     concat,
     crosstab,
     cut,
@@ -115,52 +141,109 @@ from snowflake.snowpark.modin.pandas.general import (
     value_counts,
     wide_to_long,
 )
-from snowflake.snowpark.modin.pandas.io import (
-    ExcelFile,
-    HDFStore,
-    json_normalize,
-    read_clipboard,
-    read_csv,
-    read_excel,
-    read_feather,
-    read_fwf,
-    read_gbq,
-    read_hdf,
-    read_html,
-    read_json,
-    read_orc,
-    read_parquet,
-    read_pickle,
-    read_sas,
-    read_spss,
-    read_sql,
-    read_sql_query,
-    read_sql_table,
-    read_stata,
-    read_table,
-    read_xml,
-    to_pickle,
+from snowflake.snowpark.modin.plugin._internal.session import (  # isort: skip  # noqa: E402,F401
+    SnowpandasSessionHolder,
 )
-from snowflake.snowpark.modin.pandas.series import Series
-from snowflake.snowpark.modin.plugin._internal.session import SnowpandasSessionHolder
+from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip  # noqa: E402,F401
+    TELEMETRY_PRIVATE_METHODS,
+    snowpark_pandas_telemetry_standalone_function_decorator,
+    try_add_telemetry_to_attribute,
+)
+from snowflake.snowpark.modin.plugin.utils.frontend_constants import (  # isort: skip  # noqa: E402,F401
+    _ATTRS_NO_LOOKUP,
+)
+
 
 # The extensions assigned to this module
 _PD_EXTENSIONS_: dict = {}
 
-# base needs to be re-exported in order to properly override docstrings for BasePandasDataset
-# moving this import higher prevents sphinx from building documentation (??)
-from snowflake.snowpark.modin.pandas import base  # isort: skip  # noqa: E402,F401
 
 import snowflake.snowpark.modin.plugin.extensions.pd_extensions as pd_extensions  # isort: skip  # noqa: E402,F401
-import snowflake.snowpark.modin.plugin.extensions.pd_overrides  # isort: skip  # noqa: E402,F401
-from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: skip  # noqa: E402,F401
+from snowflake.snowpark.modin.plugin.extensions.pd_extensions import (  # isort: skip  # noqa: E402,F401
     Index,
     DatetimeIndex,
+    TimedeltaIndex,
 )
+import snowflake.snowpark.modin.plugin.extensions.io_overrides  # isort: skip  # noqa: E402,F401
+from snowflake.snowpark.modin.plugin.extensions.io_overrides import (  # isort: skip  # noqa: E402,F401
+    read_xml,
+    json_normalize,
+    read_orc,
+    read_csv,
+    read_parquet,
+    read_json,
+)
+
+# base overrides occur before subclass overrides in case subclasses override a base method
+import snowflake.snowpark.modin.plugin.extensions.base_extensions  # isort: skip  # noqa: E402,F401
+import snowflake.snowpark.modin.plugin.extensions.base_overrides  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.dataframe_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.dataframe_overrides  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_overrides  # isort: skip  # noqa: E402,F401
+
+
+# dt and str accessors raise AttributeErrors that get caught by Modin __getitem__. Whitelist
+# them in _ATTRS_NO_LOOKUP here to avoid this.
+# In upstream Modin, we should change __getitem__ to perform a direct getitem call rather than
+# calling self.index[].
+modin.pandas.base._ATTRS_NO_LOOKUP.add("dt")
+modin.pandas.base._ATTRS_NO_LOOKUP.add("str")
+modin.pandas.base._ATTRS_NO_LOOKUP.add("columns")
+modin.pandas.base._ATTRS_NO_LOOKUP.update(_ATTRS_NO_LOOKUP)
+
+
+# For any method defined on Series/DF, add telemetry to it if the method name does not start with an
+# _, or the method is in TELEMETRY_PRIVATE_METHODS. This includes methods defined as an extension/override.
+for attr_name in dir(Series):
+    # Since Series is defined in upstream Modin, all of its members were either defined upstream
+    # or overridden by extension.
+    if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
+        register_series_accessor(attr_name)(
+            try_add_telemetry_to_attribute(attr_name, getattr(Series, attr_name))
+        )
+
+for attr_name in dir(DataFrame):
+    # Since DataFrame is defined in upstream Modin, all of its members were either defined upstream
+    # or overridden by extension.
+    if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
+        register_dataframe_accessor(attr_name)(
+            try_add_telemetry_to_attribute(attr_name, getattr(DataFrame, attr_name))
+        )
+
+
+# Add telemetry to I/O methods. Like DataFrame/Series, we don't care whether or not the methods
+# were defined via override or not. Functions not defined in modin (like read_snowflake) should still
+# have explicit telemetry annotations.
+_io_functions = [
+    "read_xml",
+    "read_csv",
+    "read_table",
+    "read_parquet",
+    "read_json",
+    "read_gbq",
+    "read_html",
+    "read_clipboard",
+    "read_excel",
+    "read_hdf",
+    "read_feather",
+    "read_stata",
+    "read_sas",
+    "read_pickle",
+    "read_sql",
+    "read_fwf",
+    "read_sql_table",
+    "read_sql_query",
+    "to_pickle",
+    "read_spss",
+    "json_normalize",
+    "read_orc",
+]
+for attr_name in _io_functions:
+    telemtry_fn = snowpark_pandas_telemetry_standalone_function_decorator(
+        getattr(modin.pandas, attr_name)
+    )
+    _PD_EXTENSIONS_[attr_name] = telemtry_fn
 
 
 def __getattr__(name: str) -> Any:
@@ -219,7 +302,6 @@ __all__ = [  # noqa: F405
     "date_range",
     "Index",
     "MultiIndex",
-    "Series",
     "bdate_range",
     "period_range",
     "DatetimeIndex",
@@ -317,8 +399,7 @@ _SKIP_TOP_LEVEL_ATTRS = [
 # Manually re-export the members of the pd_extensions namespace, which are not declared in __all__.
 _EXTENSION_ATTRS = ["read_snowflake", "to_snowflake", "to_snowpark", "to_pandas"]
 # We also need to re-export native_pd.offsets, since modin.pandas doesn't re-export it.
-# snowflake.snowpark.pandas.base also needs to be re-exported to make docstring overrides for BasePandasDataset work.
-_ADDITIONAL_ATTRS = ["offsets", "base"]
+_ADDITIONAL_ATTRS = ["offsets"]
 
 # This code should eventually be moved into the `snowflake.snowpark.modin.plugin` module instead.
 # Currently, trying to do so would result in incorrect results because `snowflake.snowpark.modin.pandas`

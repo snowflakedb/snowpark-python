@@ -13,6 +13,7 @@ import pytest
 import pytz
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     _columns_from_timestamp_parts,
@@ -35,6 +36,7 @@ from snowflake.snowpark.functions import (
     array_intersection,
     array_position,
     array_prepend,
+    array_remove,
     array_size,
     array_slice,
     array_to_string,
@@ -178,6 +180,7 @@ from snowflake.snowpark.functions import (
     substring,
     sum,
     sum_distinct,
+    system_reference,
     tan,
     tanh,
     time_from_parts,
@@ -247,6 +250,22 @@ def test_col(session):
 def test_lit(session):
     res = TestData.test_data1(session).select(lit(1)).collect()
     assert res == [Row(1), Row(1)]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="system functions not supported by local testing",
+)
+def test_system_reference(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1,)]).to_df(["a"])
+    df.write.save_as_table(table_name)
+
+    try:
+        data = df.select(system_reference("TABLE", table_name)).collect()
+        assert data[0][0].startswith("ENT_REF_TABLE")
+    finally:
+        session.table(table_name).drop_table()
 
 
 def test_avg(session):
@@ -2807,6 +2826,34 @@ def test_array_append(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
+    reason="array_remove is not yet supported in local testing mode.",
+)
+def test_array_remove(session):
+    Utils.check_answer(
+        [
+            Row("[\n  2,\n  3\n]"),
+            Row("[\n  6,\n  7\n]"),
+        ],
+        TestData.array1(session).select(
+            array_remove(array_remove(col("arr1"), lit(1)), lit(8))
+        ),
+        sort=False,
+    )
+
+    Utils.check_answer(
+        [
+            Row("[\n  2,\n  3\n]"),
+            Row("[\n  6,\n  7\n]"),
+        ],
+        TestData.array1(session).select(
+            array_remove(array_remove(col("arr1"), 1), lit(8))
+        ),
+        sort=False,
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_cat is not yet supported in local testing mode.",
 )
 def test_array_cat(session):
@@ -3839,6 +3886,35 @@ def test_convert_timezone(session, local_testing_mode):
             ],
         )
 
+        df = TestData.datetime_primitives1(session).select("timestamp", "timestamp_ntz")
+
+        Utils.check_answer(
+            df.select(
+                *[
+                    convert_timezone(lit("UTC"), col, lit("Asia/Shanghai"))
+                    for col in df.columns
+                ]
+            ),
+            [
+                Row(
+                    datetime(2024, 2, 1, 4, 0),
+                    datetime(2017, 2, 24, 4, 0, 0, 456000),
+                )
+            ],
+        )
+
+        df = TestData.datetime_primitives1(session).select(
+            "timestamp_ltz", "timestamp_tz"
+        )
+        with pytest.raises(SnowparkSQLException):
+            # convert_timezone function does not accept non-TimestampTimeZone.NTZ datetime
+            df.select(
+                *[
+                    convert_timezone(lit("UTC"), col, lit("Asia/Shanghai"))
+                    for col in df.columns
+                ]
+            ).collect()
+
         LocalTimezone.set_local_timezone()
 
 
@@ -4580,13 +4656,13 @@ def test_dense_rank(session):
 
 
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
-def test_lag(session, col_z, local_testing_mode):
+def test_lag(session, col_z):
     Utils.check_answer(
         TestData.xyz(session).select(
             lag(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(0), Row(10), Row(1), Row(0), Row(1)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4594,7 +4670,7 @@ def test_lag(session, col_z, local_testing_mode):
             lag(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4602,7 +4678,7 @@ def test_lag(session, col_z, local_testing_mode):
             lag(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4610,18 +4686,18 @@ def test_lag(session, col_z, local_testing_mode):
             lag(col_z, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(10), Row(1), Row(3), Row(1), Row(3)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
 
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
-def test_lead(session, col_z, local_testing_mode):
+def test_lead(session, col_z):
     Utils.check_answer(
         TestData.xyz(session).select(
             lead(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(0), Row(3), Row(0)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4629,7 +4705,7 @@ def test_lead(session, col_z, local_testing_mode):
             lead(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4637,7 +4713,7 @@ def test_lead(session, col_z, local_testing_mode):
             lead(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
 
