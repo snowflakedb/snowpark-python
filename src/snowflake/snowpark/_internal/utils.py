@@ -696,6 +696,33 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
     warning_dict[name].warning(text)
 
 
+def publicapi(func) -> Callable:
+    """decorator to safeguard public APIs with global feature flags."""
+
+    @functools.wraps(func)
+    def func_call_wrapper(*args, **kwargs):
+        # warning(func.__qualname__, warning_text)
+
+        # Handle AST encoding, by modifying default behavior.
+        # If a function supports AST encoding, it must have a parameter _emit_ast.
+        # If now _emit_ast is passed as part of kwargs (we do not allow for the positional syntax!)
+        # then we use this value directly. If not, but the function supports _emit_ast,
+        # we override _emit_ast with the session parameter.
+        if "_emit_ast" in func.__code__.co_varnames and "_emit_ast" not in kwargs:
+            if hasattr(args[0], "_session"):
+                kwargs["_emit_ast"] = args[0]._session.ast_enabled
+            elif isinstance(args[0], snowflake.snowpark.session.Session):
+                kwargs["_emit_ast"] = args[0].ast_enabled
+            else:
+                raise NotImplementedError(f"Can not get session from {type(args[0])}")
+
+        # TODO: Could modify internal docstring to display that users should not modify the _emit_ast parameter.
+
+        return func(*args, **kwargs)
+
+    return func_call_wrapper
+
+
 def func_decorator(
     decorator_type: Literal["deprecated", "experimental", "in private preview"],
     *,
