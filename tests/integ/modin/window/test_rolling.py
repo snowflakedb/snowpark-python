@@ -186,6 +186,7 @@ def test_rolling_corr_simple():
         ddof=1,
         numeric_only=True,
     )
+    print(snow_df)
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
