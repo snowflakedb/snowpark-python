@@ -538,7 +538,7 @@ def test_groupby_agg_invalid_numeric_only(
     with pytest.raises(
         ValueError,
         match=re.escape(
-            "GroupBy aggregations like 'sum' take a 'numeric_only' argument that needs to be a bool, but a str value was passed in."
+            f"GroupBy aggregations like 'sum' take a 'numeric_only' argument that needs to be a bool, but a {type(numeric_only).__name__} value was passed in."
         ),
     ):
         getattr(basic_snowpark_pandas_df.groupby("col1"), agg_method_name)(
