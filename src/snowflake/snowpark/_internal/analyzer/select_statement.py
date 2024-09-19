@@ -69,7 +69,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.select_projection_complexity_utils import (
-    has_invalid_view_merge_functions,
+    has_invalid_projection_merge_functions,
 )
 from snowflake.snowpark._internal.utils import is_sql_select_statement
 
@@ -643,11 +643,16 @@ class SelectStatement(Selectable):
             self.from_.api_calls.copy() if self.from_.api_calls is not None else None
         )  # will be replaced by new api calls if any operation.
         self._placeholder_query = None
-        # indicate whether we should try to flatten the projection complexity with from
-        # during the calculation of node complexity.
+        # indicate whether we should try to merge the projection complexity with from
+        # during the calculation of node complexity. For example,
+        #   SELECT COL1 + 2 as COL1, COL2 FROM (SELECT COL1 + 3 AS COL1, COL2 FROM TABLE_TEST)
+        # can be merged as SELECT (COL1 + 3) + 2 AS COL1, COLS FROM TABLE_TEST with snowflake
+        # However, we do not do such merge in snowpark, _try_merge_projection_complexity is only
+        # used to indicate we could try to merge the complexity calculation for the two SELECTs.
+        #
         # Note this flag can only be True if it is valid to flatten the projection
         # complexity.
-        self._try_flatten_projection_complexity = False
+        self._try_merge_projection_complexity = False
 
     def __copy__(self):
         new = SelectStatement(
@@ -671,6 +676,7 @@ class SelectStatement(Selectable):
         new.df_aliased_col_name_to_real_col_name = (
             self.df_aliased_col_name_to_real_col_name
         )
+        new._try_merge_projection_complexity = self._try_merge_projection_complexity
 
         return new
 
@@ -690,6 +696,7 @@ class SelectStatement(Selectable):
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
         copied._projection_in_str = self._projection_in_str
         copied._query_params = deepcopy(self._query_params)
+        copied._try_merge_projection_complexity = self._try_merge_projection_complexity
         return copied
 
     @property
@@ -927,7 +934,7 @@ class SelectStatement(Selectable):
             )  # use copy because we don't want two plans to share the same list. If one mutates, the other ones won't be impacted.
             new.flatten_disabled = self.flatten_disabled
             # no need to flatten the projection complexity since the select projection is already flattened.
-            new._try_flatten_projection_complexity = False
+            new._try_merge_projection_complexity = False
             return new
         disable_next_level_flatten = False
         new_column_states = derive_column_states_from_subquery(cols, self)
@@ -1009,8 +1016,8 @@ class SelectStatement(Selectable):
             new = SelectStatement(
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
             )
-            new._try_flatten_projection_complexity = (
-                can_select_projection_complexity_be_flattened(
+            new._try_merge_projection_complexity = (
+                can_select_projection_complexity_be_merged(
                     cols,
                     new_column_states,
                     self,
@@ -1454,23 +1461,35 @@ def can_clause_dependent_columns_flatten(
     return True
 
 
-def can_select_projection_complexity_be_flattened(
+def can_select_projection_complexity_be_merged(
     cols: List[Expression],
     column_states: Optional[ColumnStateDict],
     subquery: Selectable,
 ) -> bool:
+    """
+    Check whether projection complexity of subquery can be merged with the current
+    projection columns.
+
+    Args:
+        cols: the projection column expressions of the current select
+        column_states: the column states extracted out of the current projection column
+            on top of subquery.
+        subquery: the subquery where the current select is performed on top of
+    """
+    # only merge of nested select statement is supported, and subquery must be
+    # a SelectStatement
     if column_states is None or (not isinstance(subquery, SelectStatement)):
         return False
 
     if len(cols) != len(column_states.projection):
-        # state of some columns failed to extract
+        # Failed to extract the attributes of some columns
         return False
 
-    if len(column_states.active_columns) != len(column_states.projection):
-        # There must be duplicate columns in the projection.
-        # We don't flatten when there are duplicate columns.
-        return False
-
+    # It is not valid to merge the projection complexity if:
+    # 1) exist a column without state extracted
+    # 2) exist a column that dependents on columns from the same level
+    # 3) exist a column that dependents on $. Theoretically, this could be
+    #       valid, but extra analysis is required to check the validness.
     for proj in column_states.projection:
         column_state = column_states.get(proj.name)
         if column_state is None:
@@ -1480,12 +1499,12 @@ def can_select_projection_complexity_be_flattened(
         if column_state.dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
             return False
 
-    # check if the current select have
+    # check if the current select have filter, order by, or limit
     if subquery.where or subquery.order_by or subquery.limit_ or subquery.offset:
         return False
 
-    # check if expression contain invalid functions
-    if has_invalid_view_merge_functions(cols):
+    # check if the projection expression contain invalid functions
+    if has_invalid_projection_merge_functions(cols):
         return False
 
     return True
