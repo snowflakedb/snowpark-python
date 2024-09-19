@@ -22,7 +22,7 @@ from snowflake.snowpark._internal.type_utils import (
     LiteralType,
     python_type_to_snow_type,
 )
-from snowflake.snowpark._internal.utils import quote_name
+from snowflake.snowpark._internal.utils import publicapi, quote_name
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import iff, lit, when
 from snowflake.snowpark.types import (
@@ -69,6 +69,7 @@ class DataFrameNaFunctions:
     def __init__(self, df: "snowflake.snowpark.DataFrame") -> None:
         self._df = df
 
+    @publicapi
     def drop(
         self,
         how: str = "any",
@@ -244,10 +245,12 @@ class DataFrameNaFunctions:
 
             return new_df
 
+    @publicapi
     def fill(
         self,
         value: Union[LiteralType, Dict[str, LiteralType]],
         subset: Optional[Union[str, Iterable[str]]] = None,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         """
         Returns a new DataFrame that replaces all null and NaN values in the specified
@@ -347,22 +350,24 @@ class DataFrameNaFunctions:
         # iff(non_float_col is null, replacement, non_float_col) from table where
 
         # AST.
-        stmt = self._df._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_na_fill, stmt)
-        self._df._set_ast_ref(ast.df)
-        if isinstance(value, dict):
-            for k, v in value.items():
-                # N.B. In Phase 1, error checking will be incorporated directly here.
-                if isinstance(k, str):
-                    entry = ast.value_map.list.add()
-                    entry._1 = k
-                    build_expr_from_python_val(entry._2, v)
-        else:
-            build_expr_from_python_val(ast.value, value)
-        if isinstance(subset, str):
-            ast.subset.list.append(subset)
-        elif isinstance(subset, Iterable):
-            ast.subset.list.extend(subset)
+        stmt = None
+        if _emit_ast:
+            stmt = self._df._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_na_fill, stmt)
+            self._df._set_ast_ref(ast.df)
+            if isinstance(value, dict):
+                for k, v in value.items():
+                    # N.B. In Phase 1, error checking will be incorporated directly here.
+                    if isinstance(k, str):
+                        entry = ast.value_map.list.add()
+                        entry._1 = k
+                        build_expr_from_python_val(entry._2, v)
+            else:
+                build_expr_from_python_val(ast.value, value)
+            if isinstance(subset, str):
+                ast.subset.list.append(subset)
+            elif isinstance(subset, Iterable):
+                ast.subset.list.extend(subset)
 
         if subset is None:
             subset = self._df.columns
@@ -439,6 +444,7 @@ class DataFrameNaFunctions:
         adjust_api_subcalls(new_df, "DataFrameNaFunctions.fill", len_subcalls=1)
         return new_df
 
+    @publicapi
     def replace(
         self,
         to_replace: Union[
@@ -448,6 +454,7 @@ class DataFrameNaFunctions:
         ],
         value: Optional[Union[LiteralType, Iterable[LiteralType]]] = None,
         subset: Optional[Iterable[str]] = None,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         """
         Returns a new DataFrame that replaces values in the specified columns.
@@ -536,31 +543,33 @@ class DataFrameNaFunctions:
             :func:`DataFrame.replace`
         """
         # AST.
-        stmt = self._df._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_dataframe_na_replace, stmt)
-        self._df._set_ast_ref(ast.df)
+        stmt = None
+        if _emit_ast:
+            stmt = self._df._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_na_replace, stmt)
+            self._df._set_ast_ref(ast.df)
 
-        if isinstance(to_replace, dict):
-            for k, v in to_replace.items():
-                entry = ast.replacement_map.list.add()
-                build_expr_from_python_val(entry._1, k)
-                build_expr_from_python_val(entry._2, v)
-        elif isinstance(to_replace, Iterable):
-            for v in to_replace:
-                entry = ast.to_replace_list.list.add()
-                build_expr_from_python_val(entry, v)
-        else:
-            build_expr_from_python_val(ast.to_replace_value, to_replace)
+            if isinstance(to_replace, dict):
+                for k, v in to_replace.items():
+                    entry = ast.replacement_map.list.add()
+                    build_expr_from_python_val(entry._1, k)
+                    build_expr_from_python_val(entry._2, v)
+            elif isinstance(to_replace, Iterable):
+                for v in to_replace:
+                    entry = ast.to_replace_list.list.add()
+                    build_expr_from_python_val(entry, v)
+            else:
+                build_expr_from_python_val(ast.to_replace_value, to_replace)
 
-        if isinstance(value, Iterable):
-            for v in value:
-                entry = ast.values.list.add()
-                build_expr_from_python_val(entry, v)
-        else:
-            build_expr_from_python_val(ast.value, value)
+            if isinstance(value, Iterable):
+                for v in value:
+                    entry = ast.values.list.add()
+                    build_expr_from_python_val(entry, v)
+            else:
+                build_expr_from_python_val(ast.value, value)
 
-        if subset is not None:
-            ast.subset.list.extend(subset)
+            if subset is not None:
+                ast.subset.list.extend(subset)
 
         # Validate arguments.
         if subset is None:

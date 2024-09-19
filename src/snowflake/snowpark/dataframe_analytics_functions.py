@@ -10,7 +10,7 @@ from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_snowpark_column_or_col_name,
     with_src_position,
 )
-from snowflake.snowpark._internal.utils import experimental
+from snowflake.snowpark._internal.utils import experimental, publicapi
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import (
     add_months,
@@ -274,6 +274,7 @@ class DataFrameAnalyticsFunctions:
 
         return base_df
 
+    @publicapi
     def moving_agg(
         self,
         aggs: Dict[str, List[str]],
@@ -380,6 +381,7 @@ class DataFrameAnalyticsFunctions:
 
         return agg_df
 
+    @publicapi
     def cumulative_agg(
         self,
         aggs: Dict[str, List[str]],
@@ -484,6 +486,7 @@ class DataFrameAnalyticsFunctions:
 
         return agg_df
 
+    @publicapi
     def compute_lag(
         self,
         cols: List[Union[str, Column]],
@@ -562,6 +565,7 @@ class DataFrameAnalyticsFunctions:
             df._ast_id = stmt.var_id.bitfield1
         return df
 
+    @publicapi
     def compute_lead(
         self,
         cols: List[Union[str, Column]],
@@ -642,6 +646,7 @@ class DataFrameAnalyticsFunctions:
         return df
 
     @experimental(version="1.12.0")
+    @publicapi
     def time_series_agg(
         self,
         time_col: str,
