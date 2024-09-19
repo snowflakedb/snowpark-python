@@ -11,6 +11,17 @@ from snowflake.snowpark.profiler import Profiler, profiler
 from tests.utils import Utils
 
 
+def is_profiler_function_exist(profiler_session, local_testing_mode):
+    if local_testing_mode:
+        return False
+    functions = profiler_session.sql(
+        "show functions like 'GET_PYTHON_PROFILER_OUTPUT' in snowflake.core"
+    ).collect()
+    if len(functions) == 0:
+        return False
+    return True
+
+
 @pytest.fixture(scope="function")
 def tmp_stage_name():
     tmp_stage_name = Utils.random_stage_name()
@@ -27,6 +38,10 @@ def setup(profiler_session, resources_path, local_testing_mode):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.skipif(
+    not is_profiler_function_exist,
+    reason="profiler function does not exist or in local testing mode",
+)
 def test_profiler_function_exist(profiler_session):
     res = profiler_session.sql(
         "show functions like 'GET_PYTHON_PROFILER_OUTPUT' in snowflake.core"
@@ -40,6 +55,10 @@ def test_profiler_function_exist(profiler_session):
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
+)
+@pytest.mark.skipif(
+    not is_profiler_function_exist,
+    reason="profiler function does not exist or in local testing mode",
 )
 def test_profiler_with_context_manager(profiler_session, db_parameters, tmp_stage_name):
     @sproc(name="table_sp", replace=True)
@@ -62,6 +81,10 @@ def test_profiler_with_context_manager(profiler_session, db_parameters, tmp_stag
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
+)
+@pytest.mark.skipif(
+    not is_profiler_function_exist,
+    reason="profiler function does not exist or in local testing mode",
 )
 def test_profiler_with_profiler_class(profiler_session, db_parameters, tmp_stage_name):
     another_tmp_stage_name = Utils.random_stage_name()
@@ -98,6 +121,10 @@ def test_profiler_with_profiler_class(profiler_session, db_parameters, tmp_stage
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.skipif(
+    not is_profiler_function_exist,
+    reason="profiler function does not exist or in local testing mode",
+)
 def test_single_return_value_of_sp(profiler_session, db_parameters, tmp_stage_name):
     @sproc(name="single_value_sp", replace=True)
     def single_value_sp(session: snowflake.snowpark.Session) -> str:
@@ -119,6 +146,10 @@ def test_single_return_value_of_sp(profiler_session, db_parameters, tmp_stage_na
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
+)
+@pytest.mark.skipif(
+    not is_profiler_function_exist,
+    reason="profiler function does not exist or in local testing mode",
 )
 def test_anonymous_procedure(profiler_session, db_parameters, tmp_stage_name):
     def single_value_sp(session: snowflake.snowpark.Session) -> str:
@@ -158,6 +189,10 @@ def test_not_set_profiler_error(profiler_session, tmpdir):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.skipif(
+    not is_profiler_function_exist,
+    reason="profiler function does not exist or in local testing mode",
+)
 def test_register_module_without_profiler(profiler_session, db_parameters):
     profiler_session.register_profiler_modules(["fake_module"])
     res = profiler_session.sql(
@@ -180,6 +215,10 @@ def test_set_incorrect_active_profiler():
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
+)
+@pytest.mark.skipif(
+    not is_profiler_function_exist,
+    reason="profiler function does not exist or in local testing mode",
 )
 def test_dump_profile_to_file(profiler_session, db_parameters, tmpdir, tmp_stage_name):
     file = tmpdir.join("profile.lprof")
