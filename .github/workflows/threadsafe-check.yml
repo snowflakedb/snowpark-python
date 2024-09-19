@@ -24,7 +24,7 @@ jobs:
                 # Check if changed files are in snowpark/_internal, snowpark/mock, or snowpark/*.py. We exclude snowpark/modin in this check.
                 if echo "$CHANGED_FILES" | grep -qE '(src/snowflake/snowpark/_internal|src/snowflake/snowpark/mock|src/snowflake/snowpark/[^/]+\.py)'; then
                     echo "Checking PR description for thread-safety acknowledgment..."
-                    if [[ ${{ github.event.pull_request.body }} != *"[x] I acknowledge that I have ensured my changes to be thread-safe"* ]]; then
+                    if [[ "${{ github.event.pull_request.body }}" != *"[x] I acknowledge that I have ensured my changes to be thread-safe"* ]]; then
                         echo "Thread-safety acknowledgment not found in PR description."
                         echo "Please acknowledge the threadsafety implications of your changes by adding '[x] I acknowledge that I have ensured my changes to be thread-safe' to the PR description."
                         exit 1
