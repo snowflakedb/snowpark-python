@@ -335,83 +335,18 @@ class TestFuncReturnsDataFrame:
         join_count=JOIN_COUNT,
     )
     @pytest.mark.parametrize(
-        "by, expected_output",
+        "by",
         [
-            (
-                "level_0",
-                native_pd.DataFrame(
-                    [
-                        ["k0", 0.302326, "e"],
-                        ["k1", 0.325581, "d"],
-                        ["k0", 0.372093, "b"],
-                        ["k0", 1.000000, "c"],
-                    ],
-                    index=pd.MultiIndex.from_tuples(
-                        [
-                            ("i1", "i1", "i3"),
-                            ("i1", "i1", "i2"),
-                            ("i1", "i1", "i4"),
-                            ("i0", "i0", "i0"),
-                        ],
-                        names=["level_0", "level_0", "level_1"],
-                    ),
-                    columns=pd.MultiIndex.from_tuples(
-                        [
-                            ("a", "string_col_1"),
-                            ("b", "int_col"),
-                            ("b", "string_col_2"),
-                        ],
-                        names=["c1", "c2"],
-                    ),
-                ),
-            ),
-            (
-                ("a", "string_col_1"),
-                native_pd.DataFrame(
-                    [
-                        ["k0", 0.295455, "e"],
-                        ["k0", 0.340909, "c"],
-                        ["k0", 0.363636, "b"],
-                        ["k1", 1.000000, "d"],
-                    ],
-                    index=pd.MultiIndex.from_tuples(
-                        [
-                            ("k0", "i1", "i3"),
-                            ("k0", "i0", "i0"),
-                            ("k0", "i1", "i4"),
-                            ("k1", "i1", "i2"),
-                        ],
-                        names=[("a", "string_col_1"), "level_0", "level_1"],
-                    ),
-                    columns=pd.MultiIndex.from_tuples(
-                        [
-                            ("a", "string_col_1"),
-                            ("b", "int_col"),
-                            ("b", "string_col_2"),
-                        ],
-                        names=["c1", "c2"],
-                    ),
-                ),
-            ),
+            "level_0",
+            ("a", "string_col_1"),
         ],
     )
-    def test_sort_false(self, grouping_dfs_with_multiindexes, by, expected_output):
-        """
-        Pandas bug (this bug fixed in pandas 2.2): groupby.apply doesn't respect sort=False when grouping by a single level of an index or a single data colmn.
-        df = pd.DataFrame([], index=pd.MultiIndex.from_tuples([(3.1, 17), (1.1, 6)], names=['a', 'b']))
-        df.groupby('a', sort=True).apply(lambda group: 0)
-        df.groupby('a', sort=False).apply(lambda group: 0)
-
-        so , hardcode expected output.
-        """
-        snow_df, pandas_df = grouping_dfs_with_multiindexes
-
-        def operation(df: native_pd.DataFrame) -> native_pd.DataFrame:
-            return df.groupby(by, sort=False).apply(normalize_numeric_columns_by_sum)
-
-        snow_result_as_pandas = operation(snow_df)
-        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-            snow_result_as_pandas, expected_output
+    def test_sort_false(self, grouping_dfs_with_multiindexes, by):
+        eval_snowpark_pandas_result(
+            *grouping_dfs_with_multiindexes,
+            lambda df: df.groupby(by, sort=False).apply(
+                normalize_numeric_columns_by_sum
+            ),
         )
 
     @sql_count_checker(
