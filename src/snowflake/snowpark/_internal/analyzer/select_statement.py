@@ -68,6 +68,9 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     UnresolvedAlias,
 )
+from snowflake.snowpark._internal.select_projection_complexity_utils import (
+    has_invalid_view_merge_functions,
+)
 from snowflake.snowpark._internal.utils import is_sql_select_statement
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -640,6 +643,11 @@ class SelectStatement(Selectable):
             self.from_.api_calls.copy() if self.from_.api_calls is not None else None
         )  # will be replaced by new api calls if any operation.
         self._placeholder_query = None
+        # indicate whether we should try to flatten the projection complexity with from
+        # during the calculation of node complexity.
+        # Note this flag can only be True if it is valid to flatten the projection
+        # complexity.
+        self._try_flatten_projection_complexity = False
 
     def __copy__(self):
         new = SelectStatement(
@@ -918,6 +926,8 @@ class SelectStatement(Selectable):
                 self.expr_to_alias
             )  # use copy because we don't want two plans to share the same list. If one mutates, the other ones won't be impacted.
             new.flatten_disabled = self.flatten_disabled
+            # no need to flatten the projection complexity since the select projection is already flattened.
+            new._try_flatten_projection_complexity = False
             return new
         disable_next_level_flatten = False
         new_column_states = derive_column_states_from_subquery(cols, self)
@@ -992,10 +1002,21 @@ class SelectStatement(Selectable):
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
+            # there is no need to flatten the projection complexity since the child
+            # select projection is already flattened with the current select.
+            new._can_flatten_projection_complexity = False
         else:
             new = SelectStatement(
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
             )
+            new._try_flatten_projection_complexity = (
+                can_select_projection_complexity_be_flattened(
+                    cols,
+                    new_column_states,
+                    self,
+                )
+            )
+
         new.flatten_disabled = disable_next_level_flatten
         assert new.projection is not None
         new._column_states = derive_column_states_from_subquery(
@@ -1430,6 +1451,43 @@ def can_clause_dependent_columns_flatten(
                     # We can inspect whether the referenced new column uses window function. Here we are being
                     # conservative for now to not flatten the SQL.
                     return False
+    return True
+
+
+def can_select_projection_complexity_be_flattened(
+    cols: List[Expression],
+    column_states: Optional[ColumnStateDict],
+    subquery: Selectable,
+) -> bool:
+    if column_states is None or (not isinstance(subquery, SelectStatement)):
+        return False
+
+    if len(cols) != len(column_states.projection):
+        # state of some columns failed to extract
+        return False
+
+    if len(column_states.active_columns) != len(column_states.projection):
+        # There must be duplicate columns in the projection.
+        # We don't flatten when there are duplicate columns.
+        return False
+
+    for proj in column_states.projection:
+        column_state = column_states.get(proj.name)
+        if column_state is None:
+            return False
+        if column_state.depend_on_same_level:
+            return False
+        if column_state.dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
+            return False
+
+    # check if the current select have
+    if subquery.where or subquery.order_by or subquery.limit_ or subquery.offset:
+        return False
+
+    # check if expression contain invalid functions
+    if has_invalid_view_merge_functions(cols):
+        return False
+
     return True
 
 
