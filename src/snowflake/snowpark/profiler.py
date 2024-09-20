@@ -41,8 +41,7 @@ class Profiler:
         self.set_targeted_stage_sql = (
             f'alter session set PYTHON_PROFILER_TARGET_STAGE ="{self.stage}"'
         )
-        self.enable_profiler_sql = "alter session set ENABLE_PYTHON_PROFILER = true"
-        self.disable_profiler_sql = "alter session set ENABLE_PYTHON_PROFILER = false"
+        self.disable_profiler_sql = "alter session set ACTIVE_PYTHON_PROFILER = ''"
         self.set_active_profiler_sql = f"alter session set ACTIVE_PYTHON_PROFILER = '{self.active_profiler.upper()}'"
 
     def register_profiler_modules(self, modules: List[str]):
@@ -94,7 +93,7 @@ class Profiler:
 
         Note:
             Active profiler must be either 'LINE' or 'MEMORY' (case-sensitive),
-            active profiler is set to 'LINE' by default.
+            active profiler is 'LINE' by default.
         Args:
             active_profiler: String that represent active_profiler, must be either 'LINE' or 'MEMORY' (case-sensitive).
 
@@ -117,13 +116,16 @@ class Profiler:
     def _set_active_profiler(self):
         self.session.sql(self.set_active_profiler_sql).collect()
 
-    def enable_profiler(self):
+    def enable(self):
         """
         Enable profiler. Profiles will be generated until profiler is disabled.
         """
-        self.session.sql(self.enable_profiler_sql).collect()
+        if self.active_profiler == "":
+            self.active_profiler = "LINE"
+            self._prepare_sql()
+        self._set_active_profiler()
 
-    def disable_profiler(self):
+    def disable(self):
         """
         Disable profiler.
         """
@@ -202,9 +204,9 @@ def profiler(
 
         internal_profiler.register_profiler_modules(modules)
         internal_profiler._register_modules()
-        internal_profiler.enable_profiler()
+        internal_profiler.enable()
     finally:
         yield
         internal_profiler.register_profiler_modules([])
         internal_profiler._register_modules()
-        internal_profiler.disable_profiler()
+        internal_profiler.disable()
