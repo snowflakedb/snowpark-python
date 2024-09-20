@@ -105,12 +105,12 @@ def test_profiler_with_profiler_class(profiler_session, db_parameters, tmp_stage
         f"{db_parameters['database']}.{db_parameters['schema']}.{another_tmp_stage_name}"
     )
 
-    pro.enable_profiler()
+    pro.enable()
 
     profiler_session.call("table_sp").collect()
     res = profiler_session.show_profiles()
 
-    pro.disable_profiler()
+    pro.disable()
 
     pro.register_profiler_modules([])
     assert res is not None

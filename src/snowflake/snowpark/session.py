@@ -3460,11 +3460,14 @@ class Session:
         return df
 
     def register_profiler(self, profiler: Profiler):
-        """Register a profiler to current session, all action are actually executed during this function"""
+        """Register a profiler to a session, all action are actually executed during this function"""
+        if (
+            profiler.session is not None
+            and profiler.session._session_id != self._session_id
+        ):
+            raise ValueError("A profiler can only be registered to one session.")
         self.profiler = profiler
         self.profiler.session = self
-        self.sql(f"show stages like '{profiler.stage}'").show()
-        self.sql(f"show stages like '{profiler.stage.split('.')[-1]}'").show()
         if (
             len(self.sql(f"show stages like '{profiler.stage}'").collect()) == 0
             and len(
