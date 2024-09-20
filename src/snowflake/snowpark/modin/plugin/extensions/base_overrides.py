@@ -1430,7 +1430,9 @@ def iloc(self):
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
     # TODO: SNOW-930028 enable all skipped doctests
-    from snowflake.snowpark.modin.pandas.indexing import _iLocIndexer
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+        _iLocIndexer,
+    )
 
     return _iLocIndexer(self)
 
@@ -1445,7 +1447,9 @@ def loc(self):
     # TODO: SNOW-935444 fix doctest where index key has name
     # TODO: SNOW-933782 fix multiindex transpose bug, e.g., Name: (cobra, mark ii) => Name: ('cobra', 'mark ii')
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    from snowflake.snowpark.modin.pandas.indexing import _LocIndexer
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+        _LocIndexer,
+    )
 
     return _LocIndexer(self)
 
@@ -1458,7 +1462,9 @@ def iat(self, axis=None):  # noqa: PR01, RT01, D200
     Get a single value for a row/column pair by integer position.
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    from snowflake.snowpark.modin.pandas.indexing import _iAtIndexer
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+        _iAtIndexer,
+    )
 
     return _iAtIndexer(self)
 
@@ -1471,7 +1477,7 @@ def at(self, axis=None):  # noqa: PR01, RT01, D200
     Get a single value for a row/column label pair.
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    from snowflake.snowpark.modin.pandas.indexing import _AtIndexer
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import _AtIndexer
 
     return _AtIndexer(self)
 

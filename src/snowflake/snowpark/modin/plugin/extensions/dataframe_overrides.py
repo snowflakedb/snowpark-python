@@ -2327,7 +2327,9 @@ def __setitem__(self, key: Any, value: Any):
     columns = (
         columns._query_compiler if isinstance(columns, BasePandasDataset) else columns
     )
-    from snowflake.snowpark.modin.pandas.indexing import is_2d_array
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+        is_2d_array,
+    )
 
     matching_item_rows_by_label = not is_2d_array(value)
     if is_2d_array(value):
