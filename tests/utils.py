@@ -145,6 +145,7 @@ def multithreaded_run(num_threads: int) -> None:
     """When multithreading_mode is enabled, run the decorated test function in multiple threads."""
 
     def decorator(func):
+        @pytest.mark.multithreaded_run
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             if running_in_multi_threaded_mode():
