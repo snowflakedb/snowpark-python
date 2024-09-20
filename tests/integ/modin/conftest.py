@@ -92,7 +92,9 @@ def auto_annotate_sql_counter(request):
 @pytest.fixture(autouse=True)
 def check_sql_counter_invoked(request):
     do_check = (
-        INTEG_PANDAS_SUBPATH in request.node.location[0] and running_on_public_ci()
+        INTEG_PANDAS_SUBPATH in request.node.location[0]
+        and running_on_public_ci()
+        and not SKIP_SQL_COUNT_CHECK
     )
 
     if do_check:
