@@ -20,7 +20,7 @@ from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
-from tests.utils import TestFiles
+from tests.utils import TestFiles, multithreaded_run
 
 
 @pytest.fixture(scope="function")
@@ -706,6 +706,7 @@ def test_concat_dict(df1, df2, dict_keys, axis):
         )
 
 
+@multithreaded_run(num_threads=5)
 @pytest.mark.parametrize("dict_keys", [["x", "y"], ["y", "x"]])
 @pytest.mark.parametrize("keys", [["x", "y"], ["y", "x"], ["x"], ["y"]])
 def test_concat_dict_with_keys(df1, df2, dict_keys, keys, axis):

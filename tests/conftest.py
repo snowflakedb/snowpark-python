@@ -29,6 +29,7 @@ def pytest_addoption(parser):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
     parser.addoption("--local_testing_mode", action="store_true", default=False)
     parser.addoption("--enable_cte_optimization", action="store_true", default=False)
+    parser.addoption("--multithreading_mode", action="store_true", default=False)
 
 
 def pytest_collection_modifyitems(items) -> None:
@@ -83,6 +84,14 @@ def local_testing_telemetry_setup():
 @pytest.fixture(scope="session")
 def cte_optimization_enabled(pytestconfig):
     return pytestconfig.getoption("enable_cte_optimization")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def multithreading_mode(pytestconfig):
+    enabled = pytestconfig.getoption("multithreading_mode")
+    if enabled:
+        os.environ["SNOWPARK_MULTITHREADING_MODE"] = "true"
+    return enabled
 
 
 def pytest_sessionstart(session):

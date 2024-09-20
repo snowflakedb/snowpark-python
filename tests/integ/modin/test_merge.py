@@ -15,6 +15,7 @@ import pytest
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal
+from tests.utils import multithreaded_run
 
 
 @pytest.fixture(scope="function")
@@ -57,6 +58,7 @@ def how(request):
     return request.param
 
 
+@multithreaded_run(num_threads=5)
 @sql_count_checker(query_count=2, join_count=2)
 def test_merge(left_df, right_df, how):
     res = pd.merge(left_df, right_df, on="A", how=how)
