@@ -567,7 +567,10 @@ class ConfigContext:
     def _reset(self) -> None:
         """Removes the configuration attributes from the context object."""
         for name in self.configs:
-            delattr(self, name)
+            try:
+                delattr(self, name)
+            except AttributeError:
+                pass
 
 
 class SnowflakePlanBuilder:

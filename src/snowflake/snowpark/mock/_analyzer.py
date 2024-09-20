@@ -157,6 +157,8 @@ class MockAnalyzer:
         self.alias_maps_to_use = None
         self._conn = self.session._conn
         self.config_context = ConfigContext(session)
+        # Point this plan builder to the same config context as the analyzer
+        self.plan_builder.config_context = self.config_context
 
     def analyze(
         self,
