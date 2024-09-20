@@ -555,14 +555,15 @@ class ConfigContext:
         self._reset()
 
     def _create_snapshot(self) -> "ConfigContext":
-        """Reads the configuration settings from the session object and stores them in the
-        context object.
+        """Reads the configuration attributes from the session object and stores them
+        in the context object.
         """
         for name in self.configs:
             setattr(self, name, getattr(self.session, name))
         return self
 
     def _reset(self) -> None:
+        """Removes the configuration attributes from the context object."""
         for name in self.configs:
             delattr(self, name)
 
