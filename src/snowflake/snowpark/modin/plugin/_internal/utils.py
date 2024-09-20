@@ -1772,7 +1772,9 @@ def try_convert_to_simple_slice(s: Any) -> Optional[slice]:
     Returns:
         The simple slice if possible; otherwise None.
     """
-    from snowflake.snowpark.modin.pandas.indexing import is_range_like
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+        is_range_like,
+    )
 
     if not isinstance(s, slice) and not is_range_like(s):
         return None
