@@ -537,9 +537,11 @@ class ConfigContext:
     def __init__(self, session) -> None:
         self.session = session
         self.configs = {
-            "cte_optimization_enabled",
             "_query_compilation_stage_enabled",
+            "cte_optimization_enabled",
             "eliminate_numeric_sql_value_cast_enabled",
+            "large_query_breakdown_complexity_bounds",
+            "large_query_breakdown_enabled",
         }
 
     def __getattr__(self, name: str) -> Any:

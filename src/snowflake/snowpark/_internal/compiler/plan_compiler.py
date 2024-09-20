@@ -10,6 +10,7 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    ConfigContext,
     PlanQueryType,
     Query,
     SnowflakePlan,
@@ -47,14 +48,7 @@ class PlanCompiler:
     def __init__(self, plan: SnowflakePlan) -> None:
         self._plan = plan
         current_session = self._plan.session
-        self.cte_optimization_enabled = current_session.cte_optimization_enabled
-        self.large_query_breakdown_enabled = (
-            current_session.large_query_breakdown_enabled
-        )
-        self.query_compilation_stage_enabled = (
-            current_session._query_compilation_stage_enabled
-        )
-        self.complexity_bounds = current_session.large_query_breakdown_complexity_bounds
+        self.config_context = ConfigContext(current_session)
 
     def should_start_query_compilation(self) -> bool:
         """
@@ -74,11 +68,18 @@ class PlanCompiler:
         return (
             not isinstance(current_session._conn, MockServerConnection)
             and (self._plan.source_plan is not None)
-            and self.query_compilation_stage_enabled
-            and (self.cte_optimization_enabled or self.large_query_breakdown_enabled)
+            and self.config_context._query_compilation_stage_enabled
+            and (
+                self.config_context.cte_optimization_enabled
+                or self.config_context.large_query_breakdown_enabled
+            )
         )
 
     def compile(self) -> Dict[PlanQueryType, List[Query]]:
+        with self.config_context:
+            return self._compile()
+
+    def _compile(self) -> Dict[PlanQueryType, List[Query]]:
         if self.should_start_query_compilation():
             # preparation for compilation
             # 1. make a copy of the original plan
@@ -95,7 +96,7 @@ class PlanCompiler:
             # 3. apply each optimizations if needed
             # CTE optimization
             cte_start_time = time.time()
-            if self.cte_optimization_enabled:
+            if self.config_context.cte_optimization_enabled:
                 repeated_subquery_eliminator = RepeatedSubqueryElimination(
                     logical_plans, query_generator
                 )
@@ -108,12 +109,12 @@ class PlanCompiler:
             ]
 
             # Large query breakdown
-            if self.large_query_breakdown_enabled:
+            if self.config_context.large_query_breakdown_enabled:
                 large_query_breakdown = LargeQueryBreakdown(
                     self._plan.session,
                     query_generator,
                     logical_plans,
-                    self.complexity_bounds,
+                    self.config_context.large_query_breakdown_complexity_bounds,
                 )
                 logical_plans = large_query_breakdown.apply()
 
@@ -133,9 +134,9 @@ class PlanCompiler:
             total_time = time.time() - start_time
             session = self._plan.session
             summary_value = {
-                TelemetryField.CTE_OPTIMIZATION_ENABLED.value: self.cte_optimization_enabled,
-                TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: self.large_query_breakdown_enabled,
-                CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: self.complexity_bounds,
+                TelemetryField.CTE_OPTIMIZATION_ENABLED.value: self.config_context.cte_optimization_enabled,
+                TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: self.config_context.large_query_breakdown_enabled,
+                CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: self.config_context.large_query_breakdown_complexity_bounds,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_COMPILATION.value: total_time,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_DEEP_COPY_PLAN.value: deep_copy_time,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_CTE_OPTIMIZATION.value: cte_time,
@@ -153,7 +154,8 @@ class PlanCompiler:
         else:
             final_plan = self._plan
             final_plan = final_plan.replace_repeated_subquery_with_cte(
-                self.cte_optimization_enabled, self.query_compilation_stage_enabled
+                self.config_context.cte_optimization_enabled,
+                self.config_context._query_compilation_stage_enabled,
             )
             return {
                 PlanQueryType.QUERIES: final_plan.queries,
