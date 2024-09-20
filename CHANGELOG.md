@@ -27,6 +27,7 @@
 - Added support for passing parameter `include_describe` to `Session.query_history`.
 - Added support for `DatetimeIndex.mean` and `DatetimeIndex.std` methods.
 - Added support for `Resampler.asfreq`.
+- Added support for `resample` frequency `W`, `ME`, `YE` with `closed = "left"`.
 
 #### Bug Fixes
 
