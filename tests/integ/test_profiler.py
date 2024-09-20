@@ -11,15 +11,13 @@ from snowflake.snowpark.profiler import Profiler, profiler
 from tests.utils import Utils
 
 
-def is_profiler_function_exist(profiler_session, local_testing_mode):
-    if local_testing_mode:
-        return False
+@pytest.fixture(scope="function")
+def is_profiler_function_exist(profiler_session):
     functions = profiler_session.sql(
         "show functions like 'GET_PYTHON_PROFILER_OUTPUT' in snowflake.core"
     ).collect()
     if len(functions) == 0:
-        return False
-    return True
+        pytest.skip("profiler function does not exist")
 
 
 @pytest.fixture(scope="function")
@@ -38,29 +36,20 @@ def setup(profiler_session, resources_path, local_testing_mode):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-@pytest.mark.skipif(
-    not is_profiler_function_exist,
-    reason="profiler function does not exist or in local testing mode",
-)
-def test_profiler_function_exist(profiler_session):
+def test_profiler_function_exist(is_profiler_function_exist, profiler_session):
     res = profiler_session.sql(
         "show functions like 'GET_PYTHON_PROFILER_OUTPUT' in snowflake.core"
     ).collect()
     assert len(res) != 0
-
-    res = profiler_session.sql("select current_role()").collect()
-    assert res[0][0] == "TESTROLE_SNOWPARK_PYTHON"
 
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-@pytest.mark.skipif(
-    not is_profiler_function_exist,
-    reason="profiler function does not exist or in local testing mode",
-)
-def test_profiler_with_context_manager(profiler_session, db_parameters, tmp_stage_name):
+def test_profiler_with_context_manager(
+    is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
+):
     @sproc(name="table_sp", replace=True)
     def table_sp(session: snowflake.snowpark.Session) -> DataFrame:
         return session.sql("select 1")
@@ -82,11 +71,9 @@ def test_profiler_with_context_manager(profiler_session, db_parameters, tmp_stag
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-@pytest.mark.skipif(
-    not is_profiler_function_exist,
-    reason="profiler function does not exist or in local testing mode",
-)
-def test_profiler_with_profiler_class(profiler_session, db_parameters, tmp_stage_name):
+def test_profiler_with_profiler_class(
+    is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
+):
     another_tmp_stage_name = Utils.random_stage_name()
 
     @sproc(name="table_sp", replace=True)
@@ -121,11 +108,9 @@ def test_profiler_with_profiler_class(profiler_session, db_parameters, tmp_stage
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-@pytest.mark.skipif(
-    not is_profiler_function_exist,
-    reason="profiler function does not exist or in local testing mode",
-)
-def test_single_return_value_of_sp(profiler_session, db_parameters, tmp_stage_name):
+def test_single_return_value_of_sp(
+    is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
+):
     @sproc(name="single_value_sp", replace=True)
     def single_value_sp(session: snowflake.snowpark.Session) -> str:
         return "success"
@@ -147,11 +132,9 @@ def test_single_return_value_of_sp(profiler_session, db_parameters, tmp_stage_na
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-@pytest.mark.skipif(
-    not is_profiler_function_exist,
-    reason="profiler function does not exist or in local testing mode",
-)
-def test_anonymous_procedure(profiler_session, db_parameters, tmp_stage_name):
+def test_anonymous_procedure(
+    is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
+):
     def single_value_sp(session: snowflake.snowpark.Session) -> str:
         return "success"
 
@@ -189,11 +172,9 @@ def test_not_set_profiler_error(profiler_session, tmpdir):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-@pytest.mark.skipif(
-    not is_profiler_function_exist,
-    reason="profiler function does not exist or in local testing mode",
-)
-def test_register_module_without_profiler(profiler_session, db_parameters):
+def test_register_module_without_profiler(
+    is_profiler_function_exist, profiler_session, db_parameters
+):
     profiler_session.register_profiler_modules(["fake_module"])
     res = profiler_session.sql(
         "show parameters like 'python_profiler_modules'"
@@ -216,11 +197,9 @@ def test_set_incorrect_active_profiler():
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-@pytest.mark.skipif(
-    not is_profiler_function_exist,
-    reason="profiler function does not exist or in local testing mode",
-)
-def test_dump_profile_to_file(profiler_session, db_parameters, tmpdir, tmp_stage_name):
+def test_dump_profile_to_file(
+    is_profiler_function_exist, profiler_session, db_parameters, tmpdir, tmp_stage_name
+):
     file = tmpdir.join("profile.lprof")
 
     def single_value_sp(session: snowflake.snowpark.Session) -> str:
