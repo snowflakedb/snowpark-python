@@ -543,7 +543,7 @@ class TelemetryMeta(type):
         cls, name: str, bases: tuple, attrs: dict[str, Any]
     ) -> Union[
         "snowflake.snowpark.modin.plugin.extensions.groupby_overrides.DataFrameGroupBy",
-        "snowflake.snowpark.modin.pandas.resample.Resampler",
+        "snowflake.snowpark.modin.plugin.extensions.resample_overrides.Resampler",
         "snowflake.snowpark.modin.pandas.window.Window",
         "snowflake.snowpark.modin.pandas.window.Rolling",
     ]:
@@ -556,7 +556,7 @@ class TelemetryMeta(type):
         Method arguments returned by _get_kwargs_telemetry are collected otherwise set telemetry_args=list().
         TelemetryMeta is only set as the metaclass of:
          snowflake.snowpark.modin.plugin.extensions.groupby_overrides.DataFrameGroupBy,
-         snowflake.snowpark.modin.pandas.resample.Resampler,
+         snowflake.snowpark.modin.plugin.extensions.resample_overrides.Resampler,
          snowflake.snowpark.modin.pandas.window.Window,
          snowflake.snowpark.modin.pandas.window.Rolling, and their subclasses.
 
@@ -568,7 +568,7 @@ class TelemetryMeta(type):
 
         Returns:
             Union[snowflake.snowpark.modin.plugin.extensions.groupby_overrides.DataFrameGroupBy,
-                snowflake.snowpark.modin.pandas.resample.Resampler,
+                snowflake.snowpark.modin.pandas.resample_overrides.Resampler,
                 snowflake.snowpark.modin.pandas.window.Window,
                 snowflake.snowpark.modin.pandas.window.Rolling]:
                 The modified class with decorated methods.
