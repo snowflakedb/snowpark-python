@@ -4212,6 +4212,7 @@ def test_dataframe_to_local_iterator_with_to_pandas_isolation(
     "config.getoption('local_testing_mode', default=False)",
     reason="Table function is not supported in Local Testing",
 )
+@pytest.mark.udf
 def test_map(session):
     """Test `dataframe.map`"""
 
