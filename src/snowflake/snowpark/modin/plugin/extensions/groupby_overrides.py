@@ -31,7 +31,7 @@ import pandas
 import pandas.core.groupby
 from modin.pandas import Series
 from pandas._libs.lib import NoDefault, no_default
-from pandas._typing import AggFuncType, Axis, IndexLabel
+from pandas._typing import AggFuncType, Axis, FillnaOptions, IndexLabel
 from pandas.core.dtypes.common import is_dict_like, is_list_like, is_numeric_dtype
 from pandas.errors import SpecificationError
 from pandas.io.formats.printing import PrettyDict

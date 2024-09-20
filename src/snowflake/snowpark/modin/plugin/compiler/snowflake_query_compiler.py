@@ -5504,7 +5504,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # If no method, then we will use the value instead.
         if method is None:
-            # If there's no method, then the fill is same as dataframe.fillna.
+            # If there's no method, then the fill is same as dataframe.fillna with fill value.  Skip any group by
+            # data columns in the fill.
             qc = self._fillna_with_masking(
                 value=value,
                 self_is_series=False,
@@ -5536,6 +5537,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             )
 
+            # Select the resulting columns excluding group by values which are None.
             select_list = frame.index_column_snowflake_quoted_identifiers + [
                 groupby_null_expr(
                     col(snowflake_quoted_identifier),
@@ -5565,6 +5567,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
             if fill_axis == 0:
+                # Fill the groups row-wise with values.
                 columns_to_fillna_expr = self._fill_null_values_in_groupby(
                     method, by_list_snowflake_quoted_identifiers, limit
                 )
@@ -5582,6 +5585,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ]
 
             elif fill_axis == 1:
+                # Fill the groups column-wise using coalesce of prior columns depending on method direction.
                 coalesce_column_list: list[SnowparkColumn] = []
                 select_list = []
 
