@@ -643,16 +643,19 @@ class SelectStatement(Selectable):
             self.from_.api_calls.copy() if self.from_.api_calls is not None else None
         )  # will be replaced by new api calls if any operation.
         self._placeholder_query = None
-        # indicate whether we should try to merge the projection complexity with from
-        # during the calculation of node complexity. For example,
+        # indicate whether we should try to merge the projection complexity of the current
+        # SelectStatement with the projection complexity of from_ during the calculation of
+        # node complexity. For example:
         #   SELECT COL1 + 2 as COL1, COL2 FROM (SELECT COL1 + 3 AS COL1, COL2 FROM TABLE_TEST)
-        # can be merged as SELECT (COL1 + 3) + 2 AS COL1, COLS FROM TABLE_TEST with snowflake
-        # However, we do not do such merge in snowpark, _try_merge_projection_complexity is only
-        # used to indicate we could try to merge the complexity calculation for the two SELECTs.
+        # can be merged as follows with snowflake:
+        #   SELECT (COL1 + 3) + 2 AS COL1, COLS FROM TABLE_TEST
+        # Therefore, the plan complexity during compilation will change, and the result plan
+        # complexity is can be calculated by merging the projection complexity of the two SELECTS.
         #
-        # Note this flag can only be True if it is valid to flatten the projection
-        # complexity.
-        self._try_merge_projection_complexity = False
+        # In Snowpark, we do not generate the query after merging two selects. Flag
+        # _merge_projection_complexity_with_subquery is used to indicate that it is valid to merge
+        # the projection complexity of current SelectStatement with subquery.
+        self._merge_projection_complexity_with_subquery = False
 
     def __copy__(self):
         new = SelectStatement(
@@ -676,7 +679,9 @@ class SelectStatement(Selectable):
         new.df_aliased_col_name_to_real_col_name = (
             self.df_aliased_col_name_to_real_col_name
         )
-        new._try_merge_projection_complexity = self._try_merge_projection_complexity
+        new._merge_projection_complexity_with_subquery = (
+            self._merge_projection_complexity_with_subquery
+        )
 
         return new
 
@@ -696,7 +701,9 @@ class SelectStatement(Selectable):
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
         copied._projection_in_str = self._projection_in_str
         copied._query_params = deepcopy(self._query_params)
-        copied._try_merge_projection_complexity = self._try_merge_projection_complexity
+        copied._try_merge_projection_complexity = (
+            self._merge_projection_complexity_with_subquery
+        )
         return copied
 
     @property
@@ -1488,11 +1495,16 @@ def can_select_projection_complexity_be_merged(
         # Failed to extract the attributes of some columns
         return False
 
+    if subquery._column_states is None:
+        return False
+
     # It is not valid to merge the projection complexity if:
     # 1) exist a column without state extracted
     # 2) exist a column that dependents on columns from the same level
     # 3) exist a column that dependents on $. Theoretically, this could be
     #       valid, but extra analysis is required to check the validness.
+    # 4) all dependent column in the projection expression is an active column
+    #    from the subquery
     for proj in column_states.projection:
         column_state = column_states.get(proj.name)
         if column_state is None:
@@ -1501,6 +1513,10 @@ def can_select_projection_complexity_be_merged(
             return False
         if column_state.dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
             return False
+        if column_state.dependent_columns != COLUMN_DEPENDENCY_ALL:
+            for dependent_col in column_state.dependent_columns:
+                if dependent_col not in subquery._column_states.active_columns:
+                    return False
 
     # check if the current select have filter, order by, or limit
     if subquery.where or subquery.order_by or subquery.limit_ or subquery.offset:
