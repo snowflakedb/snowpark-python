@@ -5009,7 +5009,10 @@ def trunc(
     return ans
 
 
-def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
+@publicapi
+def dateadd(
+    part: str, col1: ColumnOrName, col2: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """Adds the specified value for the specified date or time part to date or time expr.
 
     `Supported date and time parts <https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts>`_
@@ -5050,10 +5053,11 @@ def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
         raise ValueError("part must be a string")
     c1 = _to_col_if_str(col1, "dateadd")
     c2 = _to_col_if_str(col2, "dateadd")
-    return builtin("dateadd")(part, c1, c2)
+    return builtin("dateadd", _emit_ast=_emit_ast)(part, c1, c2)
 
 
-def date_part(part: str, e: ColumnOrName) -> Column:
+@publicapi
+def date_part(part: str, e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Extracts the specified date or time part from a date, time, or timestamp. See
     `DATE_PART <https://docs.snowflake.com/en/sql-reference/functions/date_part.html>`_ for details.
@@ -5077,13 +5081,15 @@ def date_part(part: str, e: ColumnOrName) -> Column:
     if not isinstance(part, str):
         raise ValueError("part must be a string")
     c = _to_col_if_str(e, "date_part")
-    return builtin("date_part")(part, c)
+    return builtin("date_part", _emit_ast=_emit_ast)(part, c)
 
 
+@publicapi
 def date_from_parts(
     y: Union[ColumnOrName, int],
     m: Union[ColumnOrName, int],
     d: Union[ColumnOrName, int],
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Creates a date from individual numeric components that represent the year, month, and day of the month.
@@ -5098,10 +5104,11 @@ def date_from_parts(
     y_col = _to_col_if_str_or_int(y, "date_from_parts")
     m_col = _to_col_if_str_or_int(m, "date_from_parts")
     d_col = _to_col_if_str_or_int(d, "date_from_parts")
-    return builtin("date_from_parts")(y_col, m_col, d_col)
+    return builtin("date_from_parts", _emit_ast=_emit_ast)(y_col, m_col, d_col)
 
 
-def date_trunc(part: str, expr: ColumnOrName) -> Column:
+@publicapi
+def date_trunc(part: str, expr: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Truncates a DATE, TIME, or TIMESTAMP to the specified precision.
 
@@ -5126,10 +5133,11 @@ def date_trunc(part: str, expr: ColumnOrName) -> Column:
     if not isinstance(part, str):
         raise ValueError("part must be a string")
     expr_col = _to_col_if_str(expr, "date_trunc")
-    return builtin("date_trunc")(part, expr_col)
+    return builtin("date_trunc", _emit_ast=_emit_ast)(part, expr_col)
 
 
-def dayname(e: ColumnOrName) -> Column:
+@publicapi
+def dayname(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Extracts the three-letter day-of-week name from the specified date or timestamp.
 
@@ -5143,10 +5151,11 @@ def dayname(e: ColumnOrName) -> Column:
         [Row(DAYNAME("A")='Fri')]
     """
     c = _to_col_if_str(e, "dayname")
-    return builtin("dayname")(c)
+    return builtin("dayname", _emit_ast=_emit_ast)(c)
 
 
-def dayofmonth(e: ColumnOrName) -> Column:
+@publicapi
+def dayofmonth(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Extracts the corresponding day (number) of the month from a date or timestamp.
 
@@ -5160,10 +5169,11 @@ def dayofmonth(e: ColumnOrName) -> Column:
         [Row(DAYOFMONTH("A")=1)]
     """
     c = _to_col_if_str(e, "dayofmonth")
-    return builtin("dayofmonth")(c)
+    return builtin("dayofmonth", _emit_ast=_emit_ast)(c)
 
 
-def dayofweek(e: ColumnOrName) -> Column:
+@publicapi
+def dayofweek(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Extracts the corresponding day (number) of the week from a date or timestamp.
 
@@ -5177,10 +5187,11 @@ def dayofweek(e: ColumnOrName) -> Column:
         [Row(DAYOFWEEK("A")=5)]
     """
     c = _to_col_if_str(e, "dayofweek")
-    return builtin("dayofweek")(c)
+    return builtin("dayofweek", _emit_ast=_emit_ast)(c)
 
 
-def dayofyear(e: ColumnOrName) -> Column:
+@publicapi
+def dayofyear(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Extracts the corresponding day (number) of the year from a date or timestamp.
 
@@ -5194,10 +5205,11 @@ def dayofyear(e: ColumnOrName) -> Column:
         [Row(DAYOFYEAR("A")=122)]
     """
     c = _to_col_if_str(e, "dayofyear")
-    return builtin("dayofyear")(c)
+    return builtin("dayofyear", _emit_ast=_emit_ast)(c)
 
 
-def is_array(col: ColumnOrName) -> Column:
+@publicapi
+def is_array(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns true if the specified VARIANT column contains an ARRAY value.
 
@@ -5208,10 +5220,11 @@ def is_array(col: ColumnOrName) -> Column:
         [Row(IS_ARRAY_A=True, IS_ARRAY_B=False)]
     """
     c = _to_col_if_str(col, "is_array")
-    return builtin("is_array")(c)
+    return builtin("is_array", _emit_ast=_emit_ast)(c)
 
 
-def is_boolean(col: ColumnOrName) -> Column:
+@publicapi
+def is_boolean(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns true if the specified VARIANT column contains a boolean value.
 
@@ -5223,10 +5236,11 @@ def is_boolean(col: ColumnOrName) -> Column:
         [Row(BOOLEAN=True, VARCHAR=False)]
     """
     c = _to_col_if_str(col, "is_boolean")
-    return builtin("is_boolean")(c)
+    return builtin("is_boolean", _emit_ast=_emit_ast)(c)
 
 
-def is_binary(col: ColumnOrName) -> Column:
+@publicapi
+def is_binary(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns true if the specified VARIANT column contains a binary value.
 
@@ -5238,10 +5252,11 @@ def is_binary(col: ColumnOrName) -> Column:
         [Row(BINARY=True, VARCHAR=False)]
     """
     c = _to_col_if_str(col, "is_binary")
-    return builtin("is_binary")(c)
+    return builtin("is_binary", _emit_ast=_emit_ast)(c)
 
 
-def is_char(col: ColumnOrName) -> Column:
+@publicapi
+def is_char(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns true if the specified VARIANT column contains a string.
 
@@ -5253,13 +5268,14 @@ def is_char(col: ColumnOrName) -> Column:
         [Row(VARCHAR=True, INT=False)]
     """
     c = _to_col_if_str(col, "is_char")
-    return builtin("is_char")(c)
+    return builtin("is_char", _emit_ast=_emit_ast)(c)
 
 
 is_varchar = is_char
 
 
-def is_date(col: ColumnOrName) -> Column:
+@publicapi
+def is_date(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns true if the specified VARIANT column contains a date value.
 
@@ -5272,13 +5288,14 @@ def is_date(col: ColumnOrName) -> Column:
         [Row(DATE=True, INT=False)]
     """
     c = _to_col_if_str(col, "is_date")
-    return builtin("is_date")(c)
+    return builtin("is_date", _emit_ast=_emit_ast)(c)
 
 
 is_date_value = is_date
 
 
-def is_decimal(col: ColumnOrName) -> Column:
+@publicapi
+def is_decimal(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns true if the specified VARIANT column contains a fixed-point decimal value or integer.
 
@@ -5291,10 +5308,11 @@ def is_decimal(col: ColumnOrName) -> Column:
         [Row(DECIMAL=True, VARCHAR=False)]
     """
     c = _to_col_if_str(col, "is_decimal")
-    return builtin("is_decimal")(c)
+    return builtin("is_decimal", _emit_ast=_emit_ast)(c)
 
 
-def is_double(col: ColumnOrName) -> Column:
+@publicapi
+def is_double(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns true if the specified VARIANT column contains a floating-point value, fixed-point decimal, or integer.
 
@@ -5306,10 +5324,11 @@ def is_double(col: ColumnOrName) -> Column:
         [Row(DOUBLE=True, VARCHAR=False)]
     """
     c = _to_col_if_str(col, "is_double")
-    return builtin("is_double")(c)
+    return builtin("is_double", _emit_ast=_emit_ast)(c)
 
 
-def is_real(col: ColumnOrName) -> Column:
+@publicapi
+def is_real(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns true if the specified VARIANT column contains a floating-point value, fixed-point decimal, or integer.
 
@@ -5321,10 +5340,11 @@ def is_real(col: ColumnOrName) -> Column:
         [Row(A=True, B=False)]
     """
     c = _to_col_if_str(col, "is_real")
-    return builtin("is_real")(c)
+    return builtin("is_real", _emit_ast=_emit_ast)(c)
 
 
-def is_integer(col: ColumnOrName) -> Column:
+@publicapi
+def is_integer(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns true if the specified VARIANT column contains a integer value.
 
@@ -5336,10 +5356,11 @@ def is_integer(col: ColumnOrName) -> Column:
         [Row(INT=True, VARCHAR=False)]
     """
     c = _to_col_if_str(col, "is_integer")
-    return builtin("is_integer")(c)
+    return builtin("is_integer", _emit_ast=_emit_ast)(c)
 
 
-def is_null_value(col: ColumnOrName) -> Column:
+@publicapi
+def is_null_value(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns true if the specified VARIANT column contains a JSON null value.
 
@@ -5351,10 +5372,11 @@ def is_null_value(col: ColumnOrName) -> Column:
         [Row(A=False), Row(A=True), Row(A=None)]
     """
     c = _to_col_if_str(col, "is_null_value")
-    return builtin("is_null_value")(c)
+    return builtin("is_null_value", _emit_ast=_emit_ast)(c)
 
 
-def is_object(col: ColumnOrName) -> Column:
+@publicapi
+def is_object(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns true if the specified VARIANT column contains an OBJECT value.
 
@@ -5366,10 +5388,11 @@ def is_object(col: ColumnOrName) -> Column:
         [Row(A=False, B=True)]
     """
     c = _to_col_if_str(col, "is_object")
-    return builtin("is_object")(c)
+    return builtin("is_object", _emit_ast=_emit_ast)(c)
 
 
-def is_time(col: ColumnOrName) -> Column:
+@publicapi
+def is_time(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns true if the specified VARIANT column contains a TIME value.
 
@@ -5382,10 +5405,11 @@ def is_time(col: ColumnOrName) -> Column:
         [Row(A=True, B=False)]
     """
     c = _to_col_if_str(col, "is_time")
-    return builtin("is_time")(c)
+    return builtin("is_time", _emit_ast=_emit_ast)(c)
 
 
-def is_timestamp_ltz(col: ColumnOrName) -> Column:
+@publicapi
+def is_timestamp_ltz(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns true if the specified VARIANT column contains a TIMESTAMP_LTZ value to be
     interpreted using the local time zone.
@@ -5402,10 +5426,11 @@ def is_timestamp_ltz(col: ColumnOrName) -> Column:
         [Row(A=False, B=True, C=False)]
     """
     c = _to_col_if_str(col, "is_timestamp_ltz")
-    return builtin("is_timestamp_ltz")(c)
+    return builtin("is_timestamp_ltz", _emit_ast=_emit_ast)(c)
 
 
-def is_timestamp_ntz(col: ColumnOrName) -> Column:
+@publicapi
+def is_timestamp_ntz(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns true if the specified VARIANT column contains a TIMESTAMP_NTZ value with no time zone.
 
@@ -5421,10 +5446,11 @@ def is_timestamp_ntz(col: ColumnOrName) -> Column:
         [Row(A=True, B=False, C=False)]
     """
     c = _to_col_if_str(col, "is_timestamp_ntz")
-    return builtin("is_timestamp_ntz")(c)
+    return builtin("is_timestamp_ntz", _emit_ast=_emit_ast)(c)
 
 
-def is_timestamp_tz(col: ColumnOrName) -> Column:
+@publicapi
+def is_timestamp_tz(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns true if the specified VARIANT column contains a TIMESTAMP_TZ value with a time zone.
 
@@ -5440,7 +5466,7 @@ def is_timestamp_tz(col: ColumnOrName) -> Column:
         [Row(A=False, B=False, C=True)]
     """
     c = _to_col_if_str(col, "is_timestamp_tz")
-    return builtin("is_timestamp_tz")(c)
+    return builtin("is_timestamp_tz", _emit_ast=_emit_ast)(c)
 
 
 def _columns_from_timestamp_parts(
@@ -5498,11 +5524,13 @@ def _timestamp_from_parts_internal(
         )
 
 
+@publicapi
 def time_from_parts(
     hour: Union[ColumnOrName, int],
     minute: Union[ColumnOrName, int],
     second: Union[ColumnOrName, int],
     nanoseconds: Optional[Union[ColumnOrName, int]] = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Creates a time from individual numeric components.
@@ -5524,19 +5552,23 @@ def time_from_parts(
     """
     h, m, s = _columns_from_timestamp_parts("time_from_parts", hour, minute, second)
     if nanoseconds:
-        return builtin("time_from_parts")(
+        return builtin("time_from_parts", _emit_ast=_emit_ast)(
             h, m, s, _to_col_if_str_or_int(nanoseconds, "time_from_parts")
         )
     else:
-        return builtin("time_from_parts")(h, m, s)
+        return builtin("time_from_parts", _emit_ast=_emit_ast)(h, m, s)
 
 
 @overload
-def timestamp_from_parts(date_expr: ColumnOrName, time_expr: ColumnOrName) -> Column:
+@publicapi
+def timestamp_from_parts(
+    date_expr: ColumnOrName, time_expr: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     ...  # pragma: no cover
 
 
 @overload
+@publicapi
 def timestamp_from_parts(
     year: Union[ColumnOrName, int],
     month: Union[ColumnOrName, int],
@@ -5546,11 +5578,13 @@ def timestamp_from_parts(
     second: Union[ColumnOrName, int],
     nanosecond: Optional[Union[ColumnOrName, int]] = None,
     timezone: Optional[ColumnOrLiteralStr] = None,
+    _emit_ast: bool = True,
 ) -> Column:
     ...  # pragma: no cover
 
 
-def timestamp_from_parts(*args, **kwargs) -> Column:
+@publicapi
+def timestamp_from_parts(*args, _emit_ast: bool = True, **kwargs) -> Column:
     """
     Creates a timestamp from individual numeric components. If no time zone is in effect,
     the function can be used to create a timestamp from a date expression and a time expression.
@@ -5577,11 +5611,12 @@ def timestamp_from_parts(*args, **kwargs) -> Column:
         ... ).alias("TIMESTAMP_FROM_PARTS")).collect()
         [Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
     """
-    return builtin("timestamp_from_parts")(
+    return builtin("timestamp_from_parts", _emit_ast=_emit_ast)(
         *_timestamp_from_parts_internal("timestamp_from_parts", *args, **kwargs)
     )
 
 
+@publicapi
 def timestamp_ltz_from_parts(
     year: Union[ColumnOrName, int],
     month: Union[ColumnOrName, int],
@@ -5590,6 +5625,7 @@ def timestamp_ltz_from_parts(
     minute: Union[ColumnOrName, int],
     second: Union[ColumnOrName, int],
     nanoseconds: Optional[Union[ColumnOrName, int]] = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Creates a timestamp from individual numeric components.
@@ -5612,20 +5648,22 @@ def timestamp_ltz_from_parts(
     )
     ns = None if nanoseconds is None else _to_col_if_str_or_int(nanoseconds, func_name)
     return (
-        builtin(func_name)(y, m, d, h, min_, s)
+        builtin(func_name, _emit_ast=_emit_ast)(y, m, d, h, min_, s)
         if ns is None
-        else builtin(func_name)(y, m, d, h, min_, s, ns)
+        else builtin(func_name, _emit_ast=_emit_ast)(y, m, d, h, min_, s, ns)
     )
 
 
 @overload
+@publicapi
 def timestamp_ntz_from_parts(
-    date_expr: ColumnOrName, time_expr: ColumnOrName
+    date_expr: ColumnOrName, time_expr: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
     ...  # pragma: no cover
 
 
 @overload
+@publicapi
 def timestamp_ntz_from_parts(
     year: Union[ColumnOrName, int],
     month: Union[ColumnOrName, int],
@@ -5634,11 +5672,13 @@ def timestamp_ntz_from_parts(
     minute: Union[ColumnOrName, int],
     second: Union[ColumnOrName, int],
     nanosecond: Optional[Union[ColumnOrName, int]] = None,
+    _emit_ast: bool = True,
 ) -> Column:
     ...  # pragma: no cover
 
 
-def timestamp_ntz_from_parts(*args, **kwargs) -> Column:
+@publicapi
+def timestamp_ntz_from_parts(*args, _emit_ast: bool = True, **kwargs) -> Column:
     """
     Creates a timestamp from individual numeric components. The function can be used to
     create a timestamp from a date expression and a time expression.
@@ -5665,11 +5705,12 @@ def timestamp_ntz_from_parts(*args, **kwargs) -> Column:
         ... ).alias("TIMESTAMP_NTZ_FROM_PARTS")).collect()
         [Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
     """
-    return builtin("timestamp_ntz_from_parts")(
+    return builtin("timestamp_ntz_from_parts", _emit_ast=_emit_ast)(
         *_timestamp_from_parts_internal("timestamp_ntz_from_parts", *args, **kwargs)
     )
 
 
+@publicapi
 def timestamp_tz_from_parts(
     year: Union[ColumnOrName, int],
     month: Union[ColumnOrName, int],
@@ -5679,6 +5720,7 @@ def timestamp_tz_from_parts(
     second: Union[ColumnOrName, int],
     nanoseconds: Optional[Union[ColumnOrName, int]] = None,
     timezone: Optional[ColumnOrLiteralStr] = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Creates a timestamp from individual numeric components and a string timezone.
@@ -5701,16 +5743,17 @@ def timestamp_tz_from_parts(
     ns = None if nanoseconds is None else _to_col_if_str_or_int(nanoseconds, func_name)
     tz = None if timezone is None else _to_col_if_sql_expr(timezone, func_name)
     if nanoseconds is not None and timezone is not None:
-        return builtin(func_name)(y, m, d, h, min_, s, ns, tz)
+        return builtin(func_name, _emit_ast=_emit_ast)(y, m, d, h, min_, s, ns, tz)
     elif nanoseconds is not None:
-        return builtin(func_name)(y, m, d, h, min_, s, ns)
+        return builtin(func_name, _emit_ast=_emit_ast)(y, m, d, h, min_, s, ns)
     elif timezone is not None:
-        return builtin(func_name)(y, m, d, h, min_, s, lit(0), tz)
+        return builtin(func_name, _emit_ast=_emit_ast)(y, m, d, h, min_, s, lit(0), tz)
     else:
-        return builtin(func_name)(y, m, d, h, min_, s)
+        return builtin(func_name, _emit_ast=_emit_ast)(y, m, d, h, min_, s)
 
 
-def weekofyear(e: ColumnOrName) -> Column:
+@publicapi
+def weekofyear(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Extracts the corresponding week (number) of the year from a date or timestamp.
 
@@ -5725,10 +5768,11 @@ def weekofyear(e: ColumnOrName) -> Column:
         [Row(WEEKOFYEAR("A")=18)]
     """
     c = _to_col_if_str(e, "weekofyear")
-    return builtin("weekofyear")(c)
+    return builtin("weekofyear", _emit_ast=_emit_ast)(c)
 
 
-def typeof(col: ColumnOrName) -> Column:
+@publicapi
+def typeof(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Reports the type of a value stored in a VARIANT column. The type is returned as a string.
 
     For columns where all rows share the same type, the result of `typeof` is the underlying Snowflake column type.
@@ -5751,10 +5795,11 @@ def typeof(col: ColumnOrName) -> Column:
 
     """
     c = _to_col_if_str(col, "typeof")
-    return builtin("typeof")(c)
+    return builtin("typeof", _emit_ast=_emit_ast)(c)
 
 
-def check_json(col: ColumnOrName) -> Column:
+@publicapi
+def check_json(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Checks the validity of a JSON document.
     If the input string is a valid JSON document or a NULL (i.e. no error would occur when
     parsing the input string), the function returns NULL.
@@ -5775,10 +5820,11 @@ def check_json(col: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(col, "check_json")
-    return builtin("check_json")(c)
+    return builtin("check_json", _emit_ast=_emit_ast)(c)
 
 
-def check_xml(col: ColumnOrName) -> Column:
+@publicapi
+def check_xml(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Checks the validity of an XML document.
     If the input string is a valid XML document or a NULL (i.e. no error would occur when parsing
     the input string), the function returns NULL.
@@ -5798,10 +5844,13 @@ def check_xml(col: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(col, "check_xml")
-    return builtin("check_xml")(c)
+    return builtin("check_xml", _emit_ast=_emit_ast)(c)
 
 
-def json_extract_path_text(col: ColumnOrName, path: ColumnOrName) -> Column:
+@publicapi
+def json_extract_path_text(
+    col: ColumnOrName, path: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """
     Parses a JSON string and returns the value of an element at a specified path in the resulting
     JSON document.
@@ -5815,10 +5864,11 @@ def json_extract_path_text(col: ColumnOrName, path: ColumnOrName) -> Column:
     """
     c = _to_col_if_str(col, "json_extract_path_text")
     p = _to_col_if_str(path, "json_extract_path_text")
-    return builtin("json_extract_path_text")(c, p)
+    return builtin("json_extract_path_text", _emit_ast=_emit_ast)(c, p)
 
 
-def parse_json(e: ColumnOrName) -> Column:
+@publicapi
+def parse_json(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Parse the value of the specified column as a JSON string and returns the
     resulting JSON document.
 
@@ -5836,10 +5886,11 @@ def parse_json(e: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(e, "parse_json")
-    return builtin("parse_json")(c)
+    return builtin("parse_json", _emit_ast=_emit_ast)(c)
 
 
-def parse_xml(e: ColumnOrName) -> Column:
+@publicapi
+def parse_xml(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Parse the value of the specified column as a JSON string and returns the
     resulting XML document.
 
@@ -5863,10 +5914,11 @@ def parse_xml(e: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(e, "parse_xml")
-    return builtin("parse_xml")(c)
+    return builtin("parse_xml", _emit_ast=_emit_ast)(c)
 
 
-def strip_null_value(col: ColumnOrName) -> Column:
+@publicapi
+def strip_null_value(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Converts a JSON "null" value in the specified column to a SQL NULL value.
     All other VARIANT values in the column are returned unchanged.
 
@@ -5881,10 +5933,13 @@ def strip_null_value(col: ColumnOrName) -> Column:
         [Row(B=None)]
     """
     c = _to_col_if_str(col, "strip_null_value")
-    return builtin("strip_null_value")(c)
+    return builtin("strip_null_value", _emit_ast=_emit_ast)(c)
 
 
-def array_agg(col: ColumnOrName, is_distinct: bool = False) -> Column:
+@publicapi
+def array_agg(
+    col: ColumnOrName, is_distinct: bool = False, _emit_ast: bool = True
+) -> Column:
     """Returns the input values, pivoted into an ARRAY. If the input is empty, an empty
     ARRAY is returned.
 
@@ -5903,10 +5958,13 @@ def array_agg(col: ColumnOrName, is_distinct: bool = False) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(col, "array_agg")
-    return _call_function("array_agg", is_distinct, c)
+    return _call_function("array_agg", is_distinct, c, _emit_ast=_emit_ast)
 
 
-def array_append(array: ColumnOrName, element: ColumnOrName) -> Column:
+@publicapi
+def array_append(
+    array: ColumnOrName, element: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """Returns an ARRAY containing all elements from the source ARRAY as well as the new element.
     The new element is located at end of the ARRAY.
 
@@ -5934,10 +5992,13 @@ def array_append(array: ColumnOrName, element: ColumnOrName) -> Column:
     """
     a = _to_col_if_str(array, "array_append")
     e = _to_col_if_str(element, "array_append")
-    return builtin("array_append")(a, e)
+    return builtin("array_append", _emit_ast=_emit_ast)(a, e)
 
 
-def array_cat(array1: ColumnOrName, array2: ColumnOrName) -> Column:
+@publicapi
+def array_cat(
+    array1: ColumnOrName, array2: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """Returns the concatenation of two ARRAYs.
 
     Args:
@@ -5963,10 +6024,11 @@ def array_cat(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     """
     a1 = _to_col_if_str(array1, "array_cat")
     a2 = _to_col_if_str(array2, "array_cat")
-    return builtin("array_cat")(a1, a2)
+    return builtin("array_cat", _emit_ast=_emit_ast)(a1, a2)
 
 
-def array_compact(array: ColumnOrName) -> Column:
+@publicapi
+def array_compact(array: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Returns a compacted ARRAY with missing and null values removed,
     effectively converting sparse arrays into dense arrays.
 
@@ -5989,10 +6051,11 @@ def array_compact(array: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     a = _to_col_if_str(array, "array_compact")
-    return builtin("array_compact")(a)
+    return builtin("array_compact", _emit_ast=_emit_ast)(a)
 
 
-def array_construct(*cols: ColumnOrName) -> Column:
+@publicapi
+def array_construct(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Returns an ARRAY constructed from zero, one, or more inputs.
 
     Args:
@@ -6017,10 +6080,11 @@ def array_construct(*cols: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     cs = [_to_col_if_str(c, "array_construct") for c in cols]
-    return builtin("array_construct")(*cs)
+    return builtin("array_construct", _emit_ast=_emit_ast)(*cs)
 
 
-def array_construct_compact(*cols: ColumnOrName) -> Column:
+@publicapi
+def array_construct_compact(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Returns an ARRAY constructed from zero, one, or more inputs.
     The constructed ARRAY omits any NULL input values.
 
@@ -6046,10 +6110,13 @@ def array_construct_compact(*cols: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     cs = [_to_col_if_str(c, "array_construct_compact") for c in cols]
-    return builtin("array_construct_compact")(*cs)
+    return builtin("array_construct_compact", _emit_ast=_emit_ast)(*cs)
 
 
-def array_contains(variant: ColumnOrName, array: ColumnOrName) -> Column:
+@publicapi
+def array_contains(
+    variant: ColumnOrName, array: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """Returns True if the specified VARIANT is found in the specified ARRAY.
 
     Args:
@@ -6070,11 +6137,15 @@ def array_contains(variant: ColumnOrName, array: ColumnOrName) -> Column:
     """
     v = _to_col_if_str(variant, "array_contains")
     a = _to_col_if_str(array, "array_contains")
-    return builtin("array_contains")(v, a)
+    return builtin("array_contains", _emit_ast=_emit_ast)(v, a)
 
 
+@publicapi
 def array_insert(
-    array: ColumnOrName, pos: ColumnOrName, element: ColumnOrName
+    array: ColumnOrName,
+    pos: ColumnOrName,
+    element: ColumnOrName,
+    _emit_ast: bool = True,
 ) -> Column:
     """Returns an ARRAY containing all elements from the source ARRAY as well as the new element.
 
@@ -6114,10 +6185,13 @@ def array_insert(
     a = _to_col_if_str(array, "array_insert")
     p = _to_col_if_str(pos, "array_insert")
     e = _to_col_if_str(element, "array_insert")
-    return builtin("array_insert")(a, p, e)
+    return builtin("array_insert", _emit_ast=_emit_ast)(a, p, e)
 
 
-def array_position(variant: ColumnOrName, array: ColumnOrName) -> Column:
+@publicapi
+def array_position(
+    variant: ColumnOrName, array: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """Returns the index of the first occurrence of an element in an ARRAY.
 
     Args:
@@ -6139,10 +6213,13 @@ def array_position(variant: ColumnOrName, array: ColumnOrName) -> Column:
     """
     v = _to_col_if_str(variant, "array_position")
     a = _to_col_if_str(array, "array_position")
-    return builtin("array_position")(v, a)
+    return builtin("array_position", _emit_ast=_emit_ast)(v, a)
 
 
-def array_prepend(array: ColumnOrName, element: ColumnOrName) -> Column:
+@publicapi
+def array_prepend(
+    array: ColumnOrName, element: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """Returns an ARRAY containing the new element as well as all elements from the source ARRAY.
     The new element is positioned at the beginning of the ARRAY.
 
@@ -6168,10 +6245,11 @@ def array_prepend(array: ColumnOrName, element: ColumnOrName) -> Column:
     """
     a = _to_col_if_str(array, "array_prepend")
     e = _to_col_if_str(element, "array_prepend")
-    return builtin("array_prepend")(a, e)
+    return builtin("array_prepend", _emit_ast=_emit_ast)(a, e)
 
 
-def array_size(array: ColumnOrName) -> Column:
+@publicapi
+def array_size(array: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Returns the size of the input ARRAY.
 
     If the specified column contains a VARIANT value that contains an ARRAY, the size of the ARRAY
@@ -6189,10 +6267,13 @@ def array_size(array: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     a = _to_col_if_str(array, "array_size")
-    return builtin("array_size")(a)
+    return builtin("array_size", _emit_ast=_emit_ast)(a)
 
 
-def array_slice(array: ColumnOrName, from_: ColumnOrName, to: ColumnOrName) -> Column:
+@publicapi
+def array_slice(
+    array: ColumnOrName, from_: ColumnOrName, to: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """Returns an ARRAY constructed from a specified subset of elements of the input ARRAY.
 
     Args:
@@ -6220,10 +6301,13 @@ def array_slice(array: ColumnOrName, from_: ColumnOrName, to: ColumnOrName) -> C
     a = _to_col_if_str(array, "array_slice")
     f = _to_col_if_str(from_, "array_slice")
     t = _to_col_if_str(to, "array_slice")
-    return builtin("array_slice")(a, f, t)
+    return builtin("array_slice", _emit_ast=_emit_ast)(a, f, t)
 
 
-def array_to_string(array: ColumnOrName, separator: ColumnOrName) -> Column:
+@publicapi
+def array_to_string(
+    array: ColumnOrName, separator: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """Returns an input ARRAY converted to a string by casting all values to strings (using
     TO_VARCHAR) and concatenating them (using the string from the second argument to separate
     the elements).
@@ -6246,10 +6330,11 @@ def array_to_string(array: ColumnOrName, separator: ColumnOrName) -> Column:
     """
     a = _to_col_if_str(array, "array_to_string")
     s = _to_col_if_str(separator, "array_to_string")
-    return builtin("array_to_string")(a, s)
+    return builtin("array_to_string", _emit_ast=_emit_ast)(a, s)
 
 
-def array_unique_agg(col: ColumnOrName) -> Column:
+@publicapi
+def array_unique_agg(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Returns a Column containing the distinct values in the specified column col.
     The values in the Column are in no particular order, and the order is not deterministic.
     The function ignores NULL values in col.
@@ -6273,10 +6358,13 @@ def array_unique_agg(col: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(col, "array_unique_agg")
-    return _call_function("array_unique_agg", True, c)
+    return _call_function("array_unique_agg", True, c, _emit_ast=_emit_ast)
 
 
-def object_agg(key: ColumnOrName, value: ColumnOrName) -> Column:
+@publicapi
+def object_agg(
+    key: ColumnOrName, value: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """Returns one OBJECT per group. For each key-value input pair, where key must be a VARCHAR
     and value must be a VARIANT, the resulting OBJECT contains a key-value field.
 
@@ -6300,10 +6388,11 @@ def object_agg(key: ColumnOrName, value: ColumnOrName) -> Column:
     """
     k = _to_col_if_str(key, "object_agg")
     v = _to_col_if_str(value, "object_agg")
-    return builtin("object_agg")(k, v)
+    return builtin("object_agg", _emit_ast=_emit_ast)(k, v)
 
 
-def object_construct(*key_values: ColumnOrName) -> Column:
+@publicapi
+def object_construct(*key_values: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Returns an OBJECT constructed from the arguments.
 
     Example::
@@ -6329,10 +6418,13 @@ def object_construct(*key_values: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     kvs = [_to_col_if_str(kv, "object_construct") for kv in key_values]
-    return builtin("object_construct")(*kvs)
+    return builtin("object_construct", _emit_ast=_emit_ast)(*kvs)
 
 
-def object_construct_keep_null(*key_values: ColumnOrName) -> Column:
+@publicapi
+def object_construct_keep_null(
+    *key_values: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """Returns an object containing the contents of the input (i.e. source) object with one or more
     keys removed.
 
@@ -6357,10 +6449,13 @@ def object_construct_keep_null(*key_values: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     kvs = [_to_col_if_str(kv, "object_construct_keep_null") for kv in key_values]
-    return builtin("object_construct_keep_null")(*kvs)
+    return builtin("object_construct_keep_null", _emit_ast=_emit_ast)(*kvs)
 
 
-def object_delete(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> Column:
+@publicapi
+def object_delete(
+    obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """Returns an object consisting of the input object with one or more keys removed.
     The input key must not exist in the object.
 
@@ -6390,14 +6485,16 @@ def object_delete(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) ->
     o = _to_col_if_str(obj, "object_delete")
     k1 = _to_col_if_str(key1, "object_delete")
     ks = [_to_col_if_str(k, "object_delete") for k in keys]
-    return builtin("object_delete")(o, k1, *ks)
+    return builtin("object_delete", _emit_ast=_emit_ast)(o, k1, *ks)
 
 
+@publicapi
 def object_insert(
     obj: ColumnOrName,
     key: ColumnOrName,
     value: ColumnOrName,
     update_flag: Optional[ColumnOrName] = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """Returns an object consisting of the input object with a new key-value pair inserted (or an
     existing key updated with a new value).
@@ -6433,12 +6530,15 @@ def object_insert(
     v = _to_col_if_str(value, "object_insert")
     uf = _to_col_if_str(update_flag, "update_flag") if update_flag is not None else None
     if uf is not None:
-        return builtin("object_insert")(o, k, v, uf)
+        return builtin("object_insert", _emit_ast=_emit_ast)(o, k, v, uf)
     else:
-        return builtin("object_insert")(o, k, v)
+        return builtin("object_insert", _emit_ast=_emit_ast)(o, k, v)
 
 
-def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> Column:
+@publicapi
+def object_pick(
+    obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """Returns a new OBJECT containing some of the key-value pairs from an existing object.
 
     To identify the key-value pairs to include in the new object, pass in the keys as arguments,
@@ -6471,14 +6571,17 @@ def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> C
     o = _to_col_if_str(obj, "object_pick")
     k1 = _to_col_if_str(key1, "object_pick")
     ks = [_to_col_if_str(k, "object_pick") for k in keys]
-    return builtin("object_pick")(o, k1, *ks)
+    return builtin("object_pick", _emit_ast=_emit_ast)(o, k1, *ks)
 
 
 # The following three vector functions have doctests that are disabled (">>" instead of ">>>")
 # since vectors are not yet rolled out.
 
 
-def vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+@publicapi
+def vector_cosine_distance(
+    v1: ColumnOrName, v2: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """Returns the cosine distance between two vectors of equal dimension and element type.
 
     Example::
@@ -6494,10 +6597,13 @@ def vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
     """
     v1 = _to_col_if_str(v1, "vector_cosine_distance")
     v2 = _to_col_if_str(v2, "vector_cosine_distance")
-    return builtin("vector_cosine_distance")(v1, v2)
+    return builtin("vector_cosine_distance", _emit_ast=_emit_ast)(v1, v2)
 
 
-def vector_l2_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+@publicapi
+def vector_l2_distance(
+    v1: ColumnOrName, v2: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """Returns the l2 distance between two vectors of equal dimension and element type.
 
     Example::
@@ -6513,10 +6619,13 @@ def vector_l2_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
     """
     v1 = _to_col_if_str(v1, "vector_l2_distance")
     v2 = _to_col_if_str(v2, "vector_l2_distance")
-    return builtin("vector_l2_distance")(v1, v2)
+    return builtin("vector_l2_distance", _emit_ast=_emit_ast)(v1, v2)
 
 
-def vector_inner_product(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+@publicapi
+def vector_inner_product(
+    v1: ColumnOrName, v2: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """Returns the inner product between two vectors of equal dimension and element type.
 
     Example::
@@ -6532,10 +6641,11 @@ def vector_inner_product(v1: ColumnOrName, v2: ColumnOrName) -> Column:
     """
     v1 = _to_col_if_str(v1, "vector_inner_product")
     v2 = _to_col_if_str(v2, "vector_inner_product")
-    return builtin("vector_inner_product")(v1, v2)
+    return builtin("vector_inner_product", _emit_ast=_emit_ast)(v1, v2)
 
 
-def asc(c: ColumnOrName) -> Column:
+@publicapi
+def asc(c: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Returns a Column expression with values sorted in ascending order.
 
     Example::
@@ -6544,11 +6654,20 @@ def asc(c: ColumnOrName) -> Column:
         >>> df.sort(asc(df["a"])).collect()
         [Row(A=None), Row(A=None), Row(A=1), Row(A=2), Row(A=3)]
     """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "asc", c)
+
     c = _to_col_if_str(c, "asc")
-    return c.asc()
+    ans = c.asc()
+    ans._ast = ast
+    return ans
 
 
-def asc_nulls_first(c: ColumnOrName) -> Column:
+@publicapi
+def asc_nulls_first(c: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Returns a Column expression with values sorted in ascending order
     (null values sorted before non-null values).
 
@@ -6558,11 +6677,20 @@ def asc_nulls_first(c: ColumnOrName) -> Column:
         >>> df.sort(asc_nulls_first(df["a"])).collect()
         [Row(A=None), Row(A=None), Row(A=1), Row(A=2), Row(A=3)]
     """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "asc_nulls_first", c)
+
     c = _to_col_if_str(c, "asc_nulls_first")
-    return c.asc_nulls_first()
+    ans = c.asc_nulls_first()
+    ans._ast = ast
+    return ans
 
 
-def asc_nulls_last(c: ColumnOrName) -> Column:
+@publicapi
+def asc_nulls_last(c: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Returns a Column expression with values sorted in ascending order
     (null values sorted after non-null values).
 
@@ -6572,11 +6700,20 @@ def asc_nulls_last(c: ColumnOrName) -> Column:
         >>> df.sort(asc_nulls_last(df["a"])).collect()
         [Row(A=1), Row(A=2), Row(A=3), Row(A=None), Row(A=None)]
     """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "asc_nulls_last", c)
+
     c = _to_col_if_str(c, "asc_nulls_last")
-    return c.asc_nulls_last()
+    ans = c.asc_nulls_last()
+    ans._ast = ast
+    return ans
 
 
-def desc(c: ColumnOrName) -> Column:
+@publicapi
+def desc(c: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns a Column expression with values sorted in descending order.
 
@@ -6586,11 +6723,19 @@ def desc(c: ColumnOrName) -> Column:
         >>> df.sort(desc(df["a"])).collect()
         [Row(A=3), Row(A=2), Row(A=1), Row(A=None), Row(A=None)]
     """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "desc", c)
+
     c = _to_col_if_str(c, "desc")
-    return c.desc()
+    ans = c.desc()
+    ans._ast = ast
 
 
-def desc_nulls_first(c: ColumnOrName) -> Column:
+@publicapi
+def desc_nulls_first(c: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns a Column expression with values sorted in descending order
     (null values sorted before non-null values).
@@ -6601,11 +6746,20 @@ def desc_nulls_first(c: ColumnOrName) -> Column:
         >>> df.sort(desc_nulls_first(df["a"])).collect()
         [Row(A=None), Row(A=None), Row(A=3), Row(A=2), Row(A=1)]
     """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "desc_nulls_first", c)
+
     c = _to_col_if_str(c, "desc_nulls_first")
-    return c.desc_nulls_first()
+    ans = c.desc_nulls_first()
+    ans._ast = ast
+    return ans
 
 
-def desc_nulls_last(c: ColumnOrName) -> Column:
+@publicapi
+def desc_nulls_last(c: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns a Column expression with values sorted in descending order
     (null values sorted after non-null values).
@@ -6615,11 +6769,19 @@ def desc_nulls_last(c: ColumnOrName) -> Column:
         >>> df.sort(desc_nulls_last(df["a"])).collect()
         [Row(A=3), Row(A=2), Row(A=1), Row(A=None), Row(A=None)]
     """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "desc_nulls_last", c)
     c = _to_col_if_str(c, "desc_nulls_last")
-    return c.desc_nulls_last()
+    ans = c.desc_nulls_last()
+    ans._ast = ast
+    return ans
 
 
-def as_array(variant: ColumnOrName) -> Column:
+@publicapi
+def as_array(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Casts a VARIANT value to an array.
 
     Example::
@@ -6636,10 +6798,11 @@ def as_array(variant: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(variant, "as_array")
-    return builtin("as_array")(c)
+    return builtin("as_array", _emit_ast=_emit_ast)(c)
 
 
-def as_binary(variant: ColumnOrName) -> Column:
+@publicapi
+def as_binary(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Casts a VARIANT value to a binary string.
 
     Example::
@@ -6653,10 +6816,11 @@ def as_binary(variant: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(variant, "as_binary")
-    return builtin("as_binary")(c)
+    return builtin("as_binary", _emit_ast=_emit_ast)(c)
 
 
-def as_char(variant: ColumnOrName) -> Column:
+@publicapi
+def as_char(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Casts a VARIANT value to a string.
 
     Example::
@@ -6670,10 +6834,11 @@ def as_char(variant: ColumnOrName) -> Column:
         True
     """
     c = _to_col_if_str(variant, "as_char")
-    return builtin("as_char")(c)
+    return builtin("as_char", _emit_ast=_emit_ast)(c)
 
 
-def as_varchar(variant: ColumnOrName) -> Column:
+@publicapi
+def as_varchar(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Casts a VARIANT value to a string.
 
     Example::
@@ -6687,10 +6852,11 @@ def as_varchar(variant: ColumnOrName) -> Column:
         True
     """
     c = _to_col_if_str(variant, "as_varchar")
-    return builtin("as_varchar")(c)
+    return builtin("as_varchar", _emit_ast=_emit_ast)(c)
 
 
-def as_date(variant: ColumnOrName) -> Column:
+@publicapi
+def as_date(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Casts a VARIANT value to a date.
 
     Example::
@@ -6704,10 +6870,13 @@ def as_date(variant: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(variant, "as_date")
-    return builtin("as_date")(c)
+    return builtin("as_date", _emit_ast=_emit_ast)(c)
 
 
-def cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
+@publicapi
+def cast(
+    column: ColumnOrName, to: Union[str, DataType], _emit_ast: bool = True
+) -> Column:
     """Converts a value of one data type into another data type.
     The semantics of CAST are the same as the semantics of the corresponding to datatype conversion functions.
     If the cast is not possible, a ``SnowparkSQLException`` exception is thrown.
@@ -6724,11 +6893,22 @@ def cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
         ---------------------
         <BLANKLINE>
     """
+
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "cast", column, to)
+
     c = _to_col_if_str(column, "cast")
-    return c.cast(to)
+    ans = c.cast(to)
+    ans._ast = ast
+    return ans
 
 
-def try_cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
+@publicapi
+def try_cast(
+    column: ColumnOrName, to: Union[str, DataType], _emit_ast: bool = True
+) -> Column:
     """A special version of CAST for a subset of data type conversions.
     It performs the same operation (i.e. converts a value of one data type into another data type),
     but returns a NULL value instead of raising an error when the conversion can not be performed.
@@ -6749,8 +6929,16 @@ def try_cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
         [Row(ANS=0.12), Row(ANS=None), Row(ANS=None), Row(ANS=None), Row(ANS=None)]
 
     """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "try_cast", column, to)
+
     c = _to_col_if_str(column, "try_cast")
-    return c.try_cast(to)
+    ans = c.try_cast(to)
+    ans._ast = ast
+    return ans
 
 
 def _as_decimal_or_number(
@@ -6764,17 +6952,19 @@ def _as_decimal_or_number(
     if scale and not precision:
         raise ValueError("Cannot define scale without precision")
     if precision and scale:
-        return builtin(cast_type)(c, lit(precision), lit(scale))
+        return builtin(cast_type, _emit_ast=False)(c, lit(precision), lit(scale))
     elif precision:
-        return builtin(cast_type)(c, lit(precision))
+        return builtin(cast_type, _emit_ast=False)(c, lit(precision))
     else:
-        return builtin(cast_type)(c)
+        return builtin(cast_type, _emit_ast=False)(c)
 
 
+@publicapi
 def as_decimal(
     variant: ColumnOrName,
     precision: Optional[int] = None,
     scale: Optional[int] = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values).
 
@@ -6788,30 +6978,22 @@ def as_decimal(
         ------------
         <BLANKLINE>
     """
-    return _as_decimal_or_number("as_decimal", variant, precision, scale)
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "as_decimal", variant, precision, scale)
+
+    ans = _as_decimal_or_number("as_decimal", variant, precision, scale)
+    ans._ast = ast
+    return ans
 
 
-def as_number(
-    variant: ColumnOrName,
-    precision: Optional[int] = None,
-    scale: Optional[int] = None,
-) -> Column:
-    """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values).
-
-    Example::
-        >>> df = session.sql("select 1.2345::variant as a")
-        >>> df.select(as_number("a", 4, 1).alias("result")).show()
-        ------------
-        |"RESULT"  |
-        ------------
-        |1.2       |
-        ------------
-        <BLANKLINE>
-    """
-    return _as_decimal_or_number("as_number", variant, precision, scale)
+as_number = as_decimal
 
 
-def as_double(variant: ColumnOrName) -> Column:
+@publicapi
+def as_double(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Casts a VARIANT value to a floating-point value.
 
     Example::
@@ -6825,10 +7007,11 @@ def as_double(variant: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(variant, "as_double")
-    return builtin("as_double")(c)
+    return builtin("as_double", _emit_ast=_emit_ast)(c)
 
 
-def as_real(variant: ColumnOrName) -> Column:
+@publicapi
+def as_real(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Casts a VARIANT value to a floating-point value.
 
     Example::
@@ -6843,10 +7026,11 @@ def as_real(variant: ColumnOrName) -> Column:
         [Row(REAL_RADIUS_V=2.0, RADIUS=2.0)]
     """
     c = _to_col_if_str(variant, "as_real")
-    return builtin("as_real")(c)
+    return builtin("as_real", _emit_ast=_emit_ast)(c)
 
 
-def as_integer(variant: ColumnOrName) -> Column:
+@publicapi
+def as_integer(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Casts a VARIANT value to an integer.
 
     Example::
@@ -6860,10 +7044,11 @@ def as_integer(variant: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(variant, "as_integer")
-    return builtin("as_integer")(c)
+    return builtin("as_integer", _emit_ast=_emit_ast)(c)
 
 
-def as_object(variant: ColumnOrName) -> Column:
+@publicapi
+def as_object(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Casts a VARIANT value to an object.
 
     Example::
@@ -6880,10 +7065,11 @@ def as_object(variant: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(variant, "as_object")
-    return builtin("as_object")(c)
+    return builtin("as_object", _emit_ast=_emit_ast)(c)
 
 
-def as_time(variant: ColumnOrName) -> Column:
+@publicapi
+def as_time(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Casts a VARIANT value to a time value.
 
     Example::
@@ -6897,10 +7083,11 @@ def as_time(variant: ColumnOrName) -> Column:
         True
     """
     c = _to_col_if_str(variant, "as_time")
-    return builtin("as_time")(c)
+    return builtin("as_time", _emit_ast=_emit_ast)(c)
 
 
-def as_timestamp_ltz(variant: ColumnOrName) -> Column:
+@publicapi
+def as_timestamp_ltz(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Casts a VARIANT value to a TIMESTAMP with a local timezone.
 
     Example::
@@ -6914,10 +7101,11 @@ def as_timestamp_ltz(variant: ColumnOrName) -> Column:
         True
     """
     c = _to_col_if_str(variant, "as_timestamp_ltz")
-    return builtin("as_timestamp_ltz")(c)
+    return builtin("as_timestamp_ltz", _emit_ast=_emit_ast)(c)
 
 
-def as_timestamp_ntz(variant: ColumnOrName) -> Column:
+@publicapi
+def as_timestamp_ntz(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Casts a VARIANT value to a TIMESTAMP with no timezone.
 
     Example::
@@ -6931,10 +7119,11 @@ def as_timestamp_ntz(variant: ColumnOrName) -> Column:
         True
     """
     c = _to_col_if_str(variant, "as_timestamp_ntz")
-    return builtin("as_timestamp_ntz")(c)
+    return builtin("as_timestamp_ntz", _emit_ast=_emit_ast)(c)
 
 
-def as_timestamp_tz(variant: ColumnOrName) -> Column:
+@publicapi
+def as_timestamp_tz(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Casts a VARIANT value to a TIMESTAMP with a timezone.
 
     Example::
@@ -6948,10 +7137,13 @@ def as_timestamp_tz(variant: ColumnOrName) -> Column:
         True
     """
     c = _to_col_if_str(variant, "as_timestamp_tz")
-    return builtin("as_timestamp_tz")(c)
+    return builtin("as_timestamp_tz", _emit_ast=_emit_ast)(c)
 
 
-def to_binary(e: ColumnOrName, fmt: Optional[str] = None) -> Column:
+@publicapi
+def to_binary(
+    e: ColumnOrName, fmt: Optional[str] = None, _emit_ast: bool = True
+) -> Column:
     """Converts the input expression to a binary value. For NULL input, the output is NULL.
 
     Example::
@@ -6968,10 +7160,15 @@ def to_binary(e: ColumnOrName, fmt: Optional[str] = None) -> Column:
         [Row(ANS=bytearray(b'aGVsbG8=')), Row(ANS=bytearray(b'd29ybGQ=')), Row(ANS=bytearray(b'IQ=='))]
     """
     c = _to_col_if_str(e, "to_binary")
-    return builtin("to_binary")(c, fmt) if fmt else builtin("to_binary")(c)
+    return (
+        builtin("to_binary", _emit_ast=_emit_ast)(c, fmt)
+        if fmt
+        else builtin("to_binary", _emit_ast=_emit_ast)(c)
+    )
 
 
-def to_array(e: ColumnOrName) -> Column:
+@publicapi
+def to_array(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Converts any value to an ARRAY value or NULL (if input is NULL).
 
     Example::
@@ -6987,10 +7184,11 @@ def to_array(e: ColumnOrName) -> Column:
         [Row(ANS='[\\n  1,\\n  2,\\n  3\\n]'), Row(ANS=None)]
     """
     c = _to_col_if_str(e, "to_array")
-    return builtin("to_array")(c)
+    return builtin("to_array", _emit_ast=_emit_ast)(c)
 
 
-def to_json(e: ColumnOrName) -> Column:
+@publicapi
+def to_json(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Converts any VARIANT value to a string containing the JSON representation of the
     value. If the input is NULL, the result is also NULL.
 
@@ -7003,10 +7201,11 @@ def to_json(e: ColumnOrName) -> Column:
         [Row(ANS=None), Row(ANS='12'), Row(ANS='3.141'), Row(ANS='{"a":10,"b":20}'), Row(ANS='[1,23,456]')]
     """
     c = _to_col_if_str(e, "to_json")
-    return builtin("to_json")(c)
+    return builtin("to_json", _emit_ast=_emit_ast)(c)
 
 
-def to_object(e: ColumnOrName) -> Column:
+@publicapi
+def to_object(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Converts any value to a OBJECT value or NULL (if input is NULL).
 
     Example::
@@ -7018,10 +7217,11 @@ def to_object(e: ColumnOrName) -> Column:
         [Row(ANS='{\\n  "a": 10,\\n  "b": 20\\n}'), Row(ANS=None)]
     """
     c = _to_col_if_str(e, "to_object")
-    return builtin("to_object")(c)
+    return builtin("to_object", _emit_ast=_emit_ast)(c)
 
 
-def to_variant(e: ColumnOrName) -> Column:
+@publicapi
+def to_variant(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Converts any value to a VARIANT value or NULL (if input is NULL).
 
     Example::
@@ -7041,10 +7241,11 @@ def to_variant(e: ColumnOrName) -> Column:
         [Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='VARCHAR'), Row(ANS='OBJECT'), Row(ANS='ARRAY')]
     """
     c = _to_col_if_str(e, "to_variant")
-    return builtin("to_variant")(c)
+    return builtin("to_variant", _emit_ast=_emit_ast)(c)
 
 
-def to_xml(e: ColumnOrName) -> Column:
+@publicapi
+def to_xml(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Converts any VARIANT value to a string containing the XML representation of the
     value. If the input is NULL, the result is also NULL.
 
@@ -7057,10 +7258,13 @@ def to_xml(e: ColumnOrName) -> Column:
         [Row(ANS='<SnowflakeData type="INTEGER">10</SnowflakeData>'), Row(ANS='<SnowflakeData type="VARCHAR">test</SnowflakeData>'), Row(ANS='<SnowflakeData type="OBJECT"><a type="INTEGER">10</a><b type="INTEGER">20</b></SnowflakeData>'), Row(ANS='<SnowflakeData type="ARRAY"><e type="INTEGER">1</e><e type="INTEGER">2</e><e type="INTEGER">3</e></SnowflakeData>')]
     """
     c = _to_col_if_str(e, "to_xml")
-    return builtin("to_xml")(c)
+    return builtin("to_xml", _emit_ast=_emit_ast)(c)
 
 
-def get_ignore_case(obj: ColumnOrName, field: ColumnOrName) -> Column:
+@publicapi
+def get_ignore_case(
+    obj: ColumnOrName, field: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """
     Extracts a field value from an object. Returns NULL if either of the arguments is NULL.
     This function is similar to :meth:`get` but applies case-insensitive matching to field names.
@@ -7073,10 +7277,11 @@ def get_ignore_case(obj: ColumnOrName, field: ColumnOrName) -> Column:
     """
     c1 = _to_col_if_str(obj, "get_ignore_case")
     c2 = _to_col_if_str(field, "get_ignore_case")
-    return builtin("get_ignore_case")(c1, c2)
+    return builtin("get_ignore_case", _emit_ast=_emit_ast)(c1, c2)
 
 
-def object_keys(obj: ColumnOrName) -> Column:
+@publicapi
+def object_keys(obj: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Returns an array containing the list of keys in the input object.
 
 
@@ -7105,13 +7310,15 @@ def object_keys(obj: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(obj, "object_keys")
-    return builtin("object_keys")(c)
+    return builtin("object_keys", _emit_ast=_emit_ast)(c)
 
 
+@publicapi
 def xmlget(
     xml: ColumnOrName,
     tag: ColumnOrName,
     instance_num: Union[ColumnOrName, int] = 0,
+    _emit_ast: bool = True,
 ) -> Column:
     """Extracts an XML element object (often referred to as simply a tag) from a content of outer
     XML element object by the name of the tag and its instance number (counting from 0).
@@ -7157,10 +7364,11 @@ def xmlget(
         if isinstance(instance_num, int)
         else _to_col_if_str(instance_num, "xmlget")
     )
-    return builtin("xmlget")(c1, c2, c3)
+    return builtin("xmlget", _emit_ast=_emit_ast)(c1, c2, c3)
 
 
-def get_path(col: ColumnOrName, path: ColumnOrName) -> Column:
+@publicapi
+def get_path(col: ColumnOrName, path: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Extracts a value from semi-structured data using a path name.
 
@@ -7172,10 +7380,15 @@ def get_path(col: ColumnOrName, path: ColumnOrName) -> Column:
     """
     c1 = _to_col_if_str(col, "get_path")
     c2 = _to_col_if_str(path, "get_path")
-    return builtin("get_path")(c1, c2)
+    return builtin("get_path", _emit_ast=_emit_ast)(c1, c2)
 
 
-def get(col1: Union[ColumnOrName, int], col2: Union[ColumnOrName, int]) -> Column:
+@publicapi
+def get(
+    col1: Union[ColumnOrName, int],
+    col2: Union[ColumnOrName, int],
+    _emit_ast: bool = True,
+) -> Column:
     """Extracts a value from an object or array; returns NULL if either of the arguments is NULL.
 
     Example::
@@ -7201,13 +7414,16 @@ def get(col1: Union[ColumnOrName, int], col2: Union[ColumnOrName, int]) -> Colum
         <BLANKLINE>"""
     c1 = _to_col_if_str_or_int(col1, "get")
     c2 = _to_col_if_str_or_int(col2, "get")
-    return builtin("get")(c1, c2)
+    return builtin("get", _emit_ast=_emit_ast)(c1, c2)
 
 
 element_at = get
 
 
-def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
+@publicapi
+def when(
+    condition: ColumnOrSqlExpr, value: ColumnOrLiteral, _emit_ast: bool = True
+) -> CaseExpr:
     """Works like a cascading if-then-else statement.
     A series of conditions are evaluated in sequence.
     When a condition evaluates to TRUE, the evaluation stops and the associated
@@ -7238,11 +7454,14 @@ def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
         [Row(ANS='odd'), Row(ANS='unknown'), Row(ANS='even'), Row(ANS='odd'), Row(ANS='unknown'), Row(ANS='odd'), Row(ANS='even')]
     """
 
-    ast = proto.Expr()
-    expr = with_src_position(ast.sp_column_case_when)
-    case_expr = with_src_position(expr.cases.add())
-    build_expr_from_snowpark_column_or_sql_str(case_expr.condition, condition)
-    build_expr_from_snowpark_column_or_python_val(case_expr.value, value)
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        expr = with_src_position(ast.sp_column_case_when)
+        case_expr = with_src_position(expr.cases.add())
+        build_expr_from_snowpark_column_or_sql_str(case_expr.condition, condition)
+        build_expr_from_snowpark_column_or_python_val(case_expr.value, value)
 
     return CaseExpr(
         CaseWhen(
@@ -7257,10 +7476,12 @@ def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
     )
 
 
+@publicapi
 def iff(
     condition: ColumnOrSqlExpr,
     expr1: ColumnOrLiteral,
     expr2: ColumnOrLiteral,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Returns one of two specified expressions, depending on a condition.
@@ -7279,12 +7500,16 @@ def iff(
         >>> df.select(iff(df["a"], lit("true"), lit("false")).alias("iff")).collect()
         [Row(IFF='true'), Row(IFF='false'), Row(IFF='false')]
     """
-    return builtin("iff")(_to_col_if_sql_expr(condition, "iff"), expr1, expr2)
+    return builtin("iff", _emit_ast=_emit_ast)(
+        _to_col_if_sql_expr(condition, "iff"), expr1, expr2
+    )
 
 
+@publicapi
 def in_(
     cols: List[ColumnOrName],
     *vals: Union["snowflake.snowpark.DataFrame", LiteralType, Iterable[LiteralType]],
+    _emit_ast: bool = True,
 ) -> Column:
     """Returns a conditional expression that you can pass to the filter or where methods to
     perform the equivalent of a WHERE ... IN query that matches rows containing a sequence of
@@ -7331,35 +7556,39 @@ def in_(
         cols: A list of the columns to compare for the IN operation.
         vals: A list containing the values to compare for the IN operation.
     """
-    # MultipleExpression uses _expression field from columns, which will drop the column info/its ast.
-    # Fix here by constructing ast based on current column expressions.
-    list_arg = proto.Expr()
-    list_ast = with_src_position(list_arg.list_val)
-    for col in cols:
-        col_ast = list_ast.vs.add()
-        build_expr_from_snowpark_column_or_python_val(col_ast, col)
 
-    values_args = []
-    for val in vals:
-        val_ast = proto.Expr()
-        if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
-            val._set_ast_ref(val_ast)
-        else:
-            build_expr_from_python_val(val_ast, val)
-        values_args.append(val_ast)
+    # AST.
+    ast = None
+    if _emit_ast:
+        # MultipleExpression uses _expression field from columns, which will drop the column info/its ast.
+        # Fix here by constructing ast based on current column expressions.
+        list_arg = proto.Expr()
+        list_ast = with_src_position(list_arg.list_val)
+        for col in cols:
+            col_ast = list_ast.vs.add()
+            build_expr_from_snowpark_column_or_python_val(col_ast, col)
+
+        values_args = []
+        for val in vals:
+            val_ast = proto.Expr()
+            if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
+                val._set_ast_ref(val_ast)
+            else:
+                build_expr_from_python_val(val_ast, val)
+            values_args.append(val_ast)
+
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "in_", list_arg, *values_args)
 
     vals = parse_positional_args_to_list(*vals)
     columns = [_to_col_if_str(c, "in_") for c in cols]
-    col = Column(MultipleExpression([c._expression for c in columns])).in_(vals)
-
-    # Replace ast in col with correct one.
-    ast = proto.Expr()
-    build_builtin_fn_apply(ast, "in_", list_arg, *values_args)
-    col._ast = ast
-    return col
+    ans = Column(MultipleExpression([c._expression for c in columns])).in_(vals)
+    ans._ast = ast
+    return ans
 
 
-def cume_dist() -> Column:
+@publicapi
+def cume_dist(_emit_ast: bool = True) -> Column:
     """
     Finds the cumulative distribution of a value with regard to other values
     within the same window partition.
@@ -7385,10 +7614,11 @@ def cume_dist() -> Column:
         ------------
         <BLANKLINE>
     """
-    return builtin("cume_dist")()
+    return builtin("cume_dist", _emit_ast=_emit_ast)()
 
 
-def rank() -> Column:
+@publicapi
+def rank(_emit_ast: bool = True) -> Column:
     """
     Returns the rank of a value within an ordered group of values.
     The rank value starts at 1 and continues up.
@@ -7417,10 +7647,11 @@ def rank() -> Column:
         ------------
         <BLANKLINE>
     """
-    return builtin("rank")()
+    return builtin("rank", _emit_ast=_emit_ast)()
 
 
-def percent_rank() -> Column:
+@publicapi
+def percent_rank(_emit_ast: bool = True) -> Column:
     """
     Returns the relative rank of a value within a group of values, specified as a percentage
     ranging from 0.0 to 1.0.
@@ -7449,10 +7680,11 @@ def percent_rank() -> Column:
         ------------
         <BLANKLINE>
     """
-    return builtin("percent_rank")()
+    return builtin("percent_rank", _emit_ast=_emit_ast)()
 
 
-def dense_rank() -> Column:
+@publicapi
+def dense_rank(_emit_ast: bool = True) -> Column:
     """
     Returns the rank of a value within a group of values, without gaps in the ranks.
     The rank value starts at 1 and continues up sequentially.
@@ -7466,10 +7698,11 @@ def dense_rank() -> Column:
         >>> df.select(dense_rank().over(window).as_("dense_rank")).collect()
         [Row(DENSE_RANK=1), Row(DENSE_RANK=1), Row(DENSE_RANK=2), Row(DENSE_RANK=2)]
     """
-    return builtin("dense_rank")()
+    return builtin("dense_rank", _emit_ast=_emit_ast)()
 
 
-def row_number() -> Column:
+@publicapi
+def row_number(_emit_ast: bool = True) -> Column:
     """
     Returns a unique row number for each row within a window partition.
     The row number starts at 1 and continues up sequentially.
@@ -7499,14 +7732,16 @@ def row_number() -> Column:
         ------------
         <BLANKLINE>
     """
-    return builtin("row_number")()
+    return builtin("row_number", _emit_ast=_emit_ast)()
 
 
+@publicapi
 def lag(
     e: ColumnOrName,
     offset: int = 1,
     default_value: Optional[ColumnOrLiteral] = None,
     ignore_nulls: bool = False,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Accesses data in a previous row in the same result set without having to
@@ -7528,24 +7763,30 @@ def lag(
         >>> df.select(lag("Z").over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).collect()
         [Row(RESULT=None), Row(RESULT=10), Row(RESULT=1), Row(RESULT=None), Row(RESULT=1)]
     """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast, "lag", e, default_value, offset, default_value, ignore_nulls
+        )
+
     c = _to_col_if_str(e, "lag")
 
-    ast = proto.Expr()
-    build_builtin_fn_apply(
-        ast, "lag", e, default_value, offset, default_value, ignore_nulls
-    )
-
-    return Column(
+    ans = Column(
         Lag(c._expression, offset, Column._to_expr(default_value), ignore_nulls),
-        ast=ast,
     )
+    ans._ast = ast
+    return ans
 
 
+@publicapi
 def lead(
     e: ColumnOrName,
     offset: int = 1,
     default_value: Optional[Union[Column, LiteralType]] = None,
     ignore_nulls: bool = False,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Accesses data in a subsequent row in the same result set without having to
@@ -7567,22 +7808,26 @@ def lead(
         >>> df.select(lead("Z").over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).collect()
         [Row(RESULT=1), Row(RESULT=3), Row(RESULT=None), Row(RESULT=3), Row(RESULT=None)]
     """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast, "lead", e, default_value, offset, default_value, ignore_nulls
+        )
+
     c = _to_col_if_str(e, "lead")
 
-    ast = proto.Expr()
-    build_builtin_fn_apply(
-        ast, "lead", e, default_value, offset, default_value, ignore_nulls
-    )
-
-    return Column(
+    ans = Column(
         Lead(c._expression, offset, Column._to_expr(default_value), ignore_nulls),
-        ast=ast,
     )
+    ans._ast = ast
+    return ans
 
 
+@publicapi
 def last_value(
-    e: ColumnOrName,
-    ignore_nulls: bool = False,
+    e: ColumnOrName, ignore_nulls: bool = False, _emit_ast: bool = True
 ) -> Column:
     """
     Returns the last value within an ordered group of values.
@@ -7595,17 +7840,22 @@ def last_value(
         >>> df.select(df["column1"], df["column2"], last_value(df["column2"]).over(window).as_("column2_last")).collect()
         [Row(COLUMN1=1, COLUMN2=10, COLUMN2_LAST=11), Row(COLUMN1=1, COLUMN2=11, COLUMN2_LAST=11), Row(COLUMN1=2, COLUMN2=20, COLUMN2_LAST=21), Row(COLUMN1=2, COLUMN2=21, COLUMN2_LAST=21)]
     """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "last_value", e, ignore_nulls)
+
     c = _to_col_if_str(e, "last_value")
 
-    ast = proto.Expr()
-    build_builtin_fn_apply(ast, "last_value", e, ignore_nulls)
+    ans = Column(LastValue(c._expression, None, None, ignore_nulls))
+    ans._ast = ast
+    return ans
 
-    return Column(LastValue(c._expression, None, None, ignore_nulls), ast=ast)
 
-
+@publicapi
 def first_value(
-    e: ColumnOrName,
-    ignore_nulls: bool = False,
+    e: ColumnOrName, ignore_nulls: bool = False, _emit_ast: bool = True
 ) -> Column:
     """
     Returns the first value within an ordered group of values.
@@ -7618,15 +7868,21 @@ def first_value(
         >>> df.select(df["column1"], df["column2"], first_value(df["column2"]).over(window).as_("column2_first")).collect()
         [Row(COLUMN1=1, COLUMN2=10, COLUMN2_FIRST=10), Row(COLUMN1=1, COLUMN2=11, COLUMN2_FIRST=10), Row(COLUMN1=2, COLUMN2=20, COLUMN2_FIRST=20), Row(COLUMN1=2, COLUMN2=21, COLUMN2_FIRST=20)]
     """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "first_value", e, ignore_nulls)
+
     c = _to_col_if_str(e, "last_value")
 
-    ast = proto.Expr()
-    build_builtin_fn_apply(ast, "first_value", e, ignore_nulls)
+    ans = Column(FirstValue(c._expression, None, None, ignore_nulls))
+    ans._ast = ans
+    return ans
 
-    return Column(FirstValue(c._expression, None, None, ignore_nulls), ast=ast)
 
-
-def ntile(e: Union[int, ColumnOrName]) -> Column:
+@publicapi
+def ntile(e: Union[int, ColumnOrName], _emit_ast: bool = True) -> Column:
     """
     Divides an ordered data set equally into the number of buckets specified by n.
     Buckets are sequentially numbered 1 through n.
@@ -7654,10 +7910,11 @@ def ntile(e: Union[int, ColumnOrName]) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str_or_int(e, "ntile")
-    return builtin("ntile")(c)
+    return builtin("ntile", _emit_ast=_emit_ast)(c)
 
 
-def percentile_cont(percentile: float) -> Column:
+@publicapi
+def percentile_cont(percentile: float, _emit_ast: bool = True) -> Column:
     """
     Return a percentile value based on a continuous distribution of the
     input column. If no input row lies exactly at the desired percentile,
@@ -7683,10 +7940,11 @@ Row(K=2, PERCENTILE=Decimal('17.500')), \
 Row(K=3, PERCENTILE=Decimal('60.000')), \
 Row(K=4, PERCENTILE=None)]
     """
-    return builtin("percentile_cont")(percentile)
+    return builtin("percentile_cont", _emit_ast=_emit_ast)(percentile)
 
 
-def greatest(*columns: ColumnOrName) -> Column:
+@publicapi
+def greatest(*columns: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns the largest value from a list of expressions.
     If any of the argument values is NULL, the result is NULL.
@@ -7699,10 +7957,11 @@ def greatest(*columns: ColumnOrName) -> Column:
         [Row(GREATEST=3), Row(GREATEST=4), Row(GREATEST=None)]
     """
     c = [_to_col_if_str(ex, "greatest") for ex in columns]
-    return builtin("greatest")(*c)
+    return builtin("greatest", _emit_ast=_emit_ast)(*c)
 
 
-def least(*columns: ColumnOrName) -> Column:
+@publicapi
+def least(*columns: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns the smallest value from a list of expressions.
     If any of the argument values is NULL, the result is NULL.
@@ -7715,10 +7974,16 @@ def least(*columns: ColumnOrName) -> Column:
         [Row(LEAST=1), Row(LEAST=-1), Row(LEAST=None)]
     """
     c = [_to_col_if_str(ex, "least") for ex in columns]
-    return builtin("least")(*c)
+    return builtin("least", _emit_ast=_emit_ast)(*c)
 
 
-def listagg(e: ColumnOrName, delimiter: str = "", is_distinct: bool = False) -> Column:
+@publicapi
+def listagg(
+    e: ColumnOrName,
+    delimiter: str = "",
+    is_distinct: bool = False,
+    _emit_ast: bool = True,
+) -> Column:
     """
     Returns the concatenated input values, separated by `delimiter` string.
     See `LISTAGG <https://docs.snowflake.com/en/sql-reference/functions/listagg.html>`_ for details.
@@ -7735,16 +8000,22 @@ def listagg(e: ColumnOrName, delimiter: str = "", is_distinct: bool = False) -> 
         >>> df.select(listagg("col", ",").within_group(df["col"].asc()).as_("result")).collect()
         [Row(RESULT='1,2,2,3,4,5')]
     """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "listagg", e, delimiter, is_distinct)
+
     c = _to_col_if_str(e, "listagg")
 
-    ast = proto.Expr()
-    build_builtin_fn_apply(ast, "listagg", e, delimiter, is_distinct)
+    ans = Column(ListAgg(c._expression, delimiter, is_distinct))
+    ans._ast = ast
+    return ans
 
-    return Column(ListAgg(c._expression, delimiter, is_distinct), ast=ast)
 
-
+@publicapi
 def when_matched(
-    condition: Optional[Column] = None,
+    condition: Optional[Column] = None, _emit_ast: bool = True
 ) -> "snowflake.snowpark.table.WhenMatchedClause":
     """
     Specifies a matched clause for the :meth:`Table.merge <snowflake.snowpark.Table.merge>` action.
@@ -7766,11 +8037,12 @@ def when_matched(
         [Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='new'), Row(KEY=11, VALUE='old')]
 
     """
-    return snowflake.snowpark.table.WhenMatchedClause(condition)
+    return snowflake.snowpark.table.WhenMatchedClause(condition, _emit_ast=_emit_ast)
 
 
+@publicapi
 def when_not_matched(
-    condition: Optional[Column] = None,
+    condition: Optional[Column] = None, _emit_ast: bool = True
 ) -> "snowflake.snowpark.table.WhenNotMatchedClause":
     """
     Specifies a not-matched clause for the :meth:`Table.merge <snowflake.snowpark.Table.merge>` action.
@@ -7793,9 +8065,10 @@ def when_not_matched(
         >>> target.sort(col("key"), col("value")).collect()
         [Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='too_old'), Row(KEY=11, VALUE='old'), Row(KEY=12, VALUE=None), Row(KEY=13, VALUE=None)]
     """
-    return snowflake.snowpark.table.WhenNotMatchedClause(condition)
+    return snowflake.snowpark.table.WhenNotMatchedClause(condition, _emit_ast=_emit_ast)
 
 
+@publicapi
 def udf(
     func: Optional[Callable] = None,
     *,
@@ -8039,6 +8312,7 @@ def udf(
         )
 
 
+@publicapi
 def udtf(
     handler: Optional[Callable] = None,
     *,
@@ -8273,6 +8547,7 @@ def udtf(
         )
 
 
+@publicapi
 def udaf(
     handler: Optional[typing.Type] = None,
     *,
@@ -8509,6 +8784,7 @@ def udaf(
         )
 
 
+@publicapi
 def pandas_udf(
     func: Optional[Callable] = None,
     *,
@@ -8614,6 +8890,7 @@ def pandas_udf(
     )
 
 
+@publicapi
 def pandas_udtf(
     handler: Optional[Callable] = None,
     *,
@@ -8750,6 +9027,7 @@ def pandas_udtf(
     )
 
 
+@publicapi
 def call_udf(udf_name: str, *args: ColumnOrLiteral, _emit_ast: bool = True) -> Column:
     """Calls a user-defined function (UDF) by name.
 
@@ -8805,9 +9083,11 @@ def call_udf(udf_name: str, *args: ColumnOrLiteral, _emit_ast: bool = True) -> C
     )
 
 
+@publicapi
 def call_table_function(
     function_name: str,
     *args: ColumnOrLiteral,
+    _emit_ast: bool = True,
     **kwargs: ColumnOrLiteral,
 ) -> "snowflake.snowpark.table_function.TableFunctionCall":
     """Invokes a Snowflake table function, including system-defined table functions and user-defined table functions.
@@ -8824,10 +9104,12 @@ def call_table_function(
         >>> session.table_function(call_table_function("split_to_table", lit("split words to table"), lit(" ")).over()).collect()
         [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
     """
-    # AST
-    ast = proto.Expr()
-    ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__call_table_fn = True
-    build_table_fn_apply(ast, function_name, *args, **kwargs)
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__call_table_fn = True
+        build_table_fn_apply(ast, function_name, *args, **kwargs)
 
     func_call = snowflake.snowpark.table_function.TableFunctionCall(
         function_name, *args, **kwargs
@@ -8837,7 +9119,8 @@ def call_table_function(
     return func_call
 
 
-def table_function(function_name: str) -> Callable:
+@publicapi
+def table_function(function_name: str, _emit_ast: bool = True) -> Callable:
     """Create a function object to invoke a Snowflake table function.
 
     Args:
@@ -8852,15 +9135,19 @@ def table_function(function_name: str) -> Callable:
     fn = lambda *args, **kwargs: call_table_function(  # noqa: E731
         function_name, *args, **kwargs
     )
-    # AST
-    ast = proto.Expr()
-    ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__table_fn = True
-    build_table_fn_apply(ast, function_name)
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__table_fn = True
+        build_table_fn_apply(ast, function_name)
     fn._ast = ast
 
     return fn
 
 
+@publicapi
 def call_function(
     function_name: str, *args: ColumnOrLiteral, _emit_ast: bool = True
 ) -> Column:
@@ -8889,6 +9176,7 @@ def call_function(
     return _call_function(function_name, False, *args, _emit_ast=_emit_ast)
 
 
+@publicapi
 def function(function_name: str, _emit_ast: bool = True) -> Callable:
     """
     Function object to invoke a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function). Use this to invoke
@@ -8960,6 +9248,7 @@ def _call_function(
     )
 
 
+@publicapi
 def sproc(
     func: Optional[Callable] = None,
     *,
@@ -8981,6 +9270,7 @@ def sproc(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     comment: Optional[str] = None,
+    _emit_ast: bool = True,
     **kwargs,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -9117,6 +9407,9 @@ def sproc(
         2
     """
 
+    if _emit_ast:
+        raise NotImplementedError("TODO 1675257: support sprocs for AST.")
+
     # Initial check to make sure no unexpected args are passed in
     check_decorator_args(**kwargs)
 
@@ -9191,7 +9484,10 @@ map_from_arrays = arrays_to_object
 signum = sign
 
 
-def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+@publicapi
+def unix_timestamp(
+    e: ColumnOrName, fmt: Optional["Column"] = None, _emit_ast: bool = True
+) -> Column:
     """
     Converts a timestamp or a timestamp string to Unix time stamp (in seconds).
 
@@ -9207,10 +9503,23 @@ def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         ---------------
         <BLANKLINE>
     """
-    return date_part("epoch_second", to_timestamp(e, fmt))
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "unix_timestamp", e, fmt)
+
+    ans = date_part(
+        "epoch_second", to_timestamp(e, fmt, _emit_ast=False), _emit_ast=False
+    )
+    ans._ast = ast
+    return ans
 
 
-def locate(expr1: str, expr2: ColumnOrName, start_pos: int = 1) -> Column:
+@publicapi
+def locate(
+    expr1: str, expr2: ColumnOrName, start_pos: int = 1, _emit_ast: bool = True
+) -> Column:
     """
     Searches for the first occurrence of the first argument in the second argument.
     If successful, returns the position (1-based) of the first argument in the second argument.
@@ -9234,4 +9543,4 @@ def locate(expr1: str, expr2: ColumnOrName, start_pos: int = 1) -> Column:
     """
     _substr = lit(expr1)
     _str = _to_col_if_str(expr2, "locate")
-    return builtin("charindex")(_substr, _str, lit(start_pos))
+    return builtin("charindex", _emit_ast=_emit_ast)(_substr, _str, lit(start_pos))
