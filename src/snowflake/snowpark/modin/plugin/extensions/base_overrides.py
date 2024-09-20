@@ -1274,7 +1274,7 @@ def resample(
     """
     Resample time-series data.
     """
-    from snowflake.snowpark.modin.pandas.resample import Resampler
+    from snowflake.snowpark.modin.plugin.extensions.resample_overrides import Resampler
 
     if axis is not lib.no_default:  # pragma: no cover
         axis = self._get_axis_number(axis)
