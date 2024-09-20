@@ -10,6 +10,7 @@ import platform
 import random
 import string
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import date, datetime, time
 from decimal import Decimal
@@ -133,6 +134,29 @@ def running_on_public_ci() -> bool:
 def running_on_jenkins() -> bool:
     """Whether tests are currently running on a Jenkins node."""
     return RUNNING_ON_JENKINS
+
+
+def running_in_multi_threaded_mode() -> bool:
+    """Whether tests are currently running in multi-threaded mode."""
+    return os.getenv("SNOWPARK_MULTITHREADING_MODE") == "true"
+
+
+def multithreaded_run(num_threads: int) -> None:
+    """When multithreading_mode is enabled, run the decorated test function in multiple threads."""
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if running_in_multi_threaded_mode():
+                with ThreadPoolExecutor(max_workers=num_threads) as executor:
+                    for _ in range(num_threads):
+                        executor.submit(func, *args, **kwargs)
+            else:
+                func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 class Utils:

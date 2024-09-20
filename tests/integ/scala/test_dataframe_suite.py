@@ -65,6 +65,7 @@ from tests.utils import (
     TestData,
     TestFiles,
     Utils,
+    multithreaded_run,
 )
 
 SAMPLING_DEVIATION = 0.4
@@ -181,6 +182,7 @@ def test_view_should_be_updated(session, local_testing_mode):
             Utils.drop_view(session, view_name)
 
 
+@multithreaded_run(num_threads=5)
 def test_create_or_replace_view_with_null_data(session, local_testing_mode):
     df = session.create_dataframe([[1, None], [2, "NotNull"], [3, None]]).to_df(
         ["a", "b"]
@@ -329,6 +331,7 @@ def test_cache_result(session):
     Utils.check_answer(df2, [Row(3)])
 
 
+@multithreaded_run(num_threads=5)
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="This is testing query generation",

@@ -43,7 +43,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
-from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils, multithreaded_run
 
 test_file_csv = "testCSV.csv"
 test_file_cvs_various_data = "testCSVvariousData.csv"
@@ -395,6 +395,7 @@ def test_read_csv_with_infer_schema(session, mode, parse_header):
     Utils.check_answer(df, [Row(1, "one", 1.2), Row(2, "two", 2.2)])
 
 
+@multithreaded_run(num_threads=5)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1435112: csv infer schema option is not supported",
@@ -636,6 +637,7 @@ def test_read_csv_with_format_type_options(session, mode, local_testing_mode):
     ]
 
 
+@multithreaded_run(num_threads=5)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_to_read_files_from_stage(session, resources_path, mode, local_testing_mode):
     data_files_stage = Utils.random_stage_name()
