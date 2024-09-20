@@ -11997,6 +11997,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # 2020-03-01 1:00:00, the first date should be 2020-03-01,
         # which is what date_trunc gives us.
         if slice_unit in RULE_SECOND_TO_DAY:
+            # `slice_unit` in 'second', 'minute', 'hour', 'day'
             start_date, end_date = frame.ordered_dataframe.agg(
                 date_trunc(slice_unit, min_(snowflake_index_column_identifier)).as_(
                     min_max_index_column_quoted_identifier[0]
@@ -12007,6 +12008,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ).collect()[0]
         else:
             assert slice_unit in RULE_WEEK_TO_YEAR
+            # `slice_unit` in 'week', 'month', 'quarter', or 'year'. Set the start and end dates
+            # to the last day of the given `slice_unit`. Use the right bin edge by adding a `slice_width`
+            # of the given `slice_unit` to the first and last date of the index.
             start_date, end_date = frame.ordered_dataframe.agg(
                 last_day(
                     date_trunc(
