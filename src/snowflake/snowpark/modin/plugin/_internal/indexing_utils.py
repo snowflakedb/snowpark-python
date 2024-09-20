@@ -258,7 +258,9 @@ def convert_positional_key(
     integer: the Cython equivalent of `isinstance(val, (int, long, np.integer)) and not isinstance(val, bool)`.
             See source code in pandas/_libs/tslibs/util.pxd:is_integer_object for details.
     """
-    from snowflake.snowpark.modin.pandas.indexing import is_range_like
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (  # pragma: no cover
+        is_range_like,
+    )
 
     if isinstance(key, pd.Series):
         key_frame = key._query_compiler._modin_frame
