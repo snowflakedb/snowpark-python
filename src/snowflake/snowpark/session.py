@@ -3516,7 +3516,7 @@ class Session:
                 "profiler is not set, use session.register_profiler or profiler context manager"
             )
 
-    def register_profiler_modules(self, modules: List[str]):
+    def register_profiler_modules(self, stored_procedures: List[str]):
         """
         Register stored procedures to generate profiles for them.
 
@@ -3524,14 +3524,12 @@ class Session:
             Registered nodules will be overwritten by this function,
             use this function with an empty string will remove registered modules.
         Args:
-            modules: List of names of stored procedures.
+            stored_procedures: List of names of stored procedures.
         """
         if self.profiler is not None and isinstance(self.profiler, Profiler):
-            self.profiler.register_profiler_modules(modules)
+            self.profiler.register_profiler_modules(stored_procedures)
         else:
-            sql_statement = (
-                f"alter session set python_profiler_modules='{','.join(modules)}'"
-            )
+            sql_statement = f"alter session set python_profiler_modules='{','.join(stored_procedures)}'"
             self.sql(sql_statement).collect()
 
     def query_history(self, include_describe: bool = False) -> QueryHistory:

@@ -26,25 +26,25 @@ class Profiler:
         self.stage = stage
         self.active_profiler = active_profiler
         self.modules_to_register = []
-        self.register_modules_sql = ""
-        self.set_targeted_stage_sql = ""
-        self.enable_profiler_sql = ""
-        self.disable_profiler_sql = ""
-        self.set_active_profiler_sql = ""
+        self._register_modules_sql = ""
+        self._set_targeted_stage_sql = ""
+        self._enable_profiler_sql = ""
+        self._disable_profiler_sql = ""
+        self._set_active_profiler_sql = ""
         self.pattern = r"WITH\s+.*?\s+AS\s+PROCEDURE\s+.*?\s+CALL\s+.*"
         self.session = session
         self._prepare_sql()
         self.query_history = None
 
     def _prepare_sql(self):
-        self.register_modules_sql = f"alter session set python_profiler_modules='{','.join(self.modules_to_register)}'"
-        self.set_targeted_stage_sql = (
+        self._register_modules_sql = f"alter session set python_profiler_modules='{','.join(self.modules_to_register)}'"
+        self._set_targeted_stage_sql = (
             f'alter session set PYTHON_PROFILER_TARGET_STAGE ="{self.stage}"'
         )
-        self.disable_profiler_sql = "alter session set ACTIVE_PYTHON_PROFILER = ''"
-        self.set_active_profiler_sql = f"alter session set ACTIVE_PYTHON_PROFILER = '{self.active_profiler.upper()}'"
+        self._disable_profiler_sql = "alter session set ACTIVE_PYTHON_PROFILER = ''"
+        self._set_active_profiler_sql = f"alter session set ACTIVE_PYTHON_PROFILER = '{self.active_profiler.upper()}'"
 
-    def register_profiler_modules(self, modules: List[str]):
+    def register_profiler_modules(self, stored_procedures: List[str]):
         """
         Register stored procedures to generate profiles for them.
 
@@ -52,9 +52,9 @@ class Profiler:
             Registered nodules will be overwritten by this function,
             use this function with an empty string will remove registered modules.
         Args:
-            modules: List of names of stored procedures.
+            stored_procedures: List of names of stored procedures.
         """
-        self.modules_to_register = modules
+        self.modules_to_register = stored_procedures
         self._prepare_sql()
         if self.session is not None:
             self._register_modules()
@@ -108,13 +108,13 @@ class Profiler:
             self._set_active_profiler()
 
     def _register_modules(self):
-        self.session.sql(self.register_modules_sql).collect()
+        self.session.sql(self._register_modules_sql).collect()
 
     def _set_targeted_stage(self):
-        self.session.sql(self.set_targeted_stage_sql).collect()
+        self.session.sql(self._set_targeted_stage_sql).collect()
 
     def _set_active_profiler(self):
-        self.session.sql(self.set_active_profiler_sql).collect()
+        self.session.sql(self._set_active_profiler_sql).collect()
 
     def enable(self):
         """
@@ -129,7 +129,7 @@ class Profiler:
         """
         Disable profiler.
         """
-        self.session.sql(self.disable_profiler_sql).collect()
+        self.session.sql(self._disable_profiler_sql).collect()
 
     def _is_sp_call(self, query):
         return re.match(self.pattern, query, re.DOTALL) is not None
