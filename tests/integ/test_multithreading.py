@@ -501,6 +501,8 @@ class OffsetSumUDAFHandler:
 
 def test_config_context(session):
     config_context = ConfigContext(session)
+
+    # Check if all context configs are present in the session
     for name in config_context.configs:
         assert hasattr(session, name)
 
@@ -513,6 +515,7 @@ def test_config_context(session):
             session._query_compilation_stage_enabled
         )
         with config_context:
+            # Active context
             session.cte_optimization_enabled = not original_cte_optimization
             session.eliminate_numeric_sql_value_cast_enabled = (
                 not original_eliminate_numeric_sql_value_cast_enabled
@@ -531,6 +534,7 @@ def test_config_context(session):
                 == original_query_compilation_stage_enabled
             )
 
+        # Context is deactivated
         assert (
             config_context.cte_optimization_enabled == session.cte_optimization_enabled
         )
