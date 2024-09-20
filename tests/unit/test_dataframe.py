@@ -13,6 +13,7 @@ from snowflake.snowpark import (
     DataFrameNaFunctions,
     DataFrameReader,
     DataFrameStatFunctions,
+    Row,
 )
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -21,7 +22,7 @@ from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.dataframe import _get_unaliased
 from snowflake.snowpark.exceptions import SnowparkCreateDynamicTableException
 from snowflake.snowpark.session import Session
-from snowflake.snowpark.types import IntegerType, StringType
+from snowflake.snowpark.types import IntegerType, StringType, StructField, StructType
 
 
 def test_get_unaliased():
@@ -311,6 +312,54 @@ def test_dataFrame_printSchema(capfd):
         out
         == "root\n |-- A: IntegerType() (nullable = False)\n |-- B: StringType() (nullable = True)\n"
     )
+
+
+def test_dataFrame_map():
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+
+    def generated_udtf(*args, **kwargs):
+        return lambda *arguments: args[0]()
+
+    with mock.patch(
+        "snowflake.snowpark.DataFrame.join_table_function",
+        return_value=mock.MagicMock(),
+    ) as join_table_func_mock, mock.patch(
+        "snowflake.snowpark.DataFrame.columns", new_callable=mock.PropertyMock
+    ) as columns, mock.patch(
+        "snowflake.snowpark.udtf.UDTFRegistration.register", side_effect=generated_udtf
+    ) as register_mock:
+        columns.return_value = ["i", "n"]
+        df1 = session.create_dataframe(
+            [[1, "x"], [3, None]],
+            schema=StructType(
+                [StructField("i", IntegerType()), StructField("n", StringType())]
+            ),
+        )
+        columns.return_value = ["i", "n"]
+        df1.map(lambda row: row[1], output_types=[StringType()])
+
+        assert register_mock.call_count == 1
+        handler = join_table_func_mock.mock_calls[0].args[0]
+        assert list(handler.process(1, "x")) == [("x",)]
+
+        df2 = session.create_dataframe(
+            [["x"], ["y"]], schema=StructType([StructField("C_1", StringType())])
+        )
+        columns.return_value = ["C_1"]
+        df2.map(lambda r: (r, r), output_types=[StringType()], wrap_row=False)
+
+        assert register_mock.call_count == 2
+        handler = join_table_func_mock.mock_calls[1].args[0]
+        assert list(handler.process("x")) == [("x", "x")]
+
+        columns.return_value = ["i", "n"]
+        df1.map(lambda r: Row(r[1], 1), output_types=[StringType()])
+
+        assert register_mock.call_count == 3
+        handler = join_table_func_mock.mock_calls[2].args[0]
+        assert list(handler.process(1, "x")) == [("x", 1)]
 
 
 def test_session():
