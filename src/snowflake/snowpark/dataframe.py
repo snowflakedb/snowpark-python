@@ -4192,8 +4192,8 @@ Query List:
     def map(
         self,
         func: Callable,
-        output_types: list[StructType],
-        output_column_names: Optional[list[str]] = None,
+        output_types: List[StructType],
+        output_column_names: Optional[List[str]] = None,
         wrap_row=True,
         **kwargs: Dict[str, Any],
     ):

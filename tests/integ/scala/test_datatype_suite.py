@@ -381,7 +381,7 @@ def test_structured_dtypes_select(structured_type_session, examples):
     query, expected_dtypes, expected_schema = examples
     df = _create_test_dataframe(structured_type_session)
     flattened_df = df.select(
-        df.map["k1"].alias("value1"),
+        df.Map["k1"].alias("value1"),
         df.obj["A"].alias("a"),
         col("obj")["B"].alias("b"),
         df.arr[0].alias("value2"),
@@ -639,7 +639,7 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
 
     cast_df = df.select(
         df.arr.cast(ArrayType(IntegerType(), structured=True)).alias("arr"),
-        df.map.cast(MapType(StringType(100), IntegerType(), structured=True)).alias(
+        df.Map.cast(MapType(StringType(100), IntegerType(), structured=True)).alias(
             "map"
         ),
         df.obj.cast(
