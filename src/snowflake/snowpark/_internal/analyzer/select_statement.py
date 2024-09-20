@@ -25,6 +25,7 @@ import snowflake.snowpark._internal.utils
 from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
+    subtract_complexities,
     sum_node_complexities,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
@@ -656,6 +657,7 @@ class SelectStatement(Selectable):
         # _merge_projection_complexity_with_subquery is used to indicate that it is valid to merge
         # the projection complexity of current SelectStatement with subquery.
         self._merge_projection_complexity_with_subquery = False
+        self._projection_complexity: Optional[List[PlanNodeCategory, int]] = None
 
     def __copy__(self):
         new = SelectStatement(
@@ -844,17 +846,7 @@ class SelectStatement(Selectable):
         complexity = {}
         # projection component
         complexity = (
-            sum_node_complexities(
-                complexity,
-                *(
-                    getattr(
-                        expr,
-                        "cumulative_node_complexity",
-                        {PlanNodeCategory.COLUMN: 1},
-                    )  # type: ignore
-                    for expr in self.projection
-                ),
-            )
+            sum_node_complexities(*self.projection_complexities)
             if self.projection
             else complexity
         )
@@ -895,6 +887,20 @@ class SelectStatement(Selectable):
         return complexity
 
     @property
+    def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        if self._cumulative_node_complexity is None:
+            self._cumulative_node_complexity = super().cumulative_node_complexity
+            if self._try_merge_projection_complexity:
+                # subtract the from_ projection complexity
+                assert isinstance(self.from_, SelectStatement)
+                self._cumulative_node_complexity = subtract_complexities(
+                    self._cumulative_node_complexity,
+                    sum_node_complexities(*self.projection_complexities),
+                )
+
+        return self._cumulative_node_complexity
+
+    @property
     def referenced_ctes(self) -> Set[str]:
         return self.from_.referenced_ctes
 
@@ -912,6 +918,67 @@ class SelectStatement(Selectable):
             new.column_states = self.column_states
             return new
         return self
+
+    def get_projection_name_complexity_map(
+        self,
+    ) -> Optional[Dict[str, Dict[PlanNodeCategory, int]]]:
+        if (
+            (not self._column_states)
+            or (not self.projection)
+            or (not self._column_states.projection)
+        ):
+            return None
+
+        if len(self.projection) != len(self.column_states.projection):
+            return None
+
+        projection_complexity = self.projection_complexities
+        if len(self.column_states.projection) != len(projection_complexity):
+            return None
+        else:
+            return {
+                complexity: attribute.name
+                for complexity, attribute in zip(
+                    projection_complexity, self.column_states.projection
+                )
+            }
+
+    @property
+    def projection_complexities(self) -> List[Dict[PlanNodeCategory, int]]:
+        if self.projection is None:
+            return []
+
+        if self._projection_complexity is None:
+            if self._try_merge_projection_complexity:
+                assert isinstance(
+                    self.from_, SelectStatement
+                ), "merge with none SelectStatement is not valid"
+                subquery_projection_name_complexity_map = (
+                    self.from_.get_projection_name_complexity_map()
+                )
+                assert (
+                    subquery_projection_name_complexity_map is not None
+                ), "failed to extract dependent column map from subquery"
+                self._projection_complexity = []
+                for proj in self.projection:
+                    dependent_columns = proj.dependent_column_names_with_duplication()
+                    projection_complexity = proj.cumulative_node_complexity
+                    for dependent_column in dependent_columns:
+                        dependent_column_complexity = (
+                            subquery_projection_name_complexity_map[dependent_column]
+                        )
+                        projection_complexity[PlanNodeCategory.COLUMN] -= 1
+                        projection_complexity = subtract_complexities(
+                            projection_complexity, dependent_column_complexity
+                        )
+
+                    self._projection_complexity.append(projection_complexity)
+            else:
+                self._projection_complexity = [
+                    expr.cumulative_node_complexity for expr in self.projection
+                ]
+
+        return self._projection_complexity
 
     def select(self, cols: List[Expression]) -> "SelectStatement":
         """Build a new query. This SelectStatement will be the subquery of the new query.
