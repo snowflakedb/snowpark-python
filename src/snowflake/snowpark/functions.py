@@ -6657,7 +6657,7 @@ def get(col1: Union[ColumnOrName, int], col2: Union[ColumnOrName, int]) -> Colum
         ----------
         <BLANKLINE>
 
-        >>> df.select(get(df.map, lit("a")).as_("get_a")).sort(col("get_a")).show()
+        >>> df.select(get(df.Map, lit("a")).as_("get_a")).sort(col("get_a")).show()
         -----------
         |"GET_A"  |
         -----------

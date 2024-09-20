@@ -4279,7 +4279,7 @@ Query List:
             else:
                 return (result,)
 
-        class MapFunc:
+        class _MapFunc:
             def process(self, *argv):
                 if wrap_row:
                     argv = [input_row_obj(*argv)]
@@ -4287,7 +4287,7 @@ Query List:
                 yield wrap_result(result)
 
         map_udtf = self._session.udtf.register(
-            MapFunc,
+            _MapFunc,
             output_schema=StructType(output_schema),
             input_types=input_types,
             is_permanent=False,

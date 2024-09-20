@@ -4234,6 +4234,14 @@ def test_map(session):
     expected = [Row(i * 2, f"w{i}") for i in range(15)]
     assert res == expected
 
+    # map call with a function that uses column names and returns a list
+    new_df = df1.map(
+        lambda row: [row.B, row.C], output_types=[IntegerType(), StringType()]
+    )
+    res = sorted(new_df.collect(), key=lambda r: r[0])
+    expected = [Row(i, f"w{i}") for i in range(15)]
+    assert res == expected
+
     # map call with a function that receives a scalar value
     df2 = session.create_dataframe([(i,) for i in range(10)], schema=["V"])
     new_df = df2.map(lambda x: x * x, output_types=[IntegerType()], wrap_row=False)
@@ -4265,6 +4273,7 @@ def test_map(session):
         lambda x: Row(len(x.B) + x.A),
         output_types=[IntegerType()],
         output_column_names=["A"],
+        packages=["snowflake-snowpark-python"],
     )
     res = [r[0] for r in sorted(new_df.collect(), key=lambda r: r[0])]
     expected = [len(f"_w{i}_") + i * i for i in range(15)]
