@@ -1208,7 +1208,7 @@ def expanding(self, min_periods=1, axis=0, method="single"):  # noqa: PR01, RT01
     """
     Provide expanding window calculations.
     """
-    from snowflake.snowpark.modin.pandas.window import Expanding
+    from snowflake.snowpark.modin.plugin.extensions.window_overrides import Expanding
 
     if axis is not lib.no_default:
         axis = self._get_axis_number(axis)
@@ -1280,7 +1280,7 @@ def rolling(
         axis = 0
 
     if win_type is not None:
-        from snowflake.snowpark.modin.pandas.window import Window
+        from snowflake.snowpark.modin.plugin.extensions.window_overrides import Window
 
         return Window(
             self,
@@ -1294,7 +1294,7 @@ def rolling(
             step=step,
             method=method,
         )
-    from snowflake.snowpark.modin.pandas.window import Rolling
+    from snowflake.snowpark.modin.plugin.extensions.window_overrides import Rolling
 
     return Rolling(
         self,
