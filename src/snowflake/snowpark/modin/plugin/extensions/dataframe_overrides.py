@@ -60,6 +60,7 @@ from pandas.core.dtypes.common import (
     is_numeric_dtype,
 )
 from pandas.core.dtypes.inference import is_hashable, is_integer
+from pandas.core.indexes.base import ensure_index
 from pandas.core.indexes.frozen import FrozenList
 from pandas.io.formats.printing import pprint_thing
 from pandas.util._validators import validate_bool_kwarg
@@ -472,7 +473,6 @@ def __init__(
     # Setting the query compiler
     # --------------------------
     if query_compiler is not None:
-        # CASE I: query_compiler
         # If a query_compiler is passed in only use the query_compiler field to create a new DataFrame.
         # Verify that the data, index, and columns parameters are None.
         assert_fields_are_none(
@@ -485,50 +485,38 @@ def __init__(
     # Check that index is not a DataFrame and dtype is not "category".
     error_checking_for_init(index, dtype)
 
-    # Convert columns to a local object if it is a lazy Index.
-    columns = try_convert_index_to_native(columns)
+    # Convert columns to a local object if it is lazy.
+    if columns is not None:
+        columns = (
+            columns.to_pandas()
+            if isinstance(columns, (Index, BasePandasDataset))
+            else columns
+        )
+        columns = ensure_index(columns)
 
     # The logic followed here is:
-    # STEP 1: Create a query_compiler from the provided data. If columns are provided, add/select the columns.
-    # STEP 2: If an index is provided, set the index through set_index or reindex.
-    # STEP 3: The resultant query_compiler is then set as the query_compiler for the DataFrame.
+    # STEP 1: Obtain the query_compiler from the provided data if the data is lazy. If data is local, the query
+    #         compiler is None.
+    # STEP 2: If columns are provided, set the columns if data is lazy.
+    # STEP 3: If both the data and index are local (or index is None), create a query compiler from pandas.
+    # STEP 4: Otherwise, set the index through set_index or reindex.
+    # STEP 5: The resultant query_compiler is then set as the query_compiler for the DataFrame.
 
-    # STEP 1: Setting the data (and columns)
-    # --------------------------------------
+    # STEP 1: Setting the data
+    # ------------------------
     if isinstance(data, Index):
-        # CASE II: data is a Snowpark pandas Index
         # If the data is an Index object, convert it to a DataFrame to make sure that the values are in the
         # correct format: the values should be a data column, not an index column.
-        if data.name is None:
-            # If no name is provided, the default name is 0. Otherwise, only use the first value in `columns` to
-            # set the column name; this is because the resultant DataFrame will have only one column.
-            new_name = 0 if columns is None else columns[0]
-        else:
-            new_name = data.name
-        query_compiler = data.to_frame(index=False, name=new_name)._query_compiler
-
+        # Converting the Index object to its DataFrame version sets the resultant DataFrame's column name correctly -
+        # it should be 0 if the name is None.
+        query_compiler = data.to_frame(index=False)._query_compiler
     elif isinstance(data, Series):
-        # CASE III: data is a Snowpark pandas Series
-        # If the Series `data` has no name, the default name is 0.
-        name = [data.name] if data.name is not None else [0]
-        if columns is None:
-            # If no columns are provided, the resultant DataFrame has only one column.
-            # The column name is the Series' name.
-            query_compiler = data._query_compiler.set_columns(name)
-        elif data.name in columns:
-            # Treat any columns that are not data.name as extra columns. They will be appended as NaN columns.
-            # After this, select the required columns in the order provided by `columns`.
-            query_compiler = add_extra_columns_and_select_required_columns(
-                data._query_compiler, columns, name
-            )
-        else:
-            # If the columns provided are not in the named Series, pandas clears the DataFrame and sets columns.
-            query_compiler = from_pandas(
-                native_pd.DataFrame(columns=columns)
-            )._query_compiler
-
+        # Rename the Series object to 0 if its name is None and grab its query compiler.
+        query_compiler = data.rename(
+            0 if data.name is None else data.name, inplace=False
+        )._query_compiler
     elif isinstance(data, DataFrame):
-        # CASE IV: data is a Snowpark pandas DataFrame
+        query_compiler = data._query_compiler
         if columns is None and index is None:
             # Special case: if the new DataFrame has the same columns and index as the original DataFrame,
             # the query compiler is shared and kept track of as a sibling.
@@ -537,19 +525,38 @@ def __init__(
                 # When copy is False, the DataFrame is a shallow copy of the original DataFrame.
                 data._add_sibling(self)
             return
-        # Treat any columns that are not in data.columns as extra columns. They will be appended as NaN columns.
-        # After this, select the required columns in the order provided by `columns`.
-        query_compiler = add_extra_columns_and_select_required_columns(
-            data._query_compiler, columns, data.columns
-        )
 
-    else:
-        # CASE V: Non-Snowpark pandas data
+    # STEP 2: Setting the columns if data is lazy
+    # -------------------------------------------
+    # When data is lazy, the query compiler is not None.
+    if query_compiler is not None:
+        if columns is not None:
+            if (
+                isinstance(data, (Index, Series))
+                and query_compiler.get_columns()[0] not in columns
+            ):
+                # If the name of the Series/Index is not in the columns, clear the DataFrame and set the columns.
+                query_compiler = from_pandas(
+                    native_pd.DataFrame(columns=columns)
+                )._query_compiler
+            else:
+                # Treat any columns not in data.columns (or data.name if data is a Series/Index) as extra columns.
+                # They will be appended as NaN columns. Then, select the required columns in the order provided by `columns`.
+                query_compiler = add_extra_columns_and_select_required_columns(
+                    query_compiler, columns
+                )
+
+    # STEP 3: Creating a query compiler from pandas
+    # ---------------------------------------------
+    else:  # When the data is local, the query compiler is None.
+        # If the data, columns, and index are local objects, the query compiler representation is created from pandas.
+        # However, when the data is a dict but the index is lazy, the index is converted to pandas and the query
+        # compiler is created from pandas.
         if not isinstance(
             data, (native_pd.Series, native_pd.DataFrame, native_pd.Index)
         ) and is_list_like(data):
+            # If data is a pandas object, directly handle it with the pandas constructor.
             if is_dict_like(data):
-                # Setting up keys and values for processing if all the values are Snowpark pandas objects.
                 if columns is not None:
                     # Reduce the dictionary to only the relevant columns as the keys.
                     data = {key: value for key, value in data.items() if key in columns}
@@ -565,18 +572,19 @@ def __init__(
                     )
                     return
 
-                # If only some data is a Snowpark pandas object, convert it to pandas objects.
+                # If only some data is a Snowpark pandas object, convert the lazy data to pandas objects.
                 res = {}
-                index = try_convert_index_to_native(index)
                 for k, v in data.items():
                     if isinstance(v, Index):
                         res[k] = v.to_pandas()
                     elif isinstance(v, BasePandasDataset):
                         # Need to perform reindex on the Series or DataFrame objects since only the data
                         # whose index matches the given index is kept.
-                        res[k] = v.to_pandas().reindex(index=index)
+                        res[k] = v.reindex(index=index).to_pandas()
                     else:
                         res[k] = v
+                # If the index is lazy, convert it to a pandas object so that the pandas constructor can handle it.
+                index = try_convert_index_to_native(index)
                 data = res
 
             else:  # list-like but not dict-like data.
@@ -594,8 +602,8 @@ def __init__(
                 # Sometimes the ndarray representation of a list is different from a regular list.
                 # For instance, [(1, 2, 3), (4, 5, 6), (7, 8, 9)], dtype=[("a", "i4"), ("b", "i4"), ("c", "i4")]
                 # is different from np.array([(1, 2, 3), (4, 5, 6), (7, 8, 9)], dtype=[("a", "i4"), ("b", "i4"), ("c", "i4")]).
-                # The list has the shape (3, 3) while the ndarray has the shape (3,). Therefore, do not modify
-                # the ndarray data.
+                # The list has the shape (3, 3) while the ndarray has the shape (3,).
+                # Therefore, do not modify the ndarray data.
                 if not isinstance(data, np.ndarray):
                     # If only some data is a Snowpark pandas object, convert it to pandas objects.
                     res = [
@@ -609,7 +617,7 @@ def __init__(
         query_compiler = from_pandas(
             native_pd.DataFrame(
                 data=data,
-                # Handle setting the index, if it is a lazy index, outside this block.
+                # Handle setting the index, if it is a lazy index, outside this block in STEP 4.
                 index=None if isinstance(index, (Index, Series)) else index,
                 columns=columns,
                 dtype=dtype,
@@ -617,9 +625,9 @@ def __init__(
             )
         )._query_compiler
 
-    # STEP 2: Setting the index
+    # STEP 4: Setting the index
     # -------------------------
-    # The index is already set if the data is a non-Snowpark pandas object.
+    # The index is already set if the data and index are non-Snowpark pandas objects.
     # If either the data or the index is a Snowpark pandas object, set the index here.
     if index is not None and (
         isinstance(index, (Index, Series))
@@ -638,7 +646,7 @@ def __init__(
                 convert_index_to_list_of_qcs(index)
             )
 
-    # STEP 3: Setting the query compiler
+    # STEP 5: Setting the query compiler
     # ----------------------------------
     self._query_compiler = query_compiler
 

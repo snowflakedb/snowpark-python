@@ -2062,6 +2062,9 @@ def convert_index_to_qc(index: Any) -> Any:
     if isinstance(index, Index):
         idx_qc = index.to_series()._query_compiler
     elif isinstance(index, Series):
+        # The name of the index comes from the Series' name, not the index name. `reindex` does not handle this,
+        # so we need to set the name of the index to the name of the Series.
+        index.index.name = index.name
         idx_qc = index._query_compiler
     else:
         idx_qc = Series(index)._query_compiler
@@ -2109,7 +2112,6 @@ def convert_index_to_list_of_qcs(index: Any) -> list:
 def add_extra_columns_and_select_required_columns(
     query_compiler: Any,
     columns: Union[AnyArrayLike, list],
-    data_columns: Union[AnyArrayLike, list],
 ) -> Any:
     """
     Method to add extra columns to and select the required columns from the provided query compiler.
@@ -2123,26 +2125,32 @@ def add_extra_columns_and_select_required_columns(
         The query compiler to select columns from, i.e., data's query compiler.
     columns: AnyArrayLike or list
         The columns to select from the query compiler.
-    data_columns: AnyArrayLike or list
-        The columns in the data. This is data.columns if data is a DataFrame or data.name if data is a Series.
-
     """
     from modin.pandas import DataFrame
 
+    data_columns = query_compiler.get_columns().to_list()
     # The `columns` parameter is used to select the columns from `data` that will be in the resultant DataFrame.
     # If a value in `columns` is not present in data's columns, it will be added as a new column filled with NaN values.
     # These columns are tracked by the `extra_columns` variable.
     if data_columns is not None and columns is not None:
         extra_columns = [col for col in columns if col not in data_columns]
-        # To add these new columns to the DataFrame, perform `__getitem__` only with the extra columns
-        # and set them to None.
-        extra_columns_df = DataFrame(query_compiler=query_compiler)
-        extra_columns_df[extra_columns] = None
-        query_compiler = extra_columns_df._query_compiler
+        if extra_columns is not []:
+            # To add these new columns to the DataFrame, perform `__getitem__` only with the extra columns
+            # and set them to None.
+            extra_columns_df = DataFrame(query_compiler=query_compiler)
+            # In the case that the columns are MultiIndex but not all extra columns are tuples, we need to flatten the
+            # columns to ensure that the columns are a single-level index. If not, `__getitem__` will raise an error
+            # when trying to add new columns that are not in the expected tuple format.
+            if not all(isinstance(col, tuple) for col in extra_columns) and isinstance(
+                query_compiler.get_columns(), native_pd.MultiIndex
+            ):
+                flattened_columns = extra_columns_df.columns.to_flat_index()
+                extra_columns_df.columns = flattened_columns
+            extra_columns_df[extra_columns] = None
+            query_compiler = extra_columns_df._query_compiler
 
-    # To select the columns for the resultant DataFrame, perform `.loc[]` on the created query compiler.
+    # To select the columns for the resultant DataFrame, perform `__getitem__` on the created query compiler.
     # This step is performed to ensure that the right columns are picked from the InternalFrame since we
-    # never explicitly drop the unwanted columns. `.loc[]` also ensures that the columns in the resultant
+    # never explicitly drop the unwanted columns. `__getitem__` also ensures that the columns in the resultant
     # DataFrame are in the same order as the columns in the `columns` parameter.
-    columns = slice(None) if columns is None else columns
-    return DataFrame(query_compiler=query_compiler).loc[:, columns]._query_compiler
+    return DataFrame(query_compiler=query_compiler)[columns]._query_compiler

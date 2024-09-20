@@ -352,7 +352,6 @@ def __init__(
     # Setting the query compiler
     # --------------------------
     if query_compiler is not None:
-        # CASE I: query_compiler
         # If a query_compiler is passed in, only use the query_compiler and name fields to create a new Series.
         # Verify that the data and index parameters are None.
         assert_fields_are_none(class_name="Series", data=data, index=index)
@@ -380,14 +379,14 @@ def __init__(
     # STEP 1: Setting the data
     # ------------------------
     if isinstance(data, Index):
-        # CASE II: Index
+        # CASE I: Index
         # If the data is an Index object, convert it to a Series, and get the query_compiler.
         query_compiler = (
             data.to_series(index=None, name=name).reset_index(drop=True)._query_compiler
         )
 
     elif isinstance(data, Series):
-        # CASE III: Series
+        # CASE II: Series
         # If the data is a Series object, use its query_compiler.
         query_compiler = data._query_compiler
         if index is None and name is None and copy is False:
@@ -397,7 +396,7 @@ def __init__(
             return
 
     else:
-        # CASE IV: Non-Snowpark pandas data
+        # CASE III: Non-Snowpark pandas data
         # If the data is not a Snowpark pandas object, convert it to a query compiler.
         # The query compiler uses the '__reduced__' name internally as a column name to represent pandas
         # Series objects that are not explicitly assigned a name.
