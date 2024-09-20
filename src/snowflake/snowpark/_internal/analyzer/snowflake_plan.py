@@ -524,12 +524,12 @@ class SnowflakePlan(LogicalPlan):
 
 
 class ConfigContext:
-    """Class to manage the snapshot of configuration settings in the context of plan
-    building, analysis and resolution.
+    """Class to manage reading of configuration values from session in the context of
+    plan building, analysis and resolution.
 
     Behavior:
-        - Inside an active context, the configuration will be read from the session
-        object and reset when the context is exited.
+        - Inside an active context, the configuration will be read based on snapshot taken
+        at the context creation stage and reset when the context is exited.
         - When no active context is present, the configuration will be read from the
         session object directly.
     """
