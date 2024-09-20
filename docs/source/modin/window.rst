@@ -2,7 +2,7 @@
 Window
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.pandas.window
+.. currentmodule:: snowflake.snowpark.modin.plugin.extensions.window_overrides
 .. rubric:: :doc:`All supported window APIs <supported/window_supported>`
 
 .. rubric:: Expanding window functions
