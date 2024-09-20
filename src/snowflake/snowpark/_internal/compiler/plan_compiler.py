@@ -47,8 +47,7 @@ class PlanCompiler:
 
     def __init__(self, plan: SnowflakePlan) -> None:
         self._plan = plan
-        current_session = self._plan.session
-        self.config_context = ConfigContext(current_session)
+        self.config_context = ConfigContext(self._plan.session)
 
     def should_start_query_compilation(self) -> bool:
         """
