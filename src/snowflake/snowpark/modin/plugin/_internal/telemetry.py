@@ -542,10 +542,10 @@ class TelemetryMeta(type):
     def __new__(
         cls, name: str, bases: tuple, attrs: dict[str, Any]
     ) -> Union[
-        "snowflake.snowpark.modin.pandas.groupby.DataFrameGroupBy",
+        "snowflake.snowpark.modin.plugin.extensions.groupby_overrides.DataFrameGroupBy",
         "snowflake.snowpark.modin.pandas.resample.Resampler",
-        "snowflake.snowpark.modin.pandas.window.Window",
-        "snowflake.snowpark.modin.pandas.window.Rolling",
+        "snowflake.snowpark.modin.plugin.extensions.window_overrides.Window",
+        "snowflake.snowpark.modin.plugin.extensions.window_overrides.Rolling",
     ]:
         """
         Metaclass for enabling telemetry data collection on class/instance methods of
@@ -555,10 +555,10 @@ class TelemetryMeta(type):
         with ``snowpark_pandas_telemetry_api_usage`` telemetry decorator.
         Method arguments returned by _get_kwargs_telemetry are collected otherwise set telemetry_args=list().
         TelemetryMeta is only set as the metaclass of:
-         snowflake.snowpark.modin.pandas.groupby.DataFrameGroupBy,
+         snowflake.snowpark.modin.plugin.extensions.groupby_overrides.DataFrameGroupBy,
          snowflake.snowpark.modin.pandas.resample.Resampler,
-         snowflake.snowpark.modin.pandas.window.Window,
-         snowflake.snowpark.modin.pandas.window.Rolling, and their subclasses.
+         snowflake.snowpark.modin.plugin.extensions.window_overrides.Window,
+         snowflake.snowpark.modin.plugin.extensions.window_overrides.Rolling, and their subclasses.
 
 
         Args:
@@ -567,10 +567,10 @@ class TelemetryMeta(type):
             attrs (Dict[str, Any]): The attributes of the class.
 
         Returns:
-            Union[snowflake.snowpark.modin.pandas.groupby.DataFrameGroupBy,
+            Union[snowflake.snowpark.modin.plugin.extensions.groupby_overrides.DataFrameGroupBy,
                 snowflake.snowpark.modin.pandas.resample.Resampler,
-                snowflake.snowpark.modin.pandas.window.Window,
-                snowflake.snowpark.modin.pandas.window.Rolling]:
+                snowflake.snowpark.modin.plugin.extensions.window_overrides.Window,
+                snowflake.snowpark.modin.plugin.extensions.window_overrides.Rolling]:
                 The modified class with decorated methods.
         """
         for attr_name, attr_value in attrs.items():

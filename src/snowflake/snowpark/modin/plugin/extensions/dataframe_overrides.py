@@ -66,13 +66,6 @@ from pandas.io.formats.printing import pprint_thing
 from pandas.util._validators import validate_bool_kwarg
 
 from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_accessor
-from snowflake.snowpark.modin.pandas.groupby import (
-    DataFrameGroupBy,
-    validate_groupby_args,
-)
-from snowflake.snowpark.modin.pandas.snow_partition_iterator import (
-    SnowparkPandasRowPartitionIterator,
-)
 from snowflake.snowpark.modin.pandas.utils import (
     create_empty_native_pandas_frame,
     from_pandas,
@@ -94,7 +87,14 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     is_repr_truncated,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike
+from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
+    DataFrameGroupBy,
+    validate_groupby_args,
+)
 from snowflake.snowpark.modin.plugin.extensions.index import Index
+from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
+    SnowparkPandasRowPartitionIterator,
+)
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     dataframe_not_implemented,

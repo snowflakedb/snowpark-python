@@ -496,6 +496,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return [
             self._modin_frame.get_datetime64tz_from_timestamp_tz(i)
             if t == TimestampType(TimestampTimeZone.TZ)
+            else self._modin_frame.get_datetime64tz_from_timestamp_ltz()
+            if t == TimestampType(TimestampTimeZone.LTZ)
             else TypeMapper.to_pandas(t)
             for i, t in type_map.items()
         ]
@@ -3358,9 +3360,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # This error message is different from native pandas hence, hence it is kept here instead
                 # of moving this to frontend layer.
                 raise ValueError(f"sort kind must be 'stable' or None (got '{kind}')")
-            if kind != "stable":
+            # Do not show warning for 'quicksort' as this the default option.
+            if kind not in ("stable", "quicksort"):
                 logging.warning(
-                    f"choice of sort algorithm '{kind}' is ignored. sort kind must be 'stable' or None"
+                    f"choice of sort algorithm '{kind}' is ignored. sort kind must be 'stable', 'quicksort', or None"
                 )
 
         matched_identifiers = (

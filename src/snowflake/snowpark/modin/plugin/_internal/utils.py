@@ -29,6 +29,7 @@ from snowflake.snowpark._internal.utils import (
     SNOWFLAKE_OBJECT_RE_PATTERN,
     TempObjectType,
     generate_random_alphanumeric,
+    get_temp_type_for_object,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.column import Column
@@ -262,7 +263,7 @@ def _create_read_only_table(
     readonly_table_name = (
         f"{random_name_for_temp_object(TempObjectType.TABLE)}{READ_ONLY_TABLE_SUFFIX}"
     )
-
+    use_scoped_temp_table = session._use_scoped_temp_objects
     # If we need to materialize into a temp table our create table expression
     # needs to be SELECT * FROM (object).
     if materialize_into_temp_table:
@@ -287,7 +288,7 @@ def _create_read_only_table(
         }
         statement_params.update(new_params)
         session.sql(
-            f"CREATE OR REPLACE TEMPORARY TABLE {temp_table_name} AS {ctas_query}"
+            f"CREATE OR REPLACE {get_temp_type_for_object(use_scoped_temp_objects=use_scoped_temp_table, is_generated=True)} TABLE {temp_table_name} AS {ctas_query}"
         ).collect(statement_params=statement_params)
         table_name = temp_table_name
 
@@ -300,8 +301,9 @@ def _create_read_only_table(
             STATEMENT_PARAMS.READONLY_TABLE_NAME: readonly_table_name,
         }
     )
+    # TODO (SNOW-1669224): pushing read only table creation down to snowpark for general usage
     session.sql(
-        f"CREATE OR REPLACE TEMPORARY READ ONLY TABLE {readonly_table_name} CLONE {table_name}"
+        f"CREATE OR REPLACE {get_temp_type_for_object(use_scoped_temp_objects=use_scoped_temp_table, is_generated=True)} READ ONLY TABLE {readonly_table_name} CLONE {table_name}"
     ).collect(statement_params=statement_params)
 
     return readonly_table_name
