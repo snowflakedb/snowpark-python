@@ -9,6 +9,7 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import (
     add_months,
     avg,
+    builtin,
     col,
     concat,
     initcap,
@@ -43,7 +44,9 @@ def simple_dataframe(session) -> DataFrame:
 
 def verify_dataframe_select_statement(df: DataFrame, can_be_merged: bool) -> None:
     assert isinstance(df._plan.source_plan, SelectStatement)
-    assert df._plan.source_plan._try_merge_projection_complexity == can_be_merged
+    assert (
+        df._plan.source_plan._merge_projection_complexity_with_subquery == can_be_merged
+    )
 
 
 def test_simple_valid_nested_select(simple_dataframe):
@@ -81,6 +84,14 @@ def test_nested_select_with_window_functions(simple_dataframe):
     df_res = simple_dataframe.select(
         avg("a").over(window1).as_("a"), avg("b").over(window2).as_("b")
     ).select((col("a") + 1).as_("a"), "b")
+    verify_dataframe_select_statement(df_res, can_be_merged=True)
+
+
+def test_nested_select_with_valid_builtin_function(simple_dataframe):
+    df_res = simple_dataframe.select((col("a") + 1).as_("a"), "b", "c").select(
+        builtin("nvl")(col("a"), col("b")).as_("a"),
+        builtin("nvl2")(col("b"), col("c")).as_("c"),
+    )
     verify_dataframe_select_statement(df_res, can_be_merged=True)
 
 
@@ -123,6 +134,13 @@ def test_select_with_duplicated_columns(simple_dataframe):
         (col("a") + 2).as_("b"), (col("b") + 1).as_("b")
     )
     verify_dataframe_select_statement(def_res, can_be_merged=True)
+
+
+def test_select_with_dollar_dependency(simple_dataframe):
+    def_res = simple_dataframe.select((col("a") + 1), "b", "c").select(
+        (col("$1") + 2).as_("b"), col("$2").as_("c")
+    )
+    verify_dataframe_select_statement(def_res, can_be_merged=False)
 
 
 def test_valid_after_invalid_nested_select(simple_dataframe):

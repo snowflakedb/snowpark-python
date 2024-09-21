@@ -701,7 +701,7 @@ class SelectStatement(Selectable):
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
         copied._projection_in_str = self._projection_in_str
         copied._query_params = deepcopy(self._query_params)
-        copied._try_merge_projection_complexity = (
+        copied._merge_projection_complexity_with_subquery = (
             self._merge_projection_complexity_with_subquery
         )
         return copied
@@ -941,7 +941,7 @@ class SelectStatement(Selectable):
             )  # use copy because we don't want two plans to share the same list. If one mutates, the other ones won't be impacted.
             new.flatten_disabled = self.flatten_disabled
             # no need to flatten the projection complexity since the select projection is already flattened.
-            new._try_merge_projection_complexity = False
+            new._merge_projection_complexity_with_subquery = False
             return new
         disable_next_level_flatten = False
         new_column_states = derive_column_states_from_subquery(cols, self)
@@ -1018,12 +1018,12 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
             # there is no need to flatten the projection complexity since the child
             # select projection is already flattened with the current select.
-            new._try_merge_projection_complexity = False
+            new._merge_projection_complexity_with_subquery = False
         else:
             new = SelectStatement(
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
             )
-            new._try_merge_projection_complexity = (
+            new._merge_projection_complexity_with_subquery = (
                 can_select_projection_complexity_be_merged(
                     cols,
                     new_column_states,
@@ -1057,7 +1057,7 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
             new.column_states = self.column_states
             new.where = And(self.where, col) if self.where is not None else col
-            new._try_merge_projection_complexity = False
+            new._merge_projection_complexity_with_subquery = False
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
@@ -1080,7 +1080,7 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
             new.order_by = cols + (self.order_by or [])
             new.column_states = self.column_states
-            new._try_merge_projection_complexity = False
+            new._merge_projection_complexity_with_subquery = False
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
@@ -1167,7 +1167,7 @@ class SelectStatement(Selectable):
             new.column_states = self.column_states
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
-            new._try_merge_projection_complexity = False
+            new._merge_projection_complexity_with_subquery = False
         return new
 
 
