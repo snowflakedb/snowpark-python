@@ -204,7 +204,7 @@ def test_copy_into_location(session, large_query_df):
 
 def test_pivot_unpivot(session):
     session.sql(
-        """create or replace temp table monthly_sales(A int, B int, month text)
+        """create or replace scoped temp table monthly_sales(A int, B int, month text)
                 as select * from values
                 (1, 10000, 'JAN'),
                 (1, 400, 'JAN'),

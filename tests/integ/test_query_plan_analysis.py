@@ -358,7 +358,7 @@ def test_join_statement(session: Session, sample_table: str):
 def test_pivot(session: Session):
     try:
         session.sql(
-            """create or replace temp table monthly_sales(empid int, amount int, month text)
+            """create or replace scoped temp table monthly_sales(empid int, amount int, month text)
                 as select * from values
                 (1, 10000, 'JAN'),
                 (1, 400, 'JAN'),
@@ -405,7 +405,7 @@ def test_pivot(session: Session):
 def test_unpivot(session: Session):
     try:
         session.sql(
-            """create or replace temp table sales_for_month(empid int, dept varchar, jan int, feb int)
+            """create or replace scoped temp table sales_for_month(empid int, dept varchar, jan int, feb int)
             as select * from values
             (1, 'electronics', 100, 200),
             (2, 'clothes', 100, 300)"""
