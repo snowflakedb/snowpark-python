@@ -26,7 +26,7 @@ from snowflake.snowpark.functions import (
     when_matched,
 )
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
-from tests.utils import TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -115,6 +115,7 @@ def test_unary(session, action):
     check_result(session, df_action.union_all(df_action), expect_cte_optimized=True)
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="SNOW-1676311: Order mismatch in SP env")
 @pytest.mark.parametrize("action", binary_operations)
 def test_binary(session, action):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -427,7 +428,7 @@ def test_table(session):
     "query",
     [
         "select 1 as a, 2 as b",
-        "show tables in schema limit 10",
+        "show tables in schema limit 10",  # this is flaky query
     ],
 )
 def test_sql(session, query):
@@ -486,7 +487,7 @@ def test_join_table_function(session):
 
 def test_pivot_unpivot(session):
     session.sql(
-        """create or replace temp table monthly_sales(empid int, amount int, month text)
+        """create or replace scoped temp table monthly_sales(empid int, amount int, month text)
              as select * from values
              (1, 10000, 'JAN'),
              (1, 400, 'JAN'),
@@ -531,6 +532,9 @@ def test_window_function(session):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
+)
 def test_cte_optimization_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
         session.cte_optimization_enabled = True
