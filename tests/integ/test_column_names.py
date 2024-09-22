@@ -81,6 +81,8 @@ def verify_column_result(
     for (datatype, expected_type) in zip(metadata_column_dtypes, expected_dtypes):
         if isinstance(expected_type, StringType):
             assert isinstance(datatype, StringType)
+        elif isinstance(expected_type, TimestampType):
+            assert isinstance(datatype, TimestampType)
         else:
             assert datatype == expected_type
 
