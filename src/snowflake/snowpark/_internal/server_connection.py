@@ -189,6 +189,9 @@ class ServerConnection:
     def _cursor(self) -> SnowflakeCursor:
         if not hasattr(self._thread_stored, "cursor"):
             self._thread_stored.cursor = self._conn.cursor()
+            self._telemetry_client.send_cursor_created_telemetry(
+                self.get_session_id(), threading.get_ident()
+            )
         return self._thread_stored.cursor
 
     def _add_application_parameters(self) -> None:
