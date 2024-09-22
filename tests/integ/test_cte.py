@@ -16,15 +16,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.functions import (
-    avg,
-    col,
-    lit,
-    seq1,
-    sql_expr,
-    uniform,
-    when_matched,
-)
+from snowflake.snowpark.functions import avg, col, lit, seq1, uniform, when_matched
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
 from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
@@ -64,7 +56,7 @@ def setup(request, session):
 
 
 def check_result(session, df, expect_cte_optimized):
-    df = df.sort(sql_expr("$1"))
+    df = df.sort(df.columns)
     session._cte_optimization_enabled = False
     result = df.collect()
     result_count = df.count()
@@ -428,7 +420,7 @@ def test_table(session):
     "query",
     [
         "select 1 as a, 2 as b",
-        "show tables in schema limit 10",  # this is flaky query
+        "show tables in schema limit 10",
     ],
 )
 def test_sql(session, query):
