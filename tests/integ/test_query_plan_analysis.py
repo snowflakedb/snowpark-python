@@ -21,7 +21,7 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import avg, col, lit, seq1, table_function, uniform
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.window import Window
-from tests.utils import Utils
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -355,10 +355,11 @@ def test_join_statement(session: Session, sample_table: str):
     )
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create temp table in stored proc")
 def test_pivot(session: Session):
     try:
         session.sql(
-            """create or replace scoped temp table monthly_sales(empid int, amount int, month text)
+            """create or replace temp table monthly_sales(empid int, amount int, month text)
                 as select * from values
                 (1, 10000, 'JAN'),
                 (1, 400, 'JAN'),
@@ -402,10 +403,11 @@ def test_pivot(session: Session):
         Utils.drop_table(session, "monthly_sales")
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create temp table in stored proc")
 def test_unpivot(session: Session):
     try:
         session.sql(
-            """create or replace scoped temp table sales_for_month(empid int, dept varchar, jan int, feb int)
+            """create or replace temp table sales_for_month(empid int, dept varchar, jan int, feb int)
             as select * from values
             (1, 'electronics', 100, 200),
             (2, 'clothes', 100, 300)"""

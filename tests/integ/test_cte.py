@@ -485,9 +485,10 @@ def test_join_table_function(session):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create temp table in stored proc")
 def test_pivot_unpivot(session):
     session.sql(
-        """create or replace scoped temp table monthly_sales(empid int, amount int, month text)
+        """create or replace temp table monthly_sales(empid int, amount int, month text)
              as select * from values
              (1, 10000, 'JAN'),
              (1, 400, 'JAN'),

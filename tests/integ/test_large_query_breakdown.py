@@ -16,7 +16,7 @@ from snowflake.snowpark.session import (
     DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
     Session,
 )
-from tests.utils import Utils
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -202,9 +202,10 @@ def test_copy_into_location(session, large_query_df):
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create temp table in stored proc")
 def test_pivot_unpivot(session):
     session.sql(
-        """create or replace scoped temp table monthly_sales(A int, B int, month text)
+        """create or replace temp table monthly_sales(A int, B int, month text)
                 as select * from values
                 (1, 10000, 'JAN'),
                 (1, 400, 'JAN'),
