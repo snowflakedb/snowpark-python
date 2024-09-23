@@ -1486,6 +1486,9 @@ def can_select_projection_complexity_be_merged(
             on top of subquery.
         subquery: the subquery where the current select is performed on top of
     """
+    if not subquery.analyzer.session._large_query_breakdown_enabled:
+        return False
+
     # only merge of nested select statement is supported, and subquery must be
     # a SelectStatement
     if column_states is None or (not isinstance(subquery, SelectStatement)):
@@ -1493,7 +1496,7 @@ def can_select_projection_complexity_be_merged(
 
     if len(cols) != len(column_states.projection):
         # Failed to extract the attributes of some columns
-        return False
+        return False  # pragma: no cover
 
     if subquery._column_states is None:
         return False
@@ -1524,6 +1527,10 @@ def can_select_projection_complexity_be_merged(
 
     # check if the projection expression contain invalid functions
     if has_invalid_projection_merge_functions(cols):
+        return False
+
+    # check if subquery projection expression contain invalid functions
+    if has_invalid_projection_merge_functions(subquery.projection):
         return False
 
     return True
