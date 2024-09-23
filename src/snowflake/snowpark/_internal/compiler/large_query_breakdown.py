@@ -62,6 +62,15 @@ from snowflake.snowpark.session import Session
 _logger = logging.getLogger(__name__)
 
 
+class HeapNode:
+    def __init__(self, complexity_score: int, tree_node: TreeNode) -> None:
+        self.complexity_score = complexity_score
+        self.tree_node = tree_node
+
+    def __lt__(self, other: "HeapNode") -> bool:
+        return self.complexity_score < other.complexity_score
+
+
 class LargeQueryBreakdown:
     r"""Optimization to break down large query plans into smaller partitions based on
     estimated complexity score of the plan nodes.
@@ -237,7 +246,7 @@ class LargeQueryBreakdown:
                         if valid_to_breakdown:
                             # Pushing (-score, child) to min-heap so that node with highest score
                             # will be at the top of the heap.
-                            heapq.heappush(self.priority_queue, (-score, child))
+                            heapq.heappush(self.priority_queue, HeapNode(-score, child))
                         else:
                             # don't traverse subtrees if parent is a valid candidate
                             next_level.append(child)
@@ -247,8 +256,8 @@ class LargeQueryBreakdown:
         # If no valid node is found, priority_queue will be empty.
         # Otherwise, return the node with the highest complexity score.
         if self.priority_queue:
-            _, candidate_node = heapq.heappop(self.priority_queue)
-            return candidate_node
+            heap_node = heapq.heappop(self.priority_queue)
+            return heap_node.tree_node
         return None
 
     def _get_partitioned_plan(self, root: TreeNode, child: TreeNode) -> SnowflakePlan:
@@ -390,15 +399,15 @@ class LargeQueryBreakdown:
         nodes_to_reset = list(parents)
         while nodes_to_reset:
             node = nodes_to_reset.pop()
-            valid_to_breakdown, score = self._is_node_valid_to_breakdown(node)
-            if valid_to_breakdown and score > candidate_score:
-                # Find the valid node with the highest complexity score.
-                candidate_node = node
-                candidate_score = score
-
             if node in updated_nodes:
                 # Skip if the node is already updated.
                 continue
+
+            valid_to_breakdown, score = self._is_node_valid_to_breakdown(node)
+            if valid_to_breakdown and score >= candidate_score:
+                # Find the valid node with the highest complexity score.
+                candidate_node = node
+                candidate_score = score
 
             update_resolvable_node(node, self._query_generator)
             updated_nodes.add(node)
@@ -408,4 +417,4 @@ class LargeQueryBreakdown:
 
         if candidate_node is not None:
             # Update the priority queue with the new eligible node in the ancestors.
-            heapq.heappush(self.priority_queue, (-candidate_score, candidate_node))
+            heapq.heappush(self.priority_queue, HeapNode(-candidate_score, candidate_node))
