@@ -17,7 +17,18 @@ from tests.integ.modin.utils import (
 from tests.utils import running_on_public_ci
 
 
-@pytest.mark.parametrize("grouping_columns", ["B", ["A", "B"]])
+@pytest.mark.parametrize(
+    "grouping_columns",
+    [
+        pytest.param(
+            "B",
+            marks=pytest.mark.xfail(
+                reason="SNOW-1270521: `idxmax/idxmin` results in a non-deterministic ordering when tiebreaking values"
+            ),
+        ),
+        ["A", "B"],
+    ],
+)
 @pytest.mark.parametrize("skipna", [False, True])
 @pytest.mark.parametrize("func", ["idxmax", "idxmin"])
 @sql_count_checker(query_count=1)

@@ -132,7 +132,40 @@ def register_base_not_implemented():
 
 
 @register_base_not_implemented()
+def align(
+    self,
+    other,
+    join="outer",
+    axis=None,
+    level=None,
+    copy=None,
+    fill_value=None,
+    method=lib.no_default,
+    limit=lib.no_default,
+    fill_axis=lib.no_default,
+    broadcast_axis=lib.no_default,
+):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
 def asof(self, where, subset=None):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
+def at_time(self, time, asof=False, axis=None):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
+def between_time(
+    self: BasePandasDataset,
+    start_time,
+    end_time,
+    inclusive: str | None = None,
+    axis=None,
+):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
@@ -142,7 +175,29 @@ def bool(self):  # noqa: RT01, D200
 
 
 @register_base_not_implemented()
+def clip(
+    self, lower=None, upper=None, axis=None, inplace=False, *args, **kwargs
+):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
+def combine(self, other, func, fill_value=None, **kwargs):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
+def combine_first(self, other):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
 def droplevel(self, level, axis=0):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
+def explode(self, column, ignore_index: bool = False):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
@@ -171,6 +226,11 @@ def filter(
 
 
 @register_base_not_implemented()
+def infer_objects(self, copy: bool | None = None):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
 def interpolate(
     self,
     method="linear",
@@ -183,7 +243,22 @@ def interpolate(
     downcast=lib.no_default,
     **kwargs,
 ):  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
+def kurt(
+    self, axis=no_default, skipna=True, numeric_only=False, **kwargs
+):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+register_base_override("kurtosis")(kurt)
+
+
+@register_base_not_implemented()
+def mode(self, axis=0, numeric_only=False, dropna=True):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
 
 
 @register_base_not_implemented()
@@ -197,7 +272,26 @@ def pop(self, item):  # noqa: PR01, RT01, D200
 
 
 @register_base_not_implemented()
+def reindex_like(
+    self, other, method=None, copy=True, limit=None, tolerance=None
+):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
 def reorder_levels(self, order, axis=0):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
+def sem(
+    self,
+    axis: Axis | None = None,
+    skipna: bool = True,
+    ddof: int = 1,
+    numeric_only=False,
+    **kwargs,
+):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
@@ -394,6 +488,18 @@ def truncate(
 
 
 @register_base_not_implemented()
+def tz_convert(self, tz, axis=0, level=None, copy=True):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
+def tz_localize(
+    self, tz, axis=0, level=None, copy=True, ambiguous="raise", nonexistent="raise"
+):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
 def xs(
     self,
     key,
@@ -406,6 +512,11 @@ def xs(
 
 @register_base_not_implemented()
 def __finalize__(self, other, method=None, **kwargs):
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
+def __sizeof__(self):
     pass  # pragma: no cover
 
 
@@ -1163,7 +1274,7 @@ def resample(
     """
     Resample time-series data.
     """
-    from snowflake.snowpark.modin.pandas.resample import Resampler
+    from snowflake.snowpark.modin.plugin.extensions.resample_overrides import Resampler
 
     if axis is not lib.no_default:  # pragma: no cover
         axis = self._get_axis_number(axis)
@@ -1208,7 +1319,7 @@ def expanding(self, min_periods=1, axis=0, method="single"):  # noqa: PR01, RT01
     """
     Provide expanding window calculations.
     """
-    from snowflake.snowpark.modin.pandas.window import Expanding
+    from snowflake.snowpark.modin.plugin.extensions.window_overrides import Expanding
 
     if axis is not lib.no_default:
         axis = self._get_axis_number(axis)
@@ -1280,7 +1391,7 @@ def rolling(
         axis = 0
 
     if win_type is not None:
-        from snowflake.snowpark.modin.pandas.window import Window
+        from snowflake.snowpark.modin.plugin.extensions.window_overrides import Window
 
         return Window(
             self,
@@ -1294,7 +1405,7 @@ def rolling(
             step=step,
             method=method,
         )
-    from snowflake.snowpark.modin.pandas.window import Rolling
+    from snowflake.snowpark.modin.plugin.extensions.window_overrides import Rolling
 
     return Rolling(
         self,
@@ -1319,7 +1430,9 @@ def iloc(self):
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
     # TODO: SNOW-930028 enable all skipped doctests
-    from snowflake.snowpark.modin.pandas.indexing import _iLocIndexer
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+        _iLocIndexer,
+    )
 
     return _iLocIndexer(self)
 
@@ -1334,7 +1447,9 @@ def loc(self):
     # TODO: SNOW-935444 fix doctest where index key has name
     # TODO: SNOW-933782 fix multiindex transpose bug, e.g., Name: (cobra, mark ii) => Name: ('cobra', 'mark ii')
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    from snowflake.snowpark.modin.pandas.indexing import _LocIndexer
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+        _LocIndexer,
+    )
 
     return _LocIndexer(self)
 
@@ -1347,7 +1462,9 @@ def iat(self, axis=None):  # noqa: PR01, RT01, D200
     Get a single value for a row/column pair by integer position.
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    from snowflake.snowpark.modin.pandas.indexing import _iAtIndexer
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+        _iAtIndexer,
+    )
 
     return _iAtIndexer(self)
 
@@ -1360,7 +1477,7 @@ def at(self, axis=None):  # noqa: PR01, RT01, D200
     Get a single value for a row/column label pair.
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    from snowflake.snowpark.modin.pandas.indexing import _AtIndexer
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import _AtIndexer
 
     return _AtIndexer(self)
 

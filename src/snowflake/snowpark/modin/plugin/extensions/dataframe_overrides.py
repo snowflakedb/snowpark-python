@@ -65,9 +65,6 @@ from pandas.io.formats.printing import pprint_thing
 from pandas.util._validators import validate_bool_kwarg
 
 from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_accessor
-from snowflake.snowpark.modin.pandas.snow_partition_iterator import (
-    SnowparkPandasRowPartitionIterator,
-)
 from snowflake.snowpark.modin.pandas.utils import (
     create_empty_native_pandas_frame,
     from_non_pandas,
@@ -85,6 +82,9 @@ from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
     DataFrameGroupBy,
     validate_groupby_args,
+)
+from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
+    SnowparkPandasRowPartitionIterator,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -2327,7 +2327,9 @@ def __setitem__(self, key: Any, value: Any):
     columns = (
         columns._query_compiler if isinstance(columns, BasePandasDataset) else columns
     )
-    from snowflake.snowpark.modin.pandas.indexing import is_2d_array
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+        is_2d_array,
+    )
 
     matching_item_rows_by_label = not is_2d_array(value)
     if is_2d_array(value):
