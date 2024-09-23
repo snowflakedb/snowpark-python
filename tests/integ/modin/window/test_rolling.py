@@ -166,6 +166,7 @@ def test_rolling_corr_simple():
     )
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
+
 @sql_count_checker(query_count=1, join_count=1)
 def test_rolling_corr_multi_cols():
     native_df = native_pd.DataFrame({"col1": [1, 2, 3, 4, 1], "col3": [1, 2, 3, 4, 5]})

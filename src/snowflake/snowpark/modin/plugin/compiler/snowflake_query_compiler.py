@@ -13654,11 +13654,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ErrorMessage.method_not_implemented_error(name="rank", class_="Rolling")
 
     def _get_corr_column(
-            self,
-            quoted_identifier: str,
-            other_quoted_identifier: str,
-            window_expr: Any,
-            window: Any
+        self,
+        quoted_identifier: str,
+        other_quoted_identifier: str,
+        window_expr: Any,
+        window: Any,
     ) -> SnowparkColumn:
         # pearson correlation calculated using formala here: https://byjus.com/jee/correlation-coefficient/
         # corr = top_exp / (count_exp * sig_exp)
@@ -13688,34 +13688,33 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # top expr = sum(x,y) - (sum(x)*sum(y) / n)
         top_exp = (
-                      sum_(col(quoted_identifier) * col(other_quoted_identifier)).over(
-                          window_expr
-                      )
-                  ) - (
-                          sum_(
-                              iff(
-                                  col(quoted_identifier).is_null(),
-                                  pandas_lit(None),
-                                  col(other_quoted_identifier),
-                              )
-                          ).over(window_expr)
-                          * (
-                              sum_(
-                                  iff(
-                                      col(other_quoted_identifier).is_null(),
-                                      pandas_lit(None),
-                                      col(quoted_identifier),
-                                  )
-                              ).over(window_expr)
-                          )
-                  ) / count_exp
+            sum_(col(quoted_identifier) * col(other_quoted_identifier)).over(
+                window_expr
+            )
+        ) - (
+            sum_(
+                iff(
+                    col(quoted_identifier).is_null(),
+                    pandas_lit(None),
+                    col(other_quoted_identifier),
+                )
+            ).over(window_expr)
+            * (
+                sum_(
+                    iff(
+                        col(other_quoted_identifier).is_null(),
+                        pandas_lit(None),
+                        col(quoted_identifier),
+                    )
+                ).over(window_expr)
+            )
+        ) / count_exp
         new_col = iff(
             count_exp.__eq__(window) & (count_exp * std_prod_exp).__gt__(0),
             top_exp / (count_exp * std_prod_exp),
             pandas_lit(None),
         )
         return new_col
-
 
     def _window_agg(
         self,
@@ -13812,7 +13811,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 }
             ).frame
         elif agg_func == "corr":
-            from modin.pandas import Series
             if window_func == WindowFunction.ROLLING and min_periods != window:
                 ErrorMessage.not_implemented(
                     f"min_periods {min_periods} must be == window {window}"
@@ -13831,9 +13829,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             for i in range(len(frame.data_column_pandas_labels)):
                 frame_label = frame.data_column_pandas_labels[i]
                 frame_identifier = frame.data_column_snowflake_quoted_identifiers[i]
-                other_frame_identifier = other_qc._modin_frame.data_column_snowflake_quoted_identifiers[i]
+                other_frame_identifier = (
+                    other_qc._modin_frame.data_column_snowflake_quoted_identifiers[i]
+                )
                 if frame_label in other_qc._modin_frame.data_column_pandas_labels:
-                    matching_col_label_dict[frame_label] = [frame_identifier, other_frame_identifier]
+                    matching_col_label_dict[frame_label] = [
+                        frame_identifier,
+                        other_frame_identifier,
+                    ]
 
             corr_result = result_frame
             # columns that do not exist in both dfs
@@ -13853,10 +13856,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ]
                 other_quoted_identifier = (
                     result_column_mapper.right_quoted_identifiers_map[
-                        matching_col_label_dict[matching_label][1]]
+                        matching_col_label_dict[matching_label][1]
+                    ]
                 )
 
-                corr_column = self._get_corr_column(quoted_identifier, other_quoted_identifier, window_expr, window)
+                corr_column = self._get_corr_column(
+                    quoted_identifier, other_quoted_identifier, window_expr, window
+                )
                 corr_result_frame = corr_result.append_column(
                     unquote_name_if_quoted(matching_label), corr_column
                 )
