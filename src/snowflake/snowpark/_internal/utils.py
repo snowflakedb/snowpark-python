@@ -752,7 +752,7 @@ def publicapi(func) -> Callable:
             elif isinstance(args[0], snowflake.snowpark.session.Session):
                 kwargs["_emit_ast"] = args[0].ast_enabled
             else:
-                raise NotImplementedError(f"Can not get session from {type(args[0])}")
+                pass  # raise NotImplementedError(f"Can not get session from {type(args[0])}")
 
         # TODO: Could modify internal docstring to display that users should not modify the _emit_ast parameter.
 
