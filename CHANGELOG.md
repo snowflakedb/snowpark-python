@@ -28,6 +28,7 @@
 - Added support for `DatetimeIndex.mean` and `DatetimeIndex.std` methods.
 - Added support for `Resampler.asfreq`.
 - Added support for `resample` frequency `W`, `ME`, `YE` with `closed = "left"`.
+- Added support for file writes. This feature is currently in private preview.
 
 #### Bug Fixes
 
