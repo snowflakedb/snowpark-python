@@ -768,6 +768,11 @@ def publicapi(func) -> Callable:
                 kwargs["_emit_ast"] = args[0]._session.ast_enabled
             elif isinstance(args[0], snowflake.snowpark.session.Session):
                 kwargs["_emit_ast"] = args[0].ast_enabled
+            elif isinstance(
+                args[0],
+                snowflake.snowpark.relational_grouped_dataframe.RelationalGroupedDataFrame,
+            ):
+                kwargs["_emit_ast"] = args[0]._df._session.ast_enabled
             else:
                 pass  # raise NotImplementedError(f"Can not get session from {type(args[0])}")
 

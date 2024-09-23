@@ -108,7 +108,7 @@ class UserDefinedTableFunction:
     ) -> TableFunctionCall:
 
         udtf_expr = None
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             assert (
                 self._ast is not None
             ), "Need to ensure _emit_ast is True when registering UDTF."

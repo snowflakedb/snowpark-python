@@ -4852,16 +4852,17 @@ class DataFrame:
         """
         # AST.
         _ast_stmt = None
+        expr = None
         if _emit_ast:
             _ast_stmt = self._session._ast_batch.assign()
             expr = with_src_position(_ast_stmt.expr.sp_dataframe_rename, _ast_stmt)
             self._set_ast_ref(expr.df)
-
-        if new_column is not None:
             expr.new_column.value = new_column
             build_expr_from_snowpark_column_or_col_name(
                 expr.col_or_mapper, col_or_mapper
             )
+
+        if new_column is not None:
             return self.with_column_renamed(
                 col_or_mapper, new_column, _ast_stmt=_ast_stmt, _emit_ast=False
             )
