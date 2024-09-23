@@ -75,7 +75,9 @@ class WhenMatchedClause:
             specified condition. For example, ``col("a") == 1``.
     """
 
-    def __init__(self, condition: Optional[Column] = None) -> None:
+    def __init__(
+        self, condition: Optional[Column] = None, _emit_ast: bool = True
+    ) -> None:
         self._condition_expr = condition._expression if condition is not None else None
         self._clause = None
 
@@ -172,7 +174,9 @@ class WhenNotMatchedClause:
             specified condition.
     """
 
-    def __init__(self, condition: Optional[Column] = None) -> None:
+    def __init__(
+        self, condition: Optional[Column] = None, _emit_ast: bool = True
+    ) -> None:
         self._condition_expr = condition._expression if condition is not None else None
         self._clause = None
 

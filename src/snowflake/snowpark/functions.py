@@ -7611,7 +7611,9 @@ def in_(
 
     vals = parse_positional_args_to_list(*vals)
     columns = [_to_col_if_str(c, "in_") for c in cols]
-    ans = Column(MultipleExpression([c._expression for c in columns])).in_(vals)
+    ans = Column(
+        MultipleExpression([c._expression for c in columns]), _emit_ast=False
+    ).in_(vals, _emit_ast=False)
     ans._ast = ast
     return ans
 
