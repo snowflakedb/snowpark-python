@@ -370,7 +370,7 @@ def sql_expr(sql: str, _emit_ast: bool = True) -> Column:
         ast = proto.Expr()
         build_builtin_fn_apply(ast, "sql_expr", sql_expr_ast)
 
-    return Column._expr(sql, ast=ast, _emit_ast=_emit_ast)
+    return Column._expr(sql, ast=ast)
 
 
 @publicapi
@@ -4390,14 +4390,27 @@ def array_except(
         ------------
         <BLANKLINE>
     """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast, "array_except", source_array, array_of_elements_to_exclude
+        )
+
     array1 = _to_col_if_str(source_array, "array_except")
     array2 = _to_col_if_str(array_of_elements_to_exclude, "array_except")
-    if allow_duplicates:
-        return builtin("array_except", _emit_ast=_emit_ast)(array1, array2)
-    return builtin("array_except", _emit_ast=_emit_ast)(
-        builtin("array_distinct", _emit_ast=False)(array1),
-        builtin("array_distinct", _emit_ast=False)(array2),
+    ans = (
+        builtin("array_except", _emit_ast=False)(array1, array2)
+        if allow_duplicates
+        else builtin("array_except", _emit_ast=False)(
+            builtin("array_distinct", _emit_ast=False)(array1),
+            builtin("array_distinct", _emit_ast=False)(array2),
+        )
     )
+
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -4569,7 +4582,9 @@ def array_sort(
     """
     array = _to_col_if_str(array, "array_sort")
     return builtin("array_sort", _emit_ast=_emit_ast)(
-        array, lit(sort_ascending, _emit_ast=False), lit(nulls_first, _emit_ast=False)
+        array,
+        lit(sort_ascending, _emit_ast=_emit_ast),
+        lit(nulls_first, _emit_ast=_emit_ast),
     )
 
 
@@ -6732,6 +6747,7 @@ def desc(c: ColumnOrName, _emit_ast: bool = True) -> Column:
     c = _to_col_if_str(c, "desc")
     ans = c.desc()
     ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -7775,6 +7791,7 @@ def lag(
 
     ans = Column(
         Lag(c._expression, offset, Column._to_expr(default_value), ignore_nulls),
+        _emit_ast=False,
     )
     ans._ast = ast
     return ans
@@ -7820,6 +7837,7 @@ def lead(
 
     ans = Column(
         Lead(c._expression, offset, Column._to_expr(default_value), ignore_nulls),
+        _emit_ast=False,
     )
     ans._ast = ast
     return ans
@@ -7848,7 +7866,7 @@ def last_value(
 
     c = _to_col_if_str(e, "last_value")
 
-    ans = Column(LastValue(c._expression, None, None, ignore_nulls))
+    ans = Column(LastValue(c._expression, None, None, ignore_nulls), _emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -7876,8 +7894,8 @@ def first_value(
 
     c = _to_col_if_str(e, "last_value")
 
-    ans = Column(FirstValue(c._expression, None, None, ignore_nulls))
-    ans._ast = ans
+    ans = Column(FirstValue(c._expression, None, None, ignore_nulls), _emit_ast=False)
+    ans._ast = ast
     return ans
 
 
@@ -8008,7 +8026,7 @@ def listagg(
 
     c = _to_col_if_str(e, "listagg")
 
-    ans = Column(ListAgg(c._expression, delimiter, is_distinct))
+    ans = Column(ListAgg(c._expression, delimiter, is_distinct), _emit_ast=False)
     ans._ast = ast
     return ans
 

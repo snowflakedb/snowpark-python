@@ -709,7 +709,24 @@ def publicapi(func) -> Callable:
         # then we use this value directly. If not, but the function supports _emit_ast,
         # we override _emit_ast with the session parameter.
         if "_emit_ast" in func.__code__.co_varnames and "_emit_ast" not in kwargs:
-            if isinstance(args[0], snowflake.snowpark.dataframe.DataFrame):
+            if len(args) == 0:
+                if func.__name__ in {
+                    "udf",
+                    "udtf",
+                    "udaf",
+                    "pandas_udf",
+                    "pandas_udtf",
+                }:
+                    session = kwargs.get("session")
+                    # Lookup session directly as in implementation of these decorators.
+                    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+                        session
+                    )
+                    # If session is None, do nothing (i.e., keep encoding AST).
+                    # This happens when the decorator is called before a session is started.
+                    if session is not None:
+                        kwargs["_emit_ast"] = session.ast_enabled
+            elif isinstance(args[0], snowflake.snowpark.dataframe.DataFrame):
                 # special case: __init__ called, self._session is then not initialized yet.
                 if func.__qualname__ == "DataFrame.__init__":
                     assert isinstance(

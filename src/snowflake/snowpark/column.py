@@ -748,33 +748,41 @@ class Column:
         ast.operand.CopyFrom(self._ast)
         return Column(UnaryMinus(self._expression), ast=expr)
 
-    def equal_null(self, other: "Column") -> "Column":
+    def equal_null(self, other: "Column", _emit_ast: bool = True) -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.sp_column_equal_null)
-        ast.lhs.CopyFrom(self._ast)
-        build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.sp_column_equal_null)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(EqualNullSafe(self._expression, Column._to_expr(other)), ast=expr)
 
-    def equal_nan(self) -> "Column":
+    def equal_nan(self, _emit_ast: bool = True) -> "Column":
         """Is NaN."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.sp_column_equal_nan)
-        ast.col.CopyFrom(self._ast)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.sp_column_equal_nan)
+            ast.col.CopyFrom(self._ast)
         return Column(IsNaN(self._expression), ast=expr)
 
-    def is_null(self) -> "Column":
+    def is_null(self, _emit_ast: bool = True) -> "Column":
         """Is null."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.sp_column_is_null)
-        ast.col.CopyFrom(self._ast)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.sp_column_is_null)
+            ast.col.CopyFrom(self._ast)
         return Column(IsNull(self._expression), ast=expr)
 
-    def is_not_null(self) -> "Column":
+    def is_not_null(self, _emit_ast: bool = True) -> "Column":
         """Is not null."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.sp_column_is_not_null)
-        ast.col.CopyFrom(self._ast)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.sp_column_is_not_null)
+            ast.col.CopyFrom(self._ast)
         return Column(IsNotNull(self._expression), ast=expr)
 
     # `and, or, not` cannot be overloaded in Python, so use bitwise operators as boolean operators
@@ -819,28 +827,32 @@ class Column:
         ast.operand.CopyFrom(self._ast)
         return Column(Not(self._expression), ast=expr)
 
-    def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
+    def _cast(
+        self, to: Union[str, DataType], try_: bool = False, _emit_ast: bool = True
+    ) -> "Column":
         if isinstance(to, str):
             to = type_string_to_type_object(to)
-        expr = proto.Expr()
-        ast = with_src_position(
-            expr.sp_column_try_cast if try_ else expr.sp_column_cast
-        )
-        ast.col.CopyFrom(self._ast)
-        to._fill_ast(ast.to)
-        return Column(Cast(self._expression, to, try_), ast=expr)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(
+                expr.sp_column_try_cast if try_ else expr.sp_column_cast
+            )
+            ast.col.CopyFrom(self._ast)
+            to._fill_ast(ast.to)
+        return Column(Cast(self._expression, to, try_), ast=expr, _emit_ast=_emit_ast)
 
-    def cast(self, to: Union[str, DataType]) -> "Column":
+    def cast(self, to: Union[str, DataType], _emit_ast: bool = True) -> "Column":
         """Casts the value of the Column to the specified data type.
         It raises an error when  the conversion can not be performed.
         """
-        return self._cast(to, False)
+        return self._cast(to, False, _emit_ast=_emit_ast)
 
-    def try_cast(self, to: Union[str, DataType]) -> "Column":
+    def try_cast(self, to: Union[str, DataType], _emit_ast: bool = True) -> "Column":
         """Tries to cast the value of the Column to the specified data type.
         It returns a NULL value instead of raising an error when the conversion can not be performed.
         """
-        return self._cast(to, True)
+        return self._cast(to, True, _emit_ast=_emit_ast)
 
     def desc(self) -> "Column":
         """Returns a Column expression with values sorted in descending order."""
