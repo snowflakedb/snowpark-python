@@ -1940,9 +1940,22 @@ def to_double(
         >>> df.select(to_double(col('a'), "999.99MI").as_('ans')).collect()
         [Row(ANS=12.0), Row(ANS=11.3), Row(ANS=-90.12)]
     """
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "to_double", e, fmt)
+
     c = _to_col_if_str(e, "to_double")
     fmt_col = c if fmt is None else _to_col_if_lit(fmt, "to_double")
-    return builtin("to_double", _emit_ast=_emit_ast)(fmt_col)
+    ans = (
+        builtin("to_double", _emit_ast=False)(c)
+        if fmt is None
+        else builtin("to_double", _emit_ast=False)(c, fmt_col)
+    )
+    ans._ast = ast
+    return ans
 
 
 @publicapi
