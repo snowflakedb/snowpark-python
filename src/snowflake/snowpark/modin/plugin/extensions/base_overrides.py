@@ -22,6 +22,10 @@ import numpy as np
 import numpy.typing as npt
 import pandas
 from modin.pandas import Series
+from modin.pandas.api.extensions import (
+    register_dataframe_accessor,
+    register_series_accessor,
+)
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
 from pandas._libs import lib
@@ -61,10 +65,6 @@ from pandas.util._validators import (
     validate_percentile,
 )
 
-from snowflake.snowpark.modin.pandas.api.extensions import (
-    register_dataframe_accessor,
-    register_series_accessor,
-)
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     ensure_index,

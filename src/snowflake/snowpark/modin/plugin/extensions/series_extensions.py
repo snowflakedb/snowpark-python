@@ -10,12 +10,12 @@ as `Series.to_snowflake`.
 from collections.abc import Iterable
 from typing import Any, Literal, Optional, Union
 
+import modin.pandas as pd
 import pandas
+from modin.pandas.api.extensions import register_series_accessor
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
-from snowflake.snowpark.modin import pandas as pd  # noqa: F401
-from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
 from snowflake.snowpark.modin.plugin.extensions.utils import add_cache_result_docstring
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
