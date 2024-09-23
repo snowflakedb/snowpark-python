@@ -28,8 +28,7 @@ pytestmark = [
     )
 ]
 
-# paramList = [False, True]
-paramList = [True]
+paramList = [False, True]
 
 
 @pytest.fixture(params=paramList, autouse=True)
@@ -78,9 +77,9 @@ def test_simple_valid_nested_select(simple_dataframe):
 def test_nested_select_with_star(simple_dataframe):
     df_res = simple_dataframe.select((col("a") + 1).as_("a"), "b", "c").select("*")
     # star will be automatically flattened, the complexity won't be flattened
-    verify_dataframe_select_statement(df_res, can_be_merged=False)
+    verify_dataframe_select_statement(df_res, can_be_merged_when_enabled=False)
     df_res = df_res.select((col("a") + 3).as_("a"), "c")
-    verify_dataframe_select_statement(df_res, can_be_merged=True)
+    verify_dataframe_select_statement(df_res, can_be_merged_when_enabled=True)
 
 
 def test_nested_select_with_valid_function_expressions(simple_dataframe):
@@ -100,7 +99,7 @@ def test_nested_select_with_window_functions(simple_dataframe):
     df_res = simple_dataframe.select(
         avg("a").over(window1).as_("a"), avg("b").over(window2).as_("b")
     ).select((col("a") + 1).as_("a"), "b")
-    verify_dataframe_select_statement(df_res, can_be_merged_when_enabled=True)
+    verify_dataframe_select_statement(df_res, can_be_merged_when_enabled=False)
 
 
 def test_nested_select_with_table_functions(simple_dataframe):
