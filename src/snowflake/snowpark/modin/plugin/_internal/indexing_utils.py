@@ -6,6 +6,7 @@ from collections.abc import Hashable
 from enum import Enum
 from typing import Any, Literal, Optional, Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 from pandas._typing import AnyArrayLike, Scalar
@@ -15,7 +16,6 @@ from pandas.core.dtypes.common import is_bool_dtype, is_float_dtype, is_integer_
 from pandas.core.dtypes.inference import is_integer, is_scalar
 from pandas.core.indexing import IndexingError
 
-import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.functions import (
     Column,

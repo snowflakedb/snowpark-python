@@ -15,7 +15,7 @@ from pandas._libs.lib import is_bool, is_scalar
 from pandas.errors import IndexingError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.frame.test_loc import (
     diff2native_negative_row_inputs,
     negative_snowpark_pandas_input_keys,
