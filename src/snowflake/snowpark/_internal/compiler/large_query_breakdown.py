@@ -417,4 +417,6 @@ class LargeQueryBreakdown:
 
         if candidate_node is not None:
             # Update the priority queue with the new eligible node in the ancestors.
-            heapq.heappush(self.priority_queue, HeapNode(-candidate_score, candidate_node))
+            heapq.heappush(
+                self.priority_queue, HeapNode(-candidate_score, candidate_node)
+            )
