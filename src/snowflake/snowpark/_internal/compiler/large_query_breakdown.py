@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import heapq
 import logging
 from collections import defaultdict
 from typing import List, Optional, Tuple
@@ -124,6 +125,11 @@ class LargeQueryBreakdown:
         self.complexity_score_upper_bound = (
             session.large_query_breakdown_complexity_bounds[1]
         )
+        # priority_queue which is used to store a list of tuple of (complexity_score, node)
+        # of all valid nodes eligible to breakdown. Implemented using a min-heap gives us quick
+        # access to the node with the highest complexity score.
+        # When None, initialize the priority queue.
+        self.priority_queue = None
 
     def apply(self) -> List[LogicalPlan]:
         if is_active_transaction(self.session):
@@ -189,7 +195,6 @@ class LargeQueryBreakdown:
             return [root]
 
         plans = []
-        # TODO: SNOW-1617634 Have a one pass algorithm to find the valid node for partitioning
         while complexity_score > self.complexity_score_upper_bound:
             child = self._find_node_to_breakdown(root)
             if child is None:
@@ -213,32 +218,38 @@ class LargeQueryBreakdown:
             2. If no valid node is found, return None.
             3. Return the node with the highest complexity score.
         """
-        current_level = [root]
-        candidate_node = None
-        candidate_score = -1  # start with -1 since score is always > 0
+        if self.priority_queue is None:
+            # Initialize the priority queue by doing a single pass over the plan tree
+            # to find all eligible nodes and index them using their complexity score
+            # into the heap.
+            self.priority_queue = []
+            current_level = [root]
 
-        while current_level:
-            next_level = []
-            for node in current_level:
-                assert isinstance(node, (Selectable, SnowflakePlan))
-                for child in node.children_plan_nodes:
-                    self._parent_map[child].add(node)
-                    valid_to_breakdown, score = self._is_node_valid_to_breakdown(child)
-                    if valid_to_breakdown:
-                        # If the score for valid node is higher than the last candidate,
-                        # update the candidate node and score.
-                        if score > candidate_score:
-                            candidate_score = score
-                            candidate_node = child
-                    else:
-                        # don't traverse subtrees if parent is a valid candidate
-                        next_level.append(child)
+            while current_level:
+                next_level = []
+                for node in current_level:
+                    assert isinstance(node, (Selectable, SnowflakePlan))
+                    for child in node.children_plan_nodes:
+                        self._parent_map[child].add(node)
+                        valid_to_breakdown, score = self._is_node_valid_to_breakdown(
+                            child
+                        )
+                        if valid_to_breakdown:
+                            # Pushing (-score, child) to min-heap so that node with highest score
+                            # will be at the top of the heap.
+                            heapq.heappush(self.priority_queue, (-score, child))
+                        else:
+                            # don't traverse subtrees if parent is a valid candidate
+                            next_level.append(child)
 
-            current_level = next_level
+                current_level = next_level
 
-        # If no valid node is found, candidate_node will be None.
+        # If no valid node is found, priority_queue will be empty.
         # Otherwise, return the node with the highest complexity score.
-        return candidate_node
+        if self.priority_queue:
+            _, candidate_node = heapq.heappop(self.priority_queue)
+            return candidate_node
+        return None
 
     def _get_partitioned_plan(self, root: TreeNode, child: TreeNode) -> SnowflakePlan:
         """This method takes cuts the child out from the root, creates a temp table plan for the
@@ -265,7 +276,8 @@ class LargeQueryBreakdown:
             )
         )
 
-        # Update the ancestors with the temp table selectable
+        # Update the ancestors with the temp table selectable and update
+        # priority queue with new eligible nodes in the ancestors.
         self._replace_child_and_update_ancestors(child, temp_table_name)
 
         return temp_table_plan
@@ -352,11 +364,16 @@ class LargeQueryBreakdown:
         the snowflake plan and cumulative complexity score for the ancestors, and
         updates the ancestors with the correct snowflake query corresponding to the
         new plan tree.
+        After a child is replaced, other nodes in the ancestors may become eligible
+        for breakdown. We update the priority queue with the new eligible nodes while
+        traversing the ancestors.
         """
         temp_table_node = SnowflakeTable(temp_table_name, session=self.session)
         temp_table_selectable = self._query_generator.create_selectable_entity(
             temp_table_node, analyzer=self._query_generator
         )
+        candidate_node = None
+        candidate_score = -1  # start with -1 since score is always > 0
 
         # add drop table in post action since the temp table created here
         # is only used for the current query.
@@ -373,6 +390,12 @@ class LargeQueryBreakdown:
         nodes_to_reset = list(parents)
         while nodes_to_reset:
             node = nodes_to_reset.pop()
+            valid_to_breakdown, score = self._is_node_valid_to_breakdown(node)
+            if valid_to_breakdown and score > candidate_score:
+                # Find the valid node with the highest complexity score.
+                candidate_node = node
+                candidate_score = score
+
             if node in updated_nodes:
                 # Skip if the node is already updated.
                 continue
@@ -382,3 +405,7 @@ class LargeQueryBreakdown:
 
             parents = self._parent_map[node]
             nodes_to_reset.extend(parents)
+
+        if candidate_node is not None:
+            # Update the priority queue with the new eligible node in the ancestors.
+            heapq.heappush(self.priority_queue, (-candidate_score, candidate_node))
