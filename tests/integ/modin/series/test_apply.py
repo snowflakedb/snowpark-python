@@ -11,6 +11,7 @@ import numpy as np
 import pandas as native_pd
 import pytest
 from pandas.testing import assert_series_equal
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import (
@@ -27,11 +28,21 @@ from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_snow_df_with_table_and_data,
+    create_test_series,
     eval_snowpark_pandas_result,
 )
 
 BASIC_DATA_FUNC_RETURN_TYPE_MAP = [
     ([1, 2, 3, None], lambda x: x + 1, "int"),
+    param(
+        [1, 2, 3, None],
+        lambda x: native_pd.Timedelta(x),
+        "native_pd.Timedelta",
+        id="return_timedelta_scalar",
+        marks=pytest.mark.xfail(
+            strict=True, raises=AssertionError, reason="SNOW-1619940"
+        ),
+    ),
     (["s", "n", "o", "w"], lambda x: x * 2, "str"),
     ([1.0, 1.5, 2.0], math.exp, "float"),
     ([True, True, False], int, "int"),
@@ -40,6 +51,13 @@ BASIC_DATA_FUNC_RETURN_TYPE_MAP = [
     ([1, 2, 3], lambda x: {str(x): x * 8}, "dict"),
     ([None, 1], lambda x: bool(np.isnan(x)), "bool"),
     ([np.nan, None, 2.1], lambda x: x, "float"),
+    param(
+        [native_pd.Timedelta(1), native_pd.Timedelta(2)],
+        lambda x: x.value,
+        "int",
+        id="apply_on_frame_with_timedelta_data_columns_returns_int",
+        marks=pytest.mark.xfail(strict=True, raises=NotImplementedError),
+    ),
 ]
 
 # TODO SNOW-876999: Test return date/time/timestamp type when
@@ -171,9 +189,28 @@ def test_apply_and_map_basic_with_type_hints(data, func, return_type):
     )
 
 
-@pytest.mark.parametrize("data,func,return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
+@pytest.mark.parametrize(
+    "data",
+    [
+        [1, 2, 3, None],
+        [1, 2, 3, None],
+        ["s", "n", "o", "w"],
+        [1.0, 1.5, 2.0],
+        [True, True, False],
+        [bytes("snow", "utf-8"), bytes("flake", "utf-8")],
+        [1, 2, 3],
+        [1, 2, 3],
+        [None, 1],
+        [np.nan, None, 2.1],
+        param(
+            [native_pd.Timedelta(1), native_pd.Timedelta(2)],
+            id="input_timedleta_columns",
+            marks=pytest.mark.xfail(strict=True, raises=NotImplementedError),
+        ),
+    ],
+)
 @sql_count_checker(query_count=4, udf_count=1)
-def test_apply_and_map_type(data, func, return_type):
+def test_apply_and_map_input_type(data):
     native_series = native_pd.Series(data)
     snow_series = pd.Series(data)
 
@@ -213,6 +250,17 @@ def test_apply_date_time_timestamp(data, func, return_type, expected_result):
     snow_series = pd.Series(data)
     result = snow_series.apply(func_with_type_hint)
     assert_snowpark_pandas_equal_to_pandas(result, expected_result)
+
+
+@pytest.mark.xfail(strict=True, raises=NotImplementedError)
+@sql_count_checker(query_count=0)
+def test_series_with_timedelta_index():
+    eval_snowpark_pandas_result(
+        *create_test_series(
+            native_pd.Series([0], index=[native_pd.Timedelta(1)]),
+        ),
+        lambda series: series.apply(lambda x: x)
+    )
 
 
 def test_variant_apply(session):

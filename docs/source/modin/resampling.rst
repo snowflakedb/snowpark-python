@@ -2,7 +2,7 @@
 Resampling
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.pandas.resample
+.. currentmodule:: snowflake.snowpark.modin.plugin.extensions.resample_overrides
 .. rubric:: :doc:`All supported resampling APIs <supported/resampling_supported>`
 
 .. rubric:: Indexing, iteration

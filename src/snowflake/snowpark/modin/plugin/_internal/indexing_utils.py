@@ -6,6 +6,7 @@ from collections.abc import Hashable
 from enum import Enum
 from typing import Any, Literal, Optional, Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 from pandas._typing import AnyArrayLike, Scalar
@@ -13,18 +14,13 @@ from pandas.api.types import is_list_like
 from pandas.core.common import is_bool_indexer
 from pandas.core.dtypes.common import is_bool_dtype, is_float_dtype, is_integer_dtype
 from pandas.core.dtypes.inference import is_integer, is_scalar
-from pandas.core.indexers.utils import is_list_like_indexer
 from pandas.core.indexing import IndexingError
 
-import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.functions import (
     Column,
-    cast,
-    ceil,
     coalesce,
     col,
-    floor,
     get,
     greatest,
     iff,
@@ -60,7 +56,6 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     ROW_COUNT_COLUMN_LABEL,
     ROW_POSITION_COLUMN_LABEL,
     append_columns,
-    is_integer_list_like,
     pandas_lit,
     rindex,
 )
@@ -69,7 +64,6 @@ from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.types import (
     ArrayType,
     BooleanType,
-    IntegerType,
     _FractionalType,
     _IntegralType,
 )
@@ -216,156 +210,6 @@ def validate_out_of_bound(key_max: Any, key_min: Any, axis_len: int) -> None:
     """
     if key_max >= axis_len or key_min <= -axis_len - 1:
         raise IndexError("positional indexers are out-of-bounds")
-
-
-# TODO: SNOW-916739 this method needs refactoring to improve its readability and structure
-def convert_positional_key(
-    query_compiler: "snowflake_query_compiler.SnowflakeQueryCompiler",
-    key: Any,
-    axis: int,
-) -> Union[InternalFrame, slice, Union[list[int], list[float]], int]:
-    """Convert iloc input key for rows when axis == 0 or columns when axis == 1
-
-    Conversion of each input type:
-    Series[bool]:
-        raise Error.
-    array_like[bool]:
-        convert to List. If axis = 0, convert to slice(None) or InternalFrame.
-    Series[none_bool]:
-        Out-of-bound check.
-        If axis = 0: convert to int then negative to positive return its InternalFrame
-        else: convert to List then following list_like input procedure.
-    slice or range_like:
-        convert to List or a new slice if none-empty, axis = 0, and step is 1 or -1.
-    List[int] | List[float]:
-        convert to int then negative to positive, return List
-        If axis = 0, convert to InternalFrame.
-    integer:
-        convert negative to positive
-        If axis == 1 convert to List; else convert to int.
-
-    Return
-    ------
-    Union[InternalFrame, slice, List[int], int]:
-        axis == 0: InternalFrame, slice, or int
-        axis == 1: List[int]
-            int type for axis == 1 could be other types of integer. See Notes for details.
-
-    Notes
-    ------
-    slice(None) means selecting every item of that axis.
-    range_like: Any type has attribute __iter__, start, stop, and step.
-    integer: the Cython equivalent of `isinstance(val, (int, long, np.integer)) and not isinstance(val, bool)`.
-            See source code in pandas/_libs/tslibs/util.pxd:is_integer_object for details.
-    """
-    from snowflake.snowpark.modin.pandas.indexing import is_range_like
-
-    if isinstance(key, pd.Series):
-        key_frame = key._query_compiler._modin_frame
-        if key.empty:
-            if axis == 1:
-                return []
-            return key_frame
-        key_max, key_min = key_frame.ordered_dataframe.agg(
-            max_(key_frame.data_column_snowflake_quoted_identifiers[0]),
-            min_(key_frame.data_column_snowflake_quoted_identifiers[0]),
-        ).collect()[0]
-        # out-of-bound check:
-        validate_out_of_bound(key_max, key_min, query_compiler.get_axis_len(axis))
-
-        # if axis == 1 convert to np.ndarray and go through conversion of list-like type
-        if axis == 1:
-            key = key.to_numpy().tolist()
-
-        # else axis == 0:
-        # If the series has integer type and all values are non-negative, return the original series's InternalFrame.
-        # Else cast values to int type by ceiling the negative value and flooring the possitive value, then if there is
-        # any negative value, cast negative values to positive. Return the modified series's InternalFrame.
-        else:
-            if is_integer_dtype(key.dtype) and key_min >= 0:
-                return key_frame
-            data_col = col(key_frame.data_column_snowflake_quoted_identifiers[0])
-            # If the dtype is numerical but not integer, cast to int type
-            # Note: Same as pandas iloc, negative values are upcast and positive values are downcast to nearest integer.
-            # e.g. df.iloc[[-0.9, -1.0, -1.1, 0.0, 1.0, 0.9, 1.1]] is like cast to df.iloc[[0, -1, -1, 0, 1, 0, 1]]
-            if not is_integer_dtype(key.dtype):
-                data_col = cast(
-                    iff(
-                        data_col < 0,
-                        ceil(data_col),
-                        floor(data_col),
-                    ),
-                    IntegerType(),
-                )
-            # If the minimum value is smaller or equal to -1, add axis_len to the negative value
-            # Note: if -1 < key_min < 0, all negative values will be cast to 0 during numeric to int conversion.
-            if key_min <= -1:
-                axis_len = query_compiler.get_axis_len(axis)
-                data_col = iff(
-                    data_col < 0,
-                    data_col + axis_len,
-                    data_col,
-                )
-            # convert key_frame: since `is_integer_dtype(key.dtype) and key_min >= 0` case is returned earlier,
-            # data_col is guaranteed to be modified
-            key_frame = key_frame.update_snowflake_quoted_identifiers_with_expressions(
-                {key_frame.data_column_snowflake_quoted_identifiers[0]: data_col}
-            ).frame
-            return key_frame
-
-    # If `key` is a boolean array_like indexer, convert to a List with the array-index of True values
-    if is_bool_indexer(key):
-        key = [index for index, val in enumerate(key) if val]
-    # If key is Slice type or range_like:
-    # e.g. [1:5:2], range(5)
-    # If step is 1 or -1, axis == 0, and sliced outcome is not empty: return slice which will be called with filter
-    # Else: convert to List which later is converted to slice(None) if axis == 0 and has the same len as the axis
-    elif isinstance(key, slice) or is_range_like(key):
-        if key.step == 0:
-            # same as pandas
-            raise ValueError("slice step cannot be zero")
-        # If axis == 0 and key = slice(None) means select all rows thus we do nothing.
-        if axis == 0 and isinstance(key, slice) and key == slice(None):
-            return key
-
-        # for slice or range like key, if step is None, it is treated the same as 1
-        step = 1 if key.step is None else key.step
-        key = list(range(query_compiler.get_axis_len(axis)))[
-            slice(key.start, key.stop, key.step)
-        ]
-        if axis == 0:
-            if len(key) == 0:
-                # When len(key) == 0, it means no row needs to be selected, simply set the range to (0, 0),
-                # which will apply filter row_position >= 0 and row_position < 0, instead of going through join.
-                return slice(0, 0)
-            elif len(key) > 0 and step == 1:
-                # Convert to List first then return a new slice to deal with negative int, and empty slice
-                # e.g. slice(-1,3) out of 6, in filter row_position >= -1 and <3 is not empty.
-                # Note: step=-1 can not return slice since filter can not assure the reversed order.
-                return slice(int(key[0]), int(key[-1]) + 1)
-    elif is_list_like_indexer(key):
-        # convert float like keys to integers
-        if not is_integer_list_like(key):
-            key = np.array(key)
-            assert is_float_dtype(
-                key.dtype
-            ), "list-like key must be list of int or float"
-            key = key.astype(int)
-        axis_len = query_compiler.get_axis_len(axis)
-        key = [val + axis_len if val < 0 else val for val in key]
-    else:  # integer type
-        if key < 0:
-            key += query_compiler.get_axis_len(axis)
-        if axis == 0:
-            return key
-        return [key]
-
-    # Return column indexing key (axis=1) as List.
-    if axis == 1:
-        return key
-
-    # Convert and return row indexing key (axis=0) as InternalFrame type to join df that calls iloc.
-    return pd.Series(key)._query_compiler._modin_frame
 
 
 def get_frame_by_row_pos_frame(
