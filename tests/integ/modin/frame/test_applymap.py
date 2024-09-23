@@ -17,6 +17,7 @@ from tests.integ.modin.series.test_apply import (
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
+    create_test_dfs,
     eval_snowpark_pandas_result,
 )
 
@@ -58,6 +59,17 @@ def test_applymap_date_time_timestamp(data, func, return_type, expected_result):
     snow_df = pd.DataFrame(frame_data)
     result = snow_df.applymap(func_with_type_hint)
     assert_snowpark_pandas_equal_to_pandas(result, frame_expected_result)
+
+
+@pytest.mark.xfail(strict=True, raises=NotImplementedError)
+@sql_count_checker(query_count=0)
+def test_frame_with_timedelta_index():
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            native_pd.DataFrame([0], index=[native_pd.Timedelta(1)]),
+        ),
+        lambda df: df.applymap(lambda x: x),
+    )
 
 
 def test_applymap_kwargs():
