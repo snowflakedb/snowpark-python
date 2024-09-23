@@ -46,6 +46,7 @@ import pandas
 from modin.pandas import Series
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.dataframe import DataFrame
+from modin.pandas.utils import is_scalar
 from pandas._libs.tslibs import Resolution, parsing
 from pandas._typing import AnyArrayLike, Scalar
 from pandas.api.types import is_bool, is_list_like
@@ -59,8 +60,7 @@ from pandas.core.dtypes.common import (
 from pandas.core.indexing import IndexingError
 
 import snowflake.snowpark.modin.pandas as pd
-import snowflake.snowpark.modin.pandas.utils as frontend_utils
-from snowflake.snowpark.modin.pandas.utils import is_scalar
+import snowflake.snowpark.modin.plugin.extensions.utils as frontend_utils
 from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
     MULTIPLE_ELLIPSIS_INDEXING_ERROR_MESSAGE,
     TOO_FEW_INDEXERS_INDEXING_ERROR_MESSAGE,
