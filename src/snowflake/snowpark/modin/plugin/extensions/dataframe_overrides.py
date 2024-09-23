@@ -31,6 +31,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
+from modin.pandas.api.extensions import register_dataframe_accessor
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
@@ -67,7 +68,6 @@ from pandas.core.indexes.frozen import FrozenList
 from pandas.io.formats.printing import pprint_thing
 from pandas.util._validators import validate_bool_kwarg
 
-from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_accessor
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     is_snowflake_agg_func,
 )

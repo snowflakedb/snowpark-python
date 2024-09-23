@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import inspect
 import sys
 
 from packaging import version
@@ -49,6 +50,7 @@ if version.parse(modin.__version__) != version.parse(supported_modin_version):
 import snowflake.snowpark.modin.plugin.extensions.pd_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.io_overrides  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.general_overrides  # isort: skip  # noqa: E402,F401
+
 # base overrides occur before subclass overrides in case subclasses override a base method
 import snowflake.snowpark.modin.plugin.extensions.base_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.base_overrides  # isort: skip  # noqa: E402,F401
@@ -59,7 +61,6 @@ import snowflake.snowpark.modin.plugin.extensions.series_overrides  # isort: ski
 
 # === INITIALIZE DOCSTRINGS ===
 # These imports also all need to occur after modin + pandas dependencies are validated.
-from snowflake.snowpark.modin import pandas  # isort: skip  # noqa: E402,F401
 from snowflake.snowpark.modin.config import DocModule  # isort: skip  # noqa: E402
 from snowflake.snowpark.modin.plugin import docstrings  # isort: skip  # noqa: E402
 
@@ -120,6 +121,7 @@ Engine.put("Snowflake")
 from snowflake.snowpark.modin.plugin.utils.frontend_constants import (  # isort: skip  # noqa: E402,F401
     _ATTRS_NO_LOOKUP,
 )
+
 modin.pandas.base._ATTRS_NO_LOOKUP.add("dt")
 modin.pandas.base._ATTRS_NO_LOOKUP.add("str")
 modin.pandas.base._ATTRS_NO_LOOKUP.add("columns")
@@ -128,6 +130,19 @@ modin.pandas.base._ATTRS_NO_LOOKUP.update(_ATTRS_NO_LOOKUP)
 
 # For any method defined on Series/DF, add telemetry to it if the method name does not start with an
 # _, or the method is in TELEMETRY_PRIVATE_METHODS. This includes methods defined as an extension/override.
+from modin.pandas import DataFrame, Series  # isort: skip  # noqa: E402,F401
+from modin.pandas.api.extensions import (  # isort: skip  # noqa: E402,F401
+    register_dataframe_accessor,
+    register_pd_accessor,
+    register_series_accessor,
+)
+
+from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip  # noqa: E402,F401
+    TELEMETRY_PRIVATE_METHODS,
+    snowpark_pandas_telemetry_standalone_function_decorator,
+    try_add_telemetry_to_attribute,
+)
+
 for attr_name in dir(Series):
     # Since Series is defined in upstream Modin, all of its members were either defined upstream
     # or overridden by extension.
@@ -144,13 +159,13 @@ for attr_name in dir(DataFrame):
             try_add_telemetry_to_attribute(attr_name, getattr(DataFrame, attr_name))
         )
 
-import inspect
+# Apply telemetry to all top-level functions in the pd namespace.
 
 for attr_name, attr_value in modin.pandas.__dict__.items():
-    if inspect.isfunction(attr_value):
-        register_pd_accessor(snowpark_pandas_telemetry_standalone_function_decorator(
-            attr_value
-        ))
+    if inspect.isfunction(attr_value) and not attr_name.startswith("_"):
+        register_pd_accessor(
+            snowpark_pandas_telemetry_standalone_function_decorator(attr_value)
+        )
 
 # === SESSION INITIALIZATION ===
 # Make SnowpandasSessionHolder the __class__ of modin.pandas so that we can make
