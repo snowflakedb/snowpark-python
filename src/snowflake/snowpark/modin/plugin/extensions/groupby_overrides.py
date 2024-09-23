@@ -513,10 +513,10 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         self,
         value: Any = None,
         method: Optional[FillnaOptions] = None,
-        axis: Axis | None = None,
-        inplace: bool = False,
-        limit: int | None = None,
-        downcast: dict | None = None,
+        axis: Optional[Axis] = None,
+        inplace: Optional[bool] = False,
+        limit: Optional[int] = None,
+        downcast: Optional[dict] = None,
     ):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         query_compiler = self._query_compiler.groupby_fillna(
