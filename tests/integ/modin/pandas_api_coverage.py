@@ -8,17 +8,12 @@ import time
 from datetime import datetime
 from functools import update_wrapper
 
+import modin.pandas as pdi
+from modin.pandas import DataFrame as DataFrameClazz, Series as SeriesClazz
 from modin.pandas.plotting import Plotting as PlottingClazz
 from modin.pandas.series_utils import DatetimeProperties as DatetimePropertiesClazz
 
-# once we are fully off vendored modin we can make these the
-# upstream modin classes
-import snowflake.snowpark.modin.pandas as pdi
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas import (
-    DataFrame as DataFrameClazz,
-    Series as SeriesClazz,
-)
 from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
     DataFrameGroupBy as DataFrameGroupByClazz,
     SeriesGroupBy as SeriesGroupByClazz,
@@ -35,7 +30,7 @@ from snowflake.snowpark.modin.plugin.extensions.window_overrides import (
 )
 
 # Used for instrumenting customer or client code.
-# import pandas as pdi
+# import modin.pandas as pdi
 # import pandas
 # from pandas.core.groupby import DataFrameGroupBy as DataFrameGroupByClazz
 # from pandas.core.groupby import SeriesGroupBy as SeriesGroupByClazz
