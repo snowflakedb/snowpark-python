@@ -236,6 +236,7 @@ _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = (
 
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
+# TODO SNOW-1677514: Add server-side flag and initialize value with it. Add telemetry support for flag.
 _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE = False
 
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
