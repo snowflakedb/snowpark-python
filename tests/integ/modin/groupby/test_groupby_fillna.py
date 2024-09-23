@@ -295,32 +295,3 @@ def test_groupby_fillna_downcast_not_supported_negative():
     ):
         # call to_pandas to trigger the evaluation of the operation
         snow_df.groupby("I").fillna(method="ffill", downcast={"A": "str"}).to_pandas()
-
-
-def test_from_doc(
-):
-    native_df = native_pd.DataFrame(
-        {
-            "key": [0, 0, 1, 1, 1],
-            "A": [np.nan, 2, np.nan, 3, np.nan],
-            "B": [2, 3, np.nan, np.nan, np.nan],
-            "C": [np.nan, np.nan, 2, np.nan, np.nan],
-        }
-    )
-
-    snow_df = pd.DataFrame(native_df)
-
-    native_df1 = native_df.T
-    snow_df1 = snow_df.T
-
-    native_df2 = native_df1.groupby(np.array([0, 0, 1, 1]))
-    snow_df2 = snow_df.groupby(np.array([0, 0, 1, 1]))
-
-    native_df3 = native_df2.fillna(method="bfill")
-    snow_df3 = snow_df2.fillna(method="bfill")
-
-    native_df4 = native_df3.T
-    snow_df4 = snow_df3.T
-
-    native_result = native_df4.collect()
-    snow_result = snow_df4.collect()
