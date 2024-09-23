@@ -343,6 +343,7 @@ class DataFrameAnalyticsFunctions:
 
         # AST.
         stmt = None
+        ast = None
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_analytics_moving_agg, stmt)
@@ -371,7 +372,8 @@ class DataFrameAnalyticsFunctions:
                     agg_col = builtin(agg_func)(col(column)).over(window_spec)
 
                     formatted_col_name = col_formatter(column, agg_func, window_size)
-                    ast.formatted_col_names.append(formatted_col_name)
+                    if _emit_ast:
+                        ast.formatted_col_names.append(formatted_col_name)
                     agg_df = agg_df.with_column(
                         formatted_col_name, agg_col, _emit_ast=False
                     )
@@ -447,6 +449,7 @@ class DataFrameAnalyticsFunctions:
 
         # AST.
         stmt = None
+        ast = None
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(
@@ -476,7 +479,10 @@ class DataFrameAnalyticsFunctions:
                 agg_col = builtin(agg_func)(col(column)).over(window_spec)
 
                 formatted_col_name = col_formatter(column, agg_func)
-                ast.formatted_col_names.append(formatted_col_name)
+
+                if _emit_ast:
+                    ast.formatted_col_names.append(formatted_col_name)
+
                 agg_df = agg_df.with_column(
                     formatted_col_name, agg_col, _emit_ast=False
                 )
@@ -540,6 +546,7 @@ class DataFrameAnalyticsFunctions:
         """
         # AST.
         stmt = None
+        ast = None
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lag, stmt)
@@ -556,7 +563,9 @@ class DataFrameAnalyticsFunctions:
                 formatted_col_name = col_formatter(
                     column.get_name().replace('"', ""), "LAG", _lag
                 )
-                ast.formatted_col_names.append(formatted_col_name)
+
+                if _emit_ast:
+                    ast.formatted_col_names.append(formatted_col_name)
         df = self._compute_window_function(
             cols, lags, order_by, group_by, col_formatter, lag, "LAG"
         )
@@ -619,6 +628,7 @@ class DataFrameAnalyticsFunctions:
         """
         # AST.
         stmt = None
+        ast = None
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lead, stmt)
@@ -635,7 +645,9 @@ class DataFrameAnalyticsFunctions:
                 formatted_col_name = col_formatter(
                     column.get_name().replace('"', ""), "LEAD", _lead
                 )
-                ast.formatted_col_names.append(formatted_col_name)
+
+                if _emit_ast:
+                    ast.formatted_col_names.append(formatted_col_name)
         df = self._compute_window_function(
             cols, leads, order_by, group_by, col_formatter, lead, "LEAD"
         )
