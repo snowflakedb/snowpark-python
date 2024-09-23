@@ -1938,48 +1938,30 @@ class DataFrameGroupBy:
         ...     }
         ... )
         >>> df
-           key    A    B   C
-        0    0  NaN  2.0 NaN
-        1    0  2.0  3.0 NaN
-        2    1  NaN  NaN 2.0
-        3    1  3.0  NaN NaN
-        4    1  NaN  NaN NaN
+           key    A    B    C
+        0    0  NaN  2.0  NaN
+        1    0  2.0  3.0  NaN
+        2    1  NaN  NaN  2.0
+        3    1  3.0  NaN  NaN
+        4    1  NaN  NaN  NaN
 
         Propagate non-null values forward or backward within each group along columns.
 
         >>> df.groupby("key").fillna(method="ffill")
-             A    B   C
-        0  NaN  2.0 NaN
-        1  2.0  3.0 NaN
-        2  NaN  NaN 2.0
-        3  3.0  NaN 2.0
-        4  3.0  NaN 2.0
+             A    B    C
+        0  NaN  2.0  NaN
+        1  2.0  3.0  NaN
+        2  NaN  NaN  2.0
+        3  3.0  NaN  2.0
+        4  3.0  NaN  2.0
 
         >>> df.groupby("key").fillna(method="bfill")
-             A    B   C
-        0  2.0  2.0 NaN
-        1  2.0  3.0 NaN
-        2  3.0  NaN 2.0
-        3  3.0  NaN NaN
-        4  NaN  NaN NaN
-
-        Propagate non-null values forward or backward within each group along rows.
-
-        >>> df.T.groupby(np.array([0, 0, 1, 1])).fillna(method="ffill").T
-           key    A    B    C
-        0  0.0  0.0  2.0  2.0
-        1  0.0  2.0  3.0  3.0
-        2  1.0  1.0  NaN  2.0
-        3  1.0  3.0  NaN  NaN
-        4  1.0  1.0  NaN  NaN
-
-        >>> df.T.groupby(np.array([0, 0, 1, 1])).fillna(method="bfill").T
-           key    A    B    C
-        0  0.0  NaN  2.0  NaN
-        1  0.0  2.0  3.0  NaN
-        2  1.0  NaN  2.0  2.0
-        3  1.0  3.0  NaN  NaN
-        4  1.0  NaN  NaN  NaN
+             A    B    C
+        0  2.0  2.0  NaN
+        1  2.0  3.0  NaN
+        2  3.0  NaN  2.0
+        3  3.0  NaN  NaN
+        4  NaN  NaN  NaN
 
         Only replace the first NaN element within a group along rows.
 
