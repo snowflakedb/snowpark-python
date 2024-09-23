@@ -13812,7 +13812,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ).frame
         elif agg_func == "corr":
             if window_func == WindowFunction.ROLLING and not isinstance(window, int):
-                ErrorMessage.not_implemented(f"window must be an integer value.")
+                ErrorMessage.not_implemented(
+                    f"window {window} must be an integer value."
+                )
             if window != min_periods:
                 ErrorMessage.not_implemented(
                     f"min_periods {min_periods} must be == window {window}"
