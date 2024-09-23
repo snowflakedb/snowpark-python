@@ -7,14 +7,14 @@ import re
 import traceback
 from collections.abc import Hashable, Iterable, Sequence
 from enum import Enum
-from typing import Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 from pandas._typing import Scalar
 from pandas.core.dtypes.common import is_integer_dtype, is_object_dtype, is_scalar
 
-import snowflake.snowpark.modin.pandas as pd
 import snowflake.snowpark.modin.plugin._internal.statement_params_constants as STATEMENT_PARAMS
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     DOUBLE_QUOTE,
@@ -47,7 +47,6 @@ from snowflake.snowpark.functions import (
     to_timestamp_tz,
     typeof,
 )
-from snowflake.snowpark.modin.plugin._internal import frame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     DataFrameReference,
     OrderedDataFrame,
@@ -82,6 +81,9 @@ from snowflake.snowpark.types import (
     VariantType,
     _FractionalType,
 )
+
+if TYPE_CHECKING:
+    from snowflake.snowpark.modin.plugin._internal import frame
 
 ROW_POSITION_COLUMN_LABEL = "row_position"
 MAX_ROW_POSITION_COLUMN_LABEL = f"MAX_{ROW_POSITION_COLUMN_LABEL}"

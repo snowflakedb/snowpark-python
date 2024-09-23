@@ -23,6 +23,7 @@ import numpy.typing as npt
 import pandas
 from modin.pandas import Series
 from modin.pandas.base import BasePandasDataset
+from modin.pandas.utils import is_scalar
 from pandas._libs import lib
 from pandas._libs.lib import NoDefault, is_bool, no_default
 from pandas._typing import (
@@ -64,15 +65,14 @@ from snowflake.snowpark.modin.pandas.api.extensions import (
     register_dataframe_accessor,
     register_series_accessor,
 )
-from snowflake.snowpark.modin.pandas.utils import (
+from snowflake.snowpark.modin.plugin._typing import ListLike
+from snowflake.snowpark.modin.plugin.extensions.utils import (
     ensure_index,
     extract_validate_and_try_convert_named_aggs_from_kwargs,
     get_as_shape_compatible_dataframe_or_series,
-    is_scalar,
     raise_if_native_pandas_objects,
     validate_and_try_convert_agg_func_arg_func_to_str,
 )
-from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     base_not_implemented,
