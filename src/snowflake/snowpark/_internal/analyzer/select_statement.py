@@ -657,7 +657,9 @@ class SelectStatement(Selectable):
         # _merge_projection_complexity_with_subquery is used to indicate that it is valid to merge
         # the projection complexity of current SelectStatement with subquery.
         self._merge_projection_complexity_with_subquery = False
-        self._projection_complexity: Optional[List[PlanNodeCategory, int]] = None
+        # cached list of projection complexities, each projection complexity is adjusted
+        # with the subquery projection if _merge_projection_complexity_with_subquery is True.
+        self._projection_complexities: Optional[List[PlanNodeCategory, int]] = None
 
     def __copy__(self):
         new = SelectStatement(
@@ -706,6 +708,14 @@ class SelectStatement(Selectable):
         copied._merge_projection_complexity_with_subquery = (
             self._merge_projection_complexity_with_subquery
         )
+<<<<<<< HEAD
+=======
+        copied._projection_complexities = (
+            deepcopy(self._projection_complexities)
+            if not self._projection_complexities
+            else None
+        )
+>>>>>>> 0dcc86343 (fix error)
         return copied
 
     @property
@@ -890,15 +900,19 @@ class SelectStatement(Selectable):
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         if self._cumulative_node_complexity is None:
             self._cumulative_node_complexity = super().cumulative_node_complexity
-            if self._try_merge_projection_complexity:
+            if self._merge_projection_complexity_with_subquery:
                 # subtract the from_ projection complexity
                 assert isinstance(self.from_, SelectStatement)
                 self._cumulative_node_complexity = subtract_complexities(
                     self._cumulative_node_complexity,
-                    sum_node_complexities(*self.projection_complexities),
+                    sum_node_complexities(*self.from_.projection_complexities),
                 )
 
         return self._cumulative_node_complexity
+
+    @cumulative_node_complexity.setter
+    def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
+        self._cumulative_node_complexity = value
 
     @property
     def referenced_ctes(self) -> Set[str]:
@@ -929,17 +943,17 @@ class SelectStatement(Selectable):
         ):
             return None
 
-        if len(self.projection) != len(self.column_states.projection):
+        if len(self.projection) != len(self._column_states.projection):
             return None
 
-        projection_complexity = self.projection_complexities
-        if len(self.column_states.projection) != len(projection_complexity):
+        projection_complexities = self.projection_complexities
+        if len(self._column_states.projection) != len(projection_complexities):
             return None
         else:
             return {
-                complexity: attribute.name
+                attribute.name: complexity
                 for complexity, attribute in zip(
-                    projection_complexity, self.column_states.projection
+                    projection_complexities, self._column_states.projection
                 )
             }
 
@@ -948,8 +962,8 @@ class SelectStatement(Selectable):
         if self.projection is None:
             return []
 
-        if self._projection_complexity is None:
-            if self._try_merge_projection_complexity:
+        if self._projection_complexities is None:
+            if self._merge_projection_complexity_with_subquery:
                 assert isinstance(
                     self.from_, SelectStatement
                 ), "merge with none SelectStatement is not valid"
@@ -959,7 +973,7 @@ class SelectStatement(Selectable):
                 assert (
                     subquery_projection_name_complexity_map is not None
                 ), "failed to extract dependent column map from subquery"
-                self._projection_complexity = []
+                self._projection_complexities = []
                 for proj in self.projection:
                     dependent_columns = proj.dependent_column_names_with_duplication()
                     projection_complexity = proj.cumulative_node_complexity
@@ -968,17 +982,17 @@ class SelectStatement(Selectable):
                             subquery_projection_name_complexity_map[dependent_column]
                         )
                         projection_complexity[PlanNodeCategory.COLUMN] -= 1
-                        projection_complexity = subtract_complexities(
+                        projection_complexity = sum_node_complexities(
                             projection_complexity, dependent_column_complexity
                         )
 
-                    self._projection_complexity.append(projection_complexity)
+                    self._projection_complexities.append(projection_complexity)
             else:
-                self._projection_complexity = [
+                self._projection_complexities = [
                     expr.cumulative_node_complexity for expr in self.projection
                 ]
 
-        return self._projection_complexity
+        return self._projection_complexities
 
     def select(self, cols: List[Expression]) -> "SelectStatement":
         """Build a new query. This SelectStatement will be the subquery of the new query.
@@ -1090,6 +1104,7 @@ class SelectStatement(Selectable):
             new = SelectStatement(
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
             )
+<<<<<<< HEAD
             new._merge_projection_complexity_with_subquery = (
                 can_select_projection_complexity_be_merged(
                     cols,
@@ -1098,6 +1113,10 @@ class SelectStatement(Selectable):
                 )
             )
 
+=======
+            # set it to True for testing
+            new._merge_projection_complexity_with_subquery = True
+>>>>>>> 0dcc86343 (fix error)
         new.flatten_disabled = disable_next_level_flatten
         assert new.projection is not None
         new._column_states = derive_column_states_from_subquery(
