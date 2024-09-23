@@ -138,7 +138,7 @@ class LargeQueryBreakdown:
         # of all valid nodes eligible to breakdown. Implemented using a min-heap gives us quick
         # access to the node with the highest complexity score.
         # When None, initialize the priority queue.
-        self.priority_queue = None
+        self.priority_queue: Optional[List[HeapNode]] = None
 
     def apply(self) -> List[LogicalPlan]:
         if is_active_transaction(self.session):
@@ -416,6 +416,9 @@ class LargeQueryBreakdown:
             nodes_to_reset.extend(parents)
 
         if candidate_node is not None:
+            # Assertion for type check. we must have initialized the priority queue
+            # by the time we reach here.
+            assert self.priority_queue is not None
             # Update the priority queue with the new eligible node in the ancestors.
             heapq.heappush(
                 self.priority_queue, HeapNode(-candidate_score, candidate_node)
