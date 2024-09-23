@@ -13,9 +13,6 @@ from modin.pandas.api.extensions import register_pd_accessor
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark import DataFrame as SnowparkDataFrame
-from snowflake.snowpark.modin.plugin._internal.telemetry import (
-    snowpark_pandas_telemetry_standalone_function_decorator,
-)
 from snowflake.snowpark.modin.plugin.extensions.datetime_index import (  # noqa: F401
     DatetimeIndex,
 )
@@ -38,7 +35,6 @@ def _snowpark_pandas_obj_check(obj: Union[DataFrame, Series]):
 
 
 @register_pd_accessor("read_snowflake")
-@snowpark_pandas_telemetry_standalone_function_decorator
 def read_snowflake(
     name_or_query: Union[str, Iterable[str]],
     index_col: Union[str, list[str], None] = None,
@@ -372,7 +368,6 @@ def read_snowflake(
 
 
 @register_pd_accessor("to_snowflake")
-@snowpark_pandas_telemetry_standalone_function_decorator
 def to_snowflake(
     obj: Union[DataFrame, Series],
     name: Union[str, Iterable[str]],
@@ -416,7 +411,6 @@ def to_snowflake(
 
 
 @register_pd_accessor("to_snowpark")
-@snowpark_pandas_telemetry_standalone_function_decorator
 def to_snowpark(
     obj: Union[DataFrame, Series],
     index: bool = True,
@@ -566,7 +560,6 @@ def to_snowpark(
 
 
 @register_pd_accessor("to_pandas")
-@snowpark_pandas_telemetry_standalone_function_decorator
 @materialization_warning
 def to_pandas(
     obj: Union[DataFrame, Series],

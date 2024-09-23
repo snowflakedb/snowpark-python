@@ -163,7 +163,7 @@ for attr_name in dir(DataFrame):
 
 for attr_name, attr_value in modin.pandas.__dict__.items():
     if inspect.isfunction(attr_value) and not attr_name.startswith("_"):
-        register_pd_accessor(
+        register_pd_accessor(attr_name)(
             snowpark_pandas_telemetry_standalone_function_decorator(attr_value)
         )
 
