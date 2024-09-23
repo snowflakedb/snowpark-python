@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import List
+from typing import List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -215,7 +215,9 @@ VALID_PROJECTION_MERGE_FUNCTIONS = (
 )
 
 
-def has_invalid_projection_merge_functions(expressions: List[Expression]) -> bool:
+def has_invalid_projection_merge_functions(
+    expressions: Optional[List[Expression]],
+) -> bool:
     """
     Check if the given list of expressions contains any functions that blocks the merge
     of projections.
