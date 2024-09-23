@@ -273,6 +273,12 @@ def test_rolling_corr_negative():
             ddof=1,
             numeric_only=True,
         )
+    with pytest.raises(NotImplementedError):
+        snow_df = snow_df.rolling(window="a", min_periods=2).corr(
+            pairwise=True,
+            ddof=1,
+            numeric_only=True,
+        )
 
 
 @sql_count_checker(query_count=0)
