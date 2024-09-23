@@ -3552,17 +3552,12 @@ class Session:
             -------------
             <BLANKLINE>
         """
-
-        if _emit_ast:
-            raise NotImplementedError(
-                "TODO SNOW-1672561: Need to implement session.call()"
-            )
-
         return self._call(
             sproc_name,
             *args,
             statement_params=statement_params,
             log_on_exception=log_on_exception,
+            _emit_ast=_emit_ast,
         )
 
     def _call(
@@ -3572,6 +3567,7 @@ class Session:
         statement_params: Optional[Dict[str, Any]] = None,
         is_return_table: Optional[bool] = None,
         log_on_exception: bool = False,
+        _emit_ast: bool = True,
     ) -> Any:
         """Private implementation of session.call
 
@@ -3582,18 +3578,24 @@ class Session:
             is_return_table: When set to a non-null value, it signifies whether the return type of sproc_name
                 is a table return type. This skips infer check and returns a dataframe with appropriate sql call.
         """
+
+        # TODO SNOW-1672561: The implementation here treats .call as an assign. However, technically it may
+        #  be either only assign or assign+eval depending on the path taken.
+
         # AST.
-        stmt = self._ast_batch.assign()
-        expr = with_src_position(stmt.expr.apply_expr, stmt)
-        expr.fn.stored_procedure.name.fn_name_flat.name = sproc_name
-        for arg in args:
-            build_expr_from_python_val(expr.pos_args.add(), arg)
-        if statement_params is not None:
-            for k in statement_params:
-                entry = expr.named_args.list.add()
-                entry._1 = k
-                build_expr_from_python_val(entry._2, statement_params[k])
-        expr.fn.stored_procedure.log_on_exception.value = log_on_exception
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.assign()
+            expr = with_src_position(stmt.expr.apply_expr, stmt)
+            expr.fn.stored_procedure.name.fn_name_flat.name = sproc_name
+            for arg in args:
+                build_expr_from_python_val(expr.pos_args.add(), arg)
+            if statement_params is not None:
+                for k in statement_params:
+                    entry = expr.named_args.list.add()
+                    entry._1 = k
+                    build_expr_from_python_val(entry._2, statement_params[k])
+            expr.fn.stored_procedure.log_on_exception.value = log_on_exception
 
         if isinstance(self._sp_registration, MockStoredProcedureRegistration):
             return self._sp_registration.call(
@@ -3615,6 +3617,7 @@ class Session:
             set_api_call_source(df, "Session.call")
             return df
 
+        # TODO SNOW-1672561: This here needs to emit an eval as well.
         df = self.sql(query, _ast_stmt=stmt)
         set_api_call_source(df, "Session.call")
         return df.collect(statement_params=statement_params)[0][0]
