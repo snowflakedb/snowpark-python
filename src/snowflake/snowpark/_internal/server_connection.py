@@ -156,7 +156,7 @@ class ServerConnection:
         conn: Optional[SnowflakeConnection] = None,
     ) -> None:
         self._lock = threading.RLock()
-        self._thread_stored = threading.local()
+        self._thread_store = threading.local()
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self._add_application_parameters()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
@@ -187,9 +187,9 @@ class ServerConnection:
 
     @property
     def _cursor(self) -> SnowflakeCursor:
-        if not hasattr(self._thread_stored, "cursor"):
-            self._thread_stored.cursor = self._conn.cursor()
-        return self._thread_stored.cursor
+        if not hasattr(self._thread_store, "cursor"):
+            self._thread_store.cursor = self._conn.cursor()
+        return self._thread_store.cursor
 
     def _add_application_parameters(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
