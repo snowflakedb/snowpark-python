@@ -13700,6 +13700,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             # min_periods defaults to 1 if window is time-based string/offset
             min_periods = 1 if min_periods is None else min_periods
+            if self.is_multiindex():
+                raise ValueError(
+                    "Rolling behavior is undefined when used with a MultiIndex"
+                )
             index_quoted_identifier = frame.index_column_snowflake_quoted_identifiers[0]
             window_expr = Window.orderBy(index_quoted_identifier).range_between(
                 -create_snowpark_interval_from_window(window), Window.CURRENT_ROW

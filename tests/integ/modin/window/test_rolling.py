@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import re
 
 import modin.pandas as pd
 import numpy as np
@@ -240,22 +241,28 @@ def test_rolling_time_window_negative():
     )
     with pytest.raises(
         NotImplementedError,
-        match="'center=True' is not implemented with str window for Rolling.sum",
+        match=re.escape(
+            "'center=True' is not implemented with str window for Rolling.sum"
+        ),
     ):
         snow_df.rolling(window="2s", center=True).sum()
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas 'Rolling' does not yet support negative time 'window' offset",
+        match=re.escape(
+            "Snowpark pandas 'Rolling' does not yet support negative time 'window' offset"
+        ),
     ):
         snow_df.rolling(window="-2s").sum()
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas does not yet support Rolling with windows that are not strings or integers",
+        match=re.escape(
+            "Snowpark pandas does not yet support Rolling with windows that are not strings or integers"
+        ),
     ):
         snow_df.rolling(window=pd.to_timedelta("1s")).sum()
 
 
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=0)
 def test_rolling_window_multiindex():
     native_df = native_pd.DataFrame(
         {
@@ -270,15 +277,16 @@ def test_rolling_window_multiindex():
     )
     native_df = native_df.set_index(["A", "B"])
 
-    # pandas throws a ValueError when multiindex used with Rolling, whereas Snowpark pandas succeeds
+    # pandas throws a ValueError when multiindex used with Rolling, whereas Snowpark pandas
+    # throws a NotImplementedError succeeds
     with pytest.raises(ValueError, match="window must be an integer 0 or greater"):
         native_df.rolling("2D").sum()
 
     snow_df = pd.DataFrame(native_df)
-    snow_df_output = snow_df.rolling("2D").sum()
-    native_df["C"] = [1, 3, 5]
-    snow_df_expected_output = pd.DataFrame(native_df)
-    assert snow_df_output.equals(snow_df_expected_output)
+    with pytest.raises(
+        ValueError, match="Rolling behavior is undefined when used with a MultiIndex"
+    ):
+        snow_df.rolling("2D").sum()
 
 
 @pytest.mark.parametrize(
