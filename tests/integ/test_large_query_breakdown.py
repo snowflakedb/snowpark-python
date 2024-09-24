@@ -4,6 +4,9 @@
 
 
 import logging
+import os
+import shutil
+import tempfile
 from unittest.mock import patch
 
 import pytest
@@ -430,3 +433,42 @@ def test_large_query_breakdown_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
         session.large_query_breakdown_enabled = True
     assert "large_query_breakdown_enabled is experimental" in caplog.text
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_plotter(session, large_query_df, enabled):
+    original_plotter_enabled = os.environ.get(
+        "ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING"
+    )
+    try:
+        os.environ["ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING"] = str(enabled)
+        tmp_dir = tempfile.gettempdir()
+        # clear temp dir before running the test
+        plot_dir_path = os.path.join(tmp_dir, "snowpark_query_plan_plots")
+        if os.path.exists(plot_dir_path):
+            shutil.rmtree(plot_dir_path)
+
+        large_query_df.collect()
+
+        expected_files = [
+            "original_plan",
+            "cte_optimized_plan_0",
+            "large_query_breakdown_plan_0",
+            "large_query_breakdown_plan_1",
+        ]
+        for file in expected_files:
+            path = os.path.join(tmp_dir, "snowpark_query_plan_plots", f"{file}.png")
+            path_exists = os.path.exists(path)
+            assert path_exists == enabled, f"{path=} does not exist"
+
+    finally:
+        if original_plotter_enabled is not None:
+            os.environ[
+                "ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING"
+            ] = original_plotter_enabled
+        else:
+            del os.environ["ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING"]
+
+        # clear temp dir after running the test
+        if os.path.exists(plot_dir_path):
+            shutil.rmtree(plot_dir_path)
