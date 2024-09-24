@@ -19,7 +19,7 @@ from snowflake.snowpark.session import (
     DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
     Session,
 )
-from tests.utils import Utils
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -435,6 +435,7 @@ def test_large_query_breakdown_enabled_parameter(session, caplog):
     assert "large_query_breakdown_enabled is experimental" in caplog.text
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="requires graphviz")
 @pytest.mark.parametrize("enabled", [False, True])
 def test_plotter(session, large_query_df, enabled):
     original_plotter_enabled = os.environ.get(
@@ -448,17 +449,22 @@ def test_plotter(session, large_query_df, enabled):
         if os.path.exists(plot_dir_path):
             shutil.rmtree(plot_dir_path)
 
-        large_query_df.collect()
+        with patch("graphviz.Graph.render") as mock_render:
+            large_query_df.collect()
+            assert mock_render.called == enabled
+            if not enabled:
+                return
 
-        expected_files = [
-            "original_plan",
-            "cte_optimized_plan_0",
-            "large_query_breakdown_plan_0",
-            "large_query_breakdown_plan_1",
-        ]
-        for file in expected_files:
-            path = os.path.join(tmp_dir, "snowpark_query_plan_plots", f"{file}.png")
-            assert os.path.exists(path) == enabled
+            assert mock_render.call_count == 4
+            expected_files = [
+                "original_plan",
+                "cte_optimized_plan_0",
+                "large_query_breakdown_plan_0",
+                "large_query_breakdown_plan_1",
+            ]
+            for i, file in enumerate(expected_files):
+                path = os.path.join(tmp_dir, "snowpark_query_plan_plots", file)
+                assert mock_render.call_args_list[i][0][0] == path
 
     finally:
         if original_plotter_enabled is not None:
