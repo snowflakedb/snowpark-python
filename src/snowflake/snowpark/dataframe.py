@@ -4859,12 +4859,7 @@ class DataFrame:
             self._set_ast_ref(expr.df)
             if new_column is not None:
                 expr.new_column.value = new_column
-            if isinstance(col_or_mapper, Column):
-                build_expr_from_snowpark_column_or_col_name(
-                    expr.col_or_mapper, col_or_mapper
-                )
-            else:
-                build_expr_from_python_val(expr.col_or_mapper, col_or_mapper)
+            build_expr_from_python_val(expr.col_or_mapper, col_or_mapper)
 
         if new_column is not None:
             return self.with_column_renamed(
@@ -4892,13 +4887,6 @@ class DataFrame:
         normalized_name_list = [quote_name(n) for n in names]
         rename_map = {k: v for k, v in zip(normalized_name_list, rename_list)}
         rename_plan = Rename(rename_map, self._plan)
-
-        # AST.
-        if _emit_ast:
-            for col, new_name in col_or_mapper.items():
-                kv_tuple_ast = expr.col_or_mapper.seq_map_val.kvs.add()
-                build_expr_from_snowpark_column_or_col_name(kv_tuple_ast.vs.add(), col)
-                build_expr_from_python_val(kv_tuple_ast.vs.add(), new_name)
 
         if self._select_statement:
             select_plan = self._session._analyzer.create_select_statement(
