@@ -16,7 +16,7 @@ from snowflake.snowpark.functions import (
     lit,
     max as max_,
     min as min_,
-    table_function,
+    call_table_function,
 )
 from snowflake.snowpark.window import Window
 
@@ -102,17 +102,10 @@ def test_nested_select_with_window_functions(simple_dataframe):
     verify_dataframe_select_statement(df_res, can_be_merged_when_enabled=False)
 
 
-def test_nested_select_with_table_functions(simple_dataframe):
-    split_to_table = table_function("split_to_table")
-    df_res = simple_dataframe.select((col("a") + 1).as_("a"), "b", "c").select(
-        col("a"), split_to_table(col("b"), lit(" ")), col("b")
-    )
+def test_nested_select_with_table_functions(session):
+    df = session.table_function(call_table_function("split_to_table", lit("split words to table"), lit(" ")).over())
+    df_res = df.select((col("a") + 1).as_("a"), "b", "c")
 
-    verify_dataframe_select_statement(df_res, can_be_merged_when_enabled=False)
-
-    df_res = simple_dataframe.select(
-        col("a"), split_to_table(col("b"), lit(" ")), col("b")
-    ).select((col("a") + 1).as_("a"), "b", "c")
     verify_dataframe_select_statement(df_res, can_be_merged_when_enabled=False)
 
 

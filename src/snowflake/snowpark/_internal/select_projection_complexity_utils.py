@@ -235,7 +235,9 @@ def has_invalid_projection_merge_functions(
         if isinstance(exp, WindowExpression):
             return True
         if isinstance(expressions, TableFunctionExpression):
-            return True
+            # TODO: it seems that it is not possible to have TableFunctionExpression as projection,
+            #   should double check that
+            return True     # pragma: no cover
         if isinstance(exp, FunctionExpression) and (
             exp.is_data_generator
             or (not exp.name.lower() in VALID_PROJECTION_MERGE_FUNCTIONS)

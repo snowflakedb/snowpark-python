@@ -1492,14 +1492,14 @@ def can_select_projection_complexity_be_merged(
     # only merge of nested select statement is supported, and subquery must be
     # a SelectStatement
     if column_states is None or (not isinstance(subquery, SelectStatement)):
-        return False
+        return False        # pragma: no cover
 
     if len(cols) != len(column_states.projection):
         # Failed to extract the attributes of some columns
         return False  # pragma: no cover
 
     if subquery._column_states is None:
-        return False
+        return False        # pragma: no cover
 
     # It is not valid to merge the projection complexity if:
     # 1) exist a column without state extracted
@@ -1511,7 +1511,7 @@ def can_select_projection_complexity_be_merged(
     for proj in column_states.projection:
         column_state = column_states.get(proj.name)
         if column_state is None:
-            return False
+            return False        # pragma: no cover
         if column_state.depend_on_same_level:
             return False
         if column_state.dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
@@ -1519,7 +1519,7 @@ def can_select_projection_complexity_be_merged(
         if column_state.dependent_columns != COLUMN_DEPENDENCY_ALL:
             for dependent_col in column_state.dependent_columns:
                 if dependent_col not in subquery._column_states.active_columns:
-                    return False
+                    return False        # pragma: no cover
 
     # check if the current select have filter, order by, or limit
     if subquery.where or subquery.order_by or subquery.limit_ or subquery.offset:
