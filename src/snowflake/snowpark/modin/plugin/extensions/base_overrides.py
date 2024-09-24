@@ -77,7 +77,10 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     base_not_implemented,
 )
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.modin.plugin.utils.warning_message import (
+    WarningMessage,
+    materialization_warning,
+)
 from snowflake.snowpark.modin.utils import validate_int_kwarg
 
 
@@ -1790,6 +1793,7 @@ def to_csv(
 
 # Modin has support for a custom NumPy wrapper module.
 @register_base_override("to_numpy")
+@materialization_warning
 def to_numpy(
     self,
     dtype: npt.DTypeLike | None = None,
