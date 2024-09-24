@@ -5,7 +5,6 @@
 
 import logging
 import os
-import shutil
 import tempfile
 from unittest.mock import patch
 
@@ -444,10 +443,6 @@ def test_plotter(session, large_query_df, enabled):
     try:
         os.environ["ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING"] = str(enabled)
         tmp_dir = tempfile.gettempdir()
-        # clear temp dir before running the test
-        plot_dir_path = os.path.join(tmp_dir, "snowpark_query_plan_plots")
-        if os.path.exists(plot_dir_path):
-            shutil.rmtree(plot_dir_path)
 
         with patch("graphviz.Graph.render") as mock_render:
             large_query_df.collect()
@@ -473,7 +468,3 @@ def test_plotter(session, large_query_df, enabled):
             ] = original_plotter_enabled
         else:
             del os.environ["ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING"]
-
-        # clear temp dir after running the test
-        if os.path.exists(plot_dir_path):
-            shutil.rmtree(plot_dir_path)
