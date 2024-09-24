@@ -128,7 +128,9 @@ def test_rolling_series(window, min_periods, center, agg_func):
 
 @agg_func
 @min_periods
-def test_rolling_time_period(agg_func, min_periods):
+@pytest.mark.parametrize("window_time_period", ["2s", "3s", "10s"])
+@sql_count_checker(query_count=1)
+def test_rolling_time_period(agg_func, min_periods, window_time_period):
     native_df = native_pd.DataFrame(
         {"B": [0, 1, 2, np.nan, 4]},
         index=[
@@ -144,9 +146,9 @@ def test_rolling_time_period(agg_func, min_periods):
         snow_df,
         native_df,
         lambda df: getattr(
-            df.rolling(window="2s", min_periods=min_periods),
+            df.rolling(window=window_time_period, min_periods=min_periods),
             agg_func,
-        )(numeric_only=True),
+        )(),
     )
 
 
@@ -224,7 +226,8 @@ def test_rolling_center_negative():
     )
 
 
-def test_rolling_time_window_center_unsupported():
+@sql_count_checker(query_count=0)
+def test_rolling_time_window_negative():
     snow_df = pd.DataFrame(
         {"B": [0, 1, 2, np.nan, 4]},
         index=[
@@ -239,7 +242,43 @@ def test_rolling_time_window_center_unsupported():
         NotImplementedError,
         match="'center=True' is not implemented with str window for Rolling.sum",
     ):
-        snow_df.rolling(window="2s", min_periods=1, center=True).sum()
+        snow_df.rolling(window="2s", center=True).sum()
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas 'Rolling' does not yet support negative time 'window' offset",
+    ):
+        snow_df.rolling(window="-2s").sum()
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support Rolling with windows that are not strings or integers",
+    ):
+        snow_df.rolling(window=pd.to_timedelta("1s")).sum()
+
+
+@sql_count_checker(query_count=3, join_count=1)
+def test_rolling_window_multiindex():
+    native_df = native_pd.DataFrame(
+        {
+            "A": [
+                native_pd.to_datetime("2020-01-01"),
+                native_pd.to_datetime("2020-01-02"),
+                native_pd.to_datetime("2020-01-03"),
+            ],
+            "B": native_pd.date_range("2020", periods=3),
+            "C": [1, 2, 3],
+        },
+    )
+    native_df = native_df.set_index(["A", "B"])
+
+    # pandas throws a ValueError when multiindex used with Rolling, whereas Snowpark pandas succeeds
+    with pytest.raises(ValueError, match="window must be an integer 0 or greater"):
+        native_df.rolling("2D").sum()
+
+    snow_df = pd.DataFrame(native_df)
+    snow_df_output = snow_df.rolling("2D").sum()
+    native_df["C"] = [1, 3, 5]
+    snow_df_expected_output = pd.DataFrame(native_df)
+    assert snow_df_output.equals(snow_df_expected_output)
 
 
 @pytest.mark.parametrize(

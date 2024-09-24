@@ -84,10 +84,10 @@ def check_and_raise_error_rolling_window_supported_by_snowflake(
 
     # Raise not implemented error for unsupported params
     if not isinstance(window, (int, str)):
-        ErrorMessage.method_not_implemented_error(
-            name="Non-integer window", class_="Rolling"
+        ErrorMessage.not_implemented(
+            "Snowpark pandas does not yet support Rolling with windows that are not strings or integers"
         )
-    if min_periods is None or min_periods == 0:
+    if (min_periods is None or min_periods == 0) and not isinstance(window, str):
         ErrorMessage.method_not_implemented_error(
             name=f"min_periods {min_periods}", class_="Rolling"
         )
@@ -145,7 +145,27 @@ def check_and_raise_error_expanding_window_supported_by_snowflake(
 
 
 def create_snowpark_interval_from_window(window: str) -> Column:
+    """
+    This function creates a Snowpark column consisting of an Interval Expression from a given
+    window string.
+
+    Parameters
+    ----------
+    window: str
+        The given window (e.g. '2s') that we want to use to create a Snowpark column Interval
+        Expression to pass to Window.range_between.
+
+    Returns
+    -------
+    Snowpark Column
+    """
     slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(window)
+    if slice_width < 0:
+        ErrorMessage.not_implemented(
+            "Snowpark pandas 'Rolling' does not yet support negative time 'window' offset"
+        )
+    # Ensure all possible frequencies 'rule_to_snowflake_width_and_slice_unit' can output are
+    # accounted for before creating the Interval column
     seconds = slice_width - 1 if slice_unit == "second" else 0
     minutes = slice_width - 1 if slice_unit == "minute" else 0
     hours = slice_width - 1 if slice_unit == "hour" else 0
