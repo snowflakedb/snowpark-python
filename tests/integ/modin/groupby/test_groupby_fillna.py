@@ -295,3 +295,23 @@ def test_groupby_fillna_downcast_not_supported_negative():
     ):
         # call to_pandas to trigger the evaluation of the operation
         snow_df.groupby("I").fillna(method="ffill", downcast={"A": "str"}).to_pandas()
+
+
+@pytest.mark.parametrize("method_or_value", METHOD_OR_VALUES)
+@pytest.mark.parametrize("level", [0, 1, [0, 1]])
+@sql_count_checker(query_count=1)
+def test_groupby_series_fillna_ffill_bfill(method_or_value, level):
+    method, value = method_or_value
+    native_df = native_pd.DataFrame(
+        TEST_DF_DATA_2, index=TEST_DF_INDEX_2, columns=TEST_DF_COLUMNS_2
+    )
+    native_ser = native_df[(5, "A")]
+    snow_ser = pd.Series(native_ser)
+
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.groupby(by=None, level=level, axis=0).fillna(
+            method=method, value=value
+        ),
+    )

@@ -518,6 +518,8 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         limit: Optional[int] = None,
         downcast: Optional[dict] = None,
     ):
+        is_series_groupby = self.ndim == 1
+
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         query_compiler = self._query_compiler.groupby_fillna(
             self._by,
@@ -530,7 +532,11 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             limit,
             downcast,
         )
-        return pd.DataFrame(query_compiler=query_compiler)
+        return (
+            pd.Series(query_compiler=query_compiler)
+            if is_series_groupby
+            else pd.DataFrame(query_compiler=query_compiler)
+        )
 
     def first(self, numeric_only=False, min_count=-1, skipna=True):
         return self._wrap_aggregation(
