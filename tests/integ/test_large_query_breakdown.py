@@ -459,7 +459,7 @@ def test_plotter(session, large_query_df, enabled):
         for file in expected_files:
             path = os.path.join(tmp_dir, "snowpark_query_plan_plots", f"{file}.png")
             path_exists = os.path.exists(path)
-            assert path_exists == enabled, f"{path=} does not exist"
+            assert path_exists == enabled
 
     finally:
         if original_plotter_enabled is not None:
