@@ -619,7 +619,6 @@ def test_insert_into_empty_df_with_single_column():
     def helper(df):
         temp_series = series
         if isinstance(df, pd.DataFrame):
-            df = pd.DataFrame(df)
             temp_series = pd.Series(temp_series)
 
         df.insert(0, "X", temp_series)

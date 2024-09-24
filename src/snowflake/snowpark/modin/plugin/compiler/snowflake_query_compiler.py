@@ -6235,7 +6235,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # 'loc'
         def move_last_element(arr: list, index: int) -> None:
             if replace:
-                # swap element at loc with new colun at end, then drop last element
+                # swap element at loc with new column at end, then drop last element
                 arr[index], arr[-1] = arr[-1], arr[index]
                 arr.pop()
             else:

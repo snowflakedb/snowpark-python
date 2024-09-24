@@ -498,11 +498,11 @@ def __init__(
     # The logic followed here is:
     # STEP 1: Obtain the query_compiler from the provided data if the data is lazy. If data is local, keep the query
     #         compiler as None.
-    # STEP 2: If columns are provided, set the columns if data is lazy.
+    # STEP 2: If columns are provided, set the columns if the data is lazy.
     # STEP 3: If both the data and index are local (or index is None), create a query compiler from it with local index.
     # STEP 4: Otherwise, for lazy index, set the index through set_index or reindex.
     # STEP 5: If a dtype is given, and it is different from the current dtype of the query compiler so far,
-    #         convert the query compiler to the given dtype.
+    #         convert the query compiler to the given dtype if the data is lazy.
     # STEP 6: The resultant query_compiler is then set as the query_compiler for the DataFrame.
 
     # STEP 1: Setting the data
@@ -654,11 +654,16 @@ def __init__(
                 convert_index_to_list_of_qcs(index)
             )
 
-    # STEP 5: Setting the dtype
-    # -------------------------
-    # If a dtype is provided, and it does not match the current dtype of the query compiler, convert the query compiler's
-    # dtype to the new dtype.
-    if dtype is not None and dtype != getattr(data, "dtype", None):
+    # STEP 5: Setting the dtype if data is lazy
+    # -----------------------------------------
+    # If data is a Snowpark pandas object and a dtype is provided, and it does not match the current dtype of the
+    # query compiler, convert the query compiler's dtype to the new dtype.
+    # Local data should have the dtype parameter taken care of by the pandas constructor at the end.
+    if (
+        dtype is not None
+        and isinstance(data, (Index, BasePandasDataset))
+        and dtype != getattr(data, "dtype", None)
+    ):
         query_compiler = query_compiler.astype(
             {col: dtype for col in query_compiler.columns}
         )
