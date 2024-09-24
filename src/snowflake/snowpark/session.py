@@ -3132,7 +3132,7 @@ class Session:
 
             # AST.
             if _emit_ast:
-                ast = with_src_position(stmt.expr.sp_create_dataframe)
+                ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
 
                 # Save temp table and schema of it in AST (dataframe).
                 ast.data.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (

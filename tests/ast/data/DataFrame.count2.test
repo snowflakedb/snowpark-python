@@ -13,17 +13,17 @@ df.count(block=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
 ## EXPECTED UNPARSER OUTPUT
 
-res1 = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType([StructField("\"A\"", StringType(16777216), nullable=True), StructField("\"B\"", LongType(), nullable=True)], structured=False))
+df = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType([StructField("\"A\"", StringType(16777216), nullable=True), StructField("\"B\"", LongType(), nullable=True)], structured=False))
 
-res1.count()
+df.count()
 
-res1.count(block=False)
+df.count(block=False)
 
-res1.count(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
+df.count(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
 
 ## EXPECTED ENCODED AST
 
-CoEBCn8KddIFcgooEiYKJAoiCiAKHlNOT1dQQVJLX1RFTVBfVEFCTEVfUVQzUEpZUkRSWRIqEigKJgoVCgUKAyJBIhIKmgEHCgUIgICACBgBCg0KBQoDIkIiEgJoARgBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXRIAGAEiAggBCjEKLwolugYiCAESAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXxIAGAIiAggCCggSBggDEgIIAhABGhESDwoNCgVmaW5hbBADGAggEyIEEAEYFQ==
+CoYBCoMBCnXSBXIKKBImCiQKIgogCh5TTk9XUEFSS19URU1QX1RBQkxFXzhYWDFEQktVUTASKhIoCiYKFQoFCgMiQSISCpoBBwoFCICAgAgYAQoNCgUKAyJCIhICaAEYARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKF0SBAoCZGYYASICCAEKMQovCiW6BiIIARICCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShfEgAYAiICCAIKCBIGCAMSAggCEAEaERIPCg0KBWZpbmFsEAMYCCATIgQQARgV
 Ci8KLQojugYgEgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGESABgEIgIIBAoIEgYIBRICCAQQARoREg8KDQoFZmluYWwQAxgIIBMiBBABGBU=
 CksKSQo/ugY8EgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGMiGgoKU0ZfUEFSVE5FUhIMRkFLRV9QQVJUTkVSEgAYBiICCAYKCBIGCAcSAggGEAEaERIPCg0KBWZpbmFsEAMYCCATIgQQARgV
 EAEaERIPCg0KBWZpbmFsEAMYCCATIgQQARgV
