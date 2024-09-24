@@ -235,8 +235,9 @@ def update_resolvable_node(
         # update the pre_actions and post_actions for the select statement
         node.pre_actions = node.from_.pre_actions
         node.post_actions = node.from_.post_actions
-        # node.expr_to_alias = node.from_.expr_to_alias
-        # node.df_aliased_col_name_to_real_col_name.clear()
+        # df_aliased_col_name_to_real_col_name and expr_to_alias is updated at the frontend api
+        # layer, not produced during code generation, and we should always retain
+        # the original value of the map.
         node.expr_to_alias.update(node.from_.expr_to_alias)
         node.df_aliased_col_name_to_real_col_name.update(
             node.from_.df_aliased_col_name_to_real_col_name

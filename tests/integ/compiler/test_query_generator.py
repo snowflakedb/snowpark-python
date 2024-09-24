@@ -432,3 +432,11 @@ def test_dataframe_alas_join(session):
         .select(col("L", "col1"), col("R", "col2"))
     )
     check_generated_plan_queries(df_res._plan)
+
+
+def test_select_alias(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df1 = df.select("a", "b", (col("a") + col("b")).as_("c"))
+    # Add a new column d that doesn't use c after c was added previously. Flatten safely.
+    df2 = df1.select("a", "b", "c", (col("a") + col("b") + 1).as_("d"))
+    check_generated_plan_queries(df2._plan)

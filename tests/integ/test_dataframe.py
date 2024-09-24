@@ -1181,7 +1181,7 @@ def test_alias(session):
 
 def test_join_inner(session):
     """Test for inner join of dataframes."""
-    """
+
     # Implicit inner join on single column
     df1 = session.range(3, 8)
     df2 = session.range(5, 10)
@@ -1194,21 +1194,20 @@ def test_join_inner(session):
     res = df1.join(df2, "id", "inner").collect()
     expected = [Row(5), Row(6), Row(7)]
     assert res == expected
-    """
+
     # Join on same-name column, other columns have same name
     df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
     df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime")])
     res = df1.join(df2, "id").collect()
     expected = [Row(5, 5, 5), Row(6, 6, 6), Row(7, 7, 7)]
     assert res == expected
-    """
+
     # Case, join on same-name column, other columns have different name
     df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime1")])
     df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime2")])
     expected = [Row(5, 5, 5), Row(6, 6, 6), Row(7, 7, 7)]
     res = df1.join(df2, "id").collect()
     assert res == expected
-    """
 
 
 def test_join_left_anti(session):
