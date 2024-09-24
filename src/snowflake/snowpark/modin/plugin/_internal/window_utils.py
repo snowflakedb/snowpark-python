@@ -8,6 +8,11 @@
 from enum import Enum
 from typing import Any
 
+from snowflake.snowpark import Column
+from snowflake.snowpark.functions import make_interval
+from snowflake.snowpark.modin.plugin._internal.resample_utils import (
+    rule_to_snowflake_width_and_slice_unit,
+)
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 
 
@@ -78,7 +83,7 @@ def check_and_raise_error_rolling_window_supported_by_snowflake(
     step = rolling_kwargs.get("step")
 
     # Raise not implemented error for unsupported params
-    if not isinstance(window, int):
+    if not isinstance(window, (int, str)):
         ErrorMessage.method_not_implemented_error(
             name="Non-integer window", class_="Rolling"
         )
@@ -137,3 +142,25 @@ def check_and_raise_error_expanding_window_supported_by_snowflake(
         ErrorMessage.method_not_implemented_error(
             name="axis = 1", class_="Expanding"
         )  # pragma: no cover
+
+
+def create_snowpark_interval_from_window(window: str) -> Column:
+    slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(window)
+    seconds = slice_width - 1 if slice_unit == "second" else 0
+    minutes = slice_width - 1 if slice_unit == "minute" else 0
+    hours = slice_width - 1 if slice_unit == "hour" else 0
+    days = slice_width - 1 if slice_unit == "day" else 0
+    weeks = slice_width - 1 if slice_unit == "week" else 0
+    months = slice_width - 1 if slice_unit == "month" else 0
+    quarters = slice_width - 1 if slice_unit == "quarter" else 0
+    years = slice_width - 1 if slice_unit == "year" else 0
+    return make_interval(
+        seconds=seconds,
+        minutes=minutes,
+        hours=hours,
+        days=days,
+        weeks=weeks,
+        months=months,
+        quarters=quarters,
+        years=years,
+    )

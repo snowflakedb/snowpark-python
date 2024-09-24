@@ -126,6 +126,30 @@ def test_rolling_series(window, min_periods, center, agg_func):
             )
 
 
+@agg_func
+@min_periods
+def test_rolling_time_period(agg_func, min_periods):
+    native_df = native_pd.DataFrame(
+        {"B": [0, 1, 2, np.nan, 4]},
+        index=[
+            native_pd.Timestamp("20130101 09:00:00"),
+            native_pd.Timestamp("20130101 09:00:02"),
+            native_pd.Timestamp("20130101 09:00:03"),
+            native_pd.Timestamp("20130101 09:00:04"),
+            native_pd.Timestamp("20130101 09:00:06"),
+        ],
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: getattr(
+            df.rolling(window="2s", min_periods=min_periods),
+            agg_func,
+        )(numeric_only=True),
+    )
+
+
 @pytest.mark.parametrize("ddof", [-1, 0, 0.5, 1, 2])
 @sql_count_checker(query_count=1)
 def test_rolling_sem_ddof(ddof):
@@ -200,8 +224,7 @@ def test_rolling_center_negative():
     )
 
 
-@sql_count_checker(query_count=0)
-def test_rolling_window_unsupported():
+def test_rolling_time_window_center_unsupported():
     snow_df = pd.DataFrame(
         {"B": [0, 1, 2, np.nan, 4]},
         index=[
@@ -212,8 +235,11 @@ def test_rolling_window_unsupported():
             pd.Timestamp("20130101 09:00:06"),
         ],
     )
-    with pytest.raises(NotImplementedError):
-        snow_df.rolling(window="2s", min_periods=None).sum()
+    with pytest.raises(
+        NotImplementedError,
+        match="'center=True' is not implemented with str window for Rolling.sum",
+    ):
+        snow_df.rolling(window="2s", min_periods=1, center=True).sum()
 
 
 @pytest.mark.parametrize(
