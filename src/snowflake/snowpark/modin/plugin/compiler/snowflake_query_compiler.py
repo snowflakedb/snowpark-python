@@ -5597,6 +5597,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     )
                 )
 
+                # If we are doing a ffill, then the current NaN value will fill in with the values from the left,
+                # otherwise if bfill will fill with values from the right.  To simplify the processing, we reverse
+                # the column order for bfill so it's the same pass to generate the coalece of prior columns, and
+                # then reverse again afterwards.
                 if method == "bfill":
                     data_column_pairs.reverse()
 
