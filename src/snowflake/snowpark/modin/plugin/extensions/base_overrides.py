@@ -23,6 +23,7 @@ import numpy.typing as npt
 import pandas
 from modin.pandas import Series
 from modin.pandas.base import BasePandasDataset
+from modin.pandas.utils import is_scalar
 from pandas._libs import lib
 from pandas._libs.lib import NoDefault, is_bool, no_default
 from pandas._typing import (
@@ -64,15 +65,14 @@ from snowflake.snowpark.modin.pandas.api.extensions import (
     register_dataframe_accessor,
     register_series_accessor,
 )
-from snowflake.snowpark.modin.pandas.utils import (
+from snowflake.snowpark.modin.plugin._typing import ListLike
+from snowflake.snowpark.modin.plugin.extensions.utils import (
     ensure_index,
     extract_validate_and_try_convert_named_aggs_from_kwargs,
     get_as_shape_compatible_dataframe_or_series,
-    is_scalar,
     raise_if_native_pandas_objects,
     validate_and_try_convert_agg_func_arg_func_to_str,
 )
-from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     base_not_implemented,
@@ -1274,7 +1274,7 @@ def resample(
     """
     Resample time-series data.
     """
-    from snowflake.snowpark.modin.pandas.resample import Resampler
+    from snowflake.snowpark.modin.plugin.extensions.resample_overrides import Resampler
 
     if axis is not lib.no_default:  # pragma: no cover
         axis = self._get_axis_number(axis)
@@ -1430,7 +1430,9 @@ def iloc(self):
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
     # TODO: SNOW-930028 enable all skipped doctests
-    from snowflake.snowpark.modin.pandas.indexing import _iLocIndexer
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+        _iLocIndexer,
+    )
 
     return _iLocIndexer(self)
 
@@ -1445,7 +1447,9 @@ def loc(self):
     # TODO: SNOW-935444 fix doctest where index key has name
     # TODO: SNOW-933782 fix multiindex transpose bug, e.g., Name: (cobra, mark ii) => Name: ('cobra', 'mark ii')
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    from snowflake.snowpark.modin.pandas.indexing import _LocIndexer
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+        _LocIndexer,
+    )
 
     return _LocIndexer(self)
 
@@ -1458,7 +1462,9 @@ def iat(self, axis=None):  # noqa: PR01, RT01, D200
     Get a single value for a row/column pair by integer position.
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    from snowflake.snowpark.modin.pandas.indexing import _iAtIndexer
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+        _iAtIndexer,
+    )
 
     return _iAtIndexer(self)
 
@@ -1471,7 +1477,7 @@ def at(self, axis=None):  # noqa: PR01, RT01, D200
     Get a single value for a row/column label pair.
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    from snowflake.snowpark.modin.pandas.indexing import _AtIndexer
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import _AtIndexer
 
     return _AtIndexer(self)
 

@@ -32,6 +32,8 @@ import numpy as np
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
 from modin.pandas.base import BasePandasDataset
+from modin.pandas.io import from_pandas
+from modin.pandas.utils import is_scalar
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     AggFuncType,
@@ -66,15 +68,6 @@ from pandas.io.formats.printing import pprint_thing
 from pandas.util._validators import validate_bool_kwarg
 
 from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_accessor
-from snowflake.snowpark.modin.pandas.utils import (
-    create_empty_native_pandas_frame,
-    from_pandas,
-    is_scalar,
-    raise_if_native_pandas_objects,
-    replace_external_data_keys_with_empty_pandas_series,
-    replace_external_data_keys_with_query_compiler,
-    try_convert_index_to_native,
-)
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     is_snowflake_agg_func,
 )
@@ -94,6 +87,13 @@ from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
 from snowflake.snowpark.modin.plugin.extensions.index import Index
 from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
     SnowparkPandasRowPartitionIterator,
+)
+from snowflake.snowpark.modin.plugin.extensions.utils import (
+    create_empty_native_pandas_frame,
+    raise_if_native_pandas_objects,
+    replace_external_data_keys_with_empty_pandas_series,
+    replace_external_data_keys_with_query_compiler,
+    try_convert_index_to_native,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -468,6 +468,7 @@ def __init__(
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     # Siblings are other dataframes that share the same query compiler. We
     # use this list to update inplace when there is a shallow copy.
+
     self._siblings = []
 
     # Setting the query compiler
@@ -2498,7 +2499,9 @@ def __setitem__(self, key: Any, value: Any):
     columns = (
         columns._query_compiler if isinstance(columns, BasePandasDataset) else columns
     )
-    from snowflake.snowpark.modin.pandas.indexing import is_2d_array
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+        is_2d_array,
+    )
 
     matching_item_rows_by_label = not is_2d_array(value)
     if is_2d_array(value):

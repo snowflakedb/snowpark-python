@@ -16,7 +16,7 @@ from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
@@ -832,6 +832,37 @@ class TestFuncReturnsScalar:
                 include_groups=False,
             )
 
+    @pytest.mark.xfail(strict=True, raises=AssertionError, reason="SNOW-1619940")
+    def test_return_timedelta(self):
+        eval_snowpark_pandas_result(
+            *create_test_dfs([[1, 2]]),
+            lambda df: df.groupby(0).apply(
+                lambda df: native_pd.Timedelta(df.sum().sum())
+            ),
+        )
+
+    @pytest.mark.xfail(strict=True, raises=NotImplementedError)
+    @pytest.mark.parametrize(
+        "pandas_df",
+        [
+            param(
+                native_pd.DataFrame([["key0", native_pd.Timedelta(1)]]),
+                id="timedelta_column",
+            ),
+            param(
+                native_pd.DataFrame(
+                    [["key0", "value1"]],
+                    index=native_pd.Index([native_pd.Timedelta(1)]),
+                ),
+                id="timedelta_index",
+            ),
+        ],
+    )
+    def test_timedelta_input(self, pandas_df):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(pandas_df), lambda df: df.groupby(0).apply(lambda df: 1)
+        )
+
 
 class TestFuncReturnsSeries:
     @pytest.mark.parametrize(
@@ -1067,6 +1098,43 @@ class TestSeriesGroupBy:
                 group_keys=group_keys,
                 sort=sort,
             ).apply(func),
+        )
+
+
+class SeriesGroupByWithTimedelta:
+    @pytest.mark.xfail(strict=True, raises=AssertionError, reason="SNOW-1619940")
+    def test_return_timedelta(self):
+        eval_snowpark_pandas_result(
+            *create_test_dfs([[1, 2]]),
+            lambda df: df.groupby(0,)[
+                1
+            ].apply(lambda series: native_pd.Timedelta(series.sum())),
+        )
+
+    @pytest.mark.xfail(strict=True, raises=NotImplementedError)
+    @pytest.mark.parametrize(
+        "pandas_df",
+        [
+            param(
+                native_pd.DataFrame([["key0", native_pd.Timedelta(1)]]),
+                id="timedelta_column",
+            ),
+            param(
+                native_pd.DataFrame(
+                    [["key0", "value1"]],
+                    index=native_pd.Index([native_pd.Timedelta(1)]),
+                ),
+                id="timedelta_index",
+            ),
+        ],
+    )
+    def test_timedelta_input(
+        self,
+        pandas_df,
+    ):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(pandas_df),
+            lambda df: df.groupby(0)[1].apply(lambda series: 1),
         )
 
 

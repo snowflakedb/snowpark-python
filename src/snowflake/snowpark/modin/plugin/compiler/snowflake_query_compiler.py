@@ -14,6 +14,7 @@ from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from typing import Any, Callable, List, Literal, Optional, Union, get_args
 
+import modin.pandas as pd
 import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
@@ -64,7 +65,6 @@ from pandas.core.indexes.base import ensure_index
 from pandas.io.formats.format import format_percentiles
 from pandas.io.formats.printing import PrettyDict
 
-import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
@@ -105,6 +105,7 @@ from snowflake.snowpark.functions import (
     is_char,
     is_null,
     lag,
+    last_day,
     last_value,
     lead,
     least,
@@ -255,6 +256,8 @@ from snowflake.snowpark.modin.plugin._internal.pivot_utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     IMPLEMENTED_AGG_METHODS,
+    RULE_SECOND_TO_DAY,
+    RULE_WEEK_TO_YEAR,
     fill_missing_resample_bins_for_frame,
     get_expected_resample_bins_frame,
     get_snowflake_quoted_identifier_for_resample_index_col,
@@ -1506,7 +1509,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             a new `SnowflakeQueryCompiler` with updated column labels
         """
         # new_pandas_names should be able to convert into an index which is consistent to pandas df.columns behavior
-        from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+        from snowflake.snowpark.modin.plugin.extensions.utils import (
+            try_convert_index_to_native,
+        )
 
         new_pandas_labels = ensure_index(try_convert_index_to_native(new_pandas_labels))
         if len(new_pandas_labels) != len(self._modin_frame.data_column_pandas_labels):
@@ -2024,7 +2029,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 If data in both corresponding DataFrame locations is missing the result will be missing.
                 only arithmetic binary operation has this parameter (e.g., add() has, but eq() doesn't have).
         """
-        from snowflake.snowpark.modin.pandas.utils import is_scalar
+        from modin.pandas.utils import is_scalar
 
         replace_mapping = {}  # map: column identifier -> column expression
         # Convert list-like object to list since the NaN values in the rhs are treated as invalid identifiers
@@ -2103,8 +2108,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         from modin.pandas import Series
         from modin.pandas.dataframe import DataFrame
-
-        from snowflake.snowpark.modin.pandas.utils import is_scalar
+        from modin.pandas.utils import is_scalar
 
         # fail explicitly for unsupported scenarios
         if level is not None:
@@ -8210,7 +8214,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame.data_column_snowflake_quoted_identifiers
             )
 
-            from snowflake.snowpark.modin.pandas.utils import (
+            from snowflake.snowpark.modin.plugin.extensions.utils import (
                 try_convert_index_to_native,
             )
 
@@ -8663,7 +8667,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # If we hit this error, that means that we have attempted a pivot on an empty
             # DataFrame, so we catch the exception and return an empty DataFrame.
             if e.sql_error_code == 1146:
-                from snowflake.snowpark.modin.pandas.utils import from_pandas
+                from modin.pandas.io import from_pandas
 
                 native_df = native_pd.DataFrame(index=self.index, columns=self.columns)
                 native_df.index.names = self.index.names
@@ -9955,7 +9959,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         # Raise not implemented error if level is specified, or other is not snowflake query compiler or
         # involves more complex scalar type (not simple scalar types like int or float)
-        from snowflake.snowpark.modin.pandas.utils import is_scalar
+        from modin.pandas.utils import is_scalar
 
         other_is_series_self_is_not = (getattr(self, "_shape_hint", None) is None) and (
             getattr(other, "_shape_hint", None) == "column"
@@ -10583,7 +10587,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 raise ErrorMessage.not_implemented(
                     "Currently only can fill with dict/Series column by column"
                 )
-            from snowflake.snowpark.modin.pandas.utils import is_scalar
+            from modin.pandas.utils import is_scalar
 
             # prepare label_to_value_map
             if is_scalar(value):
@@ -11903,6 +11907,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas `asfreq` does not support parameters `how`, `normalize`, or `fill_value`."
             )
 
+        _, slice_unit = rule_to_snowflake_width_and_slice_unit(freq)
+        if slice_unit not in RULE_SECOND_TO_DAY:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas `asfreq` does not yet support frequencies week, month, quarter, or year"
+            )
+
         resample_kwargs = {
             "rule": freq,
             "axis": 0,
@@ -11977,7 +11987,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         rule = resample_kwargs.get("rule")
 
-        _, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
+        slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
 
         min_max_index_column_quoted_identifier = (
             frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
@@ -11993,14 +12003,45 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # For instance, if rule='3D' and the earliest date is
         # 2020-03-01 1:00:00, the first date should be 2020-03-01,
         # which is what date_trunc gives us.
-        start_date, end_date = frame.ordered_dataframe.agg(
-            date_trunc(slice_unit, min_(snowflake_index_column_identifier)).as_(
-                min_max_index_column_quoted_identifier[0]
-            ),
-            date_trunc(slice_unit, max_(snowflake_index_column_identifier)).as_(
-                min_max_index_column_quoted_identifier[1]
-            ),
-        ).collect()[0]
+        if slice_unit in RULE_SECOND_TO_DAY:
+            # `slice_unit` in 'second', 'minute', 'hour', 'day'
+            start_date, end_date = frame.ordered_dataframe.agg(
+                date_trunc(slice_unit, min_(snowflake_index_column_identifier)).as_(
+                    min_max_index_column_quoted_identifier[0]
+                ),
+                date_trunc(slice_unit, max_(snowflake_index_column_identifier)).as_(
+                    min_max_index_column_quoted_identifier[1]
+                ),
+            ).collect()[0]
+        else:
+            assert slice_unit in RULE_WEEK_TO_YEAR
+            # `slice_unit` in 'week', 'month', 'quarter', or 'year'. Set the start and end dates
+            # to the last day of the given `slice_unit`. Use the right bin edge by adding a `slice_width`
+            # of the given `slice_unit` to the first and last date of the index.
+            start_date, end_date = frame.ordered_dataframe.agg(
+                last_day(
+                    date_trunc(
+                        slice_unit,
+                        dateadd(
+                            slice_unit,
+                            pandas_lit(slice_width),
+                            min_(snowflake_index_column_identifier),
+                        ),
+                    ),
+                    slice_unit,
+                ).as_(min_max_index_column_quoted_identifier[0]),
+                last_day(
+                    date_trunc(
+                        slice_unit,
+                        dateadd(
+                            slice_unit,
+                            pandas_lit(slice_width),
+                            max_(snowflake_index_column_identifier),
+                        ),
+                    ),
+                    slice_unit,
+                ).as_(min_max_index_column_quoted_identifier[1]),
+            ).collect()[0]
 
         if resample_method in ("ffill", "bfill"):
             expected_frame = get_expected_resample_bins_frame(
@@ -14313,7 +14354,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
+        Snowpark pandas :class:`~modin.pandas.Series`
             Boolean series for each duplicated rows.
         """
         frame = self._modin_frame.ensure_row_position_column()

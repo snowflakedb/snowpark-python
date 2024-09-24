@@ -7,8 +7,9 @@ import re
 import traceback
 from collections.abc import Hashable, Iterable, Sequence
 from enum import Enum
-from typing import Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 from pandas._typing import AnyArrayLike, Scalar
@@ -16,7 +17,6 @@ from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_integer_dtype, is_object_dtype, is_scalar
 from pandas.core.dtypes.inference import is_list_like
 
-import snowflake.snowpark.modin.pandas as pd
 import snowflake.snowpark.modin.plugin._internal.statement_params_constants as STATEMENT_PARAMS
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     DOUBLE_QUOTE,
@@ -49,7 +49,6 @@ from snowflake.snowpark.functions import (
     to_timestamp_tz,
     typeof,
 )
-from snowflake.snowpark.modin.plugin._internal import frame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     DataFrameReference,
     OrderedDataFrame,
@@ -84,6 +83,9 @@ from snowflake.snowpark.types import (
     VariantType,
     _FractionalType,
 )
+
+if TYPE_CHECKING:
+    from snowflake.snowpark.modin.plugin._internal import frame
 
 ROW_POSITION_COLUMN_LABEL = "row_position"
 MAX_ROW_POSITION_COLUMN_LABEL = f"MAX_{ROW_POSITION_COLUMN_LABEL}"
@@ -1776,7 +1778,9 @@ def try_convert_to_simple_slice(s: Any) -> Optional[slice]:
     Returns:
         The simple slice if possible; otherwise None.
     """
-    from snowflake.snowpark.modin.pandas.indexing import is_range_like
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+        is_range_like,
+    )
 
     if not isinstance(s, slice) and not is_range_like(s):
         return None

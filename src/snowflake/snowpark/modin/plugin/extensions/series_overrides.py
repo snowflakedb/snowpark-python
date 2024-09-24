@@ -17,6 +17,8 @@ import numpy.typing as npt
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
 from modin.pandas.base import BasePandasDataset
+from modin.pandas.io import from_pandas
+from modin.pandas.utils import is_scalar
 from pandas._libs.lib import NoDefault, is_integer, no_default
 from pandas._typing import (
     AggFuncType,
@@ -37,7 +39,6 @@ from pandas.util._validators import validate_ascending, validate_bool_kwarg
 
 from snowflake.snowpark.modin import pandas as spd  # noqa: F401
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
-from snowflake.snowpark.modin.pandas.utils import from_pandas, is_scalar
 from snowflake.snowpark.modin.plugin._internal.utils import (
     assert_fields_are_none,
     convert_index_to_list_of_qcs,
