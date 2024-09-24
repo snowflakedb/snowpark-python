@@ -315,7 +315,7 @@ def test_df_iloc_get_col_input_snowpark_pandas_return_dataframe(
     if key == "RangeIndex":
         expected_query_count = 1
 
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=expected_query_count, join_count=0):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df, default_index_native_df, eval_func
         )

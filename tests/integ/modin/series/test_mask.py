@@ -76,7 +76,7 @@ def test_series_mask_duplicate_labels():
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.mask(ser > 3))
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=0)
 def test_series_mask_multiindex():
     data = [1, 2, 3, 4, 5]
     index = [("a", "x"), ("b", "y"), ("c", "z"), ("d", "u"), ("e", "v")]
