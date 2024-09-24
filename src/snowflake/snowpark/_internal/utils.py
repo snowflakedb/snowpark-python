@@ -728,30 +728,36 @@ def publicapi(func) -> Callable:
                         kwargs["_emit_ast"] = session.ast_enabled
             elif isinstance(args[0], snowflake.snowpark.dataframe.DataFrame):
                 # special case: __init__ called, self._session is then not initialized yet.
-                if func.__qualname__ == "DataFrame.__init__":
-                    assert isinstance(
-                        args[1], snowflake.snowpark.session.Session
-                    ), "DataFrame.__init__ second arg must be session."
-                    kwargs["_emit_ast"] = args[1].ast_enabled
+                if func.__qualname__.endswith(".__init__"):
+                    # Try to find a session argument.
+                    session_args = [
+                        arg
+                        for arg in args
+                        if isinstance(arg, snowflake.snowpark.session.Session)
+                    ]
+                    assert (
+                        len(session_args) != 0
+                    ), f"{func.__qualname__} must have at least one session arg."
+                    kwargs["_emit_ast"] = session_args[0].ast_enabled
                 else:
                     kwargs["_emit_ast"] = args[0]._session.ast_enabled
             elif isinstance(
                 args[0], snowflake.snowpark.dataframe_reader.DataFrameReader
             ):
-                if func.__qualname__ == "DataFrameReader.__init__":
+                if func.__qualname__.endswith(".__init__"):
                     assert isinstance(
                         args[1], snowflake.snowpark.session.Session
-                    ), "DataFrameReader.__init__ second arg must be session."
+                    ), f"{func.__qualname__} second arg must be session."
                     kwargs["_emit_ast"] = args[1].ast_enabled
                 else:
                     kwargs["_emit_ast"] = args[0]._session.ast_enabled
             elif isinstance(
                 args[0], snowflake.snowpark.dataframe_writer.DataFrameWriter
             ):
-                if func.__qualname__ == "DataFrameWriter.__init__":
+                if func.__qualname__.endswith(".__init__"):
                     assert isinstance(
                         args[1], snowflake.snowpark.DataFrame
-                    ), "DataFrameWriter.__init__ second arg must be dataframe."
+                    ), f"{func.__qualname__} second arg must be dataframe."
                     kwargs["_emit_ast"] = args[1]._session.ast_enabled
                 else:
                     kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled

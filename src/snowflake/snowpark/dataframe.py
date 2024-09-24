@@ -5311,7 +5311,7 @@ Query List:
         """
         :param proto.Assign ast_stmt: The AST statement protobuf corresponding to this value.
         """
-        df = DataFrame(self._session, plan, ast_stmt=ast_stmt)
+        df = DataFrame(self._session, plan, ast_stmt=ast_stmt, _emit_ast=False)
         df._statement_params = self._statement_params
 
         if ast_stmt is not None:
