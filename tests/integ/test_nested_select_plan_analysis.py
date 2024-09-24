@@ -10,13 +10,13 @@ from snowflake.snowpark.functions import (
     add_months,
     avg,
     builtin,
+    call_table_function,
     col,
     concat,
     initcap,
     lit,
     max as max_,
     min as min_,
-    call_table_function,
 )
 from snowflake.snowpark.window import Window
 
@@ -103,7 +103,11 @@ def test_nested_select_with_window_functions(simple_dataframe):
 
 
 def test_nested_select_with_table_functions(session):
-    df = session.table_function(call_table_function("split_to_table", lit("split words to table"), lit(" ")).over())
+    df = session.table_function(
+        call_table_function(
+            "split_to_table", lit("split words to table"), lit(" ")
+        ).over()
+    )
     df_res = df.select((col("a") + 1).as_("a"), "b", "c")
 
     verify_dataframe_select_statement(df_res, can_be_merged_when_enabled=False)
