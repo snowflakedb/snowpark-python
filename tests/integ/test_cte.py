@@ -559,6 +559,18 @@ def test_in_with_subquery_multiple_query(session):
         analyzer.ARRAY_BIND_THRESHOLD = original_threshold
 
 
+def test_select_with_column_expr_alias(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df1 = df.select("a", "b", (col("a") + col("b")).as_("c"))
+    df2 = df1.select("a", "b", "c", (col("a") + col("b") + 1).as_("d"))
+    df_result = df2.union_all(df2).select("*")
+    check_result(session, df_result, expect_cte_optimized=True)
+
+    df2 = df.select_expr("a + 1 as a", "b + 1 as b")
+    df_result = df2.union_all(df2).select("*")
+    check_result(session, df_result, expect_cte_optimized=True)
+
+
 def test_cte_optimization_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
         session.cte_optimization_enabled = True
