@@ -157,7 +157,6 @@ def get_rolling_corr_column(
     other_quoted_identifier: right column quoted identifier.
     window_expr: WindowSpec object for rolling calculations.
     window: size of the moving window.
-
     """
     # pearson correlation calculated using formula here: https://byjus.com/jee/correlation-coefficient/
     # corr = top_exp / (count_exp * sig_exp)
