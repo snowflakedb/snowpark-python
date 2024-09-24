@@ -708,14 +708,11 @@ class SelectStatement(Selectable):
         copied._merge_projection_complexity_with_subquery = (
             self._merge_projection_complexity_with_subquery
         )
-<<<<<<< HEAD
-=======
         copied._projection_complexities = (
             deepcopy(self._projection_complexities)
             if not self._projection_complexities
             else None
         )
->>>>>>> 0dcc86343 (fix error)
         return copied
 
     @property
@@ -1104,7 +1101,6 @@ class SelectStatement(Selectable):
             new = SelectStatement(
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
             )
-<<<<<<< HEAD
             new._merge_projection_complexity_with_subquery = (
                 can_select_projection_complexity_be_merged(
                     cols,
@@ -1113,10 +1109,6 @@ class SelectStatement(Selectable):
                 )
             )
 
-=======
-            # set it to True for testing
-            new._merge_projection_complexity_with_subquery = True
->>>>>>> 0dcc86343 (fix error)
         new.flatten_disabled = disable_next_level_flatten
         assert new.projection is not None
         new._column_states = derive_column_states_from_subquery(
