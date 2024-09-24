@@ -41,9 +41,7 @@ binary_operations = [
 
 WITH = "WITH"
 
-# paramList = [False, True]
-
-paramList = [True]
+paramList = [False, True]
 
 
 @pytest.fixture(params=paramList, autouse=True)
@@ -60,12 +58,6 @@ def setup(request, session):
 def check_result(session, df, expect_cte_optimized):
     df = df.sort(df.columns)
     session._cte_optimization_enabled = False
-    """
-    'CREATE  OR  REPLACE  SCOPED TEMPORARY  TABLE SNOWPARK_TEMP_TABLE_A8XYCC2JYK("A" BIGINT NOT NULL , "B" STRING NOT NULL , "C" BIGINT NOT NULL , "D" BIGINT NOT NULL )',
-    'INSERT  INTO SNOWPARK_TEMP_TABLE_A8XYCC2JYK("A", "B", "C", "D") VALUES (?, ?, ?, ?)',
-    'SELECT  *  FROM (( SELECT  *  FROM ( SELECT "A", "B", "C", "D" FROM ( SELECT  *  FROM (SNOWPARK_TEMP_TABLE_A8XYCC2JYK)))
-    WHERE NOT "A" IN (( SELECT "A" FROM ( SELECT  *  FROM (SNOWPARK_TEMP_TABLE_7THS7GS22X)) WHERE ("A" < 3)))) UNION ALL ( SELECT  *  FROM ( SELECT "A", "B", "C", "D" FROM ( SELECT  *  FROM (SNOWPARK_TEMP_TABLE_A8XYCC2JYK))) WHERE NOT "A" IN (( SELECT "A" FROM ( SELECT  *  FROM (SNOWPARK_TEMP_TABLE_7THS7GS22X)) WHERE ("A" < 3))))) ORDER BY $1 ASC NULLS FIRST'
-    """
     result = df.collect()
     result_count = df.count()
     result_pandas = df.to_pandas() if installed_pandas else None
