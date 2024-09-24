@@ -26,7 +26,7 @@ import datetime as dt
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from datetime import date, datetime, timedelta, tzinfo
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Literal, Union
+from typing import Any, Literal, Union
 
 import modin.pandas as pd
 import numpy as np
@@ -83,12 +83,10 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import _inherit_docstrings, to_pandas
 
-if TYPE_CHECKING:
-    # To prevent cross-reference warnings when building documentation and prevent erroneously
-    # linking to `snowflake.snowpark.DataFrame`, we need to explicitly
-    # qualify return types in this file with `modin.pandas.DataFrame`.
-    # SNOW-1233342: investigate how to fix these links without using absolute paths
-    from modin.core.storage_formats import BaseQueryCompiler  # pragma: no cover
+# To prevent cross-reference warnings when building documentation and prevent erroneously
+# linking to `snowflake.snowpark.DataFrame`, we need to explicitly
+# qualify return types in this file with `modin.pandas.DataFrame`.
+# SNOW-1233342: investigate how to fix these links without using absolute paths
 
 _logger = getLogger(__name__)
 
@@ -3088,38 +3086,3 @@ def value_counts(
         bins=bins,
         dropna=dropna,
     )
-
-
-@register_pd_accessor("_determine_name")
-def _determine_name(objs: Iterable[BaseQueryCompiler], axis: int | str):
-    """
-    Determine names of index after concatenation along passed axis.
-
-    Parameters
-    ----------
-    objs : iterable of QueryCompilers
-        Objects to concatenate.
-    axis : int or str
-        The axis to concatenate along.
-
-    Returns
-    -------
-    list with single element
-        Computed index name, `None` if it could not be determined.
-    """
-    # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    axis = pandas.DataFrame()._get_axis_number(axis)  # pragma: no cover
-
-    def get_names(obj):  # pragma: no cover
-        return obj.columns.names if axis else obj.index.names  # pragma: no cover
-
-    names = np.array([get_names(obj) for obj in objs])  # pragma: no cover
-
-    # saving old name, only if index names of all objs are the same
-    if np.all(names == names[0]):  # pragma: no cover
-        # we must do this check to avoid this calls `list(str_like_name)`
-        return (
-            list(names[0]) if is_list_like(names[0]) else [names[0]]
-        )  # pragma: no cover
-    else:
-        return None  # pragma: no cover
