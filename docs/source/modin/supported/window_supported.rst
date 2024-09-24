@@ -21,7 +21,8 @@ Rolling window functions
 | ``apply``                   | N                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``corr``                    | P                               | ``N`` for non-integer ``window``, ``axis = 1``,    |
-|                             |                                 |  ``pairwise = True`` or ``min_periods != window``  |
+|                             |                                 |  ``pairwise = True``, ``other`` = None,            |
+|                             |                                 | or ``min_periods != window``                       |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``count``                   | P                               | ``N`` for non-integer ``window``, ``axis = 1``,    |
 |                             |                                 | or ``min_periods = 0``                             |

@@ -343,6 +343,7 @@ from snowflake.snowpark.modin.plugin._internal.window_utils import (
     WindowFunction,
     check_and_raise_error_expanding_window_supported_by_snowflake,
     check_and_raise_error_rolling_window_supported_by_snowflake,
+    get_rolling_corr_column
 )
 from snowflake.snowpark.modin.plugin._typing import (
     DropKeep,
@@ -13653,69 +13654,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     ) -> None:
         ErrorMessage.method_not_implemented_error(name="rank", class_="Rolling")
 
-    def _get_corr_column(
-        self,
-        quoted_identifier: str,
-        other_quoted_identifier: str,
-        window_expr: Any,
-        window: Any,
-    ) -> SnowparkColumn:
-        # pearson correlation calculated using formala here: https://byjus.com/jee/correlation-coefficient/
-        # corr = top_exp / (count_exp * sig_exp)
-
-        # count of non null values in the window
-        count_exp = builtin("count_if")(
-            col(quoted_identifier).is_not_null()
-            & col(other_quoted_identifier).is_not_null()
-        ).over(window_expr)
-
-        # std_prod_exp = std_pop(x)*std_pop(y)
-        std_prod_exp = stddev_pop(
-            iff(
-                col(quoted_identifier).is_null(),
-                pandas_lit(None),
-                col(other_quoted_identifier),
-            )
-        ).over(window_expr) * stddev_pop(
-            iff(
-                col(other_quoted_identifier).is_null(),
-                pandas_lit(None),
-                col(quoted_identifier),
-            )
-        ).over(
-            window_expr
-        )
-
-        # top expr = sum(x,y) - (sum(x)*sum(y) / n)
-        top_exp = (
-            sum_(col(quoted_identifier) * col(other_quoted_identifier)).over(
-                window_expr
-            )
-        ) - (
-            sum_(
-                iff(
-                    col(quoted_identifier).is_null(),
-                    pandas_lit(None),
-                    col(other_quoted_identifier),
-                )
-            ).over(window_expr)
-            * (
-                sum_(
-                    iff(
-                        col(other_quoted_identifier).is_null(),
-                        pandas_lit(None),
-                        col(quoted_identifier),
-                    )
-                ).over(window_expr)
-            )
-        ) / count_exp
-        new_col = iff(
-            count_exp.__eq__(window) & (count_exp * std_prod_exp).__gt__(0),
-            top_exp / (count_exp * std_prod_exp),
-            pandas_lit(None),
-        )
-        return new_col
-
     def _window_agg(
         self,
         window_func: WindowFunction,
@@ -13811,13 +13749,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 }
             ).frame
         elif agg_func == "corr":
-            if window_func == WindowFunction.ROLLING and not isinstance(window, int):
-                ErrorMessage.not_implemented(
-                    f"window {window} must be an integer value."
-                )
             if window != min_periods:
                 ErrorMessage.not_implemented(
-                    f"min_periods {min_periods} must be == window {window}"
+                    f"min_periods {min_periods} must be == window {window} for 'Rolling.corr'"
                 )
             assert window == min_periods
             other = agg_kwargs.get("other", None)
@@ -13844,7 +13778,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     ]
 
             corr_result = result_frame
-            # columns that do not exist in both dfs
+            # columns unique to the left or right hand side dfs
             wanted_cols = []
             wanted_col_values = []
 
@@ -13865,7 +13799,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     ]
                 )
 
-                corr_column = self._get_corr_column(
+                corr_column = get_rolling_corr_column(
                     quoted_identifier, other_quoted_identifier, window_expr, window
                 )
                 corr_result_frame = corr_result.append_column(
