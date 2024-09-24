@@ -1,5 +1,11 @@
 # Release History
 
+#### New Features
+
+- Added the following new functions in `snowflake.snowpark.functions`:
+  - `make_interval`
+- Added support for using Snowflake Interval constants with `Window.range_between()` when the order by column is TIMESTAMP or DATE type
+- 
 ## 1.23.0 (TBD)
 
 ### Snowpark pandas API Updates
