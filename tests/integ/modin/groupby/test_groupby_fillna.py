@@ -8,6 +8,9 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+    _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE,
+)
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
@@ -74,6 +77,7 @@ TEST_DF_COLUMNS_3 = native_pd.Index(["A", "B", "C"], name="X")
 
 @pytest.mark.parametrize("method_or_value", METHOD_OR_VALUES)
 @pytest.mark.parametrize("groupby_list", ["X", "key", ["X", "key"]])
+@sql_count_checker(query_count=1)
 def test_groupby_fillna_basic(groupby_list, method_or_value):
     method, value = method_or_value
     native_df = native_pd.DataFrame(
@@ -295,6 +299,42 @@ def test_groupby_fillna_downcast_not_supported_negative():
     ):
         # call to_pandas to trigger the evaluation of the operation
         snow_df.groupby("I").fillna(method="ffill", downcast={"A": "str"}).to_pandas()
+
+
+@sql_count_checker(query_count=0)
+def test_groupby_fillna_other_not_supported_negative():
+    native_df = native_pd.DataFrame(
+        TEST_DF_DATA, index=TEST_DF_INDEX_1, columns=TEST_DF_COLUMNS_1
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    with pytest.raises(
+        NotImplementedError,
+        match=f"Snowpark pandas GroupBy.fillna {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
+    ):
+        # call to_pandas to trigger the evaluation of the operation
+        snow_df.groupby("I", axis=1).fillna(method="ffill").to_pandas()
+
+    with pytest.raises(
+        ValueError,
+        match="Cannot specify both 'value' and 'method'.",
+    ):
+        # call to_pandas to trigger the evaluation of the operation
+        snow_df.groupby("I").fillna(method="ffill", value=123).to_pandas()
+
+    with pytest.raises(
+        ValueError,
+        match="Must specify a fill 'value' or 'method'.",
+    ):
+        # call to_pandas to trigger the evaluation of the operation
+        snow_df.groupby("I").fillna(method=None, value=None).to_pandas()
+
+    with pytest.raises(
+        ValueError,
+        match=r"Invalid fill method. Expecting pad \(ffill\) or backfill \(bfill\). Got bazz",
+    ):
+        # call to_pandas to trigger the evaluation of the operation
+        snow_df.groupby("I").fillna(method="bazz", value=None).to_pandas()
 
 
 @pytest.mark.parametrize("method_or_value", METHOD_OR_VALUES)

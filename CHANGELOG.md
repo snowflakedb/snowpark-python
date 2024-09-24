@@ -10,7 +10,7 @@
   - `make_interval`
 - Added support for using Snowflake Interval constants with `Window.range_between()` when the order by column is TIMESTAMP or DATE type.
 - Added support for file writes. This feature is currently in private preview.
-- Added support for `DataFrameGroupBy.fillna`.
+- Added support for `DataFrameGroupBy.fillna` and `SeriesGroupBy.fillna`.
 
 #### Improvements
 
@@ -49,6 +49,7 @@
 
 ## 1.22.1 (2024-09-11)
 This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for detailed release content.
+
 
 ## 1.22.0 (2024-09-10)
 
