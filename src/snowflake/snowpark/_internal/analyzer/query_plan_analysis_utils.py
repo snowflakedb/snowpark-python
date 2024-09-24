@@ -6,8 +6,6 @@ from collections import Counter
 from enum import Enum
 from typing import Dict
 
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
-
 
 class PlanNodeCategory(Enum):
     """This enum class is used to account for different types of sql
@@ -53,7 +51,7 @@ def sum_node_complexities(
     return dict(counter_sum)
 
 
-def get_complexity_score(node: LogicalPlan) -> int:
+def get_complexity_score(node) -> int:
     """Calculates the complexity score based on the cumulative node complexity"""
     score = sum(node.cumulative_node_complexity.values())
     with_query_blocks = node.get_with_query_blocks()
