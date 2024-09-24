@@ -162,7 +162,12 @@ for attr_name in dir(DataFrame):
 # Apply telemetry to all top-level functions in the pd namespace.
 
 for attr_name, attr_value in modin.pandas.__dict__.items():
-    if inspect.isfunction(attr_value) and not attr_name.startswith("_"):
+    # Do not add telemetry to any method that is mirrored from native pandas
+    if (
+        inspect.isfunction(attr_value)
+        and not attr_name.startswith("_")
+        and attr_value is not getattr(pandas, attr_name, None)
+    ):
         register_pd_accessor(attr_name)(
             snowpark_pandas_telemetry_standalone_function_decorator(attr_value)
         )
@@ -181,6 +186,9 @@ if "modin.pandas" in sys.modules:
 
 
 # === OTHER SETUP ===
+# Upstream modin does not re-export the offsets module, so we need to do so here
+register_pd_accessor("offsets")(pandas.offsets)
+
 # TODO: SNOW-1473605 https://github.com/modin-project/modin/issues/7233
 # Upstream Modin does not properly render property names in default2pandas warnings, so we need
 # to override DefaultMethod.register.
