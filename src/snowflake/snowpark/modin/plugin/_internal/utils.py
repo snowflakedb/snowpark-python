@@ -2030,17 +2030,20 @@ def error_checking_for_init(
 
 
 def assert_fields_are_none(
-    class_name: str, data: Any, index: Any, columns: Any = None
+    class_name: str, data: Any, index: Any, dtype: Any, columns: Any = None
 ) -> None:
     assert (
         data is None
-    ), f"Invalid {class_name} construction! Cannot pass both data and query_compiler."
+    ), f"Invalid {class_name} construction! The `data` parameter is not supported when `query_compiler` is given."
     assert (
         index is None
-    ), f"Invalid {class_name} construction! Cannot pass both index and query_compiler."
+    ), f"Invalid {class_name} construction! The `index` parameter is not supported when `query_compiler` is given."
+    assert (
+        dtype is None
+    ), f"Invalid {class_name} construction! The `dtype` parameter is not supported when `query_compiler` is given."
     assert (
         columns is None
-    ), f"Invalid {class_name} construction! Cannot pass both columns and query_compiler."
+    ), f"Invalid {class_name} construction! The `columns` parameter is not supported when `query_compiler` is given."
 
 
 def convert_index_to_qc(index: Any) -> Any:

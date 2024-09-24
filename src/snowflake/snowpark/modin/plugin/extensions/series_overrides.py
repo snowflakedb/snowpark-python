@@ -354,7 +354,7 @@ def __init__(
     if query_compiler is not None:
         # If a query_compiler is passed in, only use the query_compiler and name fields to create a new Series.
         # Verify that the data and index parameters are None.
-        assert_fields_are_none(class_name="Series", data=data, index=index)
+        assert_fields_are_none(class_name="Series", data=data, index=index, dtype=dtype)
         self._query_compiler = query_compiler.columnarize()
         if name is not None:
             self.name = name
@@ -373,30 +373,37 @@ def __init__(
     # The logic followed here is:
     # STEP 1: Create a query_compiler from the provided data.
     # STEP 2: If an index is provided, set the index. This is either through set_index or reindex.
-    # STEP 3: The resultant query_compiler is columnarized and set as the query_compiler for the Series.
-    # STEP 4: If a name is provided, set the name.
+    # STEP 3: If a dtype is given, and it is different from the current dtype of the query compiler so far,
+    #         convert the query compiler to the given dtype.
+    # STEP 4: The resultant query_compiler is columnarized and set as the query_compiler for the Series.
+    # STEP 5: If a name is provided, set the name.
 
     # STEP 1: Setting the data
     # ------------------------
     if isinstance(data, Index):
-        # CASE I: Index
         # If the data is an Index object, convert it to a Series, and get the query_compiler.
         query_compiler = (
             data.to_series(index=None, name=name).reset_index(drop=True)._query_compiler
         )
 
     elif isinstance(data, Series):
-        # CASE II: Series
         # If the data is a Series object, use its query_compiler.
         query_compiler = data._query_compiler
-        if index is None and name is None and copy is False:
-            # When copy is False and no index and name are provided, the Series is a shallow copy of the original Series.
+        if (
+            copy is False
+            and index is None
+            and name is None
+            and (dtype is None or dtype == getattr(data, "dtype", None))
+        ):
+            # When copy is False and no index, name, and dtype are provided, the Series is a shallow copy of the
+            # original Series.
+            # If a dtype is provided, and the new dtype does not match the dtype of the original query compiler,
+            # self is no longer a sibling of the original DataFrame.
             self._query_compiler = query_compiler
             data._add_sibling(self)
             return
 
     else:
-        # CASE III: Non-Snowpark pandas data
         # If the data is not a Snowpark pandas object, convert it to a query compiler.
         # The query compiler uses the '__reduced__' name internally as a column name to represent pandas
         # Series objects that are not explicitly assigned a name.
@@ -454,7 +461,16 @@ def __init__(
                 convert_index_to_list_of_qcs(index)
             )
 
-    # STEP 3 and STEP 4: Setting the query compiler and name
+    # STEP 3: Setting the dtype
+    # -------------------------
+    # If a dtype is provided, and it does not match the current dtype of the query compiler, convert the query compiler's
+    # dtype to the new dtype.
+    if dtype is not None and dtype != getattr(data, "dtype", None):
+        query_compiler = query_compiler.astype(
+            {col: dtype for col in query_compiler.columns}
+        )
+
+    # STEP 4 and STEP 5: Setting the query compiler and name
     # ------------------------------------------------------
     self._query_compiler = query_compiler.columnarize()
     if name is not None:

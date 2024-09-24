@@ -476,7 +476,7 @@ def __init__(
         # If a query_compiler is passed in only use the query_compiler field to create a new DataFrame.
         # Verify that the data, index, and columns parameters are None.
         assert_fields_are_none(
-            class_name="DataFrame", data=data, index=index, columns=columns
+            class_name="DataFrame", data=data, index=index, dtype=dtype, columns=columns
         )
         self._query_compiler = query_compiler
         return
@@ -495,12 +495,14 @@ def __init__(
         columns = ensure_index(columns)
 
     # The logic followed here is:
-    # STEP 1: Obtain the query_compiler from the provided data if the data is lazy. If data is local, the query
-    #         compiler is None.
+    # STEP 1: Obtain the query_compiler from the provided data if the data is lazy. If data is local, keep the query
+    #         compiler as None.
     # STEP 2: If columns are provided, set the columns if data is lazy.
-    # STEP 3: If both the data and index are local (or index is None), create a query compiler from pandas.
-    # STEP 4: Otherwise, set the index through set_index or reindex.
-    # STEP 5: The resultant query_compiler is then set as the query_compiler for the DataFrame.
+    # STEP 3: If both the data and index are local (or index is None), create a query compiler from it with local index.
+    # STEP 4: Otherwise, for lazy index, set the index through set_index or reindex.
+    # STEP 5: If a dtype is given, and it is different from the current dtype of the query compiler so far,
+    #         convert the query compiler to the given dtype.
+    # STEP 6: The resultant query_compiler is then set as the query_compiler for the DataFrame.
 
     # STEP 1: Setting the data
     # ------------------------
@@ -517,13 +519,18 @@ def __init__(
         )._query_compiler
     elif isinstance(data, DataFrame):
         query_compiler = data._query_compiler
-        if columns is None and index is None:
-            # Special case: if the new DataFrame has the same columns and index as the original DataFrame,
-            # the query compiler is shared and kept track of as a sibling.
-            self._query_compiler = data._query_compiler
-            if not copy:
-                # When copy is False, the DataFrame is a shallow copy of the original DataFrame.
-                data._add_sibling(self)
+        if (
+            copy is False
+            and index is None
+            and columns is None
+            and (dtype is None or dtype == getattr(data, "dtype", None))
+        ):
+            # When copy is False and no index, columns, and dtype are provided, the DataFrame is a shallow copy of the
+            # original DataFrame.
+            # If a dtype is provided, and the new dtype does not match the dtype of the original query compiler,
+            # self is no longer a sibling of the original DataFrame.
+            self._query_compiler = query_compiler
+            data._add_sibling(self)
             return
 
     # STEP 2: Setting the columns if data is lazy
@@ -646,7 +653,16 @@ def __init__(
                 convert_index_to_list_of_qcs(index)
             )
 
-    # STEP 5: Setting the query compiler
+    # STEP 5: Setting the dtype
+    # -------------------------
+    # If a dtype is provided, and it does not match the current dtype of the query compiler, convert the query compiler's
+    # dtype to the new dtype.
+    if dtype is not None and dtype != getattr(data, "dtype", None):
+        query_compiler = query_compiler.astype(
+            {col: dtype for col in query_compiler.columns}
+        )
+
+    # STEP 6: Setting the query compiler
     # ----------------------------------
     self._query_compiler = query_compiler
 

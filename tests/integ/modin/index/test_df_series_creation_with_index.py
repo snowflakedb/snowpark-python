@@ -1144,48 +1144,154 @@ def test_create_df_with_copy():
     # When copy is True, the data is copied into the DataFrame, and the new DataFrame and data do not share references.
     data = pd.DataFrame([[1, 2], [3, 4], [5, 6]])
     df_copy = pd.DataFrame(data, copy=True)
-    df_not_copy = pd.DataFrame(data, copy=False)
+    df_ref = pd.DataFrame(data, copy=False)
 
     with SqlCounter(query_count=3):
-        # Changing data should also change df_not_copy. It does not change df_copy.
+        # Changing data should also change df_ref. It does not change df_copy.
         data.iloc[0, 0] = 100
-        assert data.iloc[0, 0] == df_not_copy.iloc[0, 0] == 100
+        assert data.iloc[0, 0] == df_ref.iloc[0, 0] == 100
         assert df_copy.iloc[0, 0] == 1
 
     with SqlCounter(query_count=3):
-        # Similarly, changing df_not_copy should also change data. It does not change df_copy.
-        df_not_copy.iloc[0, 0] = 99
-        assert data.iloc[0, 0] == df_not_copy.iloc[0, 0] == 99
+        # Similarly, changing df_ref should also change data. It does not change df_copy.
+        df_ref.iloc[0, 0] = 99
+        assert data.iloc[0, 0] == df_ref.iloc[0, 0] == 99
         assert df_copy.iloc[0, 0] == 1
 
     with SqlCounter(query_count=2):
-        # Changing df_copy should not change data or df_not_copy.
+        # Changing df_copy should not change data or df_ref.
         df_copy.iloc[0, 0] = 1000
-        assert data.iloc[0, 0] == df_not_copy.iloc[0, 0] == 99
+        assert data.iloc[0, 0] == df_ref.iloc[0, 0] == 99
 
 
 def test_create_series_with_copy():
     # When copy is True, the data is copied into the Series, and the new Series and data do not share references.
     data = pd.Series([1, 2, 3, 4, 5])
     series_copy = pd.Series(data, copy=True)
-    series_not_copy = pd.Series(data, copy=False)
+    series_ref = pd.Series(data, copy=False)
 
     with SqlCounter(query_count=3):
-        # Changing data should also change series_not_copy. It does not change series_copy.
+        # Changing data should also change series_ref. It does not change series_copy.
         data.iloc[0] = 100
-        assert data.iloc[0] == series_not_copy.iloc[0] == 100
+        assert data.iloc[0] == series_ref.iloc[0] == 100
         assert series_copy.iloc[0] == 1
 
     with SqlCounter(query_count=3):
-        # Similarly, changing series_not_copy should also change data. It does not change series_copy.
-        series_not_copy.iloc[0] = 99
-        assert data.iloc[0] == series_not_copy.iloc[0] == 99
+        # Similarly, changing series_ref should also change data. It does not change series_copy.
+        series_ref.iloc[0] = 99
+        assert data.iloc[0] == series_ref.iloc[0] == 99
         assert series_copy.iloc[0] == 1
 
     with SqlCounter(query_count=2):
-        # Changing series_copy should not change data or series_not_copy.
+        # Changing series_copy should not change data or series_ref.
         series_copy.iloc[0] = 1000
-        assert data.iloc[0] == series_not_copy.iloc[0] == 99
+        assert data.iloc[0] == series_ref.iloc[0] == 99
+
+
+# DTYPE TESTS
+# -----------
+@pytest.mark.parametrize(
+    "data, dtype",
+    [
+        ([[1, 2, 3], [1.0, 2.0, 3.0], [1, 2.0, 3]], "float"),
+        ({"A": [1, 2, 3], "B": [4, 5, 6]}, str),
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_create_df_with_local_data_and_dtype(data, dtype):
+    # Test DataFrame creation with data and dtype passed in.
+    assert_frame_equal(
+        pd.DataFrame(data, dtype=dtype),
+        native_pd.DataFrame(data, dtype=dtype),
+        check_column_type=False,
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_create_df_with_df_data_and_dtype():
+    # Test DataFrame creation with DataFrame data and dtype passed in.
+    data = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]])
+    assert_frame_equal(
+        pd.DataFrame(pd.DataFrame(data), dtype=str),
+        native_pd.DataFrame(data, dtype=str),
+        check_column_type=False,
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_create_series_with_local_data_and_dtype():
+    # Test Series creation with data and dtype passed in.
+    data = [1, 2, 3, 4]
+    assert_series_equal(
+        pd.Series(data, dtype=str),
+        native_pd.Series(data, dtype=str),
+    )
+
+
+@sql_count_checker(query_count=2)
+def test_create_series_with_pandas_data_and_dtype():
+    # Test Series creation with Series data and dtype passed in.
+    data = native_pd.Series([1, 2, 3, 4])
+    assert_series_equal(
+        pd.Series(pd.Series(data), dtype=str),
+        native_pd.Series(data, dtype=str),
+    )
+
+    # Test Series creation with Index data and dtype passed in.
+    data = native_pd.Index([1, 2, 3, 4])
+    assert_series_equal(
+        pd.Series(pd.Index(data), dtype=str),
+        native_pd.Series(data, dtype=str),
+    )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_create_df_with_all_params():
+    # Test DataFrame creation with all parameters passed in.
+    columns = ["A", "B"]
+    dtype = float
+    copy = True
+    native_data = native_pd.DataFrame([[1, 2], [3, 4], [5, 6]])
+    snow_data = pd.DataFrame(native_data)
+    native_index = native_pd.Index([10, 20, 30])
+    snow_index = pd.Index(native_index)
+    with SqlCounter(query_count=1):
+        assert_frame_equal(
+            pd.DataFrame(
+                data=snow_data,
+                index=snow_index,
+                columns=columns,
+                dtype=dtype,
+                copy=copy,
+            ),
+            native_pd.DataFrame(
+                data=native_data,
+                index=native_index,
+                columns=columns,
+                dtype=dtype,
+                copy=copy,
+            ),
+        )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_create_series_with_all_params():
+    # Test DataFrame creation with all parameters passed in.
+    dtype = str
+    copy = True
+    snow_data = pd.Series([[1, 2], [3, 4], [5, 6]])
+    native_index = native_pd.Index([10, 20, 30])
+    snow_index = pd.Index(native_index)
+    # Comparing with the expected result because the actual result of native pandas is [nan, nan, nan].
+    # Snowflake converts the nan values to None.
+    expected_result = native_pd.Series(
+        [None, None, None], index=native_index, dtype=dtype
+    )
+    with SqlCounter(query_count=1):
+        assert_series_equal(
+            pd.Series(data=snow_data, index=snow_index, dtype=dtype, copy=copy),
+            expected_result,
+        )
 
 
 # NEGATIVE TESTS
