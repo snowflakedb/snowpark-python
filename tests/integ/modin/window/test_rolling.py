@@ -283,6 +283,16 @@ def test_rolling_corr_negative():
             ddof=1,
             numeric_only=True,
         )
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Rolling.Non-integer window",
+    ):
+        snow_df = snow_df.rolling(window="a", min_periods=2).corr(
+            other=other_snow_df,
+            pairwise=False,
+            ddof=1,
+            numeric_only=True,
+        )
 
 
 @sql_count_checker(query_count=0)
