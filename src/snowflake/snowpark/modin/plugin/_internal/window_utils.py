@@ -166,6 +166,19 @@ def create_snowpark_interval_from_window(window: str) -> Column:
         )
     # Ensure all possible frequencies 'rule_to_snowflake_width_and_slice_unit' can output are
     # accounted for before creating the Interval column
+    if slice_unit not in (
+        "second",
+        "minute",
+        "hour",
+        "day",
+        "week",
+        "month",
+        "quarter",
+        "year",
+    ):
+        raise AssertionError(
+            f"Snowpark pandas cannot map 'window' {window} to an offset"
+        )
     seconds = slice_width - 1 if slice_unit == "second" else 0
     minutes = slice_width - 1 if slice_unit == "minute" else 0
     hours = slice_width - 1 if slice_unit == "hour" else 0
