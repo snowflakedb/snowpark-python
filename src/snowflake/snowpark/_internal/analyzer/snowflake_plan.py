@@ -98,6 +98,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
     SnowflakeCreateTable,
     TableCreationSource,
+    WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateDynamicTableCommand,
@@ -450,6 +451,14 @@ class SnowflakePlan(LogicalPlan):
     @cumulative_node_complexity.setter
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
         self._cumulative_node_complexity = value
+
+    def get_with_query_blocks(self) -> Dict[WithQueryBlock, int]:
+        with_query_blocks = {}
+        for child in self.children_plan_nodes:
+            for node, count in child.get_with_query_blocks().items():
+                with_query_blocks[node] = with_query_blocks.get(node, 0) + count
+
+        return with_query_blocks
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:

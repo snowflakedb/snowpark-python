@@ -67,6 +67,15 @@ class LogicalPlan:
     def reset_cumulative_node_complexity(self) -> None:
         self._cumulative_node_complexity = None
 
+    def get_with_query_blocks(self) -> Dict["WithQueryBlock", int]:
+        """returns a dictionary of all WithQueryBlock nodes in the subtree rooted at this node
+        and the number of times they are referenced in the subtree."""
+        with_query_blocks = {}
+        for child in self.children:
+            for node, count in child.get_with_query_blocks().items():
+                with_query_blocks[node] = with_query_blocks.get(node, 0) + count
+        return with_query_blocks
+
 
 class LeafNode(LogicalPlan):
     pass
@@ -130,6 +139,11 @@ class WithQueryBlock(LogicalPlan):
         super().__init__()
         self.name = name
         self.children.append(child)
+
+    def get_with_query_blocks(self) -> Dict["WithQueryBlock", int]:
+        with_query_blocks = super().get_with_query_blocks()
+        with_query_blocks[self] = 1
+        return with_query_blocks
 
 
 class SnowflakeValues(LeafNode):

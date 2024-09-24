@@ -63,6 +63,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, Snowflak
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SnowflakeTable,
+    WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
@@ -353,6 +354,13 @@ class Selectable(LogicalPlan, ABC):
             if self.snowflake_plan.source_plan
             else []
         )
+
+    def get_with_query_blocks(self) -> Dict[WithQueryBlock, int]:
+        with_query_blocks = {}
+        for child in self.children_plan_nodes:
+            for node, count in child.get_with_query_blocks().items():
+                with_query_blocks[node] = with_query_blocks.get(node, 0) + count
+        return with_query_blocks
 
     @property
     def column_states(self) -> ColumnStateDict:
