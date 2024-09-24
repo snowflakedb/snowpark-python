@@ -1866,11 +1866,16 @@ class Session:
                 p[0]: json.loads(p[1])
                 for p in self.table(package_table_name)
                 .filter(
-                    (col("language") == "python")
-                    & (col("package_name").in_(package_names))
+                    (col("language", _emit_ast=False) == "python")
+                    & (
+                        col("package_name", _emit_ast=False).in_(
+                            package_names, _emit_ast=False
+                        )
+                    ),
+                    _emit_ast=False,
                 )
-                .group_by("package_name")
-                .agg(array_agg("version"))
+                .group_by("package_name", _emit_ast=False)
+                .agg(array_agg("version", _emit_ast=False), _emit_ast=False)
                 ._internal_collect_with_tag(statement_params=statement_params)
             }
             if validate_package and len(package_names) > 0
@@ -3693,6 +3698,8 @@ class Session:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
+        mode = mode.upper()
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -3703,16 +3710,14 @@ class Session:
                 expr.path.value = path
             expr.outer = outer
             expr.recursive = recursive
-
-        mode = mode.upper()
-        if mode == "OBJECT":
-            expr.mode.sp_flatten_mode_object = True
-        elif mode == "ARRAY":
-            expr.mode.sp_flatten_mode_array = True
-        elif mode == "BOTH":
-            expr.mode.sp_flatten_mode_both = True
-        else:
-            raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+            if mode == "OBJECT":
+                expr.mode.sp_flatten_mode_object = True
+            elif mode == "ARRAY":
+                expr.mode.sp_flatten_mode_array = True
+            elif mode == "BOTH":
+                expr.mode.sp_flatten_mode_both = True
+            else:
+                raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
         if isinstance(self._conn, MockServerConnection):
             if self._conn._suppress_not_implemented_error:

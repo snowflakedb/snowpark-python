@@ -773,6 +773,17 @@ def publicapi(func) -> Callable:
                 snowflake.snowpark.relational_grouped_dataframe.RelationalGroupedDataFrame,
             ):
                 kwargs["_emit_ast"] = args[0]._df._session.ast_enabled
+            elif isinstance(args[0], snowflake.snowpark.Column):
+                # Get from default session.
+                session = (
+                    snowflake.snowpark.session._get_sandbox_conditional_active_session(
+                        None
+                    )
+                )
+                # If session is None, do nothing (i.e., keep encoding AST).
+                # This happens when the decorator is called before a session is started.
+                if session is not None:
+                    kwargs["_emit_ast"] = session.ast_enabled
             else:
                 pass  # raise NotImplementedError(f"Can not get session from {type(args[0])}")
 
