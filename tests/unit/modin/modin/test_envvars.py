@@ -100,7 +100,7 @@ def _init_doc_module():
 
     # As a workaround for upstream modin bugs, we use our own _inherit_docstrings instead of the upstream
     # function. We accordingly need to clear the docstring dictionary in testing because
-    # we manually called the annotation on initializing snowflake.snowpark.modin.pandas.
+    # we manually called the annotation on initializing snowflake.snowpark.modin.plugin.
     # snowflake.snowpark.modin.utils._attributes_with_docstrings_replaced.clear()
     # TODO: once modin 0.31.0 is available, use the actual modin DocModule class
     snowflake.snowpark.modin.utils._inherit_docstrings(
