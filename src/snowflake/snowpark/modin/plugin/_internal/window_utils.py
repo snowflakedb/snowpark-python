@@ -8,16 +8,11 @@
 from enum import Enum
 from typing import Any
 
+from snowflake.snowpark.column import Column as SnowparkColumn
+from snowflake.snowpark.functions import builtin, col, iff, stddev_pop, sum as sum_
 from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
-from snowflake.snowpark.functions import (
-    builtin,
-    col,
-    stddev_pop,
-    iff,
-    sum as sum_
-)
-from snowflake.snowpark.column import Column as SnowparkColumn
+
 
 class WindowFunction(Enum):
     """
@@ -192,9 +187,7 @@ def get_rolling_corr_column(
 
     # top expr = sum(x,y) - (sum(x)*sum(y) / n)
     top_exp = (
-        sum_(col(quoted_identifier) * col(other_quoted_identifier)).over(
-            window_expr
-        )
+        sum_(col(quoted_identifier) * col(other_quoted_identifier)).over(window_expr)
     ) - (
         sum_(
             iff(

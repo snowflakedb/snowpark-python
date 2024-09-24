@@ -128,7 +128,6 @@ from snowflake.snowpark.functions import (
     row_number,
     rtrim,
     second,
-    stddev_pop,
     substring,
     sum as sum_,
     sum_distinct,
@@ -343,7 +342,7 @@ from snowflake.snowpark.modin.plugin._internal.window_utils import (
     WindowFunction,
     check_and_raise_error_expanding_window_supported_by_snowflake,
     check_and_raise_error_rolling_window_supported_by_snowflake,
-    get_rolling_corr_column
+    get_rolling_corr_column,
 )
 from snowflake.snowpark.modin.plugin._typing import (
     DropKeep,

@@ -254,30 +254,38 @@ def test_rolling_corr_negative():
     )
     snow_df = pd.DataFrame(native_df)
     other_snow_df = pd.DataFrame(other_native_df)
-    with pytest.raises(NotImplementedError,
-                       match="min_periods 2 must be == window 3 for 'Rolling.corr'"):
+    with pytest.raises(
+        NotImplementedError,
+        match="min_periods 2 must be == window 3 for 'Rolling.corr'",
+    ):
         snow_df = snow_df.rolling(window=3, min_periods=2).corr(
             other=other_snow_df,
             pairwise=None,
             ddof=1,
             numeric_only=True,
         )
-    with pytest.raises(NotImplementedError,
-                       match="Snowpark pandas does not yet support the method Rolling corr.other = None"):
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Rolling corr.other = None",
+    ):
         snow_df = snow_df.rolling(window=3, min_periods=2).corr(
             pairwise=None,
             ddof=1,
             numeric_only=True,
         )
-    with pytest.raises(NotImplementedError,
-                       match="Snowpark pandas does not yet support the method Rolling corr.other = None"):
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Rolling corr.other = None",
+    ):
         snow_df = snow_df.rolling(window=3, min_periods=2).corr(
             pairwise=True,
             ddof=1,
             numeric_only=True,
         )
-    with pytest.raises(NotImplementedError,
-                       match="Snowpark pandas does not yet support the method Rolling corr.other = None"):
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Rolling corr.other = None",
+    ):
         snow_df = snow_df.rolling(window="a", min_periods=2).corr(
             pairwise=True,
             ddof=1,
