@@ -13698,8 +13698,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ErrorMessage.not_implemented(
                     f"'center=True' is not implemented with str window for Rolling.{agg_func}"
                 )
-            index_quoted_identifier = frame.index_column_snowflake_quoted_identifiers[0]
-            window_expr = Window.orderBy(col(index_quoted_identifier)).range_between(
+            index_quoted_identifiers = frame.index_column_snowflake_quoted_identifiers
+            window_expr = Window.orderBy(
+                *(col(c) for c in index_quoted_identifiers)
+            ).range_between(
                 -create_snowpark_interval_from_window(window), Window.CURRENT_ROW
             )
 
