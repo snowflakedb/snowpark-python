@@ -21,7 +21,7 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import avg, col, lit, seq1, table_function, uniform
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.window import Window
-from tests.utils import IS_IN_STORED_PROC, Utils
+from tests.utils import Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -355,25 +355,26 @@ def test_join_statement(session: Session, sample_table: str):
     )
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create temp table in stored proc")
 def test_pivot(session: Session):
     try:
-        session.sql(
-            """create or replace temp table monthly_sales(empid int, amount int, month text)
-                as select * from values
-                (1, 10000, 'JAN'),
-                (1, 400, 'JAN'),
-                (2, 4500, 'JAN'),
-                (2, 35000, 'JAN'),
-                (1, 5000, 'FEB'),
-                (1, 3000, 'FEB'),
-                (2, 200, 'FEB')"""
-        ).collect()
+        table_name = Utils.random_table_name()
+        session.create_dataframe(
+            [
+                (1, 10000, "JAN"),
+                (1, 400, "JAN"),
+                (2, 4500, "JAN"),
+                (2, 35000, "JAN"),
+                (1, 5000, "FEB"),
+                (1, 3000, "FEB"),
+                (2, 200, "FEB"),
+            ],
+            schema=["empid", "amount", "month"],
+        ).write.save_as_table(table_name, table_type="temp")
 
         df_pivot1 = (
-            session.table("monthly_sales").pivot("month", ["JAN", "FEB"]).sum("amount")
+            session.table(table_name).pivot("month", ["JAN", "FEB"]).sum("amount")
         )
-        #  SELECT  *  FROM ( SELECT  *  FROM monthly_sales) PIVOT (sum("AMOUNT") FOR "MONTH" IN ('JAN', 'FEB'))
+        #  SELECT  *  FROM ( SELECT  *  FROM table_name) PIVOT (sum("AMOUNT") FOR "MONTH" IN ('JAN', 'FEB'))
         assert_df_subtree_query_complexity(
             df_pivot1,
             {
@@ -385,11 +386,11 @@ def test_pivot(session: Session):
         )
 
         df_pivot2 = (
-            session.table("monthly_sales")
+            session.table(table_name)
             .pivot("month", ["JAN", "FEB", "MARCH"])
             .sum("amount")
         )
-        #  SELECT  *  FROM ( SELECT  *  FROM monthly_sales) PIVOT (sum("AMOUNT") FOR "MONTH" IN ('JAN', 'FEB', 'MARCH'))
+        #  SELECT  *  FROM ( SELECT  *  FROM table_name) PIVOT (sum("AMOUNT") FOR "MONTH" IN ('JAN', 'FEB', 'MARCH'))
         assert_df_subtree_query_complexity(
             df_pivot2,
             {
@@ -400,20 +401,21 @@ def test_pivot(session: Session):
             },
         )
     finally:
-        Utils.drop_table(session, "monthly_sales")
+        Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create temp table in stored proc")
 def test_unpivot(session: Session):
     try:
-        session.sql(
-            """create or replace temp table sales_for_month(empid int, dept varchar, jan int, feb int)
-            as select * from values
-            (1, 'electronics', 100, 200),
-            (2, 'clothes', 100, 300)"""
-        ).collect()
+        sales_for_month = Utils.random_table_name()
+        session.create_dataframe(
+            [
+                (1, "electronics", 100, 200),
+                (2, "clothes", 100, 300),
+            ],
+            schema=["empid", "dept", "jan", "feb"],
+        ).write.save_as_table(sales_for_month, table_type="temp")
 
-        df_unpivot1 = session.table("sales_for_month").unpivot(
+        df_unpivot1 = session.table(sales_for_month).unpivot(
             "sales", "month", ["jan", "feb"]
         )
         #  SELECT  *  FROM ( SELECT  *  FROM (sales_for_month)) UNPIVOT (sales FOR month IN ("JAN", "FEB"))
@@ -422,7 +424,7 @@ def test_unpivot(session: Session):
             {PlanNodeCategory.UNPIVOT: 1, PlanNodeCategory.COLUMN: 6},
         )
     finally:
-        Utils.drop_table(session, "sales_for_month")
+        Utils.drop_table(session, sales_for_month)
 
 
 def test_sample(session: Session, sample_table):

@@ -16,7 +16,7 @@ from snowflake.snowpark.session import (
     DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
     Session,
 )
-from tests.utils import IS_IN_STORED_PROC, Utils
+from tests.utils import Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -202,20 +202,21 @@ def test_copy_into_location(session, large_query_df):
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create temp table in stored proc")
 def test_pivot_unpivot(session):
-    session.sql(
-        """create or replace temp table monthly_sales(A int, B int, month text)
-                as select * from values
-                (1, 10000, 'JAN'),
-                (1, 400, 'JAN'),
-                (2, 4500, 'JAN'),
-                (2, 35000, 'JAN'),
-                (1, 5000, 'FEB'),
-                (1, 3000, 'FEB'),
-                (2, 200, 'FEB')"""
-    ).collect()
-    df_pivot = session.table("monthly_sales").with_column("A", col("A") + lit(1))
+    table_name = Utils.random_table_name()
+    session.create_dataframe(
+        [
+            (1, 10000, "JAN"),
+            (1, 400, "JAN"),
+            (2, 4500, "JAN"),
+            (2, 35000, "JAN"),
+            (1, 5000, "FEB"),
+            (1, 3000, "FEB"),
+            (2, 200, "FEB"),
+        ],
+        schema=["A", "B", "month"],
+    ).write.save_as_table(table_name, table_type="temp")
+    df_pivot = session.table(table_name).with_column("A", col("A") + lit(1))
     df_unpivot = session.create_dataframe(
         [(1, "electronics", 100, 200), (2, "clothes", 100, 300)],
         schema=["A", "dept", "jan", "feb"],

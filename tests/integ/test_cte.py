@@ -107,7 +107,6 @@ def test_unary(session, action):
     check_result(session, df_action.union_all(df_action), expect_cte_optimized=True)
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="SNOW-1676311: Order mismatch in SP env")
 @pytest.mark.parametrize("action", binary_operations)
 def test_binary(session, action):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -478,22 +477,21 @@ def test_join_table_function(session):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create temp table in stored proc")
 def test_pivot_unpivot(session):
-    session.sql(
-        """create or replace temp table monthly_sales(empid int, amount int, month text)
-             as select * from values
-             (1, 10000, 'JAN'),
-             (1, 400, 'JAN'),
-             (2, 4500, 'JAN'),
-             (2, 35000, 'JAN'),
-             (1, 5000, 'FEB'),
-             (1, 3000, 'FEB'),
-             (2, 200, 'FEB')"""
-    ).collect()
-    df_pivot = (
-        session.table("monthly_sales").pivot("month", ["JAN", "FEB"]).sum("amount")
-    )
+    table_name = Utils.random_table_name()
+    session.create_dataframe(
+        [
+            (1, 10000, "JAN"),
+            (1, 400, "JAN"),
+            (2, 4500, "JAN"),
+            (2, 35000, "JAN"),
+            (1, 5000, "FEB"),
+            (1, 3000, "FEB"),
+            (2, 200, "FEB"),
+        ],
+        schema=["empid", "amount", "month"],
+    ).write.save_as_table(table_name, table_type="temp")
+    df_pivot = session.table(table_name).pivot("month", ["JAN", "FEB"]).sum("amount")
     df_unpivot = session.create_dataframe(
         [(1, "electronics", 100, 200), (2, "clothes", 100, 300)],
         schema=["empid", "dept", "jan", "feb"],
