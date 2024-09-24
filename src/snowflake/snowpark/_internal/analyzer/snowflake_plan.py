@@ -454,9 +454,14 @@ class SnowflakePlan(LogicalPlan):
 
     def get_with_query_blocks(self) -> Dict[WithQueryBlock, int]:
         with_query_blocks = {}
-        for child in self.children_plan_nodes:
-            for node, count in child.get_with_query_blocks().items():
-                with_query_blocks[node] = with_query_blocks.get(node, 0) + count
+        current_level = [self]
+        while len(current_level) > 0:
+            next_level = []
+            for node in current_level:
+                next_level.extend(node.children_plan_nodes)
+                if isinstance(node, WithQueryBlock):
+                    with_query_blocks[node] = with_query_blocks.get(node, 0) + 1
+            current_level = next_level
 
         return with_query_blocks
 
