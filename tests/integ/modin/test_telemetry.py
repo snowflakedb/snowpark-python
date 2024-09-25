@@ -92,7 +92,7 @@ def test_standalone_api_telemetry():
     ]
     assert newdf._query_compiler.snowpark_pandas_api_calls == [
         {
-            "name": "general.to_numeric",
+            "name": "general_overrides.to_numeric",
         }
     ]
 
