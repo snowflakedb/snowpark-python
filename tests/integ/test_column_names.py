@@ -42,7 +42,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     VariantType,
 )
-from tests.utils import Utils
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 paramList = [True, False]
 
@@ -81,6 +81,8 @@ def verify_column_result(
     for (datatype, expected_type) in zip(metadata_column_dtypes, expected_dtypes):
         if isinstance(expected_type, StringType):
             assert isinstance(datatype, StringType)
+        elif isinstance(expected_type, TimestampType):
+            assert isinstance(datatype, TimestampType)
         else:
             assert datatype == expected_type
 
@@ -485,6 +487,9 @@ def test_function_expression(session, local_testing_mode):
     )
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Temp function not supported in stored proc environment"
+)
 @pytest.mark.udf
 @pytest.mark.parametrize("use_qualified_name", [True, False])
 def test_udf(session, use_qualified_name, local_testing_mode):
