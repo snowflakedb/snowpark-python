@@ -87,6 +87,7 @@ class Expression:
         self.children = [child] if child else None
         self.datatype: Optional[DataType] = None
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
+        self._ast = None
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         # TODO: consider adding it to __init__ or use cached_property.

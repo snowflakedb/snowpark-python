@@ -32,6 +32,7 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_location_options,
     normalize_remote_file_or_dir,
     parse_table_name,
+    publicapi,
     str_to_enum,
     validate_object_name,
     warning,
@@ -73,6 +74,7 @@ class DataFrameWriter:
        specified destination.
     """
 
+    @publicapi
     def __init__(
         self,
         dataframe: "snowflake.snowpark.dataframe.DataFrame",
@@ -84,7 +86,8 @@ class DataFrameWriter:
         self._cur_options: Dict[str, Any] = {}
         self._ast_stmt = _ast_stmt
 
-    def mode(self, save_mode: str) -> "DataFrameWriter":
+    @publicapi
+    def mode(self, save_mode: str, _emit_ast: bool = True) -> "DataFrameWriter":
         """Set the save mode of this :class:`DataFrameWriter`.
 
         Args:
@@ -110,10 +113,11 @@ class DataFrameWriter:
         )
 
         # Update AST if it exists.
-        if self._ast_stmt is not None:
-            fill_sp_save_mode(
-                self._ast_stmt.expr.sp_dataframe_write.save_mode, self._save_mode
-            )
+        if _emit_ast:
+            if self._ast_stmt is not None:
+                fill_sp_save_mode(
+                    self._ast_stmt.expr.sp_dataframe_write.save_mode, self._save_mode
+                )
 
         return self
 
@@ -138,6 +142,7 @@ class DataFrameWriter:
         return self
 
     @overload
+    @publicapi
     def save_as_table(
         self,
         table_name: Union[str, Iterable[str]],
@@ -149,10 +154,12 @@ class DataFrameWriter:
         clustering_keys: Optional[Iterable[ColumnOrName]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
     ) -> None:
         ...  # pragma: no cover
 
     @overload
+    @publicapi
     def save_as_table(
         self,
         table_name: Union[str, Iterable[str]],
@@ -164,10 +171,12 @@ class DataFrameWriter:
         clustering_keys: Optional[Iterable[ColumnOrName]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
+        _emit_ast: bool = True,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
     @dfw_collect_api_telemetry
+    @publicapi
     def save_as_table(
         self,
         table_name: Union[str, Iterable[str]],
@@ -405,6 +414,7 @@ class DataFrameWriter:
             return result if not block else None
 
     @overload
+    @publicapi
     def copy_into_location(
         self,
         location: str,
@@ -416,11 +426,13 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: Literal[True] = True,
+        _emit_ast: bool = True,
         **copy_options: Optional[Dict[str, Any]],
     ) -> List[Row]:
         ...  # pragma: no cover
 
     @overload
+    @publicapi
     def copy_into_location(
         self,
         location: str,
@@ -432,10 +444,12 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: Literal[False] = False,
+        _emit_ast: bool = True,
         **copy_options: Optional[Dict[str, Any]],
     ) -> AsyncJob:
         ...  # pragma: no cover
 
+    @publicapi
     def copy_into_location(
         self,
         location: str,
@@ -574,6 +588,7 @@ class DataFrameWriter:
             **kwargs,
         )
 
+    @publicapi
     def csv(
         self,
         location: str,
@@ -650,6 +665,7 @@ class DataFrameWriter:
             **copy_options,
         )
 
+    @publicapi
     def json(
         self,
         location: str,
@@ -727,6 +743,7 @@ class DataFrameWriter:
             **copy_options,
         )
 
+    @publicapi
     def parquet(
         self,
         location: str,

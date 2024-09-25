@@ -254,6 +254,17 @@ def run_test(session):
         os.unlink(test_file.name)
 
 
+def ClearTempTables(message: proto.Request) -> None:
+    """Removes temp table when passing pandas data."""
+    for stmt in message.body:
+        if str(
+            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.temp_table
+        ):
+            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.ClearField(
+                "temp_table"
+            )
+
+
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
 def test_ast(session, test_case):
     logging.info(f"Testing AST encoding with protobuf {google.protobuf.__version__}.")
@@ -290,6 +301,10 @@ def test_ast(session, test_case):
             # Python 3.9.3. Make comparison here client-language agnostic by removing the data from the message.
             actual_message.ClearField("client_language")
             expected_message.ClearField("client_language")
+
+            # Similarly, for create_dataframe with temporary tables clear them as they may differ from session to session.
+            ClearTempTables(actual_message)
+            ClearTempTables(expected_message)
 
             det_actual_message = actual_message.SerializeToString(deterministic=True)
             det_expected_message = expected_message.SerializeToString(
