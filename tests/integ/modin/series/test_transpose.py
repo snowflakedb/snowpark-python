@@ -52,7 +52,7 @@ def test_series_transpose_empty():
 
 
 @sql_count_checker(query_count=1)
-def test_series_transpose_multi_index():
+def test_series_transpose_multiindex():
     data = [1, 2, 3, 4, 5]
     index = [("a", "x"), ("b", "y"), ("c", "z"), ("d", "u"), ("e", "v")]
 
