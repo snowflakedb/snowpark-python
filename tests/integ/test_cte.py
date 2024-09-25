@@ -130,6 +130,27 @@ def test_binary(session, action):
     assert len(plan_queries["post_actions"]) == 1
 
 
+def test_join_with_alias_dataframe(session):
+    df1 = session.create_dataframe([[1, 6]], schema=["col1", "col2"])
+    df_res = (
+        df1.alias("L")
+        .join(df1.alias("R"), col("L", "col1") == col("R", "col1"))
+        .select(col("L", "col1"), col("R", "col2"))
+    )
+
+    session._cte_optimization_enabled = False
+    result = df_res.collect()
+
+    session._cte_optimization_enabled = True
+    cte_result = df_res.collect()
+
+    Utils.check_answer(cte_result, result)
+
+    last_query = df_res.queries["queries"][-1]
+    assert last_query.startswith(WITH)
+    assert last_query.count(WITH) == 1
+
+
 @pytest.mark.parametrize("action", binary_operations)
 def test_variable_binding_binary(session, action):
     df1 = session.sql(
@@ -527,6 +548,40 @@ def test_window_function(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
+def test_in_with_subquery_multiple_query(session):
+    if session._sql_simplifier_enabled:
+        pytest.skip(
+            "SNOW-1678419 pre and post actions are not propagated properly for SelectStatement"
+        )
+    # multiple queries
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df0 = session.create_dataframe([[1], [2], [5], [7]], schema=["a"])
+        df = session.create_dataframe(
+            [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33], [5, "c", 21, 18]],
+            schema=["a", "b", "c", "d"],
+        )
+        df_filter = df0.filter(col("a") < 3)
+        df_in = df.filter(~df["a"].in_(df_filter))
+        df_result = df_in.union_all(df_in).select("*")
+        check_result(session, df_result, expect_cte_optimized=True)
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+
+
+def test_select_with_column_expr_alias(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df1 = df.select("a", "b", (col("a") + col("b")).as_("c"))
+    df2 = df1.select("a", "b", "c", (col("a") + col("b") + 1).as_("d"))
+    df_result = df2.union_all(df2).select("*")
+    check_result(session, df_result, expect_cte_optimized=True)
+
+    df2 = df.select_expr("a + 1 as a", "b + 1 as b")
+    df_result = df2.union_all(df2).select("*")
+    check_result(session, df_result, expect_cte_optimized=True)
+
+
 def test_cte_optimization_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
         session.cte_optimization_enabled = True
