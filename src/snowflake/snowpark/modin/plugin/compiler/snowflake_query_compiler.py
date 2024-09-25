@@ -13767,6 +13767,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 }
             ).frame
         elif agg_func == "corr":
+            if not isinstance(window, int):
+                ErrorMessage.not_implemented(
+                    "Snowpark pandas does not yet support non-integer 'window' for 'Rolling.corr'"
+                )
             if window != min_periods:
                 ErrorMessage.not_implemented(
                     f"min_periods {min_periods} must be == window {window} for 'Rolling.corr'"
