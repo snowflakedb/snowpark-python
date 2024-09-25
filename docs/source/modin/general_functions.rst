@@ -2,7 +2,7 @@
 General functions
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.pandas.general
+.. currentmodule:: snowflake.snowpark.modin.pandas
 .. rubric:: :doc:`All supported general functions <supported/general_supported>`
 
 .. rubric:: Data manipulations

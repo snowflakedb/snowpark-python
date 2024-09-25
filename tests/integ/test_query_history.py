@@ -22,6 +22,20 @@ def test_query_history(session):
     assert len(query_listener.queries) == 1
     assert query_listener.queries[0].query_id is not None
     assert query_listener.queries[0].sql_text == "select 0"
+    assert not query_listener.queries[0].is_describe
+
+
+def test_query_history_with_describe(session):
+    with session.query_history(True) as query_listener:
+        df = session.sql("select 0")
+        df.columns
+        df.collect()
+    assert len(query_listener.queries) == 2
+    for query in query_listener.queries:
+        assert query.query_id is not None
+        assert query.sql_text == "select 0"
+    assert query_listener.queries[0].is_describe
+    assert not query_listener.queries[1].is_describe
 
 
 def test_query_history_stop_listening(session):
@@ -57,6 +71,16 @@ def test_query_history_two_listeners(session):
 
 
 def test_query_history_multiple_actions(session):
+    with session.query_history(True) as query_history:
+        df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        df = df.filter(df.a == 1)
+        df.collect()
+
+    assert len(query_history.queries) == 3
+    assert query_history.queries[0].is_describe
+    assert query_history.queries[1].is_describe
+    assert not query_history.queries[2].is_describe
+
     with session.query_history() as query_listener:
         session.sql("select 0").collect()
         session.sql("select 1").collect()
