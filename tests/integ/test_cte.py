@@ -16,17 +16,9 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.functions import (
-    avg,
-    col,
-    lit,
-    seq1,
-    sql_expr,
-    uniform,
-    when_matched,
-)
+from snowflake.snowpark.functions import avg, col, lit, seq1, uniform, when_matched
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
-from tests.utils import TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -64,7 +56,7 @@ def setup(request, session):
 
 
 def check_result(session, df, expect_cte_optimized):
-    df = df.sort(sql_expr("$1"))
+    df = df.sort(df.columns)
     session._cte_optimization_enabled = False
     result = df.collect()
     result_count = df.count()
@@ -460,6 +452,7 @@ def test_aggregate(session, action):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_df_reader(session, mode, resources_path):
     reader = get_reader(session, mode)
@@ -485,20 +478,20 @@ def test_join_table_function(session):
 
 
 def test_pivot_unpivot(session):
-    session.sql(
-        """create or replace temp table monthly_sales(empid int, amount int, month text)
-             as select * from values
-             (1, 10000, 'JAN'),
-             (1, 400, 'JAN'),
-             (2, 4500, 'JAN'),
-             (2, 35000, 'JAN'),
-             (1, 5000, 'FEB'),
-             (1, 3000, 'FEB'),
-             (2, 200, 'FEB')"""
-    ).collect()
-    df_pivot = (
-        session.table("monthly_sales").pivot("month", ["JAN", "FEB"]).sum("amount")
-    )
+    table_name = Utils.random_table_name()
+    session.create_dataframe(
+        [
+            (1, 10000, "JAN"),
+            (1, 400, "JAN"),
+            (2, 4500, "JAN"),
+            (2, 35000, "JAN"),
+            (1, 5000, "FEB"),
+            (1, 3000, "FEB"),
+            (2, 200, "FEB"),
+        ],
+        schema=["empid", "amount", "month"],
+    ).write.save_as_table(table_name, table_type="temp")
+    df_pivot = session.table(table_name).pivot("month", ["JAN", "FEB"]).sum("amount")
     df_unpivot = session.create_dataframe(
         [(1, "electronics", 100, 200), (2, "clothes", 100, 300)],
         schema=["empid", "dept", "jan", "feb"],
@@ -531,6 +524,9 @@ def test_window_function(session):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
+)
 def test_cte_optimization_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
         session.cte_optimization_enabled = True
