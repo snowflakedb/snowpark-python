@@ -89,7 +89,7 @@ def check_generated_plan_queries(plan: SnowflakePlan) -> None:
     assert plan.queries is None
     assert plan.post_actions is None
     # regenerate the queries
-    plan_queries = query_generator.generate_queries([source_plan])
+    plan_queries = query_generator.generate_queries([source_plan], config_context=None)
     queries = [query.sql for query in plan_queries[PlanQueryType.QUERIES]]
     post_actions = [query.sql for query in plan_queries[PlanQueryType.POST_ACTIONS]]
     assert queries == original_queries
@@ -191,7 +191,7 @@ def test_table_create_from_large_query_breakdown(session, plan_source_generator)
         comment=None,
     )
 
-    queries = generator.generate_queries([create_table_source])
+    queries = generator.generate_queries([create_table_source], config_context=None)
     assert len(queries[PlanQueryType.QUERIES]) == 1
     assert len(queries[PlanQueryType.POST_ACTIONS]) == 0
 
@@ -321,7 +321,9 @@ def test_dataframe_creation_with_multiple_queries(session):
     # reset the whole plan
     reset_plan_tree(df._plan)
     # regenerate the queries
-    plan_queries = query_generator.generate_queries([df._plan.source_plan])
+    plan_queries = query_generator.generate_queries(
+        [df._plan.source_plan], config_context=None
+    )
     queries = [query.sql.lstrip() for query in plan_queries[PlanQueryType.QUERIES]]
     post_actions = [
         query.sql.lstrip() for query in plan_queries[PlanQueryType.POST_ACTIONS]
@@ -362,7 +364,9 @@ def test_multiple_plan_query_generation(session):
     reset_plan_tree(snowflake_plan)
     reset_plan_tree(df_res._plan)
     logical_plans = [snowflake_plan.source_plan, df_res._plan.source_plan]
-    generated_queries = query_generator.generate_queries(logical_plans)
+    generated_queries = query_generator.generate_queries(
+        logical_plans, config_context=None
+    )
     result_queries = [
         query.sql.lstrip() for query in generated_queries[PlanQueryType.QUERIES]
     ]

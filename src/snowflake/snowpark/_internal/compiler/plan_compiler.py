@@ -120,7 +120,9 @@ class PlanCompiler:
             ]
 
             # 4. do a final pass of code generation
-            queries = query_generator.generate_queries(logical_plans)
+            queries = query_generator.generate_queries(
+                logical_plans, self.config_context
+            )
 
             # log telemetry data
             deep_copy_time = deep_copy_end_time - start_time
