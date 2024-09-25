@@ -297,18 +297,27 @@ class Column:
 
     def __getitem__(self, field: Union[str, int]) -> "Column":
         """Accesses an element of ARRAY column by ordinal position, or an element of OBJECT column by key."""
+
+        _emit_ast = self._ast is not None
+        expr = None
         if isinstance(field, str):
-            expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_apply__string)
-            ast.col.CopyFrom(self._ast)
-            ast.field = field
-            return Column(SubfieldString(self._expression, field), ast=expr)
+            if _emit_ast:
+                expr = proto.Expr()
+                ast = with_src_position(expr.sp_column_apply__string)
+                ast.col.CopyFrom(self._ast)
+                ast.field = field
+            return Column(
+                SubfieldString(self._expression, field), ast=expr, _emit_ast=_emit_ast
+            )
         elif isinstance(field, int):
-            expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_apply__int)
-            ast.col.CopyFrom(self._ast)
-            ast.idx = field
-            return Column(SubfieldInt(self._expression, field), ast=expr)
+            if _emit_ast:
+                expr = proto.Expr()
+                ast = with_src_position(expr.sp_column_apply__int)
+                ast.col.CopyFrom(self._ast)
+                ast.idx = field
+            return Column(
+                SubfieldInt(self._expression, field), ast=expr, _emit_ast=_emit_ast
+            )
         else:
             raise TypeError(f"Unexpected item type: {type(field)}")
 
@@ -316,6 +325,10 @@ class Column:
         """Equal to."""
         expr = None
         _emit_ast = bool(self._ast is not None)
+
+        if isinstance(other, (Column, Expression)) and other._ast is None:
+            _emit_ast = False
+
         if _emit_ast:
             expr = proto.Expr()
             ast = with_src_position(expr.eq)
@@ -374,6 +387,9 @@ class Column:
         """Greater than or equal to."""
         expr = None
         _emit_ast = bool(self._ast is not None)
+        if isinstance(other, (Column, Expression)) and other._ast is None:
+            _emit_ast = False
+
         if _emit_ast:
             expr = proto.Expr()
             ast = with_src_position(expr.geq)
@@ -389,6 +405,9 @@ class Column:
         """Less than or equal to."""
         expr = None
         _emit_ast = bool(self._ast is not None)
+        if isinstance(other, (Column, Expression)) and other._ast is None:
+            _emit_ast = False
+
         if _emit_ast:
             expr = proto.Expr()
             ast = with_src_position(expr.leq)

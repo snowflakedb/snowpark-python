@@ -833,8 +833,12 @@ class DataFrameAnalyticsFunctions:
 
             # Filter rows to include only those within the specified time window for aggregation.
             self_joined_df = self_joined_df.filter(
-                col(f"{sliding_point_col}B") >= window_start, _emit_ast=False
-            ).filter(col(f"{sliding_point_col}B") <= window_end, _emit_ast=False)
+                col(f"{sliding_point_col}B", _emit_ast=False) >= window_start,
+                _emit_ast=False,
+            ).filter(
+                col(f"{sliding_point_col}B", _emit_ast=False) <= window_end,
+                _emit_ast=False,
+            )
 
             # Peform final aggregations.
             group_by_cols = group_by + [sliding_point_col]
