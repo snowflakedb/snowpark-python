@@ -426,6 +426,77 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     assert len(large_query_df.queries["post_actions"]) == 0
 
 
+def test_large_query_breakdown_num_passes(session):
+    set_bounds(session, 100, 200)
+
+    # build dataframe
+    """The plan looks like this:
+
+               UNION ALL
+                   |
+          --------------------------
+          |                        |
+       distinct                  Long select
+          |                         chain
+      Long select
+         chain
+          |
+      UNION ALL
+          |
+      ------------------
+      |                |
+    Groupby          Groupby
+    Agg A             Agg B
+      |                |
+    Long select       Long select
+      chain             chain
+
+    For this plan, we expect :
+      1. each groupby and distinct to be broken down.
+      2. breakdown is achieve using 2 passes.
+        2a. First pass breaks down the groupby A and groupby B
+        2b. Second pass breaks down distinct
+    """
+    base_df = session.sql("select 1 as A, 2 as B, 3 as C")
+    df1 = base_df.with_column("A", col("A") + lit(1))
+    df2 = base_df.with_column("B", col("B") + lit(1))
+    df3 = base_df.with_column("C", col("C") + lit(1))
+
+    for i in range(30):
+        df1 = df1.with_column("A", col("A") + lit(i))
+        df2 = df2.with_column("B", col("B") + lit(i))
+        df3 = df3.with_column("C", col("C") + lit(i))
+    df1 = df1.group_by(col("A")).agg(sum_distinct(col("B")).alias("B"))
+    df2 = df2.group_by(col("B")).agg(sum_distinct(col("A")).alias("A"))
+
+    union_df = df1.union_all(df2)
+    for i in range(30):
+        union_df = union_df.with_column("A", col("A") + lit(i))
+    union_df = union_df.distinct()
+    final_df = union_df.union_all(df3.select("A", col("C").as_("B")))
+
+    # correctness check
+    check_result_with_and_without_breakdown(session, final_df)
+
+    with patch.object(
+        session._conn._telemetry_client, "send_query_compilation_summary_telemetry"
+    ) as mock_send_telemetry:
+        queries = final_df.queries
+
+        # check we break down plan into 3 partitions and 1 final query
+        assert len(queries["queries"]) == 4
+        assert len(queries["post_actions"]) == 3
+        for i in range(3):
+            assert queries["queries"][i].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+            assert queries["post_actions"][i].startswith("DROP  TABLE  If  EXISTS")
+
+        # check we have 2 passes
+        mock_send_telemetry.assert_called()
+        _, kwargs = mock_send_telemetry.call_args
+        summary_value = kwargs["compilation_stage_summary"]
+        assert summary_value["num_passes_for_large_query_breakdown"] == 2
+
+
 def test_large_query_breakdown_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
         session.large_query_breakdown_enabled = True
