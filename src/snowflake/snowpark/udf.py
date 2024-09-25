@@ -45,6 +45,7 @@ from snowflake.snowpark._internal.udf_utils import (
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     parse_positional_args_to_list,
+    publicapi,
     warning,
 )
 from snowflake.snowpark.column import Column
@@ -507,6 +508,7 @@ class UDFRegistration:
             f"describe function {udf_obj.name}({','.join(func_args)})"
         )
 
+    @publicapi
     def register(
         self,
         func: Callable,
@@ -663,6 +665,7 @@ class UDFRegistration:
                 _emit_ast=_emit_ast,
             )
 
+    @publicapi
     def register_from_file(
         self,
         file_path: str,
