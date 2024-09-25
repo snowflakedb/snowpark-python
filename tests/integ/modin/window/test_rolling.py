@@ -20,7 +20,7 @@ agg_func = pytest.mark.parametrize(
     "agg_func", ["count", "sum", "mean", "var", "std", "min", "max", "sem"]
 )
 window = pytest.mark.parametrize("window", [1, 2, 3, 4, 6])
-min_periods = pytest.mark.parametrize("min_periods", [1, 2])
+min_periods = pytest.mark.parametrize("min_periods", [None, 1, 2])
 center = pytest.mark.parametrize("center", [True, False])
 
 
@@ -33,7 +33,7 @@ def test_rolling_dataframe(window, min_periods, center, agg_func):
         {"A": ["h", "e", "l", "l", "o"], "B": [0, -1, 2.5, np.nan, 4]}
     )
     snow_df = pd.DataFrame(native_df)
-    if min_periods > window:
+    if min_periods is not None and min_periods > window:
         with SqlCounter(query_count=0):
             eval_snowpark_pandas_result(
                 snow_df,
@@ -70,7 +70,7 @@ def test_rolling_null_dataframe(window, min_periods, center, agg_func):
         }
     )
     snow_df = pd.DataFrame(native_df)
-    if min_periods > window:
+    if min_periods is not None and min_periods > window:
         with SqlCounter(query_count=0):
             eval_snowpark_pandas_result(
                 snow_df,
@@ -102,7 +102,7 @@ def test_rolling_null_dataframe(window, min_periods, center, agg_func):
 def test_rolling_series(window, min_periods, center, agg_func):
     native_series = native_pd.Series([0, -1, 2.5, np.nan, 4])
     snow_series = pd.Series(native_series)
-    if min_periods > window:
+    if min_periods is not None and min_periods > window:
         with SqlCounter(query_count=0):
             eval_snowpark_pandas_result(
                 snow_series,
@@ -294,7 +294,7 @@ def test_rolling_corr_negative():
     with pytest.raises(
         NotImplementedError,
         match=re.escape(
-            "Snowpark pandas does not yet support the method Rolling corr.other = None"
+            "Snowpark pandas method Rolling.corr does not yet support the 'other = None' parameter"
         ),
     ):
         snow_df = snow_df.rolling(window=3, min_periods=2).corr(
@@ -305,7 +305,7 @@ def test_rolling_corr_negative():
     with pytest.raises(
         NotImplementedError,
         match=re.escape(
-            "Snowpark pandas does not yet support the method Rolling corr.pairwise = True"
+            "Snowpark pandas method Rolling.corr does not yet support the 'pairwise = True' parameter"
         ),
     ):
         snow_df = snow_df.rolling(window="a", min_periods=2).corr(
@@ -452,7 +452,6 @@ def test_rolling_window_multiindex():
     "function",
     [
         lambda df: df.rolling(2, min_periods=0).sum(),
-        lambda df: df.rolling(2, min_periods=None).sum(),
         lambda df: df.rolling(2, win_type="barthann").sum(),
         lambda df: df.rolling(2, on="B").sum(),
         lambda df: df.rolling(2, axis=1).sum(),

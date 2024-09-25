@@ -13544,12 +13544,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
         if other is None:
-            ErrorMessage.method_not_implemented_error(
-                name="other = None", class_="Rolling corr"
+            ErrorMessage.parameter_not_implemented_error(
+                parameter_name="other = None", method_name="Rolling.corr"
             )
         if pairwise:
-            ErrorMessage.method_not_implemented_error(
-                name="pairwise = True", class_="Rolling corr"
+            ErrorMessage.parameter_not_implemented_error(
+                parameter_name="pairwise = True", method_name="Rolling.corr"
             )
         return self._window_agg(
             window_func=WindowFunction.ROLLING,
@@ -13708,6 +13708,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             window_expr = Window.orderBy(
                 col(row_position_quoted_identifier)
             ).rows_between(rows_between_start, rows_between_end)
+
+            if window_func == WindowFunction.ROLLING:
+                # min_periods defaults to the size of the window if window is specified by an integer
+                min_periods = window if min_periods is None else min_periods
+            else:
+                assert window_func == WindowFunction.EXPANDING
+                # Handle case where min_periods = None
+                min_periods = 0 if min_periods is None else min_periods
         else:
             assert isinstance(window, str) and window_func == WindowFunction.ROLLING
             if center:
@@ -13725,8 +13733,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 -create_snowpark_interval_from_window(window), Window.CURRENT_ROW
             )
 
-        # Handle case where min_periods = None
-        min_periods = 0 if min_periods is None else min_periods
         # Perform Aggregation over the window_expr
         if agg_func == "sem":
             # Standard error of mean (SEM) does not have native Snowflake engine support

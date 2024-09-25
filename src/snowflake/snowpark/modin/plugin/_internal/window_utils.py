@@ -95,30 +95,30 @@ def check_and_raise_error_rolling_window_supported_by_snowflake(
         ErrorMessage.not_implemented(
             "Snowpark pandas does not yet support Rolling with windows that are not strings or integers"
         )
-    if (min_periods is None or min_periods == 0) and not isinstance(window, str):
-        ErrorMessage.method_not_implemented_error(
-            name=f"min_periods {min_periods}", class_="Rolling"
+    if min_periods == 0:
+        ErrorMessage.parameter_not_implemented_error(
+            parameter_name="min_periods = 0", method_name="Rolling"
         )
     if win_type:
-        ErrorMessage.method_not_implemented_error(
-            name="win_type", class_="Rolling"
+        ErrorMessage.parameter_not_implemented_error(
+            parameter_name="win_type", method_name="Rolling"
         )  # pragma: no cover
     if on:
-        ErrorMessage.method_not_implemented_error(
-            name="on", class_="Rolling"
+        ErrorMessage.parameter_not_implemented_error(
+            parameter_name="on", method_name="Rolling"
         )  # pragma: no cover
     if axis not in (0, "index"):
         # Note that this is deprecated since pandas 2.1.0
-        ErrorMessage.method_not_implemented_error(
-            name="axis = 1", class_="Rolling"
+        ErrorMessage.parameter_not_implemented_error(
+            parameter_name="axis = 1", method_name="Rolling"
         )  # pragma: no cover
     if closed:
-        ErrorMessage.method_not_implemented_error(
-            name="closed", class_="Rolling"
+        ErrorMessage.parameter_not_implemented_error(
+            parameter_name="closed", method_name="Rolling"
         )  # pragma: no cover
     if step:
-        ErrorMessage.method_not_implemented_error(
-            name="step", class_="Rolling"
+        ErrorMessage.parameter_not_implemented_error(
+            parameter_name="step", method_name="Rolling"
         )  # pragma: no cover
 
 
@@ -147,8 +147,8 @@ def check_and_raise_error_expanding_window_supported_by_snowflake(
 
     if axis not in (0, "index"):
         # Note that this is deprecated since pandas 2.1.0
-        ErrorMessage.method_not_implemented_error(
-            name="axis = 1", class_="Expanding"
+        ErrorMessage.parameter_not_implemented_error(
+            parameter_name="axis = 1", method_name="Expanding"
         )  # pragma: no cover
 
 
