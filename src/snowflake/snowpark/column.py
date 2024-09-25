@@ -886,12 +886,14 @@ class Column:
             to._fill_ast(ast.to)
         return Column(Cast(self._expression, to, try_), ast=expr, _emit_ast=_emit_ast)
 
+    @publicapi
     def cast(self, to: Union[str, DataType], _emit_ast: bool = True) -> "Column":
         """Casts the value of the Column to the specified data type.
         It raises an error when  the conversion can not be performed.
         """
         return self._cast(to, False, _emit_ast=_emit_ast)
 
+    @publicapi
     def try_cast(self, to: Union[str, DataType], _emit_ast: bool = True) -> "Column":
         """Tries to cast the value of the Column to the specified data type.
         It returns a NULL value instead of raising an error when the conversion can not be performed.
