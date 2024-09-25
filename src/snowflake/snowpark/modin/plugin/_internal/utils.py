@@ -86,6 +86,9 @@ from snowflake.snowpark.types import (
 
 if TYPE_CHECKING:
     from snowflake.snowpark.modin.plugin._internal import frame
+    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+        SnowflakeQueryCompiler,
+    )
 
 ROW_POSITION_COLUMN_LABEL = "row_position"
 MAX_ROW_POSITION_COLUMN_LABEL = f"MAX_{ROW_POSITION_COLUMN_LABEL}"
@@ -2050,7 +2053,7 @@ def assert_fields_are_none(
     ), f"Invalid {class_name} construction! The `columns` parameter is not supported when `query_compiler` is given."
 
 
-def convert_index_to_qc(index: Any) -> Any:
+def convert_index_to_qc(index: Any) -> "SnowflakeQueryCompiler":
     """
     Method to convert an object representing an index into a query compiler for set_index or reindex.
 
@@ -2119,9 +2122,9 @@ def convert_index_to_list_of_qcs(index: Any) -> list:
 
 
 def add_extra_columns_and_select_required_columns(
-    query_compiler: Any,
+    query_compiler: "SnowflakeQueryCompiler",
     columns: Union[AnyArrayLike, list],
-) -> Any:
+) -> "SnowflakeQueryCompiler":
     """
     Method to add extra columns to and select the required columns from the provided query compiler.
     This is used in DataFrame construction in the following cases:
@@ -2144,11 +2147,11 @@ def add_extra_columns_and_select_required_columns(
     if data_columns is not None and columns is not None:
         extra_columns = [col for col in columns if col not in data_columns]
         if extra_columns is not []:
-            # To add these new columns to the DataFrame, perform `__getitem__` only with the extra columns
+            # To add these new columns to the DataFrame, perform `__setitem__` only with the extra columns
             # and set them to None.
             extra_columns_df = DataFrame(query_compiler=query_compiler)
             # In the case that the columns are MultiIndex but not all extra columns are tuples, we need to flatten the
-            # columns to ensure that the columns are a single-level index. If not, `__getitem__` will raise an error
+            # columns to ensure that the columns are a single-level index. If not, `__setitem__` will raise an error
             # when trying to add new columns that are not in the expected tuple format.
             if not all(isinstance(col, tuple) for col in extra_columns) and isinstance(
                 query_compiler.get_columns(), native_pd.MultiIndex
@@ -2158,8 +2161,9 @@ def add_extra_columns_and_select_required_columns(
             extra_columns_df[extra_columns] = None
             query_compiler = extra_columns_df._query_compiler
 
-    # To select the columns for the resultant DataFrame, perform `__getitem__` on the created query compiler.
-    # This step is performed to ensure that the right columns are picked from the InternalFrame since we
-    # never explicitly drop the unwanted columns. `__getitem__` also ensures that the columns in the resultant
-    # DataFrame are in the same order as the columns in the `columns` parameter.
-    return DataFrame(query_compiler=query_compiler)[columns]._query_compiler
+    # To select the columns for the resultant DataFrame, perform `take_2d_labels` on the created query compiler.
+    # This is the equivalent of `__getitem__` for a DataFrame.
+    # This step is performed to ensure that the right columns are picked from the InternalFrame since we never
+    # explicitly drop the unwanted columns. This also ensures that the columns in the resultant DataFrame are in the
+    # same order as the columns in the `columns` parameter.
+    return query_compiler.take_2d_labels(slice(None), columns)

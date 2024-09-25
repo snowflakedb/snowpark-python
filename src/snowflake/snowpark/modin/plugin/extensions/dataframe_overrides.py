@@ -62,7 +62,7 @@ from pandas.core.dtypes.common import (
     is_numeric_dtype,
 )
 from pandas.core.dtypes.inference import is_hashable, is_integer
-from pandas.core.indexes.base import ensure_index
+from pandas.core.indexes.base import ensure_index as ensure_native_index
 from pandas.core.indexes.frozen import FrozenList
 from pandas.io.formats.printing import pprint_thing
 from pandas.util._validators import validate_bool_kwarg
@@ -80,6 +80,9 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     is_repr_truncated,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike
+from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+    SnowflakeQueryCompiler,
+)
 from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
     DataFrameGroupBy,
     validate_groupby_args,
@@ -493,7 +496,7 @@ def __init__(
             if isinstance(columns, (Index, BasePandasDataset))
             else columns
         )
-        columns = ensure_index(columns)
+        columns = ensure_native_index(columns)
 
     # The logic followed here is:
     # STEP 1: Obtain the query_compiler from the provided data if the data is lazy. If data is local, keep the query
@@ -678,7 +681,7 @@ def _df_init_dict_data_with_snowpark_pandas_values(
     index: list | AnyArrayLike | Series | Index,
     columns: list | AnyArrayLike | Series | Index,
     dtype: str | np.dtype | native_pd.ExtensionDtype | None,
-):
+) -> SnowflakeQueryCompiler:
     """
     Helper function for initializing a DataFrame with a dictionary where all the values
     are Snowpark pandas objects.

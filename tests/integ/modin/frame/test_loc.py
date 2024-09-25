@@ -1726,7 +1726,6 @@ def test_df_loc_get_key_bool_series_with_unaligned_and_distinct_indices(
     )
 
 
-# One extra query for series init converting index to native pandas when creating series_key
 @sql_count_checker(query_count=1, join_count=2)
 def test_df_loc_get_key_bool_series_with_unaligned_and_duplicate_indices():
     key = [True] * 5
