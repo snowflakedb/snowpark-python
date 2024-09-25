@@ -4,7 +4,7 @@
 #
 
 import sys
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -817,6 +817,7 @@ class Column:
 
         return Column(UnaryMinus(self._expression), ast=expr, _emit_ast=_emit_ast)
 
+    @publicapi
     def equal_null(self, other: "Column", _emit_ast: bool = True) -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
         expr = None
@@ -831,6 +832,7 @@ class Column:
             _emit_ast=_emit_ast,
         )
 
+    @publicapi
     def equal_nan(self, _emit_ast: bool = True) -> "Column":
         """Is NaN."""
         expr = None
@@ -840,6 +842,7 @@ class Column:
             ast.col.CopyFrom(self._ast)
         return Column(IsNaN(self._expression), ast=expr, _emit_ast=_emit_ast)
 
+    @publicapi
     def is_null(self, _emit_ast: bool = True) -> "Column":
         """Is null."""
         expr = None
@@ -849,6 +852,7 @@ class Column:
             ast.col.CopyFrom(self._ast)
         return Column(IsNull(self._expression), ast=expr, _emit_ast=_emit_ast)
 
+    @publicapi
     def is_not_null(self, _emit_ast: bool = True) -> "Column":
         """Is not null."""
         expr = None
@@ -859,39 +863,63 @@ class Column:
         return Column(IsNotNull(self._expression), ast=expr, _emit_ast=_emit_ast)
 
     # `and, or, not` cannot be overloaded in Python, so use bitwise operators as boolean operators
-    def __and__(self, other: "Column") -> "Column":
+    def __and__(self, other: Union["Column", Any]) -> "Column":
         """And."""
-        expr = proto.Expr()
-        ast = with_src_position(getattr(expr, "and"))
-        ast.lhs.CopyFrom(self._ast)
-        if other._ast is not None:
+        expr = None
+        _emit_ast = True
+        if isinstance(other, Column):
+            _emit_ast = other._ast is not None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(getattr(expr, "and"))
+            ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
-        return Column(And(self._expression, Column._to_expr(other)), ast=expr)
 
-    def __rand__(self, other: "Column") -> "Column":
-        expr = proto.Expr()
-        ast = with_src_position(getattr(expr, "and"))
-        build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
-        ast.rhs.CopyFrom(self._ast)
         return Column(
-            And(Column._to_expr(other), self._expression), ast=expr
+            And(self._expression, Column._to_expr(other)), ast=expr, _emit_ast=_emit_ast
+        )
+
+    def __rand__(self, other: Union["Column", Any]) -> "Column":
+        expr = None
+        _emit_ast = True
+        if isinstance(other, Column):
+            _emit_ast = other._ast is not None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(getattr(expr, "and"))
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            And(Column._to_expr(other), self._expression), ast=expr, _emit_ast=_emit_ast
         )  # pragma: no cover
 
-    def __or__(self, other: "Column") -> "Column":
+    def __or__(self, other: Union["Column", Any]) -> "Column":
         """Or."""
-        expr = proto.Expr()
-        ast = with_src_position(getattr(expr, "or"))
-        ast.lhs.CopyFrom(self._ast)
-        build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
-        return Column(Or(self._expression, Column._to_expr(other)), ast=expr)
-
-    def __ror__(self, other: "Column") -> "Column":
-        expr = proto.Expr()
-        ast = with_src_position(getattr(expr, "or"))
-        build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
-        ast.rhs.CopyFrom(self._ast)
+        expr = None
+        _emit_ast = True
+        if isinstance(other, Column):
+            _emit_ast = other._ast is not None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(getattr(expr, "or"))
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
-            And(Column._to_expr(other), self._expression), ast=expr
+            Or(self._expression, Column._to_expr(other)), ast=expr, _emit_ast=_emit_ast
+        )
+
+    def __ror__(self, other: Union["Column", Any]) -> "Column":
+        expr = None
+        _emit_ast = True
+        if isinstance(other, Column):
+            _emit_ast = other._ast is not None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(getattr(expr, "or"))
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            And(Column._to_expr(other), self._expression), ast=expr, _emit_ast=_emit_ast
         )  # pragma: no cover
 
     def __invert__(self) -> "Column":
