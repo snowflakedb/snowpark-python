@@ -432,8 +432,22 @@ def build_fn_apply_args(
         if isinstance(arg, proto.Expr):
             expr.pos_args.append(arg)
         elif hasattr(arg, "_ast"):
-            assert arg._ast, f"Column object {arg} has no _ast member set."
-            expr.pos_args.append(arg._ast)
+
+            # Special case: _ast is None but arg is Column(LITERAL).
+            if (
+                arg._ast is None
+                and isinstance(arg, snowflake.snowpark.Column)
+                and isinstance(
+                    arg._expression,
+                    snowflake.snowpark._internal.analyzer.expression.Literal,
+                )
+            ):
+                build_expr_from_python_val(expr.pos_args.add(), arg._expression.value)
+            else:
+                assert (
+                    arg._ast
+                ), f"Object {arg} has member _ast=None set. Expected valid AST."
+                expr.pos_args.append(arg._ast)
         else:
             pos_arg = proto.Expr()
             build_expr_from_python_val(pos_arg, arg)
@@ -749,7 +763,7 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
     Returns:
         protobuf expression.
     """
-    if hasattr(expr, "_ast"):
+    if hasattr(expr, "_ast") and expr._ast is not None:
         return expr._ast
 
     if isinstance(expr, Alias):
@@ -1117,8 +1131,6 @@ def build_udtf(
     ast.replace = replace
     ast.if_not_exists = if_not_exists
     ast.parallel = parallel
-    if max_batch_size is not None:
-        ast.max_batch_size.value = max_batch_size
 
     if statement_params is not None and len(statement_params) != 0:
         for k, v in statement_params.items():

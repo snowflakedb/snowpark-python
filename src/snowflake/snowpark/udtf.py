@@ -47,7 +47,11 @@ from snowflake.snowpark._internal.udf_utils import (
     process_registration_inputs,
     resolve_imports_and_packages,
 )
-from snowflake.snowpark._internal.utils import TempObjectType, validate_object_name
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    publicapi,
+    validate_object_name,
+)
 from snowflake.snowpark.table_function import TableFunctionCall
 from snowflake.snowpark.types import DataType, PandasDataFrameType, StructType
 
@@ -108,7 +112,7 @@ class UserDefinedTableFunction:
     ) -> TableFunctionCall:
 
         udtf_expr = None
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             assert (
                 self._ast is not None
             ), "Need to ensure _emit_ast is True when registering UDTF."
@@ -556,6 +560,7 @@ class UDTFRegistration:
     def __init__(self, session: Optional["snowflake.snowpark.Session"]) -> None:
         self._session = session
 
+    @publicapi
     def register(
         self,
         handler: Type,
@@ -715,6 +720,7 @@ class UDTFRegistration:
                 **kwargs,
             )
 
+    @publicapi
     def register_from_file(
         self,
         file_path: str,
@@ -740,6 +746,7 @@ class UDTFRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         skip_upload_on_content_match: bool = False,
+        _emit_ast: bool = True,
     ) -> UserDefinedTableFunction:
         """
         Registers a Python class as a Snowflake Python UDTF from a Python or zip file,
@@ -873,6 +880,7 @@ class UDTFRegistration:
                 skip_upload_on_content_match=skip_upload_on_content_match,
                 is_permanent=is_permanent,
                 copy_grants=copy_grants,
+                _emit_ast=_emit_ast,
             )
 
     def _do_register_udtf(
