@@ -664,13 +664,7 @@ class PandasOnSnowflakeIO(BaseIO):
 
         Snowpark pandas has a slightly different error message from the upstream modin version.
         """
-        try:
-            intermediate = pandas.read_sas(**kwargs)
-        except ImportError as e:
-            raise ImportError(
-                "Snowpark pandas requires an additional package to read sas files",
-                e,
-            )
+        intermediate = pandas.read_sas(**kwargs)
         if isinstance(intermediate, (OrderedDict, dict)):  # pragma: no cover
             parsed = type(intermediate)()
             for key in intermediate.keys():
