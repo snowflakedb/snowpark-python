@@ -22,6 +22,7 @@ class CompilationStageTelemetryField(Enum):
     TIME_TAKEN_FOR_DEEP_COPY_PLAN = "time_taken_for_deep_copy_plan_sec"
     TIME_TAKEN_FOR_CTE_OPTIMIZATION = "time_taken_for_cte_optimization_sec"
     TIME_TAKEN_FOR_LARGE_QUERY_BREAKDOWN = "time_taken_for_large_query_breakdown_sec"
+    NUM_PASSES_FOR_LARGE_QUERY_BREAKDOWN = "num_passes_for_large_query_breakdown"
     COMPLEXITY_SCORE_BOUNDS = "complexity_score_bounds"
     COMPLEXITY_SCORE_BEFORE_COMPILATION = "complexity_score_before_compilation"
     COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION = "complexity_score_after_cte_optimization"
