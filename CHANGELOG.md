@@ -13,6 +13,7 @@
 - Added support for `TimedeltaIndex.mean` method.
 - Added support for some cases of aggregating `Timedelta` columns on `axis=0` with `agg` or `aggregate`.
 - Added support for `by`, `left_by`, `right_by`, `left_index`, and `right_index` for `pd.merge_asof`.
+- Added support for passing parameter `include_describe` to `Session.query_history`.
 
 #### Bug Fixes
 
