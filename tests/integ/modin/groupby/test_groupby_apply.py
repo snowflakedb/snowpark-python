@@ -472,7 +472,7 @@ class TestFuncReturnsDataFrame:
                 if group_keys
                 else QUERY_COUNT_WITH_TRANSFORM_CHECK
             ),
-            join_count=JOIN_COUNT,
+            join_count=JOIN_COUNT + 1,
             udtf_count=UDTF_COUNT,
         ):
             snow_result = operation(mdf)
@@ -654,7 +654,7 @@ class TestFuncReturnsDataFrame:
         with SqlCounter(
             query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
             udtf_count=UDTF_COUNT,
-            join_count=JOIN_COUNT,
+            join_count=JOIN_COUNT + 1,
         ):
             assert_snowpark_pandas_equal_to_pandas(
                 groupby_apply_without_sort(snow_df).sort_values(),
@@ -933,9 +933,9 @@ class TestFuncReturnsSeries:
     @pytest.mark.parametrize("dropna", [True, False])
     @sql_count_checker(
         # One extra query to convert index to native pandas in dataframe constructor to create test dataframes
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK + 1,
+        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
-        join_count=JOIN_COUNT,
+        join_count=JOIN_COUNT + 1,
     )
     @pytest.mark.parametrize("index", [[2.0, np.nan, 2.0, 1.0], [np.nan] * 4])
     def test_dropna(self, dropna, index):
@@ -1039,6 +1039,11 @@ class TestSeriesGroupBy:
     @pytest.mark.parametrize("by", ["string_col_1", ["index", "string_col_1"], "index"])
     def test_dataframe_groupby_getitem(self, by, func, dropna, group_keys, sort):
         """Test apply() on a SeriesGroupBy that we get by DataFrameGroupBy.__getitem__"""
+        qc = (
+            QUERY_COUNT_WITH_TRANSFORM_CHECK
+            if group_keys is False and not func == get_scalar_from_numeric_series
+            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK
+        )
         if (
             func in (get_dataframe_from_numeric_series, get_series_from_numeric_series)
             and not dropna
@@ -1048,19 +1053,9 @@ class TestSeriesGroupBy:
             # (pd.NA, k1) that we cannot serialize.
             pytest.xfail(reason="SNOW-1229760")
         with SqlCounter(
-            # one additional query for converting index to native pandas in dataframe constructor
-            query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK + 1
-            if not group_keys
-            and func
-            in (
-                get_dataframe_from_numeric_series,
-                get_series_from_numeric_series,
-                series_transform_returns_frame,
-                series_transform_returns_series,
-            )
-            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK + 1,
+            query_count=qc,
             udtf_count=UDTF_COUNT,
-            join_count=JOIN_COUNT,
+            join_count=JOIN_COUNT + 1,
         ):
             eval_snowpark_pandas_result(
                 *create_test_dfs(

@@ -12,8 +12,10 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
-from pandas._typing import Scalar
+from pandas._typing import AnyArrayLike, Scalar
+from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_integer_dtype, is_object_dtype, is_scalar
+from pandas.core.dtypes.inference import is_list_like
 
 import snowflake.snowpark.modin.plugin._internal.statement_params_constants as STATEMENT_PARAMS
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -84,6 +86,9 @@ from snowflake.snowpark.types import (
 
 if TYPE_CHECKING:
     from snowflake.snowpark.modin.plugin._internal import frame
+    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+        SnowflakeQueryCompiler,
+    )
 
 ROW_POSITION_COLUMN_LABEL = "row_position"
 MAX_ROW_POSITION_COLUMN_LABEL = f"MAX_{ROW_POSITION_COLUMN_LABEL}"
@@ -2007,3 +2012,158 @@ def create_frame_with_data_columns(
 def rindex(lst: list, value: int) -> int:
     """Find the last index in the list of item value."""
     return len(lst) - lst[::-1].index(value) - 1
+
+
+def error_checking_for_init(
+    index: Any, dtype: Union[str, np.dtype, ExtensionDtype]
+) -> None:
+    """
+    Common error messages for the Series and DataFrame constructors.
+
+    Parameters
+    ----------
+    index: Any
+        The index to check.
+    dtype: str, numpy.dtype, or ExtensionDtype
+        The dtype to check.
+    """
+    from modin.pandas import DataFrame
+
+    if isinstance(index, DataFrame):  # pandas raises the same error
+        raise ValueError("Index data must be 1-dimensional")
+
+    if dtype == "category":
+        raise NotImplementedError("pandas type category is not implemented")
+
+
+def assert_fields_are_none(
+    class_name: str, data: Any, index: Any, dtype: Any, columns: Any = None
+) -> None:
+    assert (
+        data is None
+    ), f"Invalid {class_name} construction! The `data` parameter is not supported when `query_compiler` is given."
+    assert (
+        index is None
+    ), f"Invalid {class_name} construction! The `index` parameter is not supported when `query_compiler` is given."
+    assert (
+        dtype is None
+    ), f"Invalid {class_name} construction! The `dtype` parameter is not supported when `query_compiler` is given."
+    assert (
+        columns is None
+    ), f"Invalid {class_name} construction! The `columns` parameter is not supported when `query_compiler` is given."
+
+
+def convert_index_to_qc(index: Any) -> "SnowflakeQueryCompiler":
+    """
+    Method to convert an object representing an index into a query compiler for set_index or reindex.
+
+    Parameters
+    ----------
+    index: Any
+        The object to convert to a query compiler.
+
+    Returns
+    -------
+    SnowflakeQueryCompiler
+        The converted query compiler.
+    """
+    from modin.pandas import Series
+
+    from snowflake.snowpark.modin.plugin.extensions.index import Index
+
+    if isinstance(index, Index):
+        idx_qc = index.to_series()._query_compiler
+    elif isinstance(index, Series):
+        # The name of the index comes from the Series' name, not the index name. `reindex` does not handle this,
+        # so we need to set the name of the index to the name of the Series.
+        index.index.name = index.name
+        idx_qc = index._query_compiler
+    else:
+        idx_qc = Series(index)._query_compiler
+    return idx_qc
+
+
+def convert_index_to_list_of_qcs(index: Any) -> list:
+    """
+    Method to convert an object representing an index into a list of query compilers for set_index.
+
+    Parameters
+    ----------
+    index: Any
+        The object to convert to a list of query compilers.
+
+    Returns
+    -------
+    list
+        The list of query compilers.
+    """
+    from modin.pandas import Series
+
+    from snowflake.snowpark.modin.plugin.extensions.index import Index
+
+    if (
+        not isinstance(index, (native_pd.MultiIndex, Series, Index))
+        and is_list_like(index)
+        and len(index) > 0
+        and all((is_list_like(i) and not isinstance(i, tuple)) for i in index)
+    ):
+        # If given a list of lists, convert it to a MultiIndex.
+        index = native_pd.MultiIndex.from_arrays(index)
+    if isinstance(index, native_pd.MultiIndex):
+        index_qc_list = [
+            s._query_compiler
+            for s in [
+                Series(index.get_level_values(level)) for level in range(index.nlevels)
+            ]
+        ]
+    else:
+        index_qc_list = [convert_index_to_qc(index)]
+    return index_qc_list
+
+
+def add_extra_columns_and_select_required_columns(
+    query_compiler: "SnowflakeQueryCompiler",
+    columns: Union[AnyArrayLike, list],
+) -> "SnowflakeQueryCompiler":
+    """
+    Method to add extra columns to and select the required columns from the provided query compiler.
+    This is used in DataFrame construction in the following cases:
+    - general case when data is a DataFrame
+    - data is a named Series, and this name is in `columns`
+
+    Parameters
+    ----------
+    query_compiler: Any
+        The query compiler to select columns from, i.e., data's query compiler.
+    columns: AnyArrayLike or list
+        The columns to select from the query compiler.
+    """
+    from modin.pandas import DataFrame
+
+    data_columns = query_compiler.get_columns().to_list()
+    # The `columns` parameter is used to select the columns from `data` that will be in the resultant DataFrame.
+    # If a value in `columns` is not present in data's columns, it will be added as a new column filled with NaN values.
+    # These columns are tracked by the `extra_columns` variable.
+    if data_columns is not None and columns is not None:
+        extra_columns = [col for col in columns if col not in data_columns]
+        if extra_columns is not []:
+            # To add these new columns to the DataFrame, perform `__setitem__` only with the extra columns
+            # and set them to None.
+            extra_columns_df = DataFrame(query_compiler=query_compiler)
+            # In the case that the columns are MultiIndex but not all extra columns are tuples, we need to flatten the
+            # columns to ensure that the columns are a single-level index. If not, `__setitem__` will raise an error
+            # when trying to add new columns that are not in the expected tuple format.
+            if not all(isinstance(col, tuple) for col in extra_columns) and isinstance(
+                query_compiler.get_columns(), native_pd.MultiIndex
+            ):
+                flattened_columns = extra_columns_df.columns.to_flat_index()
+                extra_columns_df.columns = flattened_columns
+            extra_columns_df[extra_columns] = None
+            query_compiler = extra_columns_df._query_compiler
+
+    # To select the columns for the resultant DataFrame, perform `take_2d_labels` on the created query compiler.
+    # This is the equivalent of `__getitem__` for a DataFrame.
+    # This step is performed to ensure that the right columns are picked from the InternalFrame since we never
+    # explicitly drop the unwanted columns. This also ensures that the columns in the resultant DataFrame are in the
+    # same order as the columns in the `columns` parameter.
+    return query_compiler.take_2d_labels(slice(None), columns)

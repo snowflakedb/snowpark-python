@@ -11,6 +11,8 @@
 - Added support for using Snowflake Interval constants with `Window.range_between()` when the order by column is TIMESTAMP or DATE type.
 - Added support for file writes. This feature is currently in private preview.
 - Added support for `DataFrameGroupBy.fillna` and `SeriesGroupBy.fillna`.
+- Added support for constructing `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` arguments.
+- Added support for constructing `Series` and `DataFrame` objects with `index` and `column` values not present in `DataFrame`/`Series` `data`.
 
 #### Improvements
 
