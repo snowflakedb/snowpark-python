@@ -45,6 +45,7 @@ from snowflake.snowpark._internal.udf_utils import (
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     parse_positional_args_to_list,
+    publicapi,
     warning,
 )
 from snowflake.snowpark.column import Column
@@ -122,7 +123,7 @@ class UserDefinedFunction:
                 )
 
         udf_expr = None
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             assert (
                 self._ast is not None
             ), "Need to ensure _emit_ast is True when registering UDF."
@@ -130,7 +131,9 @@ class UserDefinedFunction:
             udf_expr = proto.Expr()
             build_udf_apply(udf_expr, self._ast_id, *cols)
 
-        return Column(self._create_udf_expression(exprs), ast=udf_expr)
+        ans = Column(self._create_udf_expression(exprs), _emit_ast=False)
+        ans._ast = udf_expr
+        return ans
 
     def _create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
         # len(exprs) can be less than len(self._input_types) if udf has
@@ -505,6 +508,7 @@ class UDFRegistration:
             f"describe function {udf_obj.name}({','.join(func_args)})"
         )
 
+    @publicapi
     def register(
         self,
         func: Callable,
@@ -661,6 +665,7 @@ class UDFRegistration:
                 _emit_ast=_emit_ast,
             )
 
+    @publicapi
     def register_from_file(
         self,
         file_path: str,

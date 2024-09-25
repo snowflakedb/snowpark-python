@@ -696,6 +696,112 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
     warning_dict[name].warning(text)
 
 
+def publicapi(func) -> Callable:
+    """decorator to safeguard public APIs with global feature flags."""
+
+    @functools.wraps(func)
+    def func_call_wrapper(*args, **kwargs):
+        # warning(func.__qualname__, warning_text)
+
+        # Handle AST encoding, by modifying default behavior.
+        # If a function supports AST encoding, it must have a parameter _emit_ast.
+        # If now _emit_ast is passed as part of kwargs (we do not allow for the positional syntax!)
+        # then we use this value directly. If not, but the function supports _emit_ast,
+        # we override _emit_ast with the session parameter.
+        if "_emit_ast" in func.__code__.co_varnames and "_emit_ast" not in kwargs:
+            # No arguments, or single argument with function.
+            if len(args) == 0 or (len(args) == 1 and isinstance(args[0], Callable)):
+                if func.__name__ in {
+                    "udf",
+                    "udtf",
+                    "udaf",
+                    "pandas_udf",
+                    "pandas_udtf",
+                    "sproc",
+                }:
+                    session = kwargs.get("session")
+                    # Lookup session directly as in implementation of these decorators.
+                    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+                        session
+                    )
+                    # If session is None, do nothing (i.e., keep encoding AST).
+                    # This happens when the decorator is called before a session is started.
+                    if session is not None:
+                        kwargs["_emit_ast"] = session.ast_enabled
+            elif isinstance(args[0], snowflake.snowpark.dataframe.DataFrame):
+                # special case: __init__ called, self._session is then not initialized yet.
+                if func.__qualname__.endswith(".__init__"):
+                    # Try to find a session argument.
+                    session_args = [
+                        arg
+                        for arg in args
+                        if isinstance(arg, snowflake.snowpark.session.Session)
+                    ]
+                    assert (
+                        len(session_args) != 0
+                    ), f"{func.__qualname__} must have at least one session arg."
+                    kwargs["_emit_ast"] = session_args[0].ast_enabled
+                else:
+                    kwargs["_emit_ast"] = args[0]._session.ast_enabled
+            elif isinstance(
+                args[0], snowflake.snowpark.dataframe_reader.DataFrameReader
+            ):
+                if func.__qualname__.endswith(".__init__"):
+                    assert isinstance(
+                        args[1], snowflake.snowpark.session.Session
+                    ), f"{func.__qualname__} second arg must be session."
+                    kwargs["_emit_ast"] = args[1].ast_enabled
+                else:
+                    kwargs["_emit_ast"] = args[0]._session.ast_enabled
+            elif isinstance(
+                args[0], snowflake.snowpark.dataframe_writer.DataFrameWriter
+            ):
+                if func.__qualname__.endswith(".__init__"):
+                    assert isinstance(
+                        args[1], snowflake.snowpark.DataFrame
+                    ), f"{func.__qualname__} second arg must be dataframe."
+                    kwargs["_emit_ast"] = args[1]._session.ast_enabled
+                else:
+                    kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
+            elif isinstance(
+                args[0],
+                (
+                    snowflake.snowpark.dataframe_stat_functions.DataFrameStatFunctions,
+                    snowflake.snowpark.dataframe_analytics_functions.DataFrameAnalyticsFunctions,
+                    snowflake.snowpark.dataframe_na_functions.DataFrameNaFunctions,
+                ),
+            ):
+                kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
+            elif hasattr(args[0], "_session"):
+                kwargs["_emit_ast"] = args[0]._session.ast_enabled
+            elif isinstance(args[0], snowflake.snowpark.session.Session):
+                kwargs["_emit_ast"] = args[0].ast_enabled
+            elif isinstance(
+                args[0],
+                snowflake.snowpark.relational_grouped_dataframe.RelationalGroupedDataFrame,
+            ):
+                kwargs["_emit_ast"] = args[0]._df._session.ast_enabled
+            else:
+                try:
+                    # Get from default session.
+                    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+                        None
+                    )
+                    # If session is None, do nothing (i.e., keep encoding AST).
+                    # This happens when the decorator is called before a session is started.
+                    if session is not None:
+                        kwargs["_emit_ast"] = session.ast_enabled
+                except snowflake.snowpark.exceptions.SnowparkSessionException:
+                    # session has not been created yet. To not lose information, always encode AST.
+                    kwargs["_emit_ast"] = True
+
+        # TODO: Could modify internal docstring to display that users should not modify the _emit_ast parameter.
+
+        return func(*args, **kwargs)
+
+    return func_call_wrapper
+
+
 def func_decorator(
     decorator_type: Literal["deprecated", "experimental", "in private preview"],
     *,

@@ -40,6 +40,7 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
     parse_positional_args_to_list_variadic,
     prepare_pivot_arguments,
+    publicapi,
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
@@ -229,6 +230,7 @@ class RelationalGroupedDataFrame:
         )
 
     @relational_group_df_api_usage
+    @publicapi
     def agg(
         self,
         *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]],
@@ -314,6 +316,7 @@ class RelationalGroupedDataFrame:
             df._ast_id = stmt.var_id.bitfield1
         return df
 
+    @publicapi
     def apply_in_pandas(
         self,
         func: Callable,
@@ -449,6 +452,7 @@ class RelationalGroupedDataFrame:
 
     applyInPandas = apply_in_pandas
 
+    @publicapi
     def pivot(
         self,
         pivot_col: ColumnOrName,
@@ -558,6 +562,7 @@ class RelationalGroupedDataFrame:
         return self
 
     @relational_group_df_api_usage
+    @publicapi
     def avg(self, *cols: ColumnOrName, _emit_ast: bool = True) -> DataFrame:
         """Return the average for the specified numeric columns."""
         return self._non_empty_argument_function("avg", *cols, _emit_ast=_emit_ast)
@@ -565,26 +570,31 @@ class RelationalGroupedDataFrame:
     mean = avg
 
     @relational_group_df_api_usage
+    @publicapi
     def sum(self, *cols: ColumnOrName, _emit_ast: bool = True) -> DataFrame:
         """Return the sum for the specified numeric columns."""
         return self._non_empty_argument_function("sum", *cols, _emit_ast=_emit_ast)
 
     @relational_group_df_api_usage
+    @publicapi
     def median(self, *cols: ColumnOrName, _emit_ast: bool = True) -> DataFrame:
         """Return the median for the specified numeric columns."""
         return self._non_empty_argument_function("median", *cols, _emit_ast=_emit_ast)
 
     @relational_group_df_api_usage
+    @publicapi
     def min(self, *cols: ColumnOrName, _emit_ast: bool = True) -> DataFrame:
         """Return the min for the specified numeric columns."""
         return self._non_empty_argument_function("min", *cols, _emit_ast=_emit_ast)
 
     @relational_group_df_api_usage
+    @publicapi
     def max(self, *cols: ColumnOrName, _emit_ast: bool = True) -> DataFrame:
         """Return the max for the specified numeric columns."""
         return self._non_empty_argument_function("max", *cols, _emit_ast=_emit_ast)
 
     @relational_group_df_api_usage
+    @publicapi
     def count(self, _emit_ast: bool = True) -> DataFrame:
         """Return the number of rows for each group."""
         df = self._to_df(
@@ -611,6 +621,7 @@ class RelationalGroupedDataFrame:
 
         return df
 
+    @publicapi
     def function(self, agg_name: str, _emit_ast: bool = True) -> Callable:
         """Computes the builtin aggregate ``agg_name`` over the specified columns. Use
         this function to invoke any aggregates not explicitly listed in this class.
