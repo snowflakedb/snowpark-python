@@ -342,6 +342,7 @@ from snowflake.snowpark.modin.plugin._internal.window_utils import (
     WindowFunction,
     check_and_raise_error_expanding_window_supported_by_snowflake,
     check_and_raise_error_rolling_window_supported_by_snowflake,
+    create_snowpark_interval_from_window,
     get_rolling_corr_column,
 )
 from snowflake.snowpark.modin.plugin._typing import (
@@ -13543,12 +13544,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
         if other is None:
-            ErrorMessage.method_not_implemented_error(
-                name="other = None", class_="Rolling corr"
+            ErrorMessage.parameter_not_implemented_error(
+                parameter_name="other = None", method_name="Rolling.corr"
             )
         if pairwise:
-            ErrorMessage.method_not_implemented_error(
-                name="pairwise = True", class_="Rolling corr"
+            ErrorMessage.parameter_not_implemented_error(
+                parameter_name="pairwise = True", method_name="Rolling.corr"
             )
         return self._window_agg(
             window_func=WindowFunction.ROLLING,
@@ -13690,24 +13691,48 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         frame = query_compiler._modin_frame.ensure_row_position_column()
         row_position_quoted_identifier = frame.row_position_snowflake_quoted_identifier
-        if center:
-            # -(window // 2) is equivalent to window // 2 PRECEDING
-            rows_between_start = -(window // 2)  # type: ignore
-            rows_between_end = (window - 1) // 2  # type: ignore
-        else:
-            if window_func == WindowFunction.ROLLING:
-                # 1 - window is equivalent to window - 1 PRECEDING
-                rows_between_start = 1 - window  # type: ignore
+
+        if isinstance(window, int) or window_func == WindowFunction.EXPANDING:
+            if center:
+                # -(window // 2) is equivalent to window // 2 PRECEDING
+                rows_between_start = -(window // 2)  # type: ignore
+                rows_between_end = (window - 1) // 2  # type: ignore
             else:
-                rows_between_start = Window.UNBOUNDED_PRECEDING
-            rows_between_end = Window.CURRENT_ROW
+                if window_func == WindowFunction.ROLLING:
+                    # 1 - window is equivalent to window - 1 PRECEDING
+                    rows_between_start = 1 - window  # type: ignore
+                else:
+                    rows_between_start = Window.UNBOUNDED_PRECEDING
+                rows_between_end = Window.CURRENT_ROW
 
-        window_expr = Window.orderBy(col(row_position_quoted_identifier)).rows_between(
-            rows_between_start, rows_between_end
-        )
+            window_expr = Window.orderBy(
+                col(row_position_quoted_identifier)
+            ).rows_between(rows_between_start, rows_between_end)
 
-        # Handle case where min_periods = None
-        min_periods = 0 if min_periods is None else min_periods
+            if window_func == WindowFunction.ROLLING:
+                # min_periods defaults to the size of the window if window is specified by an integer
+                min_periods = window if min_periods is None else min_periods
+            else:
+                assert window_func == WindowFunction.EXPANDING
+                # Handle case where min_periods = None
+                min_periods = 0 if min_periods is None else min_periods
+        else:
+            assert isinstance(window, str) and window_func == WindowFunction.ROLLING
+            if center:
+                ErrorMessage.not_implemented(
+                    f"'center=True' is not implemented with str window for Rolling.{agg_func}"
+                )
+            # min_periods defaults to 1 if window is time-based string/offset
+            min_periods = 1 if min_periods is None else min_periods
+            if self.is_multiindex():
+                raise ValueError(
+                    "Rolling behavior is undefined when used with a MultiIndex"
+                )
+            index_quoted_identifier = frame.index_column_snowflake_quoted_identifiers[0]
+            window_expr = Window.orderBy(index_quoted_identifier).range_between(
+                -create_snowpark_interval_from_window(window), Window.CURRENT_ROW
+            )
+
         # Perform Aggregation over the window_expr
         if agg_func == "sem":
             # Standard error of mean (SEM) does not have native Snowflake engine support
@@ -13748,6 +13773,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 }
             ).frame
         elif agg_func == "corr":
+            if not isinstance(window, int):
+                ErrorMessage.not_implemented(
+                    "Snowpark pandas does not yet support non-integer 'window' for 'Rolling.corr'"
+                )
             if window != min_periods:
                 ErrorMessage.not_implemented(
                     f"min_periods {min_periods} must be == window {window} for 'Rolling.corr'"
