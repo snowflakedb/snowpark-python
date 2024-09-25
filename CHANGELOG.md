@@ -37,7 +37,7 @@
 - Improved error message when passing non-bool value to `numeric_only` for groupby aggregations.
 - Removed unnecessary warning about sort algorithm in `sort_values`.
 - Use SCOPED object for internal create temp tables. The SCOPED objects will be stored sproc scoped if created within stored sproc, otherwise will be session scoped, and the object will be automatically cleaned at the end of the scope.
-- Improved warning messages for operations lead to materialization with inadvertent slowness.
+- Improved warning messages for operations that lead to materialization with inadvertent slowness.
 
 #### Bug Fixes
 
