@@ -108,11 +108,13 @@ class Window:
         return Window._spec().partition_by(*cols)
 
     @staticmethod
+    @publicapi
     def order_by(
         *cols: Union[
             ColumnOrName,
             Iterable[ColumnOrName],
-        ]
+        ],
+        _emit_ast: bool = True
     ) -> "WindowSpec":
         """
         Returns a :class:`WindowSpec` object with order by clause.
@@ -121,12 +123,14 @@ class Window:
             cols: A column, as :class:`str`, :class:`~snowflake.snowpark.column.Column`
                 or a list of those.
         """
-        return Window._spec().order_by(*cols)
+        return Window._spec().order_by(*cols, _emit_ast=_emit_ast)
 
     @staticmethod
+    @publicapi
     def rows_between(
         start: Union[int, WindowRelativePosition],
         end: Union[int, WindowRelativePosition],
+        _emit_ast: bool = True,
     ) -> "WindowSpec":
         """
         Returns a :class:`WindowSpec` object with the row frame clause.
@@ -144,12 +148,14 @@ class Window:
             and :attr:`Window.CURRENT_ROW` to specify ``start`` and ``end``, instead of using
             integral values directly.
         """
-        return Window._spec().rows_between(start, end)
+        return Window._spec().rows_between(start, end, _emit_ast=_emit_ast)
 
     @staticmethod
+    @publicapi
     def range_between(
         start: Union[int, WindowRelativePosition],
         end: Union[int, WindowRelativePosition],
+        _emit_ast: bool = True,
     ) -> "WindowSpec":
         """
         Returns a :class:`WindowSpec` object with the range frame clause.
@@ -167,7 +173,7 @@ class Window:
             and :attr:`Window.CURRENT_ROW` to specify ``start`` and ``end``, instead of using
             integral values directly.
         """
-        return Window._spec().range_between(start, end)
+        return Window._spec().range_between(start, end, _emit_ast=_emit_ast)
 
     @staticmethod
     def _spec() -> "WindowSpec":
@@ -382,11 +388,14 @@ class WindowSpec:
         )
 
     def _with_aggregate(
-        self, aggregate: Expression, ast: Optional[proto.Expr] = None
+        self,
+        aggregate: Expression,
+        ast: Optional[proto.Expr] = None,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.column.Column":
         spec = WindowSpecDefinition(self.partition_spec, self.order_spec, self.frame)
         return snowflake.snowpark.column.Column(
-            WindowExpression(aggregate, spec), ast=ast
+            WindowExpression(aggregate, spec), ast=ast, _emit_ast=_emit_ast
         )
 
     orderBy = order_by

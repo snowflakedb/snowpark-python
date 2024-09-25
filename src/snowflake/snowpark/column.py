@@ -1218,7 +1218,7 @@ class Column:
             expr.col.CopyFrom(self._ast)
             expr.window_spec.CopyFrom(window._ast if window else WindowSpec())
 
-        return window._with_aggregate(self._expression, ast=ast)
+        return window._with_aggregate(self._expression, ast=ast, _emit_ast=_emit_ast)
 
     @publicapi
     def within_group(
