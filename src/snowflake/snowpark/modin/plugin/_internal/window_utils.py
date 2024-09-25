@@ -8,6 +8,9 @@
 from enum import Enum
 from typing import Any
 
+from snowflake.snowpark.column import Column as SnowparkColumn
+from snowflake.snowpark.functions import builtin, col, iff, stddev_pop, sum as sum_
+from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 
 
@@ -137,3 +140,74 @@ def check_and_raise_error_expanding_window_supported_by_snowflake(
         ErrorMessage.method_not_implemented_error(
             name="axis = 1", class_="Expanding"
         )  # pragma: no cover
+
+
+def get_rolling_corr_column(
+    quoted_identifier: str,
+    other_quoted_identifier: str,
+    window_expr: Any,
+    window: Any,
+) -> SnowparkColumn:
+    """
+    Get the correlation column for rolling corr calculations based on two input columns and given window.
+
+    Parameters
+    ----------
+    quoted_identifier: left column quoted identifier.
+    other_quoted_identifier: right column quoted identifier.
+    window_expr: WindowSpec object for rolling calculations.
+    window: size of the moving window.
+    """
+    # pearson correlation calculated using formula here: https://byjus.com/jee/correlation-coefficient/
+    # corr = top_exp / (count_exp * sig_exp)
+
+    # count of non-null values in the window
+    count_exp = builtin("count_if")(
+        col(quoted_identifier).is_not_null()
+        & col(other_quoted_identifier).is_not_null()
+    ).over(window_expr)
+
+    # std_prod_exp = std_pop(x)*std_pop(y)
+    std_prod_exp = stddev_pop(
+        iff(
+            col(quoted_identifier).is_null(),
+            pandas_lit(None),
+            col(other_quoted_identifier),
+        )
+    ).over(window_expr) * stddev_pop(
+        iff(
+            col(other_quoted_identifier).is_null(),
+            pandas_lit(None),
+            col(quoted_identifier),
+        )
+    ).over(
+        window_expr
+    )
+
+    # top expr = sum(x,y) - (sum(x)*sum(y) / n)
+    top_exp = (
+        sum_(col(quoted_identifier) * col(other_quoted_identifier)).over(window_expr)
+    ) - (
+        sum_(
+            iff(
+                col(quoted_identifier).is_null(),
+                pandas_lit(None),
+                col(other_quoted_identifier),
+            )
+        ).over(window_expr)
+        * (
+            sum_(
+                iff(
+                    col(other_quoted_identifier).is_null(),
+                    pandas_lit(None),
+                    col(quoted_identifier),
+                )
+            ).over(window_expr)
+        )
+    ) / count_exp
+    new_col = iff(
+        count_exp.__eq__(window) & (count_exp * std_prod_exp).__gt__(0),
+        top_exp / (count_exp * std_prod_exp),
+        pandas_lit(None),
+    )
+    return new_col
