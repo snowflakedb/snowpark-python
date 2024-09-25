@@ -2788,7 +2788,7 @@ def struct(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
         # next insert field value
         c = _to_col_if_str(c, "struct")
         if isinstance(c, Column) and isinstance(c._expression, Alias):
-            new_cols.append(col(c._expression.children[0]))
+            new_cols.append(Column(c._expression.children[0], _emit_ast=False))
         else:
             new_cols.append(c)
     ans = object_construct_keep_null(*new_cols, _emit_ast=False)
