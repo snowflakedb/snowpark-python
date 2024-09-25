@@ -68,7 +68,8 @@ class HeapNode:
         self.tree_node = tree_node
 
     def __lt__(self, other: "HeapNode") -> bool:
-        return self.complexity_score < other.complexity_score
+        # max-heap is implemented by reversing the comparison.
+        return self.complexity_score > other.complexity_score
 
 
 class LargeQueryBreakdown:
@@ -135,10 +136,11 @@ class LargeQueryBreakdown:
             session.large_query_breakdown_complexity_bounds[1]
         )
         # priority_queue which is used to store a list of tuple of (complexity_score, node)
-        # of all valid nodes eligible to breakdown. Implemented using a min-heap gives us quick
+        # of all valid nodes eligible to breakdown. Implemented using a max-heap gives us quick
         # access to the node with the highest complexity score.
         # When None, initialize the priority queue.
-        self.priority_queue: Optional[List[HeapNode]] = None
+        self.priority_queue: List[HeapNode] = []
+        self._num_passes: int = 0
 
     def apply(self) -> List[LogicalPlan]:
         if is_active_transaction(self.session):
@@ -162,6 +164,10 @@ class LargeQueryBreakdown:
             resulting_plans.extend(partition_plans)
 
         return resulting_plans
+
+    @property
+    def num_passes(self) -> int:
+        return self._num_passes
 
     def _try_to_breakdown_plan(self, root: TreeNode) -> List[LogicalPlan]:
         """Method to breakdown a single plan into smaller partitions based on
@@ -227,11 +233,10 @@ class LargeQueryBreakdown:
             2. If no valid node is found, return None.
             3. Return the node with the highest complexity score.
         """
-        if self.priority_queue is None:
-            # Initialize the priority queue by doing a single pass over the plan tree
-            # to find all eligible nodes and index them using their complexity score
-            # into the heap.
-            self.priority_queue = []
+        if len(self.priority_queue) == 0:
+            # When the priority queue is empty, we need to traverse the current query plan tree
+            # to find valid nodes for partitioning.
+            self._num_passes += 1
             current_level = [root]
 
             while current_level:
@@ -244,9 +249,7 @@ class LargeQueryBreakdown:
                             child
                         )
                         if valid_to_breakdown:
-                            # Pushing (-score, child) to min-heap so that node with highest score
-                            # will be at the top of the heap.
-                            heapq.heappush(self.priority_queue, HeapNode(-score, child))
+                            heapq.heappush(self.priority_queue, HeapNode(score, child))
                         else:
                             # don't traverse subtrees if parent is a valid candidate
                             next_level.append(child)
@@ -255,7 +258,7 @@ class LargeQueryBreakdown:
 
         # If no valid node is found, priority_queue will be empty.
         # Otherwise, return the node with the highest complexity score.
-        if self.priority_queue:
+        if len(self.priority_queue) > 0:
             heap_node = heapq.heappop(self.priority_queue)
             return heap_node.tree_node
         return None
@@ -381,8 +384,6 @@ class LargeQueryBreakdown:
         temp_table_selectable = self._query_generator.create_selectable_entity(
             temp_table_node, analyzer=self._query_generator
         )
-        candidate_node = None
-        candidate_score = -1  # start with -1 since score is always > 0
 
         # add drop table in post action since the temp table created here
         # is only used for the current query.
@@ -403,23 +404,8 @@ class LargeQueryBreakdown:
                 # Skip if the node is already updated.
                 continue
 
-            valid_to_breakdown, score = self._is_node_valid_to_breakdown(node)
-            if valid_to_breakdown and score >= candidate_score:
-                # Find the valid node with the highest complexity score.
-                candidate_node = node
-                candidate_score = score
-
             update_resolvable_node(node, self._query_generator)
             updated_nodes.add(node)
 
             parents = self._parent_map[node]
             nodes_to_reset.extend(parents)
-
-        if candidate_node is not None:
-            # Assertion for type check. we must have initialized the priority queue
-            # by the time we reach here.
-            assert self.priority_queue is not None
-            # Update the priority queue with the new eligible node in the ancestors.
-            heapq.heappush(
-                self.priority_queue, HeapNode(-candidate_score, candidate_node)
-            )
