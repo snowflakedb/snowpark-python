@@ -781,7 +781,7 @@ def publicapi(func) -> Callable:
                 snowflake.snowpark.relational_grouped_dataframe.RelationalGroupedDataFrame,
             ):
                 kwargs["_emit_ast"] = args[0]._df._session.ast_enabled
-            elif isinstance(args[0], snowflake.snowpark.Column):
+            else:
                 try:
                     # Get from default session.
                     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
@@ -794,8 +794,6 @@ def publicapi(func) -> Callable:
                 except snowflake.snowpark.exceptions.SnowparkSessionException:
                     # session has not been created yet. To not lose information, always encode AST.
                     kwargs["_emit_ast"] = True
-            else:
-                pass  # raise NotImplementedError(f"Can not get session from {type(args[0])}")
 
         # TODO: Could modify internal docstring to display that users should not modify the _emit_ast parameter.
 
