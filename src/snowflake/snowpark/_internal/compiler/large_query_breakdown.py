@@ -288,8 +288,7 @@ class LargeQueryBreakdown:
             )
         )
 
-        # Update the ancestors with the temp table selectable and update
-        # priority queue with new eligible nodes in the ancestors.
+        # Update the ancestors with the temp table selectable
         self._replace_child_and_update_ancestors(child, temp_table_name)
 
         return temp_table_plan
@@ -376,9 +375,6 @@ class LargeQueryBreakdown:
         the snowflake plan and cumulative complexity score for the ancestors, and
         updates the ancestors with the correct snowflake query corresponding to the
         new plan tree.
-        After a child is replaced, other nodes in the ancestors may become eligible
-        for breakdown. We update the priority queue with the new eligible nodes while
-        traversing the ancestors.
         """
         temp_table_node = SnowflakeTable(temp_table_name, session=self.session)
         temp_table_selectable = self._query_generator.create_selectable_entity(
