@@ -51,7 +51,10 @@ from snowflake.snowpark.modin.plugin.utils.frontend_constants import (
     SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE,
     SERIES_SETITEM_SLICE_AS_SCALAR_VALUE_ERROR_MESSAGE,
 )
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.modin.plugin.utils.warning_message import (
+    WarningMessage,
+    materialization_warning,
+)
 from snowflake.snowpark.modin.utils import (
     MODIN_UNNAMED_SERIES_LABEL,
     _inherit_docstrings,
@@ -1684,6 +1687,7 @@ def _to_datetime(self, **kwargs):
 
 # Modin uses the query compiler to_list method, which we should try to implement instead of calling self.values.
 @register_series_accessor("to_list")
+@materialization_warning
 def to_list(self) -> list:
     """
     Return a list of the values.
@@ -1695,6 +1699,7 @@ def to_list(self) -> list:
 register_series_accessor("tolist")(to_list)
 
 
+@materialization_warning
 @register_series_accessor("to_dict")
 def to_dict(self, into: type[dict] = dict) -> dict:
     """
@@ -1704,6 +1709,7 @@ def to_dict(self, into: type[dict] = dict) -> dict:
     return self._to_pandas().to_dict(into=into)
 
 
+@materialization_warning
 @register_series_accessor("to_numpy")
 def to_numpy(
     self,
@@ -1730,6 +1736,7 @@ def to_numpy(
 
 # Snowpark pandas has the extra `statement_params` argument.
 @register_series_accessor("_to_pandas")
+@materialization_warning
 def _to_pandas(
     self,
     *,
