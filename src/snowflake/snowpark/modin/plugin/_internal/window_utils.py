@@ -9,12 +9,18 @@ from enum import Enum
 from typing import Any
 
 from snowflake.snowpark.column import Column as SnowparkColumn
-from snowflake.snowpark.functions import builtin, col, iff, make_interval, stddev_pop, sum as sum_
-from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
+from snowflake.snowpark.functions import (
+    builtin,
+    col,
+    iff,
+    make_interval,
+    stddev_pop,
+    sum as sum_,
+)
 from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     rule_to_snowflake_width_and_slice_unit,
 )
-
+from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 
 
@@ -146,7 +152,6 @@ def check_and_raise_error_expanding_window_supported_by_snowflake(
         )  # pragma: no cover
 
 
-
 def create_snowpark_interval_from_window(window: str) -> SnowparkColumn:
     """
     This function creates a Snowpark column consisting of an Interval Expression from a given
@@ -201,7 +206,7 @@ def create_snowpark_interval_from_window(window: str) -> SnowparkColumn:
         years=years,
     )
 
-  
+
 def get_rolling_corr_column(
     quoted_identifier: str,
     other_quoted_identifier: str,
