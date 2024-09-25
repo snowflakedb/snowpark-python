@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from snowflake.snowpark._internal.analyzer.snowflake_plan import ConfigContext
+from snowflake.snowpark._internal.analyzer.config_context import ConfigContext
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType
 
@@ -500,12 +500,6 @@ class OffsetSumUDAFHandler:
 
 
 def test_config_context(session):
-    config_context = ConfigContext(session)
-
-    # Check if all context configs are present in the session
-    for name in config_context.configs:
-        assert hasattr(session, name)
-
     try:
         original_cte_optimization = session.cte_optimization_enabled
         original_eliminate_numeric_sql_value_cast_enabled = (
@@ -514,37 +508,30 @@ def test_config_context(session):
         original_query_compilation_stage_enabled = (
             session._query_compilation_stage_enabled
         )
-        with config_context:
-            # Active context
-            session.cte_optimization_enabled = not original_cte_optimization
-            session.eliminate_numeric_sql_value_cast_enabled = (
-                not original_eliminate_numeric_sql_value_cast_enabled
-            )
-            session._query_compilation_stage_enabled = (
-                not original_query_compilation_stage_enabled
-            )
+        config_context = ConfigContext(session)
 
-            assert config_context.cte_optimization_enabled == original_cte_optimization
-            assert (
-                config_context.eliminate_numeric_sql_value_cast_enabled
-                == original_eliminate_numeric_sql_value_cast_enabled
-            )
-            assert (
-                config_context._query_compilation_stage_enabled
-                == original_query_compilation_stage_enabled
-            )
+        # Check if all context configs are present in the session
+        for name in config_context.configs:
+            assert hasattr(session, name)
 
-        # Context is deactivated
-        assert (
-            config_context.cte_optimization_enabled == session.cte_optimization_enabled
+        # change session configs
+        session.cte_optimization_enabled = not original_cte_optimization
+        session.eliminate_numeric_sql_value_cast_enabled = (
+            not original_eliminate_numeric_sql_value_cast_enabled
         )
+        session._query_compilation_stage_enabled = (
+            not original_query_compilation_stage_enabled
+        )
+
+        # assert we read original config values
+        assert config_context.cte_optimization_enabled == original_cte_optimization
         assert (
             config_context.eliminate_numeric_sql_value_cast_enabled
-            == session.eliminate_numeric_sql_value_cast_enabled
+            == original_eliminate_numeric_sql_value_cast_enabled
         )
         assert (
             config_context._query_compilation_stage_enabled
-            == session._query_compilation_stage_enabled
+            == original_query_compilation_stage_enabled
         )
 
         with pytest.raises(

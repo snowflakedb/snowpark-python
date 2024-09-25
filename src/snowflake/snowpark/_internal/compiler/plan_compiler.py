@@ -6,11 +6,11 @@ import copy
 import time
 from typing import Dict, List
 
+from snowflake.snowpark._internal.analyzer.config_context import ConfigContext
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    ConfigContext,
     PlanQueryType,
     Query,
     SnowflakePlan,
@@ -75,10 +75,6 @@ class PlanCompiler:
         )
 
     def compile(self) -> Dict[PlanQueryType, List[Query]]:
-        with self.config_context:
-            return self._compile()
-
-    def _compile(self) -> Dict[PlanQueryType, List[Query]]:
         if self.should_start_query_compilation():
             # preparation for compilation
             # 1. make a copy of the original plan
@@ -153,8 +149,7 @@ class PlanCompiler:
         else:
             final_plan = self._plan
             final_plan = final_plan.replace_repeated_subquery_with_cte(
-                self.config_context.cte_optimization_enabled,
-                self.config_context._query_compilation_stage_enabled,
+                self.config_context
             )
             return {
                 PlanQueryType.QUERIES: final_plan.queries,

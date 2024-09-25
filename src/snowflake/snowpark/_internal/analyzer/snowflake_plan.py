@@ -23,6 +23,7 @@ from typing import (
     Union,
 )
 
+from snowflake.snowpark._internal.analyzer.config_context import ConfigContext
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     sum_node_complexities,
@@ -313,13 +314,16 @@ class SnowflakePlan(LogicalPlan):
             return []
 
     def replace_repeated_subquery_with_cte(
-        self, cte_optimization_enabled: bool, query_compilation_stage_enabled: bool
+        self, config_context: ConfigContext
     ) -> "SnowflakePlan":
         # parameter protection
         # the common subquery elimination will be applied if cte_optimization is not enabled
         # and the new compilation stage is not enabled. When new compilation stage is enabled,
         # the common subquery elimination will be done through the new plan transformation.
-        if not cte_optimization_enabled or query_compilation_stage_enabled:
+        if (
+            not config_context.cte_optimization_enabled
+            or config_context.query_compilation_stage_enabled
+        ):
             return self
 
         # if source_plan or placeholder_query is none, it must be a leaf node,
@@ -358,7 +362,9 @@ class SnowflakePlan(LogicalPlan):
             # copy depends on the cte_optimization_enabled value. We should keep it
             # consistent with the current context.
             original_cte_optimization = self.session.cte_optimization_enabled
-            self.session.cte_optimization_enabled = cte_optimization_enabled
+            self.session.cte_optimization_enabled = (
+                config_context.cte_optimization_enabled
+            )
             plan = copy.copy(self)
             self.session.cte_optimization_enabled = original_cte_optimization
         # all other parts of query are unchanged, but just replace the original query
@@ -523,56 +529,6 @@ class SnowflakePlan(LogicalPlan):
         self.expr_to_alias = {**self.expr_to_alias, **to_add}
 
 
-class ConfigContext:
-    """Class to manage reading of configuration values from session in the context of
-    plan building, analysis and resolution.
-
-    Behavior:
-        - Inside an active context, the configuration will be read based on snapshot taken
-        at the context creation stage and reset when the context is exited.
-        - When no active context is present, the configuration will be read from the
-        session object directly.
-    """
-
-    def __init__(self, session) -> None:
-        self.session = session
-        self.configs = {
-            "_query_compilation_stage_enabled",
-            "cte_optimization_enabled",
-            "eliminate_numeric_sql_value_cast_enabled",
-            "large_query_breakdown_complexity_bounds",
-            "large_query_breakdown_enabled",
-        }
-
-    def __getattr__(self, name: str) -> Any:
-        if name in self.configs:
-            return getattr(self.session, name)
-        raise AttributeError(f"ConfigContext has no attribute {name}")
-
-    def __enter__(self) -> "ConfigContext":
-        self._create_snapshot()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self._reset()
-
-    def _create_snapshot(self) -> "ConfigContext":
-        """Reads the configuration attributes from the session object and stores them
-        in the context object.
-        """
-        for name in self.configs:
-            setattr(self, name, getattr(self.session, name))
-        return self
-
-    def _reset(self) -> None:
-        """Removes the configuration attributes from the context object."""
-        for name in self.configs:
-            try:
-                delattr(self, name)
-            except AttributeError:
-                pass
-
-
 class SnowflakePlanBuilder:
     def __init__(
         self,
@@ -586,7 +542,8 @@ class SnowflakePlanBuilder:
         # on the optimized plan. During the final query generation, no schema query is needed,
         # this helps reduces un-necessary overhead for the describing call.
         self._skip_schema_query = skip_schema_query
-        self.config_context: ConfigContext = ConfigContext(session)
+        # TODO: SNOW-1541096 remove after old cte implementation is removed
+        self.config_context: Optional[ConfigContext] = None
 
     @SnowflakePlan.Decorator.wrap_exception
     def build(
@@ -620,10 +577,10 @@ class SnowflakePlanBuilder:
             ), "No schema query is available in child SnowflakePlan"
             new_schema_query = schema_query or sql_generator(child.schema_query)
 
+        config_context = self.config_context or ConfigContext(self.session)
         placeholder_query = (
             sql_generator(select_child._id)
-            if self.config_context.cte_optimization_enabled
-            and select_child._id is not None
+            if config_context.cte_optimization_enabled and select_child._id is not None
             else None
         )
 
@@ -660,9 +617,10 @@ class SnowflakePlanBuilder:
             right_schema_query = schema_value_statement(select_right.attributes)
             schema_query = sql_generator(left_schema_query, right_schema_query)
 
+        config_context = self.config_context or ConfigContext(self.session)
         placeholder_query = (
             sql_generator(select_left._id, select_right._id)
-            if self.config_context.cte_optimization_enabled
+            if config_context.cte_optimization_enabled
             and select_left._id is not None
             and select_right._id is not None
             else None
@@ -694,8 +652,8 @@ class SnowflakePlanBuilder:
 
         referenced_ctes: Set[str] = set()
         if (
-            self.config_context.cte_optimization_enabled
-            and self.config_context._query_compilation_stage_enabled
+            config_context.cte_optimization_enabled
+            and config_context._query_compilation_stage_enabled
         ):
             # When the cte optimization and the new compilation stage is enabled,
             # the referred cte tables are propagated from left and right can have
@@ -986,8 +944,7 @@ class SnowflakePlanBuilder:
             )
 
         child = child.replace_repeated_subquery_with_cte(
-            self.config_context.cte_optimization_enabled,
-            self.config_context._query_compilation_stage_enabled,
+            self.config_context or ConfigContext(self.session)
         )
 
         def get_create_table_as_select_plan(child: SnowflakePlan, replace, error):
@@ -1177,8 +1134,7 @@ class SnowflakePlanBuilder:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
 
         child = child.replace_repeated_subquery_with_cte(
-            self.config_context.cte_optimization_enabled,
-            self.config_context._query_compilation_stage_enabled,
+            self.config_context or ConfigContext(self.session)
         )
         return self.build(
             lambda x: create_or_replace_view_statement(name, x, is_temp, comment),
@@ -1223,8 +1179,7 @@ class SnowflakePlanBuilder:
             raise ValueError(f"Unknown create mode: {create_mode}")  # pragma: no cover
 
         child = child.replace_repeated_subquery_with_cte(
-            self.config_context.cte_optimization_enabled,
-            self.config_context._query_compilation_stage_enabled,
+            self.config_context or ConfigContext(self.session)
         )
         return self.build(
             lambda x: create_or_replace_dynamic_table_statement(
@@ -1529,8 +1484,7 @@ class SnowflakePlanBuilder:
         **copy_options: Optional[Any],
     ) -> SnowflakePlan:
         query = query.replace_repeated_subquery_with_cte(
-            self.config_context.cte_optimization_enabled,
-            self.config_context._query_compilation_stage_enabled,
+            self.config_context or ConfigContext(self.session)
         )
         return self.build(
             lambda x: copy_into_location(
@@ -1559,8 +1513,7 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         if source_data:
             source_data = source_data.replace_repeated_subquery_with_cte(
-                self.config_context.cte_optimization_enabled,
-                self.config_context._query_compilation_stage_enabled,
+                self.config_context or ConfigContext(self.session)
             )
             return self.build(
                 lambda x: update_statement(
@@ -1593,8 +1546,7 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         if source_data:
             source_data = source_data.replace_repeated_subquery_with_cte(
-                self.config_context.cte_optimization_enabled,
-                self.config_context._query_compilation_stage_enabled,
+                self.config_context or ConfigContext(self.session)
             )
             return self.build(
                 lambda x: delete_statement(
@@ -1625,8 +1577,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         source_data = source_data.replace_repeated_subquery_with_cte(
-            self.config_context.cte_optimization_enabled,
-            self.config_context._query_compilation_stage_enabled,
+            self.config_context or ConfigContext(self.session)
         )
         return self.build(
             lambda x: merge_statement(table_name, x, join_expr, clauses),
