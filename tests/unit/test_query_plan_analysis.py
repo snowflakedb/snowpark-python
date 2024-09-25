@@ -157,7 +157,14 @@ def test_select_statement_individual_node_complexity(
 
     plan_node = SelectStatement(from_=from_, analyzer=mock_analyzer)
     setattr(plan_node, attribute, value)
-    assert plan_node.individual_node_complexity == expected_stat
+    if attribute == "projection" and isinstance(value[0], NamedExpression):
+        # NamedExpression is not a valid projection expression for selectStatement,
+        # and there is no individual_node_complexity or cumulative_node_complexity
+        # attributes associated with it
+        with pytest.raises(AttributeError):
+            plan_node.individual_node_complexity
+    else:
+        assert plan_node.individual_node_complexity == expected_stat
 
 
 def test_select_table_function_individual_node_complexity(

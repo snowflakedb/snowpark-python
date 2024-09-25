@@ -936,6 +936,10 @@ class SelectStatement(Selectable):
     def get_projection_name_complexity_map(
         self,
     ) -> Optional[Dict[str, Dict[PlanNodeCategory, int]]]:
+        """
+        Get a map between the projection column name and its complexity. If name or
+        projection complexity is missing for any column, None is returned.
+        """
         if (
             (not self._column_states)
             or (not self.projection)
@@ -960,7 +964,9 @@ class SelectStatement(Selectable):
     @property
     def projection_complexities(self) -> List[Dict[PlanNodeCategory, int]]:
         """
-        Return the complexity for each projection expression.
+        Return the cumulative complexity for each projection expression. The
+        complexity is merged with the subquery projection complexity if
+        _merge_projection_complexity_with_subquery is True.
         """
         if self.projection is None:
             return []
@@ -978,6 +984,12 @@ class SelectStatement(Selectable):
                 ), "failed to extract dependent column map from subquery"
                 self._projection_complexities = []
                 for proj in self.projection:
+                    # For a projection expression that dependents on columns [col1, col2, col1],
+                    # and whose original cumulative_node_complexity is proj_complexity, the
+                    # new complexity can be calculated as
+                    # proj_complexity - {PlanNodeCategory.COLUMN: 1} + col1_complexity
+                    #       - {PlanNodeCategory.COLUMN: 1} + col2_complexity
+                    #       - {PlanNodeCategory.COLUMN: 1} + col1_complexity
                     dependent_columns = proj.dependent_column_names_with_duplication()
                     projection_complexity = proj.cumulative_node_complexity
                     for dependent_column in dependent_columns:
