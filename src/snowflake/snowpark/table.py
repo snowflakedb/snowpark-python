@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.ast_utils import with_src_position
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
+from snowflake.snowpark._internal.utils import publicapi
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame, _disambiguate
 from snowflake.snowpark.row import Row
@@ -74,7 +75,9 @@ class WhenMatchedClause:
             specified condition. For example, ``col("a") == 1``.
     """
 
-    def __init__(self, condition: Optional[Column] = None) -> None:
+    def __init__(
+        self, condition: Optional[Column] = None, _emit_ast: bool = True
+    ) -> None:
         self._condition_expr = condition._expression if condition is not None else None
         self._clause = None
 
@@ -171,7 +174,9 @@ class WhenNotMatchedClause:
             specified condition.
     """
 
-    def __init__(self, condition: Optional[Column] = None) -> None:
+    def __init__(
+        self, condition: Optional[Column] = None, _emit_ast: bool = True
+    ) -> None:
         self._condition_expr = condition._expression if condition is not None else None
         self._clause = None
 
@@ -268,6 +273,7 @@ class Table(DataFrame):
     with the name of the table in Snowflake. See examples in :meth:`Session.table`.
     """
 
+    @publicapi
     def __init__(
         self,
         table_name: str,
@@ -315,6 +321,7 @@ class Table(DataFrame):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.drop_table()
 
+    @publicapi
     def sample(
         self,
         frac: Optional[float] = None,
@@ -322,6 +329,7 @@ class Table(DataFrame):
         *,
         seed: Optional[int] = None,
         sampling_method: Optional[str] = None,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Samples rows based on either the number of rows to be returned or a percentage of rows to be returned.
 
@@ -346,7 +354,7 @@ class Table(DataFrame):
 
         """
         if sampling_method is None and seed is None:
-            return super().sample(frac=frac, n=n)
+            return super().sample(frac=frac, n=n, _emit_ast=_emit_ast)
         DataFrame._validate_sample_input(frac, n)
         if sampling_method and sampling_method.upper() not in (
             "BERNOULLI",
@@ -386,6 +394,7 @@ class Table(DataFrame):
         return self._session.sql(sql_text)
 
     @overload
+    @publicapi
     def update(
         self,
         assignments: Dict[str, ColumnOrLiteral],
@@ -394,10 +403,12 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
     ) -> UpdateResult:
         ...  # pragma: no cover
 
     @overload
+    @publicapi
     def update(
         self,
         assignments: Dict[str, ColumnOrLiteral],
@@ -406,9 +417,11 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.AsyncJob":
         ...  # pragma: no cover
 
+    @publicapi
     def update(
         self,
         assignments: Dict[str, ColumnOrLiteral],
@@ -417,6 +430,7 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
     ) -> Union[UpdateResult, "snowflake.snowpark.AsyncJob"]:
         """
         Updates rows in the Table with specified ``assignments`` and returns a
@@ -492,6 +506,7 @@ class Table(DataFrame):
         return _get_update_result(result) if block else result
 
     @overload
+    @publicapi
     def delete(
         self,
         condition: Optional[Column] = None,
@@ -499,10 +514,12 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
     ) -> DeleteResult:
         ...  # pragma: no cover
 
     @overload
+    @publicapi
     def delete(
         self,
         condition: Optional[Column] = None,
@@ -510,9 +527,11 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.AsyncJob":
         ...  # pragma: no cover
 
+    @publicapi
     def delete(
         self,
         condition: Optional[Column] = None,
@@ -520,6 +539,7 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
     ) -> Union[DeleteResult, "snowflake.snowpark.AsyncJob"]:
         """
         Deletes rows in a Table and returns a :class:`DeleteResult`,
@@ -586,6 +606,7 @@ class Table(DataFrame):
         return _get_delete_result(result) if block else result
 
     @overload
+    @publicapi
     def merge(
         self,
         source: DataFrame,
@@ -594,6 +615,7 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
     ) -> MergeResult:
         ...  # pragma: no cover
 
@@ -606,9 +628,11 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.AsyncJob":
         ...  # pragma: no cover
 
+    @publicapi
     def merge(
         self,
         source: DataFrame,
@@ -617,6 +641,7 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
     ) -> Union[MergeResult, "snowflake.snowpark.AsyncJob"]:
         """
         Merges this :class:`Table` with :class:`DataFrame` source on the specified
@@ -701,7 +726,8 @@ class Table(DataFrame):
             else result
         )
 
-    def drop_table(self) -> None:
+    @publicapi
+    def drop_table(self, _emit_ast: bool = True) -> None:
         """Drops the table from the Snowflake database.
 
         Note that subsequent operations such as :meth:`DataFrame.select`, :meth:`DataFrame.collect` on this ``Table`` instance and the derived DataFrame will raise errors because the underlying

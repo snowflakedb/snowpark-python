@@ -32,7 +32,7 @@ from snowflake.snowpark._internal.udf_utils import (
     process_registration_inputs,
     resolve_imports_and_packages,
 )
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import TempObjectType, publicapi
 from snowflake.snowpark.types import DataType, StructType
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -451,6 +451,7 @@ class StoredProcedureRegistration:
             f"describe procedure {sproc_obj.name}({','.join(func_args)})"
         )
 
+    @publicapi
     def register(
         self,
         func: Union[Callable, Tuple[str, str]],
@@ -472,6 +473,7 @@ class StoredProcedureRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
+        _emit_ast: bool = True,
         **kwargs,
     ) -> StoredProcedure:
         """
@@ -591,6 +593,7 @@ class StoredProcedureRegistration:
                 native_app_params=native_app_params,
             )
 
+    @publicapi
     def register_from_file(
         self,
         file_path: str,

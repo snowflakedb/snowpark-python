@@ -36,6 +36,7 @@ from snowflake.snowpark._internal.udf_utils import (
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     parse_positional_args_to_list,
+    publicapi,
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.types import DataType
@@ -339,6 +340,7 @@ class UDAFRegistration:
         )
 
     # TODO: Support strict/secure once the server side supports these keywords in Python UDAF
+    @publicapi
     def register(
         self,
         handler: Type,
@@ -480,6 +482,7 @@ class UDAFRegistration:
                 native_app_params=native_app_params,
             )
 
+    @publicapi
     def register_from_file(
         self,
         file_path: str,

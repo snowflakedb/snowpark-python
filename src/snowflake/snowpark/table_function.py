@@ -14,7 +14,11 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionPartitionSpecDefinition,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName
-from snowflake.snowpark._internal.utils import quote_name, validate_object_name
+from snowflake.snowpark._internal.utils import (
+    publicapi,
+    quote_name,
+    validate_object_name,
+)
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.types import ArrayType, MapType
 
@@ -31,11 +35,13 @@ class TableFunctionCall:
     instance of this class.
     """
 
+    @publicapi
     def __init__(
         self,
         func_name: Union[str, Iterable[str]],
         *func_arguments: ColumnOrName,
         _ast: Optional[proto.Expr] = None,
+        _emit_ast: bool = True,
         **func_named_arguments: ColumnOrName,
     ) -> None:
         if func_arguments and func_named_arguments:
@@ -59,6 +65,7 @@ class TableFunctionCall:
     def _set_api_call_source(self, api_call_source):
         self._api_call_source = api_call_source
 
+    @publicapi
     def over(
         self,
         *,
@@ -119,7 +126,8 @@ class TableFunctionCall:
             new_table_function._order_by = order_spec
         return new_table_function
 
-    def alias(self, *aliases: str) -> "TableFunctionCall":
+    @publicapi
+    def alias(self, *aliases: str, _emit_ast: bool = True) -> "TableFunctionCall":
         """Alias the output columns from the output of this table function call.
 
         Args:
