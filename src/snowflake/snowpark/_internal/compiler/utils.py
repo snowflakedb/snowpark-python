@@ -237,7 +237,7 @@ def update_resolvable_node(
         # the projection expression can be re-analyzed during code generation
         node._projection_in_str = None
         node.analyzer = query_generator
-        node._projection_complexity = None
+        node._projection_complexities = None
 
         # update the pre_actions and post_actions for the select statement
         node.pre_actions = node.from_.pre_actions
