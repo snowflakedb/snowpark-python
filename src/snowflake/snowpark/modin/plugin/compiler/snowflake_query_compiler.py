@@ -342,6 +342,8 @@ from snowflake.snowpark.modin.plugin._internal.window_utils import (
     WindowFunction,
     check_and_raise_error_expanding_window_supported_by_snowflake,
     check_and_raise_error_rolling_window_supported_by_snowflake,
+    create_snowpark_interval_from_window,
+    get_rolling_corr_column,
 )
 from snowflake.snowpark.modin.plugin._typing import (
     DropKeep,
@@ -13543,8 +13545,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ddof: int = 1,
         numeric_only: bool = False,
         **kwargs: Any,
-    ) -> None:
-        ErrorMessage.method_not_implemented_error(name="corr", class_="Rolling")
+    ) -> "SnowflakeQueryCompiler":
+        if other is None:
+            ErrorMessage.parameter_not_implemented_error(
+                parameter_name="other = None", method_name="Rolling.corr"
+            )
+        if pairwise:
+            ErrorMessage.parameter_not_implemented_error(
+                parameter_name="pairwise = True", method_name="Rolling.corr"
+            )
+        return self._window_agg(
+            window_func=WindowFunction.ROLLING,
+            agg_func="corr",
+            window_kwargs=rolling_kwargs,
+            agg_kwargs=dict(
+                numeric_only=numeric_only, other=other, pairwise=pairwise, ddof=ddof
+            ),
+        )
 
     def rolling_cov(
         self,
@@ -13677,24 +13694,48 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         frame = query_compiler._modin_frame.ensure_row_position_column()
         row_position_quoted_identifier = frame.row_position_snowflake_quoted_identifier
-        if center:
-            # -(window // 2) is equivalent to window // 2 PRECEDING
-            rows_between_start = -(window // 2)  # type: ignore
-            rows_between_end = (window - 1) // 2  # type: ignore
-        else:
-            if window_func == WindowFunction.ROLLING:
-                # 1 - window is equivalent to window - 1 PRECEDING
-                rows_between_start = 1 - window  # type: ignore
+
+        if isinstance(window, int) or window_func == WindowFunction.EXPANDING:
+            if center:
+                # -(window // 2) is equivalent to window // 2 PRECEDING
+                rows_between_start = -(window // 2)  # type: ignore
+                rows_between_end = (window - 1) // 2  # type: ignore
             else:
-                rows_between_start = Window.UNBOUNDED_PRECEDING
-            rows_between_end = Window.CURRENT_ROW
+                if window_func == WindowFunction.ROLLING:
+                    # 1 - window is equivalent to window - 1 PRECEDING
+                    rows_between_start = 1 - window  # type: ignore
+                else:
+                    rows_between_start = Window.UNBOUNDED_PRECEDING
+                rows_between_end = Window.CURRENT_ROW
 
-        window_expr = Window.orderBy(col(row_position_quoted_identifier)).rows_between(
-            rows_between_start, rows_between_end
-        )
+            window_expr = Window.orderBy(
+                col(row_position_quoted_identifier)
+            ).rows_between(rows_between_start, rows_between_end)
 
-        # Handle case where min_periods = None
-        min_periods = 0 if min_periods is None else min_periods
+            if window_func == WindowFunction.ROLLING:
+                # min_periods defaults to the size of the window if window is specified by an integer
+                min_periods = window if min_periods is None else min_periods
+            else:
+                assert window_func == WindowFunction.EXPANDING
+                # Handle case where min_periods = None
+                min_periods = 0 if min_periods is None else min_periods
+        else:
+            assert isinstance(window, str) and window_func == WindowFunction.ROLLING
+            if center:
+                ErrorMessage.not_implemented(
+                    f"'center=True' is not implemented with str window for Rolling.{agg_func}"
+                )
+            # min_periods defaults to 1 if window is time-based string/offset
+            min_periods = 1 if min_periods is None else min_periods
+            if self.is_multiindex():
+                raise ValueError(
+                    "Rolling behavior is undefined when used with a MultiIndex"
+                )
+            index_quoted_identifier = frame.index_column_snowflake_quoted_identifiers[0]
+            window_expr = Window.orderBy(index_quoted_identifier).range_between(
+                -create_snowpark_interval_from_window(window), Window.CURRENT_ROW
+            )
+
         # Perform Aggregation over the window_expr
         if agg_func == "sem":
             # Standard error of mean (SEM) does not have native Snowflake engine support
@@ -13734,6 +13775,73 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
                 }
             ).frame
+        elif agg_func == "corr":
+            if not isinstance(window, int):
+                ErrorMessage.not_implemented(
+                    "Snowpark pandas does not yet support non-integer 'window' for 'Rolling.corr'"
+                )
+            if window != min_periods:
+                ErrorMessage.not_implemented(
+                    f"min_periods {min_periods} must be == window {window} for 'Rolling.corr'"
+                )
+            assert window == min_periods
+            other = agg_kwargs.get("other", None)
+            other_qc = other._query_compiler
+            result_frame, result_column_mapper = join_utils.align(
+                left=frame,
+                right=other_qc._modin_frame,
+                left_on=frame.index_column_snowflake_quoted_identifiers,
+                right_on=other_qc._modin_frame.index_column_snowflake_quoted_identifiers,
+            )
+
+            # columns that exist in both dfs
+            matching_col_label_dict = {}
+            for i in range(len(frame.data_column_pandas_labels)):
+                frame_label = frame.data_column_pandas_labels[i]
+                frame_identifier = frame.data_column_snowflake_quoted_identifiers[i]
+                other_frame_identifier = (
+                    other_qc._modin_frame.data_column_snowflake_quoted_identifiers[i]
+                )
+                if frame_label in other_qc._modin_frame.data_column_pandas_labels:
+                    matching_col_label_dict[frame_label] = [
+                        frame_identifier,
+                        other_frame_identifier,
+                    ]
+
+            corr_result = result_frame
+            # columns unique to the left or right hand side dfs
+            wanted_cols = []
+            wanted_col_values = []
+
+            for x in result_frame.data_column_pandas_labels:
+                if x not in matching_col_label_dict:
+                    wanted_cols.append(x)
+                    wanted_col_values.append(pandas_lit(None))
+
+            corr_result = corr_result.project_columns(wanted_cols, wanted_col_values)
+
+            for matching_label in matching_col_label_dict:
+                quoted_identifier = result_column_mapper.left_quoted_identifiers_map[
+                    matching_col_label_dict[matching_label][0]
+                ]
+                other_quoted_identifier = (
+                    result_column_mapper.right_quoted_identifiers_map[
+                        matching_col_label_dict[matching_label][1]
+                    ]
+                )
+
+                corr_column = get_rolling_corr_column(
+                    quoted_identifier, other_quoted_identifier, window_expr, window
+                )
+                corr_result_frame = corr_result.append_column(
+                    unquote_name_if_quoted(matching_label), corr_column
+                )
+
+            # final frame columns are sorted lexicographically from the 2 original frames
+            ordered_columns = sorted(corr_result_frame.data_column_pandas_labels)
+            new_qc = SnowflakeQueryCompiler(corr_result_frame)
+            new_qc = new_qc.take_2d_labels(index=slice(None), columns=ordered_columns)
+            new_frame = new_qc._modin_frame
         else:
             snowflake_agg_func = get_snowflake_agg_func(agg_func, agg_kwargs, axis=0)
             if snowflake_agg_func is None:
