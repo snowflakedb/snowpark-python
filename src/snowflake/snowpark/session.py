@@ -512,6 +512,11 @@ class Session:
         self._conn = conn
         self._thread_store = threading.local()
         self._lock = threading.RLock()
+
+        # this lock is used to protect _packages. We use introduce a new lock because add_packages
+        # launches a query to snowflake to get all version of packages available in snowflake. This
+        # query can be slow and prevent other threads from moving on waiting for _lock.
+        self._package_lock = threading.RLock()
         self._query_tag = None
         self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
         self._packages: Dict[str, str] = {}
@@ -876,7 +881,8 @@ class Session:
         Returns a list of imports added for user defined functions (UDFs).
         This list includes any Python or zip files that were added automatically by the library.
         """
-        return list(self._import_paths.keys())
+        with self._lock:
+            return list(self._import_paths.keys())
 
     def add_import(
         self,
@@ -957,7 +963,8 @@ class Session:
         path, checksum, leading_path = self._resolve_import_path(
             path, import_path, chunk_size, whole_file_hash
         )
-        self._import_paths[path] = (checksum, leading_path)
+        with self._lock:
+            self._import_paths[path] = (checksum, leading_path)
 
     def remove_import(self, path: str) -> None:
         """
@@ -984,10 +991,11 @@ class Session:
             if not trimmed_path.startswith(STAGE_PREFIX)
             else trimmed_path
         )
-        if abs_path not in self._import_paths:
-            raise KeyError(f"{abs_path} is not found in the existing imports")
-        else:
-            self._import_paths.pop(abs_path)
+        with self._lock:
+            if abs_path not in self._import_paths:
+                raise KeyError(f"{abs_path} is not found in the existing imports")
+            else:
+                self._import_paths.pop(abs_path)
 
     def clear_imports(self) -> None:
         """
@@ -996,10 +1004,11 @@ class Session:
         if isinstance(self._conn, MockServerConnection):
             self.udf._clear_session_imports()
             self.sproc._clear_session_imports()
-        self._import_paths.clear()
+        with self._lock:
+            self._import_paths.clear()
 
+    @staticmethod
     def _resolve_import_path(
-        self,
         path: str,
         import_path: Optional[str] = None,
         chunk_size: int = 8192,
@@ -1087,7 +1096,8 @@ class Session:
             upload_and_import_stage
         )
 
-        import_paths = udf_level_import_paths or self._import_paths
+        with self._lock:
+            import_paths = udf_level_import_paths or self._import_paths.copy()
         for path, (prefix, leading_path) in import_paths.items():
             # stage file
             if path.startswith(STAGE_PREFIX):
@@ -1169,7 +1179,8 @@ class Session:
         The key of this ``dict`` is the package name and the value of this ``dict``
         is the corresponding requirement specifier.
         """
-        return self._packages.copy()
+        with self._package_lock:
+            return self._packages.copy()
 
     def add_packages(
         self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
@@ -1260,16 +1271,18 @@ class Session:
             0
         """
         package_name = pkg_resources.Requirement.parse(package).key
-        if package_name in self._packages:
-            self._packages.pop(package_name)
-        else:
-            raise ValueError(f"{package_name} is not in the package list")
+        with self._package_lock:
+            if package_name in self._packages:
+                self._packages.pop(package_name)
+            else:
+                raise ValueError(f"{package_name} is not in the package list")
 
     def clear_packages(self) -> None:
         """
         Clears all third-party packages of a user-defined function (UDF).
         """
-        self._packages.clear()
+        with self._package_lock:
+            self._packages.clear()
 
     def add_requirements(self, file_path: str) -> None:
         """
@@ -1617,23 +1630,26 @@ class Session:
         if isinstance(self._conn, MockServerConnection):
             # in local testing we don't resolve the packages, we just return what is added
             errors = []
-            result_dict = self._packages.copy()
-            for pkg_name, _, pkg_req in package_dict.values():
-                if pkg_name in result_dict and str(pkg_req) != result_dict[pkg_name]:
-                    errors.append(
-                        ValueError(
-                            f"Cannot add package '{str(pkg_req)}' because {result_dict[pkg_name]} "
-                            "is already added."
+            with self._package_lock:
+                result_dict = self._packages
+                for pkg_name, _, pkg_req in package_dict.values():
+                    if (
+                        pkg_name in result_dict
+                        and str(pkg_req) != result_dict[pkg_name]
+                    ):
+                        errors.append(
+                            ValueError(
+                                f"Cannot add package '{str(pkg_req)}' because {result_dict[pkg_name]} "
+                                "is already added."
+                            )
                         )
-                    )
-                else:
-                    result_dict[pkg_name] = str(pkg_req)
-            if len(errors) == 1:
-                raise errors[0]
-            elif len(errors) > 0:
-                raise RuntimeError(errors)
+                    else:
+                        result_dict[pkg_name] = str(pkg_req)
+                if len(errors) == 1:
+                    raise errors[0]
+                elif len(errors) > 0:
+                    raise RuntimeError(errors)
 
-            self._packages.update(result_dict)
             return list(result_dict.values())
 
         package_table = "information_schema.packages"
@@ -1648,46 +1664,47 @@ class Session:
         #  'python-dateutil': 'python-dateutil==2.8.2'}
         # Add to packages dictionary. Make a copy of existing packages
         # dictionary to avoid modifying it during intermediate steps.
-        result_dict = (
-            existing_packages_dict.copy() if existing_packages_dict is not None else {}
-        )
+        with self._package_lock:
+            result_dict = (
+                existing_packages_dict if existing_packages_dict is not None else {}
+            )
 
-        # Retrieve list of dependencies that need to be added
-        dependency_packages = self._get_dependency_packages(
-            package_dict,
-            validate_package,
-            package_table,
-            result_dict,
-            statement_params=statement_params,
-        )
+            # Retrieve list of dependencies that need to be added
+            dependency_packages = self._get_dependency_packages(
+                package_dict,
+                validate_package,
+                package_table,
+                result_dict,
+                statement_params=statement_params,
+            )
 
-        # Add dependency packages
-        for package in dependency_packages:
-            name = package.name
-            version = package.specs[0][1] if package.specs else None
+            # Add dependency packages
+            for package in dependency_packages:
+                name = package.name
+                version = package.specs[0][1] if package.specs else None
 
-            if name in result_dict:
-                if version is not None:
-                    added_package_has_version = "==" in result_dict[name]
-                    if added_package_has_version and result_dict[name] != str(package):
-                        raise ValueError(
-                            f"Cannot add dependency package '{name}=={version}' "
-                            f"because {result_dict[name]} is already added."
-                        )
+                if name in result_dict:
+                    if version is not None:
+                        added_package_has_version = "==" in result_dict[name]
+                        if added_package_has_version and result_dict[name] != str(
+                            package
+                        ):
+                            raise ValueError(
+                                f"Cannot add dependency package '{name}=={version}' "
+                                f"because {result_dict[name]} is already added."
+                            )
+                        result_dict[name] = str(package)
+                else:
                     result_dict[name] = str(package)
-            else:
-                result_dict[name] = str(package)
 
-        # Always include cloudpickle
-        extra_modules = [cloudpickle]
-        if include_pandas:
-            extra_modules.append("pandas")
+            # Always include cloudpickle
+            extra_modules = [cloudpickle]
+            if include_pandas:
+                extra_modules.append("pandas")
 
-        if existing_packages_dict is not None:
-            existing_packages_dict.update(result_dict)
-        return list(result_dict.values()) + self._get_req_identifiers_list(
-            extra_modules, result_dict
-        )
+            return list(result_dict.values()) + self._get_req_identifiers_list(
+                extra_modules, result_dict
+            )
 
     def _upload_unsupported_packages(
         self,
