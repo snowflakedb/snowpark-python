@@ -321,7 +321,8 @@ class Column:
             ast = with_src_position(expr.eq)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
-            right = Column._to_expr(other)
+
+        right = Column._to_expr(other)
         return Column(EqualTo(self._expression, right), ast=expr, _emit_ast=_emit_ast)
 
     def __ne__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
@@ -333,7 +334,8 @@ class Column:
             ast = with_src_position(expr.neq)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
-            right = Column._to_expr(other)
+
+        right = Column._to_expr(other)
         return Column(
             NotEqualTo(self._expression, right), ast=expr, _emit_ast=_emit_ast
         )
@@ -402,6 +404,10 @@ class Column:
         """Plus."""
         expr = None
         _emit_ast = bool(self._ast is not None)
+
+        if isinstance(other, (Column, Expression)) and other._ast is None:
+            _emit_ast = False
+
         if _emit_ast:
             expr = proto.Expr()
             ast = with_src_position(expr.add)
@@ -782,10 +788,15 @@ class Column:
 
     def __neg__(self) -> "Column":
         """Unary minus."""
-        expr = proto.Expr()
-        ast = with_src_position(expr.neg)
-        ast.operand.CopyFrom(self._ast)
-        return Column(UnaryMinus(self._expression), ast=expr)
+
+        expr = None
+        _emit_ast = self._ast is not None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.neg)
+            ast.operand.CopyFrom(self._ast)
+
+        return Column(UnaryMinus(self._expression), ast=expr, _emit_ast=_emit_ast)
 
     def equal_null(self, other: "Column", _emit_ast: bool = True) -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
@@ -866,10 +877,14 @@ class Column:
 
     def __invert__(self) -> "Column":
         """Unary not."""
-        expr = proto.Expr()
-        ast = with_src_position(getattr(expr, "not"))
-        ast.operand.CopyFrom(self._ast)
-        return Column(Not(self._expression), ast=expr)
+        expr = None
+        _emit_ast = self._ast is not None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(getattr(expr, "not"))
+            ast.operand.CopyFrom(self._ast)
+
+        return Column(Not(self._expression), ast=expr, _emit_ast=_emit_ast)
 
     def _cast(
         self, to: Union[str, DataType], try_: bool = False, _emit_ast: bool = True

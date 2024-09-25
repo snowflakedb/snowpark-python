@@ -4818,7 +4818,12 @@ def sequence(
     stop_col = _to_col_if_str(stop, "sequence")
     if step is None:
         step = iff(builtin("sign")(stop_col - start_col) > 0, 1, -1)
-        return builtin("array_generate_range")(start_col, stop_col + step, step)
+        ans = builtin("array_generate_range", _emit_ast=False)(
+            start_col, stop_col + step, step
+        )
+        ans._ast = ast
+        return ans
+
     step_col = _to_col_if_str(step, "sequence")
     step_sign = iff(builtin("sign")(step_col) > 0, 1, -1)
     ans = builtin("array_generate_range", _emit_ast=False)(

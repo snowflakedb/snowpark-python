@@ -1117,8 +1117,6 @@ def build_udtf(
     ast.replace = replace
     ast.if_not_exists = if_not_exists
     ast.parallel = parallel
-    if max_batch_size is not None:
-        ast.max_batch_size.value = max_batch_size
 
     if statement_params is not None and len(statement_params) != 0:
         for k, v in statement_params.items():
