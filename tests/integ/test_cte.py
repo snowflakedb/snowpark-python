@@ -131,13 +131,24 @@ def test_binary(session, action):
 
 
 def test_join_with_alias_dataframe(session):
-    df1 = session.create_dataframe([[1, 6], [3, 8], [7, 7]], schema=["col1", "col2"])
+    df1 = session.create_dataframe([[1, 6]], schema=["col1", "col2"])
     df_res = (
         df1.alias("L")
         .join(df1.alias("R"), col("L", "col1") == col("R", "col1"))
         .select(col("L", "col1"), col("R", "col2"))
     )
-    check_result(session, df_res, expect_cte_optimized=True)
+
+    session._cte_optimization_enabled = False
+    result = df_res.collect()
+
+    session._cte_optimization_enabled = True
+    cte_result = df_res.collect()
+
+    Utils.check_answer(cte_result, result)
+
+    last_query = df_res.queries["queries"][-1]
+    assert last_query.startswith(WITH)
+    assert last_query.count(WITH) == 1
 
 
 @pytest.mark.parametrize("action", binary_operations)
