@@ -68,7 +68,7 @@ class QueryGenerator(Analyzer):
         self.resolved_with_query_block: Dict[str, Query] = {}
 
     def generate_queries(
-        self, logical_plans: List[LogicalPlan]
+        self, logical_plans: List[LogicalPlan], config_context: ConfigContext
     ) -> Dict[PlanQueryType, List[Query]]:
         """
         Generate final queries for the given set of logical plans.
@@ -82,7 +82,9 @@ class QueryGenerator(Analyzer):
         )
 
         # generate queries for each logical plan
-        snowflake_plans = [self.resolve(logical_plan) for logical_plan in logical_plans]
+        snowflake_plans = [
+            self.resolve(logical_plan, config_context) for logical_plan in logical_plans
+        ]
         # merge all results into final set of queries
         queries = []
         post_actions = []

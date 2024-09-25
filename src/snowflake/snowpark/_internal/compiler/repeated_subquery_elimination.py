@@ -4,6 +4,7 @@
 
 from typing import Dict, List, Optional, Set
 
+from snowflake.snowpark._internal.analyzer.config_context import ConfigContext
 from snowflake.snowpark._internal.analyzer.cte_utils import find_duplicate_subtrees
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
@@ -49,9 +50,11 @@ class RepeatedSubqueryElimination:
         self,
         logical_plans: List[LogicalPlan],
         query_generator: QueryGenerator,
+        config_context: ConfigContext,
     ) -> None:
         self._logical_plans = logical_plans
         self._query_generator = query_generator
+        self._config_context = config_context
 
     def apply(self) -> List[LogicalPlan]:
         """
@@ -67,7 +70,9 @@ class RepeatedSubqueryElimination:
             # do a pass of resolve of the logical plan to make sure we get a valid
             # resolved plan to start the process.
             # If the plan is already a resolved plan, this step will be a no-op.
-            logical_plan = self._query_generator.resolve(logical_plan)
+            logical_plan = self._query_generator.resolve(
+                logical_plan, self._config_context
+            )
 
             # apply the CTE optimization on the resolved plan
             duplicated_nodes, node_parents_map = find_duplicate_subtrees(logical_plan)
@@ -139,7 +144,9 @@ class RepeatedSubqueryElimination:
                 )
                 with_block._is_valid_for_replacement = True
 
-                resolved_with_block = self._query_generator.resolve(with_block)
+                resolved_with_block = self._query_generator.resolve(
+                    with_block, self._config_context
+                )
                 _update_parents(
                     node, should_replace_child=True, new_child=resolved_with_block
                 )
