@@ -10,7 +10,11 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import (
+    assert_series_equal,
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    eval_snowpark_pandas_result,
+)
 
 agg_func = pytest.mark.parametrize(
     "agg_func", ["count", "sum", "mean", "var", "std", "min", "max", "sem"]
@@ -169,6 +173,155 @@ def test_rolling_sem_ddof(ddof):
     )
 
 
+@sql_count_checker(query_count=1, join_count=1)
+def test_rolling_corr_simple():
+    native_df = native_pd.DataFrame({"col1": [1, 4, 3]})
+    other_native_df = native_pd.DataFrame({"col1": [1, 6, 3]})
+    snow_df = pd.DataFrame(native_df)
+    other_snow_df = pd.DataFrame(other_native_df)
+    snow_df = snow_df.rolling(window=3, min_periods=3).corr(
+        other=other_snow_df,
+        pairwise=None,
+        ddof=1,
+        numeric_only=True,
+    )
+    native_df = native_df.rolling(window=3, min_periods=3).corr(
+        other=other_native_df,
+        pairwise=None,
+        ddof=1,
+        numeric_only=True,
+    )
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_rolling_corr_multi_cols():
+    native_df = native_pd.DataFrame({"col1": [1, 2, 3, 4, 1], "col3": [1, 2, 3, 4, 5]})
+    other_native_df = native_pd.DataFrame(
+        {"col2": [1, 2, 3, 4, 5], "col3": [1, 2, 3, 7, 6], "col4": [1, 1, 3, 6, 5]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    other_snow_df = pd.DataFrame(other_native_df)
+    snow_df = snow_df.rolling(window=3, min_periods=3).corr(
+        other=other_snow_df,
+        pairwise=None,
+        ddof=1,
+        numeric_only=True,
+    )
+    native_df = native_df.rolling(window=3, min_periods=3).corr(
+        other=other_native_df,
+        pairwise=None,
+        ddof=1,
+        numeric_only=True,
+    )
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_rolling_corr_series():
+    native_ser = native_pd.Series([1, 4, 3])
+    other_native_ser = native_pd.Series([1, 6, 3])
+    snow_ser = pd.Series(native_ser)
+    other_snow_ser = pd.Series(other_native_ser)
+    snow_df = snow_ser.rolling(window=3, min_periods=3).corr(
+        other=other_snow_ser,
+        pairwise=None,
+        ddof=1,
+        numeric_only=True,
+    )
+    native_df = native_ser.rolling(window=3, min_periods=3).corr(
+        other=other_native_ser,
+        pairwise=None,
+        ddof=1,
+        numeric_only=True,
+    )
+    assert_series_equal(snow_df, native_df)
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_rolling_corr_nulls():
+    native_df = native_pd.DataFrame(
+        {"col1": [1, 2, np.nan, 4, 1], "col3": [1, np.nan, 3, 4, 5]}
+    )
+    other_native_df = native_pd.DataFrame(
+        {
+            "col2": [1, 2, 3, 4, 5],
+            "col3": [1, np.nan, 3, np.nan, 6],
+            "col4": [1, 1, 3, np.nan, 5],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+    other_snow_df = pd.DataFrame(other_native_df)
+    snow_df = snow_df.rolling(window=3, min_periods=3).corr(
+        other=other_snow_df,
+        pairwise=None,
+        ddof=1,
+        numeric_only=True,
+    )
+    native_df = native_df.rolling(window=3, min_periods=3).corr(
+        other=other_native_df,
+        pairwise=None,
+        ddof=1,
+        numeric_only=True,
+    )
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
+
+
+@sql_count_checker(query_count=0)
+def test_rolling_corr_negative():
+    native_df = native_pd.DataFrame(
+        {"col1": [1, 2, np.nan, 4, 1], "col3": [1, np.nan, 3, 4, 5]}
+    )
+    other_native_df = native_pd.DataFrame(
+        {
+            "col2": [1, 2, 3, 4, 5],
+            "col3": [1, np.nan, 3, np.nan, 6],
+            "col4": [1, 1, 3, np.nan, 5],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+    other_snow_df = pd.DataFrame(other_native_df)
+    with pytest.raises(
+        NotImplementedError,
+        match="min_periods 2 must be == window 3 for 'Rolling.corr'",
+    ):
+        snow_df = snow_df.rolling(window=3, min_periods=2).corr(
+            other=other_snow_df,
+            pairwise=None,
+            ddof=1,
+            numeric_only=True,
+        )
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Rolling corr.other = None",
+    ):
+        snow_df = snow_df.rolling(window=3, min_periods=2).corr(
+            pairwise=None,
+            ddof=1,
+            numeric_only=True,
+        )
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Rolling corr.pairwise = True",
+    ):
+        snow_df = snow_df.rolling(window="a", min_periods=2).corr(
+            other=other_snow_df,
+            pairwise=True,
+            ddof=1,
+            numeric_only=True,
+        )
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Rolling.Non-integer window",
+    ):
+        snow_df = snow_df.rolling(window="a", min_periods=2).corr(
+            other=other_snow_df,
+            pairwise=False,
+            ddof=1,
+            numeric_only=True,
+        )
+
+
 @sql_count_checker(query_count=0)
 def test_rolling_window_negative():
     native_df = native_pd.DataFrame({"B": [0, 1, 2, np.nan, 4]})
@@ -313,7 +466,6 @@ def test_rolling_params_unsupported(function):
     "agg_func, agg_func_kwargs",
     [
         ("median", None),
-        ("corr", None),
         ("cov", None),
         ("skew", None),
         ("kurt", None),
