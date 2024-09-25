@@ -17,6 +17,9 @@ from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_accessor
 from snowflake.snowpark.modin.plugin.extensions.utils import add_cache_result_docstring
+from snowflake.snowpark.modin.plugin.utils.warning_message import (
+    materialization_warning,
+)
 
 
 # Snowflake specific dataframe methods
@@ -195,6 +198,7 @@ def to_snowpark(
 
 
 @register_dataframe_accessor("to_pandas")
+@materialization_warning
 def to_pandas(
     self,
     *,
@@ -238,6 +242,7 @@ def to_pandas(
 
 @register_dataframe_accessor("cache_result")
 @add_cache_result_docstring
+@materialization_warning
 def cache_result(self, inplace: bool = False) -> Optional[pd.DataFrame]:
     """
     Persists the current Snowpark pandas DataFrame to a temporary table that lasts the duration of the session.
