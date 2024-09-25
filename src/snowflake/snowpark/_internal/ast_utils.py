@@ -763,7 +763,7 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
     Returns:
         protobuf expression.
     """
-    if hasattr(expr, "_ast"):
+    if hasattr(expr, "_ast") and expr._ast is not None:
         return expr._ast
 
     if isinstance(expr, Alias):
