@@ -23,6 +23,9 @@ from snowflake.snowpark.modin.plugin.extensions.index import Index  # noqa: F401
 from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (  # noqa: F401
     TimedeltaIndex,
 )
+from snowflake.snowpark.modin.plugin.utils.warning_message import (
+    materialization_warning,
+)
 
 register_pd_accessor("Index")(Index)
 register_pd_accessor("DatetimeIndex")(DatetimeIndex)
@@ -564,6 +567,7 @@ def to_snowpark(
 
 @register_pd_accessor("to_pandas")
 @snowpark_pandas_telemetry_standalone_function_decorator
+@materialization_warning
 def to_pandas(
     obj: Union[DataFrame, Series],
     *,
