@@ -558,6 +558,7 @@ class InternalFrame:
         self,
         pandas_labels: list[Hashable],
         include_index: bool = True,
+        include_data: bool = True,
     ) -> list[tuple[str, ...]]:
         """
         Map given pandas labels to names in underlying snowpark dataframe. Given labels can be data or index labels.
@@ -566,7 +567,8 @@ class InternalFrame:
 
         Args:
             pandas_labels: A list of pandas labels.
-            include_index: Include the index columns in addition to data columns, default is True.
+            include_index: Include the index columns in addition to potentially data columns, default is True.
+            include_data: Include the data columns in addition to potentially index columns, default is True.
 
         Returns:
             A list of tuples for matched identifiers. Each element of list is a tuple of str containing matched
@@ -580,7 +582,11 @@ class InternalFrame:
                 filter(
                     lambda col: to_pandas_label(col.label) == label,
                     self.label_to_snowflake_quoted_identifier[
-                        (0 if include_index else self.num_index_columns) :
+                        (0 if include_index else self.num_index_columns) : (
+                            len(self.label_to_snowflake_quoted_identifier)
+                            if include_data
+                            else self.num_index_columns
+                        )
                     ],
                 )
             )

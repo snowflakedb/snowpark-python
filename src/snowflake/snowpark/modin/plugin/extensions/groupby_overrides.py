@@ -31,7 +31,7 @@ import pandas
 import pandas.core.groupby
 from modin.pandas import Series
 from pandas._libs.lib import NoDefault, no_default
-from pandas._typing import AggFuncType, Axis, IndexLabel
+from pandas._typing import AggFuncType, Axis, FillnaOptions, IndexLabel
 from pandas.core.dtypes.common import is_dict_like, is_list_like, is_numeric_dtype
 from pandas.errors import SpecificationError
 from pandas.io.formats.printing import PrettyDict
@@ -509,9 +509,34 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
     def ffill(self, limit=None):
         ErrorMessage.method_not_implemented_error(name="ffill", class_="GroupBy")
 
-    def fillna(self, *args, **kwargs):
+    def fillna(
+        self,
+        value: Any = None,
+        method: Optional[FillnaOptions] = None,
+        axis: Optional[Axis] = None,
+        inplace: Optional[bool] = False,
+        limit: Optional[int] = None,
+        downcast: Optional[dict] = None,
+    ):
+        is_series_groupby = self.ndim == 1
+
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="fillna", class_="GroupBy")
+        query_compiler = self._query_compiler.groupby_fillna(
+            self._by,
+            self._axis,
+            self._kwargs,
+            value,
+            method,
+            axis,
+            inplace,
+            limit,
+            downcast,
+        )
+        return (
+            pd.Series(query_compiler=query_compiler)
+            if is_series_groupby
+            else pd.DataFrame(query_compiler=query_compiler)
+        )
 
     def first(self, numeric_only=False, min_count=-1, skipna=True):
         return self._wrap_aggregation(
