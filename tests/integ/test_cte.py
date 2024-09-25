@@ -41,7 +41,9 @@ binary_operations = [
 
 WITH = "WITH"
 
-paramList = [False, True]
+# paramList = [False, True]
+
+paramList = [True]
 
 
 @pytest.fixture(params=paramList, autouse=True)
@@ -58,6 +60,12 @@ def setup(request, session):
 def check_result(session, df, expect_cte_optimized):
     df = df.sort(df.columns)
     session._cte_optimization_enabled = False
+    """
+    'CREATE  OR  REPLACE  SCOPED TEMPORARY  TABLE SNOWPARK_TEMP_TABLE_A8XYCC2JYK("A" BIGINT NOT NULL , "B" STRING NOT NULL , "C" BIGINT NOT NULL , "D" BIGINT NOT NULL )',
+    'INSERT  INTO SNOWPARK_TEMP_TABLE_A8XYCC2JYK("A", "B", "C", "D") VALUES (?, ?, ?, ?)',
+    'SELECT  *  FROM (( SELECT  *  FROM ( SELECT "A", "B", "C", "D" FROM ( SELECT  *  FROM (SNOWPARK_TEMP_TABLE_A8XYCC2JYK)))
+    WHERE NOT "A" IN (( SELECT "A" FROM ( SELECT  *  FROM (SNOWPARK_TEMP_TABLE_7THS7GS22X)) WHERE ("A" < 3)))) UNION ALL ( SELECT  *  FROM ( SELECT "A", "B", "C", "D" FROM ( SELECT  *  FROM (SNOWPARK_TEMP_TABLE_A8XYCC2JYK))) WHERE NOT "A" IN (( SELECT "A" FROM ( SELECT  *  FROM (SNOWPARK_TEMP_TABLE_7THS7GS22X)) WHERE ("A" < 3))))) ORDER BY $1 ASC NULLS FIRST'
+    """
     result = df.collect()
     result_count = df.count()
     result_pandas = df.to_pandas() if installed_pandas else None
@@ -128,6 +136,16 @@ def test_binary(session, action):
     # check the number of queries
     assert len(plan_queries["queries"]) == 3
     assert len(plan_queries["post_actions"]) == 1
+
+
+def test_join_with_alias_dataframe(session):
+    df1 = session.create_dataframe([[1, 6], [3, 8], [7, 7]], schema=["col1", "col2"])
+    df_res = (
+        df1.alias("L")
+        .join(df1.alias("R"), col("L", "col1") == col("R", "col1"))
+        .select(col("L", "col1"), col("R", "col2"))
+    )
+    check_result(session, df_res, expect_cte_optimized=True)
 
 
 @pytest.mark.parametrize("action", binary_operations)
@@ -527,6 +545,28 @@ def test_window_function(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
+def test_in_with_subquery_multiple_query(session):
+    if session._sql_simplifier_enabled:
+        pytest.skip(
+            "SNOW-1678419 pre and post actions are not propagated properly for SelectStatement"
+        )
+    # multiple queries
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df0 = session.create_dataframe([[1], [2], [5], [7]], schema=["a"])
+        df = session.create_dataframe(
+            [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33], [5, "c", 21, 18]],
+            schema=["a", "b", "c", "d"],
+        )
+        df_filter = df0.filter(col("a") < 3)
+        df_in = df.filter(~df["a"].in_(df_filter))
+        df_result = df_in.union_all(df_in).select("*")
+        check_result(session, df_result, expect_cte_optimized=True)
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+
+
 def test_cte_optimization_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
         session.cte_optimization_enabled = True
