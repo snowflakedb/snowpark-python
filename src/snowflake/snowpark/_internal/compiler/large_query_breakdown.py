@@ -236,25 +236,7 @@ class LargeQueryBreakdown:
         if len(self.priority_queue) == 0:
             # When the priority queue is empty, we need to traverse the current query plan tree
             # to find valid nodes for partitioning.
-            self._num_passes += 1
-            current_level = [root]
-
-            while current_level:
-                next_level = []
-                for node in current_level:
-                    assert isinstance(node, (Selectable, SnowflakePlan))
-                    for child in node.children_plan_nodes:
-                        self._parent_map[child].add(node)
-                        valid_to_breakdown, score = self._is_node_valid_to_breakdown(
-                            child
-                        )
-                        if valid_to_breakdown:
-                            heapq.heappush(self.priority_queue, HeapNode(score, child))
-                        else:
-                            # don't traverse subtrees if parent is a valid candidate
-                            next_level.append(child)
-
-                current_level = next_level
+            self._traverse_plan_tree(root)
 
         # If no valid node is found, priority_queue will be empty.
         # Otherwise, return the node with the highest complexity score.
@@ -262,6 +244,34 @@ class LargeQueryBreakdown:
             heap_node = heapq.heappop(self.priority_queue)
             return heap_node.tree_node
         return None
+
+    def _traverse_plan_tree(self, root: TreeNode) -> None:
+        """Method to traverse the current plan tree and populate the priority queue with valid
+        nodes for partitioning. The steps involved are:
+
+        1. Level order traversal of the plan tree to prevent maximum recursion depth.
+        2. For each node, check if the node is valid for partitioning.
+        3a. If valid, create a HeapNode with complexity score and add it to the priority queue.
+            Stop traversing the subtree since the parent supersedes the children.
+        3b. If not valid, add the children to the next level and continue traversal.
+        """
+        self._num_passes += 1
+        current_level = [root]
+
+        while current_level:
+            next_level = []
+            for node in current_level:
+                assert isinstance(node, (Selectable, SnowflakePlan))
+                for child in node.children_plan_nodes:
+                    self._parent_map[child].add(node)
+                    valid_to_breakdown, score = self._is_node_valid_to_breakdown(child)
+                    if valid_to_breakdown:
+                        heapq.heappush(self.priority_queue, HeapNode(score, child))
+                    else:
+                        # don't traverse subtrees if parent is a valid candidate
+                        next_level.append(child)
+
+            current_level = next_level
 
     def _get_partitioned_plan(self, root: TreeNode, child: TreeNode) -> SnowflakePlan:
         """This method takes cuts the child out from the root, creates a temp table plan for the
