@@ -938,6 +938,10 @@ class Column:
     ) -> "Column":
         if isinstance(to, str):
             to = type_string_to_type_object(to)
+
+        if self._ast is None:
+            _emit_ast = False
+
         expr = None
         if _emit_ast:
             expr = proto.Expr()
