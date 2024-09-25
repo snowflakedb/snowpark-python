@@ -35,7 +35,7 @@ def large_query_df(session):
     df1 = base_df.with_column("A", col("A") + lit(1))
     df2 = base_df.with_column("B", col("B") + lit(1))
 
-    for i in range(100):
+    for i in range(110):
         df1 = df1.with_column("A", col("A") + lit(i))
         df2 = df2.with_column("B", col("B") + lit(i))
     df1 = df1.group_by(col("A")).agg(sum_distinct(col("B")).alias("B"))
@@ -93,7 +93,7 @@ def test_no_valid_nodes_found(session, large_query_df, caplog):
     df1 = base_df.with_column("A", col("A") + lit(1))
     df2 = base_df.with_column("B", col("B") + lit(1))
 
-    for i in range(102):
+    for i in range(160):
         df1 = df1.with_column("A", col("A") + lit(i))
         df2 = df2.with_column("B", col("B") + lit(i))
 
@@ -110,15 +110,16 @@ def test_no_valid_nodes_found(session, large_query_df, caplog):
 def test_large_query_breakdown_with_cte_optimization(session):
     """Test large query breakdown works with cte optimized plan"""
     session._cte_optimization_enabled = True
+    # session.large_query_breakdown_enabled = False
     df0 = session.sql("select 2 as b, 32 as c")
     df1 = session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
     df1 = df1.join(df0, on=["b"], how="inner")
 
     df2 = df1.filter(col("b") == 2).union_all(df1)
     df3 = df1.with_column("a", col("a") + 1)
-    for i in range(100):
-        df2 = df2.with_column("a", col("a") + i)
-        df3 = df3.with_column("b", col("b") + i)
+    for i in range(7):
+        df2 = df2.with_column("a", col("a") + i + col("a"))
+        df3 = df3.with_column("b", col("b") + i + col("b"))
 
     df2 = df2.group_by("a").agg(sum_distinct(col("b")).alias("b"))
     df3 = df3.group_by("b").agg(sum_distinct(col("a")).alias("a"))
@@ -224,9 +225,9 @@ def test_pivot_unpivot(session):
         schema=["A", "dept", "jan", "feb"],
     )
 
-    for i in range(100):
-        df_pivot = df_pivot.with_column("A", col("A") + lit(i))
-        df_unpivot = df_unpivot.with_column("A", col("A") + lit(i))
+    for i in range(6):
+        df_pivot = df_pivot.with_column("A", col("A") + lit(i) + col("A"))
+        df_unpivot = df_unpivot.with_column("A", col("A") + lit(i) + col("A"))
 
     df_pivot = df_pivot.pivot("month", ["JAN", "FEB"]).sum("B")
     df_unpivot = df_unpivot.unpivot("sales", "month", ["jan", "feb"])
@@ -249,7 +250,7 @@ def test_sort(session):
     df1 = base_df.with_column("A", col("A") + lit(1))
     df2 = base_df.with_column("B", col("B") + lit(1))
 
-    for i in range(100):
+    for i in range(160):
         df1 = df1.with_column("A", col("A") + lit(i))
         df2 = df2.with_column("B", col("B") + lit(i))
     df1_with_sort = df1.order_by("A")
@@ -285,7 +286,7 @@ def test_multiple_query_plan(session, large_query_df):
         df1 = base_df.with_column("A", col("A") + lit(1))
         df2 = base_df.with_column("B", col("B") + lit(1))
 
-        for i in range(100):
+        for i in range(160):
             df1 = df1.with_column("A", col("A") + lit(i))
             df2 = df2.with_column("B", col("B") + lit(i))
         df1 = df1.group_by(col("A")).agg(sum_distinct(col("B")).alias("B"))
@@ -377,7 +378,7 @@ def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
         session._conn, "run_query", wraps=session._conn.run_query
     ) as patched_run_query:
         result = large_query_df.collect()
-        Utils.check_answer(result, [Row(1, 4954), Row(2, 4953)])
+        Utils.check_answer(result, [Row(1, 5999), Row(2, 5998)])
 
         plan = large_query_df._plan
         # 1 for current transaction, 1 for partition, 1 for main query, 1 for post action
@@ -404,8 +405,7 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     assert large_query_df.queries["post_actions"][0].startswith(
         "DROP  TABLE  If  EXISTS"
     )
-
-    set_bounds(session, 300, 412)
+    set_bounds(session, 300, 455)
     assert len(large_query_df.queries["queries"]) == 3
     assert len(large_query_df.queries["post_actions"]) == 2
     assert large_query_df.queries["queries"][0].startswith(
@@ -420,7 +420,6 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     assert large_query_df.queries["post_actions"][1].startswith(
         "DROP  TABLE  If  EXISTS"
     )
-
     set_bounds(session, 0, 300)
     assert len(large_query_df.queries["queries"]) == 1
     assert len(large_query_df.queries["post_actions"]) == 0

@@ -440,6 +440,8 @@ class SnowflakePlan(LogicalPlan):
     @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         if self._cumulative_node_complexity is None:
+            # if source plan is available, the source plan complexity
+            # is the snowflake plan complexity.
             if self.source_plan:
                 self._cumulative_node_complexity = (
                     self.source_plan.cumulative_node_complexity
@@ -451,6 +453,11 @@ class SnowflakePlan(LogicalPlan):
     @cumulative_node_complexity.setter
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
         self._cumulative_node_complexity = value
+
+    def reset_cumulative_node_complexity(self) -> None:
+        self._cumulative_node_complexity = None
+        if self.source_plan:
+            self.source_plan.reset_cumulative_node_complexity()
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:

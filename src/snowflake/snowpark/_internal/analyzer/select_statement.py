@@ -898,7 +898,10 @@ class SelectStatement(Selectable):
         if self._cumulative_node_complexity is None:
             self._cumulative_node_complexity = super().cumulative_node_complexity
             if self._merge_projection_complexity_with_subquery:
-                # subtract the from_ projection complexity
+                # if _merge_projection_complexity_with_subquery is true, the subquery
+                # projection complexity has already been merged with the current projection
+                # complexity, and we need to adjust the cumulative_node_complexity by
+                # subtracting the from_ projection complexity.
                 assert isinstance(self.from_, SelectStatement)
                 self._cumulative_node_complexity = subtract_complexities(
                     self._cumulative_node_complexity,
@@ -956,6 +959,9 @@ class SelectStatement(Selectable):
 
     @property
     def projection_complexities(self) -> List[Dict[PlanNodeCategory, int]]:
+        """
+        Return the complexity for each projection expression.
+        """
         if self.projection is None:
             return []
 

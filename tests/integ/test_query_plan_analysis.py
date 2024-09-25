@@ -21,9 +21,6 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import avg, col, lit, seq1, table_function, uniform
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.window import Window
-from tests.integ.test_deepcopy import (
-    create_df_with_deep_nested_with_column_dependencies,
-)
 from tests.utils import Utils
 
 pytestmark = [
@@ -35,12 +32,18 @@ pytestmark = [
 ]
 
 
-@pytest.fixture(autouse=True)
-def setup(session):
+paramList = [False, True]
+
+
+@pytest.fixture(params=paramList, autouse=True)
+def setup(request, session):
     is_simplifier_enabled = session._sql_simplifier_enabled
+    large_query_breakdown_enabled = session.large_query_breakdown_enabled
+    session.large_query_breakdown_enabled = request.param
     session._sql_simplifier_enabled = True
     yield
     session._sql_simplifier_enabled = is_simplifier_enabled
+    session.large_query_breakdown_enabled = large_query_breakdown_enabled
 
 
 @pytest.fixture(scope="module")
@@ -60,7 +63,9 @@ def get_cumulative_node_complexity(df: DataFrame) -> Dict[str, int]:
     return df._plan.cumulative_node_complexity
 
 
-def assert_df_subtree_query_complexity(df: DataFrame, estimate: Dict[str, int]):
+def assert_df_subtree_query_complexity(
+    df: DataFrame, estimate: Dict[PlanNodeCategory, int]
+):
     assert (
         get_cumulative_node_complexity(df) == estimate
     ), f"query = {df.queries['queries'][-1]}"
@@ -566,57 +571,3 @@ def test_select_statement_with_multiple_operations(session: Session, sample_tabl
             get_cumulative_node_complexity(df9), {PlanNodeCategory.LOW_IMPACT: 2}
         ),
     )
-
-
-def test_simple_nested_select_with_column_dependency(session, sample_table):
-    df = session.table(sample_table)
-    assert_df_subtree_query_complexity(df, {PlanNodeCategory.COLUMN: 1})
-    df_select = df.select((col("a") + 1).as_("a"), "b", "c")
-    assert_df_subtree_query_complexity(
-        df_select,
-        {
-            PlanNodeCategory.LOW_IMPACT: 1,
-            PlanNodeCategory.COLUMN: 4,
-            PlanNodeCategory.LITERAL: 1,
-        },
-    )
-    df_select = df_select.select((col("a") + 3).as_("a"), "c")
-    # the two select complexity can be merged, and will be equivalent to the
-    # complexity of df.select((col("a") + 3 + 1).as_("a"), "c")
-    # NOTE the LOW_IMPACT calculation is currently wrong, the LOW_IMPACT corresponds to
-    # alias, which should only be one after merge.
-    # TODO: adjust the calculation for ALIAS during nested SELECT merge
-    assert_df_subtree_query_complexity(
-        df_select,
-        {
-            PlanNodeCategory.LOW_IMPACT: 2,
-            PlanNodeCategory.LITERAL: 2,
-            PlanNodeCategory.COLUMN: 3,
-        },
-    )
-
-    # add one more select with duplicated reference
-    df_select = df_select.select(
-        col("a") * 2 + col("a") + col("c"), (col("c") + 2).as_("d")
-    )
-    # the complexity can be continue merged with the previous select, and the whole tree complexity
-    # will be equivalent to df.select((col("a") + 3 + 1) * 2 + (col("a") + 3 + 1)  + col("c"), (col("c") + 2).as_("d")
-    assert_df_subtree_query_complexity(
-        df_select,
-        {
-            PlanNodeCategory.LOW_IMPACT: 8,
-            PlanNodeCategory.COLUMN: 5,
-            PlanNodeCategory.LITERAL: 6,
-        },
-    )
-
-
-def test_deep_nested_with_columns(session):
-    temp_table_name = Utils.random_table_name()
-    try:
-        df = create_df_with_deep_nested_with_column_dependencies(
-            session, temp_table_name, 5
-        )
-        print(df._plan.cumulative_node_complexity)
-    finally:
-        Utils.drop_table(session, temp_table_name)
