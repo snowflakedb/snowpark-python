@@ -550,9 +550,6 @@ class Session:
         )
         self._file = FileOperation(self)
         self._lineage = Lineage(self)
-        self._analyzer = (
-            Analyzer(self) if isinstance(conn, ServerConnection) else MockAnalyzer(self)
-        )
         self._sql_simplifier_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
@@ -623,8 +620,19 @@ class Session:
         )
 
     def _generate_new_action_id(self) -> int:
-        self._last_action_id += 1
-        return self._last_action_id
+        with self._lock:
+            self._last_action_id += 1
+            return self._last_action_id
+
+    @property
+    def _analyzer(self) -> Analyzer:
+        if not hasattr(self._thread_store, "analyzer"):
+            self._thread_store.analyzer = (
+                Analyzer(self)
+                if isinstance(self._conn, ServerConnection)
+                else MockAnalyzer(self)
+            )
+        return self._thread_store.analyzer
 
     def close(self) -> None:
         """Close this session."""
@@ -856,7 +864,8 @@ class Session:
         This does not affect any action methods called in the future.
         """
         _logger.info("Canceling all running queries")
-        self._last_canceled_id = self._last_action_id
+        with self._lock:
+            self._last_canceled_id = self._last_action_id
         if not isinstance(self._conn, MockServerConnection):
             self._conn.run_query(
                 f"select system$cancel_all_queries({self._session_id})"
@@ -1958,11 +1967,12 @@ class Session:
 
     @query_tag.setter
     def query_tag(self, tag: str) -> None:
-        if tag:
-            self._conn.run_query(f"alter session set query_tag = {str_to_sql(tag)}")
-        else:
-            self._conn.run_query("alter session unset query_tag")
-        self._query_tag = tag
+        with self._lock:
+            if tag:
+                self._conn.run_query(f"alter session set query_tag = {str_to_sql(tag)}")
+            else:
+                self._conn.run_query("alter session unset query_tag")
+            self._query_tag = tag
 
     def _get_remote_query_tag(self) -> None:
         """
@@ -2355,18 +2365,19 @@ class Session:
             Therefore, if you switch database or schema during the session, the stage will not be re-created
             in the new database or schema, and still references the stage in the old database or schema.
         """
-        if not self._session_stage:
-            full_qualified_stage_name = self.get_fully_qualified_name_if_possible(
-                random_name_for_temp_object(TempObjectType.STAGE)
-            )
-            self._run_query(
-                f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
-                stage if not exists {full_qualified_stage_name}",
-                is_ddl_on_temp_object=True,
-                statement_params=statement_params,
-            )
-            # set the value after running the query to ensure atomicity
-            self._session_stage = full_qualified_stage_name
+        with self._lock:
+            if not self._session_stage:
+                full_qualified_stage_name = self.get_fully_qualified_name_if_possible(
+                    random_name_for_temp_object(TempObjectType.STAGE)
+                )
+                self._run_query(
+                    f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
+                    stage if not exists {full_qualified_stage_name}",
+                    is_ddl_on_temp_object=True,
+                    statement_params=statement_params,
+                )
+                # set the value after running the query to ensure atomicity
+                self._session_stage = full_qualified_stage_name
         return f"{STAGE_PREFIX}{self._session_stage}"
 
     def _write_modin_pandas_helper(
@@ -3065,8 +3076,9 @@ class Session:
         """
         Returns the fully qualified object name if current database/schema exists, otherwise returns the object name
         """
-        database = self.get_current_database()
-        schema = self.get_current_schema()
+        with self._lock:
+            database = self.get_current_database()
+            schema = self.get_current_schema()
         if database and schema:
             return f"{database}.{schema}.{name}"
 
