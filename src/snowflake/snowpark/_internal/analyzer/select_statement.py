@@ -659,7 +659,9 @@ class SelectStatement(Selectable):
         self._merge_projection_complexity_with_subquery = False
         # cached list of projection complexities, each projection complexity is adjusted
         # with the subquery projection if _merge_projection_complexity_with_subquery is True.
-        self._projection_complexities: Optional[List[PlanNodeCategory, int]] = None
+        self._projection_complexities: Optional[
+            List[Dict[PlanNodeCategory, int]]
+        ] = None
 
     def __copy__(self):
         new = SelectStatement(
