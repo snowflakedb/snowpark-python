@@ -108,7 +108,7 @@ def _to_col_if_lit(
     if isinstance(col, (Column, snowflake.snowpark.DataFrame, list, tuple, set)):
         return col
     elif isinstance(col, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
-        return Column(Literal(col))
+        return Column(Literal(col), _emit_ast=False)
     else:  # pragma: no cover
         raise TypeError(
             f"'{func_name}' expected Column, DataFrame, Iterable or LiteralType, got: {type(col)}"

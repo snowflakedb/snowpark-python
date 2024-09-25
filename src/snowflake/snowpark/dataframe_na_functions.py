@@ -229,10 +229,15 @@ class DataFrameNaFunctions:
                     df_col_type_dict[normalized_col_name], (FloatType, DoubleType)
                 ):
                     # iff(col = 'NaN' or col is null, 0, 1)
-                    is_na = iff((col == math.nan) | col.is_null(), 0, 1)
+                    is_na = iff(
+                        (col == math.nan) | col.is_null(_emit_ast=False),
+                        0,
+                        1,
+                        _emit_ast=False,
+                    )
                 else:
                     # iff(col is null, 0, 1)
-                    is_na = iff(col.is_null(), 0, 1)
+                    is_na = iff(col.is_null(_emit_ast=False), 0, 1, _emit_ast=False)
                 is_na_columns.append(is_na)
             col_counter = Column(
                 ColumnSum([c._expression for c in is_na_columns]), _emit_ast=False
@@ -429,7 +434,14 @@ class DataFrameNaFunctions:
                         )
                     else:
                         # iff(col is null, value, col)
-                        res_columns.append(iff(col.is_null(), value, col).as_(col_name))
+                        res_columns.append(
+                            iff(
+                                col.is_null(_emit_ast=False),
+                                value,
+                                col,
+                                _emit_ast=False,
+                            ).as_(col_name, _emit_ast=False)
+                        )
                 else:
                     _logger.warning(
                         "Input value type doesn't match the target column data type, "

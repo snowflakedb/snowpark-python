@@ -662,16 +662,19 @@ def bround(
         -----------
         <BLANKLINE>
     """
-    col = _to_col_if_str(col, "bround")
-    scale = _to_col_if_lit(scale, "bround")
-
+    # AST.
     ast = None
     if _emit_ast:
         ast = proto.Expr()
         build_builtin_fn_apply(ast, "bround", col, scale)
 
+    col = _to_col_if_str(col, "bround")
+    scale = _to_col_if_lit(scale, "bround")
+
     # Note: Original Snowpark python code capitalized here.
-    col = call_builtin("ROUND", col, scale, lit("HALF_TO_EVEN"), _emit_ast=False)
+    col = call_builtin(
+        "ROUND", col, scale, lit("HALF_TO_EVEN", _emit_ast=False), _emit_ast=False
+    )
     col._ast = ast
     return col
 
@@ -3687,14 +3690,23 @@ def to_timestamp_ntz(
         >>> df.select(to_timestamp_ntz(col("a"))).collect()
         [Row(TO_TIMESTAMP_NTZ("A")=datetime.datetime(2023, 3, 1, 0, 0))]
     """
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "to_timestamp_ntz", e, fmt)
+
     c = _to_col_if_str(e, "to_timestamp_ntz")
-    return (
-        builtin("to_timestamp_ntz", _emit_ast=_emit_ast)(
+    ans = (
+        builtin("to_timestamp_ntz", _emit_ast=False)(
             c, _to_col_if_lit(fmt, "to_timestamp_ntz")
         )
         if fmt is not None
-        else builtin("to_timestamp_ntz", _emit_ast=_emit_ast)(c)
+        else builtin("to_timestamp_ntz", _emit_ast=False)(c)
     )
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -3707,14 +3719,23 @@ def to_timestamp_ltz(
     can be converted to timestamps. The format has to be specified according to the rules set forth in
     <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
     """
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "to_timestamp_ltz", e, fmt)
+
     c = _to_col_if_str(e, "to_timestamp_ltz")
-    return (
-        builtin("to_timestamp_ltz", _emit_ast=_emit_ast)(
+    ans = (
+        builtin("to_timestamp_ltz", _emit_ast=False)(
             c, _to_col_if_lit(fmt, "to_timestamp_ltz")
         )
         if fmt is not None
-        else builtin("to_timestamp_ltz", _emit_ast=_emit_ast)(c)
+        else builtin("to_timestamp_ltz", _emit_ast=False)(c)
     )
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -3727,14 +3748,23 @@ def to_timestamp_tz(
     can be converted to timestamps. The format has to be specified according to the rules set forth in
     <https://docs.snowflake.com/en/sql-reference/functions-conversion#date-and-time-formats-in-conversion-functions>
     """
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "to_timestamp_tz", e, fmt)
+
     c = _to_col_if_str(e, "to_timestamp_tz")
-    return (
-        builtin("to_timestamp_tz", _emit_ast=_emit_ast)(
+    ans = (
+        builtin("to_timestamp_tz", _emit_ast=False)(
             c, _to_col_if_lit(fmt, "to_timestamp_tz")
         )
         if fmt is not None
-        else builtin("to_timestamp_tz", _emit_ast=_emit_ast)(c)
+        else builtin("to_timestamp_tz", _emit_ast=False)(c)
     )
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -5134,10 +5164,19 @@ def date_from_parts(
         >>> session.table("dual").select(date_from_parts(2022, 4, 1)).collect()
         [Row(DATE_FROM_PARTS(2022, 4, 1)=datetime.date(2022, 4, 1))]
     """
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "date_from_parts", y, m, d)
+
     y_col = _to_col_if_str_or_int(y, "date_from_parts")
     m_col = _to_col_if_str_or_int(m, "date_from_parts")
     d_col = _to_col_if_str_or_int(d, "date_from_parts")
-    return builtin("date_from_parts", _emit_ast=_emit_ast)(y_col, m_col, d_col)
+    ans = builtin("date_from_parts", _emit_ast=False)(y_col, m_col, d_col)
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -5505,22 +5544,12 @@ def is_timestamp_tz(col: ColumnOrName, _emit_ast: bool = True) -> Column:
 def _columns_from_timestamp_parts(
     func_name: str, *args: Union[ColumnOrName, int]
 ) -> Tuple[Column, ...]:
-    if len(args) == 3:
-        year_ = _to_col_if_str_or_int(args[0], func_name)
-        month = _to_col_if_str_or_int(args[1], func_name)
-        day = _to_col_if_str_or_int(args[2], func_name)
-        return year_, month, day
-    elif len(args) == 6:
-        year_ = _to_col_if_str_or_int(args[0], func_name)
-        month = _to_col_if_str_or_int(args[1], func_name)
-        day = _to_col_if_str_or_int(args[2], func_name)
-        hour = _to_col_if_str_or_int(args[3], func_name)
-        minute = _to_col_if_str_or_int(args[4], func_name)
-        second = _to_col_if_str_or_int(args[5], func_name)
-        return year_, month, day, hour, minute, second
-    else:
+
+    if len(args) not in [3, 6]:
         # Should never happen since we only use this internally
         raise ValueError(f"Incorrect number of args passed to {func_name}")
+    args = tuple(_to_col_if_str_or_int(arg, func_name) for arg in args)
+    return args
 
 
 def _timestamp_from_parts_internal(
@@ -5553,7 +5582,7 @@ def _timestamp_from_parts_internal(
             return y, m, d, h, min_, s
     else:
         raise ValueError(
-            f"{func_name} expected 2 or 6 required arguments, got {num_args}"
+            f"{func_name} expected 2, 6, 7 or 8  required arguments, got {num_args}"
         )
 
 
@@ -5583,13 +5612,25 @@ def time_from_parts(
         ... ).alias("TIME_FROM_PARTS")).collect()
         [Row(TIME_FROM_PARTS=datetime.time(11, 11, 0, 987654)), Row(TIME_FROM_PARTS=datetime.time(10, 10, 0, 987654))]
     """
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast, "time_from_parts", hour, minute, second, nanoseconds
+        )
+
     h, m, s = _columns_from_timestamp_parts("time_from_parts", hour, minute, second)
-    if nanoseconds:
-        return builtin("time_from_parts", _emit_ast=_emit_ast)(
+    ans = (
+        builtin("time_from_parts", _emit_ast=False)(
             h, m, s, _to_col_if_str_or_int(nanoseconds, "time_from_parts")
         )
-    else:
-        return builtin("time_from_parts", _emit_ast=_emit_ast)(h, m, s)
+        if nanoseconds
+        else builtin("time_from_parts", _emit_ast=False)(h, m, s)
+    )
+    ans._ast = ast
+    return ans
 
 
 @overload
@@ -5644,9 +5685,18 @@ def timestamp_from_parts(*args, _emit_ast: bool = True, **kwargs) -> Column:
         ... ).alias("TIMESTAMP_FROM_PARTS")).collect()
         [Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
     """
-    return builtin("timestamp_from_parts", _emit_ast=_emit_ast)(
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "timestamp_from_parts", *args)
+
+    ans = builtin("timestamp_from_parts", _emit_ast=False)(
         *_timestamp_from_parts_internal("timestamp_from_parts", *args, **kwargs)
     )
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -5676,15 +5726,26 @@ def timestamp_ltz_from_parts(
         [Row(TIMESTAMP_LTZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11, tzinfo=<DstTzInfo 'America/Los_Angeles' PDT-1 day, 17:00:00 DST>)), Row(TIMESTAMP_LTZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11, tzinfo=<DstTzInfo 'America/Los_Angeles' PDT-1 day, 17:00:00 DST>))]
     """
     func_name = "timestamp_ltz_from_parts"
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast, func_name, year, month, day, hour, minute, second, nanoseconds
+        )
+
     y, m, d, h, min_, s = _columns_from_timestamp_parts(
         func_name, year, month, day, hour, minute, second
     )
     ns = None if nanoseconds is None else _to_col_if_str_or_int(nanoseconds, func_name)
-    return (
-        builtin(func_name, _emit_ast=_emit_ast)(y, m, d, h, min_, s)
+    ans = (
+        builtin(func_name, _emit_ast=False)(y, m, d, h, min_, s)
         if ns is None
-        else builtin(func_name, _emit_ast=_emit_ast)(y, m, d, h, min_, s, ns)
+        else builtin(func_name, _emit_ast=False)(y, m, d, h, min_, s, ns)
     )
+    ans._ast = ast
+    return ans
 
 
 @overload
@@ -5739,7 +5800,9 @@ def timestamp_ntz_from_parts(*args, _emit_ast: bool = True, **kwargs) -> Column:
         [Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
     """
     return builtin("timestamp_ntz_from_parts", _emit_ast=_emit_ast)(
-        *_timestamp_from_parts_internal("timestamp_ntz_from_parts", *args, **kwargs)
+        *_timestamp_from_parts_internal(
+            "timestamp_ntz_from_parts", *args, **kwargs, _emit_ast=_emit_ast
+        )
     )
 
 
@@ -5770,19 +5833,42 @@ def timestamp_tz_from_parts(
         [Row(TIMESTAMP_TZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11, tzinfo=pytz.FixedOffset(-420))), Row(TIMESTAMP_TZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11, tzinfo=pytz.FixedOffset(-420)))]
     """
     func_name = "timestamp_tz_from_parts"
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            func_name,
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            nanoseconds,
+            timezone,
+        )
+
     y, m, d, h, min_, s = _columns_from_timestamp_parts(
         func_name, year, month, day, hour, minute, second
     )
     ns = None if nanoseconds is None else _to_col_if_str_or_int(nanoseconds, func_name)
     tz = None if timezone is None else _to_col_if_sql_expr(timezone, func_name)
+
+    ans = None
     if nanoseconds is not None and timezone is not None:
-        return builtin(func_name, _emit_ast=_emit_ast)(y, m, d, h, min_, s, ns, tz)
+        ans = builtin(func_name, _emit_ast=False)(y, m, d, h, min_, s, ns, tz)
     elif nanoseconds is not None:
-        return builtin(func_name, _emit_ast=_emit_ast)(y, m, d, h, min_, s, ns)
+        ans = builtin(func_name, _emit_ast=False)(y, m, d, h, min_, s, ns)
     elif timezone is not None:
-        return builtin(func_name, _emit_ast=_emit_ast)(y, m, d, h, min_, s, lit(0), tz)
+        ans = builtin(func_name, _emit_ast=False)(y, m, d, h, min_, s, lit(0), tz)
     else:
-        return builtin(func_name, _emit_ast=_emit_ast)(y, m, d, h, min_, s)
+        ans = builtin(func_name, _emit_ast=False)(y, m, d, h, min_, s)
+
+    ans._ast = ast
+    return ans
 
 
 @publicapi
