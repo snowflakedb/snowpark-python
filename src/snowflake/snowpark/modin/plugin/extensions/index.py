@@ -59,7 +59,10 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     index_not_implemented,
 )
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.modin.plugin.utils.warning_message import (
+    WarningMessage,
+    materialization_warning,
+)
 from snowflake.snowpark.types import ArrayType
 
 _CONSTRUCTOR_DEFAULTS = {
@@ -419,6 +422,7 @@ class Index(metaclass=TelemetryMeta):
             f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
         )
 
+    @materialization_warning
     def to_pandas(
         self,
         *,
@@ -2188,6 +2192,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458139 implement hasnans
 
+    @materialization_warning
     def tolist(self) -> list:
         """
         Return a list of the values.
@@ -2591,6 +2596,7 @@ class Index(metaclass=TelemetryMeta):
         WarningMessage.index_to_pandas_warning("_summary")
         return self.to_pandas()._summary(name=name)
 
+    @materialization_warning
     def __array__(self, dtype: Any = None) -> np.ndarray:
         """
         The array interface, return the values.
