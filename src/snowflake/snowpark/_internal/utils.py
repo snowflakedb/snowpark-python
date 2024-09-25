@@ -709,13 +709,15 @@ def publicapi(func) -> Callable:
         # then we use this value directly. If not, but the function supports _emit_ast,
         # we override _emit_ast with the session parameter.
         if "_emit_ast" in func.__code__.co_varnames and "_emit_ast" not in kwargs:
-            if len(args) == 0:
+            # No arguments, or single argument with function.
+            if len(args) == 0 or (len(args) == 1 and isinstance(args[0], Callable)):
                 if func.__name__ in {
                     "udf",
                     "udtf",
                     "udaf",
                     "pandas_udf",
                     "pandas_udtf",
+                    "sproc",
                 }:
                     session = kwargs.get("session")
                     # Lookup session directly as in implementation of these decorators.
