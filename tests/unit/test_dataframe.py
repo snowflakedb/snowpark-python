@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+import re
 from unittest import mock
 
 import pytest
@@ -17,6 +17,7 @@ from snowflake.snowpark import (
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
+from snowflake.snowpark._internal.ast import AstBatch
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.dataframe import _get_unaliased
 from snowflake.snowpark.exceptions import SnowparkCreateDynamicTableException
@@ -119,6 +120,7 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
     fake_session._plan_builder = SnowflakePlanBuilder(fake_session)
     fake_session._analyzer = Analyzer(fake_session)
     fake_session._use_scoped_temp_objects = True
+    fake_session._ast_batch = mock.create_autospec(AstBatch)
     fake_session.get_fully_qualified_name_if_possible = nop
     with mock.patch(
         "snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format",
@@ -134,9 +136,11 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
     )
 
 
-def test_select_bad_input():
+def test_select_negative():
     fake_session = mock.create_autospec(snowflake.snowpark.session.Session)
     fake_session._analyzer = mock.MagicMock()
+    fake_session._ast_batch = mock.create_autospec(AstBatch)
+    fake_session.ast_enabled = False
     df = DataFrame(fake_session)
     with pytest.raises(TypeError) as exc_info:
         df.select(123)
@@ -146,7 +150,7 @@ def test_select_bad_input():
     )
 
 
-def test_join_bad_input():
+def test_join_negative():
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
@@ -172,7 +176,7 @@ def test_join_bad_input():
     assert "Invalid type for join. Must be Dataframe" in str(exc_info)
 
 
-def test_with_column_renamed_bad_input():
+def test_with_column_renamed_negative():
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
@@ -182,7 +186,7 @@ def test_with_column_renamed_bad_input():
     assert "must be a column name or Column object." in str(exc_info)
 
 
-def test_with_column_rename_function_bad_input():
+def test_with_column_rename_function_negative():
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
@@ -198,30 +202,33 @@ def test_with_column_rename_function_bad_input():
     assert "You cannot rename a column using value 123 of type int" in str(exc_info)
 
 
-def test_create_or_replace_view_bad_input():
+def test_create_or_replace_view_negative():
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
-    with pytest.raises(TypeError) as exc_info:
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            "The input name of create_or_replace_view() must be a str or list/tuple of strs."
+        ),
+    ):
         df1.create_or_replace_view(123)
-    assert (
-        "The input of create_or_replace_view() can only a str or list of strs."
-        in str(exc_info)
-    )
 
 
-def test_create_or_replace_dynamic_table_bad_input():
+def test_create_or_replace_dynamic_table_negative():
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
-    with pytest.raises(TypeError) as exc_info:
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            "The input name of create_or_replace_dynamic_table() must be a str or list/tuple of strs."
+        ),
+    ):
         df1.create_or_replace_dynamic_table(123, warehouse="warehouse", lag="1 minute")
-    assert (
-        "The name input of create_or_replace_dynamic_table() can only be a str or list of strs."
-        in str(exc_info)
-    )
+
     with pytest.raises(TypeError) as exc_info:
         df1.create_or_replace_dynamic_table(
             ["schema", "dt"], warehouse=123, lag="1 minute"
@@ -247,17 +254,18 @@ def test_create_or_replace_dynamic_table_bad_input():
     )
 
 
-def test_create_or_replace_temp_view_bad_input():
+def test_create_or_replace_temp_view_negative():
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
-    with pytest.raises(TypeError) as exc_info:
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            "The input name of create_or_replace_temp_view() must be a str or list/tuple of strs."
+        ),
+    ):
         df1.create_or_replace_temp_view(123)
-    assert (
-        "The input of create_or_replace_temp_view() can only a str or list of strs."
-        in str(exc_info)
-    )
 
 
 @pytest.mark.parametrize(

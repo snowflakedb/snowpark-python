@@ -4250,6 +4250,20 @@ class DataFrame:
             + line
         )
 
+    def _format_name_for_view(
+        self, func_name: str, name: Union[str, Iterable[str]]
+    ) -> str:
+        """Helper function for views to create correct name. Raises TypeError invalid name"""
+        if isinstance(name, str):
+            return name
+
+        if isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
+            return ".".join(name)
+
+        raise TypeError(
+            f"The input name of {func_name}() must be a str or list/tuple of strs."
+        )
+
     @df_collect_api_telemetry
     @publicapi
     def create_or_replace_view(
@@ -4275,6 +4289,9 @@ class DataFrame:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+
+        formatted_name = self._format_name_for_view("create_or_replace_view", name)
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -4295,15 +4312,6 @@ class DataFrame:
                     entry = expr.statement_params.add()
                     entry._1 = k
                     entry._2 = statement_params[k]
-
-        if isinstance(name, str):
-            formatted_name = name
-        elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
-            formatted_name = ".".join(name)
-        else:
-            raise TypeError(
-                "The input of create_or_replace_view() can only a str or list of strs."
-            )
 
         return self._do_create_or_replace_view(
             formatted_name,
@@ -4346,6 +4354,21 @@ class DataFrame:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+
+        formatted_name = self._format_name_for_view(
+            "create_or_replace_dynamic_table", name
+        )
+
+        if not isinstance(warehouse, str):
+            raise TypeError(
+                "The warehouse input of create_or_replace_dynamic_table() can only be a str."
+            )
+
+        if not isinstance(lag, str):
+            raise TypeError(
+                "The lag input of create_or_replace_dynamic_table() can only be a str."
+            )
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -4380,25 +4403,6 @@ class DataFrame:
             )
             # Allow AST tests to pass.
             return []
-
-        if isinstance(name, str):
-            formatted_name = name
-        elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
-            formatted_name = ".".join(name)
-        else:
-            raise TypeError(
-                "The name input of create_or_replace_dynamic_table() can only be a str or list of strs."
-            )
-
-        if not isinstance(warehouse, str):
-            raise TypeError(
-                "The warehouse input of create_or_replace_dynamic_table() can only be a str."
-            )
-
-        if not isinstance(lag, str):
-            raise TypeError(
-                "The lag input of create_or_replace_dynamic_table() can only be a str."
-            )
 
         return self._do_create_or_replace_dynamic_table(
             formatted_name,
@@ -4439,6 +4443,9 @@ class DataFrame:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+
+        formatted_name = self._format_name_for_view("create_or_replace_temp_view", name)
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -4459,15 +4466,6 @@ class DataFrame:
                     entry = expr.statement_params.add()
                     entry._1 = k
                     entry._2 = statement_params[k]
-
-        if isinstance(name, str):
-            formatted_name = name
-        elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
-            formatted_name = ".".join(name)
-        else:
-            raise TypeError(
-                "The input of create_or_replace_temp_view() can only a str or list of strs."
-            )
 
         return self._do_create_or_replace_view(
             formatted_name,
