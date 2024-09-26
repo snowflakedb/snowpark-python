@@ -428,6 +428,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # self.snowpark_pandas_api_calls a list of lazy Snowpark pandas telemetry api calls
         # Copying and modifying self.snowpark_pandas_api_calls is taken care of in telemetry decorators
         self.snowpark_pandas_api_calls: list = []
+        self._attrs: dict[Any, Any] = {}
 
     def _raise_not_implemented_error_for_timedelta(
         self, frame: InternalFrame = None
