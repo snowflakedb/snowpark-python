@@ -14,11 +14,7 @@ from pandas.core.reshape.tile import _is_dt_or_td
 
 from snowflake.snowpark.functions import col, iff
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
-from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
-    DataFrameReference,
-    OrderedDataFrame,
-    OrderingColumn,
-)
+from snowflake.snowpark.modin.plugin._internal.join_utils import MatchComparator, join
 from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.types import LongType
@@ -127,7 +123,7 @@ def preprocess_bins_for_cut(
 
     if not np.iterable(bins):
         # Call adjusted function from pandas 2.2.x branch
-        assert type(bins) is int
+        assert type(bins) is int, f"type(bins) is not int but {type(bins)}"
         bins = _nbins_to_bins(x_min, x_max, bins, right)
 
     elif isinstance(bins, IntervalIndex):
@@ -188,87 +184,25 @@ def compute_bin_indices(
     # consequences when it comes to building lazy graphs, as both cut and qcut are materializing operations.
 
     cuts_frame = cuts_frame.ensure_row_position_column()
-    value_frame = values_frame.ensure_row_position_column()
-
-    (
-        bucket_data_identifier,
-        bucket_row_position_identifier,
-        value_data_identifier,
-        value_row_position_identifier,
-    ) = value_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
-        pandas_labels=["b_data", "b_row_pos", "v_data", "v_row_pos"]
+    # perform asof join to find the closet to the cut frame data.
+    asof_result = join(
+        values_frame,
+        cuts_frame,
+        how="asof",
+        left_match_col=values_frame.data_column_snowflake_quoted_identifiers[0],
+        right_match_col=cuts_frame.data_column_snowflake_quoted_identifiers[0],
+        match_comparator=MatchComparator.LESS_THAN_OR_EQUAL_TO
+        if right
+        else MatchComparator.GREATER_THAN_OR_EQUAL_TO,
+        sort=False,
     )
 
-    value_index_identifiers = value_frame.index_column_snowflake_quoted_identifiers
-
-    bucket_snowpark_frame = (
-        cuts_frame.ordered_dataframe.to_projected_snowpark_dataframe(True, True, True)
+    assert cuts_frame.row_position_snowflake_quoted_identifier is not None
+    bin_index_col = col(
+        asof_result.result_column_mapper.map_right_quoted_identifiers(
+            [cuts_frame.row_position_snowflake_quoted_identifier]
+        )[0]
     )
-    value_snowpark_frame = (
-        value_frame.ordered_dataframe.to_projected_snowpark_dataframe(True, True, True)
-    )
-
-    # relabel to new identifiers to reference within range join below.
-    bucket_snowpark_frame = bucket_snowpark_frame.select(
-        col(cuts_frame.data_column_snowflake_quoted_identifiers[0]).as_(
-            bucket_data_identifier
-        ),
-        col(cuts_frame.row_position_snowflake_quoted_identifier).as_(
-            bucket_row_position_identifier
-        ),
-    )
-
-    value_snowpark_frame = value_snowpark_frame.select(
-        *tuple(value_index_identifiers),
-        col(value_frame.data_column_snowflake_quoted_identifiers[0]).as_(
-            value_data_identifier
-        ),
-        col(value_frame.row_position_snowflake_quoted_identifier).as_(
-            value_row_position_identifier
-        ),
-    )
-
-    # Perform a left join. The idea is to find all values which fall into an interval
-    # defined by the cuts/bins in the bucket frame. The closest can be then identified using the
-    # row position. An alternative to this
-    # was to use an ASOF join with a proper matching condition.
-
-    if right:
-        ans = value_snowpark_frame.join(
-            bucket_snowpark_frame,
-            value_snowpark_frame[value_data_identifier]
-            <= bucket_snowpark_frame[bucket_data_identifier],
-            how="left",
-            lsuffix="_L",
-            rsuffix="_R",
-        )
-
-        # Result will be v_row_pos and min(b_row_pos) - 1. However, to deal with the edge cases we need to correct
-        # for the case when the result is in the left-most interval.
-        ans = ans.group_by(
-            value_index_identifiers
-            + [value_data_identifier, value_row_position_identifier]
-        ).min(bucket_row_position_identifier)
-    else:
-        # For right=False, perform a >= join and use max(b_row_pos) - 1.
-        ans = value_snowpark_frame.join(
-            bucket_snowpark_frame,
-            value_snowpark_frame[value_data_identifier]
-            >= bucket_snowpark_frame[bucket_data_identifier],
-            how="left",
-            lsuffix="_L",
-            rsuffix="_R",
-        )
-
-        # Result will be v_row_pos and max(q_row_pos) - 1. However, to deal with the edge cases we need to correct
-        # for the case when the result is in the left-most interval.
-        ans = ans.group_by(
-            value_index_identifiers
-            + [value_data_identifier, value_row_position_identifier]
-        ).max(bucket_row_position_identifier)
-
-    column_names = ans.columns
-    bin_index_col = col(column_names[-1])
 
     if right:
         # An index value of 0 means the data is outside of the first bucket. Set to NULL. All others, perform -1.
@@ -285,31 +219,8 @@ def compute_bin_indices(
             bin_index_col >= pandas_lit(n_cuts - 1), pandas_lit(None), bin_index_col
         ).astype(LongType())
 
-    ans = ans.select(
-        *tuple(value_index_identifiers),
-        col(value_row_position_identifier),
-        correct_index_expr,
-    )
-    column_names = ans.columns
-    new_data_identifier = column_names[-1]
-
-    # Create OrderedDataFrame and InternalFrame and QC out of this.
-    # Need to restore index as well which has been passed through.
-    new_ordered_dataframe = OrderedDataFrame(
-        DataFrameReference(ans),
-        projected_column_snowflake_quoted_identifiers=value_index_identifiers
-        + [new_data_identifier],
-        ordering_columns=[OrderingColumn(value_row_position_identifier)],
-        row_position_snowflake_quoted_identifier=value_row_position_identifier,
-    )
-
-    new_frame = InternalFrame.create(
-        ordered_dataframe=new_ordered_dataframe,
-        data_column_pandas_labels=value_frame.data_column_pandas_labels,
-        data_column_pandas_index_names=value_frame.data_column_index_names,
-        data_column_snowflake_quoted_identifiers=[new_data_identifier],
-        index_column_pandas_labels=value_frame.index_column_pandas_labels,
-        index_column_snowflake_quoted_identifiers=value_index_identifiers,
+    new_frame = asof_result.result_frame.project_columns(
+        [values_frame.data_column_pandas_labels[0]], [correct_index_expr]
     )
 
     return new_frame

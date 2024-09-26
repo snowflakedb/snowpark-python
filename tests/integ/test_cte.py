@@ -10,22 +10,15 @@ import pytest
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import Window
 from snowflake.snowpark._internal.analyzer import analyzer
+from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.utils import (
     TEMP_OBJECT_NAME_PREFIX,
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.functions import (
-    avg,
-    col,
-    lit,
-    seq1,
-    sql_expr,
-    uniform,
-    when_matched,
-)
+from snowflake.snowpark.functions import avg, col, lit, seq1, uniform, when_matched
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
-from tests.utils import TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -35,20 +28,35 @@ pytestmark = [
     )
 ]
 
+binary_operations = [
+    lambda x, y: x.union_all(y),
+    lambda x, y: x.select("a").union(y.select("a")),
+    lambda x, y: x.except_(y),
+    lambda x, y: x.select("a").intersect(y.select("a")),
+    lambda x, y: x.join(y.select("a", "b"), rsuffix="_y"),
+    lambda x, y: x.select("a").join(y, how="outer", rsuffix="_y"),
+    lambda x, y: x.join(y.select("a"), how="left", rsuffix="_y"),
+]
+
 
 WITH = "WITH"
 
+paramList = [False, True]
 
-@pytest.fixture(autouse=True)
-def setup(session):
+
+@pytest.fixture(params=paramList, autouse=True)
+def setup(request, session):
     is_cte_optimization_enabled = session._cte_optimization_enabled
+    is_query_compilation_enabled = session._query_compilation_stage_enabled
+    session._query_compilation_stage_enabled = request.param
     session._cte_optimization_enabled = True
     yield
     session._cte_optimization_enabled = is_cte_optimization_enabled
+    session._query_compilation_stage_enabled = is_query_compilation_enabled
 
 
 def check_result(session, df, expect_cte_optimized):
-    df = df.sort(sql_expr("$1"))
+    df = df.sort(df.columns)
     session._cte_optimization_enabled = False
     result = df.collect()
     result_count = df.count()
@@ -99,18 +107,7 @@ def test_unary(session, action):
     check_result(session, df_action.union_all(df_action), expect_cte_optimized=True)
 
 
-@pytest.mark.parametrize(
-    "action",
-    [
-        lambda x, y: x.union_all(y),
-        lambda x, y: x.select("a").union(y.select("a")),
-        lambda x, y: x.except_(y),
-        lambda x, y: x.select("a").intersect(y.select("a")),
-        lambda x, y: x.join(y.select("a", "b"), rsuffix="_y"),
-        lambda x, y: x.select("a").join(y, how="outer", rsuffix="_y"),
-        lambda x, y: x.join(y.select("a"), how="left", rsuffix="_y"),
-    ],
-)
+@pytest.mark.parametrize("action", binary_operations)
 def test_binary(session, action):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     check_result(session, action(df, df), expect_cte_optimized=True)
@@ -125,7 +122,94 @@ def test_binary(session, action):
         df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_threshold
-    check_result(session, action(df2, df2), expect_cte_optimized=True)
+    df3 = action(df2, df2)
+    check_result(session, df3, expect_cte_optimized=True)
+    plan_queries = df3.queries
+    # check the number of queries
+    assert len(plan_queries["queries"]) == 3
+    assert len(plan_queries["post_actions"]) == 1
+
+
+def test_join_with_alias_dataframe(session):
+    df1 = session.create_dataframe([[1, 6]], schema=["col1", "col2"])
+    df_res = (
+        df1.alias("L")
+        .join(df1.alias("R"), col("L", "col1") == col("R", "col1"))
+        .select(col("L", "col1"), col("R", "col2"))
+    )
+
+    session._cte_optimization_enabled = False
+    result = df_res.collect()
+
+    session._cte_optimization_enabled = True
+    cte_result = df_res.collect()
+
+    Utils.check_answer(cte_result, result)
+
+    last_query = df_res.queries["queries"][-1]
+    assert last_query.startswith(WITH)
+    assert last_query.count(WITH) == 1
+
+
+@pytest.mark.parametrize("action", binary_operations)
+def test_variable_binding_binary(session, action):
+    df1 = session.sql(
+        "select $1 as a, $2 as b from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]
+    )
+    df2 = session.sql(
+        "select $1 as a, $2 as b from values (?, ?), (?, ?)", params=[1, "c", 3, "d"]
+    )
+    df3 = session.sql(
+        "select $1 as a, $2 as b from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]
+    )
+
+    check_result(session, action(df1, df3), expect_cte_optimized=True)
+    check_result(session, action(df1, df2), expect_cte_optimized=False)
+
+
+def test_variable_binding_multiple(session):
+    if not session._query_compilation_stage_enabled:
+        pytest.skip(
+            "CTE query generation without the new query generation doesn't work correctly"
+        )
+
+    df1 = session.sql(
+        "select $1 as a, $2 as b from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]
+    )
+    df2 = session.sql(
+        "select $1 as a, $2 as b from values (?, ?), (?, ?)", params=[1, "c", 3, "d"]
+    )
+
+    df_res = df1.union(df1).union(df2)
+    check_result(session, df_res, expect_cte_optimized=True)
+    plan_queries = df_res._plan.execution_queries
+
+    assert plan_queries[PlanQueryType.QUERIES][-1].params == [
+        1,
+        "a",
+        2,
+        "b",
+        1,
+        "c",
+        3,
+        "d",
+    ]
+
+    df_res = df2.union(df1).union(df2).union(df1)
+    check_result(session, df_res, expect_cte_optimized=True)
+    plan_queries = df_res._plan.execution_queries
+
+    assert plan_queries[PlanQueryType.QUERIES][-1].params == [
+        1,
+        "a",
+        2,
+        "b",
+        1,
+        "c",
+        3,
+        "d",
+    ]
+    assert plan_queries[PlanQueryType.QUERIES][-1].sql.count(WITH) == 1
 
 
 @pytest.mark.parametrize(
@@ -186,7 +270,6 @@ def test_same_duplicate_subtree(session):
     df_result1 = df3.union_all(df3)
     check_result(session, df_result1, expect_cte_optimized=True)
     assert count_number_of_ctes(df_result1.queries["queries"][-1]) == 1
-
     """
                               root
                              /    \
@@ -353,19 +436,19 @@ def test_table(session):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
-@pytest.mark.skipif(
-    "config.getoption('disable_sql_simplifier', default=False)",
-    reason="TODO SNOW-1556590: Re-enable test_sql in test_cte.py when sql simplifier is disabled once new CTE implementation is completed",
-)
 @pytest.mark.parametrize(
     "query",
     [
         "select 1 as a, 2 as b",
         "show tables in schema limit 10",
-        "describe result last_query_id()",
     ],
 )
 def test_sql(session, query):
+    if not session._query_compilation_stage_enabled:
+        pytest.skip(
+            "CTE query generation without the new query generation doesn't work correctly"
+        )
+
     df = session.sql(query).filter(lit(True))
     df_result = df.union_all(df).select("*")
     check_result(session, df_result, expect_cte_optimized=True)
@@ -390,6 +473,7 @@ def test_aggregate(session, action):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_df_reader(session, mode, resources_path):
     reader = get_reader(session, mode)
@@ -415,20 +499,20 @@ def test_join_table_function(session):
 
 
 def test_pivot_unpivot(session):
-    session.sql(
-        """create or replace temp table monthly_sales(empid int, amount int, month text)
-             as select * from values
-             (1, 10000, 'JAN'),
-             (1, 400, 'JAN'),
-             (2, 4500, 'JAN'),
-             (2, 35000, 'JAN'),
-             (1, 5000, 'FEB'),
-             (1, 3000, 'FEB'),
-             (2, 200, 'FEB')"""
-    ).collect()
-    df_pivot = (
-        session.table("monthly_sales").pivot("month", ["JAN", "FEB"]).sum("amount")
-    )
+    table_name = Utils.random_table_name()
+    session.create_dataframe(
+        [
+            (1, 10000, "JAN"),
+            (1, 400, "JAN"),
+            (2, 4500, "JAN"),
+            (2, 35000, "JAN"),
+            (1, 5000, "FEB"),
+            (1, 3000, "FEB"),
+            (2, 200, "FEB"),
+        ],
+        schema=["empid", "amount", "month"],
+    ).write.save_as_table(table_name, table_type="temp")
+    df_pivot = session.table(table_name).pivot("month", ["JAN", "FEB"]).sum("amount")
     df_unpivot = session.create_dataframe(
         [(1, "electronics", 100, 200), (2, "clothes", 100, 300)],
         schema=["empid", "dept", "jan", "feb"],
@@ -459,6 +543,43 @@ def test_window_function(session):
     df_result = df.union_all(df).select("*")
     check_result(session, df_result, expect_cte_optimized=True)
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
+)
+def test_in_with_subquery_multiple_query(session):
+    if session._sql_simplifier_enabled:
+        pytest.skip(
+            "SNOW-1678419 pre and post actions are not propagated properly for SelectStatement"
+        )
+    # multiple queries
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df0 = session.create_dataframe([[1], [2], [5], [7]], schema=["a"])
+        df = session.create_dataframe(
+            [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33], [5, "c", 21, 18]],
+            schema=["a", "b", "c", "d"],
+        )
+        df_filter = df0.filter(col("a") < 3)
+        df_in = df.filter(~df["a"].in_(df_filter))
+        df_result = df_in.union_all(df_in).select("*")
+        check_result(session, df_result, expect_cte_optimized=True)
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+
+
+def test_select_with_column_expr_alias(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df1 = df.select("a", "b", (col("a") + col("b")).as_("c"))
+    df2 = df1.select("a", "b", "c", (col("a") + col("b") + 1).as_("d"))
+    df_result = df2.union_all(df2).select("*")
+    check_result(session, df_result, expect_cte_optimized=True)
+
+    df2 = df.select_expr("a + 1 as a", "b + 1 as b")
+    df_result = df2.union_all(df2).select("*")
+    check_result(session, df_result, expect_cte_optimized=True)
 
 
 def test_cte_optimization_enabled_parameter(session, caplog):

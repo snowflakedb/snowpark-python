@@ -44,12 +44,9 @@ def test_unsupported_io(io_method, kwargs):
     "general_method, kwargs",
     [
         ["merge_ordered", {"left": "", "right": ""}],
-        ["merge_asof", {"left": "", "right": ""}],
         ["value_counts", {"values": ""}],
-        ["crosstab", {"index": "", "columns": ""}],
         ["lreshape", {"data": "", "groups": ""}],
         ["wide_to_long", {"df": "", "stubnames": "", "i": "", "j": ""}],
-        ["to_timedelta", {"arg": ""}],
     ],
 )
 def test_unsupported_general(general_method, kwargs):
@@ -75,7 +72,9 @@ def test_unsupported_general(general_method, kwargs):
         ["droplevel", {"level": ""}],
         ["eval", {"expr": "xxx"}],
         ["ewm", {}],
-        ["explode", {"column": ""}],
+        ["clip", {}],
+        ["combine", {"other": "", "func": ""}],
+        ["combine_first", {"other": ""}],
         ["filter", {}],
         ["from_dict", {"data": ""}],
         ["from_records", {"data": ""}],
@@ -133,20 +132,6 @@ def test_unsupported_df(df_method, kwargs):
 
     with pytest.raises(NotImplementedError):
         getattr(mock_df, df_method)(**kwargs)
-
-
-@pytest.mark.parametrize(
-    "df_method, kwargs",
-    [["items", {}], ["iteritems", {}]],
-)
-def test_unsupported_df_generator(df_method, kwargs):
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    mock_df = DataFrame(query_compiler=mock_query_compiler)
-
-    with pytest.raises(NotImplementedError):
-        for x in getattr(mock_df, df_method)(**kwargs):
-            x + 1
 
 
 @pytest.mark.parametrize(

@@ -94,6 +94,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldInt,
     SubfieldString,
     UnresolvedAttribute,
+    WithinGroup,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
@@ -259,6 +260,13 @@ class MockFileOperation(MockExecutionPlan):
         self.options = options
 
 
+def coerce_order_by_arguments(order_by: List[Expression]):
+    return [
+        order if isinstance(order, SortOrder) else SortOrder(order, Ascending())
+        for order in order_by
+    ]
+
+
 def handle_order_by_clause(
     order_by: List[SortOrder],
     result_df: TableEmulator,
@@ -349,18 +357,21 @@ def handle_function_expression(
     current_row=None,
 ):
     func = MockedFunctionRegistry.get_or_create().get_function(exp)
+    connection_lock = analyzer.session._conn.get_lock()
 
     if func is None:
-        current_schema = analyzer.session.get_current_schema()
-        current_database = analyzer.session.get_current_database()
+        with connection_lock:
+            current_schema = analyzer.session.get_current_schema()
+            current_database = analyzer.session.get_current_database()
         udf_name = get_fully_qualified_name(exp.name, current_schema, current_database)
 
         # If udf name in the registry then this is a udf, not an actual function
-        if udf_name in analyzer.session.udf._registry:
-            exp.udf_name = udf_name
-            return handle_udf_expression(
-                exp, input_data, analyzer, expr_to_alias, current_row
-            )
+        with connection_lock:
+            if udf_name in analyzer.session.udf._registry:
+                exp.udf_name = udf_name
+                return handle_udf_expression(
+                    exp, input_data, analyzer, expr_to_alias, current_row
+                )
 
         if exp.api_call_source == "functions.call_udf":
             raise SnowparkLocalTestingException(
@@ -455,9 +466,12 @@ def handle_udf_expression(
 ):
     udf_registry = analyzer.session.udf
     udf_name = exp.udf_name
-    udf = udf_registry.get_udf(udf_name)
+    connection_lock = analyzer.session._conn.get_lock()
+    with connection_lock:
+        udf = udf_registry.get_udf(udf_name)
+        udf_imports = udf_registry.get_udf_imports(udf_name)
 
-    with ImportContext(udf_registry.get_udf_imports(udf_name)):
+    with ImportContext(udf_imports):
         # Resolve handler callable
         if type(udf.func) is tuple:
             module_name, handler_name = udf.func
@@ -479,29 +493,21 @@ def handle_udf_expression(
                 child, input_data, analyzer, expr_to_alias
             )
 
-            # SNOW-929218: Once proper type coercion is supported use that instead.
-            if isinstance(expected_type, VariantType) and not isinstance(
-                column_data.sf_type.datatype, VariantType
-            ):
-                column_data.sf_type = ColumnType(
-                    VariantType(), column_data.sf_type.nullable
-                )
-
             # Variant Data is often cast to specific python types when passed to a udf.
             if isinstance(expected_type, VariantType):
                 column_data = column_data.apply(coerce_variant_input)
 
-            function_input[col_name] = column_data
-
-            if (
-                get_coerce_result_type(
-                    column_data.sf_type, ColumnType(expected_type, False)
-                )
-                is None
-            ):
+            coerce_result = get_coerce_result_type(
+                column_data.sf_type, ColumnType(expected_type, False)
+            )
+            if coerce_result is None:
                 raise SnowparkLocalTestingException(
                     f"UDF received input type {column_data.sf_type.datatype} for column {child.name}, but expected input type of {expected_type}"
                 )
+
+            function_input[col_name] = cast_column_to(
+                column_data, ColumnType(expected_type, False)
+            )
 
         try:
             # we do not use pd.apply here because pd.apply will auto infer dtype for the output column
@@ -556,6 +562,7 @@ def execute_mock_plan(
         analyzer = plan.analyzer
 
     entity_registry = analyzer.session._conn.entity_registry
+    connection_lock = analyzer.session._conn.get_lock()
 
     if isinstance(source_plan, SnowflakeValues):
         table = TableEmulator(
@@ -728,18 +735,20 @@ def execute_mock_plan(
         return res_df
     if isinstance(source_plan, MockSelectableEntity):
         entity_name = source_plan.entity.name
-        if entity_registry.is_existing_table(entity_name):
-            return entity_registry.read_table(entity_name)
-        elif entity_registry.is_existing_view(entity_name):
-            execution_plan = entity_registry.get_review(entity_name)
+        table = entity_registry.read_table_if_exists(entity_name)
+        if table is not None:
+            return table
+
+        execution_plan = entity_registry.read_view_if_exists(entity_name)
+        if execution_plan is not None:
             res_df = execute_mock_plan(execution_plan, expr_to_alias)
             return res_df
-        else:
-            db_schme_table = parse_table_name(entity_name)
-            table = ".".join([part.strip("\"'") for part in db_schme_table[:3]])
-            raise SnowparkLocalTestingException(
-                f"Object '{table}' does not exist or not authorized."
-            )
+
+        db_schema_table = parse_table_name(entity_name)
+        table = ".".join([part.strip("\"'") for part in db_schema_table[:3]])
+        raise SnowparkLocalTestingException(
+            f"Object '{table}' does not exist or not authorized."
+        )
     if isinstance(source_plan, Aggregate):
         child_rf = execute_mock_plan(source_plan.child, expr_to_alias)
         if (
@@ -766,6 +775,16 @@ def execute_mock_plan(
         for i in range(len(intermediate_mapped_column)):
             agg_expr = source_plan.aggregate_expressions[i]
             if isinstance(agg_expr, Alias):
+                # Pop wthin group clause and reorder data if needed
+                if isinstance(agg_expr.child, WithinGroup):
+                    order_by_cols = coerce_order_by_arguments(
+                        agg_expr.child.order_by_cols
+                    )
+                    child_rf = handle_order_by_clause(
+                        order_by_cols, child_rf, analyzer, expr_to_alias, False
+                    )
+                    agg_expr = agg_expr.child
+
                 if isinstance(agg_expr.child, Literal) and isinstance(
                     agg_expr.child.datatype, _NumericType
                 ):
@@ -1101,28 +1120,30 @@ def execute_mock_plan(
         )
     if isinstance(source_plan, SnowflakeTable):
         entity_name = source_plan.name
-        if entity_registry.is_existing_table(entity_name):
-            return entity_registry.read_table(entity_name)
-        elif entity_registry.is_existing_view(entity_name):
-            execution_plan = entity_registry.get_review(entity_name)
+        table = entity_registry.read_table_if_exists(entity_name)
+        if table is not None:
+            return table
+
+        execution_plan = entity_registry.read_view_if_exists(entity_name)
+        if execution_plan is not None:
             res_df = execute_mock_plan(execution_plan, expr_to_alias)
             return res_df
-        else:
-            obj_name_tuple = parse_table_name(entity_name)
-            obj_name = obj_name_tuple[-1]
-            obj_schema = (
-                obj_name_tuple[-2]
-                if len(obj_name_tuple) > 1
-                else analyzer.session.get_current_schema()
-            )
-            obj_database = (
-                obj_name_tuple[-3]
-                if len(obj_name_tuple) > 2
-                else analyzer.session.get_current_database()
-            )
-            raise SnowparkLocalTestingException(
-                f"Object '{obj_database[1:-1]}.{obj_schema[1:-1]}.{obj_name[1:-1]}' does not exist or not authorized."
-            )
+
+        obj_name_tuple = parse_table_name(entity_name)
+        obj_name = obj_name_tuple[-1]
+        obj_schema = (
+            obj_name_tuple[-2]
+            if len(obj_name_tuple) > 1
+            else analyzer.session.get_current_schema()
+        )
+        obj_database = (
+            obj_name_tuple[-3]
+            if len(obj_name_tuple) > 2
+            else analyzer.session.get_current_database()
+        )
+        raise SnowparkLocalTestingException(
+            f"Object '{obj_database[1:-1]}.{obj_schema[1:-1]}.{obj_name[1:-1]}' does not exist or not authorized."
+        )
     if isinstance(source_plan, Sample):
         res_df = execute_mock_plan(source_plan.child, expr_to_alias)
 
@@ -1149,272 +1170,283 @@ def execute_mock_plan(
         return from_df
 
     if isinstance(source_plan, TableUpdate):
-        target = entity_registry.read_table(source_plan.table_name)
-        ROW_ID = "row_id_" + generate_random_alphanumeric()
-        target.insert(0, ROW_ID, range(len(target)))
+        # since we are modifying the table, we need to ensure that no other thread
+        # reads the table until it is updated
+        with connection_lock:
+            target = entity_registry.read_table(source_plan.table_name)
+            ROW_ID = "row_id_" + generate_random_alphanumeric()
+            target.insert(0, ROW_ID, range(len(target)))
 
-        if source_plan.source_data:
-            # Calculate cartesian product
-            source = execute_mock_plan(source_plan.source_data, expr_to_alias)
-            cartesian_product = target.merge(source, on=None, how="cross")
-            cartesian_product.sf_types.update(target.sf_types)
-            cartesian_product.sf_types.update(source.sf_types)
-            intermediate = cartesian_product
-        else:
-            intermediate = target
+            if source_plan.source_data:
+                # Calculate cartesian product
+                source = execute_mock_plan(source_plan.source_data, expr_to_alias)
+                cartesian_product = target.merge(source, on=None, how="cross")
+                cartesian_product.sf_types.update(target.sf_types)
+                cartesian_product.sf_types.update(source.sf_types)
+                intermediate = cartesian_product
+            else:
+                intermediate = target
 
-        if source_plan.condition:
-            # Select rows to be updated based on condition
-            condition = calculate_expression(
-                source_plan.condition, intermediate, analyzer, expr_to_alias
-            ).fillna(value=False)
+            if source_plan.condition:
+                # Select rows to be updated based on condition
+                condition = calculate_expression(
+                    source_plan.condition, intermediate, analyzer, expr_to_alias
+                ).fillna(value=False)
 
-            matched = target.apply(tuple, 1).isin(
-                intermediate[condition][target.columns].apply(tuple, 1)
+                matched = target.apply(tuple, 1).isin(
+                    intermediate[condition][target.columns].apply(tuple, 1)
+                )
+                matched.sf_type = ColumnType(BooleanType(), True)
+                matched_rows = target[matched]
+                intermediate = intermediate[condition]
+            else:
+                matched_rows = target
+
+            # Calculate multi_join
+            matched_count = intermediate[target.columns].value_counts(dropna=False)[
+                matched_rows.apply(tuple, 1)
+            ]
+            multi_joins = matched_count.where(lambda x: x > 1).count()
+
+            # Select rows that match the condition to be updated
+            rows_to_update = intermediate.drop_duplicates(
+                subset=matched_rows.columns, keep="first"
+            ).reset_index(  # ERROR_ON_NONDETERMINISTIC_UPDATE is by default False, pick one row to update
+                drop=True
             )
-            matched.sf_type = ColumnType(BooleanType(), True)
-            matched_rows = target[matched]
-            intermediate = intermediate[condition]
-        else:
-            matched_rows = target
+            rows_to_update.sf_types = intermediate.sf_types
 
-        # Calculate multi_join
-        matched_count = intermediate[target.columns].value_counts(dropna=False)[
-            matched_rows.apply(tuple, 1)
-        ]
-        multi_joins = matched_count.where(lambda x: x > 1).count()
+            # Update rows in place
+            for attr, new_expr in source_plan.assignments.items():
+                column_name = analyzer.analyze(attr, expr_to_alias)
+                target_index = target.loc[rows_to_update[ROW_ID]].index
+                new_val = calculate_expression(
+                    new_expr, rows_to_update, analyzer, expr_to_alias
+                )
+                new_val.index = target_index
+                target.loc[rows_to_update[ROW_ID], column_name] = new_val
 
-        # Select rows that match the condition to be updated
-        rows_to_update = intermediate.drop_duplicates(
-            subset=matched_rows.columns, keep="first"
-        ).reset_index(  # ERROR_ON_NONDETERMINISTIC_UPDATE is by default False, pick one row to update
-            drop=True
-        )
-        rows_to_update.sf_types = intermediate.sf_types
+            # Delete row_id
+            target = target.drop(ROW_ID, axis=1)
 
-        # Update rows in place
-        for attr, new_expr in source_plan.assignments.items():
-            column_name = analyzer.analyze(attr, expr_to_alias)
-            target_index = target.loc[rows_to_update[ROW_ID]].index
-            new_val = calculate_expression(
-                new_expr, rows_to_update, analyzer, expr_to_alias
+            # Write result back to table
+            entity_registry.write_table(
+                source_plan.table_name, target, SaveMode.OVERWRITE
             )
-            new_val.index = target_index
-            target.loc[rows_to_update[ROW_ID], column_name] = new_val
-
-        # Delete row_id
-        target = target.drop(ROW_ID, axis=1)
-
-        # Write result back to table
-        entity_registry.write_table(source_plan.table_name, target, SaveMode.OVERWRITE)
         return [Row(len(rows_to_update), multi_joins)]
     elif isinstance(source_plan, TableDelete):
-        target = entity_registry.read_table(source_plan.table_name)
+        # since we are modifying the table, we need to ensure that no other thread
+        # reads the table until it is updated
+        with connection_lock:
+            target = entity_registry.read_table(source_plan.table_name)
 
-        if source_plan.source_data:
-            # Calculate cartesian product
-            source = execute_mock_plan(source_plan.source_data, expr_to_alias)
-            cartesian_product = target.merge(source, on=None, how="cross")
-            cartesian_product.sf_types.update(target.sf_types)
-            cartesian_product.sf_types.update(source.sf_types)
-            intermediate = cartesian_product
-        else:
-            intermediate = target
+            if source_plan.source_data:
+                # Calculate cartesian product
+                source = execute_mock_plan(source_plan.source_data, expr_to_alias)
+                cartesian_product = target.merge(source, on=None, how="cross")
+                cartesian_product.sf_types.update(target.sf_types)
+                cartesian_product.sf_types.update(source.sf_types)
+                intermediate = cartesian_product
+            else:
+                intermediate = target
 
-        # Select rows to keep based on condition
-        if source_plan.condition:
-            condition = calculate_expression(
-                source_plan.condition, intermediate, analyzer, expr_to_alias
-            ).fillna(value=False)
-            intermediate = intermediate[condition]
-            matched = target.apply(tuple, 1).isin(
-                intermediate[target.columns].apply(tuple, 1)
-            )
-            matched.sf_type = ColumnType(BooleanType(), True)
-            rows_to_keep = target[~matched]
-        else:
-            rows_to_keep = target.head(0)
-
-        # Write rows to keep to table registry
-        entity_registry.write_table(
-            source_plan.table_name, rows_to_keep, SaveMode.OVERWRITE
-        )
-        return [Row(len(target) - len(rows_to_keep))]
-    elif isinstance(source_plan, TableMerge):
-        target = entity_registry.read_table(source_plan.table_name)
-        ROW_ID = "row_id_" + generate_random_alphanumeric()
-        SOURCE_ROW_ID = "source_row_id_" + generate_random_alphanumeric()
-        # Calculate cartesian product
-        source = execute_mock_plan(source_plan.source, expr_to_alias)
-
-        # Insert row_id and source row_id
-        target.insert(0, ROW_ID, range(len(target)))
-        source.insert(0, SOURCE_ROW_ID, range(len(source)))
-
-        cartesian_product = target.merge(source, on=None, how="cross")
-        cartesian_product.sf_types.update(target.sf_types)
-        cartesian_product.sf_types.update(source.sf_types)
-        join_condition = calculate_expression(
-            source_plan.join_expr, cartesian_product, analyzer, expr_to_alias
-        )
-        join_result = cartesian_product[join_condition]
-        join_result.sf_types = cartesian_product.sf_types
-
-        # TODO [GA]: # ERROR_ON_NONDETERMINISTIC_MERGE is by default True, raise error if
-        # (1) A target row is selected to be updated with multiple values OR
-        # (2) A target row is selected to be both updated and deleted
-
-        inserted_rows = []
-        insert_clause_specified = (
-            update_clause_specified
-        ) = delete_clause_specified = False
-        inserted_row_idx = set()  # source_row_id
-        deleted_row_idx = set()
-        updated_row_idx = set()
-        for clause in source_plan.clauses:
-            if isinstance(clause, UpdateMergeExpression):
-                update_clause_specified = True
-                # Select rows to update
-                if clause.condition:
-                    condition = calculate_expression(
-                        clause.condition, join_result, analyzer, expr_to_alias
-                    ).fillna(value=False)
-                    rows_to_update = join_result[condition]
-                else:
-                    rows_to_update = join_result
-
-                rows_to_update = rows_to_update[
-                    ~rows_to_update[ROW_ID]
-                    .isin(updated_row_idx.union(deleted_row_idx))
-                    .values
-                ]
-
-                # Update rows in place
-                for attr, new_expr in clause.assignments.items():
-                    column_name = analyzer.analyze(attr, expr_to_alias)
-                    target_index = target.loc[rows_to_update[ROW_ID]].index
-                    new_val = calculate_expression(
-                        new_expr, rows_to_update, analyzer, expr_to_alias
-                    )
-                    new_val.index = target_index
-                    target.loc[rows_to_update[ROW_ID], column_name] = new_val
-
-                # Update updated row id set
-                for _, row in rows_to_update.iterrows():
-                    updated_row_idx.add(row[ROW_ID])
-
-            elif isinstance(clause, DeleteMergeExpression):
-                delete_clause_specified = True
-                # Select rows to delete
-                if clause.condition:
-                    condition = calculate_expression(
-                        clause.condition, join_result, analyzer, expr_to_alias
-                    ).fillna(value=False)
-                    intermediate = join_result[condition]
-                else:
-                    intermediate = join_result
-
+            # Select rows to keep based on condition
+            if source_plan.condition:
+                condition = calculate_expression(
+                    source_plan.condition, intermediate, analyzer, expr_to_alias
+                ).fillna(value=False)
+                intermediate = intermediate[condition]
                 matched = target.apply(tuple, 1).isin(
                     intermediate[target.columns].apply(tuple, 1)
                 )
                 matched.sf_type = ColumnType(BooleanType(), True)
+                rows_to_keep = target[~matched]
+            else:
+                rows_to_keep = target.head(0)
 
-                # Update deleted row id set
-                for _, row in target[matched].iterrows():
-                    deleted_row_idx.add(row[ROW_ID])
+            # Write rows to keep to table registry
+            entity_registry.write_table(
+                source_plan.table_name, rows_to_keep, SaveMode.OVERWRITE
+            )
+        return [Row(len(target) - len(rows_to_keep))]
+    elif isinstance(source_plan, TableMerge):
+        # since we are modifying the table, we need to ensure that no other thread
+        # reads the table until it is updated
+        with connection_lock:
+            target = entity_registry.read_table(source_plan.table_name)
+            ROW_ID = "row_id_" + generate_random_alphanumeric()
+            SOURCE_ROW_ID = "source_row_id_" + generate_random_alphanumeric()
+            # Calculate cartesian product
+            source = execute_mock_plan(source_plan.source, expr_to_alias)
 
-                # Delete rows in place
-                target = target[~matched]
+            # Insert row_id and source row_id
+            target.insert(0, ROW_ID, range(len(target)))
+            source.insert(0, SOURCE_ROW_ID, range(len(source)))
 
-            elif isinstance(clause, InsertMergeExpression):
-                insert_clause_specified = True
-                # calculate unmatched rows in the source
-                matched = source.apply(tuple, 1).isin(
-                    join_result[source.columns].apply(tuple, 1)
-                )
-                matched.sf_type = ColumnType(BooleanType(), True)
-                unmatched_rows_in_source = source[~matched]
+            cartesian_product = target.merge(source, on=None, how="cross")
+            cartesian_product.sf_types.update(target.sf_types)
+            cartesian_product.sf_types.update(source.sf_types)
+            join_condition = calculate_expression(
+                source_plan.join_expr, cartesian_product, analyzer, expr_to_alias
+            )
+            join_result = cartesian_product[join_condition]
+            join_result.sf_types = cartesian_product.sf_types
 
-                # select unmatched rows that qualify the condition
-                if clause.condition:
-                    condition = calculate_expression(
-                        clause.condition,
-                        unmatched_rows_in_source,
-                        analyzer,
-                        expr_to_alias,
-                    ).fillna(value=False)
-                    unmatched_rows_in_source = unmatched_rows_in_source[condition]
+            # TODO [GA]: # ERROR_ON_NONDETERMINISTIC_MERGE is by default True, raise error if
+            # (1) A target row is selected to be updated with multiple values OR
+            # (2) A target row is selected to be both updated and deleted
 
-                # filter out the unmatched rows that have been inserted in previous clauses
-                unmatched_rows_in_source = unmatched_rows_in_source[
-                    ~unmatched_rows_in_source[SOURCE_ROW_ID]
-                    .isin(inserted_row_idx)
-                    .values
-                ]
+            inserted_rows = []
+            insert_clause_specified = (
+                update_clause_specified
+            ) = delete_clause_specified = False
+            inserted_row_idx = set()  # source_row_id
+            deleted_row_idx = set()
+            updated_row_idx = set()
+            for clause in source_plan.clauses:
+                if isinstance(clause, UpdateMergeExpression):
+                    update_clause_specified = True
+                    # Select rows to update
+                    if clause.condition:
+                        condition = calculate_expression(
+                            clause.condition, join_result, analyzer, expr_to_alias
+                        ).fillna(value=False)
+                        rows_to_update = join_result[condition]
+                    else:
+                        rows_to_update = join_result
 
-                # update inserted row idx set
-                for _, row in unmatched_rows_in_source.iterrows():
-                    inserted_row_idx.add(row[SOURCE_ROW_ID])
+                    rows_to_update = rows_to_update[
+                        ~rows_to_update[ROW_ID]
+                        .isin(updated_row_idx.union(deleted_row_idx))
+                        .values
+                    ]
 
-                # Calculate rows to insert
-                rows_to_insert = TableEmulator(
-                    [], columns=target.drop(ROW_ID, axis=1).columns, dtype=object
-                )
-                rows_to_insert.sf_types = target.sf_types
-                if clause.keys:
-                    # Keep track of specified columns
-                    inserted_columns = set()
-                    for k, v in zip(clause.keys, clause.values):
-                        column_name = analyzer.analyze(k, expr_to_alias)
-                        if column_name not in rows_to_insert.columns:
-                            raise SnowparkLocalTestingException(
-                                f"invalid identifier '{column_name}'"
+                    # Update rows in place
+                    for attr, new_expr in clause.assignments.items():
+                        column_name = analyzer.analyze(attr, expr_to_alias)
+                        target_index = target.loc[rows_to_update[ROW_ID]].index
+                        new_val = calculate_expression(
+                            new_expr, rows_to_update, analyzer, expr_to_alias
+                        )
+                        new_val.index = target_index
+                        target.loc[rows_to_update[ROW_ID], column_name] = new_val
+
+                    # Update updated row id set
+                    for _, row in rows_to_update.iterrows():
+                        updated_row_idx.add(row[ROW_ID])
+
+                elif isinstance(clause, DeleteMergeExpression):
+                    delete_clause_specified = True
+                    # Select rows to delete
+                    if clause.condition:
+                        condition = calculate_expression(
+                            clause.condition, join_result, analyzer, expr_to_alias
+                        ).fillna(value=False)
+                        intermediate = join_result[condition]
+                    else:
+                        intermediate = join_result
+
+                    matched = target.apply(tuple, 1).isin(
+                        intermediate[target.columns].apply(tuple, 1)
+                    )
+                    matched.sf_type = ColumnType(BooleanType(), True)
+
+                    # Update deleted row id set
+                    for _, row in target[matched].iterrows():
+                        deleted_row_idx.add(row[ROW_ID])
+
+                    # Delete rows in place
+                    target = target[~matched]
+
+                elif isinstance(clause, InsertMergeExpression):
+                    insert_clause_specified = True
+                    # calculate unmatched rows in the source
+                    matched = source.apply(tuple, 1).isin(
+                        join_result[source.columns].apply(tuple, 1)
+                    )
+                    matched.sf_type = ColumnType(BooleanType(), True)
+                    unmatched_rows_in_source = source[~matched]
+
+                    # select unmatched rows that qualify the condition
+                    if clause.condition:
+                        condition = calculate_expression(
+                            clause.condition,
+                            unmatched_rows_in_source,
+                            analyzer,
+                            expr_to_alias,
+                        ).fillna(value=False)
+                        unmatched_rows_in_source = unmatched_rows_in_source[condition]
+
+                    # filter out the unmatched rows that have been inserted in previous clauses
+                    unmatched_rows_in_source = unmatched_rows_in_source[
+                        ~unmatched_rows_in_source[SOURCE_ROW_ID]
+                        .isin(inserted_row_idx)
+                        .values
+                    ]
+
+                    # update inserted row idx set
+                    for _, row in unmatched_rows_in_source.iterrows():
+                        inserted_row_idx.add(row[SOURCE_ROW_ID])
+
+                    # Calculate rows to insert
+                    rows_to_insert = TableEmulator(
+                        [], columns=target.drop(ROW_ID, axis=1).columns, dtype=object
+                    )
+                    rows_to_insert.sf_types = target.sf_types
+                    if clause.keys:
+                        # Keep track of specified columns
+                        inserted_columns = set()
+                        for k, v in zip(clause.keys, clause.values):
+                            column_name = analyzer.analyze(k, expr_to_alias)
+                            if column_name not in rows_to_insert.columns:
+                                raise SnowparkLocalTestingException(
+                                    f"invalid identifier '{column_name}'"
+                                )
+                            inserted_columns.add(column_name)
+                            new_val = calculate_expression(
+                                v, unmatched_rows_in_source, analyzer, expr_to_alias
                             )
-                        inserted_columns.add(column_name)
-                        new_val = calculate_expression(
-                            v, unmatched_rows_in_source, analyzer, expr_to_alias
-                        )
-                        # pandas could do implicit type conversion, e.g. from datetime to timestamp
-                        # reconstructing ColumnEmulator helps preserve the original date type
-                        rows_to_insert[column_name] = ColumnEmulator(
-                            new_val.values,
-                            dtype=object,
-                            sf_type=rows_to_insert[column_name].sf_type,
-                        )
+                            # pandas could do implicit type conversion, e.g. from datetime to timestamp
+                            # reconstructing ColumnEmulator helps preserve the original date type
+                            rows_to_insert[column_name] = ColumnEmulator(
+                                new_val.values,
+                                dtype=object,
+                                sf_type=rows_to_insert[column_name].sf_type,
+                            )
 
-                    # For unspecified columns, use None as default value
-                    for unspecified_col in set(rows_to_insert.columns).difference(
-                        inserted_columns
-                    ):
-                        rows_to_insert[unspecified_col].replace(
-                            np.nan, None, inplace=True
-                        )
+                        # For unspecified columns, use None as default value
+                        for unspecified_col in set(rows_to_insert.columns).difference(
+                            inserted_columns
+                        ):
+                            rows_to_insert[unspecified_col].replace(
+                                np.nan, None, inplace=True
+                            )
 
-                else:
-                    if len(clause.values) != len(rows_to_insert.columns):
-                        raise SnowparkLocalTestingException(
-                            f"Insert value list does not match column list expecting {len(rows_to_insert.columns)} but got {len(clause.values)}"
-                        )
-                    for col, v in zip(rows_to_insert.columns, clause.values):
-                        new_val = calculate_expression(
-                            v, unmatched_rows_in_source, analyzer, expr_to_alias
-                        )
-                        rows_to_insert[col] = new_val
+                    else:
+                        if len(clause.values) != len(rows_to_insert.columns):
+                            raise SnowparkLocalTestingException(
+                                f"Insert value list does not match column list expecting {len(rows_to_insert.columns)} but got {len(clause.values)}"
+                            )
+                        for col, v in zip(rows_to_insert.columns, clause.values):
+                            new_val = calculate_expression(
+                                v, unmatched_rows_in_source, analyzer, expr_to_alias
+                            )
+                            rows_to_insert[col] = new_val
 
-                inserted_rows.append(rows_to_insert)
+                    inserted_rows.append(rows_to_insert)
 
-        # Remove inserted ROW ID column
-        target = target.drop(ROW_ID, axis=1)
+            # Remove inserted ROW ID column
+            target = target.drop(ROW_ID, axis=1)
 
-        # Process inserted rows
-        if inserted_rows:
-            res = pd.concat([target] + inserted_rows)
-            res.sf_types = target.sf_types
-        else:
-            res = target
+            # Process inserted rows
+            if inserted_rows:
+                res = pd.concat([target] + inserted_rows)
+                res.sf_types = target.sf_types
+            else:
+                res = target
 
-        # Write the result back to table
-        entity_registry.write_table(source_plan.table_name, res, SaveMode.OVERWRITE)
+            # Write the result back to table
+            entity_registry.write_table(source_plan.table_name, res, SaveMode.OVERWRITE)
 
         # Generate metadata result
         res = []
@@ -1629,6 +1661,12 @@ def calculate_expression(
             is_distinct=exp.is_distinct,
             delimiter=exp.delimiter,
         )
+    if isinstance(exp, WithinGroup):
+        order_by_cols = coerce_order_by_arguments(exp.order_by_cols)
+        ordered_data = handle_order_by_clause(
+            order_by_cols, input_data, analyzer, expr_to_alias, False
+        )
+        return calculate_expression(exp.child, ordered_data, analyzer, expr_to_alias)
     if isinstance(exp, IsNull):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
@@ -1777,11 +1815,36 @@ def calculate_expression(
         raw_pattern = calculate_expression(
             exp.pattern, input_data, analyzer, expr_to_alias
         )
-        arguments = TableEmulator({"LHS": lhs, "PATTERN": raw_pattern})
+        flags = (
+            None
+            if exp.parameters is None
+            else calculate_expression(
+                exp.parameters, input_data, analyzer, expr_to_alias
+            )
+        )
+        arguments = TableEmulator({"LHS": lhs, "PATTERN": raw_pattern, "FLAGS": flags})
 
         def _match_pattern(row) -> bool:
             input_str = row["LHS"]
             raw_pattern = row["PATTERN"]
+            flag_string = row["FLAGS"]
+            flags = 0
+
+            if flag_string:
+                case = multiline = newline = 0
+                for c in flag_string.lower():
+                    if c == "c":
+                        case = 0
+                    elif c == "i":
+                        case = re.I
+                    elif c == "m":
+                        # Multi-line mode does not appear to work correctly on the server side
+                        # multiline = re.M
+                        pass
+                    elif c == "s":
+                        newline = re.S
+                flags = case | multiline | newline
+
             _pattern = (
                 f"^{raw_pattern}" if not raw_pattern.startswith("^") else raw_pattern
             )
@@ -1794,7 +1857,7 @@ def calculate_expression(
                     f"Invalid regular expression {raw_pattern}"
                 )
 
-            return bool(re.match(_pattern, input_str))
+            return bool(re.match(_pattern, input_str, flags=flags))
 
         result = arguments.apply(_match_pattern, axis=1)
         result.sf_type = ColumnType(BooleanType(), True)
@@ -1911,11 +1974,16 @@ def calculate_expression(
         window_spec = exp.window_spec
 
         # Process order by clause
-        if window_spec.order_spec:
+        if window_spec.order_spec or isinstance(window_function, WithinGroup):
+            order_spec = window_spec.order_spec
+            if isinstance(window_function, WithinGroup):
+                order_spec = coerce_order_by_arguments(window_function.order_by_cols)
+                window_function = window_function.child
+
             # If the window function is a function expression then any intermediate
             # columns that are used for ordering may be needed later and should be retained.
             ordered = handle_order_by_clause(
-                window_spec.order_spec,
+                order_spec,
                 input_data,
                 analyzer,
                 expr_to_alias,

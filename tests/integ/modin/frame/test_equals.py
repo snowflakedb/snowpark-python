@@ -15,10 +15,21 @@ from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
     "lhs, rhs, expected",
     [
         ([1, 2, 3], [1, 2, 3], True),
+        pytest.param(
+            [pd.Timedelta(1), pd.Timedelta(2), pd.Timedelta(3)],
+            [pd.Timedelta(1), pd.Timedelta(2), pd.Timedelta(3)],
+            True,
+            id="timedelta",
+        ),
         ([1, 2, 3], [1, 2, 4], False),  # different values
         ([1, 2, None], [1, 2, None], True),  # nulls are considered equal
         ([1, 2, 3], [1.0, 2.0, 3.0], False),  # float and integer types are not equal
         ([1, 2, 3], ["1", "2", "3"], False),  # integer and string types are not equal
+        (
+            [1, 2, 3],
+            pandas.timedelta_range(1, periods=3),
+            False,  # timedelta and integer types are not equal
+        ),
     ],
 )
 @sql_count_checker(query_count=2, join_count=2)
@@ -58,6 +69,8 @@ def test_equals_column_labels(lhs, rhs, expected):
         (np.float64, np.float32, True),
         (np.int16, "object", False),
         (np.int16, np.float16, False),
+        ("timedelta64[ns]", int, False),
+        ("timedelta64[ns]", float, False),
     ],
 )
 @sql_count_checker(query_count=2, join_count=2)

@@ -58,6 +58,7 @@ def test_to_numpy_basic(data, pandas_obj, func):
             assert_array_equal(df.values, native_df.values)
     if pandas_obj == "Series":
         with SqlCounter(query_count=1):
+            # SNOW-1652384 use to_numpy here and test to_list separately
             res = df.to_list()
         expected_res = native_df.to_list()
         for r1, r2 in zip(res, expected_res):
@@ -150,3 +151,17 @@ def test_to_numpy_copy_true(caplog):
     with caplog.at_level(logging.WARNING):
         assert_array_equal(series.to_numpy(copy=True), native_pd.Series([1]).to_numpy())
         assert "has been ignored by Snowpark pandas" in caplog.text
+
+
+@sql_count_checker(query_count=1)
+def test_to_numpy_warning(caplog):
+    series = pd.Series([1])
+
+    caplog.clear()
+    WarningMessage.printed_warnings.clear()
+    with caplog.at_level(logging.WARNING):
+        series.to_numpy()
+        assert (
+            "The current operation leads to materialization and can be slow if the data is large!"
+            in caplog.text
+        )

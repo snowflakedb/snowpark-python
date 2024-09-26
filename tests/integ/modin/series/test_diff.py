@@ -50,7 +50,9 @@ def test_series_diff_invalid_periods_negative():
         snow_ser.diff("1").to_pandas()
 
 
-@pytest.mark.parametrize("ser_type", [bool, int, object])
+@pytest.mark.parametrize(
+    "ser_type", [bool, int, object, "timedelta64[ns]", "datetime64[ns]"]
+)
 @pytest.mark.parametrize(
     "periods",
     [

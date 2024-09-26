@@ -15,6 +15,8 @@ from snowflake.snowpark.modin.plugin.docstrings.shared_docs import (
 )
 from snowflake.snowpark.modin.utils import _create_operator_docstring
 
+from .base import BasePandasDataset
+
 _shared_doc_kwargs = {
     "axes": "index",
     "klass": "Series",
@@ -35,7 +37,7 @@ axis : int or str, optional
 }
 
 
-class Series:
+class Series(BasePandasDataset):
     """
     Snowpark pandas representation of `pandas.Series` with a lazily-evaluated relational dataset.
 
@@ -556,7 +558,7 @@ class Series:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or None
+        Snowpark pandas :class:`~modin.pandas.Series` or None
             Series with specified index labels removed or None if ``inplace=True``.
 
         Raises
@@ -670,17 +672,17 @@ class Series:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        Snowpark pandas :class:`~modin.pandas.Series` or Snowpark pandas :class:`~modin.pandas.DataFrame`
             If func returns a Series object the result will be a DataFrame.
 
 
         See Also
         --------
-        :func:`Series.map <snowflake.snowpark.modin.pandas.Series.map>` : For applying more complex functions on a Series.
+        :func:`Series.map <modin.pandas.Series.map>` : For applying more complex functions on a Series.
 
-        :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
+        :func:`DataFrame.apply <modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
 
-        :func:`DataFrame.applymap <snowflake.snowpark.modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
+        :func:`DataFrame.applymap <modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
 
         Notes
         -----
@@ -700,7 +702,7 @@ class Series:
         When no type annotation is provided and Variant data is returned, Python ``None`` is translated to
         JSON NULL, and all other pandas missing values (np.nan, pd.NA, pd.NaT) are translated to SQL NULL.
 
-        4. For working with 3rd-party-packages see :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>`.
+        4. For working with 3rd-party-packages see :func:`DataFrame.apply <modin.pandas.DataFrame.apply>`.
         """
 
     def argmax():
@@ -838,7 +840,7 @@ class Series:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or Snowpark pandas :class:`~modin.pandas.DataFrame`
             If axis is 0 or 'index' the result will be a Series.
             The resulting index will be a MultiIndex with 'self' and 'other'
             stacked alternately at the inner level.
@@ -965,8 +967,8 @@ class Series:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` with the first differences of the Series.
+        Snowpark pandas :class:`~modin.pandas.Series`
+            Snowpark pandas :class:`~modin.pandas.Series` with the first differences of the Series.
 
         Notes
         -----
@@ -1099,7 +1101,7 @@ class Series:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or None
+        Snowpark pandas :class:`~modin.pandas.Series` or None
             Series with NA entries dropped from it or None if ``inplace=True``.
 
         See Also
@@ -1175,7 +1177,7 @@ class Series:
         Returns
         -------
         Snowpark pandas Series[bool]
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` indicating whether each value has occurred
+            Snowpark pandas :class:`~modin.pandas.Series` indicating whether each value has occurred
             in the preceding values.
 
         See Also
@@ -1774,11 +1776,11 @@ class Series:
 
         See Also
         --------
-        :func:`Series.apply <snowflake.snowpark.modin.pandas.Series.apply>` : For applying more complex functions on a Series.
+        :func:`Series.apply <modin.pandas.Series.apply>` : For applying more complex functions on a Series.
 
-        :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
+        :func:`DataFrame.apply <modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
 
-        :func:`DataFrame.applymap <snowflake.snowpark.modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
+        :func:`DataFrame.applymap <modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
 
         Notes
         -----
@@ -2178,7 +2180,7 @@ class Series:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        Snowpark pandas :class:`~modin.pandas.DataFrame`
 
         Notes
         -----
@@ -2430,6 +2432,11 @@ class Series:
 
         In the example above, index value ``7`` is forward filled from index value ``6``, since that
         is the previous index value when the data is sorted.
+        """
+
+    def reindex_like():
+        """
+        Return an object with matching indices as `other` object.
         """
 
     def rename_axis():
@@ -3192,9 +3199,8 @@ class Series:
 
         Slicing a single row from a single column will produce a single
         scalar DataFrame:
-        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
 
-        >>> df_0a = df.loc[df.index.to_pandas() < 1, ['a']]
+        >>> df_0a = df.loc[df.index < 1, ['a']]
         >>> df_0a
            a
         0  1
@@ -3267,14 +3273,6 @@ class Series:
         Take elements at positions 0 and 3 along the axis 0 (default).
 
         >>> ser.take([0, 3])
-        0   -1
-        3    2
-        dtype: int64
-
-
-        For `Series` axis parameter is unused and defaults to 0.
-
-        >>> ser.take([0, 3], axis=1)
         0   -1
         3    2
         dtype: int64
@@ -3371,6 +3369,11 @@ class Series:
         Cast to DatetimeIndex of Timestamps, at beginning of period.
         """
 
+    def transform():
+        """
+        Call ``func`` on self producing a `BasePandasDataset` with the same axis shape as self.
+        """
+
     def transpose():
         """
         Return the transpose, which is by definition `self`.
@@ -3425,7 +3428,7 @@ class Series:
 
         >>> pd.Series([pd.Timestamp('2016-01-01', tz='US/Eastern')
         ...            for _ in range(3)]).unique()
-        array([Timestamp('2015-12-31 21:00:00-0800', tz='America/Los_Angeles')],
+        array([Timestamp('2016-01-01 00:00:00-0500', tz='UTC-05:00')],
               dtype=object)
 
         """
@@ -3650,6 +3653,48 @@ class Series:
         Return True if there are any NaNs.
         """
 
+    @property
+    def is_monotonic_decreasing():
+        """
+        Return boolean if values in the object are monotonically decreasing.
+
+        Returns
+        -------
+        bool
+            Whether or not the Series is monotonically decreasing.
+
+        Examples
+        --------
+        >>> s = pd.Series([3, 2, 2, 1])
+        >>> s.is_monotonic_decreasing
+        True
+
+        >>> s = pd.Series([1, 2, 3])
+        >>> s.is_monotonic_decreasing
+        False
+        """
+
+    @property
+    def is_monotonic_increasing():
+        """
+        Return boolean if values in the object are monotonically increasing.
+
+        Returns
+        -------
+        bool
+            Whether or not the Series is monotonically increasing.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 2])
+        >>> s.is_monotonic_increasing
+        True
+
+        >>> s = pd.Series([3, 2, 1])
+        >>> s.is_monotonic_increasing
+        False
+        """
+
     def isna():
         """
         Detect missing values.
@@ -3711,18 +3756,6 @@ class Series:
         """
 
     @property
-    def is_monotonic_increasing():
-        """
-        Return True if values in the Series are monotonic_increasing.
-        """
-
-    @property
-    def is_monotonic_decreasing():
-        """
-        Return True if values in the Series are monotonic_decreasing.
-        """
-
-    @property
     def is_unique():
         """
         Return True if values in the Series are unique.
@@ -3759,7 +3792,6 @@ class Series:
 
         Examples
         --------
-        >>> import snowflake.snowpark.modin.pandas as pd
         >>> import numpy as np
         >>> s = pd.Series([1, 3, 5, 7, 7])
         >>> s

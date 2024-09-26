@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 import re
 
 import modin.pandas as pd
@@ -226,3 +227,19 @@ def verify_columns(table_name: str, expected: list[str]) -> None:
 def verify_num_rows(session, table_name: str, expected: int) -> None:
     actual = session.table(table_name).count()
     assert actual == expected
+
+
+@sql_count_checker(query_count=2)
+def test_timedelta_to_snowflake_with_read_snowflake(test_table_name, caplog):
+    with caplog.at_level(logging.WARNING):
+        df = pd.DataFrame(
+            {
+                "a": [1, 2, 3],
+                "b": [4, 5, 6],
+                "t": native_pd.timedelta_range("1 days", periods=3),
+            }
+        )
+        df.to_snowflake(test_table_name, index=False, if_exists="replace")
+        df = pd.read_snowflake(test_table_name)
+        assert df.dtypes[-1] == "int64"
+        assert "`TimedeltaType` may be lost in `to_snowflake`'s result" in caplog.text

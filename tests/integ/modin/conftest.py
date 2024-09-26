@@ -369,9 +369,7 @@ def iloc_snowpark_pandas_input_map():
         "categorical[int]": pd.Categorical([1, 3, 4]),
         "Index": pd.Index([-0.9, -1.0, -1.1, 0.0, 1.0, 0.9, 1.1, 1]),
         "Series": pd.Series([-0.9, -1.0, -1.1, 0.0, 1.0, 0.9, 1.1, -1]),
-        "Series[positive_int]": pd.Series(
-            [0, 1]
-        ),  # To test `convert_positional_key` shortcircuit
+        "Series[positive_int]": pd.Series([0, 1]),
         "Series_all_positive_int": pd.Series([1, 1, 2]),
         "RangeIndex": pd.RangeIndex(1, 4),
         "Index[bool]": pd.Index([True, True, False, False, False, True, True]),
@@ -715,3 +713,30 @@ def numeric_test_data_4x4():
         "C": [7, 10, 13, 16],
         "D": [8, 11, 14, 17],
     }
+
+
+@pytest.fixture
+def timedelta_native_df() -> pandas.DataFrame:
+    return pandas.DataFrame(
+        {
+            "A": [
+                pd.Timedelta(days=1),
+                pd.Timedelta(days=2),
+                pd.Timedelta(days=3),
+                pd.Timedelta(days=4),
+            ],
+            "B": [
+                pd.Timedelta(minutes=-1),
+                pd.Timedelta(minutes=0),
+                pd.Timedelta(minutes=5),
+                pd.Timedelta(minutes=6),
+            ],
+            "C": [
+                None,
+                pd.Timedelta(nanoseconds=5),
+                pd.Timedelta(nanoseconds=0),
+                pd.Timedelta(nanoseconds=4),
+            ],
+            "D": pandas.to_timedelta([pd.NaT] * 4),
+        }
+    )

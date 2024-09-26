@@ -569,3 +569,46 @@ def test_reindex_multiindex_negative(axis):
             snow_df.reindex(index=[1, 2, 3])
         else:
             snow_df.T.reindex(columns=[1, 2, 3])
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_reindex_with_index_name():
+    native_df = native_pd.DataFrame(
+        [[0, 1, 2], [0, 0, 1], [1, 0, 0]],
+        index=list("ABC"),
+    )
+    snow_df = pd.DataFrame(native_df)
+    index_with_name = native_pd.Index(list("CAB"), name="weewoo")
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        snow_df.reindex(index=index_with_name), native_df.reindex(index=index_with_name)
+    )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_reindex_with_index_name_and_df_index_name():
+    native_df = native_pd.DataFrame(
+        {"X": [1, 2, 3], "Y": [8, 7, 3], "Z": [3, 4, 5]},
+        index=native_pd.Index(list("ABC"), name="AAAAA"),
+    )
+    snow_df = pd.DataFrame(native_df)
+    index_with_name = native_pd.Index(list("CAB"), name="weewoo")
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        snow_df.reindex(index=index_with_name), native_df.reindex(index=index_with_name)
+    )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_reindex_with_lazy_index():
+    native_df = native_pd.DataFrame(
+        [[1, np.nan, 3], [np.nan, 5, np.nan], [7, 8, np.nan]], index=list("XYZ")
+    )
+    snow_df = pd.DataFrame(native_df)
+    native_idx = native_pd.Index(list("CAB"))
+    lazy_idx = pd.Index(native_idx)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.reindex(
+            index=native_idx if isinstance(df, native_pd.DataFrame) else lazy_idx
+        ),
+    )

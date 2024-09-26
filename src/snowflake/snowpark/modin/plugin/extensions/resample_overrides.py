@@ -153,7 +153,7 @@ class Resampler(metaclass=TelemetryMeta):
             resampler = type(self)(subset, **self.resample_kwargs)
             return resampler
 
-        from snowflake.snowpark.modin.pandas.series import Series
+        from modin.pandas import Series
 
         if isinstance(key, (list, tuple, Series, pandas.Index, np.ndarray)):
             if len(self._dataframe.columns.intersection(key)) != len(set(key)):
@@ -165,6 +165,10 @@ class Resampler(metaclass=TelemetryMeta):
             raise KeyError(f"Column not found: {key}")
 
         return _get_new_resampler(key)
+
+    ###########################################################################
+    # Indexing, iteration
+    ###########################################################################
 
     @property
     def groups(self):  # pragma: no cover
@@ -189,6 +193,10 @@ class Resampler(metaclass=TelemetryMeta):
     def get_group(self, name, obj=None):  # pragma: no cover
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         self._method_not_implemented("get_group")
+
+    ###########################################################################
+    # Function application
+    ###########################################################################
 
     def apply(
         self, func: Optional[AggFuncType] = None, *args: Any, **kwargs: Any
@@ -222,6 +230,10 @@ class Resampler(metaclass=TelemetryMeta):
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         self._method_not_implemented("pipe")
 
+    ###########################################################################
+    # Upsampling
+    ###########################################################################
+
     def ffill(self, limit: Optional[int] = None) -> Union[pd.DataFrame, pd.Series]:
         is_series = not self._dataframe._is_dataframe
 
@@ -241,22 +253,63 @@ class Resampler(metaclass=TelemetryMeta):
         )
 
     def backfill(self, limit: Optional[int] = None):
-        self._method_not_implemented("backfill")  # pragma: no cover
+        return self.bfill(limit=limit)
 
-    def bfill(self, limit: Optional[int] = None):  # pragma: no cover
-        self._method_not_implemented("bfill")
+    def bfill(self, limit: Optional[int] = None):
+        is_series = not self._dataframe._is_dataframe
 
-    def pad(self, limit: Optional[int] = None):  # pragma: no cover
-        self._method_not_implemented("pad")
+        if limit is not None:
+            ErrorMessage.not_implemented(
+                "Parameter limit of resample.bfill has not been implemented."
+            )
+
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.resample(
+                self.resample_kwargs,
+                "bfill",
+                (),
+                {},
+                is_series,
+            )
+        )
+
+    def pad(self, limit: Optional[int] = None):
+        return self.ffill(limit=limit)
 
     def nearest(self, limit: Optional[int] = None):  # pragma: no cover
         self._method_not_implemented("nearest")
 
-    def fillna(self, method, limit: Optional[int] = None):  # pragma: no cover
-        self._method_not_implemented("fillna")
+    def fillna(self, method: str, limit: Optional[int] = None):
+        if not isinstance(method, str) or method not in (
+            "pad",
+            "ffill",
+            "backfill",
+            "bfill",
+            "nearest",
+        ):
+            raise ValueError(
+                f"Invalid fill method. Expecting pad (ffill), backfill (bfill) or nearest. Got {method}"
+            )
+        return getattr(self, method)(limit=limit)
 
-    def asfreq(self, fill_value: Optional[Any] = None):  # pragma: no cover
-        self._method_not_implemented("asfreq")
+    def asfreq(self, fill_value: Optional[Any] = None):
+        is_series = not self._dataframe._is_dataframe
+
+        if fill_value is not None:
+            # TODO: SNOW-1660802: Implement `fill_value` parameter once `GroupBy.fillna` is supported
+            ErrorMessage.parameter_not_implemented_error(
+                "fill_value", "Resampler.asfreq"
+            )
+
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.resample(
+                self.resample_kwargs,
+                "first",
+                (),
+                {},
+                is_series,
+            )
+        )
 
     def interpolate(
         self,
@@ -271,6 +324,10 @@ class Resampler(metaclass=TelemetryMeta):
         **kwargs,
     ):  # pragma: no cover
         self._method_not_implemented("interpolate")
+
+    ###########################################################################
+    # Computations / descriptive stats
+    ###########################################################################
 
     def count(self) -> Union[pd.DataFrame, pd.Series]:
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
@@ -447,11 +504,9 @@ class Resampler(metaclass=TelemetryMeta):
 
     def size(self):
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        from .series import Series
-
         is_series = not self._dataframe._is_dataframe
 
-        output_series = Series(
+        output_series = pd.Series(
             query_compiler=self._query_compiler.resample(
                 self.resample_kwargs,
                 "size",
@@ -460,7 +515,7 @@ class Resampler(metaclass=TelemetryMeta):
                 is_series,
             )
         )
-        if not isinstance(self._dataframe, Series):
+        if not isinstance(self._dataframe, pd.Series):
             # If input is a DataFrame, rename output Series to None
             return output_series.rename(None)
         return output_series

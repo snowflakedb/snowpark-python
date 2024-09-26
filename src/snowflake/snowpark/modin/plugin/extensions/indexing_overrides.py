@@ -43,12 +43,15 @@ from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import pandas
+from modin.pandas import Series
+from modin.pandas.base import BasePandasDataset
+from modin.pandas.dataframe import DataFrame
+from modin.pandas.utils import is_scalar
 from pandas._libs.tslibs import Resolution, parsing
 from pandas._typing import AnyArrayLike, Scalar
 from pandas.api.types import is_bool, is_list_like
 from pandas.core.dtypes.common import (
     is_bool_dtype,
-    is_datetime64_any_dtype,
     is_integer,
     is_integer_dtype,
     is_numeric_dtype,
@@ -57,15 +60,7 @@ from pandas.core.dtypes.common import (
 from pandas.core.indexing import IndexingError
 
 import snowflake.snowpark.modin.pandas as pd
-import snowflake.snowpark.modin.pandas.utils as frontend_utils
-from snowflake.snowpark.modin.pandas.base import BasePandasDataset
-from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-from snowflake.snowpark.modin.pandas.series import (
-    SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE,
-    SERIES_SETITEM_SLICE_AS_SCALAR_VALUE_ERROR_MESSAGE,
-    Series,
-)
-from snowflake.snowpark.modin.pandas.utils import is_scalar
+import snowflake.snowpark.modin.plugin.extensions.utils as frontend_utils
 from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
     MULTIPLE_ELLIPSIS_INDEXING_ERROR_MESSAGE,
     TOO_FEW_INDEXERS_INDEXING_ERROR_MESSAGE,
@@ -75,6 +70,10 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
+from snowflake.snowpark.modin.plugin.utils.frontend_constants import (
+    SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE,
+    SERIES_SETITEM_SLICE_AS_SCALAR_VALUE_ERROR_MESSAGE,
+)
 
 INDEXING_KEY_TYPE = Union[Scalar, list, slice, Callable, tuple, AnyArrayLike]
 INDEXING_ITEM_TYPE = Union[Scalar, AnyArrayLike, pd.Series, pd.DataFrame]
@@ -845,7 +844,7 @@ class _LocIndexer(_LocationIndexerBase):
             period = pd.Period(parsed, freq=reso.attr_abbrev)
 
             # partial string indexing only works for DatetimeIndex
-            if is_datetime64_any_dtype(self.df._query_compiler.index_dtypes[0]):
+            if self.df._query_compiler.is_datetime64_any_dtype(idx=0, is_index=True):
                 return slice(
                     pd.Timestamp(period.start_time, tzinfo=tzinfo),
                     pd.Timestamp(period.end_time, tzinfo=tzinfo),
@@ -868,8 +867,38 @@ class _LocIndexer(_LocationIndexerBase):
                     stop = stop.stop
             # partial string indexing only updates start and stop, and should keep using the original step.
             row_loc = slice(start, stop, row_loc.step)
-
         return row_loc
+
+    def _convert_to_timedelta(
+        self, row_loc: Union[Scalar, list, slice, tuple, pd.Series]
+    ) -> Union[Scalar, list, slice, tuple, pd.Series]:
+        """
+        This helper method covers both exact matching and partial string indexing; it tries to convert
+        row locator to timedelta.
+
+        Args:
+            row_loc: the original row locator
+
+        Returns:
+            the new row locator
+        """
+        if isinstance(row_loc, slice):
+            start, stop = row_loc.start, row_loc.stop
+            if isinstance(row_loc.start, str):
+                start = self._convert_to_timedelta(row_loc.start)
+                if isinstance(start, slice):
+                    start = start.start  # pragma: no cover
+            if isinstance(row_loc.stop, str):
+                stop = self._convert_to_timedelta(row_loc.stop)
+                if isinstance(stop, slice):
+                    stop = stop.stop  # pragma: no cover
+            # partial string indexing only updates start and stop, and should keep using the original step.
+            return slice(start, stop, row_loc.step)
+        elif is_boolean_array(row_loc):
+            # to_timedelta cannot process boolean array.
+            return row_loc
+        else:
+            return pd.to_timedelta(row_loc)
 
     def __getitem__(
         self, key: INDEXING_KEY_TYPE
@@ -894,6 +923,12 @@ class _LocIndexer(_LocationIndexerBase):
         # TODO: SNOW-1063352: Modin upgrade - modin.pandas.indexing._LocIndexer
         row_loc, col_loc = self._parse_get_row_and_column_locators(key)
         row_loc = self._try_partial_string_indexing(row_loc)
+
+        # Check if self or its index is a TimedeltaIndex.
+        if self.df._query_compiler.is_timedelta64_dtype(idx=0, is_index=True):
+            # Convert row_loc to timedelta format to perform exact matching for TimedeltaIndex.
+            row_loc = self._convert_to_timedelta(row_loc)
+
         squeeze_row, squeeze_col = self._should_squeeze(
             locator=row_loc, axis=0
         ), self._should_squeeze(locator=col_loc, axis=1)
@@ -907,7 +942,15 @@ class _LocIndexer(_LocationIndexerBase):
         )
         if isinstance(result, Series):
             result._parent = self.df
-            result._parent_axis = 0
+            # We need to determine which axis this Series was extracted from. We can do so
+            # by checking which axis' locator is slice(None). If row_loc == slice(None),
+            # that means that we are extracting from axis=1, and if col_loc == slice(None),
+            # that means we are extracting from axis=0. If `row_loc` is a BasePandasDataset
+            # then it is also an extraction along axis=0.
+            if not isinstance(row_loc, slice):
+                result._parent_axis = 0
+            else:
+                result._parent_axis = int(row_loc == slice(None))
 
         return result
 
@@ -1181,7 +1224,15 @@ class _iLocIndexer(_LocationIndexerBase):
 
         if isinstance(result, Series):
             result._parent = self.df
-            result._parent_axis = 0
+            # We need to determine which axis this Series was extracted from. We can do so
+            # by checking which axis' locator is slice(None). If row_loc == slice(None),
+            # that means that we are extracting from axis=1, and if col_loc == slice(None),
+            # that means we are extracting from axis=0. If `row_loc` is a SnowflakeQueryCompiler
+            # then it is also an extraction along axis=0.
+            if not isinstance(row_loc, slice):
+                result._parent_axis = 0
+            else:
+                result._parent_axis = int(row_loc == slice(None))
         return result
 
     def _get_pandas_object_from_qc_view(
