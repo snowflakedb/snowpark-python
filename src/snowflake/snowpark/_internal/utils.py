@@ -793,6 +793,25 @@ def get_copy_into_table_options(
     return file_format_type_options, copy_options
 
 
+def get_aliased_option_name(
+    key: str,
+    alias_map: Dict[str, str],
+) -> str:
+    """Method that takes a key and an option alias map as arguments and returns
+    the aliased key if the key is present in the alias map. Also raise a warning
+    if alias key is applied.
+    """
+    upper_key = key.strip().upper()
+    aliased_key = alias_map.get(upper_key, upper_key)
+    if aliased_key != upper_key:
+        logger.warning(
+            f"Option '{key}' is aliased to '{aliased_key}'. You may see unexpected behavior."
+            " Please refer to format specific options for more information"
+        )
+
+    return aliased_key
+
+
 def strip_double_quotes_in_like_statement_in_table_name(table_name: str) -> str:
     """
     this function is used by method _table_exists to handle double quotes in table name when calling

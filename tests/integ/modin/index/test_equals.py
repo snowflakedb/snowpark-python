@@ -13,14 +13,49 @@ from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 @pytest.mark.parametrize(
     "lhs, rhs, expected",
     [
-        ([], [], True),  # empty indices
-        ([None], [None], True),  # none indices
-        ([1, 2, 3], [1, 2, 3], True),
-        ([1, 2, None], [1, 2, None], True),  # nulls are considered equal
-        ([1, 2, 3], [1.0, 2.0, 3.0], True),  # type is ignored
-        ([1, 2, 3], [1, 3, 2], False),  # different order
-        ([1, 2, 3], [1, 2, 3, 4], False),  # extra value in right
-        ([1, 2, 3, 4], [1, 2, 3], False),  # extra value in left
+        (native_pd.Index([]), native_pd.Index([]), True),  # empty indices
+        (native_pd.Index([None]), native_pd.Index([None]), True),  # none indices
+        (native_pd.Index([1, 2, 3]), native_pd.Index([1, 2, 3]), True),
+        (
+            native_pd.Index([1, 2, None]),
+            native_pd.Index([1, 2, None]),
+            True,
+        ),  # nulls are equal
+        (
+            native_pd.Index([1, 2, 3]),
+            native_pd.Index([1.0, 2.0, 3.0]),
+            True,
+        ),  # type is ignored
+        (
+            native_pd.Index([1, 2, 3]),
+            native_pd.Index([1, 3, 2]),
+            False,
+        ),  # different order
+        (
+            native_pd.Index([1, 2, 3]),
+            native_pd.Index([1, 2, 3, 4]),
+            False,
+        ),  # extra value in right
+        (
+            native_pd.Index([1, 2, 3, 4]),
+            native_pd.Index([1, 2, 3]),
+            False,
+        ),  # extra value in left
+        (
+            native_pd.DatetimeIndex(["2024-01-01 03:00:00+00:00"]),
+            native_pd.DatetimeIndex(["2024-01-01 03:00:00+00:00"]),
+            True,
+        ),  # same
+        (
+            native_pd.DatetimeIndex(["2024-01-01 04:00:00+00:00"]),
+            native_pd.DatetimeIndex(["2024-01-01 05:00:00+00:00"]),
+            False,
+        ),  # different
+        (
+            native_pd.DatetimeIndex(["2024-01-01 04:00:00+00:00"]),
+            native_pd.DatetimeIndex(["2024-01-01 04:00:00+05:00"]),
+            False,
+        ),  # different tz
     ],
 )
 def test_index_equals(lhs, rhs, expected):

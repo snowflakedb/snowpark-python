@@ -11,7 +11,7 @@ import snowflake.snowpark.modin.plugin  # noqa : F401
 
 # Because we cannot overwrite submodules of modin.pandas, we have to import these objects from
 # snowflake.snowpark.modin.pandas
-from snowflake.snowpark.modin.pandas.groupby import (
+from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
     DataFrameGroupBy as SnowparkPandasDFGroupBy,
     SeriesGroupBy as SnowparkPandasSerGroupBy,
 )

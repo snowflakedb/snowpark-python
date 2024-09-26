@@ -358,3 +358,18 @@ def test_describe_object_file(resources_path):
     df = pd.read_csv(test_files.test_concat_file1_csv)
     native_df = df.to_pandas()
     eval_snowpark_pandas_result(df, native_df, lambda x: x.describe(include="O"))
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.xfail(
+    strict=True,
+    raises=NotImplementedError,
+    reason="requires concat(), which we cannot do with Timedelta.",
+)
+def test_timedelta(timedelta_native_df):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            timedelta_native_df,
+        ),
+        lambda df: df.describe(),
+    )

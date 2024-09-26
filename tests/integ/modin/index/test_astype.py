@@ -40,6 +40,7 @@ from tests.integ.modin.utils import assert_index_equal
         (native_pd.Index(["a", "b", "c", 1, 2, 4], dtype="O"), str),
         (native_pd.Index([1, 2, 3, 4], dtype="O"), np.int64),
         (native_pd.Index([1.11, 2.1111, 3.0002, 4.111], dtype=object), np.float64),
+        (native_pd.Index(["2024-01-01 10:00:00"], dtype=object), "datetime64[ns]"),
     ],
 )
 def test_index_astype(index, type):

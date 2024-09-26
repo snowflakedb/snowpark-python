@@ -12,7 +12,7 @@ import pytest
 from pandas import isna
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
@@ -39,9 +39,9 @@ from tests.integ.modin.utils import (
 def test_df_getitem_with_boolean_list_like(
     key, default_index_snowpark_pandas_df, default_index_native_df
 ):
-    # one added query to convert to native pandas and 2 added queries for series initialization
+    # one added query to convert to native pandas and 1 added query for series initialization
     with SqlCounter(
-        query_count=4 if isinstance(key, native_pd.Index) else 1, join_count=1
+        query_count=3 if isinstance(key, native_pd.Index) else 1, join_count=1
     ):
         # df[boolean list-like key] is the same as df.loc[:, boolean list-like key]
         if isinstance(key, native_pd.Index):

@@ -19,15 +19,17 @@ from snowflake.snowpark.modin.pandas import (
     DataFrame as DataFrameClazz,
     Series as SeriesClazz,
 )
-from snowflake.snowpark.modin.pandas.groupby import (
+from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
     DataFrameGroupBy as DataFrameGroupByClazz,
     SeriesGroupBy as SeriesGroupByClazz,
 )
-from snowflake.snowpark.modin.pandas.resample import Resampler as ResamplerClazz
+from snowflake.snowpark.modin.plugin.extensions.resample_overrides import (
+    Resampler as ResamplerClazz,
+)
 
 # Not in current version of Modin
 # from modin.pandas.window import Expanding as ExpandingClazz
-from snowflake.snowpark.modin.pandas.window import (
+from snowflake.snowpark.modin.plugin.extensions.window_overrides import (
     Rolling as RollingClazz,
     Window as WindowClazz,
 )

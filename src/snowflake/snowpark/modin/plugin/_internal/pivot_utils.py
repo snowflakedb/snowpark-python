@@ -257,6 +257,8 @@ def pivot_helper(
             data_column_snowflake_quoted_identifiers=[],
             index_column_pandas_labels=index,
             index_column_snowflake_quoted_identifiers=groupby_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
         )
     data_column_pandas_labels: list[Hashable] = []
     data_column_snowflake_quoted_identifiers: list[str] = []
@@ -482,6 +484,8 @@ def pivot_helper(
         data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
         index_column_pandas_labels=index,
         index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
 
@@ -516,12 +520,15 @@ def single_pivot_helper(
             data_column_snowflake_quoted_identifiers: new data column snowflake quoted identifiers this pivot result
             data_column_pandas_labels: new data column pandas labels for this pivot result
     """
-    snowpark_aggr_func = get_snowflake_agg_func(pandas_aggr_func_name, {})
-    if not is_supported_snowflake_pivot_agg_func(snowpark_aggr_func):
+    snowflake_agg_func = get_snowflake_agg_func(pandas_aggr_func_name, {}, axis=0)
+    if snowflake_agg_func is None or not is_supported_snowflake_pivot_agg_func(
+        snowflake_agg_func.snowpark_aggregation
+    ):
         # TODO: (SNOW-853334) Add support for any non-supported snowflake pivot aggregations
         raise ErrorMessage.not_implemented(
             f"Snowpark pandas DataFrame.pivot_table does not yet support the aggregation {repr_aggregate_function(original_aggfunc, agg_kwargs={})} with the given arguments."
         )
+    snowpark_aggr_func = snowflake_agg_func.snowpark_aggregation
 
     pandas_aggr_label, aggr_snowflake_quoted_identifier = value_label_to_identifier_pair
 
@@ -817,7 +824,7 @@ def generate_pivot_aggregation_value_label_snowflake_quoted_identifier_mappings(
     Returns:
           List of pandas label to snowflake quoted identifiers pairs
     """
-    assert values is not None
+    assert values is not None, "values is None"
 
     values = [values] if isinstance(values, str) else values
 
@@ -895,7 +902,7 @@ def generate_single_pivot_labels(
         assert (
             include_aggfunc_prefix is True
         ), "aggr func should add prefix to resulting pandas label"
-        assert pandas_aggfunc_list is not None
+        assert pandas_aggfunc_list is not None, "pandas_aggfunc_list is None"
 
         # 1. Loop through all aggregation functions for this aggregation value.
         for pandas_single_aggr_func in pandas_aggfunc_list:
@@ -1227,17 +1234,19 @@ def get_margin_aggregation(
     Returns:
         Snowpark column expression for the aggregation function result.
     """
-    resolved_aggfunc = get_snowflake_agg_func(aggfunc, {})
+    resolved_aggfunc = get_snowflake_agg_func(aggfunc, {}, axis=0)
 
     # This would have been resolved during the original pivot at an early stage.
-    assert resolved_aggfunc is not None
+    assert resolved_aggfunc is not None, "resolved_aggfunc is None"
 
-    aggfunc_expr = resolved_aggfunc(snowflake_quoted_identifier)
+    aggregation_expression = resolved_aggfunc.snowpark_aggregation(
+        snowflake_quoted_identifier
+    )
 
-    if resolved_aggfunc == sum_:
-        aggfunc_expr = coalesce(aggfunc_expr, pandas_lit(0))
+    if resolved_aggfunc.snowpark_aggregation == sum_:
+        aggregation_expression = coalesce(aggregation_expression, pandas_lit(0))
 
-    return aggfunc_expr
+    return aggregation_expression
 
 
 def expand_pivot_result_with_pivot_table_margins_no_groupby_columns(
@@ -1285,6 +1294,8 @@ def expand_pivot_result_with_pivot_table_margins_no_groupby_columns(
             data_column_snowflake_quoted_identifiers=margins_frame.data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=margins_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=margins_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=margins_frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=margins_frame.cached_index_column_snowpark_pandas_types,
         )
 
     # Need to create a QueryCompiler for the margins frame, but SnowflakeQueryCompiler is not present in this scope
@@ -1522,7 +1533,7 @@ def expand_pivot_result_with_pivot_table_margins(
     assert all(
         len(pivot_aggr_groupings[0].prefix_label) == len(g.prefix_label)
         for g in pivot_aggr_groupings
-    )
+    ), "len mismatch for pivot_aggr_groupings"
     num_levels = max(len(pivot_snowflake_quoted_identifiers), 1) + prefix_len
 
     pivoted_frame = pivoted_qc._modin_frame
@@ -1691,6 +1702,8 @@ def expand_pivot_result_with_pivot_table_margins(
         data_column_pandas_index_names=pivoted_frame.data_column_pandas_index_names,
         index_column_pandas_labels=pivoted_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=pivoted_frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
     from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
@@ -1758,6 +1771,8 @@ def expand_pivot_result_with_pivot_table_margins(
         index_column_snowflake_quoted_identifiers=margin_row_df_identifiers[
             0 : len(groupby_snowflake_quoted_identifiers)
         ],
+        data_column_types=None,
+        index_column_types=None,
     )
     single_row_qc = SnowflakeQueryCompiler(margin_row_frame)
 

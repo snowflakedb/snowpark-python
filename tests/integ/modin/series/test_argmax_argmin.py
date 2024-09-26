@@ -18,6 +18,11 @@ from tests.integ.modin.sql_counter import sql_count_checker
         ([4, None, 1, 3, 4, 1], ["A", "B", "C", "D", "E", "F"]),
         ([4, None, 1, 3, 4, 1], [None, "B", "C", "D", "E", "F"]),
         ([1, 10, 4, 3, 4], ["E", "D", "C", "A", "B"]),
+        pytest.param(
+            [pd.Timedelta(1), None, pd.Timedelta(4), pd.Timedelta(3), pd.Timedelta(4)],
+            ["A", "B", "C", "D", "E"],
+            id="timedelta",
+        ),
     ],
 )
 @pytest.mark.parametrize("func", ["argmax", "argmin"])

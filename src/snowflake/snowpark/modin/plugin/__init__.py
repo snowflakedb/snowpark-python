@@ -56,22 +56,51 @@ from snowflake.snowpark.modin.plugin import docstrings  # isort: skip  # noqa: E
 
 DocModule.put(docstrings.__name__)
 
-
 # We cannot call ModinDocModule.put directly because it will produce a call to `importlib.reload`
 # that will overwrite our extensions. We instead directly call the _inherit_docstrings annotation
 # See https://github.com/modin-project/modin/issues/7122
 import modin.utils  # type: ignore[import]  # isort: skip  # noqa: E402
 import modin.pandas.series_utils  # type: ignore[import]  # isort: skip  # noqa: E402
 
-modin.utils._inherit_docstrings(
-    docstrings.series_utils.StringMethods,
-    overwrite_existing=True,
-)(modin.pandas.series_utils.StringMethods)
+# TODO: SNOW-1643979 pull in fixes for
+# https://github.com/modin-project/modin/issues/7113 and https://github.com/modin-project/modin/issues/7134
+# Upstream Modin has issues with certain docstring generation edge cases, so we should use our version instead
+_inherit_docstrings = snowflake.snowpark.modin.utils._inherit_docstrings
 
-modin.utils._inherit_docstrings(
-    docstrings.series_utils.CombinedDatetimelikeProperties,
-    overwrite_existing=True,
-)(modin.pandas.series_utils.DatetimeProperties)
+inherit_modules = [
+    (docstrings.base.BasePandasDataset, modin.pandas.base.BasePandasDataset),
+    (docstrings.dataframe.DataFrame, modin.pandas.dataframe.DataFrame),
+    (docstrings.series.Series, modin.pandas.series.Series),
+    (docstrings.series_utils.StringMethods, modin.pandas.series_utils.StringMethods),
+    (
+        docstrings.series_utils.CombinedDatetimelikeProperties,
+        modin.pandas.series_utils.DatetimeProperties,
+    ),
+]
+
+for (doc_module, target_object) in inherit_modules:
+    _inherit_docstrings(doc_module, overwrite_existing=True)(target_object)
+
+
+# Configure Modin engine so it detects our Snowflake I/O classes.
+# This is necessary to define the `from_pandas` method for each Modin backend, which is called in I/O methods.
+
+from modin.config import Engine  # isort: skip  # noqa: E402
+
+# Secretly insert our factory class into Modin so the dispatcher can find it
+from modin.core.execution.dispatching.factories import (  # isort: skip  # noqa: E402
+    factories as modin_factories,
+)
+
+from snowflake.snowpark.modin.core.execution.dispatching.factories.factories import (  # isort: skip  # noqa: E402
+    PandasOnSnowflakeFactory,
+)
+
+modin_factories.PandasOnSnowflakeFactory = PandasOnSnowflakeFactory
+
+Engine.add_option("Snowflake")
+Engine.put("Snowflake")
+
 
 # Don't warn the user about our internal usage of private preview pivot
 # features. The user should have already been warned that Snowpark pandas
@@ -82,17 +111,3 @@ modin.utils._inherit_docstrings(
 snowflake.snowpark._internal.utils.should_warn_dynamic_pivot_is_in_private_preview = (
     False
 )
-
-
-# TODO: SNOW-1504302: Modin upgrade - use Snowpark pandas DataFrame for isocalendar
-# OSS Modin's DatetimeProperties frontend class wraps the returned query compiler with `modin.pandas.DataFrame`.
-# Since we currently replace `pd.DataFrame` with our own Snowpark pandas DataFrame object, this causes errors
-# since OSS Modin explicitly imports its own DataFrame class here. This override can be removed once the frontend
-# DataFrame class is removed from our codebase.
-def isocalendar(self):  # type: ignore
-    from snowflake.snowpark.modin.pandas import DataFrame
-
-    return DataFrame(query_compiler=self._query_compiler.dt_isocalendar())
-
-
-modin.pandas.series_utils.DatetimeProperties.isocalendar = isocalendar

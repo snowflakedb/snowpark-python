@@ -196,6 +196,8 @@ def get_groupby_cumagg_frame_axis0(
             index_column_pandas_labels=result_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=result_frame.index_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=[None],
+            data_column_types=result_frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=result_frame.cached_index_column_snowpark_pandas_types,
         )
     else:
         return result_frame

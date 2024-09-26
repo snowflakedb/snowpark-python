@@ -24,7 +24,6 @@ def test_class_equivalence():
     assert pd.CategoricalDtype is native_pd.CategoricalDtype
     assert pd.CategoricalIndex is native_pd.CategoricalIndex
     assert pd.DateOffset is native_pd.DateOffset
-    assert pd.DatetimeIndex is native_pd.DatetimeIndex
     assert pd.DatetimeTZDtype is native_pd.DatetimeTZDtype
     assert pd.ExcelWriter is native_pd.ExcelWriter
     assert pd.Flags is native_pd.Flags
@@ -50,7 +49,6 @@ def test_class_equivalence():
     assert pd.SparseDtype is native_pd.SparseDtype
     assert pd.StringDtype is native_pd.StringDtype
     assert pd.Timedelta is native_pd.Timedelta
-    assert pd.TimedeltaIndex is native_pd.TimedeltaIndex
     assert pd.Timestamp is native_pd.Timestamp
     assert pd.UInt8Dtype is native_pd.UInt8Dtype
     assert pd.UInt16Dtype is native_pd.UInt16Dtype
@@ -62,7 +60,6 @@ def test_class_equivalence():
     # structure, we also overwrite this export.
     # assert pd.api is native_pd.api
     assert pd.array is native_pd.array
-    assert pd.bdate_range is native_pd.bdate_range
     assert pd.eval is native_pd.eval
     assert pd.factorize is native_pd.factorize
     assert pd.from_dummies is native_pd.from_dummies

@@ -1,11 +1,206 @@
 # Release History
 
-## 1.21.0 (TBD)
+## 1.23.0 (TBD)
 
 ### Snowpark Python API Updates
 
 #### New Features
-- Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a util function to check the equality of two Snowpark DataFrames.
+
+- Added the following new functions in `snowflake.snowpark.functions`:
+  - `make_interval`
+- Added support for using Snowflake Interval constants with `Window.range_between()` when the order by column is TIMESTAMP or DATE type.
+- Added support for file writes. This feature is currently in private preview.
+- Added support for `DataFrameGroupBy.fillna` and `SeriesGroupBy.fillna`.
+- Added support for constructing `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` arguments.
+- Added support for constructing `Series` and `DataFrame` objects with `index` and `column` values not present in `DataFrame`/`Series` `data`.
+
+#### Improvements
+
+#### Bug Fixes
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `TimedeltaIndex.mean` method.
+- Added support for some cases of aggregating `Timedelta` columns on `axis=0` with `agg` or `aggregate`.
+- Added support for `by`, `left_by`, `right_by`, `left_index`, and `right_index` for `pd.merge_asof`.
+- Added support for passing parameter `include_describe` to `Session.query_history`.
+- Added support for `DatetimeIndex.mean` and `DatetimeIndex.std` methods.
+- Added support for `Resampler.asfreq`.
+- Added support for `resample` frequency `W`, `ME`, `YE` with `closed = "left"`.
+- Added support for `DataFrame.rolling.corr` and `Series.rolling.corr` for `pairwise = False` and int `window`.
+- Added support for string time-based `window` and `min_periods = None` for `Rolling`.
+
+#### Improvements
+
+- Improved `to_pandas` to persist the original timezone offset for TIMESTAMP_TZ type.
+- Improved `dtype` results for TIMESTAMP_TZ type to show correct timezone offset.
+- Improved `dtype` results for TIMESTAMP_LTZ type to show correct timezone.
+- Improved error message when passing non-bool value to `numeric_only` for groupby aggregations.
+- Removed unnecessary warning about sort algorithm in `sort_values`.
+- Use SCOPED object for internal create temp tables. The SCOPED objects will be stored sproc scoped if created within stored sproc, otherwise will be session scoped, and the object will be automatically cleaned at the end of the scope.
+- Improved warning messages for operations that lead to materialization with inadvertent slowness.
+
+#### Bug Fixes
+
+- Fixed a bug where an `Index` object created from a `Series`/`DataFrame` incorrectly updates the `Series`/`DataFrame`'s index name after an inplace update has been applied to the original `Series`/`DataFrame`.
+- Suppressed an unhelpful `SettingWithCopyWarning` that sometimes appeared when printing `Timedelta` columns.
+- Fixed `inplace` argument for `Series` objects derived from other `Series` objects.
+- Fixed a bug where `Series.sort_values` failed if series name overlapped with index column name.
+- Fixed a bug where transposing a dataframe would map `Timedelta` index levels to integer column levels.
+
+## 1.22.1 (2024-09-11)
+This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for detailed release content.
+
+
+## 1.22.0 (2024-09-10)
+
+### Snowpark Python API Updates
+
+### New Features
+
+- Added the following new functions in `snowflake.snowpark.functions`:
+  - `array_remove`
+  - `ln`
+
+#### Improvements
+
+- Improved documentation for `Session.write_pandas` by making `use_logical_type` option more explicit.
+- Added support for specifying the following to `DataFrameWriter.save_as_table`:
+  - `enable_schema_evolution`
+  - `data_retention_time`
+  - `max_data_extension_time`
+  - `change_tracking`
+  - `copy_grants`
+  - `iceberg_config` A dicitionary that can hold the following iceberg configuration options:
+      - `external_volume`
+      - `catalog`
+      - `base_location`
+      - `catalog_sync`
+      - `storage_serialization_policy`
+- Added support for specifying the following to `DataFrameWriter.copy_into_table`:
+  - `iceberg_config` A dicitionary that can hold the following iceberg configuration options:
+      - `external_volume`
+      - `catalog`
+      - `base_location`
+      - `catalog_sync`
+      - `storage_serialization_policy`
+- Added support for specifying the following parameters to `DataFrame.create_or_replace_dynamic_table`:
+  - `mode`
+  - `refresh_mode`
+  - `initialize`
+  - `clustering_keys`
+  - `is_transient`
+  - `data_retention_time`
+  - `max_data_extension_time`
+
+#### Bug Fixes
+
+- Fixed a bug in `session.read.csv` that caused an error when setting `PARSE_HEADER = True` in an externally defined file format.
+- Fixed a bug in query generation from set operations that allowed generation of duplicate queries when children have common subqueries.
+- Fixed a bug in `session.get_session_stage` that referenced a non-existing stage after switching database or schema.
+- Fixed a bug where calling `DataFrame.to_snowpark_pandas` without explicitly initializing the Snowpark pandas plugin caused an error.
+- Fixed a bug where using the `explode` function in dynamic table creation caused a SQL compilation error due to improper boolean type casting on the `outer` parameter.
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for type coercion when passing columns as input to UDF calls.
+- Added support for `Index.identical`.
+
+#### Bug Fixes
+
+- Fixed a bug where the truncate mode in `DataFrameWriter.save_as_table` incorrectly handled DataFrames containing only a subset of columns from the existing table.
+- Fixed a bug where function `to_timestamp` does not set the default timezone of the column datatype.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added limited support for the `Timedelta` type, including the following features. Snowpark pandas will raise `NotImplementedError` for unsupported `Timedelta` use cases.
+  - supporting tracking the Timedelta type through `copy`, `cache_result`, `shift`, `sort_index`, `assign`, `bfill`, `ffill`, `fillna`, `compare`, `diff`, `drop`, `dropna`, `duplicated`, `empty`, `equals`, `insert`, `isin`, `isna`, `items`, `iterrows`, `join`, `len`, `mask`, `melt`, `merge`, `nlargest`, `nsmallest`, `to_pandas`.
+  - converting non-timedelta to timedelta via `astype`.
+  - `NotImplementedError` will be raised for the rest of methods that do not support `Timedelta`.
+  - support for subtracting two timestamps to get a Timedelta.
+  - support indexing with Timedelta data columns.
+  - support for adding or subtracting timestamps and `Timedelta`.
+  - support for binary arithmetic between two `Timedelta` values.
+  - support for binary arithmetic and comparisons between `Timedelta` values and numeric values.
+  - support for lazy `TimedeltaIndex`.
+  - support for `pd.to_timedelta`.
+  - support for `GroupBy` aggregations `min`, `max`, `mean`, `idxmax`, `idxmin`, `std`, `sum`, `median`, `count`, `any`, `all`, `size`, `nunique`, `head`, `tail`, `aggregate`.
+  - support for `GroupBy` filtrations `first` and `last`.
+  - support for `TimedeltaIndex` attributes: `days`, `seconds`, `microseconds` and `nanoseconds`.
+  - support for `diff` with timestamp columns on `axis=0` and `axis=1`
+  - support for `TimedeltaIndex` methods: `ceil`, `floor` and `round`.
+  - support for `TimedeltaIndex.total_seconds` method.
+- Added support for index's arithmetic and comparison operators.
+- Added support for `Series.dt.round`.
+- Added documentation pages for `DatetimeIndex`.
+- Added support for `Index.name`, `Index.names`, `Index.rename`, and `Index.set_names`.
+- Added support for `Index.__repr__`.
+- Added support for `DatetimeIndex.month_name` and `DatetimeIndex.day_name`.
+- Added support for `Series.dt.weekday`, `Series.dt.time`, and `DatetimeIndex.time`.
+- Added support for `Index.min` and `Index.max`.
+- Added support for `pd.merge_asof`.
+- Added support for `Series.dt.normalize` and `DatetimeIndex.normalize`.
+- Added support for `Index.is_boolean`, `Index.is_integer`, `Index.is_floating`, `Index.is_numeric`, and `Index.is_object`.
+- Added support for `DatetimeIndex.round`, `DatetimeIndex.floor` and `DatetimeIndex.ceil`.
+- Added support for `Series.dt.days_in_month` and `Series.dt.daysinmonth`.
+- Added support for `DataFrameGroupBy.value_counts` and `SeriesGroupBy.value_counts`.
+- Added support for `Series.is_monotonic_increasing` and `Series.is_monotonic_decreasing`.
+- Added support for `Index.is_monotonic_increasing` and `Index.is_monotonic_decreasing`.
+- Added support for `pd.crosstab`.
+- Added support for `pd.bdate_range` and included business frequency support (B, BME, BMS, BQE, BQS, BYE, BYS) for both `pd.date_range` and `pd.bdate_range`.
+- Added support for lazy `Index` objects  as `labels` in `DataFrame.reindex` and `Series.reindex`.
+- Added support for `Series.dt.days`, `Series.dt.seconds`, `Series.dt.microseconds`, and `Series.dt.nanoseconds`.
+- Added support for creating a `DatetimeIndex` from an `Index` of numeric or string type.
+- Added support for string indexing with `Timedelta` objects.
+- Added support for `Series.dt.total_seconds` method.
+- Added support for `DataFrame.apply(axis=0)`.
+- Added support for `Series.dt.tz_convert` and `Series.dt.tz_localize`.
+- Added support for `DatetimeIndex.tz_convert` and `DatetimeIndex.tz_localize`.
+
+#### Improvements
+
+- Improve concat, join performance when operations are performed on series coming from the same dataframe by avoiding unnecessary joins.
+- Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
+- Improved `pd.to_datetime` to handle all local input cases. 
+- Create a lazy index from another lazy index without pulling data to client.
+- Raised `NotImplementedError` for Index bitwise operators.
+- Display a more clear error message when `Index.names` is set to a non-like-like object.
+- Raise a warning whenever MultiIndex values are pulled in locally.
+- Improve warning message for `pd.read_snowflake` include the creation reason when temp table creation is triggered.
+- Improve performance for `DataFrame.set_index`, or setting `DataFrame.index` or `Series.index` by avoiding checks require eager evaluation. As a consequence, when the new index that does not match the current `Series`/`DataFrame` object length, a `ValueError` is no longer raised. Instead, when the `Series`/`DataFrame` object is longer than the provided index, the `Series`/`DataFrame`'s new index is filled with `NaN` values for the "extra" elements. Otherwise, the extra values in the provided index are ignored.
+- Properly raise `NotImplementedError` when ambiguous/nonexistent are non-string in `ceil`/`floor`/`round`.
+
+#### Bug Fixes
+
+- Stopped ignoring nanoseconds in `pd.Timedelta` scalars.
+- Fixed AssertionError in tree of binary operations.
+- Fixed bug in `Series.dt.isocalendar` using a named Series
+- Fixed `inplace` argument for Series objects derived from DataFrame columns.
+- Fixed a bug where `Series.reindex` and `DataFrame.reindex` did not update the result index's name correctly.
+- Fixed a bug where `Series.take` did not error when `axis=1` was specified.
+
+
+## 1.21.1 (2024-09-05)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug where using `to_pandas_batches` with async jobs caused an error due to improper handling of waiting for asynchronous query completion.
+
+## 1.21.0 (2024-08-19)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for `snowflake.snowpark.testing.assert_dataframe_equal` that is a utility function to check the equality of two Snowpark DataFrames.
 
 #### Improvements
 - Exposed `SessionBuilder.appName` as an alias for `SessionBuilder.app_name`
@@ -13,7 +208,10 @@
 - Added support to create and invoke stored procedures, UDFs and UDTFs with optional arguments.
 - Added support for column lineage in the DataFrame.lineage.trace API.
 - Added support for passing `INFER_SCHEMA` options to `DataFrameReader` via `INFER_SCHEMA_OPTIONS`.
+- Added support for passing `parameters` parameter to `Column.rlike` and `Column.regexp`.
 - Added support for automatically cleaning up temporary tables created by `df.cache_result()` in the current session, when the DataFrame is no longer referenced (i.e., gets garbage collected). It is still an experimental feature not enabled by default, and can be enabled by setting `session.auto_clean_up_temp_table_enabled` to `True`.
+- Added support for string literals to the `fmt` parameter of `snowflake.snowpark.functions.to_date`.
+- Added support for system$reference function.
 
 #### Bug Fixes
 
@@ -26,24 +224,32 @@
 ### Snowpark Local Testing Updates
 
 #### New Features
+
 - Added support for the following APIs:
   - snowflake.snowpark.functions
-    - rank
-    - dense_rank
-    - percent_rank
-    - cume_dist
-    - ntile
-    - datediff
+    - `rank`
+    - `dense_rank`
+    - `percent_rank`
+    - `cume_dist`
+    - `ntile`
+    - `datediff`
+    - `array_agg`
+  - snowflake.snowpark.column.Column.within_group
+- Added support for parsing flags in regex statements for mocked plans. This maintains parity with the `rlike` and `regexp` changes above.
 
 #### Bug Fixes
-- Fixed a bug that Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
+
+- Fixed a bug where Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
 - Fixed a bug where values were not populated into the result DataFrame during the insertion of table merge operation.
 
 #### Improvements
+
 - Fix pandas FutureWarning about integer indexing.
 
 ### Snowpark pandas API Updates
+
 #### New Features
+
 - Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
 - Added support for `DataFrame.compare` and `Series.compare` with default parameters.
 - Added support for `Series.dt.microsecond` and `Series.dt.nanosecond`.
@@ -58,21 +264,38 @@
 - Added support for `Index.all` and `Index.any`.
 - Added support for `Series.dt.is_year_start` and `Series.dt.is_year_end`.
 - Added support for `Series.dt.is_quarter_start` and `Series.dt.is_quarter_end`.
+- Added support for lazy `DatetimeIndex`.
 - Added support for `Series.argmax` and `Series.argmin`.
+- Added support for `Series.dt.is_leap_year`.
+- Added support for `DataFrame.items`.
+- Added support for `Series.dt.floor` and `Series.dt.ceil`.
+- Added support for `Index.reindex`.
+- Added support for `DatetimeIndex` properties: `year`, `month`, `day`, `hour`, `minute`, `second`, `microsecond`,
+    `nanosecond`, `date`, `dayofyear`, `day_of_year`, `dayofweek`, `day_of_week`, `weekday`, `quarter`,
+    `is_month_start`, `is_month_end`, `is_quarter_start`, `is_quarter_end`, `is_year_start`, `is_year_end`
+    and `is_leap_year`.
+- Added support for `Resampler.fillna` and `Resampler.bfill`.
+- Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
+- Added support for `Index.argmax` and `Index.argmin`.
 
 #### Improvements
-- Removed the public preview warning message upon importing Snowpark pandas.
+
+- Removed the public preview warning message when importing Snowpark pandas.
 - Removed unnecessary count query from `SnowflakeQueryCompiler.is_series_like` method.
+- `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
+- Refactor and introduce `query_compiler` argument in `Index` constructor to create `Index` from query compiler.
+- `pd.to_datetime` now returns a DatetimeIndex object instead of a Series object.
+- `pd.date_range` now returns a DatetimeIndex object instead of a Series object.
 
 #### Bug Fixes
+
 - Made passing an unsupported aggregation function to `pivot_table` raise `NotImplementedError` instead of `KeyError`.
 - Removed axis labels and callable names from error messages and telemetry about unsupported aggregations.
 - Fixed AssertionError in `Series.drop_duplicates` and `DataFrame.drop_duplicates` when called after `sort_values`.
-- Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.  
-- Fixed a bug where some Index docstrings are ignored. 
-
-### Behavior change
-- `Dataframe.columns` now returns native pandas Index object instead of Snowpark Index object.
+- Fixed a bug in `Index.to_frame` where the result frame's column name may be wrong where name is unspecified.
+- Fixed a bug where some Index docstrings are ignored.
+- Fixed a bug in `Series.reset_index(drop=True)` where the result name may be wrong.
+- Fixed a bug in `Groupby.first/last` ordering by the correct columns in the underlying window expression.
 
 ## 1.20.0 (2024-07-17)
 
