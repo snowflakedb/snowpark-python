@@ -437,11 +437,9 @@ def test_large_query_breakdown_enabled_parameter(session, caplog):
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="requires graphviz")
 @pytest.mark.parametrize("enabled", [False, True])
 def test_plotter(session, large_query_df, enabled):
-    original_plotter_enabled = os.environ.get(
-        "ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING"
-    )
+    original_plotter_enabled = os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING")
     try:
-        os.environ["ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING"] = str(enabled)
+        os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"] = str(enabled)
         tmp_dir = tempfile.gettempdir()
 
         with patch("graphviz.Graph.render") as mock_render:
@@ -464,7 +462,7 @@ def test_plotter(session, large_query_df, enabled):
     finally:
         if original_plotter_enabled is not None:
             os.environ[
-                "ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING"
+                "ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"
             ] = original_plotter_enabled
         else:
-            del os.environ["ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING"]
+            del os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"]

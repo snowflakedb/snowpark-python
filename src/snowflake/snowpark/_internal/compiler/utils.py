@@ -331,13 +331,18 @@ def is_active_transaction(session):
 
 def plot_plan_if_enabled(root: TreeNode, filename: str) -> None:
     """A helper function to plot the query plan tree using graphviz useful for debugging.
-    It plots the plan if the environment variable ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING
+    It plots the plan if the environment variable ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING
     is set to true.
 
     The plots are saved in the temp directory of the system which is obtained using
     https://docs.python.org/3/library/tempfile.html#tempfile.gettempdir. Setting env variable
     TMPDIR to your desired location is recommended. Within the temp directory, the plots are
-    saved in the directory `snowpark_query_plan_plots` with the given `filename`.
+    saved in the directory `snowpark_query_plan_plots` with the given `filename`. For example,
+    we can set the environment variables as follows:
+
+        $ export ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING=true
+        $ export TMPDIR="/tmp"
+        $ ls /tmp/snowpark_query_plan_plots/  # to see the plots
 
     Args:
         root: root TreeNode of the plan to plot.
@@ -348,7 +353,7 @@ def plot_plan_if_enabled(root: TreeNode, filename: str) -> None:
     import graphviz  # pyright: ignore[reportMissingImports]
 
     if (
-        os.environ.get("ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING", "false").lower()
+        os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING", "false").lower()
         != "true"
     ):
         return
