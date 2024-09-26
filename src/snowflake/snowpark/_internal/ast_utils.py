@@ -42,7 +42,7 @@ from snowflake.snowpark.types import DataType, StructType
 
 # This flag causes an explicit error to be raised if any Snowpark object instance is missing an AST or field, when this
 # AST or field is required to populate the AST field of a different Snowpark object instance.
-FAIL_ON_MISSING_AST = False
+FAIL_ON_MISSING_AST = True
 
 # The path to the snowpark package.
 SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
