@@ -93,7 +93,7 @@ class PlanCompiler:
             cte_start_time = time.time()
             if self.config_context.cte_optimization_enabled:
                 repeated_subquery_eliminator = RepeatedSubqueryElimination(
-                    logical_plans, query_generator
+                    logical_plans, query_generator, self.config_context
                 )
                 logical_plans = repeated_subquery_eliminator.apply()
 
