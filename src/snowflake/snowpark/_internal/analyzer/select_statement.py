@@ -355,19 +355,6 @@ class Selectable(LogicalPlan, ABC):
             else []
         )
 
-    def get_with_query_blocks(self) -> Dict[WithQueryBlock, int]:
-        with_query_blocks = {}
-        current_level = [self]
-        while len(current_level) > 0:
-            next_level = []
-            for node in current_level:
-                next_level.extend(node.children_plan_nodes)
-                if isinstance(node, WithQueryBlock):
-                    with_query_blocks[node] = with_query_blocks.get(node, 0) + 1
-            current_level = next_level
-
-        return with_query_blocks
-
     @property
     def column_states(self) -> ColumnStateDict:
         """A dictionary that contains the column states of a query.
@@ -390,7 +377,7 @@ class Selectable(LogicalPlan, ABC):
 
     @property
     @abstractmethod
-    def referenced_ctes(self) -> Set[str]:
+    def referenced_ctes(self) -> Dict[WithQueryBlock, int]:
         """Return the set of ctes referenced by the whole selectable subtree, includes its-self and children"""
         pass
 
@@ -444,10 +431,10 @@ class SelectableEntity(Selectable):
         return None
 
     @property
-    def referenced_ctes(self) -> Set[str]:
+    def referenced_ctes(self) -> Dict[WithQueryBlock, int]:
         # the SelectableEntity only allows select from base table. No
         # CTE table will be referred.
-        return set()
+        return dict()
 
 
 class SelectSQL(Selectable):
@@ -547,10 +534,10 @@ class SelectSQL(Selectable):
         return new
 
     @property
-    def referenced_ctes(self) -> Set[str]:
+    def referenced_ctes(self) -> Dict[WithQueryBlock, int]:
         # SelectSQL directly calls sql query, there will be no
         # auto created CTE tables referenced
-        return set()
+        return dict()
 
 
 class SelectSnowflakePlan(Selectable):
@@ -613,7 +600,7 @@ class SelectSnowflakePlan(Selectable):
         return self.snowflake_plan.individual_node_complexity
 
     @property
-    def referenced_ctes(self) -> Set[str]:
+    def referenced_ctes(self) -> Dict[WithQueryBlock, int]:
         return self._snowflake_plan.referenced_ctes
 
 
@@ -887,7 +874,7 @@ class SelectStatement(Selectable):
         return complexity
 
     @property
-    def referenced_ctes(self) -> Set[str]:
+    def referenced_ctes(self) -> Dict[WithQueryBlock, int]:
         return self.from_.referenced_ctes
 
     def to_subqueryable(self) -> "Selectable":
@@ -1216,7 +1203,7 @@ class SelectTableFunction(Selectable):
         return self.snowflake_plan.individual_node_complexity
 
     @property
-    def referenced_ctes(self) -> Set[str]:
+    def referenced_ctes(self) -> Dict[WithQueryBlock, int]:
         return self._snowflake_plan.referenced_ctes
 
 
@@ -1316,9 +1303,16 @@ class SetStatement(Selectable):
         return {PlanNodeCategory.SET_OPERATION: len(self.set_operands) - 1}
 
     @property
-    def referenced_ctes(self) -> Set[str]:
+    def referenced_ctes(self) -> Dict[WithQueryBlock, int]:
         # get a union of referenced cte tables from all child nodes
-        return set().union(*[node.referenced_ctes for node in self._nodes])
+        referenced_ctes = {}
+        for node in self._nodes:
+            for with_query_block, count in node.referenced_ctes.items():
+                referenced_ctes[with_query_block] = (
+                    referenced_ctes.get(with_query_block, 0) + count
+                )
+
+        return referenced_ctes
 
 
 class DeriveColumnDependencyError(Exception):

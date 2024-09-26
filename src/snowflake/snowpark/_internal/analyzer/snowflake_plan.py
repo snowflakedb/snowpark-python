@@ -18,7 +18,6 @@ from typing import (
     List,
     Optional,
     Sequence,
-    Set,
     Tuple,
     Union,
 )
@@ -229,7 +228,7 @@ class SnowflakePlan(LogicalPlan):
         # This field records all the CTE tables that are referred by the
         # current SnowflakePlan tree. This is needed for the final query
         # generation to generate the correct sql query with CTE definition.
-        referenced_ctes: Optional[Set[str]] = None,
+        referenced_ctes: Optional[Dict[WithQueryBlock, int]] = None,
         *,
         session: "snowflake.snowpark.session.Session",
     ) -> None:
@@ -259,8 +258,8 @@ class SnowflakePlan(LogicalPlan):
         # query and the associated query parameters. We use this id for equality comparison
         # to determine if two plans are the same.
         self._id = encode_id(queries[-1].sql, queries[-1].params)
-        self.referenced_ctes: Set[str] = (
-            referenced_ctes.copy() if referenced_ctes else set()
+        self.referenced_ctes: Dict[WithQueryBlock, int] = (
+            referenced_ctes.copy() if referenced_ctes else dict()
         )
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         # UUID for the plan to uniquely identify the SnowflakePlan object. We also use this
@@ -452,19 +451,6 @@ class SnowflakePlan(LogicalPlan):
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
         self._cumulative_node_complexity = value
 
-    def get_with_query_blocks(self) -> Dict[WithQueryBlock, int]:
-        with_query_blocks = {}
-        current_level = [self]
-        while len(current_level) > 0:
-            next_level = []
-            for node in current_level:
-                next_level.extend(node.children_plan_nodes)
-                if isinstance(node, WithQueryBlock):
-                    with_query_blocks[node] = with_query_blocks.get(node, 0) + 1
-            current_level = next_level
-
-        return with_query_blocks
-
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
             return SnowflakePlan(
@@ -649,7 +635,7 @@ class SnowflakePlanBuilder:
             if post_action not in post_actions:
                 post_actions.append(copy.copy(post_action))
 
-        referenced_ctes: Set[str] = set()
+        referenced_ctes: Dict[WithQueryBlock, int] = dict()
         if (
             self.session.cte_optimization_enabled
             and self.session._query_compilation_stage_enabled
@@ -659,7 +645,10 @@ class SnowflakePlanBuilder:
             # duplicated queries if there is a common CTE block referenced by
             # both left and right.
             referenced_ctes.update(select_left.referenced_ctes)
-            referenced_ctes.update(select_right.referenced_ctes)
+            for with_query_block, count in select_right.referenced_ctes.items():
+                referenced_ctes[with_query_block] = (
+                    referenced_ctes.get(with_query_block, 0) + count
+                )
 
         queries = merged_queries + [
             Query(
@@ -1636,21 +1625,28 @@ class SnowflakePlanBuilder:
             )
 
     def with_query_block(
-        self, name: str, child: SnowflakePlan, source_plan: LogicalPlan
+        self,
+        with_query_block: WithQueryBlock,
+        child: SnowflakePlan,
+        source_plan: LogicalPlan,
     ) -> SnowflakePlan:
         if not self._skip_schema_query:
             raise ValueError(
                 "schema query for WithQueryBlock is currently not supported"
             )
 
-        new_query = project_statement([], name)
+        new_query = project_statement([], with_query_block.name)
 
         # note we do not propagate the query parameter of the child here,
         # the query parameter will be propagate along with the definition during
         # query generation stage.
         queries = child.queries[:-1] + [Query(sql=new_query)]
-        # propagate the cte table
-        referenced_ctes = {name}.union(child.referenced_ctes)
+
+        # Count for this with_query_block will be 1 since it is impossible for the
+        # child to contain the same with_query_block.
+        referenced_ctes = {with_query_block: 1}
+        # propagate the referenced_ctes from the child
+        referenced_ctes.update(child.referenced_ctes)
 
         return SnowflakePlan(
             queries,
