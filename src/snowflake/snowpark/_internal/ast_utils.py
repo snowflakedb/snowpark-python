@@ -10,6 +10,7 @@ import os
 import platform
 import sys
 from functools import reduce
+from logging import getLogger
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
@@ -49,6 +50,8 @@ SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
 
 # Test mode. In test mode, the source filename is ignored.
 SRC_POSITION_TEST_MODE = False
+
+_logger = getLogger(__name__)
 
 
 def debug_check_missing_ast(ast, container) -> None:
