@@ -14,8 +14,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     TableCreationSource,
 )
 from snowflake.snowpark._internal.ast_utils import (
-    FAIL_ON_MISSING_AST,
     build_expr_from_snowpark_column_or_col_name,
+    debug_check_missing_ast,
     fill_sp_save_mode,
     fill_sp_write_file,
     with_src_position,
@@ -276,13 +276,7 @@ class DataFrameWriter:
             # Add an Assign node that applies SpWriteTable() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_write_table)
-
-            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
-                _logger.debug(self._explain_string())
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-                )
-
+            debug_check_missing_ast(self._ast_stmt, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             # Function signature:
@@ -511,13 +505,7 @@ class DataFrameWriter:
             # Add an Assign node that applies SpWriteCopyIntoLocation() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_write_copy_into_location)
-
-            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
-                _logger.debug(self._explain_string())
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-                )
-
+            debug_check_missing_ast(self._ast_stmt, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_sp_write_file(
@@ -630,13 +618,7 @@ class DataFrameWriter:
             # Add an Assign node that applies SpWriteCsv() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_write_csv)
-
-            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
-                _logger.debug(self._explain_string())
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-                )
-
+            debug_check_missing_ast(self._ast_stmt, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_sp_write_file(
@@ -708,13 +690,7 @@ class DataFrameWriter:
             # Add an Assign node that applies SpWriteJson() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_write_json)
-
-            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
-                _logger.debug(self._explain_string())
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-                )
-
+            debug_check_missing_ast(self._ast_stmt, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_sp_write_file(
@@ -786,13 +762,7 @@ class DataFrameWriter:
             # Add an Assign node that applies SpWriteParquet() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_write_parquet)
-
-            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
-                _logger.debug(self._explain_string())
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-                )
-
+            debug_check_missing_ast(self._ast_stmt, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_sp_write_file(
