@@ -4591,6 +4591,10 @@ class DataFrame:
              results. ``n`` is ``None``, it returns the first :class:`Row` of
              results, or ``None`` if it does not exist.
         """
+
+        if not isinstance(n, int) and n is not None:
+            raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -4611,8 +4615,6 @@ class DataFrame:
             if not block:
                 return result
             return result[0] if result else None
-        elif not isinstance(n, int):
-            raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
             return self._internal_collect_with_tag(
                 statement_params=statement_params, block=block
