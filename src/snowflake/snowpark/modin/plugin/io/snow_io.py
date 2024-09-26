@@ -662,8 +662,7 @@ class PandasOnSnowflakeIO(BaseIO):
         """
         Read SAS files stored as either XPORT or SAS7BDAT format files into a query compiler.
         """
-        intermediate = pandas.read_sas(**kwargs)
-        return cls.from_pandas(intermediate)
+        return cls.from_pandas(pandas.read_sas(**kwargs))
 
     @classmethod
     @pandas_module_level_function_not_implemented()
