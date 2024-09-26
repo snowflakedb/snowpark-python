@@ -914,7 +914,7 @@ class Analyzer:
         self.generated_alias_maps = {}
         if config_context is None:
             config_context = ConfigContext(self.session)
-            self.plan_builder.config_context = config_context
+            self.plan_builder.set_config_context(config_context)
 
         result = self.do_resolve(logical_plan, config_context)
 
