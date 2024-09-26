@@ -975,14 +975,6 @@ def apply(
     self._validate_function(func)
     new_query_compiler = self._query_compiler.apply_on_series(func, args, **kwargs)
 
-    if convert_dtype:
-        # TODO SNOW-810614: call convert_dtypes for consistency
-        WarningMessage.ignored_argument(
-            operation="apply",
-            argument="convert_dtype",
-            message="convert_dtype is ignored in Snowflake backend",
-        )
-
     return self.__constructor__(query_compiler=new_query_compiler)
 
 
