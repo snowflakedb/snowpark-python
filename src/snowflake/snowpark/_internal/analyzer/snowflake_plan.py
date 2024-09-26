@@ -322,7 +322,7 @@ class SnowflakePlan(LogicalPlan):
         # the common subquery elimination will be done through the new plan transformation.
         if (
             not config_context.cte_optimization_enabled
-            or config_context.query_compilation_stage_enabled
+            or config_context._query_compilation_stage_enabled
         ):
             return self
 
