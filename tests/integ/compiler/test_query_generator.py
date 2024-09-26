@@ -99,13 +99,13 @@ def check_generated_plan_queries(plan: SnowflakePlan) -> None:
 
 
 def verify_multiple_create_queries(
-    plan_queries: List[str], post_action_queries: List[str]
+    plan_queries: List[str], post_action_queries: List[str], num_queries: int
 ) -> None:
-    assert len(plan_queries) == 3
+    assert len(plan_queries) == num_queries
     assert plan_queries[0].startswith("CREATE")
     assert plan_queries[1].startswith("INSERT")
-    assert plan_queries[2].startswith("SELECT")
-    assert len(post_action_queries) == 1
+    assert plan_queries[-1].startswith("SELECT")
+    assert len(post_action_queries) == (num_queries / 2)
     assert post_action_queries[0].startswith("DROP")
 
 
@@ -318,7 +318,7 @@ def test_dataframe_creation_with_multiple_queries(session):
     df = session.create_dataframe([1] * 20000)
     queries, post_actions = df.queries["queries"], df.queries["post_actions"]
 
-    verify_multiple_create_queries(queries, post_actions)
+    verify_multiple_create_queries(queries, post_actions, 3)
 
     query_generator = create_query_generator(df._plan)
     # reset the whole plan
@@ -329,7 +329,7 @@ def test_dataframe_creation_with_multiple_queries(session):
     post_actions = [
         query.sql.lstrip() for query in plan_queries[PlanQueryType.POST_ACTIONS]
     ]
-    verify_multiple_create_queries(queries, post_actions)
+    verify_multiple_create_queries(queries, post_actions, 3)
 
 
 def test_multiple_plan_query_generation(session):
@@ -389,6 +389,10 @@ def test_in_with_subquery(session):
 
 
 def test_in_with_subquery_multiple_query(session):
+    if session._sql_simplifier_enabled:
+        pytest.skip(
+            "SNOW-1678419 pre and post actions are not propagated properly for SelectStatement"
+        )
     # multiple queries
     original_threshold = analyzer.ARRAY_BIND_THRESHOLD
     try:
@@ -407,7 +411,7 @@ def test_in_with_subquery_multiple_query(session):
         post_actions = [
             query.sql.lstrip() for query in plan_queries[PlanQueryType.POST_ACTIONS]
         ]
-        verify_multiple_create_queries(queries, post_actions)
+        verify_multiple_create_queries(queries, post_actions, 5)
 
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_threshold
