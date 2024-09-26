@@ -9,6 +9,7 @@ import logging
 import os
 import pathlib
 import platform
+import re
 import subprocess
 import sys
 import tempfile
@@ -248,7 +249,8 @@ def run_test(session):
         sys.modules[test_name] = test_module
         spec.loader.exec_module(test_module)
         base64_batches = test_module.run_test(session)
-        unparser_output = render(base64_batches) if pytest.unparser_jar else ""
+        raw_unparser_output = render(base64_batches) if pytest.unparser_jar else ""
+        unparser_output = re.sub(r"SNOWPARK_TEMP_TABLE_(\w+)", "SNOWPARK_TEMP_TABLE_xxx", raw_unparser_output)
         return unparser_output, "\n".join(base64_batches)
     finally:
         os.unlink(test_file.name)

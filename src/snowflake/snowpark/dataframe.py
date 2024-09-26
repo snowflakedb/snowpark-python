@@ -95,13 +95,13 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     ViewType,
 )
 from snowflake.snowpark._internal.ast_utils import (
-    FAIL_ON_MISSING_AST,
     build_expr_from_python_val,
     build_expr_from_snowpark_column,
     build_expr_from_snowpark_column_or_col_name,
     build_expr_from_snowpark_column_or_sql_str,
     build_expr_from_snowpark_column_or_table_fn,
     build_proto_from_pivot_values,
+    debug_check_missing_ast,
     fill_ast_for_column,
     with_src_position,
 )
@@ -584,15 +584,9 @@ class DataFrame:
         """
         Given a field builder expression of the AST type SpDataframeExpr, points the builder to reference this dataframe.
         """
-        # TODO: remove the None guard below once we generate the correct AST.
-        if self._ast_id is None:
-            if FAIL_ON_MISSING_AST:
-                _logger.debug(self._explain_string())
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-                )
-        else:
-            sp_dataframe_expr_builder.sp_dataframe_ref.id.bitfield1 = self._ast_id
+        # TODO: remove once we generate the correct AST.
+        debug_check_missing_ast(self._ast_id, self)
+        sp_dataframe_expr_builder.sp_dataframe_ref.id.bitfield1 = self._ast_id
 
     @property
     def stat(self) -> DataFrameStatFunctions:
@@ -659,13 +653,7 @@ class DataFrame:
             # Add an Assign node that applies SpDataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_dataframe_collect)
-
-            if self._ast_id is None and FAIL_ON_MISSING_AST:
-                _logger.debug(self._explain_string())
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-                )
-
+            debug_check_missing_ast(self._ast_id, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 for k, v in statement_params.items():
@@ -718,13 +706,7 @@ class DataFrame:
             # Add an Assign node that applies SpDataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_dataframe_collect)
-
-            if self._ast_id is None and FAIL_ON_MISSING_AST:
-                _logger.debug(self._explain_string())
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-                )
-
+            debug_check_missing_ast(self._ast_id, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 for k, v in statement_params.items():
@@ -3745,13 +3727,7 @@ class DataFrame:
             # Add an Assign node that applies SpDataframeCount() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_dataframe_count)
-
-            if self._ast_id is None and FAIL_ON_MISSING_AST:
-                _logger.debug(self._explain_string())
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-                )
-
+            debug_check_missing_ast(self._ast_id, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 for k, v in statement_params.items():
@@ -4191,12 +4167,8 @@ class DataFrame:
         if _emit_ast:
             # Add an Assign node that applies SpDataframeShow() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
-            if self._ast_id is None and FAIL_ON_MISSING_AST:
-                _logger.debug(self._explain_string())
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-                )
-            elif self._ast_id is not None:
+            debug_check_missing_ast(self._ast_id, self)
+            if self._ast_id is not None:
                 repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
             self._session._ast_batch.eval(repr)
 

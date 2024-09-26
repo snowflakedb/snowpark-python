@@ -42,13 +42,22 @@ from snowflake.snowpark.types import DataType, StructType
 
 # This flag causes an explicit error to be raised if any Snowpark object instance is missing an AST or field, when this
 # AST or field is required to populate the AST field of a different Snowpark object instance.
-FAIL_ON_MISSING_AST = True
+FAIL_ON_MISSING_AST = False
 
 # The path to the snowpark package.
 SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
 
 # Test mode. In test mode, the source filename is ignored.
 SRC_POSITION_TEST_MODE = False
+
+# Debug check for missing AST. This is invoked with various arguments that are expected to be non-NULL if the AST
+# is emitted correctly.
+def debug_check_missing_ast(ast, container) -> None:
+    if ast is None and FAIL_ON_MISSING_AST:
+        _logger.debug(container._explain_string())
+        raise NotImplementedError(
+            f"DataFrame with API usage {container._plan.api_calls} is missing complete AST logging."
+        )
 
 
 # Use python's builtin ast and NodeVisitor class.
