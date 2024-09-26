@@ -94,8 +94,6 @@ setup(
         "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas",
         "snowflake.snowpark.modin.core.execution.dispatching",
         "snowflake.snowpark.modin.core.execution.dispatching.factories",
-        "snowflake.snowpark.modin.pandas",
-        "snowflake.snowpark.modin.pandas.api.extensions",
         "snowflake.snowpark.modin.plugin",
         "snowflake.snowpark.modin.plugin._internal",
         "snowflake.snowpark.modin.plugin.compiler",

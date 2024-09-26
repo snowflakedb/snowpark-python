@@ -1186,16 +1186,7 @@ def fill_none_in_index_labels(
 def is_snowpark_pandas_dataframe_or_series_type(obj: Any) -> bool:
     # Return True if result is (Snowpark pandas) DataFrame/Series type.
     # Note: Native pandas.DataFrame/Series return False
-    # Checking type name instead of using isinstance because of circle import.
-    class_type = type(obj)
-    if not class_type.__module__.startswith(
-        "snowflake.snowpark.modin.pandas"
-    ) and not class_type.__module__.startswith("modin.pandas"):
-        return False
-    return class_type.__name__ in {
-        "DataFrame",
-        "Series",
-    }
+    return isinstance(obj, (pd.DataFrame, pd.Series))
 
 
 # TODO: (SNOW-853334) Support other agg functions (any, all, prod, median, skew, kurt, sem, var, std, mad, etc)
