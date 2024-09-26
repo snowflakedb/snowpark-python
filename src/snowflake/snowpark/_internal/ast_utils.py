@@ -50,9 +50,12 @@ SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
 # Test mode. In test mode, the source filename is ignored.
 SRC_POSITION_TEST_MODE = False
 
-# Debug check for missing AST. This is invoked with various arguments that are expected to be non-NULL if the AST
-# is emitted correctly.
+
 def debug_check_missing_ast(ast, container) -> None:
+    """
+    Debug check for missing AST. This is invoked with various arguments that are expected to be non-NULL if the AST
+    is emitted correctly.
+    """
     if ast is None and FAIL_ON_MISSING_AST:
         _logger.debug(container._explain_string())
         raise NotImplementedError(
