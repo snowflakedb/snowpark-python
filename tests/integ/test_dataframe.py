@@ -1866,7 +1866,7 @@ def test_create_dataframe_empty(session):
 
     # show
     assert (
-        df._show_string()
+        df._show_string(_emit_ast=session.ast_enabled)
         == """
 -------------
 |"A"  |"B"  |
