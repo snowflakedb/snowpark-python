@@ -169,7 +169,12 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
 
     # Keep objects most high up in the class hierarchy first, i.e. a Row is a tuple.
     elif isinstance(obj, Column):
-        expr_builder.CopyFrom(obj._ast)
+
+        # Special case: Column holds Literal, for Literals no ast is per default generated.
+        if isinstance(obj._expression, Literal):
+            expr_builder.CopyFrom(snowpark_expression_to_ast(obj._expression))
+        else:
+            expr_builder.CopyFrom(obj._ast)
 
     elif isinstance(obj, Row):
         ast = with_src_position(expr_builder.sp_row)
