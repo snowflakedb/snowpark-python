@@ -3598,7 +3598,7 @@ class Session:
                 build_expr_from_python_val(expr.pos_args.add(), arg)
             if statement_params is not None:
                 for k in statement_params:
-                    entry = expr.named_args.list.add()
+                    entry = expr.named_args.add()
                     entry._1 = k
                     build_expr_from_python_val(entry._2, statement_params[k])
             expr.fn.stored_procedure.log_on_exception.value = log_on_exception
