@@ -105,7 +105,7 @@ def verify_multiple_create_queries(
     assert plan_queries[0].startswith("CREATE")
     assert plan_queries[1].startswith("INSERT")
     assert plan_queries[-1].startswith("SELECT")
-    assert len(post_action_queries) == (num_queries / 2)
+    assert len(post_action_queries) == int(num_queries / 2)
     assert post_action_queries[0].startswith("DROP")
 
 
