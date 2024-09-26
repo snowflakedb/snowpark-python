@@ -31,6 +31,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
+from modin.pandas.api.extensions import register_dataframe_accessor
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
@@ -67,7 +68,6 @@ from pandas.core.indexes.frozen import FrozenList
 from pandas.io.formats.printing import pprint_thing
 from pandas.util._validators import validate_bool_kwarg
 
-from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_accessor
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     is_snowflake_agg_func,
 )
@@ -690,7 +690,7 @@ def _df_init_dict_data_with_snowpark_pandas_values(
     # Concat can only be performed with BasePandasDataset objects.
     # If a value is an Index, convert it to a Series where the index is the index to be set since these values
     # are always present in the final DataFrame.
-    from snowflake.snowpark.modin.pandas import concat
+    from snowflake.snowpark.modin.plugin.extensions.general_overrides import concat
 
     values = [
         Series(v, index=index) if isinstance(v, Index) else v for v in data.values()
@@ -718,7 +718,7 @@ def _df_init_list_data_with_snowpark_pandas_values(
     # Special case: data is a list/dict where all the values are Snowpark pandas objects.
     # Concat can only be performed with BasePandasDataset objects.
     # If a value is an Index, convert it to a Series.
-    from snowflake.snowpark.modin.pandas import concat
+    from snowflake.snowpark.modin.plugin.extensions.general_overrides import concat
 
     values = [Series(v) if isinstance(v, Index) else v for v in data]
     new_qc = concat(values, axis=1).T._query_compiler

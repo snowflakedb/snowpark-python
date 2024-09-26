@@ -4,7 +4,7 @@ Index objects
 
 Index
 -----
-.. currentmodule:: snowflake.snowpark.modin.pandas
+.. currentmodule:: modin.pandas
 .. rubric:: :doc:`All supported Index APIs <supported/index_supported>`
 
 .. rubric:: Constructor

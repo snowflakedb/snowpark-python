@@ -16,6 +16,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
+from modin.pandas.api.extensions import register_series_accessor
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
@@ -37,8 +38,6 @@ from pandas.core.common import apply_if_callable, is_bool_indexer
 from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
 from pandas.util._validators import validate_ascending, validate_bool_kwarg
 
-from snowflake.snowpark.modin import pandas as spd  # noqa: F401
-from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
 from snowflake.snowpark.modin.plugin._internal.utils import (
     assert_fields_are_none,
     convert_index_to_list_of_qcs,
@@ -368,7 +367,7 @@ def __init__(
     # Check that index is not a DataFrame and dtype is not "category".
     error_checking_for_init(index, dtype)
 
-    if isinstance(data, spd.DataFrame):
+    if isinstance(data, pd.DataFrame):
         # data cannot be a DataFrame, raise a clear error message.
         # pandas raises an ambiguous error:
         # ValueError: The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().
