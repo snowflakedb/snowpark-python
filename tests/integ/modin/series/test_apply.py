@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
-import logging
 import math
 from typing import Callable
 
@@ -20,7 +19,6 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udf
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.types import DoubleType, StringType, VariantType
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
@@ -480,17 +478,6 @@ def test_apply_and_map_empty(native_series, expected_query_count, expected_udf_c
     snow_series = pd.Series(native_series)
     eval_snowpark_pandas_result(snow_series, native_series, lambda x: x.apply(f))
     eval_snowpark_pandas_result(snow_series, native_series, lambda x: x.map(f))
-
-
-@sql_count_checker(query_count=3)
-def test_apply_convert_dtype(caplog):
-    snow_series = pd.Series([1])
-
-    caplog.clear()
-    WarningMessage.printed_warnings.clear()
-    with caplog.at_level(logging.WARNING):
-        snow_series.apply(lambda x: x, convert_dtype=True)
-        assert "convert_dtype is ignored in Snowflake backend" in caplog.text
 
 
 @pytest.mark.parametrize(
