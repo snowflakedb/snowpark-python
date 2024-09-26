@@ -3150,6 +3150,18 @@ def test_array_size(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
+    reason="slice is not yet supported in local testing mode.",
+)
+def test_slice(session):
+    Utils.check_answer(
+        TestData.array1(session).select(slice(col("arr1"), 2, 2)),
+        [Row(2, 3), Row(7, 8)],
+        sort=False,
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_slice is not yet supported in local testing mode.",
 )
 def test_array_slice(session):
