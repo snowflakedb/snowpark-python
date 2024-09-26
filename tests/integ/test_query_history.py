@@ -76,10 +76,15 @@ def test_query_history_multiple_actions(session):
         df = df.filter(df.a == 1)
         df.collect()
 
-    assert len(query_history.queries) == 3
-    assert query_history.queries[0].is_describe
-    assert query_history.queries[1].is_describe
-    assert not query_history.queries[2].is_describe
+    if session.sql_simplifier_enabled:
+        assert len(query_history.queries) == 3
+        assert query_history.queries[0].is_describe
+        assert query_history.queries[1].is_describe
+        assert not query_history.queries[2].is_describe
+    else:
+        assert len(query_history.queries) == 2
+        assert query_history.queries[0].is_describe
+        assert not query_history.queries[1].is_describe
 
     with session.query_history() as query_listener:
         session.sql("select 0").collect()
