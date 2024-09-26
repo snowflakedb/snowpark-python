@@ -3987,7 +3987,9 @@ class DataFrame:
             ast_stmt=stmt,
         )
 
-        df._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
+        return df._internal_collect_with_tag_no_telemetry(
+            statement_params=statement_params
+        )
 
     @df_collect_api_telemetry
     @publicapi
