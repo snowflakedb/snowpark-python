@@ -175,7 +175,7 @@ def test_read_stage_file_show(session, resources_path, local_testing_mode):
             session.read.option("purge", False)
             .schema(user_schema)
             .csv(test_file_on_stage)
-            ._show_string()
+            ._show_string(_emit_ast=session.ast_enabled)
         )
         assert (
             result_str
@@ -207,7 +207,7 @@ def test_show_using_with_select_statement(session):
         "select * from t1"
     )
     assert (
-        df._show_string()
+        df._show_string(_emit_ast=session.ast_enabled)
         == """
 -------
 |"A"  |
