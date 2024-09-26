@@ -1155,7 +1155,7 @@ class Column:
 
         other = snowflake.snowpark.functions.lit(other)
         return Column(
-            snowflake.snowpark.functions.startswith(self, other)._expression,
+            snowflake.snowpark.functions.endswith(self, other)._expression,
             ast=expr,
             _emit_ast=_emit_ast,
         )

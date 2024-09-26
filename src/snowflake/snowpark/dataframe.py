@@ -3054,7 +3054,8 @@ class DataFrame:
             <BLANKLINE>
         """
         using_columns = kwargs.get("using_columns") or on
-        join_type = create_join_type(kwargs.get("join_type") or how or "inner")
+        join_type_arg = kwargs.get("join_type") or how or "inner"
+        join_type = create_join_type(join_type_arg)
         if isinstance(right, DataFrame):
             if self is right or self._plan is right._plan:
                 raise SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
@@ -3078,7 +3079,7 @@ class DataFrame:
             else:
                 if match_condition is not None:
                     raise ValueError(
-                        f"match_condition is only accepted with join type 'asof' given: '{join_type}'"
+                        f"match_condition is only accepted with join type 'asof' given: '{join_type_arg}'"
                     )
 
             # Parse using_columns arg
@@ -3131,7 +3132,7 @@ class DataFrame:
                 elif isinstance(join_type, AsOf):
                     ast.join_type.sp_join_type__asof = True
                 else:
-                    raise ValueError(f"Unsupported join type {join_type}")
+                    raise ValueError(f"Unsupported join type {join_type_arg}")
 
                 join_cols = kwargs.get("using_columns", on)
                 if join_cols is not None:
