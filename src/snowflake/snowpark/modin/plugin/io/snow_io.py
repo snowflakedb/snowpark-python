@@ -661,17 +661,9 @@ class PandasOnSnowflakeIO(BaseIO):
     def read_sas(cls, **kwargs):  # noqa: PR01
         """
         Read SAS files stored as either XPORT or SAS7BDAT format files into a query compiler.
-
-        Snowpark pandas has a slightly different error message from the upstream modin version.
         """
         intermediate = pandas.read_sas(**kwargs)
-        if isinstance(intermediate, (OrderedDict, dict)):  # pragma: no cover
-            parsed = type(intermediate)()
-            for key in intermediate.keys():
-                parsed[key] = cls.from_pandas(intermediate.get(key))
-            return parsed
-        else:
-            return cls.from_pandas(intermediate)
+        return cls.from_pandas(intermediate)
 
     @classmethod
     @pandas_module_level_function_not_implemented()
