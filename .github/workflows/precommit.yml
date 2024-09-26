@@ -243,7 +243,7 @@ jobs:
             .tox/.coverage
             .tox/coverage.xml
 
-  test-ast:
+  test-ast-encoding:
     name: Test AST expectations (phase0) py-${{ matrix.os }}-${{ matrix.python-version }}
     needs: build
     runs-on: ${{ matrix.os }}
@@ -297,7 +297,7 @@ jobs:
           TZ: EST
         shell: bash
 
-  test-ast-phase0-doctesta:
+  doctest-ast-phase0:
     name: Doctest AST (phase0) py-${{ matrix.os }}-${{ matrix.python-version }}
     needs: build
     runs-on: ${{ matrix.os }}
