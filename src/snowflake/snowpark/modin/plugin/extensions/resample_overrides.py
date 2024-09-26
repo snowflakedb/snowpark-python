@@ -25,6 +25,7 @@
 """Implement Resampler public API."""
 from typing import Any, Callable, Literal, Optional, Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas
 import pandas.core.resample
@@ -32,9 +33,6 @@ from pandas._libs import lib
 from pandas._libs.lib import no_default
 from pandas._typing import AggFuncType, AnyArrayLike, Axis, T
 
-from snowflake.snowpark.modin import (  # noqa: F401  # add this line to enable doc tests to run
-    pandas as pd,
-)
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._typing import InterpolateOptions
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage

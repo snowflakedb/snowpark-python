@@ -1,11 +1,11 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.utils import (
     TempObjectType,

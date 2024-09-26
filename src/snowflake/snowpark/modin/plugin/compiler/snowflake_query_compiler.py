@@ -904,7 +904,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     ) -> "SnowflakeQueryCompiler":
         """
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
-        src/snowflake/snowpark/modin/pandas/io.py
+        src/snowflake/snowpark/modin/plugin/pd_extensions.py
         """
         if columns is not None and not isinstance(columns, list):
             raise ValueError("columns must be provided as list, i.e ['A'].")

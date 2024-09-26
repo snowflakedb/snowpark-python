@@ -26,12 +26,14 @@ import datetime as dt
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from datetime import date, datetime, timedelta, tzinfo
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Literal, Union
+from typing import Any, Literal, Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas
 import pandas.core.common as common
 from modin.pandas import DataFrame, Series
+from modin.pandas.api.extensions import register_pd_accessor
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
 from pandas import IntervalIndex, NaT, Timedelta, Timestamp
@@ -64,12 +66,6 @@ from pandas.core.tools.datetimes import (
 from pandas.errors import MergeError
 from pandas.util._validators import validate_inclusive
 
-# add this line to make doctests runnable
-from snowflake.snowpark import modin
-from snowflake.snowpark.modin import pandas as pd  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.telemetry import (
-    snowpark_pandas_telemetry_standalone_function_decorator,
-)
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     VALID_TO_DATETIME_UNIT,
 )
@@ -87,12 +83,10 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import _inherit_docstrings, to_pandas
 
-if TYPE_CHECKING:
-    # To prevent cross-reference warnings when building documentation and prevent erroneously
-    # linking to `snowflake.snowpark.DataFrame`, we need to explicitly
-    # qualify return types in this file with `modin.pandas.DataFrame`.
-    # SNOW-1233342: investigate how to fix these links without using absolute paths
-    from modin.core.storage_formats import BaseQueryCompiler  # pragma: no cover
+# To prevent cross-reference warnings when building documentation and prevent erroneously
+# linking to `snowflake.snowpark.DataFrame`, we need to explicitly
+# qualify return types in this file with `modin.pandas.DataFrame`.
+# SNOW-1233342: investigate how to fix these links without using absolute paths
 
 _logger = getLogger(__name__)
 
@@ -106,7 +100,7 @@ VALID_DATE_TYPE = Union[
 ###########################################################################
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("melt")
 def melt(
     frame,
     id_vars=None,
@@ -172,7 +166,7 @@ def melt(
     )
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("pivot")
 def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D200
     """
     Return reshaped DataFrame organized by given index / column values.
@@ -276,7 +270,7 @@ def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D20
     return data.pivot(index=index, columns=columns, values=values)
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("pivot_table")
 def pivot_table(
     data,
     values=None,
@@ -461,7 +455,7 @@ def pivot_table(
     )
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("crosstab")
 def crosstab(
     index,
     columns,
@@ -793,7 +787,7 @@ def crosstab(
     return table
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("cut")
 def cut(
     x: AnyArrayLike,
     bins: int | Sequence[Scalar] | IntervalIndex,
@@ -961,7 +955,7 @@ def cut(
         # )
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("qcut")
 def qcut(
     x: np.ndarray | Series,
     q: int | ListLikeOfFloats,
@@ -1064,10 +1058,10 @@ def qcut(
     return ans
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("merge")
 def merge(
-    left: modin.pandas.DataFrame | Series,
-    right: modin.pandas.DataFrame | Series,
+    left: pd.DataFrame | Series,
+    right: pd.DataFrame | Series,
     how: str | None = "inner",
     on: IndexLabel | None = None,
     left_on: None
@@ -1287,7 +1281,7 @@ def merge(
     )
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("merge_ordered")
 @pandas_module_level_function_not_implemented()
 @_inherit_docstrings(pandas.merge_ordered, apilink="pandas.merge_ordered")
 def merge_ordered(
@@ -1328,7 +1322,7 @@ def merge_ordered(
     )
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("merge_asof")
 @_inherit_docstrings(pandas.merge_asof, apilink="pandas.merge_asof")
 def merge_asof(
     left,
@@ -1345,7 +1339,7 @@ def merge_asof(
     tolerance: int | Timedelta | None = None,
     allow_exact_matches: bool = True,
     direction: str = "backward",
-) -> modin.pandas.DataFrame:
+) -> pd.DataFrame:
     """
     Perform a merge by key distance.
 
@@ -1557,12 +1551,9 @@ def merge_asof(
     )
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("concat")
 def concat(
-    objs: (
-        Iterable[modin.pandas.DataFrame | Series]
-        | Mapping[Hashable, modin.pandas.DataFrame | Series]
-    ),
+    objs: (Iterable[pd.DataFrame | Series] | Mapping[Hashable, pd.DataFrame | Series]),
     axis: Axis = 0,
     join: str = "outer",
     ignore_index: bool = False,
@@ -1572,7 +1563,7 @@ def concat(
     verify_integrity: bool = False,
     sort: bool = False,
     copy: bool = True,
-) -> modin.pandas.DataFrame | Series:
+) -> pd.DataFrame | Series:
     """
     Concatenate pandas objects along a particular axis.
 
@@ -1941,7 +1932,7 @@ def concat(
     return DataFrame(query_compiler=result)
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("get_dummies")
 def get_dummies(
     data,
     prefix=None,
@@ -2030,7 +2021,7 @@ def get_dummies(
     return DataFrame(query_compiler=new_qc)
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("unique")
 def unique(values) -> np.ndarray:
     """
     Return unique values based on a hash table. Unique values are
@@ -2085,7 +2076,9 @@ def unique(values) -> np.ndarray:
 
 
 # Adding docstring since pandas docs don't have web section for this function.
-@snowpark_pandas_telemetry_standalone_function_decorator
+
+
+@register_pd_accessor("lreshape")
 @pandas_module_level_function_not_implemented()
 def lreshape(data: DataFrame, groups, dropna=True, label=None):
     """
@@ -2121,8 +2114,8 @@ def lreshape(data: DataFrame, groups, dropna=True, label=None):
     )
 
 
+@register_pd_accessor("wide_to_long")
 @_inherit_docstrings(pandas.wide_to_long, apilink="pandas.wide_to_long")
-@snowpark_pandas_telemetry_standalone_function_decorator
 @pandas_module_level_function_not_implemented()
 def wide_to_long(
     df: DataFrame, stubnames, i, j, sep: str = "", suffix: str = r"\d+"
@@ -2146,7 +2139,7 @@ def wide_to_long(
 ###########################################################################
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("isna")
 @_inherit_docstrings(pandas.isna, apilink="pandas.isna")
 def isna(obj):  # noqa: PR01, RT01, D200
     """
@@ -2159,10 +2152,10 @@ def isna(obj):  # noqa: PR01, RT01, D200
         return pandas.isna(obj)
 
 
-isnull = isna
+register_pd_accessor("isnull")(isna)
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("notna")
 @_inherit_docstrings(pandas.notna, apilink="pandas.notna")
 def notna(obj):  # noqa: PR01, RT01, D200
     """
@@ -2183,7 +2176,7 @@ notnull = notna
 ###########################################################################
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("to_numeric")
 def to_numeric(
     arg: Scalar | Series | ArrayConvertible,
     errors: Literal["ignore", "raise", "coerce"] = "raise",
@@ -2298,12 +2291,9 @@ def to_numeric(
 ###########################################################################
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("to_datetime")
 def to_datetime(
-    arg: DatetimeScalarOrArrayConvertible
-    | DictConvertible
-    | modin.pandas.DataFrame
-    | Series,
+    arg: DatetimeScalarOrArrayConvertible | DictConvertible | pd.DataFrame | Series,
     errors: DateTimeErrorChoices = "raise",
     dayfirst: bool = False,
     yearfirst: bool = False,
@@ -2640,7 +2630,7 @@ def to_datetime(
     )
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("to_timedelta")
 def to_timedelta(
     arg: str
     | int
@@ -2752,7 +2742,7 @@ def to_timedelta(
     return result
 
 
-@snowpark_pandas_telemetry_standalone_function_decorator
+@register_pd_accessor("date_range")
 def date_range(
     start: VALID_DATE_TYPE | None = None,
     end: VALID_DATE_TYPE | None = None,
@@ -2958,6 +2948,7 @@ def date_range(
     return pd.DatetimeIndex(query_compiler=qc)
 
 
+@register_pd_accessor("bdate_range")
 def bdate_range(
     start: VALID_DATE_TYPE | None = None,
     end: VALID_DATE_TYPE | None = None,
@@ -3057,7 +3048,9 @@ def bdate_range(
 
 
 # Adding docstring since pandas docs don't have web section for this function.
-@snowpark_pandas_telemetry_standalone_function_decorator
+
+
+@register_pd_accessor("value_counts")
 @pandas_module_level_function_not_implemented()
 def value_counts(
     values, sort=True, ascending=False, normalize=False, bins=None, dropna=True
@@ -3093,37 +3086,3 @@ def value_counts(
         bins=bins,
         dropna=dropna,
     )
-
-
-def _determine_name(objs: Iterable[BaseQueryCompiler], axis: int | str):
-    """
-    Determine names of index after concatenation along passed axis.
-
-    Parameters
-    ----------
-    objs : iterable of QueryCompilers
-        Objects to concatenate.
-    axis : int or str
-        The axis to concatenate along.
-
-    Returns
-    -------
-    list with single element
-        Computed index name, `None` if it could not be determined.
-    """
-    # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    axis = pandas.DataFrame()._get_axis_number(axis)  # pragma: no cover
-
-    def get_names(obj):  # pragma: no cover
-        return obj.columns.names if axis else obj.index.names  # pragma: no cover
-
-    names = np.array([get_names(obj) for obj in objs])  # pragma: no cover
-
-    # saving old name, only if index names of all objs are the same
-    if np.all(names == names[0]):  # pragma: no cover
-        # we must do this check to avoid this calls `list(str_like_name)`
-        return (
-            list(names[0]) if is_list_like(names[0]) else [names[0]]
-        )  # pragma: no cover
-    else:
-        return None  # pragma: no cover
