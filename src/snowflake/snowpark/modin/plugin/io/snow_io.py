@@ -658,19 +658,11 @@ class PandasOnSnowflakeIO(BaseIO):
         pass  # pragma: no cover
 
     @classmethod
-    @pandas_module_level_function_not_implemented()
-    def read_sas(
-        cls,
-        filepath_or_buffer,
-        *,
-        format=None,
-        index=None,
-        encoding=None,
-        chunksize=None,
-        iterator=False,
-        **kwargs,
-    ):
-        pass  # pragma: no cover
+    def read_sas(cls, **kwargs):  # noqa: PR01
+        """
+        Read SAS files stored as either XPORT or SAS7BDAT format files into a query compiler.
+        """
+        return cls.from_pandas(pandas.read_sas(**kwargs))
 
     @classmethod
     @pandas_module_level_function_not_implemented()
