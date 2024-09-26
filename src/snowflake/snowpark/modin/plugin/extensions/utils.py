@@ -610,10 +610,10 @@ def propagate_self_attrs(method: T) -> T:
     @functools.wraps(method)
     def wrapper(self, *args, **kwargs):  # type: ignore
         result = method(self, *args, **kwargs)
-        if isinstance(result, BasePandasDataset) and len(self._attrs):
+        if isinstance(result, BasePandasDataset) and len(self.attrs):
             # If the result of the method call is a modin.pandas object and `self.attrs` is
             # not empty, perform a deep copy of `self.attrs`.
-            result._attrs = copy.deepcopy(self._attrs)
+            result.attrs = copy.deepcopy(self.attrs)
         return result
 
     # need cast to convince mypy that we are returning a function with the same
