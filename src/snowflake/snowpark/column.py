@@ -372,6 +372,9 @@ class Column:
         """Less than."""
         expr = None
         _emit_ast = bool(self._ast is not None)
+        if isinstance(other, (Column, Expression)) and other._ast is None:
+            _emit_ast = False
+
         if _emit_ast:
             expr = proto.Expr()
             ast = with_src_position(expr.lt)
