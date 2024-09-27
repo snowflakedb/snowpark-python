@@ -60,7 +60,9 @@ def get_complexity_score(node) -> int:
             adjusted_cumulative_complexity[category] -= (count - 1) * value
 
         # Adjustment for each WITH query block being replaced by select * from cte
-        adjusted_cumulative_complexity[PlanNodeCategory.COLUMN] += count
+        adjusted_cumulative_complexity[PlanNodeCategory.COLUMN] = (
+            adjusted_cumulative_complexity.get(PlanNodeCategory.COLUMN, 0) + count
+        )
 
     score = sum(adjusted_cumulative_complexity.values())
     return score
