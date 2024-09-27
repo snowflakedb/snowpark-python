@@ -37,7 +37,6 @@ def setup(session):
 def wait_for_drop_table_sql_done(session: Session, caplog, expect_drop: bool) -> None:
     # Loop through captured logs and search for the pattern
     pattern = r"Dropping .* with query id ([0-9a-f\-]+)"
-    print(caplog.records)
     for record in caplog.records:
         match = re.search(pattern, record.message)
         if match:
