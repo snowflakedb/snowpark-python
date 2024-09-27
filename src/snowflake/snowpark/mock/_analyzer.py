@@ -876,7 +876,10 @@ class MockAnalyzer:
             expr_to_alias.update({p: q for p, q in v.items() if counts[p] < 2})
 
         return self.do_resolve_with_resolved_children(
-            logical_plan, resolved_children, expr_to_alias, config_context
+            logical_plan,
+            resolved_children,
+            expr_to_alias,
+            config_context=config_context,
         )
 
     def do_resolve_with_resolved_children(
