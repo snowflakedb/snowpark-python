@@ -78,6 +78,7 @@
 
 - Added the following new functions in `snowflake.snowpark.functions`:
   - `make_interval`
+  - `map`
 - Added support for using Snowflake Interval constants with `Window.range_between()` when the order by column is TIMESTAMP or DATE type.
 - Added support for file writes. This feature is currently in private preview.
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.

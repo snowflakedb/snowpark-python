@@ -109,6 +109,7 @@ from snowflake.snowpark.functions import (
     lit,
     ln,
     log,
+    map,
     months_between,
     negate,
     not_,
@@ -2295,3 +2296,88 @@ The next sections explain these steps in more detail.
     # this length check is to get around the fact that this function may not be deterministic
     assert 0 < len(summary_from_col) < len(content)
     assert 0 < len(summary_from_str) < len(content)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
+@pytest.mark.udf
+def test_map(session):
+    """Test `map`"""
+
+    df1 = session.create_dataframe(
+        [[True, i, f"w{i}"] for i in range(15)], schema=["A", "B", "C"]
+    )
+
+    # map call with a function accesing row columns by index
+    new_df = map(df1, lambda row: row[1] + 10, output_types=[IntegerType()])
+    res = sorted(new_df.collect(), key=lambda r: r[0])
+    expected = [Row(i + 10) for i in range(15)]
+    assert res == expected
+
+    # map call with a function that uses column names
+    new_df = map(
+        df1, lambda row: (row.B * 2, row.C), output_types=[IntegerType(), StringType()]
+    )
+    res = sorted(new_df.collect(), key=lambda r: r[0])
+    expected = [Row(i * 2, f"w{i}") for i in range(15)]
+    assert res == expected
+
+    # map call with a function that uses column names and returns a list
+    new_df = map(
+        df1, lambda row: [row.B, row.C], output_types=[IntegerType(), StringType()]
+    )
+    res = sorted(new_df.collect(), key=lambda r: r[0])
+    expected = [Row(i, f"w{i}") for i in range(15)]
+    assert res == expected
+
+    # map call with a function that receives a scalar value
+    df2 = session.create_dataframe([(i,) for i in range(10)], schema=["V"])
+    new_df = map(df2, lambda x: x * x, output_types=[IntegerType()], wrap_row=False)
+    res = sorted(new_df.collect(), key=lambda r: r[0])
+    expected = [Row(i * i) for i in range(10)]
+
+    # map with a function that returns a Row instance
+    new_df = map(
+        df1,
+        lambda x: Row(x.B * x.B, f"-{x.C}"),
+        output_types=[IntegerType(), StringType()],
+    )
+    res = sorted(new_df.collect(), key=lambda r: r[0])
+    expected = [Row(C_1=i * i, C_2=f"-w{i}") for i in range(15)]
+    assert res == expected
+
+    # chained map calls
+    new_df = map(
+        map(
+            df1,
+            lambda x: (x.B * x.B, f"_{x.C}_"),
+            output_types=[IntegerType(), StringType()],
+        ),
+        lambda x: len(x[1]) + x[0],
+        output_types=[IntegerType()],
+    )
+    res = [r[0] for r in sorted(new_df.collect(), key=lambda r: r[0])]
+    expected = [len(f"_w{i}_") + i * i for i in range(15)]
+    assert res == expected
+
+    # chained calls with repeated column names
+    new_df = map(
+        map(
+            df1,
+            lambda x: Row(x.B * x.B, f"_{x.C}_"),
+            output_types=[IntegerType(), StringType()],
+            output_column_names=["A", "B"],
+        ),
+        lambda x: Row(len(x.B) + x.A),
+        output_types=[IntegerType()],
+        output_column_names=["A"],
+        packages=["snowflake-snowpark-python"],
+    )
+    res = [r[0] for r in sorted(new_df.collect(), key=lambda r: r[0])]
+    expected = [len(f"_w{i}_") + i * i for i in range(15)]
+    assert res == expected
+
+    with pytest.raises(ValueError):
+        map(df1, lambda row: [row.B, row.C], output_types=[])
