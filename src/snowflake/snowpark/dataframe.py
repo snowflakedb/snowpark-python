@@ -533,18 +533,18 @@ class DataFrame:
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
-        ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Assign] = None,
         _emit_ast: bool = True,
     ) -> None:
         """
-        :param int ast_stmt: The AST Assign atom corresponding to this dataframe value. We track its assigned ID in the
+        :param int _ast_stmt: The AST Assign atom corresponding to this dataframe value. We track its assigned ID in the
                              slot self._ast_id. This allows this value to be referred to symbolically when it's
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
         self._ast_id = None
         if _emit_ast:
-            self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
+            self._ast_id = _ast_stmt.var_id.bitfield1 if _ast_stmt is not None else None
 
         if plan is not None:
             self._plan = self._session._analyzer.resolve(plan)
@@ -3984,7 +3984,7 @@ class DataFrame:
                 cur_options=self._reader._cur_options,
                 create_table_from_infer_schema=create_table_from_infer_schema,
             ),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
         return df._internal_collect_with_tag_no_telemetry(
@@ -4095,6 +4095,10 @@ class DataFrame:
         See Also:
             - :meth:`Session.flatten`, which creates a new :class:`DataFrame` by flattening compound values into multiple rows.
         """
+
+        if mode.upper() not in ["OBJECT", "ARRAY", "BOTH"]:
+            raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -4108,14 +4112,12 @@ class DataFrame:
             expr.recursive = recursive
 
             mode = mode.upper()
-            if mode == "OBJECT":
+            if mode.upper() == "OBJECT":
                 expr.mode.sp_flatten_mode_object = True
-            elif mode == "ARRAY":
+            elif mode.upper() == "ARRAY":
                 expr.mode.sp_flatten_mode_array = True
-            elif mode == "BOTH":
-                expr.mode.sp_flatten_mode_both = True
             else:
-                raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+                expr.mode.sp_flatten_mode_both = True
 
         if isinstance(input, str):
             input = self.col(input)
@@ -4131,7 +4133,7 @@ class DataFrame:
         from snowflake.snowpark.mock._connection import MockServerConnection
 
         if isinstance(self._session._conn, MockServerConnection):
-            return DataFrame(self._session, ast_stmt=_ast_stmt)
+            return DataFrame(self._session, _ast_stmt=_ast_stmt)
 
         result_columns = [
             attr.name
@@ -4142,7 +4144,7 @@ class DataFrame:
         common_col_names = [k for k, v in Counter(result_columns).items() if v > 1]
         if len(common_col_names) == 0:
             return DataFrame(
-                self._session, Lateral(self._plan, table_function), ast_stmt=_ast_stmt
+                self._session, Lateral(self._plan, table_function), _ast_stmt=_ast_stmt
             )
         prefix = _generate_prefix("a")
         child = self.select(
@@ -4156,10 +4158,10 @@ class DataFrame:
                 )
                 for attr in self._output
             ],
-            ast_stmt=False,  # Suppress AST generation for this SELECT.
+            _emit_ast=False,
         )
         return DataFrame(
-            self._session, Lateral(child._plan, table_function), ast_stmt=_ast_stmt
+            self._session, Lateral(child._plan, table_function), _ast_stmt=_ast_stmt
         )
 
     def _show_string(
@@ -5274,7 +5276,7 @@ Query List:
         """
         :param proto.Assign ast_stmt: The AST statement protobuf corresponding to this value.
         """
-        df = DataFrame(self._session, plan, ast_stmt=ast_stmt, _emit_ast=False)
+        df = DataFrame(self._session, plan, _ast_stmt=ast_stmt, _emit_ast=False)
         df._statement_params = self._statement_params
 
         if ast_stmt is not None:

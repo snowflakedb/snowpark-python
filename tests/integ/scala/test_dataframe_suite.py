@@ -241,7 +241,7 @@ def test_show_multi_lines_row(session):
         ]
     ).to_df("a", "b")
 
-    res = df._show_string(2, session.ast_enabled)
+    res = df._show_string(2, _emit_ast=session.ast_enabled)
     assert (
         res
         == """
@@ -283,7 +283,9 @@ def test_show(session):
     session.sql("drop table if exists test_table_123").show()
 
     # truncate result, no more than 50 characters
-    res = session.sql("drop table if exists test_table_123")._show_string(1)
+    res = session.sql("drop table if exists test_table_123")._show_string(
+        1, _emit_ast=session.ast_enabled
+    )
 
     assert (
         res
@@ -2392,7 +2394,7 @@ def test_dataframe_show_with_new_line(session):
         ]
     ).to_df("a", "b")
     assert (
-        df2._show_string(10)
+        df2._show_string(10, _emit_ast=session.ast_enabled)
         == """
 -----------------
 |"A"      |"B"  |
