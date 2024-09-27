@@ -329,7 +329,7 @@ def is_active_transaction(session):
     return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
 
 
-def plot_plan_if_enabled(root: TreeNode, filename: str) -> None:
+def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     """A helper function to plot the query plan tree using graphviz useful for debugging.
     It plots the plan if the environment variable ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING
     is set to true.
@@ -358,7 +358,7 @@ def plot_plan_if_enabled(root: TreeNode, filename: str) -> None:
     ):
         return
 
-    def get_stat(node: TreeNode):
+    def get_stat(node: LogicalPlan):
         def get_name(node: Optional[LogicalPlan]) -> str:
             if node is None:
                 return "EMPTY_SOURCE_PLAN"
@@ -375,9 +375,11 @@ def plot_plan_if_enabled(root: TreeNode, filename: str) -> None:
             name = f"{name} :: ({node.set_operands[1].operator})"
 
         score = get_complexity_score(node.cumulative_node_complexity)
-        sql_text = (
-            node.queries[-1].sql if isinstance(node, SnowflakePlan) else node.sql_query
-        )
+        sql_text = ""
+        if isinstance(node, Selectable):
+            sql_text = node.sql_query
+        elif isinstance(node, SnowflakePlan):
+            sql_text = node.queries[-1].sql
         sql_size = len(sql_text)
         sql_preview = sql_text[:50]
 
@@ -392,7 +394,11 @@ def plot_plan_if_enabled(root: TreeNode, filename: str) -> None:
         for node in curr_level:
             node_id = hex(id(node))
             g.node(node_id, get_stat(node))
-            for child in node.children_plan_nodes:
+            if isinstance(node, TreeNode):
+                children = node.children_plan_nodes
+            else:
+                children = node.children
+            for child in children:
                 child_id = hex(id(child))
                 edges.add((node_id, child_id))
                 next_level.append(child)
