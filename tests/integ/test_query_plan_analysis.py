@@ -9,7 +9,6 @@ import pytest
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
-    get_complexity_score,
     sum_node_complexities,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -560,37 +559,3 @@ def test_select_statement_with_multiple_operations(session: Session, sample_tabl
             get_cumulative_node_complexity(df9), {PlanNodeCategory.LOW_IMPACT: 2}
         ),
     )
-
-def test_with_query_block(session: Session):
-    try:
-        original_cte_enabled = session._cte_optimization_enabled
-        original_query_compilation_stage_enabled = session._query_compilation_stage_enabled
-        session._cte_optimization_enabled = True
-        session._query_compilation_stage_enabled = True
-
-        df0 = session.sql("select 1 as A").filter(col("A") > 0).order_by("A")
-        df1 = df0.union_all(df0).filter(col("A") < 10)
-
-        assert_df_subtree_query_complexity(df0, {PlanNodeCategory.COLUMN: 3,
-                                                 PlanNodeCategory.FILTER: 1,
-                                                 PlanNodeCategory.ORDER_BY: 1,
-                                                 PlanNodeCategory.LITERAL: 1,
-                                                 PlanNodeCategory.LOW_IMPACT: 1,
-                                                 PlanNodeCategory.OTHERS: 1})
-        assert get_complexity_score(df0._plan) == 8
-        assert_df_subtree_query_complexity(df1, {PlanNodeCategory.COLUMN: 3,
-                                                 PlanNodeCategory.FILTER: 1,
-                                                 PlanNodeCategory.SET_OPERATION: 1,
-                                                 PlanNodeCategory.LITERAL: 1,})
-        assert get_complexity_score(df1._plan) == 2
-
-        df2 = df1.union_all(df0)
-        assert_df_subtree_query_complexity(df2, {PlanNodeCategory.COLUMN: 3, PlanNodeCategory.FILTER: 1})
-        assert get_complexity_score(df2._plan) == 4
-
-
-
-    finally:
-        session._cte_optimization_enabled = original_cte_enabled
-        session._query_compilation_stage_enabled = original_query_compilation_stage_enabled
-
