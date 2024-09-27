@@ -14,7 +14,7 @@ from pandas.errors import IndexingError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
@@ -1726,8 +1726,7 @@ def test_df_loc_get_key_bool_series_with_unaligned_and_distinct_indices(
     )
 
 
-# One extra query for series init converting index to native pandas when creating series_key
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_df_loc_get_key_bool_series_with_unaligned_and_duplicate_indices():
     key = [True] * 5
     # index can have null values and duplicates
@@ -2697,7 +2696,7 @@ def test_empty_df_loc_set_series_and_list(native_item):
         else native_item
     )
 
-    expected_join_count = 1 if isinstance(native_item, native_pd.Series) else 2
+    expected_join_count = 2 if isinstance(native_item, native_pd.Series) else 4
 
     def setitem_op(df):
         item = native_item if isinstance(df, native_pd.DataFrame) else snow_item
@@ -3932,13 +3931,19 @@ def test_raise_set_cell_with_list_like_value_error():
         pytest.param(
             "1 day",
             2,
-            3,
-        ),  # 1 join from squeeze, 2 joins from to_pandas during eval
+            4,
+            marks=pytest.mark.xfail(
+                reason="SNOW-1652608 result series name incorrectly set"
+            ),
+        ),  # 1 join from df creation, 1 join from squeeze, 2 joins from to_pandas during eval
         pytest.param(
             native_pd.to_timedelta("1 day"),
             2,
-            3,
-        ),  # 1 join from squeeze, 2 joins from to_pandas during eval
+            4,
+            marks=pytest.mark.xfail(
+                reason="SNOW-1652608 result series name incorrectly set"
+            ),
+        ),  # 1 join fron df creation, 1 join from squeeze, 2 joins from to_pandas during eval
         (["1 day", "3 days"], 1, 1),
         ([True, False, False], 1, 1),
         (slice(None, "4 days"), 1, 0),

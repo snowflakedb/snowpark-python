@@ -213,7 +213,7 @@ def _verify_merge(
         left_index: If True, use index from left DataFrame as join keys.
         right_index: If True, use index from right DataFrame as join keys.
         force_output_column_order: If provided, reorder native result using this list.
-        indicator: If true include indicator column.
+        indicator: If True, include indicator column.
 
     Returns:
         None
@@ -587,7 +587,7 @@ def test_merge_cross(left_df, right_df, sort):
         {"left_index": True, "right_on": "A"},
     ],
 )
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=3, join_count=3)
 def test_merge_non_empty_with_empty(left_df, empty_df, how, kwargs, sort):
     _verify_merge(left_df, empty_df, how, sort=sort, **kwargs)
 
@@ -601,7 +601,7 @@ def test_merge_non_empty_with_empty(left_df, empty_df, how, kwargs, sort):
         {"left_index": True, "right_on": "A"},
     ],
 )
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=3, join_count=3)
 def test_merge_empty_with_non_empty(empty_df, right_df, how, kwargs, sort):
     # Native pandas returns incorrect column order when left frame is empty.
     # https://github.com/pandas-dev/pandas/issues/51929

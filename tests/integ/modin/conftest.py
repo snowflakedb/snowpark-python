@@ -369,9 +369,7 @@ def iloc_snowpark_pandas_input_map():
         "categorical[int]": pd.Categorical([1, 3, 4]),
         "Index": pd.Index([-0.9, -1.0, -1.1, 0.0, 1.0, 0.9, 1.1, 1]),
         "Series": pd.Series([-0.9, -1.0, -1.1, 0.0, 1.0, 0.9, 1.1, -1]),
-        "Series[positive_int]": pd.Series(
-            [0, 1]
-        ),  # To test `convert_positional_key` shortcircuit
+        "Series[positive_int]": pd.Series([0, 1]),
         "Series_all_positive_int": pd.Series([1, 1, 2]),
         "RangeIndex": pd.RangeIndex(1, 4),
         "Index[bool]": pd.Index([True, True, False, False, False, True, True]),

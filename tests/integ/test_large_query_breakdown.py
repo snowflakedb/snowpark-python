@@ -4,6 +4,8 @@
 
 
 import logging
+import os
+import tempfile
 from unittest.mock import patch
 
 import pytest
@@ -16,7 +18,7 @@ from snowflake.snowpark.session import (
     DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
     Session,
 )
-from tests.utils import Utils
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -203,18 +205,20 @@ def test_copy_into_location(session, large_query_df):
 
 
 def test_pivot_unpivot(session):
-    session.sql(
-        """create or replace temp table monthly_sales(A int, B int, month text)
-                as select * from values
-                (1, 10000, 'JAN'),
-                (1, 400, 'JAN'),
-                (2, 4500, 'JAN'),
-                (2, 35000, 'JAN'),
-                (1, 5000, 'FEB'),
-                (1, 3000, 'FEB'),
-                (2, 200, 'FEB')"""
-    ).collect()
-    df_pivot = session.table("monthly_sales").with_column("A", col("A") + lit(1))
+    table_name = Utils.random_table_name()
+    session.create_dataframe(
+        [
+            (1, 10000, "JAN"),
+            (1, 400, "JAN"),
+            (2, 4500, "JAN"),
+            (2, 35000, "JAN"),
+            (1, 5000, "FEB"),
+            (1, 3000, "FEB"),
+            (2, 200, "FEB"),
+        ],
+        schema=["A", "B", "month"],
+    ).write.save_as_table(table_name, table_type="temp")
+    df_pivot = session.table(table_name).with_column("A", col("A") + lit(1))
     df_unpivot = session.create_dataframe(
         [(1, "electronics", 100, 200), (2, "clothes", 100, 300)],
         schema=["A", "dept", "jan", "feb"],
@@ -430,3 +434,37 @@ def test_large_query_breakdown_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
         session.large_query_breakdown_enabled = True
     assert "large_query_breakdown_enabled is experimental" in caplog.text
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="requires graphviz")
+@pytest.mark.parametrize("enabled", [False, True])
+def test_plotter(session, large_query_df, enabled):
+    original_plotter_enabled = os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING")
+    try:
+        os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"] = str(enabled)
+        tmp_dir = tempfile.gettempdir()
+
+        with patch("graphviz.Graph.render") as mock_render:
+            large_query_df.collect()
+            assert mock_render.called == enabled
+            if not enabled:
+                return
+
+            assert mock_render.call_count == 4
+            expected_files = [
+                "original_plan",
+                "cte_optimized_plan_0",
+                "large_query_breakdown_plan_0",
+                "large_query_breakdown_plan_1",
+            ]
+            for i, file in enumerate(expected_files):
+                path = os.path.join(tmp_dir, "snowpark_query_plan_plots", file)
+                assert mock_render.call_args_list[i][0][0] == path
+
+    finally:
+        if original_plotter_enabled is not None:
+            os.environ[
+                "ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"
+            ] = original_plotter_enabled
+        else:
+            del os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"]

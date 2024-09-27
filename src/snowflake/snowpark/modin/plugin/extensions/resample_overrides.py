@@ -25,6 +25,7 @@
 """Implement Resampler public API."""
 from typing import Any, Callable, Literal, Optional, Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas
 import pandas.core.resample
@@ -32,9 +33,6 @@ from pandas._libs import lib
 from pandas._libs.lib import no_default
 from pandas._typing import AggFuncType, AnyArrayLike, Axis, T
 
-from snowflake.snowpark.modin import (  # noqa: F401  # add this line to enable doc tests to run
-    pandas as pd,
-)
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._typing import InterpolateOptions
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
@@ -166,6 +164,10 @@ class Resampler(metaclass=TelemetryMeta):
 
         return _get_new_resampler(key)
 
+    ###########################################################################
+    # Indexing, iteration
+    ###########################################################################
+
     @property
     def groups(self):  # pragma: no cover
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
@@ -189,6 +191,10 @@ class Resampler(metaclass=TelemetryMeta):
     def get_group(self, name, obj=None):  # pragma: no cover
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         self._method_not_implemented("get_group")
+
+    ###########################################################################
+    # Function application
+    ###########################################################################
 
     def apply(
         self, func: Optional[AggFuncType] = None, *args: Any, **kwargs: Any
@@ -221,6 +227,10 @@ class Resampler(metaclass=TelemetryMeta):
     ):  # pragma: no cover
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         self._method_not_implemented("pipe")
+
+    ###########################################################################
+    # Upsampling
+    ###########################################################################
 
     def ffill(self, limit: Optional[int] = None) -> Union[pd.DataFrame, pd.Series]:
         is_series = not self._dataframe._is_dataframe
@@ -312,6 +322,10 @@ class Resampler(metaclass=TelemetryMeta):
         **kwargs,
     ):  # pragma: no cover
         self._method_not_implemented("interpolate")
+
+    ###########################################################################
+    # Computations / descriptive stats
+    ###########################################################################
 
     def count(self) -> Union[pd.DataFrame, pd.Series]:
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
