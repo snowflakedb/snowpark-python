@@ -95,7 +95,7 @@ def resolve_and_update_snowflake_plan(
     node.expr_to_alias = new_snowflake_plan.expr_to_alias
     node.is_ddl_on_temp_object = new_snowflake_plan.is_ddl_on_temp_object
     node._output_dict = new_snowflake_plan._output_dict
-    node.df_aliased_col_name_to_real_col_name = (
+    node.df_aliased_col_name_to_real_col_name.update(
         new_snowflake_plan.df_aliased_col_name_to_real_col_name
     )
     node.placeholder_query = new_snowflake_plan.placeholder_query
