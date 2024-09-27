@@ -53,6 +53,7 @@ def setup(session):
     is_query_compilation_stage_enabled = session._query_compilation_stage_enabled
     session._query_compilation_stage_enabled = True
     session._large_query_breakdown_enabled = True
+    session._cte_optimization_enabled = False
     set_bounds(session, 300, 600)
     yield
     session._query_compilation_stage_enabled = is_query_compilation_stage_enabled
