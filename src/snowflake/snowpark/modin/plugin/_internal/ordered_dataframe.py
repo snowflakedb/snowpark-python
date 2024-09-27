@@ -6,6 +6,7 @@ import sys
 import uuid
 from collections.abc import Hashable
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Any, Optional, Union
 
 import pandas
@@ -294,7 +295,7 @@ class OrderedDataFrame:
             row_count_snowflake_quoted_identifier
         )
 
-    @property
+    @cached_property
     def ordering_columns(self) -> list[OrderingColumn]:
         return list(self._ordering_columns_tuple)
 
@@ -308,7 +309,7 @@ class OrderedDataFrame:
         """
         return [col.snowpark_column for col in self.ordering_columns]
 
-    @property
+    @cached_property
     def ordering_column_snowflake_quoted_identifiers(self) -> list[str]:
         """
         Get all snowflake quoted identifiers for the ordering columns.
@@ -333,7 +334,7 @@ class OrderedDataFrame:
 
         return row_number().over(Window.order_by(self._ordering_snowpark_columns())) - 1
 
-    @property
+    @cached_property
     def projected_column_snowflake_quoted_identifiers(self) -> list[str]:
         """
         Returns:
@@ -481,6 +482,10 @@ class OrderedDataFrame:
         """Returns a Snowpark session object associated with this ordered dataframe."""
         return self._dataframe_ref.snowpark_dataframe.session
 
+    @cached_property
+    def all_active_column_snowflake_quoted_identifiers(self) -> list[str]:
+        return self._get_active_column_snowflake_quoted_identifiers()
+
     def _get_active_column_snowflake_quoted_identifiers(
         self,
         include_ordering_columns: bool = True,
@@ -569,7 +574,7 @@ class OrderedDataFrame:
                 # star adds all projected columns to the result
                 return self.projected_column_snowflake_quoted_identifiers
             else:
-                active_columns = self._get_active_column_snowflake_quoted_identifiers()
+                active_columns = self.all_active_column_snowflake_quoted_identifiers
                 if col in active_columns:
                     return [col]
                 else:
@@ -785,7 +790,7 @@ class OrderedDataFrame:
         # check all ordering_columns are in the current active columns
         _raise_if_identifier_not_exists(
             [column.snowflake_quoted_identifier for column in ordering_columns],
-            self._get_active_column_snowflake_quoted_identifiers(),
+            self.all_active_column_snowflake_quoted_identifiers,
             "ordering column",
         )
 
