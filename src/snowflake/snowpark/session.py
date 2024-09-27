@@ -102,6 +102,7 @@ from snowflake.snowpark._internal.utils import (
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
+    check_flatten_mode,
     deprecated,
     escape_quotes,
     experimental,
@@ -3700,7 +3701,8 @@ class Session:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
-        mode = mode.upper()
+
+        check_flatten_mode(mode)
 
         # AST.
         stmt = None
@@ -3712,14 +3714,12 @@ class Session:
                 expr.path.value = path
             expr.outer = outer
             expr.recursive = recursive
-            if mode == "OBJECT":
+            if mode.upper() == "OBJECT":
                 expr.mode.sp_flatten_mode_object = True
-            elif mode == "ARRAY":
+            elif mode.upper() == "ARRAY":
                 expr.mode.sp_flatten_mode_array = True
-            elif mode == "BOTH":
-                expr.mode.sp_flatten_mode_both = True
             else:
-                raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+                expr.mode.sp_flatten_mode_both = True
 
         if isinstance(self._conn, MockServerConnection):
             if self._conn._suppress_not_implemented_error:

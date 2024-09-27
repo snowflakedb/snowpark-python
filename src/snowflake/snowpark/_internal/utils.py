@@ -1090,6 +1090,11 @@ def prepare_pivot_arguments(
     return df, pc, pivot_values, default_on_null
 
 
+def check_flatten_mode(mode: str) -> None:
+    if not isinstance(mode, str) or mode.upper() not in ["OBJECT", "ARRAY", "BOTH"]:
+        raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+
+
 class MissingModin(MissingOptionalDependency):
     """The class is specifically for modin optional dependency."""
 

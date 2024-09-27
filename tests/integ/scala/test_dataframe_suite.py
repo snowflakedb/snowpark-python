@@ -1566,9 +1566,10 @@ def test_flatten(session, local_testing_mode):
     )
 
     # wrong mode
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(
+        ValueError, match=re.escape("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+    ):
         flatten.flatten(col("value"), "", outer=False, recursive=False, mode="wrong")
-    assert "mode must be one of ('OBJECT', 'ARRAY', 'BOTH')" in str(ex_info)
 
     # contains multiple query
     if not local_testing_mode:
@@ -1631,7 +1632,9 @@ def test_flatten_in_session(session):
         [Row("1"), Row("2")],
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match=re.escape("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+    ):
         session.flatten(
             parse_json(lit("[1]")), "", outer=False, recursive=False, mode="wrong"
         )
