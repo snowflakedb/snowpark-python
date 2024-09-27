@@ -299,8 +299,8 @@ class Analyzer:
                     resolved_expr = self.to_sql_try_avoid_cast(
                         expression,
                         df_aliased_col_name_to_real_col_name,
+                        config_context,
                         parse_local_name,
-                        config_context=config_context,
                     )
                 else:
                     resolved_expr = self.analyze(
@@ -320,8 +320,8 @@ class Analyzer:
                     in_value = self.to_sql_try_avoid_cast(
                         expression,
                         df_aliased_col_name_to_real_col_name,
+                        config_context,
                         parse_local_name,
-                        config_context=config_context,
                     )
                 else:
                     in_value = self.analyze(
@@ -1033,7 +1033,7 @@ class Analyzer:
                     self.to_sql_try_avoid_cast(
                         expr,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
+                        config_context,
                     )
                     for expr in logical_plan.grouping_expressions
                 ],
@@ -1214,12 +1214,12 @@ class Analyzer:
                 self.to_sql_try_avoid_cast(
                     logical_plan.limit_expr,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
+                    config_context,
                 ),
                 self.to_sql_try_avoid_cast(
                     logical_plan.offset_expr,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
+                    config_context,
                 ),
                 resolved_children[logical_plan.child],
                 on_top_of_order_by,
