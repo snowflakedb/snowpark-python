@@ -1,10 +1,11 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+
 import copy
 import gc
 import logging
-import time
+import re
 
 import pytest
 
@@ -18,12 +19,11 @@ from snowflake.snowpark.functions import col
 from tests.utils import IS_IN_STORED_PROC
 
 pytestmark = [
-    pytest.mark.skip(
-        reason="SNOW-1645523: Re-enable this test file after flaky test is fixed",
+    pytest.mark.skipif(
+        IS_IN_STORED_PROC,
+        reason="caplog is not working in stored procedure",
     ),
 ]
-
-WAIT_TIME = 1
 
 
 @pytest.fixture(autouse=True)
@@ -34,7 +34,29 @@ def setup(session):
     session.auto_clean_up_temp_table_enabled = auto_clean_up_temp_table_enabled
 
 
-def test_basic(session):
+def wait_for_drop_table_sql_done(session: Session, caplog, expect_drop: bool) -> None:
+    # Loop through captured logs and search for the pattern
+    pattern = r"Dropping .* with query id ([0-9a-f\-]+)"
+    print(caplog.records)
+    for record in caplog.records:
+        match = re.search(pattern, record.message)
+        if match:
+            query_id = match.group(1)
+            break
+    else:
+        if expect_drop:
+            pytest.fail("No drop table sql found in logs")
+        else:
+            caplog.clear()
+            return
+
+    caplog.clear()
+    async_job = session.create_async_job(query_id)
+    # Wait for the async job to finish
+    _ = async_job.result()
+
+
+def test_basic(session, caplog):
     session._temp_table_auto_cleaner.ref_count_map.clear()
     df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).cache_result()
     table_name = df1.table_name
@@ -56,7 +78,7 @@ def test_basic(session):
 
     del df1
     gc.collect()
-    time.sleep(WAIT_TIME)
+    wait_for_drop_table_sql_done(session, caplog, expect_drop=False)
     assert session._table_exists(table_ids)
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 1
     assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
@@ -64,7 +86,7 @@ def test_basic(session):
 
     del df2
     gc.collect()
-    time.sleep(WAIT_TIME)
+    wait_for_drop_table_sql_done(session, caplog, expect_drop=False)
     assert session._table_exists(table_ids)
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 1
     assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
@@ -72,14 +94,14 @@ def test_basic(session):
 
     del df3
     gc.collect()
-    time.sleep(WAIT_TIME)
+    wait_for_drop_table_sql_done(session, caplog, expect_drop=True)
     assert not session._table_exists(table_ids)
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 0
     assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
     assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 1
 
 
-def test_function(session):
+def test_function(session, caplog):
     session._temp_table_auto_cleaner.ref_count_map.clear()
     table_name = None
 
@@ -95,7 +117,7 @@ def test_function(session):
 
     f(session)
     gc.collect()
-    time.sleep(WAIT_TIME)
+    wait_for_drop_table_sql_done(session, caplog, expect_drop=True)
     assert not session._table_exists(table_name.split("."))
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 0
     assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
@@ -110,7 +132,7 @@ def test_function(session):
         lambda x: x.na.replace(1, 2, subset=[]),
     ],
 )
-def test_copy(session, copy_function):
+def test_copy(session, copy_function, caplog):
     session._temp_table_auto_cleaner.ref_count_map.clear()
     df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).cache_result()
     table_name = df1.table_name
@@ -127,7 +149,7 @@ def test_copy(session, copy_function):
 
     del df1
     gc.collect()
-    time.sleep(WAIT_TIME)
+    wait_for_drop_table_sql_done(session, caplog, expect_drop=False)
     assert session._table_exists(table_ids)
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 1
     assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
@@ -135,15 +157,14 @@ def test_copy(session, copy_function):
 
     del df2
     gc.collect()
-    time.sleep(WAIT_TIME)
+    wait_for_drop_table_sql_done(session, caplog, expect_drop=True)
     assert not session._table_exists(table_ids)
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 0
     assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
     assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 1
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_reference_count_map_multiple_sessions(db_parameters, session):
+def test_reference_count_map_multiple_sessions(db_parameters, session, caplog):
     session._temp_table_auto_cleaner.ref_count_map.clear()
     new_session = Session.builder.configs(db_parameters).create()
     new_session.auto_clean_up_temp_table_enabled = True
@@ -173,7 +194,7 @@ def test_reference_count_map_multiple_sessions(db_parameters, session):
 
         del df1
         gc.collect()
-        time.sleep(WAIT_TIME)
+        wait_for_drop_table_sql_done(session, caplog, expect_drop=True)
         assert not session._table_exists(table_ids1)
         assert new_session._table_exists(table_ids2)
         assert session._temp_table_auto_cleaner.ref_count_map[table_name1] == 0
@@ -185,7 +206,7 @@ def test_reference_count_map_multiple_sessions(db_parameters, session):
 
         del df2
         gc.collect()
-        time.sleep(WAIT_TIME)
+        wait_for_drop_table_sql_done(session, caplog, expect_drop=True)
         assert not new_session._table_exists(table_ids2)
         assert table_name2 not in session._temp_table_auto_cleaner.ref_count_map
         assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
@@ -197,7 +218,7 @@ def test_reference_count_map_multiple_sessions(db_parameters, session):
         new_session.close()
 
 
-def test_save_as_table_no_drop(session):
+def test_save_as_table_no_drop(session, caplog):
     session._temp_table_auto_cleaner.ref_count_map.clear()
 
     def f(session: Session, temp_table_name: str) -> None:
@@ -211,7 +232,7 @@ def test_save_as_table_no_drop(session):
     temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
     f(session, temp_table_name)
     gc.collect()
-    time.sleep(WAIT_TIME)
+    wait_for_drop_table_sql_done(session, caplog, expect_drop=False)
     assert session._table_exists([temp_table_name])
 
 
@@ -226,7 +247,7 @@ def test_auto_clean_up_temp_table_enabled_parameter(db_parameters, session, capl
     table_ids = table_name.split(".")
     del df
     gc.collect()
-    time.sleep(WAIT_TIME)
+    wait_for_drop_table_sql_done(session, caplog, expect_drop=False)
     assert session._table_exists(table_ids)
     assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 0
     assert session._temp_table_auto_cleaner.num_temp_tables_created == 1
