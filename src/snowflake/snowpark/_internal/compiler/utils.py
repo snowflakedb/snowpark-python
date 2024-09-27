@@ -394,7 +394,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         for node in curr_level:
             node_id = hex(id(node))
             g.node(node_id, get_stat(node))
-            if isinstance(node, TreeNode):
+            if isinstance(node, (Selectable, SnowflakePlan)):
                 children = node.children_plan_nodes
             else:
                 children = node.children
