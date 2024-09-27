@@ -24,25 +24,19 @@
 from collections.abc import Hashable
 from typing import Any, Callable, Literal, Optional, Sequence, Union
 
+import modin.pandas as pd
 import numpy as np  # noqa: F401
 import numpy.typing as npt
 import pandas
 import pandas.core.groupby
 from modin.pandas import Series
 from pandas._libs.lib import NoDefault, no_default
-from pandas._typing import AggFuncType, Axis, IndexLabel
+from pandas._typing import AggFuncType, Axis, FillnaOptions, IndexLabel
 from pandas.core.dtypes.common import is_dict_like, is_list_like, is_numeric_dtype
 from pandas.errors import SpecificationError
 from pandas.io.formats.printing import PrettyDict
 from pandas.util._validators import validate_bool_kwarg
 
-# the following import is used in doctests
-from snowflake.snowpark.modin import pandas as pd  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import (
-    extract_validate_and_try_convert_named_aggs_from_kwargs,
-    raise_if_native_pandas_objects,
-    validate_and_try_convert_agg_func_arg_func_to_str,
-)
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     create_groupby_transform_func,
 )
@@ -50,6 +44,13 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._internal.utils import INDEX_LABEL
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
+)
+
+# the following import is used in doctests
+from snowflake.snowpark.modin.plugin.extensions.utils import (
+    extract_validate_and_try_convert_named_aggs_from_kwargs,
+    raise_if_native_pandas_objects,
+    validate_and_try_convert_agg_func_arg_func_to_str,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
@@ -508,9 +509,34 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
     def ffill(self, limit=None):
         ErrorMessage.method_not_implemented_error(name="ffill", class_="GroupBy")
 
-    def fillna(self, *args, **kwargs):
+    def fillna(
+        self,
+        value: Any = None,
+        method: Optional[FillnaOptions] = None,
+        axis: Optional[Axis] = None,
+        inplace: Optional[bool] = False,
+        limit: Optional[int] = None,
+        downcast: Optional[dict] = None,
+    ):
+        is_series_groupby = self.ndim == 1
+
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="fillna", class_="GroupBy")
+        query_compiler = self._query_compiler.groupby_fillna(
+            self._by,
+            self._axis,
+            self._kwargs,
+            value,
+            method,
+            axis,
+            inplace,
+            limit,
+            downcast,
+        )
+        return (
+            pd.Series(query_compiler=query_compiler)
+            if is_series_groupby
+            else pd.DataFrame(query_compiler=query_compiler)
+        )
 
     def first(self, numeric_only=False, min_count=-1, skipna=True):
         return self._wrap_aggregation(

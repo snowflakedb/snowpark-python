@@ -12,8 +12,10 @@ import typing
 import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
+from functools import reduce
 from typing import Any, Callable, List, Literal, Optional, Union, get_args
 
+import modin.pandas as pd
 import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
@@ -64,7 +66,6 @@ from pandas.core.indexes.base import ensure_index
 from pandas.io.formats.format import format_percentiles
 from pandas.io.formats.printing import PrettyDict
 
-import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
@@ -105,6 +106,7 @@ from snowflake.snowpark.functions import (
     is_char,
     is_null,
     lag,
+    last_day,
     last_value,
     lead,
     least,
@@ -255,6 +257,8 @@ from snowflake.snowpark.modin.plugin._internal.pivot_utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     IMPLEMENTED_AGG_METHODS,
+    RULE_SECOND_TO_DAY,
+    RULE_WEEK_TO_YEAR,
     fill_missing_resample_bins_for_frame,
     get_expected_resample_bins_frame,
     get_snowflake_quoted_identifier_for_resample_index_col,
@@ -339,6 +343,8 @@ from snowflake.snowpark.modin.plugin._internal.window_utils import (
     WindowFunction,
     check_and_raise_error_expanding_window_supported_by_snowflake,
     check_and_raise_error_rolling_window_supported_by_snowflake,
+    create_snowpark_interval_from_window,
+    get_rolling_corr_column,
 )
 from snowflake.snowpark.modin.plugin._typing import (
     DropKeep,
@@ -496,6 +502,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return [
             self._modin_frame.get_datetime64tz_from_timestamp_tz(i)
             if t == TimestampType(TimestampTimeZone.TZ)
+            else self._modin_frame.get_datetime64tz_from_timestamp_ltz()
+            if t == TimestampType(TimestampTimeZone.LTZ)
             else TypeMapper.to_pandas(t)
             for i, t in type_map.items()
         ]
@@ -896,7 +904,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     ) -> "SnowflakeQueryCompiler":
         """
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
-        src/snowflake/snowpark/modin/pandas/io.py
+        src/snowflake/snowpark/modin/plugin/pd_extensions.py
         """
         if columns is not None and not isinstance(columns, list):
             raise ValueError("columns must be provided as list, i.e ['A'].")
@@ -1504,7 +1512,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             a new `SnowflakeQueryCompiler` with updated column labels
         """
         # new_pandas_names should be able to convert into an index which is consistent to pandas df.columns behavior
-        from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+        from snowflake.snowpark.modin.plugin.extensions.utils import (
+            try_convert_index_to_native,
+        )
 
         new_pandas_labels = ensure_index(try_convert_index_to_native(new_pandas_labels))
         if len(new_pandas_labels) != len(self._modin_frame.data_column_pandas_labels):
@@ -2022,7 +2032,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 If data in both corresponding DataFrame locations is missing the result will be missing.
                 only arithmetic binary operation has this parameter (e.g., add() has, but eq() doesn't have).
         """
-        from snowflake.snowpark.modin.pandas.utils import is_scalar
+        from modin.pandas.utils import is_scalar
 
         replace_mapping = {}  # map: column identifier -> column expression
         # Convert list-like object to list since the NaN values in the rhs are treated as invalid identifiers
@@ -2101,8 +2111,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         from modin.pandas import Series
         from modin.pandas.dataframe import DataFrame
-
-        from snowflake.snowpark.modin.pandas.utils import is_scalar
+        from modin.pandas.utils import is_scalar
 
         # fail explicitly for unsupported scenarios
         if level is not None:
@@ -2328,7 +2337,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def reindex(
         self,
         axis: int,
-        labels: Union[pandas.Index, "pd.Index", list[Any]],
+        labels: Union[pandas.Index, "pd.Index", list[Any], "SnowflakeQueryCompiler"],
         **kwargs: dict[str, Any],
     ) -> "SnowflakeQueryCompiler":
         """
@@ -2338,7 +2347,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ----------
         axis : {0, 1}
             Axis to align labels along. 0 is for index, 1 is for columns.
-        labels : list-like
+        labels : list-like, SnowflakeQueryCompiler
             Index-labels to align with.
         method : {None, "backfill"/"bfill", "pad"/"ffill", "nearest"}
             Method to use for filling holes in reindexed frame.
@@ -2536,7 +2545,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _reindex_axis_0(
         self,
-        labels: Union[pandas.Index, "pd.Index", list[Any]],
+        labels: Union[pandas.Index, "pd.Index", list[Any], "SnowflakeQueryCompiler"],
         **kwargs: dict[str, Any],
     ) -> "SnowflakeQueryCompiler":
         """
@@ -2544,7 +2553,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Parameters
         ----------
-        labels : list-like
+        labels : list-like, SnowflakeQueryCompiler
             Index-labels to align with.
         method : {None, "backfill"/"bfill", "pad"/"ffill", "nearest"}
             Method to use for filling holes in reindexed frame.
@@ -2562,12 +2571,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         self._raise_not_implemented_error_for_timedelta()
 
-        if isinstance(labels, native_pd.Index):
-            labels = pd.Index(labels)
-        if isinstance(labels, pd.Index):
-            new_index_qc = labels.to_series()._query_compiler
+        if isinstance(labels, SnowflakeQueryCompiler):
+            new_index_qc = labels
         else:
-            new_index_qc = pd.Series(labels)._query_compiler
+            if isinstance(labels, native_pd.Index):
+                labels = pd.Index(labels)
+            if isinstance(labels, pd.Index):
+                new_index_qc = labels.to_series()._query_compiler
+            else:
+                new_index_qc = pd.Series(labels)._query_compiler
 
         new_index_modin_frame = new_index_qc._modin_frame
         modin_frame = self._modin_frame
@@ -4164,7 +4176,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def _fill_null_values_in_groupby(
-        self, method: str, by_list: list[str]
+        self, method: str, by_list: list[str], limit: Optional[int] = None
     ) -> dict[str, ColumnOrName]:
         """
         Fill null values in each column using method within each group.
@@ -4174,6 +4186,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 The method to use to fill null values.
             by_list: list[str]
                 The list of columns to partition by during the fillna.
+            limit : int, optional
+                The limit of values in a run to fill.
 
         Returns:
             dict: A mapping between column name and the Snowpark Column object with
@@ -4183,12 +4197,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         method_is_ffill = method is FillNAMethod.FFILL_METHOD
         if method_is_ffill:
             func = last_value
-            window_start = Window.UNBOUNDED_PRECEDING
+            window_start = Window.UNBOUNDED_PRECEDING if limit is None else -1 * limit
             window_end = Window.CURRENT_ROW
         else:
             func = first_value
             window_start = Window.CURRENT_ROW
-            window_end = Window.UNBOUNDED_FOLLOWING
+            window_end = Window.UNBOUNDED_FOLLOWING if limit is None else limit
 
         return {
             snowflake_quoted_id: coalesce(
@@ -5391,6 +5405,284 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ignore_index=not as_index,  # When as_index=False, take the default positional index
         )
 
+    def groupby_fillna(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        value: Optional[
+            Union[Scalar, Hashable, Mapping, "pd.DataFrame", "pd.Series"]
+        ] = None,
+        method: Optional[FillnaOptions] = None,
+        fill_axis: Optional[int] = None,
+        inplace: bool = False,
+        limit: Optional[int] = None,
+        downcast: Optional[dict] = None,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Replace NaN values using provided method or value.
+
+        Args:
+            by: Used to determine the groups for the groupby.
+            axis: Group by axis, 0 (index) or 1 (columns), only axis=0 is supported currently.
+            groupby_kwargs: Dict[str, Any]
+                keyword arguments passed for the groupby.
+            value: Optional fill value.
+            method: Optional (if no value specified) method of `ffill` or `bfill`.
+            fill_axis : Fill axis, 0 (index) or 1 (columns)
+            inplace: Not supported
+            limit: Maximum number of consecutive NA values to fill.
+            downcast: Not supported
+
+        Returns:
+            SnowflakeQueryCompiler: with a NaN values using method or value.
+        """
+        level = groupby_kwargs.get("level", None)
+
+        is_supported = check_is_groupby_supported_by_snowflake(
+            by=by, level=level, axis=axis
+        )
+        if not is_supported:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas GroupBy.fillna {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
+            )
+
+        if by is not None and not is_list_like(by):
+            by = [by]
+
+        if value is not None and method is not None:
+            raise ValueError("Cannot specify both 'value' and 'method'.")
+
+        if value is None and method is None:
+            raise ValueError("Must specify a fill 'value' or 'method'.")
+
+        if method is not None and method not in ["ffill", "bfill"]:
+            raise ValueError(
+                f"Invalid fill method. Expecting pad (ffill) or backfill (bfill). Got {method}"
+            )
+
+        if downcast:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas fillna API doesn't yet support 'downcast' parameter"
+            )
+
+        if fill_axis is None:
+            fill_axis = 0
+
+        if level is not None:
+            by = extract_groupby_column_pandas_labels(self, by, level)
+
+        frame = self._modin_frame
+
+        data_column_group_keys = [
+            pandas_label
+            for pandas_label in frame.data_column_pandas_labels
+            if pandas_label in by
+        ]
+
+        data_column_group_keys_mask = [
+            pandas_label in data_column_group_keys
+            for pandas_label in frame.data_column_pandas_labels
+        ]
+
+        by_list_snowflake_quoted_identifiers: list[str]
+
+        # If any of the groupby values are None, then there is no fill so check through an expression.
+        def groupby_null_expr(
+            col_expr: SnowparkColumn,
+            col_snowflake_quoted_identifier: str,
+            by_list_snowflake_quoted_identifiers: List[str],
+        ) -> SnowparkColumn:
+            return iff(
+                reduce(
+                    lambda b1, b2: b1 & b2,
+                    [
+                        (col(snowflake_quoted_identifier).is_not_null())
+                        for snowflake_quoted_identifier in by_list_snowflake_quoted_identifiers
+                    ],
+                ),
+                col_expr,
+                pandas_lit(None),
+            ).as_(col_snowflake_quoted_identifier)
+
+        # If no method, then we will use the value instead.
+        if method is None:
+            # If there's no method, then the fill is same as dataframe.fillna with fill value.  Skip any group by
+            # data columns in the fill.
+            qc = self._fillna_with_masking(
+                value=value,
+                self_is_series=False,
+                method=None,
+                axis=axis,
+                limit=limit,
+                downcast=downcast,
+                columns_mask=data_column_group_keys_mask,
+            )
+
+            frame = qc._modin_frame
+            new_snowflake_quoted_identifiers = (
+                frame.data_column_snowflake_quoted_identifiers
+            )
+
+            # Group by snowflake quoted identifiers
+            by_list_snowflake_quoted_identifiers = [
+                snowflake_quoted_identifier[0]
+                for snowflake_quoted_identifier in frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    by, include_index=True, include_data=True
+                )
+                if len(snowflake_quoted_identifier) > 0
+            ]
+
+            # Generate new snowflake quoted identifiers for output columns so they don't conflict with existing.
+            new_snowflake_quoted_identifiers = (
+                frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                    pandas_labels=frame.data_column_pandas_labels
+                )
+            )
+
+            # Select the resulting columns excluding group by values which are None.
+            select_list = frame.index_column_snowflake_quoted_identifiers + [
+                groupby_null_expr(
+                    col(snowflake_quoted_identifier),
+                    new_snowflake_quoted_identifier,
+                    by_list_snowflake_quoted_identifiers,
+                )
+                for new_snowflake_quoted_identifier, snowflake_quoted_identifier in zip(
+                    new_snowflake_quoted_identifiers,
+                    frame.data_column_snowflake_quoted_identifiers,
+                )
+            ]
+        else:
+            # Group by snowflake quoted identifiers
+            by_list_snowflake_quoted_identifiers = [
+                snowflake_quoted_identifier[0]
+                for snowflake_quoted_identifier in frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    by, include_index=True, include_data=True
+                )
+                if len(snowflake_quoted_identifier) > 0
+            ]
+
+            # Generate new snowflake quoted identifiers for output columns so they don't conflict with existing.
+            new_snowflake_quoted_identifiers = (
+                frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                    pandas_labels=frame.data_column_pandas_labels
+                )
+            )
+
+            if fill_axis == 0:
+                # Fill the groups row-wise with values.
+                columns_to_fillna_expr = self._fill_null_values_in_groupby(
+                    method, by_list_snowflake_quoted_identifiers, limit
+                )
+
+                select_list = frame.index_column_snowflake_quoted_identifiers + [
+                    groupby_null_expr(
+                        columns_to_fillna_expr[snowflake_quoted_identifier],
+                        new_snowflake_quoted_identifier,
+                        by_list_snowflake_quoted_identifiers,
+                    )
+                    for new_snowflake_quoted_identifier, snowflake_quoted_identifier in zip(
+                        new_snowflake_quoted_identifiers,
+                        frame.data_column_snowflake_quoted_identifiers,
+                    )
+                ]
+
+            elif fill_axis == 1:
+                # Fill the groups column-wise using coalesce of prior columns depending on method direction.
+                coalesce_column_list: list[SnowparkColumn] = []
+                select_list = []
+
+                data_column_pairs = list(
+                    zip(
+                        frame.data_column_snowflake_quoted_identifiers,
+                        new_snowflake_quoted_identifiers,
+                        data_column_group_keys_mask,
+                    )
+                )
+
+                # If we are doing a ffill, then the current NaN value will fill in with the values from the left,
+                # otherwise if bfill will fill with values from the right.  To simplify the processing, we reverse
+                # the column order for bfill so it's the same pass to generate the coalece of prior columns, and
+                # then reverse again afterwards.
+                if method == "bfill":
+                    data_column_pairs.reverse()
+
+                for (
+                    snowflake_quoted_identifier,
+                    new_snowflake_quoted_identifier,
+                    is_data_column_group_key,
+                ) in data_column_pairs:
+                    if is_data_column_group_key:
+                        select_list.append(
+                            col(snowflake_quoted_identifier).as_(
+                                new_snowflake_quoted_identifier
+                            )
+                        )
+                        continue
+
+                    if len(coalesce_column_list) == 0:
+                        select_item = col(snowflake_quoted_identifier)
+                    else:
+                        coalesce_expr = [
+                            snowflake_quoted_identifier
+                        ] + coalesce_column_list
+                        select_item = coalesce(*coalesce_expr)
+
+                    select_item = groupby_null_expr(
+                        select_item,
+                        new_snowflake_quoted_identifier,
+                        by_list_snowflake_quoted_identifiers,
+                    )
+
+                    select_list.append(select_item)
+                    coalesce_column_list.insert(0, col(snowflake_quoted_identifier))
+                    if limit is not None and len(coalesce_column_list) > limit:
+                        del coalesce_column_list[-1]
+
+                if method == "bfill":
+                    select_list.reverse()
+
+                select_list = (
+                    frame.index_column_snowflake_quoted_identifiers + select_list
+                )
+
+        new_ordered_dataframe = frame.ordered_dataframe.select(select_list)
+
+        # If any group-by keys were original data (not index) columns, then we drop them in the final result.
+        #
+        #     The methods ffill, bfill, pad and backfill of DataFrameGroupBy previously included the group labels in
+        #      the return value, which was inconsistent with other groupby transforms. Now only the filled values
+        #      are returned. (GH 21521)
+        if len(data_column_group_keys) > 0:
+            data_column_pandas_labels, data_column_snowflake_quoted_identifiers = zip(
+                *[
+                    (pandas_label, snowflake_quoted_identifier)
+                    for pandas_label, snowflake_quoted_identifier in zip(
+                        frame.data_column_pandas_labels,
+                        new_snowflake_quoted_identifiers,
+                    )
+                    if pandas_label not in data_column_group_keys
+                ]
+            )
+        else:
+            data_column_pandas_labels, data_column_snowflake_quoted_identifiers = (
+                frame.data_column_pandas_labels,
+                new_snowflake_quoted_identifiers,
+            )
+
+        new_frame = InternalFrame.create(
+            ordered_dataframe=new_ordered_dataframe,
+            index_column_pandas_labels=frame.index_column_pandas_labels,
+            index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+            data_column_pandas_labels=data_column_pandas_labels,
+            data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
+            data_column_pandas_index_names=frame.data_column_pandas_index_names,
+            data_column_types=None,
+            index_column_types=None,
+        )
+
+        return SnowflakeQueryCompiler(new_frame)
+
     def _get_dummies_helper(
         self,
         column: Hashable,
@@ -6226,7 +6518,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # 'loc'
         def move_last_element(arr: list, index: int) -> None:
             if replace:
-                # swap element at loc with new colun at end, then drop last element
+                # swap element at loc with new column at end, then drop last element
                 arr[index], arr[-1] = arr[-1], arr[index]
                 arr.pop()
             else:
@@ -8205,7 +8497,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame.data_column_snowflake_quoted_identifiers
             )
 
-            from snowflake.snowpark.modin.pandas.utils import (
+            from snowflake.snowpark.modin.plugin.extensions.utils import (
                 try_convert_index_to_native,
             )
 
@@ -8658,7 +8950,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # If we hit this error, that means that we have attempted a pivot on an empty
             # DataFrame, so we catch the exception and return an empty DataFrame.
             if e.sql_error_code == 1146:
-                from snowflake.snowpark.modin.pandas.utils import from_pandas
+                from modin.pandas.io import from_pandas
 
                 native_df = native_pd.DataFrame(index=self.index, columns=self.columns)
                 native_df.index.names = self.index.names
@@ -9953,7 +10245,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         # Raise not implemented error if level is specified, or other is not snowflake query compiler or
         # involves more complex scalar type (not simple scalar types like int or float)
-        from snowflake.snowpark.modin.pandas.utils import is_scalar
+        from modin.pandas.utils import is_scalar
 
         other_is_series_self_is_not = (getattr(self, "_shape_hint", None) is None) and (
             getattr(other, "_shape_hint", None) == "column"
@@ -10581,7 +10873,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 raise ErrorMessage.not_implemented(
                     "Currently only can fill with dict/Series column by column"
                 )
-            from snowflake.snowpark.modin.pandas.utils import is_scalar
+            from modin.pandas.utils import is_scalar
 
             # prepare label_to_value_map
             if is_scalar(value):
@@ -11901,6 +12193,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas `asfreq` does not support parameters `how`, `normalize`, or `fill_value`."
             )
 
+        _, slice_unit = rule_to_snowflake_width_and_slice_unit(freq)
+        if slice_unit not in RULE_SECOND_TO_DAY:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas `asfreq` does not yet support frequencies week, month, quarter, or year"
+            )
+
         resample_kwargs = {
             "rule": freq,
             "axis": 0,
@@ -11975,7 +12273,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         rule = resample_kwargs.get("rule")
 
-        _, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
+        slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
 
         min_max_index_column_quoted_identifier = (
             frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
@@ -11991,14 +12289,45 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # For instance, if rule='3D' and the earliest date is
         # 2020-03-01 1:00:00, the first date should be 2020-03-01,
         # which is what date_trunc gives us.
-        start_date, end_date = frame.ordered_dataframe.agg(
-            date_trunc(slice_unit, min_(snowflake_index_column_identifier)).as_(
-                min_max_index_column_quoted_identifier[0]
-            ),
-            date_trunc(slice_unit, max_(snowflake_index_column_identifier)).as_(
-                min_max_index_column_quoted_identifier[1]
-            ),
-        ).collect()[0]
+        if slice_unit in RULE_SECOND_TO_DAY:
+            # `slice_unit` in 'second', 'minute', 'hour', 'day'
+            start_date, end_date = frame.ordered_dataframe.agg(
+                date_trunc(slice_unit, min_(snowflake_index_column_identifier)).as_(
+                    min_max_index_column_quoted_identifier[0]
+                ),
+                date_trunc(slice_unit, max_(snowflake_index_column_identifier)).as_(
+                    min_max_index_column_quoted_identifier[1]
+                ),
+            ).collect()[0]
+        else:
+            assert slice_unit in RULE_WEEK_TO_YEAR
+            # `slice_unit` in 'week', 'month', 'quarter', or 'year'. Set the start and end dates
+            # to the last day of the given `slice_unit`. Use the right bin edge by adding a `slice_width`
+            # of the given `slice_unit` to the first and last date of the index.
+            start_date, end_date = frame.ordered_dataframe.agg(
+                last_day(
+                    date_trunc(
+                        slice_unit,
+                        dateadd(
+                            slice_unit,
+                            pandas_lit(slice_width),
+                            min_(snowflake_index_column_identifier),
+                        ),
+                    ),
+                    slice_unit,
+                ).as_(min_max_index_column_quoted_identifier[0]),
+                last_day(
+                    date_trunc(
+                        slice_unit,
+                        dateadd(
+                            slice_unit,
+                            pandas_lit(slice_width),
+                            max_(snowflake_index_column_identifier),
+                        ),
+                    ),
+                    slice_unit,
+                ).as_(min_max_index_column_quoted_identifier[1]),
+            ).collect()[0]
 
         if resample_method in ("ffill", "bfill"):
             expected_frame = get_expected_resample_bins_frame(
@@ -13500,8 +13829,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ddof: int = 1,
         numeric_only: bool = False,
         **kwargs: Any,
-    ) -> None:
-        ErrorMessage.method_not_implemented_error(name="corr", class_="Rolling")
+    ) -> "SnowflakeQueryCompiler":
+        if other is None:
+            ErrorMessage.parameter_not_implemented_error(
+                parameter_name="other = None", method_name="Rolling.corr"
+            )
+        if pairwise:
+            ErrorMessage.parameter_not_implemented_error(
+                parameter_name="pairwise = True", method_name="Rolling.corr"
+            )
+        return self._window_agg(
+            window_func=WindowFunction.ROLLING,
+            agg_func="corr",
+            window_kwargs=rolling_kwargs,
+            agg_kwargs=dict(
+                numeric_only=numeric_only, other=other, pairwise=pairwise, ddof=ddof
+            ),
+        )
 
     def rolling_cov(
         self,
@@ -13634,24 +13978,48 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         frame = query_compiler._modin_frame.ensure_row_position_column()
         row_position_quoted_identifier = frame.row_position_snowflake_quoted_identifier
-        if center:
-            # -(window // 2) is equivalent to window // 2 PRECEDING
-            rows_between_start = -(window // 2)  # type: ignore
-            rows_between_end = (window - 1) // 2  # type: ignore
-        else:
-            if window_func == WindowFunction.ROLLING:
-                # 1 - window is equivalent to window - 1 PRECEDING
-                rows_between_start = 1 - window  # type: ignore
+
+        if isinstance(window, int) or window_func == WindowFunction.EXPANDING:
+            if center:
+                # -(window // 2) is equivalent to window // 2 PRECEDING
+                rows_between_start = -(window // 2)  # type: ignore
+                rows_between_end = (window - 1) // 2  # type: ignore
             else:
-                rows_between_start = Window.UNBOUNDED_PRECEDING
-            rows_between_end = Window.CURRENT_ROW
+                if window_func == WindowFunction.ROLLING:
+                    # 1 - window is equivalent to window - 1 PRECEDING
+                    rows_between_start = 1 - window  # type: ignore
+                else:
+                    rows_between_start = Window.UNBOUNDED_PRECEDING
+                rows_between_end = Window.CURRENT_ROW
 
-        window_expr = Window.orderBy(col(row_position_quoted_identifier)).rows_between(
-            rows_between_start, rows_between_end
-        )
+            window_expr = Window.orderBy(
+                col(row_position_quoted_identifier)
+            ).rows_between(rows_between_start, rows_between_end)
 
-        # Handle case where min_periods = None
-        min_periods = 0 if min_periods is None else min_periods
+            if window_func == WindowFunction.ROLLING:
+                # min_periods defaults to the size of the window if window is specified by an integer
+                min_periods = window if min_periods is None else min_periods
+            else:
+                assert window_func == WindowFunction.EXPANDING
+                # Handle case where min_periods = None
+                min_periods = 0 if min_periods is None else min_periods
+        else:
+            assert isinstance(window, str) and window_func == WindowFunction.ROLLING
+            if center:
+                ErrorMessage.not_implemented(
+                    f"'center=True' is not implemented with str window for Rolling.{agg_func}"
+                )
+            # min_periods defaults to 1 if window is time-based string/offset
+            min_periods = 1 if min_periods is None else min_periods
+            if self.is_multiindex():
+                raise ValueError(
+                    "Rolling behavior is undefined when used with a MultiIndex"
+                )
+            index_quoted_identifier = frame.index_column_snowflake_quoted_identifiers[0]
+            window_expr = Window.orderBy(index_quoted_identifier).range_between(
+                -create_snowpark_interval_from_window(window), Window.CURRENT_ROW
+            )
+
         # Perform Aggregation over the window_expr
         if agg_func == "sem":
             # Standard error of mean (SEM) does not have native Snowflake engine support
@@ -13691,6 +14059,73 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
                 }
             ).frame
+        elif agg_func == "corr":
+            if not isinstance(window, int):
+                ErrorMessage.not_implemented(
+                    "Snowpark pandas does not yet support non-integer 'window' for 'Rolling.corr'"
+                )
+            if window != min_periods:
+                ErrorMessage.not_implemented(
+                    f"min_periods {min_periods} must be == window {window} for 'Rolling.corr'"
+                )
+            assert window == min_periods
+            other = agg_kwargs.get("other", None)
+            other_qc = other._query_compiler
+            result_frame, result_column_mapper = join_utils.align(
+                left=frame,
+                right=other_qc._modin_frame,
+                left_on=frame.index_column_snowflake_quoted_identifiers,
+                right_on=other_qc._modin_frame.index_column_snowflake_quoted_identifiers,
+            )
+
+            # columns that exist in both dfs
+            matching_col_label_dict = {}
+            for i in range(len(frame.data_column_pandas_labels)):
+                frame_label = frame.data_column_pandas_labels[i]
+                frame_identifier = frame.data_column_snowflake_quoted_identifiers[i]
+                other_frame_identifier = (
+                    other_qc._modin_frame.data_column_snowflake_quoted_identifiers[i]
+                )
+                if frame_label in other_qc._modin_frame.data_column_pandas_labels:
+                    matching_col_label_dict[frame_label] = [
+                        frame_identifier,
+                        other_frame_identifier,
+                    ]
+
+            corr_result = result_frame
+            # columns unique to the left or right hand side dfs
+            wanted_cols = []
+            wanted_col_values = []
+
+            for x in result_frame.data_column_pandas_labels:
+                if x not in matching_col_label_dict:
+                    wanted_cols.append(x)
+                    wanted_col_values.append(pandas_lit(None))
+
+            corr_result = corr_result.project_columns(wanted_cols, wanted_col_values)
+
+            for matching_label in matching_col_label_dict:
+                quoted_identifier = result_column_mapper.left_quoted_identifiers_map[
+                    matching_col_label_dict[matching_label][0]
+                ]
+                other_quoted_identifier = (
+                    result_column_mapper.right_quoted_identifiers_map[
+                        matching_col_label_dict[matching_label][1]
+                    ]
+                )
+
+                corr_column = get_rolling_corr_column(
+                    quoted_identifier, other_quoted_identifier, window_expr, window
+                )
+                corr_result_frame = corr_result.append_column(
+                    unquote_name_if_quoted(matching_label), corr_column
+                )
+
+            # final frame columns are sorted lexicographically from the 2 original frames
+            ordered_columns = sorted(corr_result_frame.data_column_pandas_labels)
+            new_qc = SnowflakeQueryCompiler(corr_result_frame)
+            new_qc = new_qc.take_2d_labels(index=slice(None), columns=ordered_columns)
+            new_frame = new_qc._modin_frame
         else:
             snowflake_agg_func = get_snowflake_agg_func(agg_func, agg_kwargs, axis=0)
             if snowflake_agg_func is None:
@@ -14311,7 +14746,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
+        Snowpark pandas :class:`~modin.pandas.Series`
             Boolean series for each duplicated rows.
         """
         frame = self._modin_frame.ensure_row_position_column()

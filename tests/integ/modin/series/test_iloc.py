@@ -14,7 +14,7 @@ from pandas._libs.lib import is_scalar
 from pandas.errors import IndexingError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.frame.test_iloc import snowpark_pandas_input_keys
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
@@ -78,7 +78,7 @@ def test_diff2native(default_index_snowpark_pandas_series, default_index_native_
     "key, val",
     setitem_key_val_pair,
 )
-def test_setitem(
+def test_series_iloc_setitem(
     key,
     val,
     default_index_native_int_snowpark_pandas_series,
@@ -794,7 +794,7 @@ def test_iloc_with_row_key_series_rhs_series_no_shape_check(
         [TEST_ITEMS_DATA_2X1, [("r", 20), ("s", 25)], 5],
     ],
 )
-def test_df_iloc_set_with_multi_index(
+def test_df_iloc_set_with_multiindex(
     row_key, row_key_index, item_values, item_index, expected_join_count
 ):
     ser_data = [10, 11, 12, 13, 14]
@@ -823,8 +823,9 @@ def test_df_iloc_set_with_multi_index(
         native_items.index = pd.MultiIndex.from_tuples(item_index)
 
     if row_key_index:
-        snow_row_key = pd.Series(row_key, index=pd.Index(row_key_index))
-        native_row_key = native_pd.Series(row_key, index=pd.Index(row_key_index))
+        # Using native pandas index since row_key[2] is a MultiIndex object.
+        snow_row_key = pd.Series(row_key, index=native_pd.Index(row_key_index))
+        native_row_key = native_pd.Series(row_key, index=native_pd.Index(row_key_index))
     else:
         snow_row_key = row_key
         native_row_key = row_key
