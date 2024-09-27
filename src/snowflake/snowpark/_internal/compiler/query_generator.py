@@ -84,10 +84,7 @@ class QueryGenerator(Analyzer):
         )
 
         # generate queries for each logical plan
-        snowflake_plans = [
-            self.resolve(logical_plan, self._config_context)
-            for logical_plan in logical_plans
-        ]
+        snowflake_plans = [self.resolve(logical_plan) for logical_plan in logical_plans]
         # merge all results into final set of queries
         queries = []
         post_actions = []
