@@ -31,8 +31,9 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
+from modin.pandas.api.extensions import register_dataframe_accessor
 from modin.pandas.base import BasePandasDataset
-from modin.pandas.io import from_non_pandas, from_pandas
+from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
@@ -62,20 +63,31 @@ from pandas.core.dtypes.common import (
     is_numeric_dtype,
 )
 from pandas.core.dtypes.inference import is_hashable, is_integer
+from pandas.core.indexes.base import ensure_index as ensure_native_index
 from pandas.core.indexes.frozen import FrozenList
 from pandas.io.formats.printing import pprint_thing
 from pandas.util._validators import validate_bool_kwarg
 
-from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_accessor
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     is_snowflake_agg_func,
 )
-from snowflake.snowpark.modin.plugin._internal.utils import is_repr_truncated
+from snowflake.snowpark.modin.plugin._internal.utils import (
+    add_extra_columns_and_select_required_columns,
+    assert_fields_are_none,
+    convert_index_to_list_of_qcs,
+    convert_index_to_qc,
+    error_checking_for_init,
+    is_repr_truncated,
+)
 from snowflake.snowpark.modin.plugin._typing import ListLike
+from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+    SnowflakeQueryCompiler,
+)
 from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
     DataFrameGroupBy,
     validate_groupby_args,
 )
+from snowflake.snowpark.modin.plugin.extensions.index import Index
 from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
     SnowparkPandasRowPartitionIterator,
 )
@@ -84,6 +96,7 @@ from snowflake.snowpark.modin.plugin.extensions.utils import (
     raise_if_native_pandas_objects,
     replace_external_data_keys_with_empty_pandas_series,
     replace_external_data_keys_with_query_compiler,
+    try_convert_index_to_native,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -458,106 +471,269 @@ def __init__(
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     # Siblings are other dataframes that share the same query compiler. We
     # use this list to update inplace when there is a shallow copy.
-    from snowflake.snowpark.modin.plugin.extensions.utils import (
-        try_convert_index_to_native,
-    )
 
     self._siblings = []
 
-    # Engine.subscribe(_update_engine)
-    if isinstance(data, (DataFrame, Series)):
-        self._query_compiler = data._query_compiler.copy()
-        if index is not None and any(i not in data.index for i in index):
-            ErrorMessage.not_implemented(
-                "Passing non-existant columns or index values to constructor not"
-                + " yet implemented."
-            )  # pragma: no cover
-        if isinstance(data, Series):
-            # We set the column name if it is not in the provided Series
-            if data.name is None:
-                self.columns = [0] if columns is None else columns
-            # If the columns provided are not in the named Series, pandas clears
-            # the DataFrame and sets columns to the columns provided.
-            elif columns is not None and data.name not in columns:
-                self._query_compiler = from_pandas(
-                    self.__constructor__(columns=columns)
-                )._query_compiler
-            if index is not None:
-                self._query_compiler = data.loc[index]._query_compiler
-        elif columns is None and index is None:
-            data._add_sibling(self)
-        else:
-            if columns is not None and any(i not in data.columns for i in columns):
-                ErrorMessage.not_implemented(
-                    "Passing non-existant columns or index values to constructor not"
-                    + " yet implemented."
-                )  # pragma: no cover
-            if index is None:
-                index = slice(None)
-            if columns is None:
-                columns = slice(None)
-            self._query_compiler = data.loc[index, columns]._query_compiler
+    # Setting the query compiler
+    # --------------------------
+    if query_compiler is not None:
+        # If a query_compiler is passed in only use the query_compiler field to create a new DataFrame.
+        # Verify that the data, index, and columns parameters are None.
+        assert_fields_are_none(
+            class_name="DataFrame", data=data, index=index, dtype=dtype, columns=columns
+        )
+        self._query_compiler = query_compiler
+        return
 
-    # Check type of data and use appropriate constructor
-    elif query_compiler is None:
-        distributed_frame = from_non_pandas(data, index, columns, dtype)
-        if distributed_frame is not None:
-            self._query_compiler = distributed_frame._query_compiler
+    # A DataFrame cannot be used as an index and Snowpark pandas does not support the Categorical type yet.
+    # Check that index is not a DataFrame and dtype is not "category".
+    error_checking_for_init(index, dtype)
+
+    # Convert columns to a local object if it is lazy.
+    if columns is not None:
+        columns = (
+            columns.to_pandas()
+            if isinstance(columns, (Index, BasePandasDataset))
+            else columns
+        )
+        columns = ensure_native_index(columns)
+
+    # The logic followed here is:
+    # STEP 1: Obtain the query_compiler from the provided data if the data is lazy. If data is local, keep the query
+    #         compiler as None.
+    # STEP 2: If columns are provided, set the columns if the data is lazy.
+    # STEP 3: If both the data and index are local (or index is None), create a query compiler from it with local index.
+    # STEP 4: Otherwise, for lazy index, set the index through set_index or reindex.
+    # STEP 5: If a dtype is given, and it is different from the current dtype of the query compiler so far,
+    #         convert the query compiler to the given dtype if the data is lazy.
+    # STEP 6: The resultant query_compiler is then set as the query_compiler for the DataFrame.
+
+    # STEP 1: Setting the data
+    # ------------------------
+    if isinstance(data, Index):
+        # If the data is an Index object, convert it to a DataFrame to make sure that the values are in the
+        # correct format: the values should be a data column, not an index column.
+        # Converting the Index object to its DataFrame version sets the resultant DataFrame's column name correctly -
+        # it should be 0 if the name is None.
+        query_compiler = data.to_frame(index=False)._query_compiler
+    elif isinstance(data, Series):
+        # Rename the Series object to 0 if its name is None and grab its query compiler.
+        query_compiler = data.rename(
+            0 if data.name is None else data.name, inplace=False
+        )._query_compiler
+    elif isinstance(data, DataFrame):
+        query_compiler = data._query_compiler
+        if (
+            copy is False
+            and index is None
+            and columns is None
+            and (dtype is None or dtype == getattr(data, "dtype", None))
+        ):
+            # When copy is False and no index, columns, and dtype are provided, the DataFrame is a shallow copy of the
+            # original DataFrame.
+            # If a dtype is provided, and the new dtype does not match the dtype of the original query compiler,
+            # self is no longer a sibling of the original DataFrame.
+            self._query_compiler = query_compiler
+            data._add_sibling(self)
             return
 
-        if isinstance(data, native_pd.Index):
-            pass
-        elif is_list_like(data) and not is_dict_like(data):
-            old_dtype = getattr(data, "dtype", None)
-            values = [
-                obj._to_pandas() if isinstance(obj, Series) else obj for obj in data
-            ]
-            if isinstance(data, np.ndarray):
-                data = np.array(values, dtype=old_dtype)
+    # STEP 2: Setting the columns if data is lazy
+    # -------------------------------------------
+    # When data is lazy, the query compiler is not None.
+    if query_compiler is not None:
+        if columns is not None:
+            if (
+                isinstance(data, (Index, Series))
+                and query_compiler.get_columns()[0] not in columns
+            ):
+                # If the name of the Series/Index is not in the columns, clear the DataFrame and set the columns.
+                query_compiler = from_pandas(
+                    native_pd.DataFrame(columns=columns)
+                )._query_compiler
             else:
-                try:
-                    data = type(data)(values, dtype=old_dtype)
-                except TypeError:
-                    data = values
-        elif is_dict_like(data) and not isinstance(
-            data, (native_pd.Series, Series, native_pd.DataFrame, DataFrame)
-        ):
-            if columns is not None:
-                data = {key: value for key, value in data.items() if key in columns}
+                # Treat any columns not in data.columns (or data.name if data is a Series/Index) as extra columns.
+                # They will be appended as NaN columns. Then, select the required columns in the order provided by `columns`.
+                query_compiler = add_extra_columns_and_select_required_columns(
+                    query_compiler, columns
+                )
 
-            if len(data) and all(isinstance(v, Series) for v in data.values()):
-                from modin.pandas import concat
-
-                new_qc = concat(data.values(), axis=1, keys=data.keys())._query_compiler
-
-                if dtype is not None:
-                    new_qc = new_qc.astype({col: dtype for col in new_qc.columns})
-                if index is not None:
-                    new_qc = new_qc.reindex(
-                        axis=0, labels=try_convert_index_to_native(index)
-                    )
+    # STEP 3: Creating a query compiler from pandas
+    # ---------------------------------------------
+    else:  # When the data is local, the query compiler is None.
+        # If the data, columns, and index are local objects, the query compiler representation is created from pandas.
+        # However, when the data is a dict but the index is lazy, the index is converted to pandas and the query
+        # compiler is created from pandas.
+        if not isinstance(
+            data, (native_pd.Series, native_pd.DataFrame, native_pd.Index)
+        ) and is_list_like(data):
+            # If data is a pandas object, directly handle it with the pandas constructor.
+            if is_dict_like(data):
                 if columns is not None:
-                    new_qc = new_qc.reindex(
-                        axis=1, labels=try_convert_index_to_native(columns)
+                    # Reduce the dictionary to only the relevant columns as the keys.
+                    data = {key: value for key, value in data.items() if key in columns}
+
+                if len(data) and all(
+                    isinstance(v, (Index, BasePandasDataset)) for v in data.values()
+                ):
+                    # Special case: data is a dict where all the values are Snowpark pandas objects.
+                    self._query_compiler = (
+                        _df_init_dict_data_with_snowpark_pandas_values(
+                            data, index, columns, dtype
+                        )
                     )
+                    return
 
-                self._query_compiler = new_qc
-                return
+                # If only some data is a Snowpark pandas object, convert the lazy data to pandas objects.
+                res = {}
+                for k, v in data.items():
+                    if isinstance(v, Index):
+                        res[k] = v.to_pandas()
+                    elif isinstance(v, BasePandasDataset):
+                        # Need to perform reindex on the Series or DataFrame objects since only the data
+                        # whose index matches the given index is kept.
+                        res[k] = v.reindex(index=index).to_pandas()
+                    else:
+                        res[k] = v
+                # If the index is lazy, convert it to a pandas object so that the pandas constructor can handle it.
+                index = try_convert_index_to_native(index)
+                data = res
 
-            data = {
-                k: v._to_pandas() if isinstance(v, Series) else v
-                for k, v in data.items()
-            }
-        pandas_df = native_pd.DataFrame(
-            data=try_convert_index_to_native(data),
-            index=try_convert_index_to_native(index),
-            columns=try_convert_index_to_native(columns),
-            dtype=dtype,
-            copy=copy,
+            else:  # list-like but not dict-like data.
+                if len(data) and all(
+                    isinstance(v, (Index, BasePandasDataset)) for v in data
+                ):
+                    # Special case: data is a list/dict where all the values are Snowpark pandas objects.
+                    self._query_compiler = (
+                        _df_init_list_data_with_snowpark_pandas_values(
+                            data, index, columns, dtype
+                        )
+                    )
+                    return
+
+                # Sometimes the ndarray representation of a list is different from a regular list.
+                # For instance, [(1, 2, 3), (4, 5, 6), (7, 8, 9)], dtype=[("a", "i4"), ("b", "i4"), ("c", "i4")]
+                # is different from np.array([(1, 2, 3), (4, 5, 6), (7, 8, 9)], dtype=[("a", "i4"), ("b", "i4"), ("c", "i4")]).
+                # The list has the shape (3, 3) while the ndarray has the shape (3,).
+                # Therefore, do not modify the ndarray data.
+                if not isinstance(data, np.ndarray):
+                    # If only some data is a Snowpark pandas object, convert it to pandas objects.
+                    res = [
+                        v.to_pandas()
+                        if isinstance(v, (Index, BasePandasDataset))
+                        else v
+                        for v in data
+                    ]
+                    data = res
+
+        query_compiler = from_pandas(
+            native_pd.DataFrame(
+                data=data,
+                # Handle setting the index, if it is a lazy index, outside this block in STEP 4.
+                index=None if isinstance(index, (Index, Series)) else index,
+                columns=columns,
+                dtype=dtype,
+                copy=copy,
+            )
+        )._query_compiler
+
+    # STEP 4: Setting the index
+    # -------------------------
+    # The index is already set if the data and index are non-Snowpark pandas objects.
+    # If either the data or the index is a Snowpark pandas object, set the index here.
+    if index is not None and (
+        isinstance(index, (Index, Series))
+        or isinstance(data, (Index, BasePandasDataset))
+    ):
+        if isinstance(data, (type(self), Series, type(None))):
+            # The `index` parameter is used to select the rows from `data` that will be in the resultant DataFrame.
+            # If a value in `index` is not present in `data`'s index, it will be filled with a NaN value.
+            # If data is None and an index is provided, set the index.
+            query_compiler = query_compiler.reindex(
+                axis=0, labels=convert_index_to_qc(index)
+            )
+        else:
+            # Performing set index to directly set the index column (joining on row-position instead of index).
+            query_compiler = query_compiler.set_index(
+                convert_index_to_list_of_qcs(index)
+            )
+
+    # STEP 5: Setting the dtype if data is lazy
+    # -----------------------------------------
+    # If data is a Snowpark pandas object and a dtype is provided, and it does not match the current dtype of the
+    # query compiler, convert the query compiler's dtype to the new dtype.
+    # Local data should have the dtype parameter taken care of by the pandas constructor at the end.
+    if (
+        dtype is not None
+        and isinstance(data, (Index, BasePandasDataset))
+        and dtype != getattr(data, "dtype", None)
+    ):
+        query_compiler = query_compiler.astype(
+            {col: dtype for col in query_compiler.columns}
         )
-        self._query_compiler = from_pandas(pandas_df)._query_compiler
-    else:
-        self._query_compiler = query_compiler
+
+    # STEP 6: Setting the query compiler
+    # ----------------------------------
+    self._query_compiler = query_compiler
+
+
+def _df_init_dict_data_with_snowpark_pandas_values(
+    data: AnyArrayLike | list,
+    index: list | AnyArrayLike | Series | Index,
+    columns: list | AnyArrayLike | Series | Index,
+    dtype: str | np.dtype | native_pd.ExtensionDtype | None,
+) -> SnowflakeQueryCompiler:
+    """
+    Helper function for initializing a DataFrame with a dictionary where all the values
+    are Snowpark pandas objects.
+    """
+    # Special case: data is a dict where all the values are Snowpark pandas objects.
+    # Concat can only be performed with BasePandasDataset objects.
+    # If a value is an Index, convert it to a Series where the index is the index to be set since these values
+    # are always present in the final DataFrame.
+    from snowflake.snowpark.modin.plugin.extensions.general_overrides import concat
+
+    values = [
+        Series(v, index=index) if isinstance(v, Index) else v for v in data.values()
+    ]
+    new_qc = concat(values, axis=1, keys=data.keys())._query_compiler
+    if dtype is not None:
+        new_qc = new_qc.astype({col: dtype for col in new_qc.columns})
+    if index is not None:
+        new_qc = new_qc.reindex(axis=0, labels=convert_index_to_qc(index))
+    if columns is not None:
+        new_qc = new_qc.reindex(axis=1, labels=columns)
+    return new_qc
+
+
+def _df_init_list_data_with_snowpark_pandas_values(
+    data: AnyArrayLike | list,
+    index: list | AnyArrayLike | Series | Index,
+    columns: list | AnyArrayLike | Series | Index,
+    dtype: str | np.dtype | native_pd.ExtensionDtype | None,
+):
+    """
+    Helper function for initializing a DataFrame with a list where all the values
+    are Snowpark pandas objects.
+    """
+    # Special case: data is a list/dict where all the values are Snowpark pandas objects.
+    # Concat can only be performed with BasePandasDataset objects.
+    # If a value is an Index, convert it to a Series.
+    from snowflake.snowpark.modin.plugin.extensions.general_overrides import concat
+
+    values = [Series(v) if isinstance(v, Index) else v for v in data]
+    new_qc = concat(values, axis=1).T._query_compiler
+    if dtype is not None:
+        new_qc = new_qc.astype({col: dtype for col in new_qc.columns})
+    if index is not None:
+        new_qc = new_qc.set_index([convert_index_to_qc(index)])
+    if columns is not None:
+        if all(isinstance(v, Index) for v in data):
+            # Special case: if all the values are Index objects, they are always present in the
+            # final result with the provided column names. Therefore, rename the columns.
+            new_qc = new_qc.set_columns(columns)
+        else:
+            new_qc = new_qc.reindex(axis=1, labels=columns)
+    return new_qc
 
 
 @register_dataframe_accessor("__dataframe__")
@@ -1065,6 +1241,9 @@ def insert(
     # Dictionary keys are treated as index column and this should be joined with
     # index of target dataframe. This behavior is similar to 'value' being DataFrame
     # or Series, so we simply create Series from dict data here.
+    if isinstance(value, set):
+        raise TypeError(f"'{type(value).__name__}' type is unordered")
+
     if isinstance(value, dict):
         value = Series(value, name=column)
 

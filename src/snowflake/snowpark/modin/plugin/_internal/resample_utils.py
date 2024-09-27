@@ -4,11 +4,11 @@
 
 from typing import Any, Literal, NoReturn, Optional, Union
 
+import modin.pandas as pd
 from pandas._libs.lib import no_default
 from pandas._libs.tslibs import to_offset
 from pandas._typing import Frequency
 
-import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import (

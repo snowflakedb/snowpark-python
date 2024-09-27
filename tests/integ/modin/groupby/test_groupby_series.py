@@ -153,7 +153,7 @@ def test_groupby_agg_series_named_agg(aggs, sort):
 
 
 @pytest.mark.parametrize("numeric_only", [False, None])
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=2)
 def test_groupby_series_numeric_only(series_str, numeric_only):
     native_series = series_str.to_pandas()
     eval_snowpark_pandas_result(

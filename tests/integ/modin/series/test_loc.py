@@ -4,7 +4,6 @@
 import functools
 import numbers
 import random
-import re
 
 import modin.pandas as pd
 import numpy as np
@@ -251,7 +250,7 @@ def test_series_loc_get_key_bool_series_with_aligned_indices(key, use_default_in
         [random.choice([True, False]) for _ in range(5)],
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_series_loc_get_key_bool_series_with_unaligned_and_distinct_indices(
     key, use_default_index
 ):
@@ -343,7 +342,7 @@ def test_df_loc_get_callable_key(row):
     )
 
 
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_series_loc_get_key_bool_series_with_unaligned_and_duplicate_indices():
     # index can have null values and duplicates
     key = [True] * 5
@@ -388,7 +387,7 @@ def test_series_loc_get_key_bool_series_with_unaligned_and_duplicate_indices():
         ],  # larger length
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_series_loc_get_key_bool_series_with_mismatch_index_len(key, use_default_index):
     if use_default_index:
         index = None
@@ -1451,10 +1450,7 @@ def test_series_loc_set_df_key_negative(item, default_index_native_series):
         native_ser.loc[df_key] = item
 
     # Snowpark pandas error verification.
-    err_msg = re.escape(
-        "The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), "
-        "a.any() or a.all()."
-    )
+    err_msg = "Data cannot be a DataFrame"
     with pytest.raises(ValueError, match=err_msg):
         snowpark_ser.loc[pd.DataFrame(df_key)] = item
         assert_series_equal(snowpark_ser, native_ser)
@@ -1792,18 +1788,22 @@ def test_series_loc_set_none():
 @pytest.mark.parametrize(
     "key, query_count, join_count",
     [
-        ("1 day", 2, 2),  # 1 join from squeeze, 1 join from to_pandas during eval
+        (
+            "1 day",
+            2,
+            4,
+        ),  # 1 join from series creation (double counted), 1 join from squeeze, 1 join from to_pandas during eval
         (
             native_pd.to_timedelta("1 day"),
             2,
-            2,
-        ),  # 1 join from squeeze, 1 join from to_pandas during eval
-        (["1 day", "3 days"], 1, 1),
-        ([True, False, False], 1, 1),
-        (slice(None, "4 days"), 1, 0),
-        (slice(None, "4 days", 2), 1, 0),
-        (slice("1 day", "2 days"), 1, 0),
-        (slice("1 day 1 hour", "2 days 2 hours", 1), 1, 0),
+            4,
+        ),  # 1 join from series creation (double counted), 1 join from squeeze, 1 join from to_pandas during eval
+        (["1 day", "3 days"], 1, 2),
+        ([True, False, False], 1, 2),
+        (slice(None, "4 days"), 1, 1),
+        (slice(None, "4 days", 2), 1, 1),
+        (slice("1 day", "2 days"), 1, 1),
+        (slice("1 day 1 hour", "2 days 2 hours", 1), 1, 1),
     ],
 )
 def test_series_loc_get_with_timedelta(key, query_count, join_count):
@@ -1854,7 +1854,7 @@ def test_series_loc_get_with_timedelta(key, query_count, join_count):
         ),
     ],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_series_loc_get_with_timedelta_behavior_difference(key, expected_result):
     data = ["A", "B", "C", "D"]
     idx = ["1 days", "2 days", "3 days", "25 hours"]
@@ -1869,7 +1869,7 @@ def test_series_loc_get_with_timedelta_behavior_difference(key, expected_result)
     assert_series_equal(actual_result, expected_result)
 
 
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=2, join_count=2)
 def test_series_loc_get_with_timedeltaindex_key():
     data = ["A", "B", "C"]
     idx = ["1 days", "2 days", "3 days"]

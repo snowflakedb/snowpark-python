@@ -240,7 +240,9 @@ def update_resolvable_node(
         node.pre_actions = node.from_.pre_actions
         node.post_actions = node.from_.post_actions
         node.expr_to_alias = node.from_.expr_to_alias
-        node.df_aliased_col_name_to_real_col_name.clear()
+        # df_aliased_col_name_to_real_col_name is updated at the frontend api
+        # layer when alias is called, not produced during code generation. Should
+        # always retain the original value of the map.
         node.df_aliased_col_name_to_real_col_name.update(
             node.from_.df_aliased_col_name_to_real_col_name
         )
@@ -332,15 +334,20 @@ def is_active_transaction(session):
     return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
 
 
-def plot_plan_if_enabled(root: TreeNode, filename: str) -> None:
+def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     """A helper function to plot the query plan tree using graphviz useful for debugging.
-    It plots the plan if the environment variable ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING
+    It plots the plan if the environment variable ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING
     is set to true.
 
     The plots are saved in the temp directory of the system which is obtained using
     https://docs.python.org/3/library/tempfile.html#tempfile.gettempdir. Setting env variable
     TMPDIR to your desired location is recommended. Within the temp directory, the plots are
-    saved in the directory `snowpark_query_plan_plots` with the given `filename`.
+    saved in the directory `snowpark_query_plan_plots` with the given `filename`. For example,
+    we can set the environment variables as follows:
+
+        $ export ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING=true
+        $ export TMPDIR="/tmp"
+        $ ls /tmp/snowpark_query_plan_plots/  # to see the plots
 
     Args:
         root: root TreeNode of the plan to plot.
@@ -351,12 +358,12 @@ def plot_plan_if_enabled(root: TreeNode, filename: str) -> None:
     import graphviz  # pyright: ignore[reportMissingImports]
 
     if (
-        os.environ.get("ENABLE_SNOWFLAKE_OPTIMIZATION_PLAN_PLOTTING", "false").lower()
+        os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING", "false").lower()
         != "true"
     ):
         return
 
-    def get_stat(node: TreeNode):
+    def get_stat(node: LogicalPlan):
         def get_name(node: Optional[LogicalPlan]) -> str:
             if node is None:
                 return "EMPTY_SOURCE_PLAN"
@@ -372,10 +379,12 @@ def plot_plan_if_enabled(root: TreeNode, filename: str) -> None:
         elif isinstance(node, SetStatement):
             name = f"{name} :: ({node.set_operands[1].operator})"
 
-        score = get_complexity_score(node)
-        sql_text = (
-            node.queries[-1].sql if isinstance(node, SnowflakePlan) else node.sql_query
-        )
+        score = get_complexity_score(node.cumulative_node_complexity)
+        sql_text = ""
+        if isinstance(node, Selectable):
+            sql_text = node.sql_query
+        elif isinstance(node, SnowflakePlan):
+            sql_text = node.queries[-1].sql
         sql_size = len(sql_text)
         sql_preview = sql_text[:50]
 
@@ -390,7 +399,11 @@ def plot_plan_if_enabled(root: TreeNode, filename: str) -> None:
         for node in curr_level:
             node_id = hex(id(node))
             g.node(node_id, get_stat(node))
-            for child in node.children_plan_nodes:
+            if isinstance(node, (Selectable, SnowflakePlan)):
+                children = node.children_plan_nodes
+            else:
+                children = node.children
+            for child in children:
                 child_id = hex(id(child))
                 edges.add((node_id, child_id))
                 next_level.append(child)

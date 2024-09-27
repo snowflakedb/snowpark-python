@@ -10,13 +10,16 @@ as `Series.to_snowflake`.
 from collections.abc import Iterable
 from typing import Any, Literal, Optional, Union
 
+import modin.pandas as pd
 import pandas
+from modin.pandas.api.extensions import register_series_accessor
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
-from snowflake.snowpark.modin import pandas as pd  # noqa: F401
-from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
 from snowflake.snowpark.modin.plugin.extensions.utils import add_cache_result_docstring
+from snowflake.snowpark.modin.plugin.utils.warning_message import (
+    materialization_warning,
+)
 
 
 @register_series_accessor("to_snowflake")
@@ -50,9 +53,9 @@ def to_snowflake(
             types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
 
     See Also:
-        - :func:`to_snowflake <snowflake.snowpark.modin.pandas.to_snowflake>`
-        - :func:`DataFrame.to_snowflake <modin.pandas.DataFrame.to_snowflake>`
-        - :func:`read_snowflake <snowflake.snowpark.modin.pandas.read_snowflake>`
+        - :func:`to_snowflake <modin.pandas.to_snowflake>`
+        - :func:`DataFrame.to_snowflake <DataFrame.to_snowflake>`
+        - :func:`read_snowflake <modin.pandas.read_snowflake>`
     """
     self._query_compiler.to_snowflake(name, if_exists, index, index_label, table_type)
 
@@ -87,13 +90,13 @@ def to_snowpark(
          ValueError if the label used for a index or data column is None.
 
     See also:
-        - :func:`to_snowpark <snowflake.snowpark.modin.pandas.to_snowpark>`
+        - :func:`to_snowpark <modin.pandas.to_snowpark>`
         - :func:`Series.to_snowpark <modin.pandas.Series.to_snowpark>`
 
     Note:
         The labels of the Snowpark pandas DataFrame or index_label provided will be used as Normalized Snowflake
         Identifiers of the Snowpark DataFrame.
-        For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~snowflake.snowpark.modin.pandas.read_snowflake`
+        For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~modin.pandas.read_snowflake`
 
     Examples::
 
@@ -167,6 +170,7 @@ def to_snowpark(
 
 
 @register_series_accessor("to_pandas")
+@materialization_warning
 def to_pandas(
     self,
     *,
@@ -180,7 +184,7 @@ def to_pandas(
         statement_params: Dictionary of statement level parameters to be set while executing this action.
 
     See Also:
-        - :func:`to_pandas <snowflake.snowpark.modin.pandas.to_pandas>`
+        - :func:`to_pandas <modin.pandas.to_pandas>`
 
     Returns:
         pandas Series
@@ -200,6 +204,7 @@ def to_pandas(
 
 @register_series_accessor("cache_result")
 @add_cache_result_docstring
+@materialization_warning
 def cache_result(self, inplace: bool = False) -> Optional[pd.Series]:
     """
     Persists the Snowpark pandas Series to a temporary table for the duration of the session.

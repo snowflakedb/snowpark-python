@@ -455,21 +455,15 @@ def test_datetime_index_mean(native_index, skipna):
     [
         native_pd.date_range("2021-01-01", periods=5),
         native_pd.date_range("2021-01-01", periods=5, freq="2D"),
-        # TODO: SNOW-1625233 Remove xfail when timezone is supported.
-        pytest.param(
-            native_pd.DatetimeIndex(
-                [
-                    "2014-04-04 23:56:01.000000001",
-                    "2014-07-18 21:24:02.000000002",
-                    "2015-11-22 22:14:03.000000003",
-                    "2015-11-23 20:12:04.1234567890",
-                    pd.NaT,
-                ],
-                tz="US/Eastern",
-            ),
-            marks=pytest.mark.xfail(
-                reason="SNOW-1664175 Snowpark pandas `to_datetime` does not support tz"
-            ),
+        native_pd.DatetimeIndex(
+            [
+                "2014-04-04 23:56:01.000000001",
+                "2014-07-18 21:24:02.000000002",
+                "2015-11-22 22:14:03.000000003",
+                "2015-11-23 20:12:04.1234567890",
+                pd.NaT,
+            ],
+            tz="US/Eastern",
         ),
         native_pd.DatetimeIndex(
             [
