@@ -110,7 +110,6 @@ def test_no_valid_nodes_found(session, large_query_df, caplog):
 def test_large_query_breakdown_with_cte_optimization(session):
     """Test large query breakdown works with cte optimized plan"""
     session._cte_optimization_enabled = True
-    # session.large_query_breakdown_enabled = False
     df0 = session.sql("select 2 as b, 32 as c")
     df1 = session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
     df1 = df1.join(df0, on=["b"], how="inner")
