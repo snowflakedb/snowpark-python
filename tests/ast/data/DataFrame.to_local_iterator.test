@@ -1,0 +1,32 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+rows = [row for row in df.to_local_iterator()]
+
+rows = [row for row in df.to_local_iterator(block=False)]
+
+rows = [row for row in df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"})]
+
+rows = [row for row in df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, case_sensitive=False)]
+
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("test_table")
+
+df.to_local_iterator()
+
+df.to_local_iterator(block=False)
+
+df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, case_sensitive=False)
+
+## EXPECTED ENCODED AST
+
+CkkKRwo5sgs2Eg4KDAoKdGVzdF90YWJsZRogCCgQWhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKFoiAggBEgQKAmRmGAEiAggBCjkKNwotsgkqCAEQARoCCAEiIAg1EFwaFlNSQ19QT1NJVElPTl9URVNUX01PREUgHyhcEgAYAiICCAIKCBIGCAMSAggCEAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgV
+CjcKNQorsgkoEAEaAggBIiAIQBBeGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIB8oXhIAGAQiAggECggSBggFEgIIBBABGhESDwoNCgVmaW5hbBADGAsgCSIEEAEYFQ==
+ClUKUwpJsglGCAEQARoCCAEiIAhkEGAaFlNSQ19QT1NJVElPTl9URVNUX01PREUgHyhgKhoKClNGX1BBUlRORVISDEZBS0VfUEFSVE5FUhIAGAYiAggGCggSBggHEgIIBhABGhESDwoNCgVmaW5hbBADGAsgCSIEEAEYFQ==
+ClMKUQpHsglECAEaAggBIiAIehBiGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIB8oYioaCgpTRl9QQVJUTkVSEgxGQUtFX1BBUlRORVISABgIIgIICAoIEgYICRICCAgQARoREg8KDQoFZmluYWwQAxgLIAkiBBABGBU=
+EAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgV
