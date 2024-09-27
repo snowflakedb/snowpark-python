@@ -1279,7 +1279,7 @@ def test_select_all_on_join_result(session):
     df = df_left.join(df_right)
 
     assert (
-        df.select("*")._show_string(10)
+        df.select("*")._show_string(10, _emit_ast=session.ast_enabled)
         == """-------------------------
 |"A"  |"B"  |"C"  |"D"  |
 -------------------------
@@ -1288,7 +1288,7 @@ def test_select_all_on_join_result(session):
 """
     )
     assert (
-        df.select(df["*"])._show_string(10)
+        df.select(df["*"])._show_string(10, _emit_ast=session.ast_enabled)
         == """-------------------------
 |"A"  |"B"  |"C"  |"D"  |
 -------------------------
@@ -1297,7 +1297,9 @@ def test_select_all_on_join_result(session):
 """
     )
     assert (
-        df.select(df_left["*"], df_right["*"])._show_string(10)
+        df.select(df_left["*"], df_right["*"])._show_string(
+            10, _emit_ast=session.ast_enabled
+        )
         == """-------------------------
 |"A"  |"B"  |"C"  |"D"  |
 -------------------------
@@ -1307,7 +1309,9 @@ def test_select_all_on_join_result(session):
     )
 
     assert (
-        df.select(df_right["*"], df_left["*"])._show_string(10)
+        df.select(df_right["*"], df_left["*"])._show_string(
+            10, _emit_ast=session.ast_enabled
+        )
         == """-------------------------
 |"C"  |"D"  |"A"  |"B"  |
 -------------------------
