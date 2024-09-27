@@ -83,6 +83,7 @@ def test_do_register_sp_negative(cleanup_registration_patch):
     fake_session._run_query = mock.Mock(side_effect=ProgrammingError())
     fake_session.sproc = StoredProcedureRegistration(fake_session)
     fake_session._packages = {}
+    fake_session.ast_enabled = False
     with pytest.raises(SnowparkSQLException) as ex_info:
         sproc(lambda: 1, session=fake_session, return_type=IntegerType(), packages=[])
     assert ex_info.value.error_code == "1304"
@@ -120,6 +121,7 @@ def test_do_register_sproc_sandbox(session_sandbox, cleanup_registration_patch):
                 "schema": "some_schema",
                 "application_roles": ["app_viewer"],
             },
+            _emit_ast=False,
         )
         cleanup_registration_patch.assert_not_called()
 
