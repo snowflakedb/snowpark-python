@@ -90,9 +90,7 @@ def resolve_and_update_snowflake_plan(
     if node.source_plan is None:
         return
 
-    new_snowflake_plan = query_generator.resolve(
-        node.source_plan, query_generator.config_context
-    )
+    new_snowflake_plan = query_generator.resolve(node.source_plan)
 
     # copy over the newly resolved fields to make it an in-place update
     node.queries = new_snowflake_plan.queries
@@ -126,7 +124,7 @@ def replace_child(
         if isinstance(plan, Selectable):
             return plan
 
-        snowflake_plan = query_generator.resolve(plan, query_generator.config_context)
+        snowflake_plan = query_generator.resolve(plan)
         return SelectSnowflakePlan(snowflake_plan, analyzer=query_generator)
 
     if not parent._is_valid_for_replacement:
@@ -174,16 +172,12 @@ def replace_child(
         parent.query = new_child
 
     elif isinstance(parent, (TableUpdate, TableDelete)):
-        snowflake_plan = query_generator.resolve(
-            new_child, query_generator.config_context
-        )
+        snowflake_plan = query_generator.resolve(new_child)
         parent.children = [snowflake_plan]
         parent.source_data = snowflake_plan
 
     elif isinstance(parent, TableMerge):
-        snowflake_plan = query_generator.resolve(
-            new_child, query_generator.config_context
-        )
+        snowflake_plan = query_generator.resolve(new_child)
         parent.children = [snowflake_plan]
         parent.source = snowflake_plan
 

@@ -14,7 +14,6 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     Intersect,
     Union,
 )
-from snowflake.snowpark._internal.analyzer.config_context import ConfigContext
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
 )
@@ -114,14 +113,12 @@ class LargeQueryBreakdown:
         session: Session,
         query_generator: QueryGenerator,
         logical_plans: List[LogicalPlan],
-        config_context: ConfigContext,
+        complexity_bounds: Tuple[int, int],
     ) -> None:
         self.session = session
         self._query_generator = query_generator
         self.logical_plans = logical_plans
         self._parent_map = defaultdict(set)
-        self._config_context = config_context
-        complexity_bounds = config_context.large_query_breakdown_complexity_bounds
         self.complexity_score_lower_bound = complexity_bounds[0]
         self.complexity_score_upper_bound = complexity_bounds[1]
 
@@ -142,9 +139,7 @@ class LargeQueryBreakdown:
             # Similar to the repeated subquery elimination, we rely on
             # nodes of the plan to be SnowflakePlan or Selectable. Here,
             # we resolve the plan to make sure we get a valid plan tree.
-            resolved_plan = self._query_generator.resolve(
-                logical_plan, self._config_context
-            )
+            resolved_plan = self._query_generator.resolve(logical_plan)
             partition_plans = self._try_to_breakdown_plan(resolved_plan)
             resulting_plans.extend(partition_plans)
 
@@ -264,8 +259,7 @@ class LargeQueryBreakdown:
                 child,
                 table_type="temp",
                 creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
-            ),
-            self._config_context,
+            )
         )
 
         # Update the ancestors with the temp table selectable

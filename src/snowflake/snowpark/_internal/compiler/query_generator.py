@@ -60,7 +60,7 @@ class QueryGenerator(Analyzer):
         self._snowflake_create_table_plan_info: Optional[
             SnowflakeCreateTablePlanInfo
         ] = snowflake_create_table_plan_info
-        self.config_context = config_context
+        self._config_context = config_context
         # Records the definition of all the with query blocks encountered during the code generation.
         # This information will be used to generate the final query of a SnowflakePlan with the
         # correct CTE definition.
@@ -85,7 +85,7 @@ class QueryGenerator(Analyzer):
 
         # generate queries for each logical plan
         snowflake_plans = [
-            self.resolve(logical_plan, self.config_context)
+            self.resolve(logical_plan, self._config_context)
             for logical_plan in logical_plans
         ]
         # merge all results into final set of queries
@@ -110,6 +110,9 @@ class QueryGenerator(Analyzer):
             PlanQueryType.QUERIES: queries,
             PlanQueryType.POST_ACTIONS: post_actions,
         }
+
+    def resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
+        return super().resolve(logical_plan, self._config_context)
 
     def do_resolve_with_resolved_children(
         self,
