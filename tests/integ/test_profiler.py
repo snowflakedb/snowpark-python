@@ -7,7 +7,6 @@ import pytest
 import snowflake.snowpark
 from snowflake.snowpark import DataFrame
 from snowflake.snowpark.functions import sproc
-from snowflake.snowpark.profiler import Profiler, profiler
 from tests.utils import Utils
 
 
@@ -47,59 +46,27 @@ def test_profiler_function_exist(is_profiler_function_exist, profiler_session):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_profiler_with_context_manager(
-    is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
-):
-    @sproc(name="table_sp", replace=True)
-    def table_sp(session: snowflake.snowpark.Session) -> DataFrame:
-        return session.sql("select 1")
-
-    profiler_session.register_profiler_modules(["table_sp"])
-    with profiler(
-        stage=f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}",
-        active_profiler="LINE",
-        session=profiler_session,
-    ):
-        profiler_session.call("table_sp").collect()
-        res = profiler_session.show_profiles()
-    profiler_session.register_profiler_modules([])
-    assert res is not None
-    assert "Modules Profiled" in res
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="session.sql is not supported in localtesting",
-)
 def test_profiler_with_profiler_class(
     is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
 ):
-    another_tmp_stage_name = Utils.random_stage_name()
-
     @sproc(name="table_sp", replace=True)
     def table_sp(session: snowflake.snowpark.Session) -> DataFrame:
         return session.sql("select 1")
 
-    pro = Profiler()
-    pro.register_profiler_modules(["table_sp"])
-    pro.set_active_profiler("LINE")
+    pro = profiler_session.profiler
+    pro.register_modules(["table_sp"])
     pro.set_targeted_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
     )
-    profiler_session.register_profiler(pro)
 
-    pro.set_targeted_stage(
-        f"{db_parameters['database']}.{db_parameters['schema']}.{another_tmp_stage_name}"
-    )
-
-    pro.enable()
+    pro.set_active_profiler("LINE")
 
     profiler_session.call("table_sp").collect()
-    res = profiler_session.show_profiles()
+    res = pro.collect()
 
     pro.disable()
 
-    pro.register_profiler_modules([])
+    pro.register_modules([])
     assert res is not None
     assert "Modules Profiled" in res
 
@@ -115,15 +82,19 @@ def test_single_return_value_of_sp(
     def single_value_sp(session: snowflake.snowpark.Session) -> str:
         return "success"
 
-    profiler_session.register_profiler_modules(["table_sp"])
-    with profiler(
-        stage=f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}",
-        active_profiler="LINE",
-        session=profiler_session,
-    ):
-        profiler_session.call("single_value_sp")
-        res = profiler_session.show_profiles()
-    profiler_session.register_profiler_modules([])
+    profiler_session.profiler.register_modules(["single_value_sp"])
+    profiler_session.profiler.pro.set_targeted_stage(
+        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
+    )
+
+    profiler_session.profiler.set_active_profiler("LINE")
+
+    profiler_session.call("single_value_sp").collect()
+    res = profiler_session.profiler.collect()
+
+    profiler_session.profiler.disable()
+
+    profiler_session.profiler.register_modules([])
     assert res is not None
     assert "Modules Profiled" in res
 
@@ -139,54 +110,26 @@ def test_anonymous_procedure(
         return "success"
 
     single_value_sp = profiler_session.sproc.register(single_value_sp, anonymous=True)
-    profiler_session.register_profiler_modules(["table_sp"])
-    with profiler(
-        stage=f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}",
-        active_profiler="LINE",
-        session=profiler_session,
-    ):
-        single_value_sp()
-        res = profiler_session.show_profiles()
-    profiler_session.register_profiler_modules([])
+
+    profiler_session.profiler.pro.set_targeted_stage(
+        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
+    )
+
+    profiler_session.profiler.set_active_profiler("LINE")
+
+    single_value_sp()
+    res = profiler_session.profiler.collect()
+
+    profiler_session.profiler.disable()
+
+    profiler_session.profiler.register_modules([])
     assert res is not None
     assert "Modules Profiled" in res
 
 
-def test_not_set_profiler_error(profiler_session, tmpdir):
+def test_set_incorrect_active_profiler(profiler_session):
     with pytest.raises(ValueError) as e:
-        profiler_session.show_profiles()
-    assert (
-        "profiler is not set, use session.register_profiler or profiler context manager"
-        in str(e)
-    )
-
-    with pytest.raises(ValueError) as e:
-        profiler_session.dump_profiles(tmpdir.join("file.txt"))
-    assert (
-        "profiler is not set, use session.register_profiler or profiler context manager"
-        in str(e)
-    )
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="session.sql is not supported in localtesting",
-)
-def test_register_module_without_profiler(
-    is_profiler_function_exist, profiler_session, db_parameters
-):
-    profiler_session.register_profiler_modules(["fake_module"])
-    res = profiler_session.sql(
-        "show parameters like 'python_profiler_modules'"
-    ).collect()
-    assert res[0].value == "fake_module"
-    profiler_session.register_profiler_modules([])
-
-
-def test_set_incorrect_active_profiler():
-    pro = Profiler()
-    with pytest.raises(ValueError) as e:
-        pro.set_active_profiler("wrong_active_profiler")
+        profiler_session.profiler.set_active_profiler("wrong_active_profiler")
     assert (
         "active_profiler expect 'LINE' or 'MEMORY', got wrong_active_profiler instead"
         in str(e)
@@ -206,14 +149,17 @@ def test_dump_profile_to_file(
         return "success"
 
     single_value_sp = profiler_session.sproc.register(single_value_sp, anonymous=True)
-    profiler_session.register_profiler_modules(["table_sp"])
-    with profiler(
-        stage=f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}",
-        active_profiler="LINE",
-        session=profiler_session,
-    ):
-        single_value_sp()
-        profiler_session.dump_profiles(file)
-    profiler_session.register_profiler_modules([])
+    profiler_session.profiler.pro.set_targeted_stage(
+        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
+    )
+
+    profiler_session.profiler.set_active_profiler("LINE")
+
+    single_value_sp()
+    profiler_session.profiler.dump(file)
+
+    profiler_session.profiler.disable()
+
+    profiler_session.profiler.register_modules([])
     with open(file) as f:
         assert "Modules Profiled" in f.read()

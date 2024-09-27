@@ -604,7 +604,7 @@ class Session:
         self._conf = self.RuntimeConfig(self, options or {})
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
-        self.profiler = None
+        self.profiler = Profiler(session=self)
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -3458,79 +3458,6 @@ class Session:
         )
         set_api_call_source(df, "Session.flatten")
         return df
-
-    def register_profiler(self, profiler: Profiler):
-        """Register a profiler to a session, all action are actually executed during this function"""
-        if (
-            profiler.session is not None
-            and profiler.session._session_id != self._session_id
-        ):
-            raise ValueError("A profiler can only be registered to one session.")
-        self.profiler = profiler
-        self.profiler.session = self
-        if (
-            len(self.sql(f"show stages like '{profiler.stage}'").collect()) == 0
-            and len(
-                self.sql(
-                    f"show stages like '{profiler.stage.split('.')[-1]}'"
-                ).collect()
-            )
-            == 0
-        ):
-            self.sql(
-                f"create temp stage if not exists {profiler.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
-            ).collect()
-        self.profiler._register_modules()
-        self.profiler._set_targeted_stage()
-        self.profiler._set_active_profiler()
-        self.profiler.query_history = self.query_history()
-
-    def show_profiles(self) -> str:
-        """
-        Return and show the profiles of last executed stored procedure.
-
-        Note:
-            This function must be called right after the execution of stored procedure you want to profile.
-        """
-        if self.profiler is not None and isinstance(self.profiler, Profiler):
-            return self.profiler.show_profiles()
-        else:
-            raise ValueError(
-                "profiler is not set, use session.register_profiler or profiler context manager"
-            )
-
-    def dump_profiles(self, dst_file: str):
-        """
-        Write the profiles of last executed stored procedure to given file.
-
-        Note:
-            This function must be called right after the execution of stored procedure you want to profile.
-
-        Args:
-            dst_file: String of file name that you want to store the profiles.
-        """
-        if self.profiler is not None and isinstance(self.profiler, Profiler):
-            self.profiler.dump_profiles(dst_file=dst_file)
-        else:
-            raise ValueError(
-                "profiler is not set, use session.register_profiler or profiler context manager"
-            )
-
-    def register_profiler_modules(self, stored_procedures: List[str]):
-        """
-        Register stored procedures to generate profiles for them.
-
-        Note:
-            Registered nodules will be overwritten by this function,
-            use this function with an empty string will remove registered modules.
-        Args:
-            stored_procedures: List of names of stored procedures.
-        """
-        if self.profiler is not None and isinstance(self.profiler, Profiler):
-            self.profiler.register_profiler_modules(stored_procedures)
-        else:
-            sql_statement = f"alter session set python_profiler_modules='{','.join(stored_procedures)}'"
-            self.sql(sql_statement).collect()
 
     def query_history(self, include_describe: bool = False) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
