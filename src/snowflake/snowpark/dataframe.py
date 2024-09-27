@@ -124,6 +124,7 @@ from snowflake.snowpark._internal.utils import (
     SKIP_LEVELS_THREE,
     SKIP_LEVELS_TWO,
     TempObjectType,
+    check_flatten_mode,
     check_is_pandas_dataframe_in_to_pandas,
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
@@ -4096,8 +4097,7 @@ class DataFrame:
             - :meth:`Session.flatten`, which creates a new :class:`DataFrame` by flattening compound values into multiple rows.
         """
 
-        if mode.upper() not in ["OBJECT", "ARRAY", "BOTH"]:
-            raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+        check_flatten_mode(mode)
 
         # AST.
         stmt = None
