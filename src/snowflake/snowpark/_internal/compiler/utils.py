@@ -379,7 +379,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         elif isinstance(node, SetStatement):
             name = f"{name} :: ({node.set_operands[1].operator})"
 
-        score = get_complexity_score(node.cumulative_node_complexity)
+        score = get_complexity_score(node)
         sql_text = ""
         if isinstance(node, Selectable):
             sql_text = node.sql_query
