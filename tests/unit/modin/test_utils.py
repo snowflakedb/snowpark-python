@@ -842,7 +842,7 @@ def test_try_convert_to_simple_slice(input, output):
 
 def test_append_columns():
     mock_ordered_dataframe = mock.create_autospec(OrderedDataFrame)
-    mock_ordered_dataframe.select = lambda *x: x
+    # mock_ordered_dataframe.select = lambda *x: x
     mock_ordered_dataframe.projected_column_snowflake_quoted_identifiers = [
         '"a"',
         '"B"',
@@ -851,6 +851,8 @@ def test_append_columns():
     ]
 
     def check_column_equality(results: list, expected_results: list) -> None:
+        print(results)
+        print(expected_results)
         for result, expected_result in zip(results, expected_results):
             assert type(result) == type(expected_result)
             if isinstance(result, Column):
