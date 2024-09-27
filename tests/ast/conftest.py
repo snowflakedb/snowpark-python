@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+import logging
 import os
 
 import pytest
@@ -35,6 +35,7 @@ def pytest_configure(config):
     pytest.unparser_jar = config.getoption("--unparser-jar")
     if not os.path.exists(pytest.unparser_jar):
         pytest.unparser_jar = None
+        logging.error(f"Unparser JAR not found at {pytest.unparser_jar}")
     pytest.update_expectations = config.getoption("--update-expectations")
 
 

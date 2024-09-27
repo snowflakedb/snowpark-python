@@ -814,6 +814,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         case_sensitive: bool = True,
+        _emit_ast: bool = True,
     ) -> Union[Iterator[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns an iterator
         of :class:`Row` objects that you can use to retrieve the results.
@@ -837,6 +838,33 @@ class DataFrame:
             case_sensitive: A bool value which controls the case sensitivity of the fields in the
                 :class:`Row` objects returned by the ``to_local_iterator``. Defaults to ``True``.
         """
+
+        kwargs = {}
+        if _emit_ast:
+            # Add an Assign node that applies SpDataframeToLocalIterator() to the input, followed by its Eval.
+            repr = self._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.sp_dataframe_to_local_iterator)
+
+            if self._ast_id is None and FAIL_ON_MISSING_AST:
+                _logger.debug(self._explain_string())
+                raise NotImplementedError(
+                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+                )
+
+            expr.id.bitfield1 = self._ast_id
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = expr.statement_params.add()
+                    t._1 = k
+                    t._2 = v
+            expr.block = block
+            expr.case_sensitive = case_sensitive
+
+            self._session._ast_batch.eval(repr)
+
+            # Flush the AST and encode it as part of the query.
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+
         return self._session._conn.execute(
             self._plan,
             to_iter=True,
@@ -848,6 +876,7 @@ class DataFrame:
                 SKIP_LEVELS_THREE,
             ),
             case_sensitive=case_sensitive,
+            **kwargs,
         )
 
     def __copy__(self) -> "DataFrame":

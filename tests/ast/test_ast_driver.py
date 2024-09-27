@@ -250,6 +250,8 @@ def run_test(session):
         base64_batches = test_module.run_test(session)
         unparser_output = render(base64_batches) if pytest.unparser_jar else ""
         return unparser_output, "\n".join(base64_batches)
+    except Exception as e:
+        raise e
     finally:
         os.unlink(test_file.name)
 
@@ -262,6 +264,9 @@ def test_ast(session, test_case):
         session, test_case.filename.replace(".", "_"), test_case.source
     )
     if pytest.update_expectations:
+        assert (
+            pytest.unparser_jar
+        ), "Can only update expectations with unparser jar set."
         with open(DATA_DIR / test_case.filename, "w", encoding="utf-8") as f:
             f.writelines(
                 [
