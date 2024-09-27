@@ -22,6 +22,7 @@
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
 - 
 #### Improvements
+- Improved  `snowflake.snowpark.functions` to support double and varchar.
 
 #### Bug Fixes
 
