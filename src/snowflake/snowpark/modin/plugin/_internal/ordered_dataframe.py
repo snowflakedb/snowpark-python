@@ -295,7 +295,7 @@ class OrderedDataFrame:
             row_count_snowflake_quoted_identifier
         )
 
-    @cached_property
+    @property
     def ordering_columns(self) -> list[OrderingColumn]:
         return list(self._ordering_columns_tuple)
 
@@ -309,7 +309,7 @@ class OrderedDataFrame:
         """
         return [col.snowpark_column for col in self.ordering_columns]
 
-    @cached_property
+    @property
     def ordering_column_snowflake_quoted_identifiers(self) -> list[str]:
         """
         Get all snowflake quoted identifiers for the ordering columns.
@@ -334,7 +334,7 @@ class OrderedDataFrame:
 
         return row_number().over(Window.order_by(self._ordering_snowpark_columns())) - 1
 
-    @cached_property
+    @property
     def projected_column_snowflake_quoted_identifiers(self) -> list[str]:
         """
         Returns:
