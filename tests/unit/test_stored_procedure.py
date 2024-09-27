@@ -49,6 +49,7 @@ def test_stored_procedure_execute_as(execute_as):
         return_type=IntegerType(),
         session=fake_session,
         execute_as=execute_as,
+        _emit_ast=False,
     )
     assert any(
         f"EXECUTE AS {execute_as.upper()}" in c.args[0]
@@ -56,7 +57,7 @@ def test_stored_procedure_execute_as(execute_as):
     )
 
 
-def test_negative_execute_as():
+def test_execute_as_negative():
     fake_session = mock.create_autospec(Session)
     fake_session.sproc = StoredProcedureRegistration(fake_session)
     fake_session._runtime_version_from_requirement = None
@@ -68,6 +69,7 @@ def test_negative_execute_as():
             lambda: 1,
             session=fake_session,
             execute_as="invalid EXECUTE AS",
+            _emit_ast=False,
         )
 
 

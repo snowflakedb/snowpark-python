@@ -202,7 +202,7 @@ def test_adjust_column_width_of_show(session):
     # run show(), make sure no error is reported
     df.show(10, 4)
 
-    res = df._show_string(10, 4)
+    res = df._show_string(10, 4, _emit_ast=session.ast_enabled)
     assert (
         res
         == """
@@ -220,7 +220,7 @@ def test_show_with_null_data(session):
     # run show(), make sure no error is reported
     df.show(10)
 
-    res = df._show_string(10)
+    res = df._show_string(10, _emit_ast=session.ast_enabled)
     assert (
         res
         == """
@@ -241,7 +241,7 @@ def test_show_multi_lines_row(session):
         ]
     ).to_df("a", "b")
 
-    res = df._show_string(2)
+    res = df._show_string(2, session.ast_enabled)
     assert (
         res
         == """
@@ -265,7 +265,7 @@ def test_show_multi_lines_row(session):
 def test_show(session):
     TestData.test_data1(session).show()
 
-    res = TestData.test_data1(session)._show_string(10)
+    res = TestData.test_data1(session)._show_string(10, _emit_ast=session.ast_enabled)
     assert (
         res
         == """
@@ -1049,7 +1049,7 @@ def test_toDf(session):
     )
     df1.show()
     assert (
-        df1._show_string()
+        df1._show_string(_emit_ast=session.ast_enabled)
         == """
 -------
 |"A"  |
@@ -1068,7 +1068,7 @@ def test_toDf(session):
     )
     df2.show()
     assert (
-        df2._show_string()
+        df2._show_string(_emit_ast=session.ast_enabled)
         == """
 -------
 |"A"  |
@@ -2362,7 +2362,7 @@ def test_dataframe_show_with_new_line(session):
         ["line1\nline1.1\n", "line2", "\n", "line4", "\n\n", None]
     ).to_df("a")
     assert (
-        df._show_string(10)
+        df._show_string(10, _emit_ast=session.ast_enabled)
         == """
 -----------
 |"A"      |
@@ -3107,17 +3107,14 @@ def test_random_split(session):
 def test_random_split_negative(session):
     df1 = session.range(10)
 
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(ValueError, match="weights can't be None or empty"):
         df1.random_split([])
-    assert "weights can't be None or empty and must be positive numbers" in str(ex_info)
 
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(ValueError, match="weights must be positive numbers"):
         df1.random_split([-0.1, -0.2])
-    assert "weights must be positive numbers" in str(ex_info)
 
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(ValueError, match="weights must be positive numbers"):
         df1.random_split([0.1, 0])
-    assert "weights must be positive numbers" in str(ex_info)
 
 
 def test_to_df(session):
