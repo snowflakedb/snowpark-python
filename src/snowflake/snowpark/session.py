@@ -118,6 +118,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
     parse_positional_args_to_list_variadic,
+    publicapi,
     quote_name,
     random_name_for_temp_object,
     strip_double_quotes_in_like_statement_in_table_name,
@@ -232,6 +233,12 @@ _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
 _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = (
     "PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED"
 )
+
+# AST encoding.
+_PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
+# TODO SNOW-1677514: Add server-side flag and initialize value with it. Add telemetry support for flag.
+_PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE = False
+
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
@@ -583,6 +590,10 @@ class Session:
             )
         )
 
+        self._ast_enabled: bool = self._conn._get_client_side_session_parameter(
+            _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
+        )
+
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
@@ -647,6 +658,25 @@ class Session:
         The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled.
         """
         return self._sql_simplifier_enabled
+
+    @property
+    def ast_enabled(self) -> bool:
+        return self._ast_enabled
+
+    @ast_enabled.setter
+    def ast_enabled(self, value: bool) -> None:
+        # TODO: we could send here explicit telemetry if a user changes the behavior.
+        # In addition, we could introduce a server-side parameter to enable AST capture or not.
+        # self._conn._telemetry_client.send_ast_enabled_telemetry(
+        #     self._session_id, value
+        # )
+        # try:
+        #     self._conn._cursor.execute(
+        #         f"alter session set {_PYTHON_SNOWPARK_USE_AST} = {value}"
+        #     )
+        # except Exception:
+        #     pass
+        self._ast_enabled = value
 
     @property
     def cte_optimization_enabled(self) -> bool:
@@ -1836,11 +1866,16 @@ class Session:
                 p[0]: json.loads(p[1])
                 for p in self.table(package_table_name)
                 .filter(
-                    (col("language") == "python")
-                    & (col("package_name").in_(package_names))
+                    (col("language", _emit_ast=False) == "python")
+                    & (
+                        col("package_name", _emit_ast=False).in_(
+                            package_names, _emit_ast=False
+                        )
+                    ),
+                    _emit_ast=False,
                 )
-                .group_by("package_name")
-                .agg(array_agg("version"))
+                .group_by("package_name", _emit_ast=False)
+                .agg(array_agg("version", _emit_ast=False), _emit_ast=False)
                 ._internal_collect_with_tag(statement_params=statement_params)
             }
             if validate_package and len(package_names) > 0
@@ -1968,6 +2003,7 @@ class Session:
                     f"Expected query tag to be valid json. Current query tag: {tag_str}"
                 )
 
+    @publicapi
     def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
         """
         Returns a Table that points the specified table.
@@ -2013,6 +2049,7 @@ class Session:
         set_api_call_source(t, "Session.table")
         return t
 
+    @publicapi
     def table_function(
         self,
         func_name: Union[str, List[str], Callable[..., Any], TableFunctionCall],
@@ -2156,6 +2193,7 @@ class Session:
 
         return d
 
+    @publicapi
     def generator(
         self,
         *columns: Column,
@@ -2275,11 +2313,13 @@ class Session:
         set_api_call_source(d, "Session.generator")
         return d
 
+    @publicapi
     def sql(
         self,
         query: str,
         params: Optional[Sequence[Any]] = None,
         _ast_stmt: proto.Assign = None,
+        _emit_ast: bool = True,
     ) -> DataFrame:
         """
         Returns a new DataFrame representing the results of a SQL query.
@@ -2309,15 +2349,17 @@ class Session:
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
         # AST.
-        if _ast_stmt is None:
-            stmt = self._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_sql, stmt)
-            expr.query = query
-            if params is not None:
-                for p in params:
-                    build_expr_from_python_val(expr.params.add(), p)
-        else:
-            stmt = _ast_stmt
+        stmt = None
+        if _emit_ast:
+            if _ast_stmt is None:
+                stmt = self._ast_batch.assign()
+                expr = with_src_position(stmt.expr.sp_sql, stmt)
+                expr.query = query
+                if params is not None:
+                    for p in params:
+                        build_expr_from_python_val(expr.params.add(), p)
+            else:
+                stmt = _ast_stmt
 
         if (
             isinstance(self._conn, MockServerConnection)
@@ -2484,6 +2526,7 @@ class Session:
             table_type=table_type,
         )
 
+    @publicapi
     def write_pandas(
         self,
         df: Union[
@@ -2732,6 +2775,7 @@ class Session:
                 str(ci_output)
             )
 
+    @publicapi
     def create_dataframe(
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
@@ -3065,12 +3109,14 @@ class Session:
                     analyzer=self._analyzer,
                 ),
                 ast_stmt=stmt,
+                _emit_ast=False,
             ).select(project_columns, _emit_ast=False)
         else:
             df = DataFrame(
                 self,
                 SnowflakeValues(attrs, converted, schema_query=schema_query),
                 ast_stmt=stmt,
+                _emit_ast=False,
             ).select(project_columns, _emit_ast=False)
         set_api_call_source(df, "Session.create_dataframe[values]")
 
@@ -3086,7 +3132,7 @@ class Session:
 
             # AST.
             if _emit_ast:
-                ast = with_src_position(stmt.expr.sp_create_dataframe)
+                ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
 
                 # Save temp table and schema of it in AST (dataframe).
                 ast.data.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (
@@ -3134,6 +3180,7 @@ class Session:
 
         return df
 
+    @publicapi
     def range(
         self,
         start: int,
@@ -3460,12 +3507,14 @@ class Session:
             )
         return False
 
+    @publicapi
     def call(
         self,
         sproc_name: str,
         *args: Any,
         statement_params: Optional[Dict[str, Any]] = None,
         log_on_exception: bool = False,
+        _emit_ast: bool = True,
     ) -> Any:
         """Calls a stored procedure by name.
 
@@ -3514,6 +3563,7 @@ class Session:
             *args,
             statement_params=statement_params,
             log_on_exception=log_on_exception,
+            _emit_ast=_emit_ast,
         )
 
     def _call(
@@ -3523,6 +3573,7 @@ class Session:
         statement_params: Optional[Dict[str, Any]] = None,
         is_return_table: Optional[bool] = None,
         log_on_exception: bool = False,
+        _emit_ast: bool = True,
     ) -> Any:
         """Private implementation of session.call
 
@@ -3533,18 +3584,24 @@ class Session:
             is_return_table: When set to a non-null value, it signifies whether the return type of sproc_name
                 is a table return type. This skips infer check and returns a dataframe with appropriate sql call.
         """
+
+        # TODO SNOW-1672561: The implementation here treats .call as an assign. However, technically it may
+        #  be either only assign or assign+eval depending on the path taken.
+
         # AST.
-        stmt = self._ast_batch.assign()
-        expr = with_src_position(stmt.expr.apply_expr, stmt)
-        expr.fn.stored_procedure.name.fn_name_flat.name = sproc_name
-        for arg in args:
-            build_expr_from_python_val(expr.pos_args.add(), arg)
-        if statement_params is not None:
-            for k in statement_params:
-                entry = expr.named_args.list.add()
-                entry._1 = k
-                build_expr_from_python_val(entry._2, statement_params[k])
-        expr.fn.stored_procedure.log_on_exception.value = log_on_exception
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.assign()
+            expr = with_src_position(stmt.expr.apply_expr, stmt)
+            expr.fn.stored_procedure.name.fn_name_flat.name = sproc_name
+            for arg in args:
+                build_expr_from_python_val(expr.pos_args.add(), arg)
+            if statement_params is not None:
+                for k in statement_params:
+                    entry = expr.named_args.list.add()
+                    entry._1 = k
+                    build_expr_from_python_val(entry._2, statement_params[k])
+            expr.fn.stored_procedure.log_on_exception.value = log_on_exception
 
         if isinstance(self._sp_registration, MockStoredProcedureRegistration):
             return self._sp_registration.call(
@@ -3566,6 +3623,7 @@ class Session:
             set_api_call_source(df, "Session.call")
             return df
 
+        # TODO SNOW-1672561: This here needs to emit an eval as well.
         df = self.sql(query, _ast_stmt=stmt)
         set_api_call_source(df, "Session.call")
         return df.collect(statement_params=statement_params)[0][0]
@@ -3575,6 +3633,7 @@ class Session:
         extra_warning_text="Use `Session.table_function()` instead.",
         extra_doc_string="Use :meth:`table_function` instead.",
     )
+    @publicapi
     def flatten(
         self,
         input: ColumnOrName,
@@ -3582,6 +3641,7 @@ class Session:
         outer: bool = False,
         recursive: bool = False,
         mode: str = "BOTH",
+        _emit_ast: bool = True,
     ) -> DataFrame:
         """Creates a new :class:`DataFrame` by flattening compound values into multiple rows.
 
@@ -3638,24 +3698,26 @@ class Session:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
-        # AST.
-        stmt = self._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_flatten, stmt)
-        build_expr_from_python_val(expr.input, input)
-        if path is not None:
-            expr.path.value = path
-        expr.outer = outer
-        expr.recursive = recursive
-
         mode = mode.upper()
-        if mode == "OBJECT":
-            expr.mode.sp_flatten_mode_object = True
-        elif mode == "ARRAY":
-            expr.mode.sp_flatten_mode_array = True
-        elif mode == "BOTH":
-            expr.mode.sp_flatten_mode_both = True
-        else:
-            raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_flatten, stmt)
+            build_expr_from_python_val(expr.input, input)
+            if path is not None:
+                expr.path.value = path
+            expr.outer = outer
+            expr.recursive = recursive
+            if mode == "OBJECT":
+                expr.mode.sp_flatten_mode_object = True
+            elif mode == "ARRAY":
+                expr.mode.sp_flatten_mode_array = True
+            elif mode == "BOTH":
+                expr.mode.sp_flatten_mode_both = True
+            else:
+                raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
         if isinstance(self._conn, MockServerConnection):
             if self._conn._suppress_not_implemented_error:

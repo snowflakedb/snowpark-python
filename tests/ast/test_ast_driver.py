@@ -9,6 +9,7 @@ import logging
 import os
 import pathlib
 import platform
+import re
 import subprocess
 import sys
 import tempfile
@@ -248,12 +249,26 @@ def run_test(session):
         sys.modules[test_name] = test_module
         spec.loader.exec_module(test_module)
         base64_batches = test_module.run_test(session)
-        unparser_output = render(base64_batches) if pytest.unparser_jar else ""
+        raw_unparser_output = render(base64_batches) if pytest.unparser_jar else ""
+        unparser_output = re.sub(
+            r"SNOWPARK_TEMP_TABLE_(\w+)", "SNOWPARK_TEMP_TABLE_xxx", raw_unparser_output
+        )
         return unparser_output, "\n".join(base64_batches)
     except Exception as e:
         raise e
     finally:
         os.unlink(test_file.name)
+
+
+def ClearTempTables(message: proto.Request) -> None:
+    """Removes temp table when passing pandas data."""
+    for stmt in message.body:
+        if str(
+            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.temp_table
+        ):
+            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.ClearField(
+                "temp_table"
+            )
 
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
@@ -295,6 +310,10 @@ def test_ast(session, test_case):
             # Python 3.9.3. Make comparison here client-language agnostic by removing the data from the message.
             actual_message.ClearField("client_language")
             expected_message.ClearField("client_language")
+
+            # Similarly, for create_dataframe with temporary tables clear them as they may differ from session to session.
+            ClearTempTables(actual_message)
+            ClearTempTables(expected_message)
 
             det_actual_message = actual_message.SerializeToString(deterministic=True)
             det_expected_message = expected_message.SerializeToString(
