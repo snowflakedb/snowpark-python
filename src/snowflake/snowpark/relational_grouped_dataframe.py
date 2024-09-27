@@ -226,7 +226,7 @@ class RelationalGroupedDataFrame:
             )
 
         return DataFrame(
-            self._df._session, group_plan, ast_stmt=_ast_stmt, _emit_ast=_emit_ast
+            self._df._session, group_plan, _ast_stmt=_ast_stmt, _emit_ast=_emit_ast
         )
 
     @relational_group_df_api_usage

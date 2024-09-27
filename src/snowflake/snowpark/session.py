@@ -2044,7 +2044,7 @@ class Session:
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(name, self, stmt, ast_stmt=stmt, _emit_ast=_emit_ast)
+        t = Table(name, self, stmt, _ast_stmt=stmt, _emit_ast=_emit_ast)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t
@@ -2300,14 +2300,14 @@ class Session:
                     ),
                     analyzer=self._analyzer,
                 ),
-                ast_stmt=stmt,
+                _ast_stmt=stmt,
                 _emit_ast=_emit_ast,
             )
         else:
             d = DataFrame(
                 self,
                 TableFunctionRelation(func_expr),
-                ast_stmt=stmt,
+                _ast_stmt=stmt,
                 _emit_ast=_emit_ast,
             )
         set_api_call_source(d, "Session.generator")
@@ -2382,7 +2382,7 @@ class Session:
                     from_=SelectSQL(query, analyzer=self._analyzer, params=params),
                     analyzer=self._analyzer,
                 ),
-                ast_stmt=stmt,
+                _ast_stmt=stmt,
             )
         else:
             d = DataFrame(
@@ -2390,7 +2390,7 @@ class Session:
                 self._analyzer.plan_builder.query(
                     query, source_plan=None, params=params
                 ),
-                ast_stmt=stmt,
+                _ast_stmt=stmt,
             )
         set_api_call_source(d, "Session.sql")
         return d
@@ -3098,8 +3098,8 @@ class Session:
         # Create AST statement.
         stmt = self._ast_batch.assign() if _emit_ast else None
 
-        if self.sql_simplifier_enabled:
-            df = DataFrame(
+        df = (
+            DataFrame(
                 self,
                 self._analyzer.create_select_statement(
                     from_=self._analyzer.create_select_snowflake_plan(
@@ -3108,17 +3108,19 @@ class Session:
                     ),
                     analyzer=self._analyzer,
                 ),
-                ast_stmt=stmt,
                 _emit_ast=False,
             ).select(project_columns, _emit_ast=False)
-        else:
-            df = DataFrame(
+            if self.sql_simplifier_enabled
+            else DataFrame(
                 self,
                 SnowflakeValues(attrs, converted, schema_query=schema_query),
-                ast_stmt=stmt,
                 _emit_ast=False,
             ).select(project_columns, _emit_ast=False)
+        )
         set_api_call_source(df, "Session.create_dataframe[values]")
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
 
         if (
             installed_pandas
@@ -3734,7 +3736,7 @@ class Session:
             TableFunctionRelation(
                 FlattenFunction(input._expression, path, outer, recursive, mode)
             ),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
         set_api_call_source(df, "Session.flatten")
         return df
