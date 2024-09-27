@@ -8,6 +8,7 @@ from unittest import mock
 import pytest
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Inner, Join, Union
+from snowflake.snowpark._internal.analyzer.config_context import ConfigContext
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectableEntity,
@@ -69,8 +70,15 @@ def mock_snowflake_plan() -> SnowflakePlan:
 
 
 @pytest.fixture(scope="function")
-def mock_query_generator(mock_session) -> QueryGenerator:
-    def mock_resolve(x):
+def mock_config_context() -> ConfigContext:
+    fake_config_context = mock.create_autospec(ConfigContext)
+    fake_config_context._query_compilation_stage_enabled = False
+    # fake_config_context.cte_optimization_enabled = False
+
+
+@pytest.fixture(scope="function")
+def mock_query_generator(mock_session, mock_config_context) -> QueryGenerator:
+    def mock_resolve(x, y):
         snowflake_plan = mock_snowflake_plan()
         snowflake_plan.source_plan = x
         if hasattr(x, "post_actions"):
@@ -80,6 +88,7 @@ def mock_query_generator(mock_session) -> QueryGenerator:
     fake_query_generator = mock.create_autospec(QueryGenerator)
     fake_query_generator.resolve.side_effect = mock_resolve
     fake_query_generator.session = mock_session
+    fake_query_generator.config_context = mock_config_context
     return fake_query_generator
 
 
