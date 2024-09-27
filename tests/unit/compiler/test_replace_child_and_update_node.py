@@ -69,8 +69,6 @@ def mock_snowflake_plan() -> SnowflakePlan:
     return fake_snowflake_plan
 
 
-
-
 @pytest.fixture(scope="function")
 def mock_query_generator(mock_session) -> QueryGenerator:
     def mock_resolve(x, y):
