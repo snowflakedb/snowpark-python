@@ -772,7 +772,7 @@ def publicapi(func) -> Callable:
                 ),
             ):
                 kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
-            elif hasattr(args[0], "_session"):
+            elif hasattr(args[0], "_session") and args[0]._session is not None:
                 kwargs["_emit_ast"] = args[0]._session.ast_enabled
             elif isinstance(args[0], snowflake.snowpark.session.Session):
                 kwargs["_emit_ast"] = args[0].ast_enabled
