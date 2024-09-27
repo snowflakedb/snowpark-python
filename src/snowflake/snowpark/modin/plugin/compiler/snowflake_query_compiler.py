@@ -63,6 +63,7 @@ from pandas.api.types import (
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_dict_like, is_list_like, pandas_dtype
 from pandas.core.indexes.base import ensure_index
+from pandas.errors import DataError
 from pandas.io.formats.format import format_percentiles
 from pandas.io.formats.printing import PrettyDict
 
@@ -398,6 +399,13 @@ NANOSECONDS_PER_SECOND = 10**9
 NANOSECONDS_PER_MICROSECOND = 10**3
 MICROSECONDS_PER_SECOND = 10**6
 NANOSECONDS_PER_DAY = SECONDS_PER_DAY * NANOSECONDS_PER_SECOND
+
+# Matches pandas
+_TIMEDELTA_ROLLING_AGGREGATION_NOT_SUPPORTED = "No numeric types to aggregate"
+# Matches pandas
+_TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED = (
+    "ops for Rolling for this dtype timedelta64[ns] are not implemented"
+)
 
 
 class SnowflakeQueryCompiler(BaseQueryCompiler):
@@ -13663,8 +13671,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         return self._window_agg(
             window_func=WindowFunction.ROLLING,
             agg_func="count",
@@ -13682,8 +13688,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_sum", engine, engine_kwargs
         )
@@ -13704,8 +13708,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_mean", engine, engine_kwargs
         )
@@ -13738,8 +13740,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_var", engine, engine_kwargs
         )
@@ -13761,8 +13761,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_var", engine, engine_kwargs
         )
@@ -13783,8 +13781,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_min", engine, engine_kwargs
         )
@@ -13805,8 +13801,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_max", engine, engine_kwargs
         )
@@ -13917,8 +13911,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         return self._window_agg(
             window_func=WindowFunction.ROLLING,
             agg_func="sem",
@@ -14017,8 +14009,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 -create_snowpark_interval_from_window(window), Window.CURRENT_ROW
             )
 
+        input_contains_timedelta = any(
+            isinstance(t, TimedeltaType)
+            for t in frame.cached_data_column_snowpark_pandas_types
+        )
+
         # Perform Aggregation over the window_expr
         if agg_func == "sem":
+            if input_contains_timedelta:
+                raise DataError(_TIMEDELTA_ROLLING_AGGREGATION_NOT_SUPPORTED)
+
             # Standard error of mean (SEM) does not have native Snowflake engine support
             # so calculate as STDDEV/SQRT(N-ddof)
             ddof = agg_kwargs.get("ddof", 1)
@@ -14057,6 +14057,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 }
             ).frame
         elif agg_func == "corr":
+            if input_contains_timedelta:
+                ErrorMessage.not_implemented(_TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED)
             if not isinstance(window, int):
                 ErrorMessage.not_implemented(
                     "Snowpark pandas does not yet support non-integer 'window' for 'Rolling.corr'"
@@ -14134,6 +14136,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ErrorMessage.not_implemented(  # pragma: no cover
                     f"Window aggregation does not support the aggregation {repr_aggregate_function(agg_func, agg_kwargs)}"
                 )
+            if (
+                snowflake_agg_func.snowpark_aggregation is not count
+                and input_contains_timedelta
+            ):
+                raise DataError(_TIMEDELTA_ROLLING_AGGREGATION_NOT_SUPPORTED)
+
             new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
                 {
                     # If aggregation is count use count on row_position_quoted_identifier
