@@ -339,13 +339,13 @@ class MockAnalyzer:
             return window_expression(
                 self.analyze(
                     expr.window_function,
-                    config_context=config_context,
                     parse_local_name=parse_local_name,
+                    config_context=config_context,
                 ),
                 self.analyze(
                     expr.window_spec,
-                    config_context=config_context,
                     parse_local_name=parse_local_name,
+                    config_context=config_context,
                 ),
             )
 
@@ -354,23 +354,23 @@ class MockAnalyzer:
                 [
                     self.analyze(
                         x,
-                        config_context=config_context,
                         parse_local_name=parse_local_name,
+                        config_context=config_context,
                     )
                     for x in expr.partition_spec
                 ],
                 [
                     self.analyze(
                         x,
-                        config_context=config_context,
                         parse_local_name=parse_local_name,
+                        config_context=config_context,
                     )
                     for x in expr.order_spec
                 ],
                 self.analyze(
                     expr.frame_spec,
-                    config_context=config_context,
                     parse_local_name=parse_local_name,
+                    config_context=config_context,
                 ),
             )
 
