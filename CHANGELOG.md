@@ -84,6 +84,7 @@
 - Added support for `Session.stored_procedure_profiler`.
 
 #### Improvements
+- Improved  `snowflake.snowpark.functions` to support double and varchar.
 
 #### Bug Fixes
 
