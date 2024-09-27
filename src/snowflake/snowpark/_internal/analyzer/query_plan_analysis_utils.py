@@ -55,10 +55,12 @@ def sum_node_complexities(
 def get_complexity_score(node) -> int:
     """Calculates the complexity score based on the cumulative node complexity"""
     adjusted_cumulative_complexity = node.cumulative_node_complexity.copy()
-    with_query_blocks = node.referenced_ctes
-    for with_node, count in with_query_blocks.items():
-        for category, value in with_node.cumulative_node_complexity.items():
+    for with_query_block, count in node.referenced_ctes.items():
+        for category, value in with_query_block.cumulative_node_complexity.items():
             adjusted_cumulative_complexity[category] -= (count - 1) * value
+
+        # Adjustment for each WITH query block being replaced by select * from cte
+        adjusted_cumulative_complexity[PlanNodeCategory.COLUMN] += count
 
     score = sum(adjusted_cumulative_complexity.values())
     return score

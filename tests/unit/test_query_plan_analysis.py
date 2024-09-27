@@ -12,9 +12,12 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     UNION,
     UNION_ALL,
 )
+from snowflake.snowpark._internal.analyzer.binary_plan_node import FullOuter, Join
 from snowflake.snowpark._internal.analyzer.expression import Expression, NamedExpression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
+    get_complexity_score,
+    sum_node_complexities,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
@@ -30,9 +33,12 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SnowflakeTable,
+    WithQueryBlock,
 )
+from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
+from snowflake.snowpark.functions import col
 
 
 @pytest.mark.parametrize("node_type", [LogicalPlan, SnowflakePlan, Selectable])
@@ -191,3 +197,98 @@ def test_set_statement_individual_node_complexity(mock_analyzer, set_operator):
     plan_node = SetStatement(*set_operands, analyzer=mock_analyzer)
 
     assert plan_node.individual_node_complexity == {PlanNodeCategory.SET_OPERATION: 1}
+
+
+def test_complexity_score_adjustment_with_query_blocks(
+    mock_session, mock_analyzer, mock_query
+):
+    selectable_entity_0 = SelectableEntity(
+        entity=SnowflakeTable("table0", session=mock_session), analyzer=mock_analyzer
+    )
+    selectable_entity_1 = SelectableEntity(
+        entity=SnowflakeTable("table1", session=mock_session), analyzer=mock_analyzer
+    )
+
+    assert (
+        selectable_entity_0.cumulative_node_complexity
+        == selectable_entity_1.cumulative_node_complexity
+        == {PlanNodeCategory.COLUMN: 1}
+        == {PlanNodeCategory.COLUMN: 1}
+    )
+
+    select_statement_0 = SelectStatement(
+        from_=selectable_entity_0,
+        order_by=[SortOrder(col("A")._expression, Ascending)],
+        analyzer=mock_analyzer,
+    )
+    assert select_statement_0.cumulative_node_complexity == {
+        PlanNodeCategory.COLUMN: 2,
+        PlanNodeCategory.ORDER_BY: 1,
+        PlanNodeCategory.OTHERS: 1,
+    }
+
+    join_type = FullOuter()
+    join_plan = Join(
+        left=select_statement_0,
+        right=selectable_entity_1,
+        join_type=join_type,
+        join_condition=(col("A") == col("B"))._expression,
+        match_condition=None,
+    )
+
+    join_snowflake_plan = SnowflakePlan(
+        [mock_query], "", source_plan=join_plan, session=mock_session
+    )
+    join_selectable = SelectSnowflakePlan(join_snowflake_plan, analyzer=mock_analyzer)
+
+    assert (
+        join_selectable.cumulative_node_complexity
+        == join_snowflake_plan.cumulative_node_complexity
+        == join_plan.cumulative_node_complexity
+        == sum_node_complexities(
+            select_statement_0.cumulative_node_complexity,
+            selectable_entity_1.cumulative_node_complexity,
+            {
+                PlanNodeCategory.JOIN: 1,
+                PlanNodeCategory.COLUMN: 2,
+                PlanNodeCategory.LOW_IMPACT: 1,
+            },
+        )
+    )
+
+    select_statement_1 = SelectStatement(from_=join_selectable, analyzer=mock_analyzer)
+    with_query_block = WithQueryBlock(name="temp_cte_123", child=select_statement_1)
+    with_snowflake_plan = SnowflakePlan(
+        [mock_query],
+        "",
+        source_plan=with_query_block,
+        session=mock_session,
+        referenced_ctes={with_query_block: 1},
+    )
+    with_select_snowflake_plan = SelectSnowflakePlan(
+        with_snowflake_plan, analyzer=mock_analyzer
+    )
+
+    assert (
+        with_select_snowflake_plan.cumulative_node_complexity
+        == with_snowflake_plan.cumulative_node_complexity
+        == with_query_block.cumulative_node_complexity
+        == sum_node_complexities(
+            join_selectable.cumulative_node_complexity, {PlanNodeCategory.WITH_QUERY: 1}
+        )
+    )
+
+    set_operands = [
+        SetOperand(with_select_snowflake_plan, UNION_ALL),
+        SetOperand(with_select_snowflake_plan, UNION_ALL),
+    ]
+    set_statement = SetStatement(*set_operands, analyzer=mock_analyzer)
+    assert set_statement.cumulative_node_complexity == sum_node_complexities(
+        with_snowflake_plan.cumulative_node_complexity,
+        with_snowflake_plan.cumulative_node_complexity,
+        {PlanNodeCategory.SET_OPERATION: 1},
+    )
+    assert (
+        get_complexity_score(set_statement)
+        == get_complexity_score(with_select_snowflake_plan) + 2
+    )
