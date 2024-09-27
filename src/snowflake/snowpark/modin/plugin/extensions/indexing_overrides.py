@@ -41,6 +41,7 @@ import itertools
 import numbers
 from typing import Any, Callable, Optional, Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas
 from modin.pandas import Series
@@ -59,7 +60,6 @@ from pandas.core.dtypes.common import (
 )
 from pandas.core.indexing import IndexingError
 
-import snowflake.snowpark.modin.pandas as pd
 import snowflake.snowpark.modin.plugin.extensions.utils as frontend_utils
 from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
     MULTIPLE_ELLIPSIS_INDEXING_ERROR_MESSAGE,

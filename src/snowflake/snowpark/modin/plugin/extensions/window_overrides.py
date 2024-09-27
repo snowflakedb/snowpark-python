@@ -26,9 +26,6 @@ import numpy as np  # noqa: F401
 import pandas.core.window.rolling
 
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
-
-# add these two lines to enable doc tests to run
-from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import (
