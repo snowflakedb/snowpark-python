@@ -286,8 +286,8 @@ class MockAnalyzer:
                     resolved_expr = self.to_sql_try_avoid_cast(
                         expression,
                         expr_to_alias,
+                        config_context,
                         parse_local_name,
-                        config_context=config_context,
                     )
                 else:
                     resolved_expr = self.analyze(
@@ -307,8 +307,8 @@ class MockAnalyzer:
                     in_value = self.to_sql_try_avoid_cast(
                         expression,
                         expr_to_alias,
+                        config_context,
                         parse_local_name,
-                        config_context=config_context,
                     )
                 else:
                     in_value = self.analyze(
@@ -489,9 +489,9 @@ class MockAnalyzer:
             return self.unary_expression_extractor(
                 expr,
                 expr_to_alias,
+                config_context,
                 parse_local_name,
                 keep_alias=keep_alias,
-                config_context=config_context,
             )
 
         if isinstance(expr, SortOrder):
@@ -528,8 +528,8 @@ class MockAnalyzer:
             return self.binary_operator_extractor(
                 expr,
                 expr_to_alias,
+                config_context,
                 parse_local_name,
-                config_context=config_context,
             )
 
         if isinstance(expr, InsertMergeExpression):
@@ -756,14 +756,14 @@ class MockAnalyzer:
             left_sql_expr = self.to_sql_try_avoid_cast(
                 expr.left,
                 expr_to_alias,
+                config_context,
                 parse_local_name,
-                config_context=config_context,
             )
             right_sql_expr = self.to_sql_try_avoid_cast(
                 expr.right,
                 expr_to_alias,
+                config_context,
                 parse_local_name,
-                config_context=config_context,
             )
         else:
             left_sql_expr = self.analyze(
@@ -862,7 +862,7 @@ class MockAnalyzer:
         expr_to_alias_maps = {}
         for c in logical_plan.children:
             _expr_to_alias = {}
-            resolved_children[c] = self.resolve(c, _expr_to_alias)
+            resolved_children[c] = self.resolve(c, _expr_to_alias, config_context)
             expr_to_alias_maps[c] = _expr_to_alias
 
         # get counts of expr_to_alias keys
