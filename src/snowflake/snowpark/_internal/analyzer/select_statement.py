@@ -604,7 +604,19 @@ class SelectSnowflakePlan(Selectable):
 
     @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        return self.snowflake_plan.cumulative_node_complexity
+        if self._cumulative_node_complexity is None:
+            self._cumulative_node_complexity = (
+                self.snowflake_plan.cumulative_node_complexity
+            )
+        return self._cumulative_node_complexity
+
+    @cumulative_node_complexity.setter
+    def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
+        self._cumulative_node_complexity = value
+
+    def reset_cumulative_node_complexity(self) -> None:
+        super().reset_cumulative_node_complexity()
+        self.snowflake_plan.reset_cumulative_node_complexity()
 
     @property
     def referenced_ctes(self) -> Set[WithQueryBlock]:
@@ -1246,7 +1258,19 @@ class SelectTableFunction(Selectable):
 
     @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        return self.snowflake_plan.cumulative_node_complexity
+        if self._cumulative_node_complexity is None:
+            self._cumulative_node_complexity = (
+                self.snowflake_plan.cumulative_node_complexity
+            )
+        return self._cumulative_node_complexity
+
+    @cumulative_node_complexity.setter
+    def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
+        self._cumulative_node_complexity = value
+
+    def reset_cumulative_node_complexity(self) -> None:
+        super().reset_cumulative_node_complexity()
+        self.snowflake_plan.reset_cumulative_node_complexity()
 
     @property
     def referenced_ctes(self) -> Set[WithQueryBlock]:
