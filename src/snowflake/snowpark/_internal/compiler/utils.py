@@ -311,7 +311,7 @@ def get_snowflake_plan_queries(
         definition_queries = []
         final_query_params = []
         plan_referenced_cte_names = {
-            with_query_block.name for with_query_block in plan.referenced_ctes.keys()
+            with_query_block.name for with_query_block in plan.referenced_ctes
         }
         for name, definition_query in resolved_with_query_blocks.items():
             if name in plan_referenced_cte_names:
