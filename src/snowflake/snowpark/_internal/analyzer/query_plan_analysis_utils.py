@@ -7,7 +7,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Dict
 
 if TYPE_CHECKING:
-    from snowflake.snowpark._internal.compiler.utils import TreeNode
+    from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 
 
 class PlanNodeCategory(Enum):
@@ -73,7 +73,7 @@ def subtract_complexities(
     return result_complexities
 
 
-def get_complexity_score(node: "TreeNode") -> int:
+def get_complexity_score(node: "LogicalPlan") -> int:
     """Calculates the complexity score based on the cumulative node complexity"""
     adjusted_cumulative_complexity = node.cumulative_node_complexity.copy()
     for with_query_block in node.referenced_ctes:
