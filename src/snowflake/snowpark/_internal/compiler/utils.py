@@ -136,6 +136,9 @@ def replace_child(
 
     elif isinstance(parent, SelectStatement):
         parent.from_ = to_selectable(new_child, query_generator)
+        # once the subquery is updated, set _merge_projection_complexity_with_subquery to False to
+        # disable the projection complexity merge
+        parent._merge_projection_complexity_with_subquery = False
 
     elif isinstance(parent, SetStatement):
         new_child_as_selectable = to_selectable(new_child, query_generator)
@@ -235,6 +238,8 @@ def update_resolvable_node(
         # the projection expression can be re-analyzed during code generation
         node._projection_in_str = None
         node.analyzer = query_generator
+        # reset the _projection_complexities fields to re-calculate the complexities
+        node._projection_complexities = None
 
         # update the pre_actions and post_actions for the select statement
         node.pre_actions = node.from_.pre_actions
