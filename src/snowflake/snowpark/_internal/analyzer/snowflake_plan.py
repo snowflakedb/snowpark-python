@@ -453,6 +453,11 @@ class SnowflakePlan(LogicalPlan):
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
         self._cumulative_node_complexity = value
 
+    def reset_cumulative_node_complexity(self) -> None:
+        super().reset_cumulative_node_complexity()
+        if self.source_plan:
+            self.source_plan.reset_cumulative_node_complexity()
+
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
             return SnowflakePlan(
