@@ -55,6 +55,24 @@ def sum_node_complexities(
     return dict(counter_sum)
 
 
+def subtract_complexities(
+    complexities1: Dict[PlanNodeCategory, int],
+    complexities2: Dict[PlanNodeCategory, int],
+) -> Dict[PlanNodeCategory, int]:
+    """
+    This is a helper function for complexities1 - complexities2.
+    """
+
+    result_complexities = complexities1.copy()
+    for key, value in complexities2.items():
+        if key in result_complexities:
+            result_complexities[key] -= value
+        else:
+            result_complexities[key] = -value
+
+    return result_complexities
+
+
 def get_complexity_score(node: "TreeNode") -> int:
     """Calculates the complexity score based on the cumulative node complexity"""
     adjusted_cumulative_complexity = node.cumulative_node_complexity.copy()

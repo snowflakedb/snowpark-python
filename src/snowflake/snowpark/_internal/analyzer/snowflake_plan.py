@@ -441,6 +441,8 @@ class SnowflakePlan(LogicalPlan):
     @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         if self._cumulative_node_complexity is None:
+            # if source plan is available, the source plan complexity
+            # is the snowflake plan complexity.
             if self.source_plan:
                 self._cumulative_node_complexity = (
                     self.source_plan.cumulative_node_complexity

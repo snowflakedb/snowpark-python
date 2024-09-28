@@ -13,13 +13,19 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     UNION_ALL,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import FullOuter, Join
-from snowflake.snowpark._internal.analyzer.expression import Expression, NamedExpression
+from snowflake.snowpark._internal.analyzer.expression import (
+    Attribute,
+    Expression,
+    NamedExpression,
+)
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     get_complexity_score,
+    subtract_complexities,
     sum_node_complexities,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
+    ColumnStateDict,
     Selectable,
     SelectableEntity,
     SelectSnowflakePlan,
@@ -38,6 +44,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
+from snowflake.snowpark.dataframe import StringType
 from snowflake.snowpark.functions import col
 
 
@@ -163,7 +170,14 @@ def test_select_statement_individual_node_complexity(
 
     plan_node = SelectStatement(from_=from_, analyzer=mock_analyzer)
     setattr(plan_node, attribute, value)
-    assert plan_node.individual_node_complexity == expected_stat
+    if attribute == "projection" and isinstance(value[0], NamedExpression):
+        # NamedExpression is not a valid projection expression for selectStatement,
+        # and there is no individual_node_complexity or cumulative_node_complexity
+        # attributes associated with it
+        with pytest.raises(AttributeError):
+            plan_node.individual_node_complexity
+    else:
+        assert plan_node.individual_node_complexity == expected_stat
 
 
 def test_select_table_function_individual_node_complexity(
@@ -301,3 +315,120 @@ def test_complexity_score_adjustment_with_query_blocks(
         == get_complexity_score(join_snowflake_plan)
         + 5  # 1 for SET_OPERATION, 2 for COLUMN, 2 for WITH_QUERY
     )
+
+
+@pytest.mark.parametrize(
+    "complexity1, complexity2, expected_result",
+    [
+        (
+            {
+                PlanNodeCategory.COLUMN: 20,
+                PlanNodeCategory.LITERAL: 5,
+                PlanNodeCategory.FUNCTION: 3,
+            },
+            {
+                PlanNodeCategory.COLUMN: 11,
+                PlanNodeCategory.LITERAL: 4,
+                PlanNodeCategory.FUNCTION: 1,
+            },
+            {
+                PlanNodeCategory.COLUMN: 9,
+                PlanNodeCategory.LITERAL: 1,
+                PlanNodeCategory.FUNCTION: 2,
+            },
+        ),
+        (
+            {
+                PlanNodeCategory.COLUMN: 20,
+                PlanNodeCategory.LITERAL: 5,
+                PlanNodeCategory.FUNCTION: 3,
+            },
+            {PlanNodeCategory.COLUMN: 11, PlanNodeCategory.FUNCTION: 1},
+            {
+                PlanNodeCategory.COLUMN: 9,
+                PlanNodeCategory.LITERAL: 5,
+                PlanNodeCategory.FUNCTION: 2,
+            },
+        ),
+        (
+            {
+                PlanNodeCategory.COLUMN: 20,
+                PlanNodeCategory.LITERAL: 5,
+                PlanNodeCategory.FUNCTION: 3,
+            },
+            {PlanNodeCategory.LITERAL: 11, PlanNodeCategory.FUNCTION: 1},
+            {
+                PlanNodeCategory.COLUMN: 20,
+                PlanNodeCategory.LITERAL: -6,
+                PlanNodeCategory.FUNCTION: 2,
+            },
+        ),
+        (
+            {
+                PlanNodeCategory.COLUMN: 20,
+                PlanNodeCategory.LITERAL: 5,
+                PlanNodeCategory.FUNCTION: 3,
+            },
+            {
+                PlanNodeCategory.COLUMN: 11,
+                PlanNodeCategory.LITERAL: 1,
+                PlanNodeCategory.FILTER: 1,
+                PlanNodeCategory.CASE_WHEN: 2,
+            },
+            {
+                PlanNodeCategory.COLUMN: 9,
+                PlanNodeCategory.LITERAL: 4,
+                PlanNodeCategory.FUNCTION: 3,
+                PlanNodeCategory.FILTER: -1,
+                PlanNodeCategory.CASE_WHEN: -2,
+            },
+        ),
+    ],
+)
+def test_subtract_complexities(complexity1, complexity2, expected_result):
+    assert subtract_complexities(complexity1, complexity2) == expected_result
+
+
+def test_select_statement_get_complexity_map_no_column_state(mock_analyzer):
+    mock_from = mock.create_autospec(Selectable)
+    mock_from.pre_actions = None
+    mock_from.post_actions = None
+    mock_from.expr_to_alias = {}
+    mock_from.df_aliased_col_name_to_real_col_name = {}
+    select_statement = SelectStatement(analyzer=mock_analyzer, from_=mock_from)
+
+    assert select_statement.get_projection_name_complexity_map() is None
+    assert select_statement.projection_complexities == []
+
+    select_statement._column_states = mock.create_autospec(ColumnStateDict)
+    select_statement.projection = [Expression()]
+    mock_from._column_states = None
+
+    assert select_statement.get_projection_name_complexity_map() is None
+
+
+def test_select_statement_get_complexity_map_mismatch_projection_length(mock_analyzer):
+    mock_from = mock.create_autospec(Selectable)
+    mock_from.pre_actions = None
+    mock_from.post_actions = None
+    mock_from.expr_to_alias = {}
+    mock_from.df_aliased_col_name_to_real_col_name = {}
+
+    # create a select_statement with 2 projections
+    select_statement = SelectStatement(
+        analyzer=mock_analyzer, projection=[Expression(), Expression()], from_=mock_from
+    )
+    column_states = ColumnStateDict()
+    column_states.projection = [Attribute("A", StringType())]
+    select_statement._column_states = column_states
+
+    assert select_statement.get_projection_name_complexity_map() is None
+
+    # update column states projection length to match the projection length
+    column_states.projection = [
+        Attribute("A", StringType()),
+        Attribute("B", StringType()),
+    ]
+    select_statement._projection_complexities = []
+
+    assert select_statement.get_projection_name_complexity_map() is None
