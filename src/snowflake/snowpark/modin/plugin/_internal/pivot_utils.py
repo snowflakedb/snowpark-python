@@ -692,31 +692,6 @@ def single_pivot_helper(
             )
         pivot_frame_data_column_data_pandas_labels.append(pandas_label)
 
-        """
-                    pandas_label_column = str(pandas_label)
-                else:
-                    pandas_label_column = pandas_label
-
-                # If the snowflake quoted identifier conflicts with an earlier identifier, ensure it is unique in snowflake
-                renamed_snowflake_quoted_identifier = (
-                    pivot_ordered_dataframe.generate_snowflake_quoted_identifiers(
-                        pandas_labels=[pandas_label_column],
-                        excluded=existing_snowflake_quoted_identifiers,
-                    )[0]
-                )
-
-                if renamed_snowflake_quoted_identifier != snowflake_quoted_identifier:
-                    pivot_ordered_dataframe = append_columns(
-                        pivot_ordered_dataframe,
-                        renamed_snowflake_quoted_identifier,
-                        col(snowflake_quoted_identifier),
-                    )
-                    snowflake_quoted_identifier = renamed_snowflake_quoted_identifier
-
-                data_column_snowflake_quoted_identifiers.append(snowflake_quoted_identifier)
-                data_column_pandas_labels.append(pandas_label)
-                """
-
     pandas_labels = [
         str(label) if not isinstance(label, str) else label
         for label in pivot_frame_data_column_data_pandas_labels
