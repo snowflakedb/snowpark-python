@@ -334,7 +334,7 @@ class OrderedDataFrame:
 
         return row_number().over(Window.order_by(self._ordering_snowpark_columns())) - 1
 
-    @property
+    @cached_property
     def projected_column_snowflake_quoted_identifiers(self) -> list[str]:
         """
         Returns:
