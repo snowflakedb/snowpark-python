@@ -202,6 +202,11 @@ def test_set_statement_individual_node_complexity(mock_analyzer, set_operator):
 def test_complexity_score_adjustment_with_query_blocks(
     mock_session, mock_analyzer, mock_query
 ):
+    def mock_analyze(expr, _):
+        return "A"
+
+    mock_analyzer.analyze.side_effect = mock_analyze
+
     selectable_entity_0 = SelectableEntity(
         entity=SnowflakeTable("table0", session=mock_session), analyzer=mock_analyzer
     )
@@ -212,7 +217,6 @@ def test_complexity_score_adjustment_with_query_blocks(
     assert (
         selectable_entity_0.cumulative_node_complexity
         == selectable_entity_1.cumulative_node_complexity
-        == {PlanNodeCategory.COLUMN: 1}
         == {PlanNodeCategory.COLUMN: 1}
     )
 
@@ -255,6 +259,9 @@ def test_complexity_score_adjustment_with_query_blocks(
             },
         )
     )
+    assert get_complexity_score(join_snowflake_plan) == get_complexity_score(
+        join_selectable
+    )
 
     select_statement_1 = SelectStatement(from_=join_selectable, analyzer=mock_analyzer)
     with_query_block = WithQueryBlock(name="temp_cte_123", child=select_statement_1)
@@ -273,9 +280,10 @@ def test_complexity_score_adjustment_with_query_blocks(
         with_select_snowflake_plan.cumulative_node_complexity
         == with_snowflake_plan.cumulative_node_complexity
         == with_query_block.cumulative_node_complexity
-        == sum_node_complexities(
-            join_selectable.cumulative_node_complexity, {PlanNodeCategory.WITH_QUERY: 1}
-        )
+        == {PlanNodeCategory.WITH_QUERY: 1, PlanNodeCategory.COLUMN: 1}
+    )
+    assert get_complexity_score(with_select_snowflake_plan) == get_complexity_score(
+        with_snowflake_plan
     )
 
     set_operands = [
@@ -290,5 +298,6 @@ def test_complexity_score_adjustment_with_query_blocks(
     )
     assert (
         get_complexity_score(set_statement)
-        == get_complexity_score(with_select_snowflake_plan) + 2
+        == get_complexity_score(join_snowflake_plan)
+        + 5  # 1 for SET_OPERATION, 2 for COLUMN, 2 for WITH_QUERY
     )

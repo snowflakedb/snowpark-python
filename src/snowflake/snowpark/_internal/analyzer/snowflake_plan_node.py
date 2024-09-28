@@ -132,8 +132,12 @@ class WithQueryBlock(LogicalPlan):
         self.children.append(child)
 
     @property
-    def plan_node_category(self) -> PlanNodeCategory:
-        return PlanNodeCategory.WITH_QUERY
+    def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        # Each WithQueryBlock is replaced by SELECT * FROM cte_name and adds
+        # WITH cte_name AS (child) to the query.
+        # The complexity score for the child is adjusted during query complexity
+        # calculation.
+        return {PlanNodeCategory.WITH_QUERY: 1, PlanNodeCategory.COLUMN: 1}
 
 
 class SnowflakeValues(LeafNode):
