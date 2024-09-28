@@ -1649,7 +1649,7 @@ class SnowflakePlanBuilder:
         # query generation stage.
         queries = child.queries[:-1] + [Query(sql=new_query)]
         # propagate the cte table
-        referenced_ctes = {name}.union(child.referenced_ctes)
+        referenced_ctes = {with_query_block}.union(child.referenced_ctes)
 
         return SnowflakePlan(
             queries,
