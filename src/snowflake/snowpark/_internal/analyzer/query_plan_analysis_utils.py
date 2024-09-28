@@ -76,13 +76,14 @@ def subtract_complexities(
 def get_complexity_score(node: "LogicalPlan") -> int:
     """Calculates the complexity score based on the cumulative node complexity"""
     adjusted_cumulative_complexity = node.cumulative_node_complexity.copy()
-    for with_query_block in node.referenced_ctes:
-        child_node = with_query_block.children[0]
-        for category, value in child_node.cumulative_node_complexity.items():
-            if category in adjusted_cumulative_complexity:
-                adjusted_cumulative_complexity[category] += value
-            else:
-                adjusted_cumulative_complexity[category] = value
+    if hasattr(node, "referenced_ctes"):
+        for with_query_block in node.referenced_ctes: # type: ignore
+            child_node = with_query_block.children[0]
+            for category, value in child_node.cumulative_node_complexity.items():
+                if category in adjusted_cumulative_complexity:
+                    adjusted_cumulative_complexity[category] += value
+                else:
+                    adjusted_cumulative_complexity[category] = value
 
     score = sum(adjusted_cumulative_complexity.values())
     return score

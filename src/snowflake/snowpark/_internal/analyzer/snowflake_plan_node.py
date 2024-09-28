@@ -67,10 +67,6 @@ class LogicalPlan:
     def reset_cumulative_node_complexity(self) -> None:
         self._cumulative_node_complexity = None
 
-    @property
-    def referenced_ctes(self) -> Set:
-        return set()
-
 
 class LeafNode(LogicalPlan):
     pass
