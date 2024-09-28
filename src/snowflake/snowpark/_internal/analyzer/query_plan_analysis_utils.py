@@ -4,7 +4,10 @@
 
 from collections import Counter
 from enum import Enum
-from typing import Dict
+from typing import TYPE_CHECKING, Dict
+
+if TYPE_CHECKING:
+    from snowflake.snowpark._internal.compiler.utils import TreeNode
 
 
 class PlanNodeCategory(Enum):
@@ -52,7 +55,7 @@ def sum_node_complexities(
     return dict(counter_sum)
 
 
-def get_complexity_score(node) -> int:
+def get_complexity_score(node: "TreeNode") -> int:
     """Calculates the complexity score based on the cumulative node complexity"""
     adjusted_cumulative_complexity = node.cumulative_node_complexity.copy()
     for with_query_block in node.referenced_ctes:

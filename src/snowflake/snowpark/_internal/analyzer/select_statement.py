@@ -315,6 +315,7 @@ class Selectable(LogicalPlan, ABC):
                 session=self.analyzer.session,
                 expr_to_alias=self.expr_to_alias,
                 df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
+                source_plan=self,
                 placeholder_query=self.placeholder_query,
                 referenced_ctes=self.referenced_ctes,
             )
