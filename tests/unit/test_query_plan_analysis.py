@@ -12,11 +12,17 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     UNION,
     UNION_ALL,
 )
-from snowflake.snowpark._internal.analyzer.expression import Expression, NamedExpression
+from snowflake.snowpark._internal.analyzer.expression import (
+    Attribute,
+    Expression,
+    NamedExpression,
+)
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
+    subtract_complexities,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
+    ColumnStateDict,
     Selectable,
     SelectableEntity,
     SelectSnowflakePlan,
@@ -33,6 +39,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 )
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
+from snowflake.snowpark.dataframe import StringType
 
 
 @pytest.mark.parametrize("node_type", [LogicalPlan, SnowflakePlan, Selectable])
@@ -198,3 +205,120 @@ def test_set_statement_individual_node_complexity(mock_analyzer, set_operator):
     plan_node = SetStatement(*set_operands, analyzer=mock_analyzer)
 
     assert plan_node.individual_node_complexity == {PlanNodeCategory.SET_OPERATION: 1}
+
+
+@pytest.mark.parametrize(
+    "complexity1, complexity2, expected_result",
+    [
+        (
+            {
+                PlanNodeCategory.COLUMN: 20,
+                PlanNodeCategory.LITERAL: 5,
+                PlanNodeCategory.FUNCTION: 3,
+            },
+            {
+                PlanNodeCategory.COLUMN: 11,
+                PlanNodeCategory.LITERAL: 4,
+                PlanNodeCategory.FUNCTION: 1,
+            },
+            {
+                PlanNodeCategory.COLUMN: 9,
+                PlanNodeCategory.LITERAL: 1,
+                PlanNodeCategory.FUNCTION: 2,
+            },
+        ),
+        (
+            {
+                PlanNodeCategory.COLUMN: 20,
+                PlanNodeCategory.LITERAL: 5,
+                PlanNodeCategory.FUNCTION: 3,
+            },
+            {PlanNodeCategory.COLUMN: 11, PlanNodeCategory.FUNCTION: 1},
+            {
+                PlanNodeCategory.COLUMN: 9,
+                PlanNodeCategory.LITERAL: 5,
+                PlanNodeCategory.FUNCTION: 2,
+            },
+        ),
+        (
+            {
+                PlanNodeCategory.COLUMN: 20,
+                PlanNodeCategory.LITERAL: 5,
+                PlanNodeCategory.FUNCTION: 3,
+            },
+            {PlanNodeCategory.LITERAL: 11, PlanNodeCategory.FUNCTION: 1},
+            {
+                PlanNodeCategory.COLUMN: 20,
+                PlanNodeCategory.LITERAL: -6,
+                PlanNodeCategory.FUNCTION: 2,
+            },
+        ),
+        (
+            {
+                PlanNodeCategory.COLUMN: 20,
+                PlanNodeCategory.LITERAL: 5,
+                PlanNodeCategory.FUNCTION: 3,
+            },
+            {
+                PlanNodeCategory.COLUMN: 11,
+                PlanNodeCategory.LITERAL: 1,
+                PlanNodeCategory.FILTER: 1,
+                PlanNodeCategory.CASE_WHEN: 2,
+            },
+            {
+                PlanNodeCategory.COLUMN: 9,
+                PlanNodeCategory.LITERAL: 4,
+                PlanNodeCategory.FUNCTION: 3,
+                PlanNodeCategory.FILTER: -1,
+                PlanNodeCategory.CASE_WHEN: -2,
+            },
+        ),
+    ],
+)
+def test_subtract_complexities(complexity1, complexity2, expected_result):
+    assert subtract_complexities(complexity1, complexity2) == expected_result
+
+
+def test_select_statement_get_complexity_map_no_column_state(mock_analyzer):
+    mock_from = mock.create_autospec(Selectable)
+    mock_from.pre_actions = None
+    mock_from.post_actions = None
+    mock_from.expr_to_alias = {}
+    mock_from.df_aliased_col_name_to_real_col_name = {}
+    select_statement = SelectStatement(analyzer=mock_analyzer, from_=mock_from)
+
+    assert select_statement.get_projection_name_complexity_map() is None
+    assert select_statement.projection_complexities == []
+
+    select_statement._column_states = mock.create_autospec(ColumnStateDict)
+    select_statement.projection = [Expression()]
+    mock_from._column_states = None
+
+    assert select_statement.get_projection_name_complexity_map() is None
+
+
+def test_select_statement_get_complexity_map_mismatch_projection_length(mock_analyzer):
+    mock_from = mock.create_autospec(Selectable)
+    mock_from.pre_actions = None
+    mock_from.post_actions = None
+    mock_from.expr_to_alias = {}
+    mock_from.df_aliased_col_name_to_real_col_name = {}
+
+    # create a select_statement with 2 projections
+    select_statement = SelectStatement(
+        analyzer=mock_analyzer, projection=[Expression(), Expression()], from_=mock_from
+    )
+    column_states = ColumnStateDict()
+    column_states.projection = [Attribute("A", StringType())]
+    select_statement._column_states = column_states
+
+    assert select_statement.get_projection_name_complexity_map() is None
+
+    # update column states projection length to match the projection length
+    column_states.projection = [
+        Attribute("A", StringType()),
+        Attribute("B", StringType()),
+    ]
+    select_statement._projection_complexities = []
+
+    assert select_statement.get_projection_name_complexity_map() is None
