@@ -231,6 +231,7 @@ class TestTimedelta:
     )
     @pytest.mark.parametrize("agg_func", agg_func_supported_for_timedelta)
     @min_periods
+    @sql_count_checker(query_count=1)
     def test_expanding_aggregation_supported(
         self, create_function, agg_func, min_periods
     ):
