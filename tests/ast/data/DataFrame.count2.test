@@ -1,0 +1,29 @@
+## TEST CASE
+
+# This test creates a Pandas dataframe literal and gets the count.
+import pandas as pd
+
+df = session.create_dataframe(pd.DataFrame([["one", 1], ["two", 2], ["three", 3]], columns=["A", "B"]))
+
+df.count()
+
+df.count(block=False)
+
+df.count(block=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType([StructField("\"A\"", StringType(16777216), nullable=True), StructField("\"B\"", LongType(), nullable=True)], structured=False))
+
+df.count()
+
+df.count(block=False)
+
+df.count(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
+
+## EXPECTED ENCODED AST
+
+CoYBCoMBCnXSBXIKKBImCiQKIgogCh5TTk9XUEFSS19URU1QX1RBQkxFXzhYWDFEQktVUTASKhIoCiYKFQoFCgMiQSISCpoBBwoFCICAgAgYAQoNCgUKAyJCIhICaAEYARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKF0SBAoCZGYYASICCAEKMQovCiW6BiIIARICCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShfEgAYAiICCAIKCBIGCAMSAggCEAEaERIPCg0KBWZpbmFsEAMYCCATIgQQARgV
+Ci8KLQojugYgEgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGESABgEIgIIBAoIEgYIBRICCAQQARoREg8KDQoFZmluYWwQAxgIIBMiBBABGBU=
+CksKSQo/ugY8EgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGMiGgoKU0ZfUEFSVE5FUhIMRkFLRV9QQVJUTkVSEgAYBiICCAYKCBIGCAcSAggGEAEaERIPCg0KBWZpbmFsEAMYCCATIgQQARgV
+EAEaERIPCg0KBWZpbmFsEAMYCCATIgQQARgV

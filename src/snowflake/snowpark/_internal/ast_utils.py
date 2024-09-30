@@ -5,11 +5,18 @@ import ast
 import datetime
 import decimal
 import inspect
+import logging
+import os
+import platform
 import sys
 from functools import reduce
+from logging import getLogger
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+
+import dateutil
+from dateutil.tz import tzlocal
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -43,6 +50,20 @@ SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
 
 # Test mode. In test mode, the source filename is ignored.
 SRC_POSITION_TEST_MODE = False
+
+_logger = getLogger(__name__)
+
+
+def debug_check_missing_ast(ast, container) -> None:
+    """
+    Debug check for missing AST. This is invoked with various arguments that are expected to be non-NULL if the AST
+    is emitted correctly.
+    """
+    if ast is None and FAIL_ON_MISSING_AST:
+        _logger.debug(container._explain_string())
+        raise NotImplementedError(
+            f"DataFrame with API usage {container._plan.api_calls} is missing complete AST logging."
+        )
 
 
 # Use python's builtin ast and NodeVisitor class.
@@ -88,6 +109,46 @@ def extract_assign_targets(source_line: str) -> Optional[Union[str, List[str]]]:
     except Exception:
         # Indicate parse/extraction failure with None.
         return None
+
+
+def fill_timezone(
+    ast: proto.Expr, obj: Union[datetime.datetime, datetime.time]
+) -> None:
+
+    datetime_val = (
+        obj
+        if isinstance(obj, datetime.datetime)
+        else datetime.datetime.combine(datetime.date.today(), obj)
+    )
+
+    if obj.tzinfo is not None:
+        ast.tz.offset_seconds = int(obj.tzinfo.utcoffset(datetime_val).total_seconds())
+        tz = obj.tzinfo.tzname(datetime_val)
+        if tz is not None:
+            ast.tz.name.value = tz
+    else:
+        # tzinfo=None means that the local timezone will be used.
+        # Retrieve name of the local timezone and encode as part of the AST.
+        if platform.system() == "Windows":
+            # Windows is a special case, msvcrt is broken so timezones are not properly propagated. Relying on
+            # environment variable for test. Cf. override_time_zone in test_ast_driver.py for details.
+            tz_env = os.environ.get("TZ")
+            if tz_env:
+                tz = dateutil.tz.gettz(tz_env)
+                tz_name = tz.tzname(datetime.datetime.now())
+                ast.tz.offset_seconds = int(tz.utcoffset(datetime_val).total_seconds())
+            else:
+                logging.warn(
+                    "Assuming UTC timezone for Windows, but actual timezone may be different."
+                )
+                ast.tz.offset_seconds = int(tzlocal().utcoffset(obj).total_seconds())
+                tz_name = datetime.datetime.now(tzlocal()).tzname()
+        else:
+            ast.tz.offset_seconds = int(
+                tzlocal().utcoffset(datetime_val).total_seconds()
+            )
+            tz_name = datetime.datetime.now(tzlocal()).tzname()
+        ast.tz.name.value = tz_name
 
 
 def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
@@ -160,13 +221,8 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
 
     elif isinstance(obj, datetime.datetime):
         ast = with_src_position(expr_builder.python_timestamp_val)
-        if obj.tzinfo is not None:
-            ast.tz.offset_seconds = int(obj.tzinfo.utcoffset(obj).total_seconds())
-            tz = obj.tzinfo.tzname(obj)
-            if tz is not None:
-                ast.tz.name.value = tz
-        else:
-            obj = obj.astimezone(datetime.timezone.utc)
+
+        fill_timezone(ast, obj)
 
         ast.year = obj.year
         ast.month = obj.month
@@ -184,16 +240,8 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
 
     elif isinstance(obj, datetime.time):
         ast = with_src_position(expr_builder.python_time_val)
-        datetime_val = datetime.datetime.combine(datetime.date.today(), obj)
-        if obj.tzinfo is not None:
-            ast.tz.offset_seconds = int(
-                obj.tzinfo.utcoffset(datetime_val).total_seconds()
-            )
-            tz = obj.tzinfo.tzname(datetime_val)
-            if tz is not None:
-                ast.tz.name.value = tz
-        else:
-            obj = datetime_val.astimezone(datetime.timezone.utc)
+
+        fill_timezone(ast, obj)
 
         ast.hour = obj.hour
         ast.minute = obj.minute
@@ -399,8 +447,22 @@ def build_fn_apply_args(
         if isinstance(arg, proto.Expr):
             expr.pos_args.append(arg)
         elif hasattr(arg, "_ast"):
-            assert arg._ast, f"Column object {arg} has no _ast member set."
-            expr.pos_args.append(arg._ast)
+
+            # Special case: _ast is None but arg is Column(LITERAL).
+            if (
+                arg._ast is None
+                and isinstance(arg, snowflake.snowpark.Column)
+                and isinstance(
+                    arg._expression,
+                    snowflake.snowpark._internal.analyzer.expression.Literal,
+                )
+            ):
+                build_expr_from_python_val(expr.pos_args.add(), arg._expression.value)
+            else:
+                assert (
+                    arg._ast
+                ), f"Object {arg} has member _ast=None set. Expected valid AST."
+                expr.pos_args.append(arg._ast)
         else:
             pos_arg = proto.Expr()
             build_expr_from_python_val(pos_arg, arg)
@@ -716,7 +778,7 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
     Returns:
         protobuf expression.
     """
-    if hasattr(expr, "_ast"):
+    if hasattr(expr, "_ast") and expr._ast is not None:
         return expr._ast
 
     if isinstance(expr, Alias):
@@ -1084,8 +1146,6 @@ def build_udtf(
     ast.replace = replace
     ast.if_not_exists = if_not_exists
     ast.parallel = parallel
-    if max_batch_size is not None:
-        ast.max_batch_size.value = max_batch_size
 
     if statement_params is not None and len(statement_params) != 0:
         for k, v in statement_params.items():
