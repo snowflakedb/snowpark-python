@@ -12264,6 +12264,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         frame = self._modin_frame
 
+        if any(
+            isinstance(t, TimedeltaType)
+            for t in frame.cached_data_column_snowpark_pandas_types
+        ) and resample_method in ("var", np.var):
+            raise TypeError("timedelta64 type does not support var operations")
+
         snowflake_index_column_identifier = (
             get_snowflake_quoted_identifier_for_resample_index_col(frame)
         )
@@ -12382,9 +12388,35 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 qc._modin_frame, rule, start_date, end_date
             )
             if resample_method in ("sum", "count", "size"):
-                # For these aggregations, we need to fill NaN values as 0
+                values_arg: Union[int, dict]
+                if resample_method == "sum":
+                    # For sum(), we need to fill NaN values as Timedelta(0)
+                    # for timedelta columns and as 0 for other columns.
+                    values_arg = {}
+                    for pandas_label in frame.data_column_pandas_labels:
+                        label_dtypes: native_pd.Series = self.dtypes[[pandas_label]]
+                        # query compiler's fillna() takes a dictionary mapping
+                        # pandas labels to values. When we have two columns
+                        # with the same pandas label and different dtypes, we
+                        # may have to specify different fill values for each
+                        # column, but the fillna() interface won't let us do
+                        # that. Fall back to 0 in that case.
+                        values_arg[pandas_label] = (
+                            native_pd.Timedelta(0)
+                            if len(set(label_dtypes)) == 1
+                            and is_timedelta64_dtype(label_dtypes.iloc[0])
+                            else 0
+                        )
+                    if is_series:
+                        # For series, fillna() can't handle a dictionary, but
+                        # there should only be one column, so pass a scalar fill
+                        # value.
+                        assert len(values_arg) == 1
+                        values_arg = list(values_arg.values())[0]
+                else:
+                    values_arg = 0
                 return SnowflakeQueryCompiler(frame).fillna(
-                    value=0, self_is_series=is_series
+                    value=values_arg, self_is_series=is_series
                 )
         else:
             ErrorMessage.not_implemented(
