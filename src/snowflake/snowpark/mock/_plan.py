@@ -640,9 +640,6 @@ def execute_mock_plan(
                     if isinstance(exp.child, Attribute):
                         quoted_name = quote_name(exp.name)
                         expr_to_alias[exp.child.expr_id] = quoted_name
-                        for k, v in expr_to_alias.items():
-                            if v == exp.child.name:
-                                expr_to_alias[k] = quoted_name
 
         df = pd.concat(data, axis=1)
         result_df = TableEmulator(
