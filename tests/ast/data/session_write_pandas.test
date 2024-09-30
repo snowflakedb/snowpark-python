@@ -10,10 +10,8 @@ ans2 = session.write_pandas(df, "test", schema="a", database="b", chunk_size=7, 
 
 ## EXPECTED UNPARSER OUTPUT
 
-ans = session.write_pandas(pandas.DataFrame(<not shown>)), "test_table")
 
-ans2 = session.write_pandas(pandas.DataFrame(<not shown>)), "test", database="b", schema="a", chunk_size=7, compression="brotli", on_error="ignore", parallel=10, quote_identifiers=False, auto_create_table=True, create_temp_table=True, overwrite=True, table_type="temporary", random=90)
 
 ## EXPECTED ENCODED AST
 
-CnMKcQpi2gtfGgRnemlwKhYSFAoSChAKDgoMInRlc3RfdGFibGUiOg9hYm9ydF9zdGF0ZW1lbnRIBFABWhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXmIOCgwKCnRlc3RfdGFibGUSBQoDYW5zGAEiAggBCqwBCqkBCpgB2guUAQgBEgIIBxoGYnJvdGxpIAEqEhIQCg4KDAoKCghiLmEudGVzdDIrCgZyYW5kb20SIZICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGAQWjoGaWdub3JlQAFICloaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGBiDhIMCgFiCgFhCgR0ZXN0agl0ZW1wb3JhcnkSBgoEYW5zMhgCIgIIAhABGhESDwoNCgVmaW5hbBADGAkgEyIEEAEYFQ==
+CnMKcQpi4gtfGgRnemlwKhYSFAoSChAKDgoMInRlc3RfdGFibGUiOg9hYm9ydF9zdGF0ZW1lbnRIBFABWhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXmIOCgwKCnRlc3RfdGFibGUSBQoDYW5zGAEiAggBCqwBCqkBCpgB4guUAQgBEgIIBxoGYnJvdGxpIAEqEhIQCg4KDAoKCghiLmEudGVzdDIrCgZyYW5kb20SIbICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGAQWjoGaWdub3JlQAFICloaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGBiDhIMCgFiCgFhCgR0ZXN0agl0ZW1wb3JhcnkSBgoEYW5zMhgCIgIIAhABGhESDwoNCgVmaW5hbBADGAkgEyIEEAEYFQ==
