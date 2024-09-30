@@ -838,8 +838,8 @@ class DataFrame:
         kwargs = {}
         if _emit_ast:
             # Add an Assign node that applies SpDataframeToLocalIterator() to the input, followed by its Eval.
-            repr = self._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_to_local_iterator)
+            stmt = self._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_to_local_iterator)
 
             debug_check_missing_ast(self._ast_id, self)
 
@@ -852,7 +852,7 @@ class DataFrame:
             expr.block = block
             expr.case_sensitive = case_sensitive
 
-            self._session._ast_batch.eval(repr)
+            self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
             _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
