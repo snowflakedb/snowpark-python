@@ -178,9 +178,7 @@ class Analyzer:
                 [
                     [
                         self.analyze(
-                            a,
-                            df_aliased_col_name_to_real_col_name,
-                            parse_local_name,
+                            a, df_aliased_col_name_to_real_col_name, parse_local_name
                         )
                         for a in arg
                     ]
@@ -191,28 +189,20 @@ class Analyzer:
         if isinstance(expr, Like):
             return like_expression(
                 self.analyze(
-                    expr.expr,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 self.analyze(
-                    expr.pattern,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.pattern, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
             )
 
         if isinstance(expr, RegExp):
             return regexp_expression(
                 self.analyze(
-                    expr.expr,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 self.analyze(
-                    expr.pattern,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.pattern, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 self.analyze(
                     expr.parameters,
@@ -229,9 +219,7 @@ class Analyzer:
             )
             return collate_expression(
                 self.analyze(
-                    expr.expr,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 collation_spec,
             )
@@ -242,9 +230,7 @@ class Analyzer:
                 field = field.upper()
             return subfield_expression(
                 self.analyze(
-                    expr.expr,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 field,
             )
@@ -313,9 +299,7 @@ class Analyzer:
                 in_values.append(in_value)
             return in_expression(
                 self.analyze(
-                    expr.columns,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.columns, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 in_values,
             )
@@ -340,17 +324,13 @@ class Analyzer:
             return window_spec_expression(
                 [
                     self.analyze(
-                        x,
-                        df_aliased_col_name_to_real_col_name,
-                        parse_local_name,
+                        x, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
                     for x in expr.partition_spec
                 ],
                 [
                     self.analyze(
-                        x,
-                        df_aliased_col_name_to_real_col_name,
-                        parse_local_name,
+                        x, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
                     for x in expr.order_spec
                 ],
@@ -453,9 +433,7 @@ class Analyzer:
                 func_name,
                 [
                     self.analyze(
-                        x,
-                        df_aliased_col_name_to_real_col_name,
-                        parse_local_name,
+                        x, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
                     for x in expr.children
                 ],
@@ -476,9 +454,7 @@ class Analyzer:
                 expr.over,
                 [
                     self.analyze(
-                        x,
-                        df_aliased_col_name_to_real_col_name,
-                        parse_local_name,
+                        x, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
                     for x in expr.partition_spec
                 ]
@@ -486,9 +462,7 @@ class Analyzer:
                 else [],
                 [
                     self.analyze(
-                        x,
-                        df_aliased_col_name_to_real_col_name,
-                        parse_local_name,
+                        x, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
                     for x in expr.order_spec
                 ]
@@ -498,17 +472,13 @@ class Analyzer:
 
         if isinstance(expr, UnaryExpression):
             return self.unary_expression_extractor(
-                expr,
-                df_aliased_col_name_to_real_col_name,
-                parse_local_name,
+                expr, df_aliased_col_name_to_real_col_name, parse_local_name
             )
 
         if isinstance(expr, SortOrder):
             return order_expression(
                 self.analyze(
-                    expr.child,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 expr.direction.sql,
                 expr.null_ordering.sql,
@@ -521,9 +491,7 @@ class Analyzer:
         if isinstance(expr, WithinGroup):
             return within_group_expression(
                 self.analyze(
-                    expr.expr,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 [
                     self.analyze(
@@ -536,9 +504,7 @@ class Analyzer:
 
         if isinstance(expr, BinaryExpression):
             return self.binary_operator_extractor(
-                expr,
-                df_aliased_col_name_to_real_col_name,
-                parse_local_name,
+                expr, df_aliased_col_name_to_real_col_name, parse_local_name
             )
 
         if isinstance(expr, InsertMergeExpression):
@@ -598,9 +564,7 @@ class Analyzer:
         if isinstance(expr, ListAgg):
             return list_agg(
                 self.analyze(
-                    expr.col,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.col, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 str_to_sql(expr.delimiter),
                 expr.is_distinct,
@@ -610,9 +574,7 @@ class Analyzer:
             return column_sum(
                 [
                     self.analyze(
-                        col,
-                        df_aliased_col_name_to_real_col_name,
-                        parse_local_name,
+                        col, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
                     for col in expr.exprs
                 ]
@@ -622,15 +584,11 @@ class Analyzer:
             return rank_related_function_expression(
                 expr.sql,
                 self.analyze(
-                    expr.expr,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 expr.offset,
                 self.analyze(
-                    expr.default,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.default, df_aliased_col_name_to_real_col_name, parse_local_name
                 )
                 if expr.default
                 else None,
@@ -650,9 +608,7 @@ class Analyzer:
         if isinstance(expr, FlattenFunction):
             return flatten_expression(
                 self.analyze(
-                    expr.input,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.input, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 expr.path,
                 expr.outer,
@@ -664,9 +620,7 @@ class Analyzer:
                 expr.func_name,
                 [
                     self.analyze(
-                        x,
-                        df_aliased_col_name_to_real_col_name,
-                        parse_local_name,
+                        x, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
                     for x in expr.args
                 ],
@@ -677,9 +631,7 @@ class Analyzer:
                 expr.func_name,
                 {
                     key: self.to_sql_try_avoid_cast(
-                        value,
-                        df_aliased_col_name_to_real_col_name,
-                        parse_local_name,
+                        value, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
                     for key, value in expr.args.items()
                 },
@@ -720,17 +672,13 @@ class Analyzer:
                             df_alias_dict[k] = quoted_name
             return alias_expression(
                 self.analyze(
-                    expr.child,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 quoted_name,
             )
         if isinstance(expr, UnresolvedAlias):
             expr_str = self.analyze(
-                expr.child,
-                df_aliased_col_name_to_real_col_name,
-                parse_local_name,
+                expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
             )
             if parse_local_name:
                 expr_str = expr_str.upper()
@@ -738,9 +686,7 @@ class Analyzer:
         elif isinstance(expr, Cast):
             return cast_expression(
                 self.analyze(
-                    expr.child,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 expr.to,
                 expr.try_,
@@ -748,9 +694,7 @@ class Analyzer:
         else:
             return unary_expression(
                 self.analyze(
-                    expr.child,
-                    df_aliased_col_name_to_real_col_name,
-                    parse_local_name,
+                    expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 expr.sql_operator,
                 expr.operator_first,
@@ -764,25 +708,17 @@ class Analyzer:
     ) -> str:
         if self.session.eliminate_numeric_sql_value_cast_enabled:
             left_sql_expr = self.to_sql_try_avoid_cast(
-                expr.left,
-                df_aliased_col_name_to_real_col_name,
-                parse_local_name,
+                expr.left, df_aliased_col_name_to_real_col_name, parse_local_name
             )
             right_sql_expr = self.to_sql_try_avoid_cast(
-                expr.right,
-                df_aliased_col_name_to_real_col_name,
-                parse_local_name,
+                expr.right, df_aliased_col_name_to_real_col_name, parse_local_name
             )
         else:
             left_sql_expr = self.analyze(
-                expr.left,
-                df_aliased_col_name_to_real_col_name,
-                parse_local_name,
+                expr.left, df_aliased_col_name_to_real_col_name, parse_local_name
             )
             right_sql_expr = self.analyze(
-                expr.right,
-                df_aliased_col_name_to_real_col_name,
-                parse_local_name,
+                expr.right, df_aliased_col_name_to_real_col_name, parse_local_name
             )
         if isinstance(expr, BinaryArithmeticExpression):
             return binary_arithmetic_expression(
@@ -843,9 +779,7 @@ class Analyzer:
             return str(expr.value).upper()
         else:
             return self.analyze(
-                expr,
-                df_aliased_col_name_to_real_col_name,
-                parse_local_name,
+                expr, df_aliased_col_name_to_real_col_name, parse_local_name
             )
 
     def resolve(
