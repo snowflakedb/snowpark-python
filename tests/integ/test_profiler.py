@@ -61,7 +61,7 @@ def test_profiler_with_profiler_class(
 
     pro.set_active_profiler("LINE")
 
-    profiler_session.call("table_sp").collect()
+    profiler_session.call("table_sp")
     res = pro.collect()
 
     pro.disable()
@@ -83,13 +83,13 @@ def test_single_return_value_of_sp(
         return "success"
 
     profiler_session.profiler.register_modules(["single_value_sp"])
-    profiler_session.profiler.pro.set_targeted_stage(
+    profiler_session.profiler.set_targeted_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
     )
 
     profiler_session.profiler.set_active_profiler("LINE")
 
-    profiler_session.call("single_value_sp").collect()
+    profiler_session.call("single_value_sp")
     res = profiler_session.profiler.collect()
 
     profiler_session.profiler.disable()
@@ -111,7 +111,7 @@ def test_anonymous_procedure(
 
     single_value_sp = profiler_session.sproc.register(single_value_sp, anonymous=True)
 
-    profiler_session.profiler.pro.set_targeted_stage(
+    profiler_session.profiler.set_targeted_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
     )
 
@@ -130,10 +130,7 @@ def test_anonymous_procedure(
 def test_set_incorrect_active_profiler(profiler_session):
     with pytest.raises(ValueError) as e:
         profiler_session.profiler.set_active_profiler("wrong_active_profiler")
-    assert (
-        "active_profiler expect 'LINE' or 'MEMORY', got wrong_active_profiler instead"
-        in str(e)
-    )
+    assert "active_profiler expect 'LINE', 'MEMORY' or empty string ''" in str(e)
 
 
 @pytest.mark.skipif(
@@ -149,7 +146,7 @@ def test_dump_profile_to_file(
         return "success"
 
     single_value_sp = profiler_session.sproc.register(single_value_sp, anonymous=True)
-    profiler_session.profiler.pro.set_targeted_stage(
+    profiler_session.profiler.set_targeted_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
     )
 
