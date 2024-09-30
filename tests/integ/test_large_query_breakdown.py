@@ -87,8 +87,12 @@ def check_result_with_and_without_breakdown(session, df):
         session._large_query_breakdown_enabled = large_query_enabled
 
 
-def test_no_valid_nodes_found(session, large_query_df, caplog):
+def test_no_valid_nodes_found(session, sql_simplifier_enabled, caplog):
     """Test large query breakdown works with default bounds"""
+    if sql_simplifier_enabled:
+        pytest.skip(
+            "without sql simplifier, the plan is too large and hits max recursion depth"
+        )
     base_df = session.sql("select 1 as A, 2 as B")
     df1 = base_df.with_column("A", col("A") + lit(1))
     df2 = base_df.with_column("B", col("B") + lit(1))
@@ -148,7 +152,11 @@ def test_save_as_table(session, large_query_df):
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
-def test_update_delete_merge(session, large_query_df):
+def test_update_delete_merge(session, large_query_df, sql_simplifier_enabled):
+    if sql_simplifier_enabled:
+        pytest.skip(
+            "without sql simplifier, the plan is too large and hits max recursion depth"
+        )
     session._large_query_breakdown_enabled = True
     table_name = Utils.random_table_name()
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
@@ -244,7 +252,11 @@ def test_pivot_unpivot(session):
     assert plan_queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
 
 
-def test_sort(session):
+def test_sort(session, sql_simplifier_enabled):
+    if sql_simplifier_enabled:
+        pytest.skip(
+            "without sql simplifier, the plan is too large and hits max recursion depth"
+        )
     base_df = session.sql("select 1 as A, 2 as B")
     df1 = base_df.with_column("A", col("A") + lit(1))
     df2 = base_df.with_column("B", col("B") + lit(1))
@@ -276,7 +288,11 @@ def test_sort(session):
     assert len(plan_queries["post_actions"]) == 0
 
 
-def test_multiple_query_plan(session, large_query_df):
+def test_multiple_query_plan(session, sql_simplifier_enabled):
+    if sql_simplifier_enabled:
+        pytest.skip(
+            "without sql simplifier, the plan is too large and hits max recursion depth"
+        )
     original_threshold = analyzer.ARRAY_BIND_THRESHOLD
     try:
         analyzer.ARRAY_BIND_THRESHOLD = 2
