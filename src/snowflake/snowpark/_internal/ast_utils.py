@@ -463,6 +463,8 @@ def build_fn_apply_args(
                 )
             ):
                 build_expr_from_python_val(expr.pos_args.add(), arg._expression.value)
+            elif arg._ast is None and isinstance(arg, snowflake.snowpark.Column):
+                expr.pos_args.append(snowpark_expression_to_ast(arg._expression))
             else:
                 assert (
                     arg._ast
