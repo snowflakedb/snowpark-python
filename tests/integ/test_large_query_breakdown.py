@@ -89,7 +89,7 @@ def check_result_with_and_without_breakdown(session, df):
 
 def test_no_valid_nodes_found(session, sql_simplifier_enabled, caplog):
     """Test large query breakdown works with default bounds"""
-    if sql_simplifier_enabled:
+    if not sql_simplifier_enabled:
         pytest.skip(
             "without sql simplifier, the plan is too large and hits max recursion depth"
         )
@@ -111,8 +111,12 @@ def test_no_valid_nodes_found(session, sql_simplifier_enabled, caplog):
     assert "Could not find a valid node for partitioning" in caplog.text
 
 
-def test_large_query_breakdown_with_cte_optimization(session):
+def test_large_query_breakdown_with_cte_optimization(session, sql_simplifier_enabled):
     """Test large query breakdown works with cte optimized plan"""
+    if not sql_simplifier_enabled:
+        pytest.skip(
+            "without sql simplifier, the complexity score is not adjusted for nested select"
+        )
     session._cte_optimization_enabled = True
     df0 = session.sql("select 2 as b, 32 as c")
     df1 = session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
@@ -130,12 +134,13 @@ def test_large_query_breakdown_with_cte_optimization(session):
     df4 = df2.union_all(df3).filter(col("a") > 2).with_column("a", col("a") + 1)
     check_result_with_and_without_breakdown(session, df4)
 
-    assert len(df4.queries["queries"]) == 2
-    assert df4.queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
-    assert df4.queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
+    queries = df4.queries
+    assert len(queries["queries"]) == 2
+    assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+    assert queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
 
-    assert len(df4.queries["post_actions"]) == 1
-    assert df4.queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
+    assert len(queries["post_actions"]) == 1
+    assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
 
 
 def test_save_as_table(session, large_query_df):
@@ -153,7 +158,7 @@ def test_save_as_table(session, large_query_df):
 
 
 def test_update_delete_merge(session, large_query_df, sql_simplifier_enabled):
-    if sql_simplifier_enabled:
+    if not sql_simplifier_enabled:
         pytest.skip(
             "without sql simplifier, the plan is too large and hits max recursion depth"
         )
@@ -212,7 +217,11 @@ def test_copy_into_location(session, large_query_df):
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
-def test_pivot_unpivot(session):
+def test_pivot_unpivot(session, sql_simplifier_enabled):
+    if not sql_simplifier_enabled:
+        pytest.skip(
+            "without sql simplifier, the complexity score is not adjusted for nested select"
+        )
     table_name = Utils.random_table_name()
     session.create_dataframe(
         [
@@ -253,7 +262,7 @@ def test_pivot_unpivot(session):
 
 
 def test_sort(session, sql_simplifier_enabled):
-    if sql_simplifier_enabled:
+    if not sql_simplifier_enabled:
         pytest.skip(
             "without sql simplifier, the plan is too large and hits max recursion depth"
         )
@@ -289,7 +298,7 @@ def test_sort(session, sql_simplifier_enabled):
 
 
 def test_multiple_query_plan(session, sql_simplifier_enabled):
-    if sql_simplifier_enabled:
+    if not sql_simplifier_enabled:
         pytest.skip(
             "without sql simplifier, the plan is too large and hits max recursion depth"
         )
@@ -407,10 +416,16 @@ def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
                 assert call.kwargs["_statement_params"]["_PLAN_UUID"] == plan.uuid
 
 
-def test_complexity_bounds_affect_num_partitions(session, large_query_df):
+def test_complexity_bounds_affect_num_partitions(
+    session, large_query_df, sql_simplifier_enabled
+):
     """Test complexity bounds affect number of partitions.
     Also test that when partitions are added, drop table queries are added.
     """
+    if not sql_simplifier_enabled:
+        pytest.skip(
+            "without sql simplifier, the complexity score is not adjusted for nested select"
+        )
     set_bounds(session, 300, 600)
     assert len(large_query_df.queries["queries"]) == 2
     assert len(large_query_df.queries["post_actions"]) == 1
