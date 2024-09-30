@@ -180,35 +180,15 @@ class MockAnalyzer:
 
         if isinstance(expr, Like):
             return like_expression(
-                self.analyze(
-                    expr.expr,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
-                self.analyze(
-                    expr.pattern,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
+                self.analyze(expr.expr, expr_to_alias, parse_local_name),
+                self.analyze(expr.pattern, expr_to_alias, parse_local_name),
             )
 
         if isinstance(expr, RegExp):
             return regexp_expression(
-                self.analyze(
-                    expr.expr,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
-                self.analyze(
-                    expr.pattern,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
-                self.analyze(
-                    expr.parameters,
-                    expr_to_alias,
-                    parse_local_name,
-                )
+                self.analyze(expr.expr, expr_to_alias, parse_local_name),
+                self.analyze(expr.pattern, expr_to_alias, parse_local_name),
+                self.analyze(expr.parameters, expr_to_alias, parse_local_name)
                 if expr.parameters is not None
                 else None,
             )
@@ -218,11 +198,7 @@ class MockAnalyzer:
                 expr.collation_spec.upper() if parse_local_name else expr.collation_spec
             )
             return collate_expression(
-                self.analyze(
-                    expr.expr,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
+                self.analyze(expr.expr, expr_to_alias, parse_local_name),
                 collation_spec,
             )
 
@@ -231,11 +207,7 @@ class MockAnalyzer:
             if parse_local_name and isinstance(field, str):
                 field = field.upper()
             return subfield_expression(
-                self.analyze(
-                    expr.expr,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
+                self.analyze(expr.expr, expr_to_alias, parse_local_name),
                 field,
             )
 
@@ -243,24 +215,12 @@ class MockAnalyzer:
             return case_when_expression(
                 [
                     (
-                        self.analyze(
-                            condition,
-                            expr_to_alias,
-                            parse_local_name,
-                        ),
-                        self.analyze(
-                            value,
-                            expr_to_alias,
-                            parse_local_name,
-                        ),
+                        self.analyze(condition, expr_to_alias, parse_local_name),
+                        self.analyze(value, expr_to_alias, parse_local_name),
                     )
                     for condition, value in expr.branches
                 ],
-                self.analyze(
-                    expr.else_value,
-                    expr_to_alias,
-                    parse_local_name,
-                )
+                self.analyze(expr.else_value, expr_to_alias, parse_local_name)
                 if expr.else_value
                 else "NULL",
             )
@@ -270,15 +230,11 @@ class MockAnalyzer:
             for expression in expr.expressions:
                 if self.session.eliminate_numeric_sql_value_cast_enabled:
                     resolved_expr = self.to_sql_try_avoid_cast(
-                        expression,
-                        expr_to_alias,
-                        parse_local_name,
+                        expression, expr_to_alias, parse_local_name
                     )
                 else:
                     resolved_expr = self.analyze(
-                        expression,
-                        expr_to_alias,
-                        parse_local_name,
+                        expression, expr_to_alias, parse_local_name
                     )
 
                 block_expressions.append(resolved_expr)
@@ -289,24 +245,14 @@ class MockAnalyzer:
             for expression in expr.values:
                 if self.session.eliminate_numeric_sql_value_cast_enabled:
                     in_value = self.to_sql_try_avoid_cast(
-                        expression,
-                        expr_to_alias,
-                        parse_local_name,
+                        expression, expr_to_alias, parse_local_name
                     )
                 else:
-                    in_value = self.analyze(
-                        expression,
-                        expr_to_alias,
-                        parse_local_name,
-                    )
+                    in_value = self.analyze(expression, expr_to_alias, parse_local_name)
 
                 in_values.append(in_value)
             return in_expression(
-                self.analyze(
-                    expr.columns,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
+                self.analyze(expr.columns, expr_to_alias, parse_local_name),
                 in_values,
             )
 
@@ -430,11 +376,7 @@ class MockAnalyzer:
             return function_expression(
                 func_name,
                 [
-                    self.analyze(
-                        x,
-                        expr_to_alias,
-                        parse_local_name,
-                    )
+                    self.analyze(x, expr_to_alias, parse_local_name)
                     for x in expr.children
                 ],
                 False,
@@ -450,21 +392,13 @@ class MockAnalyzer:
             return table_function_partition_spec(
                 expr.over,
                 [
-                    self.analyze(
-                        x,
-                        expr_to_alias,
-                        parse_local_name,
-                    )
+                    self.analyze(x, expr_to_alias, parse_local_name)
                     for x in expr.partition_spec
                 ]
                 if expr.partition_spec
                 else [],
                 [
-                    self.analyze(
-                        x,
-                        expr_to_alias,
-                        parse_local_name,
-                    )
+                    self.analyze(x, expr_to_alias, parse_local_name)
                     for x in expr.order_spec
                 ]
                 if expr.order_spec
@@ -481,11 +415,7 @@ class MockAnalyzer:
 
         if isinstance(expr, SortOrder):
             return order_expression(
-                self.analyze(
-                    expr.child,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
+                self.analyze(expr.child, expr_to_alias, parse_local_name),
                 expr.direction.sql,
                 expr.null_ordering.sql,
             )
@@ -496,11 +426,7 @@ class MockAnalyzer:
 
         if isinstance(expr, WithinGroup):
             return within_group_expression(
-                self.analyze(
-                    expr.expr,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
+                self.analyze(expr.expr, expr_to_alias, parse_local_name),
                 [
                     self.analyze(
                         e,
@@ -511,11 +437,7 @@ class MockAnalyzer:
             )
 
         if isinstance(expr, BinaryExpression):
-            return self.binary_operator_extractor(
-                expr,
-                expr_to_alias,
-                parse_local_name,
-            )
+            return self.binary_operator_extractor(expr, expr_to_alias, parse_local_name)
 
         if isinstance(expr, InsertMergeExpression):
             return insert_merge_statement(
@@ -570,11 +492,7 @@ class MockAnalyzer:
 
         if isinstance(expr, ListAgg):
             return list_agg(
-                self.analyze(
-                    expr.col,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
+                self.analyze(expr.col, expr_to_alias, parse_local_name),
                 str_to_sql(expr.delimiter),
                 expr.is_distinct,
             )
@@ -582,11 +500,7 @@ class MockAnalyzer:
         if isinstance(expr, ColumnSum):
             return column_sum(
                 [
-                    self.analyze(
-                        col,
-                        expr_to_alias,
-                        parse_local_name,
-                    )
+                    self.analyze(col, expr_to_alias, parse_local_name)
                     for col in expr.exprs
                 ]
             )
@@ -594,17 +508,9 @@ class MockAnalyzer:
         if isinstance(expr, RankRelatedFunctionExpression):
             return rank_related_function_expression(
                 expr.sql,
-                self.analyze(
-                    expr.expr,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
+                self.analyze(expr.expr, expr_to_alias, parse_local_name),
                 expr.offset,
-                self.analyze(
-                    expr.default,
-                    expr_to_alias,
-                    parse_local_name,
-                )
+                self.analyze(expr.default, expr_to_alias, parse_local_name)
                 if expr.default
                 else None,
                 expr.ignore_nulls,
@@ -622,11 +528,7 @@ class MockAnalyzer:
     ) -> str:
         if isinstance(expr, FlattenFunction):
             return flatten_expression(
-                self.analyze(
-                    expr.input,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
+                self.analyze(expr.input, expr_to_alias, parse_local_name),
                 expr.path,
                 expr.outer,
                 expr.recursive,
@@ -635,25 +537,14 @@ class MockAnalyzer:
         elif isinstance(expr, PosArgumentsTableFunction):
             sql = function_expression(
                 expr.func_name,
-                [
-                    self.analyze(
-                        x,
-                        expr_to_alias,
-                        parse_local_name,
-                    )
-                    for x in expr.args
-                ],
+                [self.analyze(x, expr_to_alias, parse_local_name) for x in expr.args],
                 False,
             )
         elif isinstance(expr, (NamedArgumentsTableFunction, GeneratorTableFunction)):
             sql = named_arguments_function(
                 expr.func_name,
                 {
-                    key: self.analyze(
-                        value,
-                        expr_to_alias,
-                        parse_local_name,
-                    )
+                    key: self.analyze(value, expr_to_alias, parse_local_name)
                     for key, value in expr.args.items()
                 },
             )
@@ -687,11 +578,7 @@ class MockAnalyzer:
                     if v == expr.child.name:
                         expr_to_alias[k] = quoted_name
             alias_exp = alias_expression(
-                self.analyze(
-                    expr.child,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
+                self.analyze(expr.child, expr_to_alias, parse_local_name),
                 quoted_name,
             )
 
@@ -699,31 +586,19 @@ class MockAnalyzer:
             expr_str = expr_str.upper() if parse_local_name else expr_str
             return expr_str
         if isinstance(expr, UnresolvedAlias):
-            expr_str = self.analyze(
-                expr.child,
-                expr_to_alias,
-                parse_local_name,
-            )
+            expr_str = self.analyze(expr.child, expr_to_alias, parse_local_name)
             if parse_local_name:
                 expr_str = expr_str.upper()
             return quote_name(expr_str.strip())
         elif isinstance(expr, Cast):
             return cast_expression(
-                self.analyze(
-                    expr.child,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
+                self.analyze(expr.child, expr_to_alias, parse_local_name),
                 expr.to,
                 expr.try_,
             )
         else:
             return unary_expression(
-                self.analyze(
-                    expr.child,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
+                self.analyze(expr.child, expr_to_alias, parse_local_name),
                 expr.sql_operator,
                 expr.operator_first,
             )
@@ -736,26 +611,14 @@ class MockAnalyzer:
     ) -> str:
         if self.session.eliminate_numeric_sql_value_cast_enabled:
             left_sql_expr = self.to_sql_try_avoid_cast(
-                expr.left,
-                expr_to_alias,
-                parse_local_name,
+                expr.left, expr_to_alias, parse_local_name
             )
             right_sql_expr = self.to_sql_try_avoid_cast(
-                expr.right,
-                expr_to_alias,
-                parse_local_name,
+                expr.right, expr_to_alias, parse_local_name
             )
         else:
-            left_sql_expr = self.analyze(
-                expr.left,
-                expr_to_alias,
-                parse_local_name,
-            )
-            right_sql_expr = self.analyze(
-                expr.right,
-                expr_to_alias,
-                parse_local_name,
-            )
+            left_sql_expr = self.analyze(expr.left, expr_to_alias, parse_local_name)
+            right_sql_expr = self.analyze(expr.right, expr_to_alias, parse_local_name)
 
         operator = expr.sql_operator.lower()
         if isinstance(expr, BinaryArithmeticExpression):
@@ -806,11 +669,7 @@ class MockAnalyzer:
         if isinstance(expr, Literal) and isinstance(expr.datatype, _NumericType):
             return numeric_to_sql_without_cast(expr.value, expr.datatype)
         else:
-            return self.analyze(
-                expr,
-                expr_to_alias,
-                parse_local_name,
-            )
+            return self.analyze(expr, expr_to_alias, parse_local_name)
 
     def resolve(
         self,
