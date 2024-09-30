@@ -63,6 +63,7 @@ def test_profiler_with_profiler_class(
 
     profiler_session.call("table_sp")
     res = pro.collect()
+    pro.show()
 
     pro.disable()
 
