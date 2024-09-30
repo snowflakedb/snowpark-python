@@ -35,7 +35,7 @@ class TableFunctionCall:
         self,
         func_name: Union[str, Iterable[str]],
         *func_arguments: ColumnOrName,
-        _ast: Optional[proto.Expr] = None,
+        _ast_stmt: Optional[proto.Assign] = None,
         **func_named_arguments: ColumnOrName,
     ) -> None:
         if func_arguments and func_named_arguments:
@@ -54,7 +54,9 @@ class TableFunctionCall:
         self._aliases: Optional[Iterable[str]] = None
         self._api_call_source = None
 
-        self._ast = _ast
+        self._ast_stmt = _ast_stmt
+        if _ast_stmt is not None:
+            self._ast_id = _ast_stmt.var_id.bitfield1
 
     def _set_api_call_source(self, api_call_source):
         self._api_call_source = api_call_source
