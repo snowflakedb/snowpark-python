@@ -39,9 +39,7 @@ from snowflake.snowpark._internal.compiler.query_generator import (
 TreeNode = Union[SnowflakePlan, Selectable]
 
 
-def create_query_generator(
-    plan: SnowflakePlan
-) -> QueryGenerator:
+def create_query_generator(plan: SnowflakePlan) -> QueryGenerator:
     """
     Helper function to construct the query generator for a given valid SnowflakePlan.
     """
