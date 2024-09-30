@@ -2332,7 +2332,8 @@ class DataFrame:
                     analyzer=self._session._analyzer,
                 )
             )
-            if self._select_statement and not (
+            if self._select_statement
+            and not (
                 isinstance(self._session._conn, MockServerConnection)
                 and self._session._conn._suppress_not_implemented_error
             )
