@@ -5364,6 +5364,19 @@ def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
         -------------
         <BLANKLINE>
 
+        >>> from snowflake.snowpark.types import VariantType
+        >>> df = session.create_dataframe([(["a", "b", "c", "a", "a"],)], ['data'])
+        >>> df.select(array_remove(df.data, "a").alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |[          |
+        |  "b",     |
+        |  "c"      |
+        |]          |
+        -------------
+        <BLANKLINE>
+
     See Also:
         - `ARRAY <https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-array>`_ for more details on semi-structured arrays.
     """
