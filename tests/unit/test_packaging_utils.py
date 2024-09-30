@@ -4,11 +4,11 @@
 
 import os
 import zipfile
+from importlib import metadata
 from subprocess import TimeoutExpired
 from unittest.mock import patch
 
 import pytest
-from importlib import metadata
 from packaging.requirements import Requirement
 
 from snowflake.snowpark._internal.packaging_utils import (

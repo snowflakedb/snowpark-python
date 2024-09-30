@@ -16,6 +16,7 @@ import tempfile
 import warnings
 from array import array
 from functools import reduce
+from importlib.metadata import PackageNotFoundError, distribution, distributions
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
@@ -33,8 +34,8 @@ from typing import (
 )
 
 import cloudpickle
-from importlib.metadata import distribution, distributions, PackageNotFoundError
 from packaging.requirements import Requirement
+
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
@@ -1487,9 +1488,7 @@ class Session:
                     continue
                 elif not use_local_version:
                     try:
-                        package_client_version = distribution(
-                            package_name
-                        ).version
+                        package_client_version = distribution(package_name).version
                         if package_client_version not in valid_packages[package_name]:
                             _logger.warning(
                                 f"The version of package '{package_name}' in the local environment is "
@@ -1893,8 +1892,7 @@ class Session:
         }
 
         dependency_packages = [
-            Requirement(package)
-            for package in metadata[environment_signature]
+            Requirement(package) for package in metadata[environment_signature]
         ]
         _logger.info(
             f"Loading dependency packages list - {metadata[environment_signature]}."
