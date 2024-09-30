@@ -8,7 +8,7 @@ import re
 import sys
 import threading
 import traceback
-from typing import Optional
+from typing import Dict, List, Optional
 
 import pytest
 from decorator import decorator
@@ -419,7 +419,7 @@ def get_readable_sql_count_values(tr):
 
 
 def update_test_code_with_sql_counts(
-    sql_count_records: dict[str, dict[str, list[dict[str, Optional[Scalar]]]]]
+    sql_count_records: Dict[str, Dict[str, List[Dict[str, Optional[Scalar]]]]]
 ):
     """This helper takes sql count records and rewrites the source test files to validate sql counts where possible.
 
