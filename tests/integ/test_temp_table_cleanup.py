@@ -16,6 +16,7 @@ from snowflake.snowpark._internal.utils import (
     warning_dict,
 )
 from snowflake.snowpark.functions import col
+from tests.utils import IS_IN_STORED_PROC  # noqa: F401
 
 pytestmark = [
     pytest.mark.skipif(
