@@ -114,9 +114,9 @@ def test_no_valid_nodes_found(session, sql_simplifier_enabled, caplog):
 def test_large_query_breakdown_with_cte_optimization(session, sql_simplifier_enabled):
     """Test large query breakdown works with cte optimized plan"""
     if not sql_simplifier_enabled:
-        pytest.skip(
-            "without sql simplifier, the complexity score is not adjusted for nested select"
-        )
+        # the complexity bounds are updated since nested selected calculation is not supported
+        # when sql simplifier disabled
+        set_bounds(session, 60, 90)
     session._cte_optimization_enabled = True
     df0 = session.sql("select 2 as b, 32 as c")
     df1 = session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
@@ -219,9 +219,9 @@ def test_copy_into_location(session, large_query_df):
 
 def test_pivot_unpivot(session, sql_simplifier_enabled):
     if not sql_simplifier_enabled:
-        pytest.skip(
-            "without sql simplifier, the complexity score is not adjusted for nested select"
-        )
+        # the complexity bounds are updated since nested selected calculation is not supported
+        # when sql simplifier disabled
+        set_bounds(session, 40, 60)
     table_name = Utils.random_table_name()
     session.create_dataframe(
         [
@@ -422,11 +422,11 @@ def test_complexity_bounds_affect_num_partitions(
     """Test complexity bounds affect number of partitions.
     Also test that when partitions are added, drop table queries are added.
     """
-    if not sql_simplifier_enabled:
-        pytest.skip(
-            "without sql simplifier, the complexity score is not adjusted for nested select"
-        )
-    set_bounds(session, 300, 600)
+    if sql_simplifier_enabled:
+        set_bounds(session, 300, 600)
+    else:
+        set_bounds(session, 400, 600)
+
     assert len(large_query_df.queries["queries"]) == 2
     assert len(large_query_df.queries["post_actions"]) == 1
     assert large_query_df.queries["queries"][0].startswith(
@@ -435,7 +435,11 @@ def test_complexity_bounds_affect_num_partitions(
     assert large_query_df.queries["post_actions"][0].startswith(
         "DROP  TABLE  If  EXISTS"
     )
-    set_bounds(session, 300, 455)
+
+    if sql_simplifier_enabled:
+        set_bounds(session, 300, 455)
+    else:
+        set_bounds(session, 400, 450)
     assert len(large_query_df.queries["queries"]) == 3
     assert len(large_query_df.queries["post_actions"]) == 2
     assert large_query_df.queries["queries"][0].startswith(
@@ -450,6 +454,7 @@ def test_complexity_bounds_affect_num_partitions(
     assert large_query_df.queries["post_actions"][1].startswith(
         "DROP  TABLE  If  EXISTS"
     )
+
     set_bounds(session, 0, 300)
     assert len(large_query_df.queries["queries"]) == 1
     assert len(large_query_df.queries["post_actions"]) == 0
