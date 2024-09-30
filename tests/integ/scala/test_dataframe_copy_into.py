@@ -941,7 +941,7 @@ def test_copy_non_csv_transformation(
                     S="string",
                     C="a",
                     D=datetime.date(2022, 4, 1),
-                    T=datetime.time(11, 11, 11),
+                    T=datetime.time(4, 11, 11),
                     TS_NTZ=datetime.datetime(2022, 4, 1, 4, 11, 11),
                     TS=datetime.datetime(2022, 4, 1, 4, 11, 11),
                     V='{"key":"value"}',
