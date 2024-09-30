@@ -100,6 +100,7 @@ from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_snowpark_column_or_col_name,
     build_expr_from_snowpark_column_or_sql_str,
     build_expr_from_snowpark_column_or_table_fn,
+    build_fn_apply_args,
     build_proto_from_pivot_values,
     fill_ast_for_column,
     with_src_position,
@@ -3192,10 +3193,23 @@ class DataFrame:
 
         """
 
+        stmt = None
+        ast = None
         if _emit_ast:
-            raise NotImplementedError(
-                "TODO SNOW-1629946: Add AST coverage for TableFunctionCall"
-            )
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_join_table_function, stmt)
+            self.set_ast_ref(ast.lhs)
+
+            if isinstance(func, str):
+                ast.func_name.value = func
+            elif isinstance(func, list):
+                ast.func_name.list_val.vs.add_all(func)
+            elif isinstance(func, TableFunctionCall):
+                build_expr_from_snowpark_column(ast.func_name, func)
+            else:
+                raise TypeError(f"Invalid input type for table function: {type(func)}")
+
+            build_fn_apply_args(ast, func_arguments, func_named_arguments)
 
         func_expr = _create_table_function_expression(
             func, *func_arguments, **func_named_arguments
@@ -3236,12 +3250,13 @@ class DataFrame:
             )
             if project_cols:
                 select_plan = select_plan.select(project_cols)
-            return self._with_plan(select_plan)
+            return self._with_plan(select_plan, ast_stmt=stmt)
         if project_cols:
-            return self._with_plan(Project(project_cols, join_plan))
+            return self._with_plan(Project(project_cols, join_plan), ast_stmt=stmt)
 
         return self._with_plan(
-            TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
+            TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names),
+            ast_stmt=stmt,
         )
 
     @df_api_usage
