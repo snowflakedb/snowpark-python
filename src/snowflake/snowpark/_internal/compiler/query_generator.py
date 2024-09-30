@@ -105,9 +105,6 @@ class QueryGenerator(Analyzer):
             PlanQueryType.POST_ACTIONS: post_actions,
         }
 
-    def resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
-        return super().resolve(logical_plan)
-
     def do_resolve_with_resolved_children(
         self,
         logical_plan: LogicalPlan,
@@ -207,9 +204,7 @@ class QueryGenerator(Analyzer):
             copied_resolved_child.queries = final_queries[PlanQueryType.QUERIES]
             resolved_children[logical_plan.children[0]] = copied_resolved_child
             resolved_plan = super().do_resolve_with_resolved_children(
-                logical_plan,
-                resolved_children,
-                df_aliased_col_name_to_real_col_name,
+                logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
             )
 
         elif isinstance(logical_plan, Selectable):
@@ -233,9 +228,7 @@ class QueryGenerator(Analyzer):
 
         else:
             resolved_plan = super().do_resolve_with_resolved_children(
-                logical_plan,
-                resolved_children,
-                df_aliased_col_name_to_real_col_name,
+                logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
             )
 
         resolved_plan._is_valid_for_replacement = True

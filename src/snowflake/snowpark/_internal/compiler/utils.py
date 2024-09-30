@@ -40,7 +40,7 @@ TreeNode = Union[SnowflakePlan, Selectable]
 
 
 def create_query_generator(
-    plan: SnowflakePlan,
+    plan: SnowflakePlan
 ) -> QueryGenerator:
     """
     Helper function to construct the query generator for a given valid SnowflakePlan.

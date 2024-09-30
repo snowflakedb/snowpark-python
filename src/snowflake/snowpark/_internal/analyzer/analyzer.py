@@ -415,10 +415,7 @@ class Analyzer:
                 # This case is hit by df.col("*")
                 return ",".join(
                     [
-                        self.analyze(
-                            e,
-                            df_aliased_col_name_to_real_col_name,
-                        )
+                        self.analyze(e, df_aliased_col_name_to_real_col_name)
                         for e in expr.expressions
                     ]
                 )
@@ -494,10 +491,7 @@ class Analyzer:
                     expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 [
-                    self.analyze(
-                        e,
-                        df_aliased_col_name_to_real_col_name,
-                    )
+                    self.analyze(e, df_aliased_col_name_to_real_col_name)
                     for e in expr.order_by_cols
                 ],
             )
@@ -509,43 +503,27 @@ class Analyzer:
 
         if isinstance(expr, InsertMergeExpression):
             return insert_merge_statement(
-                self.analyze(
-                    expr.condition,
-                    df_aliased_col_name_to_real_col_name,
-                )
+                self.analyze(expr.condition, df_aliased_col_name_to_real_col_name)
                 if expr.condition
                 else None,
                 [
-                    self.analyze(
-                        k,
-                        df_aliased_col_name_to_real_col_name,
-                    )
+                    self.analyze(k, df_aliased_col_name_to_real_col_name)
                     for k in expr.keys
                 ],
                 [
-                    self.analyze(
-                        v,
-                        df_aliased_col_name_to_real_col_name,
-                    )
+                    self.analyze(v, df_aliased_col_name_to_real_col_name)
                     for v in expr.values
                 ],
             )
 
         if isinstance(expr, UpdateMergeExpression):
             return update_merge_statement(
-                self.analyze(
-                    expr.condition,
-                    df_aliased_col_name_to_real_col_name,
-                )
+                self.analyze(expr.condition, df_aliased_col_name_to_real_col_name)
                 if expr.condition
                 else None,
                 {
-                    self.analyze(
-                        k,
-                        df_aliased_col_name_to_real_col_name,
-                    ): self.analyze(
-                        v,
-                        df_aliased_col_name_to_real_col_name,
+                    self.analyze(k, df_aliased_col_name_to_real_col_name): self.analyze(
+                        v, df_aliased_col_name_to_real_col_name
                     )
                     for k, v in expr.assignments.items()
                 },
@@ -553,10 +531,7 @@ class Analyzer:
 
         if isinstance(expr, DeleteMergeExpression):
             return delete_merge_statement(
-                self.analyze(
-                    expr.condition,
-                    df_aliased_col_name_to_real_col_name,
-                )
+                self.analyze(expr.condition, df_aliased_col_name_to_real_col_name)
                 if expr.condition
                 else None
             )
@@ -642,10 +617,7 @@ class Analyzer:
                 "NamedArgumentsTableFunction, GeneratorTableFunction, or FlattenFunction."
             )
         partition_spec_sql = (
-            self.analyze(
-                expr.partition_spec,
-                df_aliased_col_name_to_real_col_name,
-            )
+            self.analyze(expr.partition_spec, df_aliased_col_name_to_real_col_name)
             if expr.partition_spec
             else ""
         )
@@ -711,7 +683,9 @@ class Analyzer:
                 expr.left, df_aliased_col_name_to_real_col_name, parse_local_name
             )
             right_sql_expr = self.to_sql_try_avoid_cast(
-                expr.right, df_aliased_col_name_to_real_col_name, parse_local_name
+                expr.right,
+                df_aliased_col_name_to_real_col_name,
+                parse_local_name,
             )
         else:
             left_sql_expr = self.analyze(
@@ -782,16 +756,11 @@ class Analyzer:
                 expr, df_aliased_col_name_to_real_col_name, parse_local_name
             )
 
-    def resolve(
-        self,
-        logical_plan: LogicalPlan,
-    ) -> SnowflakePlan:
+    def resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
         self.subquery_plans = []
         self.generated_alias_maps = {}
 
-        result = self.do_resolve(
-            logical_plan,
-        )
+        result = self.do_resolve(logical_plan)
 
         result.add_aliases(self.generated_alias_maps)
 
@@ -800,19 +769,14 @@ class Analyzer:
 
         return result
 
-    def do_resolve(
-        self,
-        logical_plan: LogicalPlan,
-    ) -> SnowflakePlan:
+    def do_resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
         resolved_children = {}
         df_aliased_col_name_to_real_col_name: DefaultDict[
             str, Dict[str, str]
         ] = defaultdict(dict)
 
         for c in logical_plan.children:  # post-order traversal of the tree
-            resolved = self.resolve(
-                c,
-            )
+            resolved = self.resolve(c)
             df_aliased_col_name_to_real_col_name.update(
                 resolved.df_aliased_col_name_to_real_col_name
             )
@@ -840,9 +804,7 @@ class Analyzer:
             self.alias_maps_to_use = use_maps
 
         res = self.do_resolve_with_resolved_children(
-            logical_plan,
-            resolved_children,
-            df_aliased_col_name_to_real_col_name,
+            logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
         )
         res.df_aliased_col_name_to_real_col_name.update(
             df_aliased_col_name_to_real_col_name
@@ -861,8 +823,7 @@ class Analyzer:
         if isinstance(logical_plan, TableFunctionJoin):
             return self.plan_builder.join_table_function(
                 self.analyze(
-                    logical_plan.table_function,
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.table_function, df_aliased_col_name_to_real_col_name
                 ),
                 resolved_children[logical_plan.children[0]],
                 logical_plan,
@@ -874,8 +835,7 @@ class Analyzer:
         if isinstance(logical_plan, TableFunctionRelation):
             return self.plan_builder.from_table_function(
                 self.analyze(
-                    logical_plan.table_function,
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.table_function, df_aliased_col_name_to_real_col_name
                 ),
                 logical_plan,
             )
@@ -883,8 +843,7 @@ class Analyzer:
         if isinstance(logical_plan, Lateral):
             return self.plan_builder.lateral(
                 self.analyze(
-                    logical_plan.table_function,
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.table_function, df_aliased_col_name_to_real_col_name
                 ),
                 resolved_children[logical_plan.children[0]],
                 logical_plan,
@@ -894,16 +853,12 @@ class Analyzer:
             return self.plan_builder.aggregate(
                 [
                     self.to_sql_try_avoid_cast(
-                        expr,
-                        df_aliased_col_name_to_real_col_name,
+                        expr, df_aliased_col_name_to_real_col_name
                     )
                     for expr in logical_plan.grouping_expressions
                 ],
                 [
-                    self.analyze(
-                        expr,
-                        df_aliased_col_name_to_real_col_name,
-                    )
+                    self.analyze(expr, df_aliased_col_name_to_real_col_name)
                     for expr in logical_plan.aggregate_expressions
                 ],
                 resolved_children[logical_plan.child],
@@ -914,10 +869,7 @@ class Analyzer:
             return self.plan_builder.project(
                 list(
                     map(
-                        lambda x: self.analyze(
-                            x,
-                            df_aliased_col_name_to_real_col_name,
-                        ),
+                        lambda x: self.analyze(x, df_aliased_col_name_to_real_col_name),
                         logical_plan.project_list,
                     )
                 ),
@@ -928,8 +880,7 @@ class Analyzer:
         if isinstance(logical_plan, Filter):
             return self.plan_builder.filter(
                 self.analyze(
-                    logical_plan.condition,
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.condition, df_aliased_col_name_to_real_col_name
                 ),
                 resolved_children[logical_plan.child],
                 logical_plan,
@@ -947,16 +898,14 @@ class Analyzer:
         if isinstance(logical_plan, Join):
             join_condition = (
                 self.analyze(
-                    logical_plan.join_condition,
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.join_condition, df_aliased_col_name_to_real_col_name
                 )
                 if logical_plan.join_condition
                 else ""
             )
             match_condition = (
                 self.analyze(
-                    logical_plan.match_condition,
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.match_condition, df_aliased_col_name_to_real_col_name
                 )
                 if logical_plan.match_condition
                 else ""
@@ -974,10 +923,7 @@ class Analyzer:
         if isinstance(logical_plan, Sort):
             return self.plan_builder.sort(
                 [
-                    self.analyze(
-                        x,
-                        df_aliased_col_name_to_real_col_name,
-                    )
+                    self.analyze(x, df_aliased_col_name_to_real_col_name)
                     for x in logical_plan.order
                 ],
                 resolved_children[logical_plan.child],
@@ -1041,10 +987,7 @@ class Analyzer:
                 mode=logical_plan.mode,
                 table_type=logical_plan.table_type,
                 clustering_keys=[
-                    self.analyze(
-                        x,
-                        df_aliased_col_name_to_real_col_name,
-                    )
+                    self.analyze(x, df_aliased_col_name_to_real_col_name)
                     for x in logical_plan.clustering_exprs
                 ],
                 comment=logical_plan.comment,
@@ -1067,12 +1010,10 @@ class Analyzer:
             ) and isinstance(logical_plan.child.source_plan, Sort)
             return self.plan_builder.limit(
                 self.to_sql_try_avoid_cast(
-                    logical_plan.limit_expr,
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.limit_expr, df_aliased_col_name_to_real_col_name
                 ),
                 self.to_sql_try_avoid_cast(
-                    logical_plan.offset_expr,
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.offset_expr, df_aliased_col_name_to_real_col_name
                 ),
                 resolved_children[logical_plan.child],
                 on_top_of_order_by,
@@ -1100,10 +1041,7 @@ class Analyzer:
                 ]
                 child = self.plan_builder.project(
                     [
-                        self.analyze(
-                            col,
-                            df_aliased_col_name_to_real_col_name,
-                        )
+                        self.analyze(col, df_aliased_col_name_to_real_col_name)
                         for col in project_exprs
                     ],
                     resolved_children[logical_plan.child],
@@ -1119,33 +1057,26 @@ class Analyzer:
 
             if isinstance(logical_plan.pivot_values, List):
                 pivot_values = [
-                    self.analyze(
-                        pv,
-                        df_aliased_col_name_to_real_col_name,
-                    )
+                    self.analyze(pv, df_aliased_col_name_to_real_col_name)
                     for pv in logical_plan.pivot_values
                 ]
             elif isinstance(logical_plan.pivot_values, ScalarSubquery):
                 pivot_values = self.analyze(
-                    logical_plan.pivot_values,
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.pivot_values, df_aliased_col_name_to_real_col_name
                 )
             else:
                 pivot_values = None
 
             pivot_plan = self.plan_builder.pivot(
                 self.analyze(
-                    logical_plan.pivot_column,
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.pivot_column, df_aliased_col_name_to_real_col_name
                 ),
                 pivot_values,
                 self.analyze(
-                    logical_plan.aggregates[0],
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.aggregates[0], df_aliased_col_name_to_real_col_name
                 ),
                 self.analyze(
-                    logical_plan.default_on_null,
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.default_on_null, df_aliased_col_name_to_real_col_name
                 )
                 if logical_plan.default_on_null
                 else None,
@@ -1170,10 +1101,7 @@ class Analyzer:
                 logical_plan.value_column,
                 logical_plan.name_column,
                 [
-                    self.analyze(
-                        c,
-                        df_aliased_col_name_to_real_col_name,
-                    )
+                    self.analyze(c, df_aliased_col_name_to_real_col_name)
                     for c in logical_plan.column_list
                 ],
                 resolved_children[logical_plan.child],
@@ -1215,10 +1143,7 @@ class Analyzer:
                 refresh_mode=logical_plan.refresh_mode,
                 initialize=logical_plan.initialize,
                 clustering_keys=[
-                    self.analyze(
-                        x,
-                        df_aliased_col_name_to_real_col_name,
-                    )
+                    self.analyze(x, df_aliased_col_name_to_real_col_name)
                     for x in logical_plan.clustering_exprs
                 ],
                 is_transient=logical_plan.is_transient,
@@ -1250,10 +1175,7 @@ class Analyzer:
                 validation_mode=logical_plan.validation_mode,
                 column_names=logical_plan.column_names,
                 transformations=[
-                    self.analyze(
-                        x,
-                        df_aliased_col_name_to_real_col_name,
-                    )
+                    self.analyze(x, df_aliased_col_name_to_real_col_name)
                     for x in logical_plan.transformations
                 ]
                 if logical_plan.transformations
@@ -1269,8 +1191,7 @@ class Analyzer:
                 stage_location=logical_plan.stage_location,
                 source_plan=logical_plan,
                 partition_by=self.analyze(
-                    logical_plan.partition_by,
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.partition_by, df_aliased_col_name_to_real_col_name
                 )
                 if logical_plan.partition_by
                 else None,
@@ -1285,18 +1206,13 @@ class Analyzer:
             return self.plan_builder.update(
                 logical_plan.table_name,
                 {
-                    self.analyze(
-                        k,
-                        df_aliased_col_name_to_real_col_name,
-                    ): self.analyze(
-                        v,
-                        df_aliased_col_name_to_real_col_name,
+                    self.analyze(k, df_aliased_col_name_to_real_col_name): self.analyze(
+                        v, df_aliased_col_name_to_real_col_name
                     )
                     for k, v in logical_plan.assignments.items()
                 },
                 self.analyze(
-                    logical_plan.condition,
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.condition, df_aliased_col_name_to_real_col_name
                 )
                 if logical_plan.condition
                 else None,
@@ -1310,8 +1226,7 @@ class Analyzer:
             return self.plan_builder.delete(
                 logical_plan.table_name,
                 self.analyze(
-                    logical_plan.condition,
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.condition, df_aliased_col_name_to_real_col_name
                 )
                 if logical_plan.condition
                 else None,
@@ -1329,14 +1244,10 @@ class Analyzer:
                 if logical_plan.source
                 else logical_plan.source,
                 self.analyze(
-                    logical_plan.join_expr,
-                    df_aliased_col_name_to_real_col_name,
+                    logical_plan.join_expr, df_aliased_col_name_to_real_col_name
                 ),
                 [
-                    self.analyze(
-                        c,
-                        df_aliased_col_name_to_real_col_name,
-                    )
+                    self.analyze(c, df_aliased_col_name_to_real_col_name)
                     for c in logical_plan.clauses
                 ],
                 logical_plan,
