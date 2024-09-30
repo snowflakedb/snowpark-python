@@ -33,8 +33,8 @@ from typing import (
 )
 
 import cloudpickle
-import pkg_resources
-
+from importlib.metadata import distribution, distributions, PackageNotFoundError
+from packaging.requirements import Requirement
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
@@ -1245,7 +1245,7 @@ class Session:
             >>> len(session.get_packages())
             0
         """
-        package_name = pkg_resources.Requirement.parse(package).key
+        package_name = Requirement(package).name
         if package_name in self._packages:
             self._packages.pop(package_name)
         else:
@@ -1365,38 +1365,38 @@ class Session:
         ignore_packages = {} if ignore_packages is None else ignore_packages
 
         packages = []
-        for package in pkg_resources.working_set:
-            if package.key in ignore_packages:
-                _logger.info(f"{package.key} found in environment, ignoring...")
+        for package in distributions():
+            if package.name in ignore_packages:
+                _logger.info(f"{package.name} found in environment, ignoring...")
                 continue
-            if package.key in DEFAULT_PACKAGES:
-                _logger.info(f"{package.key} is available by default, ignoring...")
+            if package.name in DEFAULT_PACKAGES:
+                _logger.info(f"{package.name} is availna meble by default, ignoring...")
                 continue
             version_text = (
-                "==" + package.version if package.has_version() and not relax else ""
+                "==" + package.version if package.version and not relax else ""
             )
-            packages.append(f"{package.key}{version_text}")
+            packages.append(f"{package.name}{version_text}")
 
         self.add_packages(packages)
 
     @staticmethod
     def _parse_packages(
         packages: List[Union[str, ModuleType]]
-    ) -> Dict[str, Tuple[str, bool, pkg_resources.Requirement]]:
+    ) -> Dict[str, Tuple[str, bool, Requirement]]:
         package_dict = dict()
         for package in packages:
             if isinstance(package, ModuleType):
                 package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
                     package.__name__, package.__name__
                 )
-                package = f"{package_name}=={pkg_resources.get_distribution(package_name).version}"
+                package = f"{package_name}=={distribution(package_name).version}"
                 use_local_version = True
             else:
                 package = package.strip().lower()
                 if package.startswith("#"):
                     continue
                 use_local_version = False
-            package_req = pkg_resources.Requirement.parse(package)
+            package_req = Requirement(package)
             # get the standard package name if there is no underscore
             # underscores are discouraged in package names, but are still used in Anaconda channel
             # pkg_resources.Requirement.parse will convert all underscores to dashes
@@ -1417,12 +1417,12 @@ class Session:
 
     def _get_dependency_packages(
         self,
-        package_dict: Dict[str, Tuple[str, bool, pkg_resources.Requirement]],
+        package_dict: Dict[str, Tuple[str, bool, Requirement]],
         validate_package: bool,
         package_table: str,
         current_packages: Dict[str, str],
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> List[pkg_resources.Requirement]:
+    ) -> List[Requirement]:
         # Keep track of any package errors
         errors = []
 
@@ -1487,7 +1487,7 @@ class Session:
                     continue
                 elif not use_local_version:
                     try:
-                        package_client_version = pkg_resources.get_distribution(
+                        package_client_version = distribution(
                             package_name
                         ).version
                         if package_client_version not in valid_packages[package_name]:
@@ -1497,7 +1497,7 @@ class Session:
                                 f"requirement '{package}'. Your UDF might not work when the package version "
                                 f"is different between the server and your local environment."
                             )
-                    except pkg_resources.DistributionNotFound:
+                    except PackageNotFoundError:
                         _logger.warning(
                             f"Package '{package_name}' is not installed in the local environment. "
                             f"Your UDF might not work when the package is installed on the server "
@@ -1527,7 +1527,7 @@ class Session:
         elif len(errors) > 0:
             raise RuntimeError(errors)
 
-        dependency_packages: List[pkg_resources.Requirement] = []
+        dependency_packages: List[Requirement] = []
         if len(unsupported_packages) != 0:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}."
@@ -1681,7 +1681,7 @@ class Session:
         package_table: str,
         package_dict: Dict[str, str],
         custom_package_usage_config: Dict[str, Any],
-    ) -> List[pkg_resources.Requirement]:
+    ) -> List[Requirement]:
         """
         Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.
 
@@ -1839,7 +1839,7 @@ class Session:
 
     def _load_unsupported_packages_from_stage(
         self, environment_signature: str, cache_path: str
-    ) -> List[pkg_resources.Requirement]:
+    ) -> List[Requirement]:
         """
         Uses specified stage path to auto-import a group of unsupported packages, along with its dependencies. This
         saves time spent on pip install, native package detection and zip upload to stage.
@@ -1893,7 +1893,7 @@ class Session:
         }
 
         dependency_packages = [
-            pkg_resources.Requirement.parse(package)
+            Requirement(package)
             for package in metadata[environment_signature]
         ]
         _logger.info(
