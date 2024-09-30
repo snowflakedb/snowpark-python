@@ -19,6 +19,7 @@ from typing import AnyStr, Dict, List, Optional, Set, Tuple
 import yaml
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
+from packaging.version import InvalidVersion
 
 _logger = getLogger(__name__)
 PIP_ENVIRONMENT_VARIABLE: str = "PIP_NAME"
@@ -46,6 +47,23 @@ def get_distribution_version(name: str) -> Optional[str]:
         Optional[str]: The distribution of the package.
     """
     return distribution(name).version
+
+
+def contains_version(specifier: SpecifierSet, version: str) -> bool:
+    """
+    Check if a requirement contains a specific version.
+
+    Args:
+        specifier (SpecifierSet): The requirement to check.
+        version (str): The version to check for.
+
+    Returns:
+        bool: True if the requirement contains the version, False otherwise.
+    """
+    try:
+        return specifier.contains(version)
+    except InvalidVersion:
+        return False
 
 
 def parse_requirements_text_file(file_path: str) -> Tuple[List[str], List[str]]:
@@ -288,7 +306,8 @@ def identify_supported_packages(
         if package_name in valid_packages:
             # Detect supported packages
             if package_specifier is None or any(
-                package_specifier.contains(x) for x in valid_packages[package_name]
+                contains_version(package_specifier, x)
+                for x in valid_packages[package_name]
             ):
                 supported_dependencies.append(package)
                 _logger.info(
