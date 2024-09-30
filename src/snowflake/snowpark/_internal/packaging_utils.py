@@ -499,7 +499,7 @@ def add_snowpark_package(
         channel.
 
     Raises:
-        pkg_resources.DistributionNotFound: If the Snowpark Python Package is not installed in the local environment.
+        importlib.metadata.PackageNotFoundError: If the Snowpark Python Package is not installed in the local environment.
     """
     if SNOWPARK_PACKAGE_NAME not in package_dict:
         package_dict[SNOWPARK_PACKAGE_NAME] = SNOWPARK_PACKAGE_NAME
