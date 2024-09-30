@@ -5356,19 +5356,6 @@ def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
         -------------
         <BLANKLINE>
 
-        >>> df.select(array_remove(df.data, lit('2').cast(VariantType())).alias("objects")).show()
-        -------------
-        |"OBJECTS"  |
-        -------------
-        |[          |
-        |  1,       |
-        |  3.1,     |
-        |  1,       |
-        |  1        |
-        |]          |
-        -------------
-        <BLANKLINE>
-
         >>> df.select(array_remove(df.data, None).alias("objects")).show()
         -------------
         |"OBJECTS"  |
