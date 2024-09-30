@@ -65,6 +65,7 @@ from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
     ENVIRONMENT_METADATA_FILE_NAME,
     IMPLICIT_ZIP_FILE_NAME,
+    contains_version,
     delete_files_belonging_to_packages,
     detect_native_dependencies,
     get_signature,
@@ -1439,16 +1440,19 @@ class Session:
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
-            package_version_req = package_req.specs[0][1] if package_req.specs else None
+            package_specifier = package_req.specifier if package_req.specifier else None
 
             if validate_package:
                 if package_name not in valid_packages or (
-                    package_version_req
-                    and not any(v in package_req for v in valid_packages[package_name])
+                    package_specifier
+                    and not any(
+                        contains_version(package_specifier, v)
+                        for v in valid_packages[package_name]
+                    )
                 ):
                     version_text = (
-                        f"(version {package_version_req})"
-                        if package_version_req is not None
+                        f"(version {package_specifier})"
+                        if package_specifier is not None
                         else ""
                     )
                     if is_in_stored_procedure():  # pragma: no cover
@@ -1649,14 +1653,14 @@ class Session:
         # Add dependency packages
         for package in dependency_packages:
             name = package.name
-            version = package.specs[0][1] if package.specs else None
+            version = package.specifier if package.specifier else None
 
             if name in result_dict:
                 if version is not None:
                     added_package_has_version = "==" in result_dict[name]
                     if added_package_has_version and result_dict[name] != str(package):
                         raise ValueError(
-                            f"Cannot add dependency package '{name}=={version}' "
+                            f"Cannot add dependency package '{name}{version}' "
                             f"because {result_dict[name]} is already added."
                         )
                     result_dict[name] = str(package)
