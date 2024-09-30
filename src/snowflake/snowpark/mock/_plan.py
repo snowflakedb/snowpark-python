@@ -1293,7 +1293,7 @@ def execute_mock_plan(
             join_condition = calculate_expression(
                 source_plan.join_expr, cartesian_product, analyzer, expr_to_alias
             )
-            join_result = cartesian_product[join_condition]
+            join_result = cartesian_product[join_condition].reset_index(drop=True)
             join_result.sf_types = cartesian_product.sf_types
 
             # TODO [GA]: # ERROR_ON_NONDETERMINISTIC_MERGE is by default True, raise error if
@@ -1715,7 +1715,7 @@ def calculate_expression(
                 exp.datatype = StringType(len(exp.value))
             res = ColumnEmulator(
                 data=[exp.value for _ in range(len(input_data))],
-                sf_type=ColumnType(exp.datatype, False),
+                sf_type=ColumnType(exp.datatype, nullable=exp.value is None),
                 dtype=object,
             )
             res.index = input_data.index
@@ -2066,6 +2066,17 @@ def calculate_expression(
                 isinstance(lower, UnboundedPreceding),
                 isinstance(upper, UnboundedFollowing),
             )
+
+        # Reorder windows to match the index order in res_index
+        reordered_windows = []
+        for idx in res_index:
+            for w in windows:
+                if idx in w.index:
+                    reordered_windows.append(w)
+                    break
+
+        windows = reordered_windows
+
         # compute window function:
         if isinstance(window_function, (FunctionExpression,)):
             res_cols = []
