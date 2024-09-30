@@ -4,7 +4,9 @@
 
 import modin.pandas as pd
 import numpy as np
+import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
@@ -180,4 +182,37 @@ def test_dataframe_groupby_transform_conflicting_labels_chained():
             {"X": [1, 2, 3, 1, 2, 2], "Y": [4, 5, 6, 7, 8, 9], "Z": [9, 8, 7, 6, 5, 4]}
         ),
         transform_helper,
+    )
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="SNOW-1619940")
+def test_return_timedelta():
+    eval_snowpark_pandas_result(
+        *create_test_dfs([[5, 7]]),
+        lambda df: df.groupby(0).transform(
+            lambda series: native_pd.Series([native_pd.Timedelta(series.sum())])
+        ),
+    )
+
+
+@pytest.mark.xfail(strict=True, raises=NotImplementedError)
+@pytest.mark.parametrize(
+    "pandas_df",
+    [
+        param(
+            native_pd.DataFrame([["key0", native_pd.Timedelta(1)]]),
+            id="timedelta_column",
+        ),
+        param(
+            native_pd.DataFrame(
+                [["key0", "value1"]], index=native_pd.Index([native_pd.Timedelta(1)])
+            ),
+            id="timedelta_index",
+        ),
+    ],
+)
+def test_timedelta_input(pandas_df):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(pandas_df),
+        lambda df: df.groupby(0).transform(lambda series: 1),
     )

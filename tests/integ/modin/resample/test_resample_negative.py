@@ -75,6 +75,20 @@ def test_resample_not_yet_implemented_freq(freq):
         snow_df.resample(freq).min().to_pandas()
 
 
+@sql_count_checker(query_count=0)
+def test_resample_not_yet_implemented_closed():
+    snow_df = pd.DataFrame(
+        {"A": np.random.randn(15)},
+        index=native_pd.date_range("2020-01-01", periods=15, freq="1D"),
+    )
+
+    with pytest.raises(
+        NotImplementedError,
+        match="resample with rule offset 3ME is only implemented with closed='left'",
+    ):
+        snow_df.resample("3ME").min().to_pandas()
+
+
 @pytest.mark.parametrize(
     "func",
     [

@@ -165,7 +165,7 @@ def test_groupby_min_max_invalid_non_numeric_column(
         agg_func(df).to_pandas()
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_groupby_series_numeric_only_true(series_str):
     message = "SeriesGroupBy does not implement numeric_only"
     eval_snowpark_pandas_result(
@@ -178,7 +178,7 @@ def test_groupby_series_numeric_only_true(series_str):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_groupby_as_index_raises(series_str):
     eval_snowpark_pandas_result(
         series_str,
@@ -255,7 +255,7 @@ def test_groupby_as_index_false_axis_1_raises(df_multi):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_groupby_series_agg_dict_like_input_raise(series_str):
     eval_snowpark_pandas_result(
         series_str,
@@ -536,7 +536,10 @@ def test_groupby_agg_invalid_numeric_only(
     # treated as True. This behavior is confusing to customer, in Snowpark pandas, we do an
     # explicit type check, an errors it out if an invalid value is given.
     with pytest.raises(
-        ValueError, match=re.escape('For argument "numeric_only" expected type bool')
+        ValueError,
+        match=re.escape(
+            f"GroupBy aggregations like 'sum' take a 'numeric_only' argument that needs to be a bool, but a {type(numeric_only).__name__} value was passed in."
+        ),
     ):
         getattr(basic_snowpark_pandas_df.groupby("col1"), agg_method_name)(
             numeric_only=numeric_only
