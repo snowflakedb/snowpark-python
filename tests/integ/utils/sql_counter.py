@@ -121,7 +121,7 @@ class SqlCounter:
         high_count_reason=None,
         **kwargs,
     ) -> "SqlCounter":
-        from tests.integ.modin.conftest import SKIP_SQL_COUNT_CHECK
+        from tests.conftest import SKIP_SQL_COUNT_CHECK
 
         self._queries: list[QueryRecord] = []
 
