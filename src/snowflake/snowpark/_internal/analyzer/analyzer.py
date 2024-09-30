@@ -47,7 +47,6 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
     BinaryExpression,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join, SetOperation
-from snowflake.snowpark._internal.analyzer.config_context import ConfigContext
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     numeric_to_sql_without_cast,
     str_to_sql,
@@ -173,12 +172,7 @@ class Analyzer:
         expr: Union[Expression, NamedExpression],
         df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
         parse_local_name=False,
-        config_context: Optional[ConfigContext] = None,
     ) -> str:
-        # Set the config context for analysis step
-        if config_context is None:
-            config_context = ConfigContext(self.session)
-
         if isinstance(expr, GroupingSetsExpression):
             return grouping_set_expression(
                 [
@@ -187,7 +181,6 @@ class Analyzer:
                             a,
                             df_aliased_col_name_to_real_col_name,
                             parse_local_name,
-                            config_context=config_context,
                         )
                         for a in arg
                     ]
@@ -201,13 +194,11 @@ class Analyzer:
                     expr.expr,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
                 self.analyze(
                     expr.pattern,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
             )
 
@@ -217,19 +208,16 @@ class Analyzer:
                     expr.expr,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
                 self.analyze(
                     expr.pattern,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
                 self.analyze(
                     expr.parameters,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 )
                 if expr.parameters is not None
                 else None,
@@ -244,7 +232,6 @@ class Analyzer:
                     expr.expr,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
                 collation_spec,
             )
@@ -258,7 +245,6 @@ class Analyzer:
                     expr.expr,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
                 field,
             )
@@ -271,13 +257,11 @@ class Analyzer:
                             condition,
                             df_aliased_col_name_to_real_col_name,
                             parse_local_name,
-                            config_context=config_context,
                         ),
                         self.analyze(
                             value,
                             df_aliased_col_name_to_real_col_name,
                             parse_local_name,
-                            config_context=config_context,
                         ),
                     )
                     for condition, value in expr.branches
@@ -286,7 +270,6 @@ class Analyzer:
                     expr.else_value,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 )
                 if expr.else_value
                 else "NULL",
@@ -295,11 +278,10 @@ class Analyzer:
         if isinstance(expr, MultipleExpression):
             block_expressions = []
             for expression in expr.expressions:
-                if config_context.eliminate_numeric_sql_value_cast_enabled:
+                if self.session.eliminate_numeric_sql_value_cast_enabled:
                     resolved_expr = self.to_sql_try_avoid_cast(
                         expression,
                         df_aliased_col_name_to_real_col_name,
-                        config_context,
                         parse_local_name,
                     )
                 else:
@@ -307,7 +289,6 @@ class Analyzer:
                         expression,
                         df_aliased_col_name_to_real_col_name,
                         parse_local_name,
-                        config_context=config_context,
                     )
 
                 block_expressions.append(resolved_expr)
@@ -316,11 +297,10 @@ class Analyzer:
         if isinstance(expr, InExpression):
             in_values = []
             for expression in expr.values:
-                if config_context.eliminate_numeric_sql_value_cast_enabled:
+                if self.session.eliminate_numeric_sql_value_cast_enabled:
                     in_value = self.to_sql_try_avoid_cast(
                         expression,
                         df_aliased_col_name_to_real_col_name,
-                        config_context,
                         parse_local_name,
                     )
                 else:
@@ -328,7 +308,6 @@ class Analyzer:
                         expression,
                         df_aliased_col_name_to_real_col_name,
                         parse_local_name,
-                        config_context=config_context,
                     )
 
                 in_values.append(in_value)
@@ -337,15 +316,12 @@ class Analyzer:
                     expr.columns,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
                 in_values,
             )
 
         if isinstance(expr, GroupingSet):
-            return self.grouping_extractor(
-                expr, df_aliased_col_name_to_real_col_name, config_context
-            )
+            return self.grouping_extractor(expr, df_aliased_col_name_to_real_col_name)
 
         if isinstance(expr, WindowExpression):
             return window_expression(
@@ -353,13 +329,11 @@ class Analyzer:
                     expr.window_function,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
                 self.analyze(
                     expr.window_spec,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
             )
         if isinstance(expr, WindowSpecDefinition):
@@ -369,7 +343,6 @@ class Analyzer:
                         x,
                         df_aliased_col_name_to_real_col_name,
                         parse_local_name,
-                        config_context=config_context,
                     )
                     for x in expr.partition_spec
                 ],
@@ -378,7 +351,6 @@ class Analyzer:
                         x,
                         df_aliased_col_name_to_real_col_name,
                         parse_local_name,
-                        config_context=config_context,
                     )
                     for x in expr.order_spec
                 ],
@@ -386,7 +358,6 @@ class Analyzer:
                     expr.frame_spec,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
             )
         if isinstance(expr, SpecifiedWindowFrame):
@@ -394,12 +365,12 @@ class Analyzer:
                 expr.frame_type.sql,
                 self.window_frame_boundary(
                     self.to_sql_try_avoid_cast(
-                        expr.lower, df_aliased_col_name_to_real_col_name, config_context
+                        expr.lower, df_aliased_col_name_to_real_col_name
                     )
                 ),
                 self.window_frame_boundary(
                     self.to_sql_try_avoid_cast(
-                        expr.upper, df_aliased_col_name_to_real_col_name, config_context
+                        expr.upper, df_aliased_col_name_to_real_col_name
                     )
                 ),
             )
@@ -443,9 +414,7 @@ class Analyzer:
             return function_expression(
                 func_name,
                 [
-                    self.to_sql_try_avoid_cast(
-                        c, df_aliased_col_name_to_real_col_name, config_context
-                    )
+                    self.to_sql_try_avoid_cast(c, df_aliased_col_name_to_real_col_name)
                     for c in expr.children
                 ],
                 expr.is_distinct,
@@ -469,7 +438,6 @@ class Analyzer:
                         self.analyze(
                             e,
                             df_aliased_col_name_to_real_col_name,
-                            config_context=config_context,
                         )
                         for e in expr.expressions
                     ]
@@ -488,7 +456,6 @@ class Analyzer:
                         x,
                         df_aliased_col_name_to_real_col_name,
                         parse_local_name,
-                        config_context=config_context,
                     )
                     for x in expr.children
                 ],
@@ -501,7 +468,7 @@ class Analyzer:
                     expr.api_call_source, TelemetryField.FUNC_CAT_USAGE.value
                 )
             return self.table_function_expression_extractor(
-                expr, df_aliased_col_name_to_real_col_name, config_context
+                expr, df_aliased_col_name_to_real_col_name
             )
 
         if isinstance(expr, TableFunctionPartitionSpecDefinition):
@@ -512,7 +479,6 @@ class Analyzer:
                         x,
                         df_aliased_col_name_to_real_col_name,
                         parse_local_name,
-                        config_context=config_context,
                     )
                     for x in expr.partition_spec
                 ]
@@ -523,7 +489,6 @@ class Analyzer:
                         x,
                         df_aliased_col_name_to_real_col_name,
                         parse_local_name,
-                        config_context=config_context,
                     )
                     for x in expr.order_spec
                 ]
@@ -535,7 +500,6 @@ class Analyzer:
             return self.unary_expression_extractor(
                 expr,
                 df_aliased_col_name_to_real_col_name,
-                config_context,
                 parse_local_name,
             )
 
@@ -545,7 +509,6 @@ class Analyzer:
                     expr.child,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
                 expr.direction.sql,
                 expr.null_ordering.sql,
@@ -561,13 +524,11 @@ class Analyzer:
                     expr.expr,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
                 [
                     self.analyze(
                         e,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
                     )
                     for e in expr.order_by_cols
                 ],
@@ -577,7 +538,6 @@ class Analyzer:
             return self.binary_operator_extractor(
                 expr,
                 df_aliased_col_name_to_real_col_name,
-                config_context,
                 parse_local_name,
             )
 
@@ -586,7 +546,6 @@ class Analyzer:
                 self.analyze(
                     expr.condition,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 )
                 if expr.condition
                 else None,
@@ -594,7 +553,6 @@ class Analyzer:
                     self.analyze(
                         k,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
                     )
                     for k in expr.keys
                 ],
@@ -602,7 +560,6 @@ class Analyzer:
                     self.analyze(
                         v,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
                     )
                     for v in expr.values
                 ],
@@ -613,7 +570,6 @@ class Analyzer:
                 self.analyze(
                     expr.condition,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 )
                 if expr.condition
                 else None,
@@ -621,11 +577,9 @@ class Analyzer:
                     self.analyze(
                         k,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
                     ): self.analyze(
                         v,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
                     )
                     for k, v in expr.assignments.items()
                 },
@@ -636,7 +590,6 @@ class Analyzer:
                 self.analyze(
                     expr.condition,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 )
                 if expr.condition
                 else None
@@ -648,7 +601,6 @@ class Analyzer:
                     expr.col,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
                 str_to_sql(expr.delimiter),
                 expr.is_distinct,
@@ -661,7 +613,6 @@ class Analyzer:
                         col,
                         df_aliased_col_name_to_real_col_name,
                         parse_local_name,
-                        config_context=config_context,
                     )
                     for col in expr.exprs
                 ]
@@ -674,14 +625,12 @@ class Analyzer:
                     expr.expr,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
                 expr.offset,
                 self.analyze(
                     expr.default,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 )
                 if expr.default
                 else None,
@@ -696,7 +645,6 @@ class Analyzer:
         self,
         expr: TableFunctionExpression,
         df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
-        config_context: ConfigContext,
         parse_local_name=False,
     ) -> str:
         if isinstance(expr, FlattenFunction):
@@ -705,7 +653,6 @@ class Analyzer:
                     expr.input,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
                 expr.path,
                 expr.outer,
@@ -720,7 +667,6 @@ class Analyzer:
                         x,
                         df_aliased_col_name_to_real_col_name,
                         parse_local_name,
-                        config_context=config_context,
                     )
                     for x in expr.args
                 ],
@@ -733,7 +679,6 @@ class Analyzer:
                     key: self.to_sql_try_avoid_cast(
                         value,
                         df_aliased_col_name_to_real_col_name,
-                        config_context,
                         parse_local_name,
                     )
                     for key, value in expr.args.items()
@@ -748,7 +693,6 @@ class Analyzer:
             self.analyze(
                 expr.partition_spec,
                 df_aliased_col_name_to_real_col_name,
-                config_context=config_context,
             )
             if expr.partition_spec
             else ""
@@ -759,7 +703,6 @@ class Analyzer:
         self,
         expr: UnaryExpression,
         df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
-        config_context: ConfigContext,
         parse_local_name=False,
     ) -> str:
         if isinstance(expr, Alias):
@@ -780,7 +723,6 @@ class Analyzer:
                     expr.child,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
                 quoted_name,
             )
@@ -789,7 +731,6 @@ class Analyzer:
                 expr.child,
                 df_aliased_col_name_to_real_col_name,
                 parse_local_name,
-                config_context=config_context,
             )
             if parse_local_name:
                 expr_str = expr_str.upper()
@@ -800,7 +741,6 @@ class Analyzer:
                     expr.child,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
                 expr.to,
                 expr.try_,
@@ -811,7 +751,6 @@ class Analyzer:
                     expr.child,
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
-                    config_context=config_context,
                 ),
                 expr.sql_operator,
                 expr.operator_first,
@@ -821,20 +760,17 @@ class Analyzer:
         self,
         expr: BinaryExpression,
         df_aliased_col_name_to_real_col_name,
-        config_context: ConfigContext,
         parse_local_name=False,
     ) -> str:
-        if config_context.eliminate_numeric_sql_value_cast_enabled:
+        if self.session.eliminate_numeric_sql_value_cast_enabled:
             left_sql_expr = self.to_sql_try_avoid_cast(
                 expr.left,
                 df_aliased_col_name_to_real_col_name,
-                config_context,
                 parse_local_name,
             )
             right_sql_expr = self.to_sql_try_avoid_cast(
                 expr.right,
                 df_aliased_col_name_to_real_col_name,
-                config_context,
                 parse_local_name,
             )
         else:
@@ -842,13 +778,11 @@ class Analyzer:
                 expr.left,
                 df_aliased_col_name_to_real_col_name,
                 parse_local_name,
-                config_context=config_context,
             )
             right_sql_expr = self.analyze(
                 expr.right,
                 df_aliased_col_name_to_real_col_name,
                 parse_local_name,
-                config_context=config_context,
             )
         if isinstance(expr, BinaryArithmeticExpression):
             return binary_arithmetic_expression(
@@ -867,7 +801,7 @@ class Analyzer:
             )
 
     def grouping_extractor(
-        self, expr: GroupingSet, df_aliased_col_name_to_real_col_name, config_context
+        self, expr: GroupingSet, df_aliased_col_name_to_real_col_name
     ) -> str:
         return self.analyze(
             FunctionExpression(
@@ -876,7 +810,6 @@ class Analyzer:
                 False,
             ),
             df_aliased_col_name_to_real_col_name,
-            config_context=config_context,
         )
 
     def window_frame_boundary(self, offset: str) -> str:
@@ -890,7 +823,6 @@ class Analyzer:
         self,
         expr: Expression,
         df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
-        config_context: ConfigContext,
         parse_local_name: bool = False,
     ) -> str:
         """
@@ -914,19 +846,18 @@ class Analyzer:
                 expr,
                 df_aliased_col_name_to_real_col_name,
                 parse_local_name,
-                config_context=config_context,
             )
 
     def resolve(
-        self, logical_plan: LogicalPlan, config_context: Optional[ConfigContext] = None
+        self,
+        logical_plan: LogicalPlan,
     ) -> SnowflakePlan:
         self.subquery_plans = []
         self.generated_alias_maps = {}
-        if config_context is None:
-            config_context = ConfigContext(self.session)
-            self.plan_builder.set_config_context(config_context)
 
-        result = self.do_resolve(logical_plan, config_context)
+        result = self.do_resolve(
+            logical_plan,
+        )
 
         result.add_aliases(self.generated_alias_maps)
 
@@ -936,7 +867,8 @@ class Analyzer:
         return result
 
     def do_resolve(
-        self, logical_plan: LogicalPlan, config_context: ConfigContext
+        self,
+        logical_plan: LogicalPlan,
     ) -> SnowflakePlan:
         resolved_children = {}
         df_aliased_col_name_to_real_col_name: DefaultDict[
@@ -944,7 +876,9 @@ class Analyzer:
         ] = defaultdict(dict)
 
         for c in logical_plan.children:  # post-order traversal of the tree
-            resolved = self.resolve(c, config_context)
+            resolved = self.resolve(
+                c,
+            )
             df_aliased_col_name_to_real_col_name.update(
                 resolved.df_aliased_col_name_to_real_col_name
             )
@@ -975,7 +909,6 @@ class Analyzer:
             logical_plan,
             resolved_children,
             df_aliased_col_name_to_real_col_name,
-            config_context=config_context,
         )
         res.df_aliased_col_name_to_real_col_name.update(
             df_aliased_col_name_to_real_col_name
@@ -987,7 +920,6 @@ class Analyzer:
         logical_plan: LogicalPlan,
         resolved_children: Dict[LogicalPlan, SnowflakePlan],
         df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
-        config_context: ConfigContext,
     ) -> SnowflakePlan:
         if isinstance(logical_plan, SnowflakePlan):
             return logical_plan
@@ -997,7 +929,6 @@ class Analyzer:
                 self.analyze(
                     logical_plan.table_function,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 ),
                 resolved_children[logical_plan.children[0]],
                 logical_plan,
@@ -1011,7 +942,6 @@ class Analyzer:
                 self.analyze(
                     logical_plan.table_function,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 ),
                 logical_plan,
             )
@@ -1021,7 +951,6 @@ class Analyzer:
                 self.analyze(
                     logical_plan.table_function,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 ),
                 resolved_children[logical_plan.children[0]],
                 logical_plan,
@@ -1033,7 +962,6 @@ class Analyzer:
                     self.to_sql_try_avoid_cast(
                         expr,
                         df_aliased_col_name_to_real_col_name,
-                        config_context,
                     )
                     for expr in logical_plan.grouping_expressions
                 ],
@@ -1041,7 +969,6 @@ class Analyzer:
                     self.analyze(
                         expr,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
                     )
                     for expr in logical_plan.aggregate_expressions
                 ],
@@ -1056,7 +983,6 @@ class Analyzer:
                         lambda x: self.analyze(
                             x,
                             df_aliased_col_name_to_real_col_name,
-                            config_context=config_context,
                         ),
                         logical_plan.project_list,
                     )
@@ -1070,7 +996,6 @@ class Analyzer:
                 self.analyze(
                     logical_plan.condition,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 ),
                 resolved_children[logical_plan.child],
                 logical_plan,
@@ -1090,7 +1015,6 @@ class Analyzer:
                 self.analyze(
                     logical_plan.join_condition,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 )
                 if logical_plan.join_condition
                 else ""
@@ -1099,7 +1023,6 @@ class Analyzer:
                 self.analyze(
                     logical_plan.match_condition,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 )
                 if logical_plan.match_condition
                 else ""
@@ -1120,7 +1043,6 @@ class Analyzer:
                     self.analyze(
                         x,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
                     )
                     for x in logical_plan.order
                 ],
@@ -1188,7 +1110,6 @@ class Analyzer:
                     self.analyze(
                         x,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
                     )
                     for x in logical_plan.clustering_exprs
                 ],
@@ -1214,12 +1135,10 @@ class Analyzer:
                 self.to_sql_try_avoid_cast(
                     logical_plan.limit_expr,
                     df_aliased_col_name_to_real_col_name,
-                    config_context,
                 ),
                 self.to_sql_try_avoid_cast(
                     logical_plan.offset_expr,
                     df_aliased_col_name_to_real_col_name,
-                    config_context,
                 ),
                 resolved_children[logical_plan.child],
                 on_top_of_order_by,
@@ -1250,7 +1169,6 @@ class Analyzer:
                         self.analyze(
                             col,
                             df_aliased_col_name_to_real_col_name,
-                            config_context=config_context,
                         )
                         for col in project_exprs
                     ],
@@ -1270,7 +1188,6 @@ class Analyzer:
                     self.analyze(
                         pv,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
                     )
                     for pv in logical_plan.pivot_values
                 ]
@@ -1278,7 +1195,6 @@ class Analyzer:
                 pivot_values = self.analyze(
                     logical_plan.pivot_values,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 )
             else:
                 pivot_values = None
@@ -1287,18 +1203,15 @@ class Analyzer:
                 self.analyze(
                     logical_plan.pivot_column,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 ),
                 pivot_values,
                 self.analyze(
                     logical_plan.aggregates[0],
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 ),
                 self.analyze(
                     logical_plan.default_on_null,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 )
                 if logical_plan.default_on_null
                 else None,
@@ -1326,7 +1239,6 @@ class Analyzer:
                     self.analyze(
                         c,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
                     )
                     for c in logical_plan.column_list
                 ],
@@ -1372,7 +1284,6 @@ class Analyzer:
                     self.analyze(
                         x,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
                     )
                     for x in logical_plan.clustering_exprs
                 ],
@@ -1408,7 +1319,6 @@ class Analyzer:
                     self.analyze(
                         x,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
                     )
                     for x in logical_plan.transformations
                 ]
@@ -1427,7 +1337,6 @@ class Analyzer:
                 partition_by=self.analyze(
                     logical_plan.partition_by,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 )
                 if logical_plan.partition_by
                 else None,
@@ -1445,18 +1354,15 @@ class Analyzer:
                     self.analyze(
                         k,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
                     ): self.analyze(
                         v,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
                     )
                     for k, v in logical_plan.assignments.items()
                 },
                 self.analyze(
                     logical_plan.condition,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 )
                 if logical_plan.condition
                 else None,
@@ -1472,7 +1378,6 @@ class Analyzer:
                 self.analyze(
                     logical_plan.condition,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 )
                 if logical_plan.condition
                 else None,
@@ -1492,13 +1397,11 @@ class Analyzer:
                 self.analyze(
                     logical_plan.join_expr,
                     df_aliased_col_name_to_real_col_name,
-                    config_context=config_context,
                 ),
                 [
                     self.analyze(
                         c,
                         df_aliased_col_name_to_real_col_name,
-                        config_context=config_context,
                     )
                     for c in logical_plan.clauses
                 ],

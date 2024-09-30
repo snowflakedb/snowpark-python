@@ -8,7 +8,6 @@ from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    ConfigContext,
     CreateViewCommand,
     PlanQueryType,
     Query,
@@ -50,7 +49,6 @@ class QueryGenerator(Analyzer):
     def __init__(
         self,
         session: Session,
-        config_context: ConfigContext,
         snowflake_create_table_plan_info: Optional[SnowflakeCreateTablePlanInfo] = None,
     ) -> None:
         super().__init__(session)
@@ -60,7 +58,6 @@ class QueryGenerator(Analyzer):
         self._snowflake_create_table_plan_info: Optional[
             SnowflakeCreateTablePlanInfo
         ] = snowflake_create_table_plan_info
-        self._config_context = config_context
         # Records the definition of all the with query blocks encountered during the code generation.
         # This information will be used to generate the final query of a SnowflakePlan with the
         # correct CTE definition.
@@ -109,21 +106,20 @@ class QueryGenerator(Analyzer):
         }
 
     def resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
-        return super().resolve(logical_plan, self._config_context)
+        return super().resolve(logical_plan)
 
     def do_resolve_with_resolved_children(
         self,
         logical_plan: LogicalPlan,
         resolved_children: Dict[LogicalPlan, SnowflakePlan],
         df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
-        config_context: ConfigContext,
     ) -> SnowflakePlan:
         if isinstance(logical_plan, SnowflakePlan):
             if logical_plan.queries is None:
                 assert logical_plan.source_plan is not None
                 # when encounter a SnowflakePlan with no queries, try to re-resolve
                 # the source plan to construct the result
-                res = self.do_resolve(logical_plan.source_plan, config_context)
+                res = self.do_resolve(logical_plan.source_plan)
                 resolved_children[logical_plan] = res
                 resolved_plan = res
             else:
@@ -214,7 +210,6 @@ class QueryGenerator(Analyzer):
                 logical_plan,
                 resolved_children,
                 df_aliased_col_name_to_real_col_name,
-                config_context,
             )
 
         elif isinstance(logical_plan, Selectable):
@@ -241,7 +236,6 @@ class QueryGenerator(Analyzer):
                 logical_plan,
                 resolved_children,
                 df_aliased_col_name_to_real_col_name,
-                config_context,
             )
 
         resolved_plan._is_valid_for_replacement = True
