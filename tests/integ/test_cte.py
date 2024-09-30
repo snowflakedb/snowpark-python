@@ -24,7 +24,7 @@ from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles,
 pytestmark = [
     pytest.mark.skipif(
         "config.getoption('local_testing_mode', default=False)",
-        reason="CTE is a SQL feature",
+        reason="CTE is a SQL feature and SQL counter check doesn't work for local testing mode",
         run=False,
     ),
     pytest.mark.skipif(
