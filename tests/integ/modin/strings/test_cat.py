@@ -9,8 +9,8 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
+from tests.integ.utils.sql_counter import SqlCounter
 from tests.utils import running_on_public_ci
 
 

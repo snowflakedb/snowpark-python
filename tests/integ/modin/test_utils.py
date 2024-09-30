@@ -18,8 +18,8 @@ from snowflake.snowpark.modin.plugin.extensions.utils import (
     ensure_index,
     try_convert_index_to_native,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_index_equal
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize("columns", [["A", "b", "C"], ['"a"', '"B"', '"c"']])

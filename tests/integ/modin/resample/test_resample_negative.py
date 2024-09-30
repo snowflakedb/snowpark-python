@@ -12,8 +12,8 @@ from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     NOT_IMPLEMENTED_DATEOFFSET_STRINGS,
     UNSUPPORTED_DATEOFFSET_STRINGS,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize("index_col", [["datecol", "B"], ["A", "B"], ["A"]])
