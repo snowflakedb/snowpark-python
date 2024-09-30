@@ -65,16 +65,16 @@ class PlanCompiler:
         return (
             not isinstance(current_session._conn, MockServerConnection)
             and (self._plan.source_plan is not None)
-            and self.current_session._query_compilation_stage_enabled
+            and current_session._query_compilation_stage_enabled
             and (
-                self.current_session.cte_optimization_enabled
-                or self.current_session.large_query_breakdown_enabled
+                current_session.cte_optimization_enabled
+                or current_session.large_query_breakdown_enabled
             )
         )
 
     def compile(self) -> Dict[PlanQueryType, List[Query]]:
-        session = self._plan.session
         if self.should_start_query_compilation():
+            session = self._plan.session
             # preparation for compilation
             # 1. make a copy of the original plan
             start_time = time.time()

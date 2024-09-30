@@ -312,15 +312,13 @@ class SnowflakePlan(LogicalPlan):
         else:
             return []
 
-    def replace_repeated_subquery_with_cte(
-        self,
-    ) -> "SnowflakePlan":
+    def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
         # parameter protection
         # the common subquery elimination will be applied if cte_optimization is not enabled
         # and the new compilation stage is not enabled. When new compilation stage is enabled,
         # the common subquery elimination will be done through the new plan transformation.
         if (
-            not self.session.cte_optimization_enabled
+            not self.session._cte_optimization_enabled
             or self.session._query_compilation_stage_enabled
         ):
             return self
@@ -568,7 +566,7 @@ class SnowflakePlanBuilder:
 
         placeholder_query = (
             sql_generator(select_child._id)
-            if self.session.cte_optimization_enabled and select_child._id is not None
+            if self.session._cte_optimization_enabled and select_child._id is not None
             else None
         )
 
@@ -607,7 +605,7 @@ class SnowflakePlanBuilder:
 
         placeholder_query = (
             sql_generator(select_left._id, select_right._id)
-            if self.session.cte_optimization_enabled
+            if self.session._cte_optimization_enabled
             and select_left._id is not None
             and select_right._id is not None
             else None
