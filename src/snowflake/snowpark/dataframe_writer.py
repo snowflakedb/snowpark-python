@@ -14,8 +14,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     TableCreationSource,
 )
 from snowflake.snowpark._internal.ast_utils import (
-    FAIL_ON_MISSING_AST,
     build_expr_from_snowpark_column_or_col_name,
+    debug_check_missing_ast,
     fill_sp_save_mode,
     fill_sp_write_file,
     with_src_position,
@@ -30,6 +30,7 @@ from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
     normalize_remote_file_or_dir,
     parse_table_name,
+    publicapi,
     str_to_enum,
     validate_object_name,
     warning,
@@ -65,6 +66,7 @@ class DataFrameWriter:
        specified destination.
     """
 
+    @publicapi
     def __init__(
         self,
         dataframe: "snowflake.snowpark.dataframe.DataFrame",
@@ -74,7 +76,8 @@ class DataFrameWriter:
         self._save_mode = SaveMode.ERROR_IF_EXISTS
         self._ast_stmt = _ast_stmt
 
-    def mode(self, save_mode: str) -> "DataFrameWriter":
+    @publicapi
+    def mode(self, save_mode: str, _emit_ast: bool = True) -> "DataFrameWriter":
         """Set the save mode of this :class:`DataFrameWriter`.
 
         Args:
@@ -100,14 +103,16 @@ class DataFrameWriter:
         )
 
         # Update AST if it exists.
-        if self._ast_stmt is not None:
-            fill_sp_save_mode(
-                self._ast_stmt.expr.sp_dataframe_write.save_mode, self._save_mode
-            )
+        if _emit_ast:
+            if self._ast_stmt is not None:
+                fill_sp_save_mode(
+                    self._ast_stmt.expr.sp_dataframe_write.save_mode, self._save_mode
+                )
 
         return self
 
     @overload
+    @publicapi
     def save_as_table(
         self,
         table_name: Union[str, Iterable[str]],
@@ -119,10 +124,12 @@ class DataFrameWriter:
         clustering_keys: Optional[Iterable[ColumnOrName]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
     ) -> None:
         ...  # pragma: no cover
 
     @overload
+    @publicapi
     def save_as_table(
         self,
         table_name: Union[str, Iterable[str]],
@@ -134,10 +141,12 @@ class DataFrameWriter:
         clustering_keys: Optional[Iterable[ColumnOrName]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
+        _emit_ast: bool = True,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
     @dfw_collect_api_telemetry
+    @publicapi
     def save_as_table(
         self,
         table_name: Union[str, Iterable[str]],
@@ -210,13 +219,7 @@ class DataFrameWriter:
             # Add an Assign node that applies SpWriteTable() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_write_table)
-
-            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
-                _logger.debug(self._explain_string())
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-                )
-
+            debug_check_missing_ast(self._ast_stmt, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             # Function signature:
@@ -329,6 +332,7 @@ class DataFrameWriter:
             return result if not block else None
 
     @overload
+    @publicapi
     def copy_into_location(
         self,
         location: str,
@@ -340,11 +344,13 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: Literal[True] = True,
+        _emit_ast: bool = True,
         **copy_options: Optional[Dict[str, Any]],
     ) -> List[Row]:
         ...  # pragma: no cover
 
     @overload
+    @publicapi
     def copy_into_location(
         self,
         location: str,
@@ -356,10 +362,12 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: Literal[False] = False,
+        _emit_ast: bool = True,
         **copy_options: Optional[Dict[str, Any]],
     ) -> AsyncJob:
         ...  # pragma: no cover
 
+    @publicapi
     def copy_into_location(
         self,
         location: str,
@@ -421,13 +429,7 @@ class DataFrameWriter:
             # Add an Assign node that applies SpWriteCopyIntoLocation() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_write_copy_into_location)
-
-            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
-                _logger.debug(self._explain_string())
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-                )
-
+            debug_check_missing_ast(self._ast_stmt, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_sp_write_file(
@@ -480,6 +482,7 @@ class DataFrameWriter:
             **kwargs,
         )
 
+    @publicapi
     def csv(
         self,
         location: str,
@@ -521,13 +524,7 @@ class DataFrameWriter:
             # Add an Assign node that applies SpWriteCsv() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_write_csv)
-
-            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
-                _logger.debug(self._explain_string())
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-                )
-
+            debug_check_missing_ast(self._ast_stmt, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_sp_write_file(
@@ -556,6 +553,7 @@ class DataFrameWriter:
             **copy_options,
         )
 
+    @publicapi
     def json(
         self,
         location: str,
@@ -598,13 +596,7 @@ class DataFrameWriter:
             # Add an Assign node that applies SpWriteJson() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_write_json)
-
-            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
-                _logger.debug(self._explain_string())
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-                )
-
+            debug_check_missing_ast(self._ast_stmt, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_sp_write_file(
@@ -633,6 +625,7 @@ class DataFrameWriter:
             **copy_options,
         )
 
+    @publicapi
     def parquet(
         self,
         location: str,
@@ -675,13 +668,7 @@ class DataFrameWriter:
             # Add an Assign node that applies SpWriteParquet() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.sp_write_parquet)
-
-            if self._ast_stmt is None and FAIL_ON_MISSING_AST:
-                _logger.debug(self._explain_string())
-                raise NotImplementedError(
-                    f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
-                )
-
+            debug_check_missing_ast(self._ast_stmt, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_sp_write_file(

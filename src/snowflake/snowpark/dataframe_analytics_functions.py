@@ -10,7 +10,7 @@ from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_snowpark_column_or_col_name,
     with_src_position,
 )
-from snowflake.snowpark._internal.utils import experimental
+from snowflake.snowpark._internal.utils import experimental, publicapi
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import (
     add_months,
@@ -38,8 +38,8 @@ class DataFrameAnalyticsFunctions:
     To access an object of this class, use :attr:`DataFrame.analytics`.
     """
 
-    def __init__(self, df: "snowflake.snowpark.DataFrame") -> None:
-        self._df = df
+    def __init__(self, dataframe: "snowflake.snowpark.DataFrame") -> None:
+        self._dataframe = dataframe
 
     def _default_col_formatter(input_col: str, operation: str, *args) -> str:
         args_str = "_".join(map(str, args))
@@ -130,7 +130,7 @@ class DataFrameAnalyticsFunctions:
         self._validate_formatter_argument(col_formatter)
 
         window_spec = Window.partition_by(group_by).order_by(order_by)
-        df = self._df
+        df = self._dataframe
         col_names = []
         values = []
         for c in cols:
@@ -274,6 +274,7 @@ class DataFrameAnalyticsFunctions:
 
         return base_df
 
+    @publicapi
     def moving_agg(
         self,
         aggs: Dict[str, List[str]],
@@ -342,10 +343,11 @@ class DataFrameAnalyticsFunctions:
 
         # AST.
         stmt = None
+        ast = None
         if _emit_ast:
-            stmt = self._df._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_analytics_moving_agg, stmt)
-            self._df.set_ast_ref(ast.df)
+            self._dataframe._set_ast_ref(ast.df)
             for col_name, agg_funcs in aggs.items():
                 agg_func_tuple_ast = proto.Tuple_String_List_String()
                 agg_func_tuple_ast._1 = col_name
@@ -356,7 +358,7 @@ class DataFrameAnalyticsFunctions:
             ast.order_by.extend(order_by)
 
         # Perform window aggregation
-        agg_df = self._df
+        agg_df = self._dataframe
         for column, agg_funcs in aggs.items():
             for window_size in window_sizes:
                 for agg_func in agg_funcs:
@@ -370,7 +372,8 @@ class DataFrameAnalyticsFunctions:
                     agg_col = builtin(agg_func)(col(column)).over(window_spec)
 
                     formatted_col_name = col_formatter(column, agg_func, window_size)
-                    ast.formatted_col_names.append(formatted_col_name)
+                    if _emit_ast:
+                        ast.formatted_col_names.append(formatted_col_name)
                     agg_df = agg_df.with_column(
                         formatted_col_name, agg_col, _emit_ast=False
                     )
@@ -380,6 +383,7 @@ class DataFrameAnalyticsFunctions:
 
         return agg_df
 
+    @publicapi
     def cumulative_agg(
         self,
         aggs: Dict[str, List[str]],
@@ -445,12 +449,13 @@ class DataFrameAnalyticsFunctions:
 
         # AST.
         stmt = None
+        ast = None
         if _emit_ast:
-            stmt = self._df._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(
                 stmt.expr.sp_dataframe_analytics_cumulative_agg, stmt
             )
-            self._df.set_ast_ref(ast.df)
+            self._dataframe._set_ast_ref(ast.df)
             for col_name, agg_funcs in aggs.items():
                 agg_func_tuple_ast = proto.Tuple_String_List_String()
                 agg_func_tuple_ast._1 = col_name
@@ -467,14 +472,17 @@ class DataFrameAnalyticsFunctions:
             window_spec = window_spec.rows_between(Window.UNBOUNDED_PRECEDING, 0)
 
         # Perform cumulative aggregation
-        agg_df = self._df
+        agg_df = self._dataframe
         for column, agg_funcs in aggs.items():
             for agg_func in agg_funcs:
                 # Apply the user-specified aggregation function directly. Snowflake will handle any errors for invalid functions.
                 agg_col = builtin(agg_func)(col(column)).over(window_spec)
 
                 formatted_col_name = col_formatter(column, agg_func)
-                ast.formatted_col_names.append(formatted_col_name)
+
+                if _emit_ast:
+                    ast.formatted_col_names.append(formatted_col_name)
+
                 agg_df = agg_df.with_column(
                     formatted_col_name, agg_col, _emit_ast=False
                 )
@@ -484,6 +492,7 @@ class DataFrameAnalyticsFunctions:
 
         return agg_df
 
+    @publicapi
     def compute_lag(
         self,
         cols: List[Union[str, Column]],
@@ -537,15 +546,16 @@ class DataFrameAnalyticsFunctions:
         """
         # AST.
         stmt = None
+        ast = None
         if _emit_ast:
-            stmt = self._df._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lag, stmt)
             for c in cols:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
             ast.lags.extend(lags)
             ast.group_by.extend(group_by)
             ast.order_by.extend(order_by)
-            self._df.set_ast_ref(ast.df)
+            self._dataframe._set_ast_ref(ast.df)
 
         for c in cols:
             for _lag in lags:
@@ -553,7 +563,9 @@ class DataFrameAnalyticsFunctions:
                 formatted_col_name = col_formatter(
                     column.get_name().replace('"', ""), "LAG", _lag
                 )
-                ast.formatted_col_names.append(formatted_col_name)
+
+                if _emit_ast:
+                    ast.formatted_col_names.append(formatted_col_name)
         df = self._compute_window_function(
             cols, lags, order_by, group_by, col_formatter, lag, "LAG"
         )
@@ -562,6 +574,7 @@ class DataFrameAnalyticsFunctions:
             df._ast_id = stmt.var_id.bitfield1
         return df
 
+    @publicapi
     def compute_lead(
         self,
         cols: List[Union[str, Column]],
@@ -615,10 +628,11 @@ class DataFrameAnalyticsFunctions:
         """
         # AST.
         stmt = None
+        ast = None
         if _emit_ast:
-            stmt = self._df._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lead, stmt)
-            self._df.set_ast_ref(ast.df)
+            self._dataframe._set_ast_ref(ast.df)
             for c in cols:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
             ast.leads.extend(leads)
@@ -631,7 +645,9 @@ class DataFrameAnalyticsFunctions:
                 formatted_col_name = col_formatter(
                     column.get_name().replace('"', ""), "LEAD", _lead
                 )
-                ast.formatted_col_names.append(formatted_col_name)
+
+                if _emit_ast:
+                    ast.formatted_col_names.append(formatted_col_name)
         df = self._compute_window_function(
             cols, leads, order_by, group_by, col_formatter, lead, "LEAD"
         )
@@ -642,6 +658,7 @@ class DataFrameAnalyticsFunctions:
         return df
 
     @experimental(version="1.12.0")
+    @publicapi
     def time_series_agg(
         self,
         time_col: str,
@@ -723,7 +740,7 @@ class DataFrameAnalyticsFunctions:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._df._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(
                 stmt.expr.sp_dataframe_analytics_time_series_agg, stmt
             )
@@ -736,7 +753,7 @@ class DataFrameAnalyticsFunctions:
             ast.windows.extend(windows)
             ast.group_by.extend(group_by)
             ast.sliding_interval = sliding_interval
-            self._df.set_ast_ref(ast.df)
+            self._dataframe._set_ast_ref(ast.df)
 
             for window in windows:
                 for column, funcs in aggs.items():
@@ -752,11 +769,11 @@ class DataFrameAnalyticsFunctions:
         from snowflake.snowpark.mock._connection import MockServerConnection
 
         if (
-            isinstance(self._df._session._conn, MockServerConnection)
-            and self._df._session._conn._suppress_not_implemented_error
+            isinstance(self._dataframe._session._conn, MockServerConnection)
+            and self._dataframe._session._conn._suppress_not_implemented_error
         ):
             # TODO: Snowpark does not allow empty dataframes (no schema, no data). Have a dummy schema here.
-            ans = self._df._session.createDataFrame(
+            ans = self._dataframe._session.createDataFrame(
                 [],
                 schema=StructType([StructField("row", IntegerType())]),
                 _emit_ast=False,
@@ -770,7 +787,7 @@ class DataFrameAnalyticsFunctions:
         )
         sliding_point_col = "sliding_point"
 
-        agg_df = self._df
+        agg_df = self._dataframe
         agg_df = agg_df.with_column(
             sliding_point_col,
             self._get_sliding_interval_start(time_col, slide_unit, slide_duration),
@@ -816,8 +833,12 @@ class DataFrameAnalyticsFunctions:
 
             # Filter rows to include only those within the specified time window for aggregation.
             self_joined_df = self_joined_df.filter(
-                col(f"{sliding_point_col}B") >= window_start, _emit_ast=False
-            ).filter(col(f"{sliding_point_col}B") <= window_end, _emit_ast=False)
+                col(f"{sliding_point_col}B", _emit_ast=False) >= window_start,
+                _emit_ast=False,
+            ).filter(
+                col(f"{sliding_point_col}B", _emit_ast=False) <= window_end,
+                _emit_ast=False,
+            )
 
             # Peform final aggregations.
             group_by_cols = group_by + [sliding_point_col]

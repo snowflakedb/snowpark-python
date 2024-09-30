@@ -402,7 +402,13 @@ def handle_function_expression(
     spec = inspect.getfullargspec(original_func)
     to_pass_args = []
     type_hints = typing.get_type_hints(original_func)
-    for idx, key in enumerate(signatures.parameters):
+
+    parameters_except_ast = list(signatures.parameters)
+    if "_emit_ast" in parameters_except_ast:
+        parameters_except_ast.remove("_emit_ast")
+        del type_hints["_emit_ast"]
+
+    for idx, key in enumerate(parameters_except_ast):
         type_hint = str(type_hints[key])
         keep_literal = "Column" not in type_hint
         if key == spec.varargs:

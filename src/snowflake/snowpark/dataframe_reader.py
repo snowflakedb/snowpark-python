@@ -30,6 +30,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     get_copy_into_table_options,
     parse_positional_args_to_list_variadic,
+    publicapi,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
@@ -299,6 +300,7 @@ class DataFrameReader:
             <BLANKLINE>
     """
 
+    @publicapi
     def __init__(
         self, session: "snowflake.snowpark.session.Session", _emit_ast: bool = True
     ) -> None:
@@ -360,6 +362,7 @@ class DataFrameReader:
 
         return metadata_project, metadata_schema
 
+    @publicapi
     def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
         """Returns a Table that points to the specified table.
 
@@ -384,6 +387,7 @@ class DataFrameReader:
 
         return table
 
+    @publicapi
     def schema(self, schema: StructType, _emit_ast: bool = True) -> "DataFrameReader":
         """Define the schema for CSV files that you want to read.
 
@@ -405,6 +409,7 @@ class DataFrameReader:
         self._user_schema = schema
         return self
 
+    @publicapi
     def with_metadata(
         self, *metadata_cols: Iterable[ColumnOrName], _emit_ast: bool = True
     ) -> "DataFrameReader":
@@ -441,6 +446,7 @@ class DataFrameReader:
         ]
         return self
 
+    @publicapi
     def csv(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the CSV file(s) to load.
 
@@ -541,6 +547,7 @@ class DataFrameReader:
 
         return df
 
+    @publicapi
     def json(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the JSON file(s) to load.
 
@@ -565,6 +572,7 @@ class DataFrameReader:
 
         return df
 
+    @publicapi
     def avro(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the AVRO file(s) to load.
 
@@ -592,6 +600,7 @@ class DataFrameReader:
 
         return df
 
+    @publicapi
     def parquet(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the PARQUET file(s) to load.
 
@@ -620,6 +629,7 @@ class DataFrameReader:
 
         return df
 
+    @publicapi
     def orc(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the ORC file(s) to load.
 
@@ -647,6 +657,7 @@ class DataFrameReader:
 
         return df
 
+    @publicapi
     def xml(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the XML file(s) to load.
 
@@ -668,6 +679,7 @@ class DataFrameReader:
 
         return df
 
+    @publicapi
     def option(self, key: str, value: Any, _emit_ast: bool = True) -> "DataFrameReader":
         """Sets the specified option in the DataFrameReader.
 
@@ -695,6 +707,7 @@ class DataFrameReader:
         self._cur_options[key.upper()] = value
         return self
 
+    @publicapi
     def options(self, configs: Dict, _emit_ast: bool = True) -> "DataFrameReader":
         """Sets multiple specified options in the DataFrameReader.
 
