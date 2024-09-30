@@ -17,7 +17,7 @@ from pandas import Timestamp
 from pandas._testing import assert_frame_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter
+from tests.integ.utils.sql_counter import SqlCounter
 from tests.utils import Utils
 
 

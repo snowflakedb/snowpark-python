@@ -11,11 +11,11 @@ import pytest
 from pandas.errors import SpecificationError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize("by", ["a", ["b"], ["a", "b"]])
