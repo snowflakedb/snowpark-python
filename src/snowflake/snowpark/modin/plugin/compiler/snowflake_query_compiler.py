@@ -14138,6 +14138,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             if (
                 snowflake_agg_func.snowpark_aggregation is not count
+                # pandas only supports rolling aggregation for count(), so we
+                # do the same.
                 and input_contains_timedelta
             ):
                 raise DataError(_TIMEDELTA_ROLLING_AGGREGATION_NOT_SUPPORTED)
