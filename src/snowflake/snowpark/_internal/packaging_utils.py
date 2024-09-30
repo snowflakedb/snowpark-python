@@ -11,15 +11,13 @@ import shutil
 import subprocess
 import sys
 import zipfile
+from importlib.metadata import PackageNotFoundError, distribution
 from logging import getLogger
 from pathlib import Path
 from typing import AnyStr, Dict, List, Optional, Set, Tuple
 
 import yaml
-
 from packaging.requirements import Requirement
-from importlib.metadata import distribution, PackageNotFoundError
-
 from packaging.specifiers import SpecifierSet
 
 _logger = getLogger(__name__)
@@ -284,16 +282,13 @@ def identify_supported_packages(
             package.specifier if package.specifier else None
         )
         version_text = (
-            f"(version {package_specifier})"
-            if package_specifier is not None
-            else ""
+            f"(version {package_specifier})" if package_specifier is not None else ""
         )
 
         if package_name in valid_packages:
             # Detect supported packages
-            if (
-                package_specifier is None
-                or any(package_specifier.contains(x) for x in valid_packages[package_name])
+            if package_specifier is None or any(
+                package_specifier.contains(x) for x in valid_packages[package_name]
             ):
                 supported_dependencies.append(package)
                 _logger.info(
@@ -504,9 +499,7 @@ def add_snowpark_package(
     if SNOWPARK_PACKAGE_NAME not in package_dict:
         package_dict[SNOWPARK_PACKAGE_NAME] = SNOWPARK_PACKAGE_NAME
         try:
-            package_client_version = get_distribution_version(
-                SNOWPARK_PACKAGE_NAME
-            )
+            package_client_version = get_distribution_version(SNOWPARK_PACKAGE_NAME)
             if package_client_version in valid_packages[SNOWPARK_PACKAGE_NAME]:
                 package_dict[
                     SNOWPARK_PACKAGE_NAME
