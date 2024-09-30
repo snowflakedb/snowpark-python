@@ -207,7 +207,7 @@ class MockUDFRegistration(UDFRegistration):
             packages=packages,
             use_session_imports=imports is None,
             _ast=ast,
-            _ast_id=stmt.var_id.bitfield1,
+            _ast_id=stmt.var_id.bitfield1 if stmt else None,
         )
 
         if type(func) is tuple:  # update file registration
