@@ -10,10 +10,10 @@ from snowflake.snowpark._internal.utils import validate_object_name
 
 class Profiler:
     """
-    Setup profiler to receive profiles of stored procedures.
+    Set up profiler to receive profiles of stored procedures.
 
     Note:
-        This feature cannot be used in owner's right SP because owner's right SP will not be able to set session-level parameters.
+        This feature cannot be used in owner's right stored procedure because owner's right stored procedure will not be able to set session-level parameters.
     """
 
     def __init__(
@@ -32,8 +32,7 @@ class Profiler:
         Register stored procedures to generate profiles for them.
 
         Note:
-            Registered nodules will be overwritten by this function,
-            use this function with an empty string will remove registered modules.
+            Registered modules will be overwritten by this function. Use this function with an empty string will remove registered modules.
         Args:
             stored_procedures: List of names of stored procedures.
         """
@@ -75,8 +74,7 @@ class Profiler:
         Set active profiler.
 
         Note:
-            Active profiler must be either 'LINE' or 'MEMORY' (case-sensitive),
-            active profiler is 'LINE' by default.
+            Active profiler must be either 'LINE' or 'MEMORY' (case-sensitive). Active profiler is 'LINE' by default.
         Args:
             active_profiler: String that represent active_profiler, must be either 'LINE' or 'MEMORY' (case-sensitive).
 
@@ -110,7 +108,7 @@ class Profiler:
 
     def show(self) -> None:
         """
-        Show the profiles of last executed stored procedure.
+        Show the profiles of the last executed stored procedure.
 
         Note:
             This function must be called right after the execution of stored procedure you want to profile.
