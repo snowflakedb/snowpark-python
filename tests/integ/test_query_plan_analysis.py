@@ -32,12 +32,18 @@ pytestmark = [
 ]
 
 
-@pytest.fixture(autouse=True)
-def setup(session):
+paramList = [False, True]
+
+
+@pytest.fixture(params=paramList, autouse=True)
+def setup(request, session):
     is_simplifier_enabled = session._sql_simplifier_enabled
+    large_query_breakdown_enabled = session.large_query_breakdown_enabled
+    session.large_query_breakdown_enabled = request.param
     session._sql_simplifier_enabled = True
     yield
     session._sql_simplifier_enabled = is_simplifier_enabled
+    session.large_query_breakdown_enabled = large_query_breakdown_enabled
 
 
 @pytest.fixture(scope="module")
@@ -57,7 +63,9 @@ def get_cumulative_node_complexity(df: DataFrame) -> Dict[str, int]:
     return df._plan.cumulative_node_complexity
 
 
-def assert_df_subtree_query_complexity(df: DataFrame, estimate: Dict[str, int]):
+def assert_df_subtree_query_complexity(
+    df: DataFrame, estimate: Dict[PlanNodeCategory, int]
+):
     assert (
         get_cumulative_node_complexity(df) == estimate
     ), f"query = {df.queries['queries'][-1]}"
@@ -357,22 +365,24 @@ def test_join_statement(session: Session, sample_table: str):
 
 def test_pivot(session: Session):
     try:
-        session.sql(
-            """create or replace temp table monthly_sales(empid int, amount int, month text)
-                as select * from values
-                (1, 10000, 'JAN'),
-                (1, 400, 'JAN'),
-                (2, 4500, 'JAN'),
-                (2, 35000, 'JAN'),
-                (1, 5000, 'FEB'),
-                (1, 3000, 'FEB'),
-                (2, 200, 'FEB')"""
-        ).collect()
+        table_name = Utils.random_table_name()
+        session.create_dataframe(
+            [
+                (1, 10000, "JAN"),
+                (1, 400, "JAN"),
+                (2, 4500, "JAN"),
+                (2, 35000, "JAN"),
+                (1, 5000, "FEB"),
+                (1, 3000, "FEB"),
+                (2, 200, "FEB"),
+            ],
+            schema=["empid", "amount", "month"],
+        ).write.save_as_table(table_name, table_type="temp")
 
         df_pivot1 = (
-            session.table("monthly_sales").pivot("month", ["JAN", "FEB"]).sum("amount")
+            session.table(table_name).pivot("month", ["JAN", "FEB"]).sum("amount")
         )
-        #  SELECT  *  FROM ( SELECT  *  FROM monthly_sales) PIVOT (sum("AMOUNT") FOR "MONTH" IN ('JAN', 'FEB'))
+        #  SELECT  *  FROM ( SELECT  *  FROM table_name) PIVOT (sum("AMOUNT") FOR "MONTH" IN ('JAN', 'FEB'))
         assert_df_subtree_query_complexity(
             df_pivot1,
             {
@@ -384,11 +394,11 @@ def test_pivot(session: Session):
         )
 
         df_pivot2 = (
-            session.table("monthly_sales")
+            session.table(table_name)
             .pivot("month", ["JAN", "FEB", "MARCH"])
             .sum("amount")
         )
-        #  SELECT  *  FROM ( SELECT  *  FROM monthly_sales) PIVOT (sum("AMOUNT") FOR "MONTH" IN ('JAN', 'FEB', 'MARCH'))
+        #  SELECT  *  FROM ( SELECT  *  FROM table_name) PIVOT (sum("AMOUNT") FOR "MONTH" IN ('JAN', 'FEB', 'MARCH'))
         assert_df_subtree_query_complexity(
             df_pivot2,
             {
@@ -399,19 +409,21 @@ def test_pivot(session: Session):
             },
         )
     finally:
-        Utils.drop_table(session, "monthly_sales")
+        Utils.drop_table(session, table_name)
 
 
 def test_unpivot(session: Session):
     try:
-        session.sql(
-            """create or replace temp table sales_for_month(empid int, dept varchar, jan int, feb int)
-            as select * from values
-            (1, 'electronics', 100, 200),
-            (2, 'clothes', 100, 300)"""
-        ).collect()
+        sales_for_month = Utils.random_table_name()
+        session.create_dataframe(
+            [
+                (1, "electronics", 100, 200),
+                (2, "clothes", 100, 300),
+            ],
+            schema=["empid", "dept", "jan", "feb"],
+        ).write.save_as_table(sales_for_month, table_type="temp")
 
-        df_unpivot1 = session.table("sales_for_month").unpivot(
+        df_unpivot1 = session.table(sales_for_month).unpivot(
             "sales", "month", ["jan", "feb"]
         )
         #  SELECT  *  FROM ( SELECT  *  FROM (sales_for_month)) UNPIVOT (sales FOR month IN ("JAN", "FEB"))
@@ -420,7 +432,7 @@ def test_unpivot(session: Session):
             {PlanNodeCategory.UNPIVOT: 1, PlanNodeCategory.COLUMN: 6},
         )
     finally:
-        Utils.drop_table(session, "sales_for_month")
+        Utils.drop_table(session, sales_for_month)
 
 
 def test_sample(session: Session, sample_table):

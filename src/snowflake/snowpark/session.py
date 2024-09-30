@@ -135,12 +135,10 @@ from snowflake.snowpark.functions import (
     column,
     lit,
     parse_json,
-    to_array,
     to_date,
     to_decimal,
     to_geography,
     to_geometry,
-    to_object,
     to_time,
     to_timestamp,
     to_timestamp_ltz,
@@ -2832,14 +2830,15 @@ class Session:
                 if isinstance(
                     field.datatype,
                     (
-                        VariantType,
                         ArrayType,
-                        MapType,
-                        TimeType,
                         DateType,
-                        TimestampType,
                         GeographyType,
                         GeometryType,
+                        MapType,
+                        StructType,
+                        TimeType,
+                        TimestampType,
+                        VariantType,
                         VectorType,
                     ),
                 )
@@ -2877,7 +2876,9 @@ class Session:
                     data_type, ArrayType
                 ):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
-                elif isinstance(value, dict) and isinstance(data_type, MapType):
+                elif isinstance(value, dict) and isinstance(
+                    data_type, (MapType, StructType)
+                ):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 elif isinstance(data_type, VariantType):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
@@ -2925,10 +2926,10 @@ class Session:
                 project_columns.append(to_geography(column(name)).as_(name))
             elif isinstance(field.datatype, GeometryType):
                 project_columns.append(to_geometry(column(name)).as_(name))
-            elif isinstance(field.datatype, ArrayType):
-                project_columns.append(to_array(parse_json(column(name))).as_(name))
-            elif isinstance(field.datatype, MapType):
-                project_columns.append(to_object(parse_json(column(name))).as_(name))
+            elif isinstance(field.datatype, (ArrayType, MapType, StructType)):
+                project_columns.append(
+                    parse_json(column(name)).cast(field.datatype).as_(name)
+                )
             elif isinstance(field.datatype, VectorType):
                 project_columns.append(
                     parse_json(column(name)).cast(field.datatype).as_(name)
@@ -3456,16 +3457,21 @@ class Session:
         set_api_call_source(df, "Session.flatten")
         return df
 
-    def query_history(self) -> QueryHistory:
+    def query_history(self, include_describe: bool = False) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
 
-        >>> with session.query_history() as query_history:
+        Args:
+            include_describe: Include query notifications for describe queries
+
+        >>> with session.query_history(True) as query_history:
         ...     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
         ...     df = df.filter(df.a == 1)
         ...     res = df.collect()
-        >>> assert len(query_history.queries) == 1
+        >>> assert len(query_history.queries) == 2
+        >>> assert query_history.queries[0].is_describe
+        >>> assert not query_history.queries[1].is_describe
         """
-        query_listener = QueryHistory(self)
+        query_listener = QueryHistory(self, include_describe)
         self._conn.add_query_listener(query_listener)
         return query_listener
 

@@ -9,6 +9,7 @@ from types import MappingProxyType
 from typing import Any, Callable, NamedTuple, Optional, Union
 
 import pandas as native_pd
+from pandas import DatetimeTZDtype
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -30,6 +31,9 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
 )
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
     SnowparkPandasType,
+)
+from snowflake.snowpark.modin.plugin._internal.type_utils import (
+    _get_timezone_from_timestamp_tz,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
     DEFAULT_DATA_COLUMN_LABEL,
@@ -554,6 +558,7 @@ class InternalFrame:
         self,
         pandas_labels: list[Hashable],
         include_index: bool = True,
+        include_data: bool = True,
     ) -> list[tuple[str, ...]]:
         """
         Map given pandas labels to names in underlying snowpark dataframe. Given labels can be data or index labels.
@@ -562,7 +567,8 @@ class InternalFrame:
 
         Args:
             pandas_labels: A list of pandas labels.
-            include_index: Include the index columns in addition to data columns, default is True.
+            include_index: Include the index columns in addition to potentially data columns, default is True.
+            include_data: Include the data columns in addition to potentially index columns, default is True.
 
         Returns:
             A list of tuples for matched identifiers. Each element of list is a tuple of str containing matched
@@ -576,7 +582,11 @@ class InternalFrame:
                 filter(
                     lambda col: to_pandas_label(col.label) == label,
                     self.label_to_snowflake_quoted_identifier[
-                        (0 if include_index else self.num_index_columns) :
+                        (0 if include_index else self.num_index_columns) : (
+                            len(self.label_to_snowflake_quoted_identifier)
+                            if include_data
+                            else self.num_index_columns
+                        )
                     ],
                 )
             )
@@ -1472,6 +1482,27 @@ class InternalFrame:
             )
         )
         return self.rename_snowflake_identifiers(renamed_quoted_identifier_mapping)
+
+    def get_datetime64tz_from_timestamp_tz(
+        self, timestamp_tz_snowfalke_quoted_identifier: str
+    ) -> DatetimeTZDtype:
+        """
+        map a snowpark timestamp type to datetime64 type.
+        """
+
+        return _get_timezone_from_timestamp_tz(
+            self.ordered_dataframe._dataframe_ref.snowpark_dataframe,
+            timestamp_tz_snowfalke_quoted_identifier,
+        )
+
+    def get_datetime64tz_from_timestamp_ltz(self) -> DatetimeTZDtype:
+        """
+        Get DatetimeTZDtype for TIMESTAMP_LTZ by reading the session local timezone.
+        """
+        tz = self.ordered_dataframe.session._conn._get_client_side_session_parameter(
+            "TIMEZONE", default_value="UTC"
+        )
+        return DatetimeTZDtype(tz=tz)
 
     # END: Internal Frame mutation APIs.
     ###########################################################################

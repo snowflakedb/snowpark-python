@@ -80,22 +80,22 @@ def test_sql_counter_with_context_manager_inside_loop():
 
 @sql_count_checker(no_check=True)
 def test_sql_counter_with_multiple_checks():
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, describe_count=1):
         df = pd.DataFrame({"a": [1, 2, 3]})
         assert len(df) == 3
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, describe_count=1):
         df = pd.DataFrame({"b": [4, 5, 6]})
         assert len(df) == 3
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, describe_count=1):
         df = pd.DataFrame({"c": [7, 8, 9]})
         assert len(df) == 3
 
 
 @sql_count_checker(no_check=True)
 def test_sql_counter_with_context_manager_outside_loop():
-    sc = SqlCounter(query_count=3)
+    sc = SqlCounter(query_count=3, describe_count=3)
     sc.__enter__()
     for _ in range(3):
         df = pd.DataFrame({"a": [1, 2, 3]})

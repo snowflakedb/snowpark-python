@@ -222,7 +222,7 @@ def test_normalize():
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 @timezones
 def test_tz_convert(tz):
     datetime_index = native_pd.DatetimeIndex(
@@ -236,7 +236,12 @@ def test_tz_convert(tz):
         tz="US/Eastern",
     )
     native_ser = native_pd.Series(datetime_index)
+    assert str(native_ser.dtype.tz) == "US/Eastern"
     snow_ser = pd.Series(native_ser)
+    # This is a great example to show the current limit of Snowpark pandas timezone, it only preserves the timezone
+    # offset and the timezone will be gone. So in this case, Snowpark pandas does not know the timezone is "US/Eastern"
+    # so it will treat it as a multi timezone offset column which results a dtype as "object".
+    assert snow_ser.dtype == "object"
     eval_snowpark_pandas_result(
         snow_ser,
         native_ser,

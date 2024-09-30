@@ -92,7 +92,7 @@ def test_standalone_api_telemetry():
     ]
     assert newdf._query_compiler.snowpark_pandas_api_calls == [
         {
-            "name": "general.to_numeric",
+            "name": "general_overrides.to_numeric",
         }
     ]
 
@@ -626,4 +626,19 @@ def test_telemetry_cache_result():
     result_df = df.cache_result()
     assert result_df._query_compiler.snowpark_pandas_api_calls == [
         {"name": "DataFrame.cache_result"},
+    ]
+
+
+@sql_count_checker(query_count=8)
+def test_telemetry_read_json(tmp_path):
+    # read_json is overridden in io_overrides.py
+    with open(tmp_path / "file.json", "w") as f:
+        f.write('{"a": [1, 2, 3]}')
+
+    df = pd.read_json(str(tmp_path / "file.json"))
+
+    assert df._query_compiler.snowpark_pandas_api_calls == [
+        {
+            "name": "io_overrides.read_json",
+        }
     ]
