@@ -48,7 +48,7 @@ def mock_snowflake_plan(mock_query) -> Analyzer:
 
 @pytest.fixture(scope="module")
 def mock_analyzer(mock_snowflake_plan) -> Analyzer:
-    def mock_resolve(x, y=None):
+    def mock_resolve(x):
         mock_snowflake_plan.source_plan = x
         return mock_snowflake_plan
 

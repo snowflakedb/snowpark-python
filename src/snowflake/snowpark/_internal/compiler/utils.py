@@ -6,7 +6,6 @@ import copy
 from typing import Dict, List, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import BinaryNode
-from snowflake.snowpark._internal.analyzer.config_context import ConfigContext
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectSnowflakePlan,
@@ -41,7 +40,7 @@ TreeNode = Union[SnowflakePlan, Selectable]
 
 
 def create_query_generator(
-    plan: SnowflakePlan, config_context: ConfigContext
+    plan: SnowflakePlan,
 ) -> QueryGenerator:
     """
     Helper function to construct the query generator for a given valid SnowflakePlan.
@@ -67,16 +66,12 @@ def create_query_generator(
         # resolved plan, and the resolve will be a no-op.
         # NOTE that here we rely on the fact that the SnowflakeCreateTable node is the root
         # of a source plan. Test will fail if that assumption is broken.
-        resolved_child = plan.session._analyzer.resolve(
-            create_table_node.query, config_context
-        )
+        resolved_child = plan.session._analyzer.resolve(create_table_node.query)
         snowflake_create_table_plan_info = SnowflakeCreateTablePlanInfo(
             create_table_node.table_name, resolved_child.attributes
         )
 
-    return QueryGenerator(
-        plan.session, config_context, snowflake_create_table_plan_info
-    )
+    return QueryGenerator(plan.session, snowflake_create_table_plan_info)
 
 
 def resolve_and_update_snowflake_plan(
