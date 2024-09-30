@@ -16,12 +16,11 @@ from snowflake.snowpark._internal.utils import (
     warning_dict,
 )
 from snowflake.snowpark.functions import col
-from tests.utils import IS_IN_STORED_PROC
 
 pytestmark = [
     pytest.mark.skipif(
-        IS_IN_STORED_PROC,
-        reason="caplog is not working in stored procedure",
+        "IS_IN_STORED_PROC or config.getoption('local_testing_mode', default=False)",
+        reason="caplog is not working in stored procedure and temp table cleaner is not working in local testing mode",
     ),
 ]
 
