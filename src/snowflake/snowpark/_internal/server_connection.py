@@ -8,6 +8,7 @@ import importlib
 import inspect
 import os
 import sys
+import threading
 import time
 from logging import getLogger
 from typing import (
@@ -257,7 +258,9 @@ class ServerConnection:
             and listener.include_describe,
             self._query_listener,
         ):
-            listener._add_query(QueryRecord(cursor.sfqid, query, True))
+            listener._add_query(
+                QueryRecord(cursor.sfqid, query, threading.get_ident(), True)
+            )
 
         return result_metadata
 
@@ -382,7 +385,9 @@ class ServerConnection:
     ) -> SnowflakeCursor:
         results_cursor = self._cursor.execute(query, **kwargs)
         self.notify_query_listeners(
-            QueryRecord(results_cursor.sfqid, results_cursor.query)
+            QueryRecord(
+                results_cursor.sfqid, results_cursor.query, threading.get_ident()
+            )
         )
         return results_cursor
 
@@ -390,7 +395,9 @@ class ServerConnection:
         self, query: str, **kwargs: Any
     ) -> Dict[str, Any]:
         results_cursor = self._cursor.execute_async(query, **kwargs)
-        self.notify_query_listeners(QueryRecord(results_cursor["queryId"], query))
+        self.notify_query_listeners(
+            QueryRecord(results_cursor["queryId"], query, threading.get_ident())
+        )
         return results_cursor
 
     def execute_and_get_sfqid(
@@ -714,7 +721,9 @@ class ServerConnection:
             )
         results_cursor = self._cursor.executemany(query, params)
         self.notify_query_listeners(
-            QueryRecord(results_cursor.sfqid, results_cursor.query)
+            QueryRecord(
+                results_cursor.sfqid, results_cursor.query, threading.get_ident()
+            )
         )
         if query_tag:
             self.execute_and_notify_query_listener("alter session unset query_tag")

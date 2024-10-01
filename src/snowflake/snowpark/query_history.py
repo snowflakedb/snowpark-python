@@ -12,6 +12,7 @@ class QueryRecord(NamedTuple):
 
     query_id: str
     sql_text: str
+    thread_id: int
     is_describe: bool = False
 
 
