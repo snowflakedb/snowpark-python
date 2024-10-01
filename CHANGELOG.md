@@ -13,10 +13,9 @@
 - Added support for `DataFrameGroupBy.fillna` and `SeriesGroupBy.fillna`.
 - Added support for constructing `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` arguments.
 - Added support for constructing `Series` and `DataFrame` objects with `index` and `column` values not present in `DataFrame`/`Series` `data`.
-
-#### Improvements
-
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
+- 
+#### Improvements
 
 #### Bug Fixes
 
