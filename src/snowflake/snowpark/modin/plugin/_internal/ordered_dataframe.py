@@ -335,6 +335,7 @@ class OrderedDataFrame:
         return row_number().over(Window.order_by(self._ordering_snowpark_columns())) - 1
 
     @cached_property
+    # @property
     def projected_column_snowflake_quoted_identifiers(self) -> list[str]:
         """
         Returns:
@@ -508,7 +509,9 @@ class OrderedDataFrame:
 
         """
 
-        column_quoted_identifiers = self.projected_column_snowflake_quoted_identifiers
+        column_quoted_identifiers = (
+            self.projected_column_snowflake_quoted_identifiers.copy()
+        )
         if include_ordering_columns:
             extra_ordering_column_quoted_identifiers = [
                 quoted_identifier
