@@ -4,14 +4,17 @@
 
 import inspect
 from typing import Union
+from unittest import mock
 
 import pytest
 
+import snowflake.snowpark
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.analyzer.table_function import (
     NamedArgumentsTableFunction,
     PosArgumentsTableFunction,
 )
+from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.functions import (
     approx_percentile,
     approx_percentile_accumulate,
@@ -24,12 +27,14 @@ from snowflake.snowpark.functions import (
     get_ignore_case,
     get_path,
     lit,
+    map,
     object_keys,
     sha2,
     typeof,
     xmlget,
 )
 from snowflake.snowpark.table_function import _create_table_function_expression
+from snowflake.snowpark.types import IntegerType, StringType, StructField, StructType
 
 
 @pytest.mark.parametrize(
@@ -131,3 +136,51 @@ def test_functions_alias():
     assert functions.expr == functions.sql_expr
     assert functions.monotonically_increasing_id == functions.seq8
     assert functions.from_unixtime == functions.to_timestamp
+
+
+def test_map():
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+
+    def generated_udtf(*args, **kwargs):
+        return lambda *arguments: args[0]()
+
+    with mock.patch(
+        "snowflake.snowpark.DataFrame.join_table_function",
+        return_value=mock.MagicMock(),
+    ) as join_table_func_mock, mock.patch(
+        "snowflake.snowpark.DataFrame.columns", new_callable=mock.PropertyMock
+    ) as columns, mock.patch(
+        "snowflake.snowpark.udtf.UDTFRegistration.register", side_effect=generated_udtf
+    ) as register_mock:
+        columns.return_value = ["i", "n"]
+        df1 = session.create_dataframe(
+            [[1, "x"], [3, None]],
+            schema=StructType(
+                [StructField("i", IntegerType()), StructField("n", StringType())]
+            ),
+        )
+        columns.return_value = ["i", "n"]
+        map(df1, lambda row: row[1], output_types=[StringType()])
+
+        assert register_mock.call_count == 1
+        handler = join_table_func_mock.mock_calls[0].args[0]
+        assert list(handler.process(1, "x")) == [("x",)]
+
+        df2 = session.create_dataframe(
+            [["x"], ["y"]], schema=StructType([StructField("C_1", StringType())])
+        )
+        columns.return_value = ["C_1"]
+        map(df2, lambda r: (r, r), output_types=[StringType()], wrap_row=False)
+
+        assert register_mock.call_count == 2
+        handler = join_table_func_mock.mock_calls[1].args[0]
+        assert list(handler.process("x")) == [("x", "x")]
+
+        columns.return_value = ["i", "n"]
+        map(df1, lambda r: snowflake.snowpark.Row(r[1], 1), output_types=[StringType()])
+
+        assert register_mock.call_count == 3
+        handler = join_table_func_mock.mock_calls[2].args[0]
+        assert list(handler.process(1, "x")) == [("x", 1)]
