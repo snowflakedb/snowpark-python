@@ -356,6 +356,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         filename: name of the file to save the image plot.
     """
     import os
+
     if (
         os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING", "false").lower()
         != "true"
