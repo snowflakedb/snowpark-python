@@ -103,7 +103,7 @@ from modin.core.execution.dispatching.factories import (  # isort: skip  # noqa:
     factories as modin_factories,
 )
 
-from snowflake.snowpark.modin.core.execution.dispatching.factories.factories import (  # isort: skip  # noqa: E402
+from snowflake.snowpark.modin.plugin.io.factories import (  # isort: skip  # noqa: E402
     PandasOnSnowflakeFactory,
 )
 
@@ -189,17 +189,6 @@ if "modin.pandas" in sys.modules:
 # Upstream modin does not re-export the offsets module, so we need to do so here
 register_pd_accessor("offsets")(pandas.offsets)
 
-# TODO: SNOW-1473605 https://github.com/modin-project/modin/issues/7233
-# Upstream Modin does not properly render property names in default2pandas warnings, so we need
-# to override DefaultMethod.register.
-# This is fixed in Modin 0.30.0.
-import modin.core.dataframe.algebra.default2pandas  # type: ignore  # noqa: E402
-
-import snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.default  # noqa: E402
-
-modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register = (
-    snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register
-)
 
 # Don't warn the user about our internal usage of private preview pivot
 # features. The user should have already been warned that Snowpark pandas
