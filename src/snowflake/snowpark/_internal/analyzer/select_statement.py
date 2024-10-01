@@ -190,21 +190,21 @@ class ColumnStateDict(UserDict):
 
 
 def _deepcopy_selectable_fields(
-    from_selectable: "Selectable", to_selectable: "Selectable"
+    from_selectable: "Selectable", to_selectable: "Selectable", memodict
 ) -> None:
     """
     Make a deep copy of the fields from the from_selectable to the to_selectable
     """
-    to_selectable.pre_actions = deepcopy(from_selectable.pre_actions)
-    to_selectable.post_actions = deepcopy(from_selectable.post_actions)
+    to_selectable.pre_actions = deepcopy(from_selectable.pre_actions, memodict)
+    to_selectable.post_actions = deepcopy(from_selectable.post_actions, memodict)
     to_selectable.flatten_disabled = from_selectable.flatten_disabled
-    to_selectable._column_states = deepcopy(from_selectable._column_states)
-    to_selectable.expr_to_alias = deepcopy(from_selectable.expr_to_alias)
+    to_selectable._column_states = deepcopy(from_selectable._column_states, memodict)
+    to_selectable.expr_to_alias = deepcopy(from_selectable.expr_to_alias, memodict)
     to_selectable.df_aliased_col_name_to_real_col_name = deepcopy(
-        from_selectable.df_aliased_col_name_to_real_col_name
+        from_selectable.df_aliased_col_name_to_real_col_name, memodict
     )
     to_selectable._cumulative_node_complexity = deepcopy(
-        from_selectable._cumulative_node_complexity
+        from_selectable._cumulative_node_complexity, memodict
     )
     # the snowflake plan for selectable typically point to self by default,
     # to avoid run into recursively copy problem, we do not copy the _snowflake_plan
@@ -402,9 +402,17 @@ class SelectableEntity(Selectable):
         super().__init__(analyzer)
         self.entity = entity
 
-    def __deepcopy__(self, memodict={}) -> "SelectableEntity":  # noqa: B006
-        copied = SelectableEntity(deepcopy(self.entity), analyzer=self.analyzer)
-        _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
+    def __deepcopy__(self, memodict=None) -> "SelectableEntity":  # noqa: B006
+        if memodict is None:
+            memodict = {}
+        if (self_id := id(self)) in memodict:
+            return memodict[self_id]
+        copied = SelectableEntity(
+            deepcopy(self.entity, memodict), analyzer=self.analyzer
+        )
+        _deepcopy_selectable_fields(
+            from_selectable=self, to_selectable=copied, memodict=memodict
+        )
 
         return copied
 
@@ -474,7 +482,11 @@ class SelectSQL(Selectable):
             self._schema_query = sql
             self._query_param = params
 
-    def __deepcopy__(self, memodict={}) -> "SelectSQL":  # noqa: B006
+    def __deepcopy__(self, memodict=None) -> "SelectSQL":  # noqa: B006
+        if memodict is None:
+            memodict = {}
+        if (self_id := id(self)) in memodict:
+            return memodict[self_id]
         copied = SelectSQL(
             sql=self.original_sql,
             # when convert_to_select is True, a describe call might be triggered
@@ -483,14 +495,16 @@ class SelectSQL(Selectable):
             # object construct, and correct the fields after.
             convert_to_select=False,
             analyzer=self.analyzer,
-            params=deepcopy(self.query_params),
+            params=deepcopy(self.query_params, memodict),
         )
-        _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
+        _deepcopy_selectable_fields(
+            from_selectable=self, to_selectable=copied, memodict=memodict
+        )
         # copy over the other fields
         copied.convert_to_select = self.convert_to_select
         copied._sql_query = self._sql_query
         copied._schema_query = self._schema_query
-        copied._query_param = deepcopy(self._query_param)
+        copied._query_param = deepcopy(self._query_param, memodict)
 
         return copied
 
@@ -566,12 +580,19 @@ class SelectSnowflakePlan(Selectable):
             if query.params:
                 self._query_params.extend(query.params)
 
-    def __deepcopy__(self, memodict={}) -> "SelectSnowflakePlan":  # noqa: B006
+    def __deepcopy__(self, memodict=None) -> "SelectSnowflakePlan":  # noqa: B006
+        if memodict is None:
+            memodict = {}
+        if (self_id := id(self)) in memodict:
+            return memodict[self_id]
         copied = SelectSnowflakePlan(
-            snowflake_plan=deepcopy(self._snowflake_plan), analyzer=self.analyzer
+            snowflake_plan=deepcopy(self._snowflake_plan, memodict),
+            analyzer=self.analyzer,
         )
-        _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
-        copied._query_params = deepcopy(self._query_params)
+        _deepcopy_selectable_fields(
+            from_selectable=self, to_selectable=copied, memodict=memodict
+        )
+        copied._query_params = deepcopy(self._query_params, memodict)
         return copied
 
     @property
@@ -691,27 +712,33 @@ class SelectStatement(Selectable):
 
         return new
 
-    def __deepcopy__(self, memodict={}) -> "SelectStatement":  # noqa: B006
+    def __deepcopy__(self, memodict=None) -> "SelectStatement":  # noqa: B006
+        if memodict is None:
+            memodict = {}
+        if (self_id := id(self)) in memodict:
+            return memodict[self_id]
         copied = SelectStatement(
-            projection=deepcopy(self.projection),
-            from_=deepcopy(self.from_),
-            where=deepcopy(self.where),
-            order_by=deepcopy(self.order_by),
-            limit_=deepcopy(self.limit_),
+            projection=deepcopy(self.projection, memodict),
+            from_=deepcopy(self.from_, memodict),
+            where=deepcopy(self.where, memodict),
+            order_by=deepcopy(self.order_by, memodict),
+            limit_=deepcopy(self.limit_, memodict),
             offset=self.offset,
             analyzer=self.analyzer,
             # directly copy the current schema fields
             schema_query=self._schema_query,
         )
 
-        _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
+        _deepcopy_selectable_fields(
+            from_selectable=self, to_selectable=copied, memodict=memodict
+        )
         copied._projection_in_str = self._projection_in_str
-        copied._query_params = deepcopy(self._query_params)
+        copied._query_params = deepcopy(self._query_params, memodict)
         copied._merge_projection_complexity_with_subquery = (
             self._merge_projection_complexity_with_subquery
         )
         copied._projection_complexities = (
-            deepcopy(self._projection_complexities)
+            deepcopy(self._projection_complexities, memodict)
             if not self._projection_complexities
             else None
         )
@@ -1302,14 +1329,20 @@ class SelectTableFunction(Selectable):
         self.post_actions = self._snowflake_plan.post_actions
         self._api_calls = self._snowflake_plan.api_calls
 
-    def __deepcopy__(self, memodict={}) -> "SelectTableFunction":  # noqa: B006
+    def __deepcopy__(self, memodict=None) -> "SelectTableFunction":  # noqa: B006
+        if memodict is None:
+            memodict = {}
+        if (self_id := id(self)) in memodict:
+            return memodict[self_id]
         copied = SelectTableFunction(
-            func_expr=deepcopy(self.func_expr),
-            snowflake_plan=deepcopy(self._snowflake_plan),
+            func_expr=deepcopy(self.func_expr, memodict),
+            snowflake_plan=deepcopy(self._snowflake_plan, memodict),
             analyzer=self.analyzer,
         )
         # copy over the other selectable fields, the snowflake plan has already been set correctly.
-        _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
+        _deepcopy_selectable_fields(
+            from_selectable=self, to_selectable=copied, memodict=memodict
+        )
 
         return copied
 
@@ -1371,9 +1404,17 @@ class SetStatement(Selectable):
                         self.post_actions.append(copy(action))
             self._nodes.append(operand.selectable)
 
-    def __deepcopy__(self, memodict={}) -> "SetStatement":  # noqa: B006
-        copied = SetStatement(*deepcopy(self.set_operands), analyzer=self.analyzer)
-        _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
+    def __deepcopy__(self, memodict=None) -> "SetStatement":  # noqa: B006
+        if memodict is None:
+            memodict = {}
+        if (self_id := id(self)) in memodict:
+            return memodict[self_id]
+        copied = SetStatement(
+            *deepcopy(self.set_operands, memodict), analyzer=self.analyzer
+        )
+        _deepcopy_selectable_fields(
+            from_selectable=self, to_selectable=copied, memodict=memodict
+        )
         copied._placeholder_query = self._placeholder_query
         copied._sql_query = self._sql_query
 
