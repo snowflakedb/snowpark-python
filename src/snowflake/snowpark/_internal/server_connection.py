@@ -258,9 +258,10 @@ class ServerConnection:
             and listener.include_describe,
             self._query_listener,
         ):
-            listener._add_query(
-                QueryRecord(cursor.sfqid, query, threading.get_ident(), True)
-            )
+            query_record = QueryRecord(cursor.sfqid, query, True)
+            if listener.include_thread_id:
+                query_record.thread_id = threading.get_ident()
+            listener._add_query(query_record)
 
         return result_metadata
 
@@ -378,16 +379,22 @@ class ServerConnection:
 
     def notify_query_listeners(self, query_record: QueryRecord) -> None:
         for listener in self._query_listener:
-            listener._add_query(query_record)
+            if listener.include_thread_id:
+                new_record = QueryRecord(
+                    query_record.query_id,
+                    query_record.sql_text,
+                    thread_id=threading.get_ident(),
+                )
+                listener._add_query(new_record)
+            else:
+                listener._add_query(query_record)
 
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
         results_cursor = self._cursor.execute(query, **kwargs)
         self.notify_query_listeners(
-            QueryRecord(
-                results_cursor.sfqid, results_cursor.query, threading.get_ident()
-            )
+            QueryRecord(results_cursor.sfqid, results_cursor.query)
         )
         return results_cursor
 
@@ -395,9 +402,7 @@ class ServerConnection:
         self, query: str, **kwargs: Any
     ) -> Dict[str, Any]:
         results_cursor = self._cursor.execute_async(query, **kwargs)
-        self.notify_query_listeners(
-            QueryRecord(results_cursor["queryId"], query, threading.get_ident())
-        )
+        self.notify_query_listeners(QueryRecord(results_cursor["queryId"], query))
         return results_cursor
 
     def execute_and_get_sfqid(
@@ -721,9 +726,7 @@ class ServerConnection:
             )
         results_cursor = self._cursor.executemany(query, params)
         self.notify_query_listeners(
-            QueryRecord(
-                results_cursor.sfqid, results_cursor.query, threading.get_ident()
-            )
+            QueryRecord(results_cursor.sfqid, results_cursor.query)
         )
         if query_tag:
             self.execute_and_notify_query_listener("alter session unset query_tag")

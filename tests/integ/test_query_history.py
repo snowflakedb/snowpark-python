@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ALL_COMPLETED, ThreadPoolExecutor, wait
 
 import pytest
 
@@ -146,10 +146,13 @@ def test_query_history_executemany(session, use_scoped_temp_objects):
 
 
 def test_query_history_with_multi_thread(session):
-    with session.query_history() as query_history:
+    works = []
+    with session.query_history(include_thread_id=True) as query_history:
         with ThreadPoolExecutor(max_workers=2) as tpe:
             for _ in range(6):
-                tpe.submit(multi_thread_helper_function, session)
+                future = tpe.submit(multi_thread_helper_function, session)
+                works.append(future)
+            _, _ = wait(works, return_when=ALL_COMPLETED)
     thread_numbers = set()
     for query in query_history.queries:
         assert query.sql_text.split(" ")[-1] == str(query.thread_id)
@@ -158,7 +161,7 @@ def test_query_history_with_multi_thread(session):
 
 
 def test_query_history_without_multi_thread(session):
-    with session.query_history() as query_history:
+    with session.query_history(include_thread_id=True) as query_history:
         for _ in range(5):
             multi_thread_helper_function(session)
     thread_numbers = set()

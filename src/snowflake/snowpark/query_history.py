@@ -12,8 +12,8 @@ class QueryRecord(NamedTuple):
 
     query_id: str
     sql_text: str
-    thread_id: int
     is_describe: bool = False
+    thread_id: int = None
 
 
 class QueryHistory:
@@ -27,10 +27,12 @@ class QueryHistory:
         self,
         session: "snowflake.snowpark.session.Session",
         include_describe: bool = False,
+        include_thread_id: bool = False,
     ) -> None:
         self.session = session
         self._queries: List[QueryRecord] = []
         self._include_describe = include_describe
+        self._include_thread_id = include_thread_id
 
     def __enter__(self):
         return self
@@ -48,3 +50,7 @@ class QueryHistory:
     @property
     def include_describe(self) -> bool:
         return self._include_describe
+
+    @property
+    def include_thread_id(self) -> bool:
+        return self._include_thread_id
