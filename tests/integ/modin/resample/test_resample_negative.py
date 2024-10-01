@@ -13,7 +13,7 @@ from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     UNSUPPORTED_DATEOFFSET_STRINGS,
 )
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
 
 @pytest.mark.parametrize("index_col", [["datecol", "B"], ["A", "B"], ["A"]])
@@ -168,3 +168,13 @@ def test_resample_tz_negative():
         match="Cannot subtract tz-naive and tz-aware datetime-like objects.",
     ):
         snow_df.resample("2D").min()
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="SNOW-1704430")
+def test_resample_sum_timedelta_with_duplicate_column_label_changes_type_to_int():
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            [[pd.Timedelta(1), 2]], columns=["a", "a"], index=[pd.Timestamp(1)]
+        ),
+        lambda df: df.resample("1s").sum(),
+    )
