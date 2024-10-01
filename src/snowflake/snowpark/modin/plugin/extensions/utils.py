@@ -594,8 +594,8 @@ T = TypeVar("T", bound=Callable[..., Any])
 def propagate_self_attrs(method: T) -> T:
     """
     Wrap a BasePandasDataset/DataFrame/Series method with a function that automatically deep-copies self.attrs if present.
-    This annotation should not be used on special methods like concat, str, and groupby, which may need to
-    examine multiple sources to reconcile `attrs`.
+
+    This should be applied to all non-property methods.
 
     Parameters
     ----------
@@ -604,6 +604,7 @@ def propagate_self_attrs(method: T) -> T:
 
     Returns
     -------
+    T
         The original method wrapped to propagate the `attrs` field to the result if necessary.
     """
 
