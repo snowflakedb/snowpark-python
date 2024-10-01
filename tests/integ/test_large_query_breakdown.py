@@ -484,9 +484,10 @@ def test_plotter(session, large_query_df, enabled):
             if not enabled:
                 return
 
-            assert mock_render.call_count == 4
+            assert mock_render.call_count == 5
             expected_files = [
                 "original_plan",
+                "deep_copied_plan",
                 "cte_optimized_plan_0",
                 "large_query_breakdown_plan_0",
                 "large_query_breakdown_plan_1",
