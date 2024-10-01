@@ -382,6 +382,7 @@ def eval_snowpark_pandas_result(
     # For general snowpark pandas api evaluation, we want to focus on the evaluation of the result
     # shape and values, the type mapping will be tested separately (SNOW-841273).
     comparator: Callable = assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    test_attrs: bool = True,
     inplace: bool = False,
     expect_exception: bool = False,
     expect_exception_type: type[Exception] | None = None,
@@ -398,6 +399,8 @@ def eval_snowpark_pandas_result(
         operation: Callable. The operation to be applied on the Snowpark pandas and pandas object
         comparator: Callable. Function used to perform the comparison, which must be in format of
                                 comparator(snowpark_pandas_res, pandas_res, **key_words)
+        test_attrs: bool. If True and the operation returns a DF/Series, sets `attrs` on the input
+            to a sentinel value and ensures the output DF/Series has the same `attrs`.
         inplace: bool. Whether the operation is an inplace operation or not
         expect_exception: tuple of an Exception type. do we expect an exception during the operation
         expect_exception_type: if not None, assert the exception type is expected
@@ -449,12 +452,25 @@ def eval_snowpark_pandas_result(
                 == snow_err_msg[: snow_err_msg.index("dtype")]
             ), f"Snowpark pandas Exception {snow_e.value} doesn't match pandas Exception {pd_e.value}"
     else:
+        test_attrs_dict = {"key": "attrs propagation test"}
+        if test_attrs:
+            native_pandas.attrs = test_attrs_dict
+            snow_pandas.attrs = test_attrs_dict
         pd_result = operation(native_pandas)
         snow_result = operation(snow_pandas)
         if inplace:
             pd_result = native_pandas
             snow_result = snow_pandas
-
+        if test_attrs and isinstance(snow_pandas, (Series, DataFrame)):
+            if len(pd_result.attrs) == 0:
+                # If the native result's attrs was empty, the snow result's attrs should be empty
+                # i.e. attrs should not have been propagated.
+                assert (
+                    snow_result.attrs == {}
+                ), "attrs on Snowpark pandas result was not empty"
+            else:
+                # Check that attrs was properly propagated.
+                assert snow_result.attrs == pd_result.attrs
         comparator(snow_result, pd_result, **(kwargs or {}))
 
 
