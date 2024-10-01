@@ -1176,12 +1176,15 @@ class DataFrame:
         return snowpandas_df
 
     def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
+
+        _emit_ast = self._ast_id is not None
+
         if isinstance(item, str):
-            return self.col(item)
+            return self.col(item, _emit_ast=_emit_ast)
         elif isinstance(item, Column):
-            return self.filter(item)
+            return self.filter(item, _emit_ast=_emit_ast)
         elif isinstance(item, (list, tuple)):
-            return self.select(item)
+            return self.select(item, _emit_ast=_emit_ast)
         elif isinstance(item, int):
             return self.__getitem__(self.columns[item])
         else:
