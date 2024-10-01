@@ -381,7 +381,7 @@ class ServerConnection:
 
     def notify_query_listeners(self, query_record: QueryRecord) -> None:
         for listener in self._query_listener:
-            if listener.include_thread_id:
+            if getattr(listener, "include_thread_id", False):
                 new_record = QueryRecord(
                     query_record.query_id,
                     query_record.sql_text,
