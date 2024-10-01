@@ -53,7 +53,7 @@ def test_profiler_with_profiler_class(
     def table_sp(session: snowflake.snowpark.Session) -> DataFrame:
         return session.sql("select 1")
 
-    pro = profiler_session.profiler
+    pro = profiler_session.stored_procedure_profiler
     pro.register_modules(["table_sp"])
     pro.set_targeted_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
@@ -83,19 +83,19 @@ def test_single_return_value_of_sp(
     def single_value_sp(session: snowflake.snowpark.Session) -> str:
         return "success"
 
-    profiler_session.profiler.register_modules(["single_value_sp"])
-    profiler_session.profiler.set_targeted_stage(
+    profiler_session.stored_procedure_profiler.register_modules(["single_value_sp"])
+    profiler_session.stored_procedure_profiler.set_targeted_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
     )
 
-    profiler_session.profiler.set_active_profiler("LINE")
+    profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
 
     profiler_session.call("single_value_sp")
-    res = profiler_session.profiler.collect()
+    res = profiler_session.stored_procedure_profiler.collect()
 
-    profiler_session.profiler.disable()
+    profiler_session.stored_procedure_profiler.disable()
 
-    profiler_session.profiler.register_modules([])
+    profiler_session.stored_procedure_profiler.register_modules([])
     assert res is not None
     assert "Modules Profiled" in res
 
@@ -112,25 +112,27 @@ def test_anonymous_procedure(
 
     single_value_sp = profiler_session.sproc.register(single_value_sp, anonymous=True)
 
-    profiler_session.profiler.set_targeted_stage(
+    profiler_session.stored_procedure_profiler.set_targeted_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
     )
 
-    profiler_session.profiler.set_active_profiler("LINE")
+    profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
 
     single_value_sp()
-    res = profiler_session.profiler.collect()
+    res = profiler_session.stored_procedure_profiler.collect()
 
-    profiler_session.profiler.disable()
+    profiler_session.stored_procedure_profiler.disable()
 
-    profiler_session.profiler.register_modules([])
+    profiler_session.stored_procedure_profiler.register_modules([])
     assert res is not None
     assert "Modules Profiled" in res
 
 
 def test_set_incorrect_active_profiler(profiler_session):
     with pytest.raises(ValueError) as e:
-        profiler_session.profiler.set_active_profiler("wrong_active_profiler")
+        profiler_session.stored_procedure_profiler.set_active_profiler(
+            "wrong_active_profiler"
+        )
     assert "active_profiler expect 'LINE', 'MEMORY' or empty string ''" in str(e)
 
 
@@ -147,24 +149,24 @@ def test_dump_profile_to_file(
         return "success"
 
     single_value_sp = profiler_session.sproc.register(single_value_sp, anonymous=True)
-    profiler_session.profiler.set_targeted_stage(
+    profiler_session.stored_procedure_profiler.set_targeted_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
     )
 
-    profiler_session.profiler.set_active_profiler("LINE")
+    profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
 
     single_value_sp()
-    profiler_session.profiler.dump(file)
+    profiler_session.stored_procedure_profiler.dump(file)
 
-    profiler_session.profiler.disable()
+    profiler_session.stored_procedure_profiler.disable()
 
-    profiler_session.profiler.register_modules([])
+    profiler_session.stored_procedure_profiler.register_modules([])
     with open(file) as f:
         assert "Modules Profiled" in f.read()
 
 
 def test_sp_call_match(profiler_session):
-    pro = profiler_session.profiler
+    pro = profiler_session.stored_procedure_profiler
     sp_call_sql = """WITH myProcedure AS PROCEDURE ()
   RETURNS TABLE ( )
   LANGUAGE PYTHON

@@ -604,7 +604,7 @@ class Session:
         self._conf = self.RuntimeConfig(self, options or {})
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
-        self.profiler = StoredProcedureProfiler(session=self)
+        self.stored_procedure_profiler = StoredProcedureProfiler(session=self)
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
