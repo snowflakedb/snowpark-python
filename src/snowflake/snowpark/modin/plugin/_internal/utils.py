@@ -1902,11 +1902,12 @@ def append_columns(
         column_objects
     ), f"The number of column identifiers ({len(column_identifiers)}) is not equal to the number of column objects ({len(column_objects)})"
 
+    existing_columns = df.projected_column_snowflake_quoted_identifiers
     new_columns = [
         column_object.as_(column_identifier)
         for column_identifier, column_object in zip(column_identifiers, column_objects)
     ]
-    return df.select("*", *new_columns)
+    return df.select(*existing_columns, *new_columns)
 
 
 def cache_result(ordered_dataframe: OrderedDataFrame) -> OrderedDataFrame:
