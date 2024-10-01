@@ -26,7 +26,12 @@ pytestmark = [
         "config.getoption('local_testing_mode', default=False)",
         reason="CTE is a SQL feature",
         run=False,
-    )
+    ),
+    pytest.mark.skipif(
+        (not installed_pandas),
+        reason="SQL Counter requires pandas",
+        run=False,
+    ),
 ]
 
 binary_operations = [
