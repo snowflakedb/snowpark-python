@@ -120,7 +120,6 @@ Engine.put("Snowflake")
 # calling self.index[].
 from snowflake.snowpark.modin.plugin.utils.frontend_constants import (  # isort: skip  # noqa: E402,F401
     _ATTRS_NO_LOOKUP,
-    PROPAGATE_SELF_ATTRS_METHODS,
 )
 from snowflake.snowpark.modin.plugin.extensions.utils import (  # isort: skip  # noqa: E402
     propagate_self_attrs,
@@ -152,7 +151,7 @@ for attr_name in dir(Series):
     # or overridden by extension.
     if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
         attr_value = getattr(Series, attr_name)
-        if attr_name in PROPAGATE_SELF_ATTRS_METHODS:
+        if not isinstance(attr_value, property):
             attr_value = propagate_self_attrs(attr_value)
         register_series_accessor(attr_name)(
             try_add_telemetry_to_attribute(attr_name, attr_value)
@@ -163,7 +162,7 @@ for attr_name in dir(DataFrame):
     # or overridden by extension.
     if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
         attr_value = getattr(DataFrame, attr_name)
-        if attr_name in PROPAGATE_SELF_ATTRS_METHODS:
+        if not isinstance(attr_value, property):
             attr_value = propagate_self_attrs(attr_value)
         register_dataframe_accessor(attr_name)(
             try_add_telemetry_to_attribute(attr_name, attr_value)
