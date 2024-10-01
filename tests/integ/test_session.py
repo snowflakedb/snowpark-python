@@ -679,19 +679,20 @@ def test_sql_simplifier_disabled_on_session(db_parameters):
     reason="reading server side parameter is not supported in local testing",
 )
 def test_cte_optimization_enabled_on_session(db_parameters):
+    default_value = True
     with Session.builder.configs(db_parameters).create() as new_session:
-        assert new_session.cte_optimization_enabled is False
-        new_session.cte_optimization_enabled = True
-        assert new_session.cte_optimization_enabled is True
-        new_session.cte_optimization_enabled = False
-        assert new_session.cte_optimization_enabled is False
+        assert new_session.cte_optimization_enabled is default_value
+        new_session.cte_optimization_enabled = not default_value
+        assert new_session.cte_optimization_enabled is not default_value
+        new_session.cte_optimization_enabled = default_value
+        assert new_session.cte_optimization_enabled is default_value
 
     parameters = db_parameters.copy()
     parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING: True
+        _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING: not default_value
     }
     with Session.builder.configs(parameters).create() as new_session2:
-        assert new_session2.cte_optimization_enabled is True
+        assert new_session2.cte_optimization_enabled is not default_value
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
