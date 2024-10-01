@@ -183,7 +183,7 @@ jobs:
         os:
           - image_name: ubuntu-latest-64-cores
             download_name: linux
-        pandas-version: ["2.2.1", "2.2.2"]
+        pandas-version: ["2.2.1", "2.2.2", "2.2.3"]
         python-version: ["3.9"]
         cloud-provider: [aws]
     steps:
