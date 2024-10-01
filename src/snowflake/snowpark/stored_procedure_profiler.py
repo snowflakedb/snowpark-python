@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import re
+import threading
 from typing import List
 
 import snowflake.snowpark
@@ -99,11 +100,14 @@ class StoredProcedureProfiler:
         return re.match(self.pattern, query, re.DOTALL) is not None
 
     def _get_last_query_id(self):
+        current_thread = threading.get_ident()
         for query in self.query_history.queries[::-1]:
-            if query.sql_text.upper().startswith("CALL") or self._is_sp_call(
-                query.sql_text
-            ):
-                return query.query_id
+            query_thread = getattr(query, "thread_id", None)
+            if query_thread is None or query_thread == current_thread:
+                if query.sql_text.upper().startswith("CALL") or self._is_sp_call(
+                    query.sql_text
+                ):
+                    return query.query_id
         return None
 
     def show(self) -> None:
