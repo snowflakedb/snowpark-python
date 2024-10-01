@@ -941,6 +941,11 @@ class DataFrame:
         if _emit_ast:
             raise NotImplementedError("TODO SNOW-1672576: Support to_pandas.")
 
+            self._session._ast_batch.eval(repr)
+
+            # Flush the AST and encode it as part of the query.
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+
         with open_telemetry_context_manager(self.to_pandas, self):
             result = self._session._conn.execute(
                 self._plan,
