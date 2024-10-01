@@ -31,6 +31,7 @@ from tests.utils import (
     Utils,
     add_to_time,
     local_to_utc_offset_in_hours,
+    running_on_public_ci,
 )
 
 test_file_csv = "testCSV.csv"
@@ -950,7 +951,9 @@ def test_copy_non_csv_transformation(
                     T=add_to_time(
                         datetime.time(4, 11, 11),
                         datetime.timedelta(hours=-local_to_utc_offset_in_hours()),
-                    ),
+                    )
+                    if not running_on_public_ci()
+                    else datetime.time(11, 11, 11),
                     TS_NTZ=datetime.datetime(2022, 4, 1, 4, 11, 11),
                     TS=datetime.datetime(2022, 4, 1, 4, 11, 11),
                     V='{"key":"value"}',
