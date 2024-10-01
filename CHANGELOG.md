@@ -16,7 +16,7 @@
 
 #### Improvements
 
-- Added thread id to query_history.
+- Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
 
 #### Bug Fixes
 
