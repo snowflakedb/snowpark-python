@@ -95,6 +95,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     ViewType,
 )
 from snowflake.snowpark._internal.ast_utils import (
+    _set_fn_name,
     build_expr_from_python_val,
     build_expr_from_snowpark_column,
     build_expr_from_snowpark_column_or_col_name,
@@ -3276,13 +3277,15 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_join_table_function, stmt)
             self.set_ast_ref(ast.lhs)
+            apply_expr = ast.apply_expr
 
+            # DO NOT SUBMIT. Make this a build_table_fn_apply call (after fixing that API)
             if isinstance(func, str):
-                ast.func_name.value = func
-            elif isinstance(func, list):
-                ast.func_name.list_val.vs.add_all(func)
+                _set_fn_name(str, apply_expr.fn.indirect_fn_name_call)
+            elif isinstance(func, Iterable):
+                _set_fn_name(str, apply_expr.fn.indirect_fn_name_call)
             elif isinstance(func, TableFunctionCall):
-                build_expr_from_snowpark_column(ast.func_name, func)
+                apply_expr.fn.indirect_table_fn_call_ref.id.bitfield1 = func._ast_id
             else:
                 raise TypeError(f"Invalid input type for table function: {type(func)}")
 
