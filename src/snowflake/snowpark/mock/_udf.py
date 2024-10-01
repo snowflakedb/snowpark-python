@@ -185,7 +185,7 @@ class MockUDFRegistration(UDFRegistration):
         if udf_name in self._registry and if_not_exists:
             ans = self._registry[udf_name]
             ans._ast = ast
-            ans._ast_id = stmt.var_id.bitfield1
+            ans._ast_id = stmt.var_id.bitfield1 if stmt else None
             return ans
 
         if udf_name in self._registry and not replace:
