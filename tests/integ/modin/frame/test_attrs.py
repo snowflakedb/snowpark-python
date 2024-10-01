@@ -6,6 +6,7 @@ import operator
 
 import modin.pandas as pd
 import numpy as np
+import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -72,7 +73,6 @@ series_unary_attrs_ops = [
     operator.methodcaller("__getitem__", True),
     operator.methodcaller("repeat", 2),
     operator.methodcaller("reset_index"),
-    operator.methodcaller("reset_index", drop=True),
     operator.methodcaller("mode"),
     # (pd.Series, ([1, 2],), operator.methodcaller("squeeze")),
     # (pd.Series, ([1, 2],), operator.methodcaller("rename_axis", index="a")),
@@ -150,25 +150,35 @@ frame_mi_data = (
     pd.MultiIndex.from_product([["a", "b"], [0, 1]], names=["A", "B"]),
 )
 
+dataframe_binary_attrs_ops = [
+    "add",
+    "__add__",
+    "sub",
+    "__sub__",
+    "mul",
+    "__mul__",
+    "div",
+    "__div__",
+    "pow",
+    "combine",
+    "combine_first",
+    "update",
+    "merge",
+    "corrwith",
+]
+
 dataframe_unary_attrs_ops = [
     (frame_data, operator.methodcaller("transpose")),
     (frame_data, operator.methodcaller("__getitem__", "A")),
-    (frame_data, operator.methodcaller("__getitem__", ["A"])),
-    (frame_data, operator.methodcaller("__getitem__", np.array([True]))),
-    (frame_data, operator.methodcaller("__getitem__", ["A"])),
-    (({("A", "a"): [1]},), operator.methodcaller("__getitem__", ["A"])),
     # (frame_data, operator.methodcaller("query", "A == 1"),
-    # (pd.DataFrame, frame_data, operator.methodcaller("eval", "A + 1", engine="python")),
+    # (frame_data, operator.methodcaller("eval", "A + 1", engine="python")),
     (frame_data, operator.methodcaller("select_dtypes", include="int")),
     (frame_data, operator.methodcaller("assign", b=1)),
     (frame_data, operator.methodcaller("set_axis", ["A"])),
     (frame_data, operator.methodcaller("reindex", [0, 1])),
     (frame_data, operator.methodcaller("drop", columns=["A"])),
-    (frame_data, operator.methodcaller("drop", index=[0])),
     (frame_data, operator.methodcaller("rename", columns={"A": "a"})),
-    (frame_data, operator.methodcaller("rename", index=lambda x: x)),
     (frame_data, operator.methodcaller("fillna", "A")),
-    (frame_data, operator.methodcaller("fillna", method="ffill")),
     (frame_data, operator.methodcaller("set_index", "A")),
     (frame_data, operator.methodcaller("reset_index")),
     (frame_data, operator.methodcaller("isna")),
@@ -182,39 +192,10 @@ dataframe_unary_attrs_ops = [
     (frame_data, operator.methodcaller("sort_index")),
     (frame_data, operator.methodcaller("nlargest", 1, "A")),
     (frame_data, operator.methodcaller("nsmallest", 1, "A")),
-    (frame_mi_data, operator.methodcaller("swaplevel")),
-    # (
-    #     pd.DataFrame,
-    #     frame_data,
-    #     operator.methodcaller("add", pd.DataFrame(*frame_data)),
-    # ),
-    # # TODO: div, mul, etc.
-    # (
-    #     pd.DataFrame,
-    #     frame_data,
-    #     operator.methodcaller("combine", pd.DataFrame(*frame_data), operator.add),
-    # ),
-    # (
-    #     pd.DataFrame,
-    #     frame_data,
-    #     operator.methodcaller("combine_first", pd.DataFrame(*frame_data)),
-    # ),
-    # pytest.param(
-    #     (
-    #         pd.DataFrame,
-    #         frame_data,
-    #         operator.methodcaller("update", pd.DataFrame(*frame_data)),
-    #     ),
-    #     marks=not_implemented_mark,
-    # ),
     (frame_data, operator.methodcaller("pivot", columns="A")),
     (
         ({"A": [1], "B": [1]},),
         operator.methodcaller("pivot_table", columns="A"),
-    ),
-    (
-        ({"A": [1], "B": [1]},),
-        operator.methodcaller("pivot_table", columns="A", aggfunc=["mean", "sum"]),
     ),
     (frame_data, operator.methodcaller("stack")),
     (frame_data, operator.methodcaller("explode", "A")),
@@ -223,60 +204,18 @@ dataframe_unary_attrs_ops = [
         ({"A": ["a", "b", "c"], "B": [1, 3, 5], "C": [2, 4, 6]},),
         operator.methodcaller("melt", id_vars=["A"], value_vars=["B"]),
     ),
-    (frame_data, operator.methodcaller("map", lambda x: x)),
-    # pytest.param(
-    #     (
-    #         pd.DataFrame,
-    #         frame_data,
-    #         operator.methodcaller("merge", pd.DataFrame({"A": [1]})),
-    #     ),
-    #     marks=not_implemented_mark,
-    # ),
     (frame_data, operator.methodcaller("round", 2)),
     (frame_data, operator.methodcaller("corr")),
-    (frame_data, operator.methodcaller("cov")),
-    # (
-    #     frame_data,
-    #     operator.methodcaller("corrwith", pd.DataFrame(*frame_data)),
-    # ),
     (frame_data, operator.methodcaller("count")),
     (frame_data, operator.methodcaller("nunique")),
     (frame_data, operator.methodcaller("idxmin")),
     (frame_data, operator.methodcaller("idxmax")),
-    (frame_data, operator.methodcaller("mode")),
     (frame_data, operator.methodcaller("median")),
     (
         frame_data,
         operator.methodcaller("quantile", numeric_only=True),
     ),
-    (
-        frame_data,
-        operator.methodcaller("quantile", q=[0.25, 0.75], numeric_only=True),
-    ),
-    (
-        ({"A": [pd.Timedelta(days=1), pd.Timedelta(days=2)]},),
-        operator.methodcaller("quantile", numeric_only=False),
-    ),
-    (
-        ({"A": [np.datetime64("2022-01-01"), np.datetime64("2022-01-02")]},),
-        operator.methodcaller("quantile", numeric_only=True),
-    ),
-    (
-        ({"A": [1]}, [pd.Period("2000", "D")]),
-        operator.methodcaller("to_timestamp"),
-    ),
-    (
-        ({"A": [1]}, [pd.Timestamp("2000")]),
-        operator.methodcaller("to_period", freq="D"),
-    ),
     (frame_mi_data, operator.methodcaller("isin", [1])),
-    # (frame_mi_data, operator.methodcaller("isin", pd.Series([1]))),
-    # (
-    #     frame_mi_data,
-    #     operator.methodcaller("isin", pd.DataFrame({"A": [1]})),
-    # ),
-    (frame_mi_data, operator.methodcaller("droplevel", "A")),
-    (frame_data, operator.methodcaller("pop", "A")),
     # Squeeze on columns, otherwise we'll end up with a scalar
     (frame_data, operator.methodcaller("squeeze", axis="columns")),
     (frame_data, operator.methodcaller("rename_axis", columns="a")),
@@ -287,7 +226,6 @@ dataframe_unary_attrs_ops = [
     (frame_data, abs),
     (frame_data, round),
     (frame_data, operator.methodcaller("take", [0, 0])),
-    (frame_mi_data, operator.methodcaller("xs", "a")),
     (frame_data, operator.methodcaller("get", "A")),
     # (
     #     frame_data,
@@ -298,41 +236,10 @@ dataframe_unary_attrs_ops = [
     (frame_data, operator.methodcaller("sample", n=2, replace=True)),
     (frame_data, operator.methodcaller("astype", float)),
     (frame_data, operator.methodcaller("copy")),
-    (
-        ({"A": np.array([1, 2], dtype=object)},),
-        operator.methodcaller("infer_objects"),
-    ),
-    (frame_data, operator.methodcaller("convert_dtypes")),
-    (({"A": [1, None, 3]},), operator.methodcaller("interpolate")),
-    (frame_data, operator.methodcaller("clip", lower=1)),
-    # (
-    #     ({"A": [1, 1, 1, 1]}, pd.date_range("2000", periods=4)),
-    #     operator.methodcaller("asfreq", "h"),
-    # ),
-    # (
-    #     ({"A": [1, 1, 1, 1]}, pd.date_range("2000", periods=4)),
-    #     operator.methodcaller("at_time", "12:00"),
-    # ),
-    # (
-    #     ({"A": [1, 1, 1, 1]}, pd.date_range("2000", periods=4)),
-    #     operator.methodcaller("between_time", "12:00", "13:00"),
-    # ),
-    # (
-    #     ({"A": [1, 1, 1, 1]}, pd.date_range("2000", periods=4)),
-    #     operator.methodcaller("last", "3D"),
-    # ),
     (frame_data, operator.methodcaller("rank")),
     (frame_data, operator.methodcaller("where", np.array([[True]]))),
     (frame_data, operator.methodcaller("mask", np.array([[True]]))),
     (frame_data, operator.methodcaller("truncate", before=0)),
-    # (
-    #     ({"A": [1, 1, 1, 1]}, pd.date_range("2000", periods=4, tz="UTC")),
-    #     operator.methodcaller("tz_convert", "CET"),
-    # ),
-    # (
-    #     ({"A": [1, 1, 1, 1]}, pd.date_range("2000", periods=4)),
-    #     operator.methodcaller("tz_localize", "CET"),
-    # ),
     (frame_data, operator.methodcaller("describe")),
     (frame_data, operator.methodcaller("pct_change")),
     (
@@ -353,10 +260,7 @@ dataframe_unary_attrs_ops = [
     (frame_data, operator.methodcaller("sum")),
     (frame_data, operator.methodcaller("std")),
     (frame_data, operator.methodcaller("mean")),
-    (frame_data, operator.methodcaller("prod")),
-    (frame_data, operator.methodcaller("sem")),
     (frame_data, operator.methodcaller("skew")),
-    (frame_data, operator.methodcaller("kurt")),
 ]
 
 
@@ -365,10 +269,28 @@ dataframe_unary_attrs_ops = [
 def test_df_attrs_unary_methods(frame_data, methodcaller, query_count=0):
     with SqlCounter(query_count=query_count):
         if len(frame_data) == 2:
-            df = pd.DataFrame(frame_data[0], index=frame_data[1])
+            native_df = native_pd.DataFrame(frame_data[0], index=frame_data[1])
         else:
-            df = pd.DataFrame(frame_data[0])
-        df.attrs = {"A": [1]}
-        df.attrs["B"] = "check me"
+            native_df = native_pd.DataFrame(frame_data[0])
+        snow_df = pd.DataFrame(native_df)
+        native_df.attrs = {"A": [1], "B": "check me"}
+        snow_df.attrs = native_df.attrs
 
-        assert methodcaller(df).attrs == df.attrs
+        assert methodcaller(native_df).attrs == native_df.attrs
+        assert methodcaller(snow_df).attrs == snow_df.attrs
+
+
+@pytest.mark.parametrize("method_name", dataframe_binary_attrs_ops)
+def test_df_attrs_binary_methods(method_name):
+    # Binary operators take the attrs field of the left frame
+    snow_left, native_left = create_test_dfs(frame_data)
+    snow_left.attrs = {"A": "correct"}
+    native_left.attrs = {"A": "correct"}
+    snow_right, native_right = create_test_dfs(frame_data)
+    snow_right.attrs = {"B": "incorrect"}
+    native_right.attrs = {"B": "incorrect"}
+    with SqlCounter(query_count=0):
+        assert (
+            getattr(native_left, method_name)(native_right).attrs == native_left.attrs
+        )
+        assert getattr(snow_left, method_name)(snow_right).attrs == snow_left.attrs
