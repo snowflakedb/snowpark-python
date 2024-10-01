@@ -503,9 +503,7 @@ class OrderedDataFrame:
 
         """
 
-        column_quoted_identifiers = (
-            self.projected_column_snowflake_quoted_identifiers.copy()
-        )
+        column_quoted_identifiers = self.projected_column_snowflake_quoted_identifiers
         if include_ordering_columns:
             extra_ordering_column_quoted_identifiers = [
                 quoted_identifier
