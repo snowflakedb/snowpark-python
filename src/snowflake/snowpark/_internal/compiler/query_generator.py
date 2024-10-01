@@ -179,6 +179,7 @@ class QueryGenerator(Analyzer):
                 creation_source=logical_plan.creation_source,
                 child_attributes=child_attributes,
                 iceberg_config=logical_plan.iceberg_config,
+                table_exists=logical_plan.table_exists,
             )
 
         elif isinstance(

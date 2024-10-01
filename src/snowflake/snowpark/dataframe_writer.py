@@ -255,6 +255,11 @@ class DataFrameWriter:
                     f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
                 )
 
+            if save_mode in [SaveMode.APPEND, SaveMode.TRUNCATE]:
+                table_exists = self._dataframe._session._table_exists(table_name)
+            else:
+                table_exists = None
+
             create_table_logic_plan = SnowflakeCreateTable(
                 table_name,
                 column_names,
@@ -270,6 +275,7 @@ class DataFrameWriter:
                 change_tracking,
                 copy_grants,
                 iceberg_config,
+                table_exists,
             )
             session = self._dataframe._session
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
