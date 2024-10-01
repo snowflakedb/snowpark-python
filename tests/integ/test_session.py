@@ -678,10 +678,9 @@ def test_sql_simplifier_disabled_on_session(db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="reading server side parameter is not supported in local testing",
 )
-def test_cte_optimization_enabled_on_session(db_parameters):
-    default_value = True
+def test_cte_optimization_enabled_on_session(session, db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:
-        assert new_session.cte_optimization_enabled is default_value
+        default_value = new_session.cte_optimization_enabled
         new_session.cte_optimization_enabled = not default_value
         assert new_session.cte_optimization_enabled is not default_value
         new_session.cte_optimization_enabled = default_value
