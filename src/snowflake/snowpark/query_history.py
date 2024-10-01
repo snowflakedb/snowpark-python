@@ -15,6 +15,16 @@ class QueryRecord(NamedTuple):
     is_describe: bool = False
     thread_id: int = None
 
+    def __repr__(self) -> str:
+        if self.is_describe is False and self.thread_id is None:
+            return f"QueryRecord(query_id={self.query_id}, sql_text={self.sql_text})"
+        elif self.is_describe is True and self.thread_id is None:
+            return f"QueryRecord(query_id={self.query_id}, sql_text={self.sql_text}, is_describe={self.is_describe})"
+        elif self.is_describe is False and self.thread_id is not None:
+            return f"QueryRecord(query_id={self.query_id}, sql_text={self.sql_text}, thread_id={self.thread_id})"
+        else:
+            return f"QueryRecord(query_id={self.query_id}, sql_text={self.sql_text}, is_describe={self.is_describe}, thread_id={self.thread_id})"
+
 
 class QueryHistory:
     """A context manager that listens to and records SQL queries that are pushed down to the Snowflake database.
