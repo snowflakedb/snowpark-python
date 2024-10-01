@@ -259,7 +259,7 @@ class ServerConnection:
             self._query_listener,
         ):
             query_record = QueryRecord(cursor.sfqid, query, True)
-            if listener.include_thread_id:
+            if getattr(listener, "include_thread_id", False):
                 query_record = QueryRecord(
                     cursor.sfqid, query, True, threading.get_ident()
                 )
@@ -385,6 +385,7 @@ class ServerConnection:
                 new_record = QueryRecord(
                     query_record.query_id,
                     query_record.sql_text,
+                    query_record.is_describe,
                     thread_id=threading.get_ident(),
                 )
                 listener._add_query(new_record)

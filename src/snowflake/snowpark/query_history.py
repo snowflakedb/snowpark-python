@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
 from typing import List, NamedTuple
 
 import snowflake.snowpark
@@ -12,15 +11,15 @@ class QueryRecord(NamedTuple):
 
     query_id: str
     sql_text: str
-    is_describe: bool = False
+    is_describe: bool = None
     thread_id: int = None
 
     def __repr__(self) -> str:
-        if self.is_describe is False and self.thread_id is None:
+        if self.is_describe is None and self.thread_id is None:
             return f"QueryRecord(query_id={self.query_id}, sql_text={self.sql_text})"
-        elif self.is_describe is True and self.thread_id is None:
+        elif self.is_describe is not None and self.thread_id is None:
             return f"QueryRecord(query_id={self.query_id}, sql_text={self.sql_text}, is_describe={self.is_describe})"
-        elif self.is_describe is False and self.thread_id is not None:
+        elif self.is_describe is None and self.thread_id is not None:
             return f"QueryRecord(query_id={self.query_id}, sql_text={self.sql_text}, thread_id={self.thread_id})"
         else:
             return f"QueryRecord(query_id={self.query_id}, sql_text={self.sql_text}, is_describe={self.is_describe}, thread_id={self.thread_id})"
