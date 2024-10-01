@@ -12264,10 +12264,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         frame = self._modin_frame
 
-        if any(
+        if resample_method in ("var", np.var) and any(
             isinstance(t, TimedeltaType)
             for t in frame.cached_data_column_snowpark_pandas_types
-        ) and resample_method in ("var", np.var):
+        ):
             raise TypeError("timedelta64 type does not support var operations")
 
         snowflake_index_column_identifier = (
