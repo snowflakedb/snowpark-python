@@ -331,7 +331,9 @@ def test_same_duplicate_subtree(session):
         assert count_number_of_ctes(df_result2.queries["queries"][-1]) == 3
 
 
-@pytest.mark.parametrize("mode", ["append", "overwrite", "errorifexists", "ignore"])
+@pytest.mark.parametrize(
+    "mode", ["append", "truncate", "overwrite", "errorifexists", "ignore"]
+)
 def test_save_as_table(session, mode):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     expected_query_count = 1
@@ -349,6 +351,8 @@ def test_save_as_table(session, mode):
     query = query_history.queries[-1].sql_text
     assert query.count(WITH) == 1
     assert count_number_of_ctes(query) == 1
+    if mode in ["append", "truncate"]:
+        assert sum("show" in q.sql_text for q in query_history.queries) == 1
 
 
 @sql_count_checker(query_count=1, union_count=1)
