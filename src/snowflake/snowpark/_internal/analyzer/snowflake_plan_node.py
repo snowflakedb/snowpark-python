@@ -215,6 +215,7 @@ class SnowflakeCreateTable(LogicalPlan):
         change_tracking: Optional[bool] = None,
         copy_grants: bool = False,
         iceberg_config: Optional[dict] = None,
+        table_exists: Optional[bool] = None,
     ) -> None:
         super().__init__()
 
@@ -236,6 +237,7 @@ class SnowflakeCreateTable(LogicalPlan):
         self.change_tracking = change_tracking
         self.copy_grants = copy_grants
         self.iceberg_config = iceberg_config
+        self.table_exists = table_exists
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
