@@ -22,6 +22,12 @@ def multi_thread_helper_function(session):
     session.sql(f"select {threading.get_ident()}").collect()
 
 
+def multi_thread_describe_helper_function(session):
+    df = session.sql(f"select {threading.get_ident()}")
+    df.columns
+    df.collect()
+
+
 def test_query_history(session):
     with session.query_history() as query_listener:
         session.sql("select 0").collect()
@@ -157,6 +163,7 @@ def test_query_history_with_multi_thread(session):
     for query in query_history.queries:
         assert query.sql_text.split(" ")[-1] == str(query.thread_id)
         thread_numbers.add(query.thread_id)
+    print(query_history.queries)
     assert len(thread_numbers) == 2
 
 
@@ -170,5 +177,23 @@ def test_query_history_without_multi_thread(session):
         # assert it equals to main thread id
         assert query.thread_id == threading.get_ident()
         thread_numbers.add(query.thread_id)
-
+    print(query_history.queries)
     assert len(thread_numbers) == 1
+
+
+def test_query_history_with_multi_thread_and_describe(session):
+    works = []
+    with session.query_history(
+        include_thread_id=True, include_describe=True
+    ) as query_history:
+        with ThreadPoolExecutor(max_workers=2) as tpe:
+            for _ in range(6):
+                future = tpe.submit(multi_thread_describe_helper_function, session)
+                works.append(future)
+            _, _ = wait(works, return_when=ALL_COMPLETED)
+    thread_numbers = set()
+    for query in query_history.queries:
+        assert query.sql_text.split(" ")[-1] == str(query.thread_id)
+        thread_numbers.add(query.thread_id)
+    print(query_history.queries)
+    assert len(thread_numbers) == 2
