@@ -47,7 +47,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Added the following new functions in `snowflake.snowpark.functions`:
   - `array_remove`
   - `ln`
-- Added Snowpark Python API for profiler.
+- Added Snowpark Python API for stored procedure profiler.
 
 #### Improvements
 

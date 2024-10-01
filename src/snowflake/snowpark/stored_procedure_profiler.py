@@ -8,7 +8,7 @@ import snowflake.snowpark
 from snowflake.snowpark._internal.utils import validate_object_name
 
 
-class Profiler:
+class StoredProcedureProfiler:
     """
     Set up profiler to receive profiles of stored procedures.
 
