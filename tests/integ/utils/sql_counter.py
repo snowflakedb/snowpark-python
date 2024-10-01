@@ -8,15 +8,16 @@ import re
 import sys
 import threading
 import traceback
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import pytest
 from decorator import decorator
-from pandas._typing import Scalar
 
 from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.session import Session
 from tests.utils import IS_IN_STORED_PROC
+
+PythonScalar = Union[str, float, bool]
 
 UPDATED_SUFFIX = "updated"
 ORIGINAL_SUFFIX = "original"
@@ -419,7 +420,7 @@ def get_readable_sql_count_values(tr):
 
 
 def update_test_code_with_sql_counts(
-    sql_count_records: Dict[str, Dict[str, List[Dict[str, Optional[Scalar]]]]]
+    sql_count_records: Dict[str, Dict[str, List[Dict[str, Optional[PythonScalar]]]]]
 ):
     """This helper takes sql count records and rewrites the source test files to validate sql counts where possible.
 
@@ -431,7 +432,7 @@ def update_test_code_with_sql_counts(
     last_status_file = None
 
     # Iterate through each sql count record, this is nested dictionary structured as:
-    #     sql_count_records[test_file][test_name] -> dict[Str, Scalar]
+    #     sql_count_records[test_file][test_name] -> dict[Str, PythonScalar]
     # The valid keys are:
     #     "test_name" for alternative reference
     #     "test_parms" if the test is parameterized

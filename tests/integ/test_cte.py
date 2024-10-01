@@ -27,11 +27,6 @@ pytestmark = [
         reason="CTE is a SQL feature",
         run=False,
     ),
-    pytest.mark.skipif(
-        (not installed_pandas),
-        reason="SQL Counter requires pandas",
-        run=False,
-    ),
 ]
 
 binary_operations = [
