@@ -357,13 +357,13 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     """
     import os
 
-    import graphviz  # pyright: ignore[reportMissingImports]
-
     if (
         os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING", "false").lower()
         != "true"
     ):
         return
+
+    import graphviz  # pyright: ignore[reportMissingImports]
 
     def get_stat(node: LogicalPlan):
         def get_name(node: Optional[LogicalPlan]) -> str:
