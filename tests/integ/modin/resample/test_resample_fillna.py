@@ -35,7 +35,11 @@ def test_resample_fill(interval, agg_func):
     )
     eval_snowpark_pandas_result(
         *create_test_dfs(
-            {"a": range(len(datecol)), "b": range(len(datecol) - 1, -1, -1)},
+            {
+                "a": range(len(datecol)),
+                "b": range(len(datecol) - 1, -1, -1),
+                "c": native_pd.timedelta_range("1 days", periods=len(datecol)),
+            },
             index=datecol,
         ),
         lambda df: getattr(df.resample(rule=f"{interval}D"), agg_func)(),
