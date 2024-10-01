@@ -6,7 +6,6 @@ import sys
 import uuid
 from collections.abc import Hashable
 from dataclasses import dataclass
-from functools import cached_property
 from typing import Any, Optional, Union
 
 import pandas
@@ -334,8 +333,7 @@ class OrderedDataFrame:
 
         return row_number().over(Window.order_by(self._ordering_snowpark_columns())) - 1
 
-    @cached_property
-    # @property
+    @property
     def projected_column_snowflake_quoted_identifiers(self) -> list[str]:
         """
         Returns:
