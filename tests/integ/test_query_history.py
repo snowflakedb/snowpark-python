@@ -35,6 +35,7 @@ def test_query_history(session):
     assert query_listener.queries[0].query_id is not None
     assert query_listener.queries[0].sql_text == "select 0"
     assert not query_listener.queries[0].is_describe
+    print(query_listener.queries)
 
 
 def test_query_history_with_describe(session):
@@ -46,6 +47,7 @@ def test_query_history_with_describe(session):
     for query in query_listener.queries:
         assert query.query_id is not None
         assert query.sql_text == "select 0"
+    print(query_listener.queries)
     assert query_listener.queries[0].is_describe
     assert not query_listener.queries[1].is_describe
 
