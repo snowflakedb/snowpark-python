@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -14,6 +16,10 @@ pytestmark = [
         run=False,
     ),
 ]
+
+
+def multi_thread_helper_function(session):
+    session.sql(f"select {threading.get_ident()}").collect()
 
 
 def test_query_history(session):
@@ -137,3 +143,29 @@ def test_query_history_executemany(session, use_scoped_temp_objects):
         assert "DROP  TABLE  If  EXISTS" in queries[5].sql_text  # post action
     finally:
         session._use_scoped_temp_objects = origin_use_scoped_temp_objects_setting
+
+
+def test_query_history_with_multi_thread(session):
+    with session.query_history() as query_history:
+        with ThreadPoolExecutor(max_workers=2) as tpe:
+            for _ in range(6):
+                tpe.submit(multi_thread_helper_function, session)
+    thread_numbers = set()
+    for query in query_history.queries:
+        assert query.sql_text.split(" ")[-1] == str(query.thread_id)
+        thread_numbers.add(query.thread_id)
+    assert len(thread_numbers) == 2
+
+
+def test_query_history_without_multi_thread(session):
+    with session.query_history() as query_history:
+        for _ in range(5):
+            multi_thread_helper_function(session)
+    thread_numbers = set()
+    for query in query_history.queries:
+        assert query.sql_text.split(" ")[-1] == str(query.thread_id)
+        # assert it equals to main thread id
+        assert query.thread_id == threading.get_ident()
+        thread_numbers.add(query.thread_id)
+
+    assert len(thread_numbers) == 1

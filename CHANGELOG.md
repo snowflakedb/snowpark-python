@@ -16,6 +16,8 @@
 
 #### Improvements
 
+- Added thread id to query_history.
+
 #### Bug Fixes
 
 ### Snowpark pandas API Updates
