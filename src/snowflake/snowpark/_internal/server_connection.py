@@ -260,7 +260,9 @@ class ServerConnection:
         ):
             query_record = QueryRecord(cursor.sfqid, query, True)
             if listener.include_thread_id:
-                query_record.thread_id = threading.get_ident()
+                query_record = QueryRecord(
+                    cursor.sfqid, query, True, threading.get_ident()
+                )
             listener._add_query(query_record)
 
         return result_metadata
