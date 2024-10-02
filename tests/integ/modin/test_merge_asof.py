@@ -11,8 +11,8 @@ import pytest
 from pandas.errors import MergeError
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.fixture(scope="function")
