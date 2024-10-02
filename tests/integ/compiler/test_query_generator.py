@@ -27,7 +27,11 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     TableCreationSource,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
-from snowflake.snowpark._internal.compiler.utils import create_query_generator
+from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
+from snowflake.snowpark._internal.compiler.utils import (
+    create_query_generator,
+    resolve_and_update_snowflake_plan,
+)
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
@@ -56,15 +60,31 @@ def reset_node(node: LogicalPlan) -> None:
     if isinstance(node, SnowflakePlan):
         # do not reset leaf snowflake plan
         if node.source_plan is not None:
-            node.queries = None
-            node.post_actions = None
+            # node.queries = None
+            # node.post_actions = None
             if isinstance(node.source_plan, Selectable):
                 reset_selectable(node.source_plan)
     elif isinstance(node, Selectable):
         reset_selectable(node)
 
 
-def reset_plan_tree(plan: SnowflakePlan) -> None:
+def re_resolve_and_compare_plan_queries(
+    plan: SnowflakePlan, query_generator: QueryGenerator
+) -> None:
+    original_queries = [query.sql for query in plan.queries]
+    original_post_actions = [query.sql for query in plan.post_actions]
+    resolve_and_update_snowflake_plan(plan, query_generator)
+
+    queries = [query.sql for query in plan.queries]
+    post_actions = [query.sql for query in plan.post_actions]
+    assert queries == original_queries
+    assert post_actions == original_post_actions
+
+
+def check_generated_plan_queries(plan: SnowflakePlan) -> None:
+    # init the query generator
+    query_generator = create_query_generator(plan)
+
     # traverse the tree to get all the children nodes for reset
     nodes = []
     current_level = [plan]
@@ -76,26 +96,11 @@ def reset_plan_tree(plan: SnowflakePlan) -> None:
             nodes.append(node)
         current_level = next_level
 
+    nodes = nodes[::-1]  # reverse the list
     for node in nodes:
         reset_node(node)
-
-
-def check_generated_plan_queries(plan: SnowflakePlan) -> None:
-    original_queries = [query.sql for query in plan.queries]
-    original_post_actions = [query.sql for query in plan.post_actions]
-    # init the query generator
-    query_generator = create_query_generator(plan)
-    source_plan = plan.source_plan
-    # reset the whole plan
-    reset_plan_tree(plan)
-    assert plan.queries is None
-    assert plan.post_actions is None
-    # regenerate the queries
-    plan_queries = query_generator.generate_queries([source_plan])
-    queries = [query.sql for query in plan_queries[PlanQueryType.QUERIES]]
-    post_actions = [query.sql for query in plan_queries[PlanQueryType.POST_ACTIONS]]
-    assert queries == original_queries
-    assert post_actions == original_post_actions
+        if isinstance(node, SnowflakePlan):
+            re_resolve_and_compare_plan_queries(plan, query_generator)
 
 
 def verify_multiple_create_queries(
@@ -325,14 +330,7 @@ def test_dataframe_creation_with_multiple_queries(session):
 
     query_generator = create_query_generator(df._plan)
     # reset the whole plan
-    reset_plan_tree(df._plan)
-    # regenerate the queries
-    plan_queries = query_generator.generate_queries([df._plan.source_plan])
-    queries = [query.sql.lstrip() for query in plan_queries[PlanQueryType.QUERIES]]
-    post_actions = [
-        query.sql.lstrip() for query in plan_queries[PlanQueryType.POST_ACTIONS]
-    ]
-    verify_multiple_create_queries(queries, post_actions, 3)
+    re_resolve_and_compare_plan_queries(df._plan, query_generator)
 
 
 def test_multiple_plan_query_generation(session):
@@ -365,8 +363,8 @@ def test_multiple_plan_query_generation(session):
     )
     snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
     query_generator = create_query_generator(snowflake_plan)
-    reset_plan_tree(snowflake_plan)
-    reset_plan_tree(df_res._plan)
+    reset_node(snowflake_plan)
+    reset_node(df_res._plan)
     logical_plans = [snowflake_plan.source_plan, df_res._plan.source_plan]
     generated_queries = query_generator.generate_queries(logical_plans)
     result_queries = [
@@ -407,15 +405,11 @@ def test_in_with_subquery_multiple_query(session):
         )
         df_select = df.select(~df["a"].in_(df0.filter(col("a") < 2)).as_("in_result"))
         query_generator = create_query_generator(df_select._plan)
-        reset_plan_tree(df_select._plan)
-        # regenerate the queries
-        plan_queries = query_generator.generate_queries([df_select._plan.source_plan])
-        queries = [query.sql.lstrip() for query in plan_queries[PlanQueryType.QUERIES]]
-        post_actions = [
-            query.sql.lstrip() for query in plan_queries[PlanQueryType.POST_ACTIONS]
-        ]
-        verify_multiple_create_queries(queries, post_actions, 5)
+        re_resolve_and_compare_plan_queries(df_select._plan, query_generator)
 
+        queries = [query.sql.lstrip() for query in df_select._plan.queries]
+        post_actions = [query.sql.lstrip() for query in df_select._plan.post_actions]
+        verify_multiple_create_queries(queries, post_actions, 5)
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_threshold
 
