@@ -250,10 +250,10 @@ class Resampler(metaclass=TelemetryMeta):
             )
         )
 
-    def backfill(self, limit: Optional[int] = None):
+    def backfill(self, limit: Optional[int] = None) -> Union[pd.DataFrame, pd.Series]:
         return self.bfill(limit=limit)
 
-    def bfill(self, limit: Optional[int] = None):
+    def bfill(self, limit: Optional[int] = None) -> Union[pd.DataFrame, pd.Series]:
         is_series = not self._dataframe._is_dataframe
 
         if limit is not None:
@@ -271,13 +271,15 @@ class Resampler(metaclass=TelemetryMeta):
             )
         )
 
-    def pad(self, limit: Optional[int] = None):
+    def pad(self, limit: Optional[int] = None) -> Union[pd.DataFrame, pd.Series]:
         return self.ffill(limit=limit)
 
     def nearest(self, limit: Optional[int] = None):  # pragma: no cover
         self._method_not_implemented("nearest")
 
-    def fillna(self, method: str, limit: Optional[int] = None):
+    def fillna(
+        self, method: str, limit: Optional[int] = None
+    ) -> Union[pd.DataFrame, pd.Series]:
         if not isinstance(method, str) or method not in (
             "pad",
             "ffill",
@@ -290,7 +292,9 @@ class Resampler(metaclass=TelemetryMeta):
             )
         return getattr(self, method)(limit=limit)
 
-    def asfreq(self, fill_value: Optional[Any] = None):
+    def asfreq(
+        self, fill_value: Optional[Any] = None
+    ) -> Union[pd.DataFrame, pd.Series]:
         is_series = not self._dataframe._is_dataframe
 
         if fill_value is not None:
@@ -341,9 +345,19 @@ class Resampler(metaclass=TelemetryMeta):
             )
         )
 
-    def nunique(self, *args: Any, **kwargs: Any):  # pragma: no cover
+    def nunique(self, *args: Any, **kwargs: Any) -> Union[pd.DataFrame, pd.Series]:
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        self._method_not_implemented("nunique")
+        is_series = not self._dataframe._is_dataframe
+
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.resample(
+                self.resample_kwargs,
+                "nunique",
+                tuple(),
+                dict(),
+                is_series,
+            )
+        )
 
     def first(
         self,
@@ -352,7 +366,7 @@ class Resampler(metaclass=TelemetryMeta):
         skipna: bool = True,
         *args: Any,
         **kwargs: Any,
-    ):
+    ) -> Union[pd.DataFrame, pd.Series]:
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         self._validate_numeric_only_for_aggregate_methods(numeric_only)
 
@@ -376,7 +390,7 @@ class Resampler(metaclass=TelemetryMeta):
         skipna: bool = True,
         *args: Any,
         **kwargs: Any,
-    ):
+    ) -> Union[pd.DataFrame, pd.Series]:
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         self._validate_numeric_only_for_aggregate_methods(numeric_only)
 
@@ -500,7 +514,7 @@ class Resampler(metaclass=TelemetryMeta):
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         self._method_not_implemented("prod")
 
-    def size(self):
+    def size(self) -> Union[pd.DataFrame, pd.Series]:
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         is_series = not self._dataframe._is_dataframe
 
@@ -601,7 +615,20 @@ class Resampler(metaclass=TelemetryMeta):
         )
 
     def quantile(
-        self, q: Union[float, AnyArrayLike] = 0.5, **kwargs: Any
-    ):  # pragma: no cover
+        self,
+        q: Union[float, AnyArrayLike] = 0.5,
+        **kwargs: Any,
+    ) -> Union[pd.DataFrame, pd.Series]:
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        self._method_not_implemented("quantile")
+        agg_kwargs = dict(q=q)
+        is_series = not self._dataframe._is_dataframe
+
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.resample(
+                self.resample_kwargs,
+                "quantile",
+                tuple(),
+                agg_kwargs,
+                is_series,
+            )
+        )
