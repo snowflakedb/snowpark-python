@@ -26,7 +26,7 @@ class StoredProcedureProfiler:
         self.registered_stored_procedures = []
         self.pattern = r"WITH\s+.*?\s+AS\s+PROCEDURE\s+.*?\s+CALL\s+.*"
         self.session = session
-        self.query_history = session.query_history()
+        self.query_history = session.query_history(include_thread_id=True)
 
     def register_modules(self, stored_procedures: List[str]):
         """
