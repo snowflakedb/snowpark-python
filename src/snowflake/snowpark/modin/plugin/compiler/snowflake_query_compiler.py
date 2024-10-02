@@ -762,10 +762,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             x is None for x in [periods, start, end]
         ), "Must provide freq argument if no data is supplied"
 
-        if tz is not None:
-            # TODO: SNOW-879476 support tz with other tz APIs
-            ErrorMessage.not_implemented("tz is not supported.")
-
         remove_non_business_days = False
 
         if freq is not None:
