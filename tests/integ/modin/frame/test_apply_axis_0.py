@@ -8,21 +8,31 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.series.test_apply import create_func_with_return_type_hint
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 # test data which has a python type as return type that is not a pandas Series/pandas DataFrame/tuple/list
 BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP = [
     [[[1.0, 2.2], [3, np.nan]], np.min, "float"],
+    param(
+        [[1.0, 2.2], [3, np.nan]],
+        lambda x: native_pd.Timedelta(1),
+        "native_pd.Timedelta",
+        id="return_timedelta_scalar",
+        marks=pytest.mark.xfail(
+            strict=True, raises=AssertionError, reason="SNOW-1619940"
+        ),
+    ),
     [[[1.1, 2.2], [3, np.nan]], lambda x: x.sum(), "float"],
     [[[1.1, 2.2], [3, np.nan]], lambda x: x.size, "int"],
     [[[1.1, 2.2], [3, np.nan]], lambda x: "0" if x.sum() > 1 else 0, "object"],
@@ -46,6 +56,16 @@ BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP = [
         [[{"a": "b"}, {"c": "d"}], [{"c": "b"}, {"a": "d"}]],
         lambda x: str(x[0]) + str(x[1]),
         "str",
+    ),
+    param(
+        [
+            [native_pd.Timedelta(1), native_pd.Timedelta(2)],
+            [native_pd.Timedelta(3), native_pd.Timedelta(4)],
+        ],
+        lambda column: column.sum().value,
+        "int",
+        id="apply_on_frame_with_timedelta_data_columns_returns_int",
+        marks=pytest.mark.xfail(strict=True, raises=NotImplementedError),
     ),
 ]
 
@@ -88,6 +108,17 @@ def test_axis_0_basic_types_with_type_hints(data, func, return_type):
         eval_snowpark_pandas_result(
             snow_df, native_df, lambda x: x.apply(func_with_type_hint, axis=0)
         )
+
+
+@pytest.mark.xfail(strict=True, raises=NotImplementedError)
+@sql_count_checker(query_count=0)
+def test_frame_with_timedelta_index():
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            native_pd.DataFrame([0], index=[native_pd.Timedelta(1)]),
+        ),
+        lambda df: df.apply(lambda col: col)
+    )
 
 
 @pytest.mark.parametrize(

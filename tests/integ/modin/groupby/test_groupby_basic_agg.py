@@ -16,7 +16,6 @@ from pandas.core.groupby.generic import DataFrameGroupBy as PandasDFGroupBy
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import IntegerType, StringType, VariantType
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     TEST_DF_DATA,
     ColumnSchema,
@@ -28,6 +27,7 @@ from tests.integ.modin.utils import (
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
 
 
