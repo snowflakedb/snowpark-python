@@ -2090,10 +2090,12 @@ def set_frame_2d_labels(
 
             def slice_len(slice_obj: slice) -> int:
                 """Helper method to calculate length of slice object for columns."""
-                start = slice_obj.start or 0
-                end = slice_obj.stop or len(
-                    internal_frame.data_column_snowflake_quoted_identifiers
+                start = (
+                    internal_frame.data_column_pandas_labels.index(slice_obj.start) or 0
                 )
+                end = internal_frame.data_column_pandas_labels.index(
+                    slice_obj.stop
+                ) or len(internal_frame.data_column_snowflake_quoted_identifiers)
                 return end - start
 
             if columns == slice(None):
