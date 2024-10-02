@@ -25,7 +25,7 @@ class StoredProcedureProfiler:
         session: "snowflake.snowpark.Session" = None,
     ) -> None:
         self._session = session
-        self._query_history = session.query_history(include_thread_id=True)
+        self._query_history = None
 
     def register_modules(self, stored_procedures: List[str]):
         """
@@ -85,11 +85,13 @@ class StoredProcedureProfiler:
             )
         sql_statement = f"alter session set ACTIVE_PYTHON_PROFILER = '{active_profiler_type.upper()}'"
         self._session.sql(sql_statement).collect()
+        self._query_history = self._session.query_history(include_thread_id=True)
 
     def disable(self):
         """
         Disable profiler.
         """
+        self._session._conn.remove_query_listener(self._query_history)
         sql_statement = "alter session set ACTIVE_PYTHON_PROFILER = ''"
         self._session.sql(sql_statement).collect()
 
