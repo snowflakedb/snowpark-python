@@ -22,8 +22,8 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (
     _send_snowpark_pandas_telemetry_helper,
     _try_get_kwargs_telemetry,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import BASIC_TYPE_DATA1, BASIC_TYPE_DATA2
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 def _extract_snowpark_pandas_telemetry_log_data(

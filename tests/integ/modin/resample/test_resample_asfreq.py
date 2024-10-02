@@ -7,8 +7,8 @@ import numpy as np
 import pandas as native_pd
 import pytest
 
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 freq = pytest.mark.parametrize("freq", ["min", "s", "h", "D"])
 interval = pytest.mark.parametrize("interval", [1, 2, 3, 5, 15])

@@ -5,12 +5,12 @@
 import pandas as native_pd
 import pytest
 
-from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter
 
 
 def assert_items_results_equal(snow_result, pandas_result) -> None:
