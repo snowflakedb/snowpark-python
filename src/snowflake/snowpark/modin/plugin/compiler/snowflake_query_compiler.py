@@ -9335,7 +9335,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     f"invalid error value specified: {errors}"
                 )  # pragma: no cover
 
-        if isinstance(col_id_sf_type, (_NumericType, BooleanType)):
+        if isinstance(col_id_sf_type, (_NumericType, BooleanType)) and not isinstance(
+            col_id_sf_type, TimedeltaType
+        ):
             # no need to convert
             return self
 
@@ -9352,6 +9354,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if isinstance(col_id_sf_type, TimestampType):
             # turn those date time type to nanoseconds
             new_col = date_part("epoch_nanosecond", new_col)
+            new_col_type_is_numeric = True
+        elif isinstance(col_id_sf_type, TimedeltaType):
+            new_col = column_astype(
+                col_id, col_id_sf_type, "int64", TypeMapper.to_snowflake("int64")
+            )
             new_col_type_is_numeric = True
         elif not isinstance(col_id_sf_type, StringType):
             # convert to string by default for better error message
