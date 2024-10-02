@@ -119,7 +119,7 @@ def test_anonymous_procedure(
     single_value_sp()
     res = profiler_session.stored_procedure_profiler.get_output()
 
-    profiler_session.stored_procedure_profiler.disable()
+    profiler_session.stored_procedure_profiler.set_active_profiler()
 
     profiler_session.stored_procedure_profiler.register_modules([])
     assert res is not None
