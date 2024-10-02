@@ -38,6 +38,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.functions import avg, col, lit
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import TestFiles, Utils
 
 pytestmark = [
@@ -81,10 +82,9 @@ def re_resolve_and_compare_plan_queries(
     assert post_actions == original_post_actions
 
 
-def check_generated_plan_queries(plan: SnowflakePlan) -> None:
-    # init the query generator
-    query_generator = create_query_generator(plan)
-
+def check_generated_plan_queries(
+    plan: SnowflakePlan, expected_query_count: int = 0
+) -> None:
     # traverse the tree to get all the children nodes for reset
     nodes = []
     current_level = [plan]
@@ -96,11 +96,15 @@ def check_generated_plan_queries(plan: SnowflakePlan) -> None:
             nodes.append(node)
         current_level = next_level
 
-    nodes = nodes[::-1]  # reverse the list
-    for node in nodes:
-        reset_node(node)
-        if isinstance(node, SnowflakePlan):
-            re_resolve_and_compare_plan_queries(plan, query_generator)
+    with SqlCounter(query_count=expected_query_count, describe_count=0):
+        # init the query generator
+        query_generator = create_query_generator(plan)
+
+        nodes = nodes[::-1]  # reverse the list
+        for node in nodes:
+            reset_node(node)
+            if isinstance(node, SnowflakePlan):
+                re_resolve_and_compare_plan_queries(plan, query_generator)
 
 
 def verify_multiple_create_queries(
@@ -175,7 +179,14 @@ def test_table_create(session, mode):
         comment=None,
     )
     snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
-    check_generated_plan_queries(snowflake_plan)
+    expected_query_count = 0
+    if mode == SaveMode.APPEND or mode == SaveMode.TRUNCATE:
+        # when the mode is append or truncate, extra queries is issued to check if
+        # the table exists
+        expected_query_count = 2
+    check_generated_plan_queries(
+        snowflake_plan, expected_query_count=expected_query_count
+    )
 
 
 @pytest.mark.parametrize(
@@ -212,7 +223,8 @@ def test_table_create_from_large_query_breakdown(session, plan_source_generator)
         comment=None,
     )
 
-    queries = generator.generate_queries([create_table_source])
+    with SqlCounter(query_count=0, describe_count=0):
+        queries = generator.generate_queries([create_table_source])
     assert len(queries[PlanQueryType.QUERIES]) == 1
     assert len(queries[PlanQueryType.POST_ACTIONS]) == 0
 
@@ -222,6 +234,7 @@ def test_table_create_from_large_query_breakdown(session, plan_source_generator)
     )
 
 
+@sql_count_checker(query_count=0)
 def test_create_query_generator_fails_with_large_query_breakdown(session):
     table_name = random_name_for_temp_object(TempObjectType.TABLE)
     child_df = session.sql("select 1 as a, 2 as b")
@@ -328,9 +341,10 @@ def test_dataframe_creation_with_multiple_queries(session):
 
     verify_multiple_create_queries(queries, post_actions, 3)
 
-    query_generator = create_query_generator(df._plan)
-    # reset the whole plan
-    re_resolve_and_compare_plan_queries(df._plan, query_generator)
+    with SqlCounter(query_count=0, describe_count=0):
+        query_generator = create_query_generator(df._plan)
+        # reset the whole plan
+        re_resolve_and_compare_plan_queries(df._plan, query_generator)
 
 
 def test_multiple_plan_query_generation(session):
@@ -366,7 +380,8 @@ def test_multiple_plan_query_generation(session):
     reset_node(snowflake_plan)
     reset_node(df_res._plan)
     logical_plans = [snowflake_plan.source_plan, df_res._plan.source_plan]
-    generated_queries = query_generator.generate_queries(logical_plans)
+    with SqlCounter(query_count=0, describe_count=0):
+        generated_queries = query_generator.generate_queries(logical_plans)
     result_queries = [
         query.sql.lstrip() for query in generated_queries[PlanQueryType.QUERIES]
     ]
@@ -398,14 +413,18 @@ def test_in_with_subquery_multiple_query(session):
     original_threshold = analyzer.ARRAY_BIND_THRESHOLD
     try:
         analyzer.ARRAY_BIND_THRESHOLD = 2
-        df0 = session.create_dataframe([[1], [2], [5], [7]], schema=["a"])
-        df = session.create_dataframe(
-            [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33], [5, "c", 21, 18]],
-            schema=["a", "b", "c", "d"],
-        )
-        df_select = df.select(~df["a"].in_(df0.filter(col("a") < 2)).as_("in_result"))
-        query_generator = create_query_generator(df_select._plan)
-        re_resolve_and_compare_plan_queries(df_select._plan, query_generator)
+        with SqlCounter(query_count=0, describe_count=2):
+            df0 = session.create_dataframe([[1], [2], [5], [7]], schema=["a"])
+            df = session.create_dataframe(
+                [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33], [5, "c", 21, 18]],
+                schema=["a", "b", "c", "d"],
+            )
+            df_select = df.select(
+                ~df["a"].in_(df0.filter(col("a") < 2)).as_("in_result")
+            )
+        with SqlCounter(query_count=0, describe_count=0):
+            query_generator = create_query_generator(df_select._plan)
+            re_resolve_and_compare_plan_queries(df_select._plan, query_generator)
 
         queries = [query.sql.lstrip() for query in df_select._plan.queries]
         post_actions = [query.sql.lstrip() for query in df_select._plan.post_actions]
