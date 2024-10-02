@@ -10,8 +10,8 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize(

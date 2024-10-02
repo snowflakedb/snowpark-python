@@ -14,8 +14,8 @@ import pytest
 from modin.pandas import Index, MultiIndex, Series
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_index_equal, assert_series_equal
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
 
 
