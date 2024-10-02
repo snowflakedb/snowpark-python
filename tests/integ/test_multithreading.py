@@ -4,6 +4,7 @@
 
 import gc
 import hashlib
+import logging
 import os
 import tempfile
 import time
@@ -205,6 +206,12 @@ def test_file_io(session, resources_path, temp_stage, use_stream):
         with ThreadPoolExecutor(max_workers=10) as executor:
             for file_path in resources_files:
                 executor.submit(put_and_get_file, file_path, download_dir)
+
+        if not use_stream:
+            # assert all files are downloaded
+            assert set(os.listdir(download_dir)) == {
+                os.path.basename(file_path) for file_path in resources_files
+            }
 
 
 def test_concurrent_add_packages(session):
@@ -537,3 +544,20 @@ def test_auto_temp_table_cleaner(session):
         session.auto_clean_up_temp_table_enabled = (
             original_auto_clean_up_temp_table_enabled
         )
+
+
+def test_concurrent_update_on_cte_optimization_enabled(session, caplog):
+    def run_cte_optimization(session_, thread_id):
+        if thread_id % 2 == 0:
+            session_.cte_optimization_enabled = True
+        else:
+            session_.cte_optimization_enabled = False
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            for i in range(5):
+                executor.submit(run_cte_optimization, session, i)
+    assert (
+        "Setting cte_optimization_enabled is not currently thread-safe" in caplog.text
+    )

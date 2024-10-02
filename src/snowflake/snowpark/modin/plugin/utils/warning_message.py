@@ -1,9 +1,9 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+import functools
 from logging import getLogger
-from typing import Any
+from typing import Any, Callable
 
 logger = getLogger(__name__)
 
@@ -23,6 +23,19 @@ ORDER_BY_IN_SQL_QUERY_NOT_GUARANTEED_WARNING = (
     "clause. Currently, Snowpark pandas does not guarantee order is preserved when an ORDER BY is "
     "used with `pd.read_snowflake`. To ensure ordering, please use `pd.read_snowflake(...).sort_values(...)`."
 )
+
+
+def materialization_warning(func: Callable) -> Any:
+    """The decorator to issue warning messages for operations lead to materialization with inadvertent slowness."""
+
+    @functools.wraps(func)
+    def wrap(*args, **kwargs):  # type: ignore
+        WarningMessage.single_warning(
+            "The current operation leads to materialization and can be slow if the data is large!"
+        )
+        return func(*args, **kwargs)
+
+    return wrap
 
 
 # TODO SNOW-828589: throw default to pandas warning here
