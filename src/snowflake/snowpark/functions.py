@@ -5377,7 +5377,7 @@ def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
         -------------
         <BLANKLINE>
 
-        >>> df.select(array_remove(df.data, lit('2')).alias("objects")).show()
+        >>> df.select(array_remove(df.data, lit('2').cast(VariantType())).alias("objects")).show()
         -------------
         |"OBJECTS"  |
         -------------
