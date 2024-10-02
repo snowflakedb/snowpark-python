@@ -7,7 +7,6 @@ import hashlib
 import logging
 import os
 import tempfile
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple  # noqa: F401
 from unittest.mock import patch
@@ -16,6 +15,7 @@ import pytest
 
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType
+from tests.integ.test_temp_table_cleanup import wait_for_drop_table_sql_done
 
 try:
     import dateutil
@@ -512,7 +512,7 @@ class OffsetSumUDAFHandler:
     reason="session.sql is not supported in local testing mode",
     run=False,
 )
-def test_auto_temp_table_cleaner(session):
+def test_auto_temp_table_cleaner(session, caplog):
     session._temp_table_auto_cleaner.ref_count_map.clear()
     original_auto_clean_up_temp_table_enabled = session.auto_clean_up_temp_table_enabled
     session.auto_clean_up_temp_table_enabled = True
@@ -533,7 +533,7 @@ def test_auto_temp_table_cleaner(session):
             table_names.append(future.result())
 
     gc.collect()
-    time.sleep(1)
+    wait_for_drop_table_sql_done(session, caplog, expect_drop=True)
 
     try:
         for table_name in table_names:
