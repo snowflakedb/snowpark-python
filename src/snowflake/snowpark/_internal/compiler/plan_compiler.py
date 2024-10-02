@@ -49,6 +49,13 @@ class PlanCompiler:
 
     def __init__(self, plan: SnowflakePlan) -> None:
         self._plan = plan
+        session = plan.session
+        self.cte_optimization_enabled = session.cte_optimization_enabled
+        self.large_query_breakdown_enabled = session.large_query_breakdown_enabled
+        self.large_query_breakdown_complexity_bounds = (
+            session.large_query_breakdown_complexity_bounds
+        )
+        self.query_compilation_stage_enabled = session._query_compilation_stage_enabled
 
     def should_start_query_compilation(self) -> bool:
         """
@@ -68,11 +75,8 @@ class PlanCompiler:
         return (
             not isinstance(current_session._conn, MockServerConnection)
             and (self._plan.source_plan is not None)
-            and current_session._query_compilation_stage_enabled
-            and (
-                current_session.cte_optimization_enabled
-                or current_session.large_query_breakdown_enabled
-            )
+            and self.query_compilation_stage_enabled
+            and (self.cte_optimization_enabled or self.large_query_breakdown_enabled)
         )
 
     def compile(self) -> Dict[PlanQueryType, List[Query]]:
@@ -94,7 +98,7 @@ class PlanCompiler:
             # 3. apply each optimizations if needed
             # CTE optimization
             cte_start_time = time.time()
-            if session.cte_optimization_enabled:
+            if self.cte_optimization_enabled:
                 repeated_subquery_eliminator = RepeatedSubqueryElimination(
                     logical_plans, query_generator
                 )
@@ -109,12 +113,12 @@ class PlanCompiler:
                 plot_plan_if_enabled(plan, f"cte_optimized_plan_{i}")
 
             # Large query breakdown
-            if session.large_query_breakdown_enabled:
+            if self.large_query_breakdown_enabled:
                 large_query_breakdown = LargeQueryBreakdown(
-                    self._plan.session,
+                    session,
                     query_generator,
                     logical_plans,
-                    session.large_query_breakdown_complexity_bounds,
+                    self.large_query_breakdown_complexity_bounds,
                 )
                 logical_plans = large_query_breakdown.apply()
 
@@ -135,9 +139,9 @@ class PlanCompiler:
             large_query_breakdown_time = large_query_breakdown_end_time - cte_end_time
             total_time = time.time() - start_time
             summary_value = {
-                TelemetryField.CTE_OPTIMIZATION_ENABLED.value: session.cte_optimization_enabled,
-                TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: session.large_query_breakdown_enabled,
-                CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: session.large_query_breakdown_complexity_bounds,
+                TelemetryField.CTE_OPTIMIZATION_ENABLED.value: self.cte_optimization_enabled,
+                TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: self.large_query_breakdown_enabled,
+                CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: self.large_query_breakdown_complexity_bounds,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_COMPILATION.value: total_time,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_DEEP_COPY_PLAN.value: deep_copy_time,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_CTE_OPTIMIZATION.value: cte_time,

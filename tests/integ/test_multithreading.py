@@ -3,6 +3,7 @@
 #
 
 import hashlib
+import logging
 import os
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -502,3 +503,20 @@ class OffsetSumUDAFHandler:
     with ThreadPoolExecutor(max_workers=10) as executor:
         for i in range(10):
             executor.submit(register_and_test_udaf, session, i)
+
+
+def test_concurrent_update_on_cte_optimization_enabled(session, caplog):
+    def run_cte_optimization(session_, thread_id):
+        if thread_id % 2 == 0:
+            session_.cte_optimization_enabled = True
+        else:
+            session_.cte_optimization_enabled = False
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            for i in range(5):
+                executor.submit(run_cte_optimization, session, i)
+    assert (
+        "Setting cte_optimization_enabled is not currently thread-safe" in caplog.text
+    )
