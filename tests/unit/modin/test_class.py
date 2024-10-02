@@ -10,9 +10,9 @@ from snowflake.snowpark.modin.plugin.extensions.index import Index
 
 
 def test_class_equivalence():
-    # all classes imported from native pandas in src/snowflake/snowpark/modin/pandas/__init__.py
-    # should be listed and tested here
-    # TODO: SNOW-837070 make these modules as a list in __init__.py so we can test from this list
+    # all classes imported from native pandas modin/pandas/__init__.py should be listed and tested here
+    # TODO: SNOW-837070 make these modules as a list in src/snowflake/snowpark/plugin/__init__.py
+    # so we can test from this list
     assert pd.describe_option is native_pd.describe_option
     assert pd.get_option is native_pd.get_option
     assert pd.option_context is native_pd.option_context

@@ -7,6 +7,7 @@ from typing import List
 import pytest
 
 from snowflake.snowpark import Window
+from snowflake.snowpark._internal.analyzer import analyzer
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectSnowflakePlan,
@@ -46,10 +47,11 @@ pytestmark = [
 
 def reset_node(node: LogicalPlan) -> None:
     def reset_selectable(selectable_node: Selectable) -> None:
-        if not isinstance(node, (SelectSnowflakePlan, SelectSQL)):
+        if not isinstance(selectable_node, (SelectSnowflakePlan, SelectSQL)):
             selectable_node._snowflake_plan = None
-        if isinstance(node, (SelectStatement, SetStatement)):
+        if isinstance(selectable_node, (SelectStatement, SetStatement)):
             selectable_node._sql_query = None
+            selectable_node._projection_in_str = None
 
     if isinstance(node, SnowflakePlan):
         # do not reset leaf snowflake plan
@@ -94,6 +96,20 @@ def check_generated_plan_queries(plan: SnowflakePlan) -> None:
     post_actions = [query.sql for query in plan_queries[PlanQueryType.POST_ACTIONS]]
     assert queries == original_queries
     assert post_actions == original_post_actions
+
+
+def verify_multiple_create_queries(
+    plan_queries: List[str], post_action_queries: List[str], num_queries: int
+) -> None:
+    assert len(plan_queries) == num_queries
+    assert plan_queries[0].startswith("CREATE")
+    assert plan_queries[1].startswith("INSERT")
+    assert plan_queries[-1].startswith("SELECT")
+    # Note that that is only true when the creat is followed with INSERT, there
+    # could be cases that create with one single statement. So be careful when
+    # using this utility.
+    assert len(post_action_queries) == int(num_queries / 2)
+    assert post_action_queries[0].startswith("DROP")
 
 
 @pytest.mark.parametrize(
@@ -305,17 +321,7 @@ def test_dataframe_creation_with_multiple_queries(session):
     df = session.create_dataframe([1] * 20000)
     queries, post_actions = df.queries["queries"], df.queries["post_actions"]
 
-    def verify_multiple_create_queries(
-        plan_queries: List[str], post_action_queries: List[str]
-    ) -> None:
-        assert len(plan_queries) == 3
-        assert plan_queries[0].startswith("CREATE")
-        assert plan_queries[1].startswith("INSERT")
-        assert plan_queries[2].startswith("SELECT")
-        assert len(post_action_queries) == 1
-        assert post_action_queries[0].startswith("DROP")
-
-    verify_multiple_create_queries(queries, post_actions)
+    verify_multiple_create_queries(queries, post_actions, 3)
 
     query_generator = create_query_generator(df._plan)
     # reset the whole plan
@@ -326,7 +332,7 @@ def test_dataframe_creation_with_multiple_queries(session):
     post_actions = [
         query.sql.lstrip() for query in plan_queries[PlanQueryType.POST_ACTIONS]
     ]
-    verify_multiple_create_queries(queries, post_actions)
+    verify_multiple_create_queries(queries, post_actions, 3)
 
 
 def test_multiple_plan_query_generation(session):
@@ -371,3 +377,73 @@ def test_multiple_plan_query_generation(session):
     ]
     assert result_queries == expected_queries
     assert result_post_actions == expected_post_actions
+
+
+def test_in_with_subquery(session):
+    # This test checks the subquery usage of the code generator
+    df0 = session.create_dataframe([[1], [2], [5]], schema=["a"])
+    df = session.create_dataframe(
+        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]], schema=["a", "b", "c", "d"]
+    )
+    df_filter = df0.filter(col("a") < 3)
+    # filter with NOT
+    df_in = df.filter(~df["a"].in_(df_filter))
+    check_generated_plan_queries(df_in._plan)
+
+
+def test_in_with_subquery_multiple_query(session):
+    if session._sql_simplifier_enabled:
+        pytest.skip(
+            "SNOW-1678419 pre and post actions are not propagated properly for SelectStatement"
+        )
+    # multiple queries
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df0 = session.create_dataframe([[1], [2], [5], [7]], schema=["a"])
+        df = session.create_dataframe(
+            [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33], [5, "c", 21, 18]],
+            schema=["a", "b", "c", "d"],
+        )
+        df_select = df.select(~df["a"].in_(df0.filter(col("a") < 2)).as_("in_result"))
+        query_generator = create_query_generator(df_select._plan)
+        reset_plan_tree(df_select._plan)
+        # regenerate the queries
+        plan_queries = query_generator.generate_queries([df_select._plan.source_plan])
+        queries = [query.sql.lstrip() for query in plan_queries[PlanQueryType.QUERIES]]
+        post_actions = [
+            query.sql.lstrip() for query in plan_queries[PlanQueryType.POST_ACTIONS]
+        ]
+        verify_multiple_create_queries(queries, post_actions, 5)
+
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+
+
+def test_df_with_pre_actions(session):
+    df = session.sql("show tables")
+    if session.sql_simplifier_enabled:
+        # when sql simplified is enabled, the df plan is associated with
+        # a SelectStatement, we can check the query generation
+        check_generated_plan_queries(df._plan)
+    df = df.select("database_name", "schema_name", "is_external")
+    check_generated_plan_queries(df._plan)
+
+
+def test_dataframe_alas_join(session):
+    df1 = session.create_dataframe([[1, 6], [3, 8], [7, 7]], schema=["col1", "col2"])
+    df2 = session.create_dataframe([[1, 2], [3, 4], [5, 5]], schema=["col1", "col2"])
+    df_res = (
+        df1.alias("L")
+        .join(df2.alias("R"), col("L", "col1") == col("R", "col1"))
+        .select(col("L", "col1"), col("R", "col2"))
+    )
+    check_generated_plan_queries(df_res._plan)
+
+
+def test_select_alias(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df1 = df.select("a", "b", (col("a") + col("b")).as_("c"))
+    # Add a new column d that doesn't use c after c was added previously. Flatten safely.
+    df2 = df1.select("a", "b", "c", (col("a") + col("b") + 1).as_("d"))
+    check_generated_plan_queries(df2._plan)

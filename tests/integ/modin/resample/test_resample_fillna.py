@@ -35,7 +35,11 @@ def test_resample_fill(interval, agg_func):
     )
     eval_snowpark_pandas_result(
         *create_test_dfs(
-            {"a": range(len(datecol)), "b": range(len(datecol) - 1, -1, -1)},
+            {
+                "a": range(len(datecol)),
+                "b": range(len(datecol) - 1, -1, -1),
+                "c": native_pd.timedelta_range("1 days", periods=len(datecol)),
+            },
             index=datecol,
         ),
         lambda df: getattr(df.resample(rule=f"{interval}D"), agg_func)(),
@@ -67,7 +71,6 @@ def test_resample_fill_ser(interval, agg_func):
     )
 
 
-# One extra query to convert index to native pandas for dataframe constructor
 @interval
 @agg_func
 @sql_count_checker(query_count=3, join_count=1)
@@ -112,7 +115,6 @@ def resample_ffill_ser_one_gap(agg_func):
     )
 
 
-# One extra query to convert index to native pandas for dataframe constructor
 @interval
 @agg_func
 @sql_count_checker(query_count=3, join_count=1)
@@ -162,7 +164,6 @@ def test_resample_ffill_ser_missing_in_middle(interval, agg_func):
     )
 
 
-# One extra query to convert index to native pandas for dataframe constructor
 @interval
 @agg_func
 @sql_count_checker(query_count=3, join_count=1)
@@ -187,7 +188,6 @@ def test_resample_ffill_ffilled_with_none(interval, agg_func):
     )
 
 
-# One extra query to convert index to native pandas for dataframe constructor
 @interval
 @agg_func
 @sql_count_checker(query_count=3, join_count=1)

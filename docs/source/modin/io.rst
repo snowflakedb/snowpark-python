@@ -13,6 +13,7 @@ Input/Output
     read_excel
     read_json
     read_parquet
+    read_sas
 
 .. rubric:: SQL
 
