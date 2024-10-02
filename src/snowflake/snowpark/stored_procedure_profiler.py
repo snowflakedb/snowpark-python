@@ -3,10 +3,12 @@
 #
 import re
 import threading
-from typing import List, Optional
+from typing import List, Literal
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.utils import validate_object_name
+
+STORED_PROCEDURE_CALL_PATTERN = r"WITH\s+.*?\s+AS\s+PROCEDURE\s+.*?\s+CALL\s+.*"
 
 
 class StoredProcedureProfiler:
@@ -14,18 +16,15 @@ class StoredProcedureProfiler:
     Set up profiler to receive profiles of stored procedures.
 
     Note:
-        This feature cannot be used in owner's right stored procedure because owner's right stored procedure will not be able to set session-level parameters.
+        This feature cannot be used in owner's right stored procedure because owner's right stored procedure will not be
+        able to set session-level parameters.
     """
 
     def __init__(
         self,
         session: "snowflake.snowpark.Session" = None,
     ) -> None:
-        self.stage = ""
-        self.active_profiler_type = ""
-        self.registered_stored_procedures = []
-        self.session = session
-        self._pattern = r"WITH\s+.*?\s+AS\s+PROCEDURE\s+.*?\s+CALL\s+.*"
+        self._session = session
         self._query_history = session.query_history(include_thread_id=True)
 
     def register_modules(self, stored_procedures: List[str]):
@@ -33,15 +32,15 @@ class StoredProcedureProfiler:
         Register stored procedures to generate profiles for them.
 
         Note:
-            Registered modules will be overwritten by this function. Use this function with an empty string will remove registered modules.
+            Registered modules will be overwritten by this function. Use this function with an empty string will remove
+            registered modules.
         Args:
             stored_procedures: List of names of stored procedures.
         """
-        self.registered_stored_procedures = stored_procedures
         sql_statement = (
             f"alter session set python_profiler_modules='{','.join(stored_procedures)}'"
         )
-        self.session.sql(sql_statement).collect()
+        self._session.sql(sql_statement).collect()
 
     def set_targeted_stage(self, stage: str):
         """
@@ -54,53 +53,49 @@ class StoredProcedureProfiler:
             stage: String of fully qualified name of targeted stage
         """
         validate_object_name(stage)
-        self.stage = stage
         if (
-            len(self.session.sql(f"show stages like '{self.stage}'").collect()) == 0
+            len(self._session.sql(f"show stages like '{stage}'").collect()) == 0
             and len(
-                self.session.sql(
-                    f"show stages like '{self.stage.split('.')[-1]}'"
+                self._session.sql(
+                    f"show stages like '{stage.split('.')[-1]}'"
                 ).collect()
             )
             == 0
         ):
-            self.session.sql(
-                f"create temp stage if not exists {self.stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
+            self._session.sql(
+                f"create temp stage if not exists {stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
             ).collect()
         sql_statement = f'alter session set PYTHON_PROFILER_TARGET_STAGE ="{stage}"'
-        self.session.sql(sql_statement).collect()
+        self._session.sql(sql_statement).collect()
 
-    def set_active_profiler(self, active_profiler_type: Optional[str] = None):
+    def set_active_profiler(self, active_profiler_type: Literal["LINE", "MEMORY"]):
         """
         Set active profiler.
 
         Note:
             Active profiler must be either 'LINE' or 'MEMORY' (case-sensitive). Active profiler is 'LINE' by default.
         Args:
-            active_profiler_type: String that represent active_profiler, must be either 'LINE' or 'MEMORY' (case-sensitive).
+            active_profiler_type: String that represent active_profiler, must be either 'LINE' or 'MEMORY'
+            (case-sensitive).
 
         """
-        if active_profiler_type is None:
-            active_profiler_type = ""
-
-        if active_profiler_type not in ["LINE", "MEMORY", ""]:
+        if active_profiler_type not in ["LINE", "MEMORY"]:
             raise ValueError(
-                f"active_profiler expect 'LINE', 'MEMORY' or empty string '', got {active_profiler_type} instead"
+                f"active_profiler expect 'LINE', 'MEMORY', got {active_profiler_type} instead"
             )
-        self.active_profiler_type = active_profiler_type
-        sql_statement = f"alter session set ACTIVE_PYTHON_PROFILER = '{self.active_profiler_type.upper()}'"
-        self.session.sql(sql_statement).collect()
+        sql_statement = f"alter session set ACTIVE_PYTHON_PROFILER = '{active_profiler_type.upper()}'"
+        self._session.sql(sql_statement).collect()
 
     def disable(self):
         """
         Disable profiler.
         """
-        self.active_profiler_type = ""
         sql_statement = "alter session set ACTIVE_PYTHON_PROFILER = ''"
-        self.session.sql(sql_statement).collect()
+        self._session.sql(sql_statement).collect()
 
-    def _is_sp_call(self, query):
-        return re.match(self._pattern, query, re.DOTALL) is not None
+    @staticmethod
+    def _is_sp_call(query):
+        return re.match(STORED_PROCEDURE_CALL_PATTERN, query, re.DOTALL) is not None
 
     def _get_last_query_id(self):
         current_thread = threading.get_ident()
@@ -122,4 +117,4 @@ class StoredProcedureProfiler:
         """
         query_id = self._get_last_query_id()
         sql = f"select snowflake.core.get_python_profiler_output('{query_id}')"
-        return self.session.sql(sql).collect()[0][0]
+        return self._session.sql(sql).collect()[0][0]
