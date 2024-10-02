@@ -149,6 +149,21 @@ CALL myProcedure()INTO :result
     """
     assert pro._is_sp_call(sp_call_sql)
 
+    sp_call_sql = """CALL MY_SPROC()"""
+    assert pro._is_sp_call(sp_call_sql)
+
+    sp_call_sql = """    CALL MY_SPROC()"""
+    assert pro._is_sp_call(sp_call_sql)
+
+    sp_call_sql = """WITH myProcedure AS PROCEDURE () CALL  myProcedure"""
+    assert pro._is_sp_call(sp_call_sql)
+
+    sp_call_sql = """   WITH myProcedure AS PROCEDURE ... CALL  myProcedure"""
+    assert pro._is_sp_call(sp_call_sql)
+
+    sp_call_sql = """WITH SNOWPARK_TEMP_CTE_1234 AS (SELECT 1 as A) SELECT * FROM SNOWPARK_TEMP_CTE_1234 AS PROCEDURE () CALL  myprocedure"""
+    assert pro._is_sp_call(sp_call_sql)
+
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
