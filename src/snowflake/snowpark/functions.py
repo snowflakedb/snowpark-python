@@ -5356,14 +5356,6 @@ def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
         -------------
         <BLANKLINE>
 
-        >>> df.select(array_remove(df.data, None).alias("objects")).show()
-        -------------
-        |"OBJECTS"  |
-        -------------
-        |NULL       |
-        -------------
-        <BLANKLINE>
-
         >>> df.select(array_remove(df.data, lit('2').cast(VariantType())).alias("objects")).show()
         -------------
         |"OBJECTS"  |
@@ -5374,6 +5366,14 @@ def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
         |  1,       |
         |  1        |
         |]          |
+        -------------
+        <BLANKLINE>
+
+        >>> df.select(array_remove(df.data, None).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |NULL       |
         -------------
         <BLANKLINE>
 
@@ -5388,6 +5388,7 @@ def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
         |]          |
         -------------
         <BLANKLINE>
+
 
     See Also:
         - `ARRAY <https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-array>`_ for more details on semi-structured arrays.
