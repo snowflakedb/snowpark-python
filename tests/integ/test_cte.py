@@ -22,7 +22,7 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 pytestmark = [
-    pytest.mark.xfail(
+    pytest.mark.skipif(
         "config.getoption('local_testing_mode', default=False)",
         reason="CTE is a SQL feature",
         run=False,
