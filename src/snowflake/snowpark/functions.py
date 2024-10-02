@@ -5369,19 +5369,13 @@ def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
         -------------
         <BLANKLINE>
 
-        >>> df = session.create_dataframe([(["a", "b", "c", "a", "a"],)], ['data'])
-        >>> df.select(array_remove(df.data, "a").alias("objects")).show()
+        >>> df.select(array_remove(df.data, None).alias("objects")).show()
         -------------
         |"OBJECTS"  |
         -------------
-        |[          |
-        |  "b",     |
-        |  "c"      |
-        |]          |
+        |NULL       |
         -------------
         <BLANKLINE>
-
-
     See Also:
         - `ARRAY <https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-array>`_ for more details on semi-structured arrays.
     """
