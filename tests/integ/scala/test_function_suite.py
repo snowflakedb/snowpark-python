@@ -4656,13 +4656,13 @@ def test_dense_rank(session):
 
 
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
-def test_lag(session, col_z, local_testing_mode):
+def test_lag(session, col_z):
     Utils.check_answer(
         TestData.xyz(session).select(
             lag(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(0), Row(10), Row(1), Row(0), Row(1)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4670,7 +4670,7 @@ def test_lag(session, col_z, local_testing_mode):
             lag(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4678,7 +4678,7 @@ def test_lag(session, col_z, local_testing_mode):
             lag(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4686,18 +4686,18 @@ def test_lag(session, col_z, local_testing_mode):
             lag(col_z, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(10), Row(1), Row(3), Row(1), Row(3)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
 
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
-def test_lead(session, col_z, local_testing_mode):
+def test_lead(session, col_z):
     Utils.check_answer(
         TestData.xyz(session).select(
             lead(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(0), Row(3), Row(0)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4705,7 +4705,7 @@ def test_lead(session, col_z, local_testing_mode):
             lead(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4713,7 +4713,7 @@ def test_lead(session, col_z, local_testing_mode):
             lead(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
 

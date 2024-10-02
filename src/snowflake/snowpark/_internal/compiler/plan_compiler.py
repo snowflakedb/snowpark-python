@@ -24,7 +24,10 @@ from snowflake.snowpark._internal.compiler.repeated_subquery_elimination import 
 from snowflake.snowpark._internal.compiler.telemetry_constants import (
     CompilationStageTelemetryField,
 )
-from snowflake.snowpark._internal.compiler.utils import create_query_generator
+from snowflake.snowpark._internal.compiler.utils import (
+    create_query_generator,
+    plot_plan_if_enabled,
+)
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark.mock._connection import MockServerConnection
 
@@ -46,15 +49,13 @@ class PlanCompiler:
 
     def __init__(self, plan: SnowflakePlan) -> None:
         self._plan = plan
-        current_session = self._plan.session
-        self.cte_optimization_enabled = current_session.cte_optimization_enabled
-        self.large_query_breakdown_enabled = (
-            current_session.large_query_breakdown_enabled
+        session = plan.session
+        self.cte_optimization_enabled = session.cte_optimization_enabled
+        self.large_query_breakdown_enabled = session.large_query_breakdown_enabled
+        self.large_query_breakdown_complexity_bounds = (
+            session.large_query_breakdown_complexity_bounds
         )
-        self.query_compilation_stage_enabled = (
-            current_session._query_compilation_stage_enabled
-        )
-        self.complexity_bounds = current_session.large_query_breakdown_complexity_bounds
+        self.query_compilation_stage_enabled = session._query_compilation_stage_enabled
 
     def should_start_query_compilation(self) -> bool:
         """
@@ -80,6 +81,7 @@ class PlanCompiler:
 
     def compile(self) -> Dict[PlanQueryType, List[Query]]:
         if self.should_start_query_compilation():
+            session = self._plan.session
             # preparation for compilation
             # 1. make a copy of the original plan
             start_time = time.time()
@@ -87,6 +89,7 @@ class PlanCompiler:
                 self._plan.cumulative_node_complexity
             )
             logical_plans: List[LogicalPlan] = [copy.deepcopy(self._plan)]
+            plot_plan_if_enabled(self._plan, "original_plan")
             deep_copy_end_time = time.time()
 
             # 2. create a code generator with the original plan
@@ -106,14 +109,16 @@ class PlanCompiler:
                 get_complexity_score(logical_plan.cumulative_node_complexity)
                 for logical_plan in logical_plans
             ]
+            for i, plan in enumerate(logical_plans):
+                plot_plan_if_enabled(plan, f"cte_optimized_plan_{i}")
 
             # Large query breakdown
             if self.large_query_breakdown_enabled:
                 large_query_breakdown = LargeQueryBreakdown(
-                    self._plan.session,
+                    session,
                     query_generator,
                     logical_plans,
-                    self.complexity_bounds,
+                    self.large_query_breakdown_complexity_bounds,
                 )
                 logical_plans = large_query_breakdown.apply()
 
@@ -122,6 +127,8 @@ class PlanCompiler:
                 get_complexity_score(logical_plan.cumulative_node_complexity)
                 for logical_plan in logical_plans
             ]
+            for i, plan in enumerate(logical_plans):
+                plot_plan_if_enabled(plan, f"large_query_breakdown_plan_{i}")
 
             # 4. do a final pass of code generation
             queries = query_generator.generate_queries(logical_plans)
@@ -131,11 +138,10 @@ class PlanCompiler:
             cte_time = cte_end_time - cte_start_time
             large_query_breakdown_time = large_query_breakdown_end_time - cte_end_time
             total_time = time.time() - start_time
-            session = self._plan.session
             summary_value = {
                 TelemetryField.CTE_OPTIMIZATION_ENABLED.value: self.cte_optimization_enabled,
                 TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: self.large_query_breakdown_enabled,
-                CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: self.complexity_bounds,
+                CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: self.large_query_breakdown_complexity_bounds,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_COMPILATION.value: total_time,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_DEEP_COPY_PLAN.value: deep_copy_time,
                 CompilationStageTelemetryField.TIME_TAKEN_FOR_CTE_OPTIMIZATION.value: cte_time,
@@ -152,9 +158,7 @@ class PlanCompiler:
             return queries
         else:
             final_plan = self._plan
-            final_plan = final_plan.replace_repeated_subquery_with_cte(
-                self.cte_optimization_enabled, self.query_compilation_stage_enabled
-            )
+            final_plan = final_plan.replace_repeated_subquery_with_cte()
             return {
                 PlanQueryType.QUERIES: final_plan.queries,
                 PlanQueryType.POST_ACTIONS: final_plan.post_actions,

@@ -4,18 +4,18 @@
 
 from typing import Any, Literal, NoReturn, Optional, Union
 
-import pandas as native_pd
+import modin.pandas as pd
 from pandas._libs.lib import no_default
 from pandas._libs.tslibs import to_offset
 from pandas._typing import Frequency
 
-import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import (
     builtin,
     dateadd,
     datediff,
+    last_day,
     lit,
     to_timestamp_ntz,
 )
@@ -47,7 +47,9 @@ IMPLEMENTED_AGG_METHODS = [
     "last",
 ]
 IMPLEMENTED_MISC_METHODS = ["ffill"]
-SUPPORTED_RESAMPLE_RULES = ["day", "hour", "second", "minute"]
+SUPPORTED_RESAMPLE_RULES = ("second", "minute", "hour", "day", "week", "month", "year")
+RULE_SECOND_TO_DAY = ("second", "minute", "hour", "day")
+RULE_WEEK_TO_YEAR = ("week", "quarter", "month", "year")
 
 
 # https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#dateoffset-objects
@@ -82,9 +84,21 @@ ALL_DATEOFFSET_STRINGS = [
     "ns",
 ]
 
-SNOWFLAKE_SUPPORTED_DATEOFFSETS = ["W", "ME", "QE", "QS", "YS", "D", "h", "min", "s"]
+SNOWFLAKE_SUPPORTED_DATEOFFSETS = [
+    "s",
+    "min",
+    "h",
+    "D",
+    "W",
+    "MS",
+    "ME",
+    "QS",
+    "QE",
+    "YS",
+    "YE",
+]
 
-IMPLEMENTED_DATEOFFSET_STRINGS = ["min", "s", "h", "D"]
+IMPLEMENTED_DATEOFFSET_STRINGS = ["s", "min", "h", "D", "W", "ME", "YE"]
 
 UNSUPPORTED_DATEOFFSET_STRINGS = list(
     # sort so that tests that generate test cases from this last always use the
@@ -134,7 +148,6 @@ def rule_to_snowflake_width_and_slice_unit(rule: Frequency) -> tuple[int, str]:
 
     rule_code = offset.rule_code
     slice_width = offset.n
-
     if rule_code == "s":
         slice_unit = "second"
     elif rule_code == "min":
@@ -143,16 +156,16 @@ def rule_to_snowflake_width_and_slice_unit(rule: Frequency) -> tuple[int, str]:
         slice_unit = "hour"
     elif rule_code == "D":
         slice_unit = "day"
-    elif rule_code[0] == "W":  # pragma: no cover
+    elif rule_code[0] == "W":
         # treat codes like W-MON and W-SUN as "week":
         slice_unit = "week"
-    elif rule_code == "ME":  # pragma: no cover
+    elif rule_code == "ME":
         slice_unit = "month"
-    elif rule_code[0] == "QE":  # pragma: no cover
-        # treat codes like Q-DEC and Q-JAN as "quarter":
+    elif rule_code[0:2] == "QE":  # pragma: no cover
+        # treat codes like QE-DEC and QE-JAN as "quarter":
         slice_unit = "quarter"
-    elif rule_code[0] == "YE":  # pragma: no cover
-        # treat codes like A-DEC and A-JAN as "year":
+    elif rule_code[0:2] == "YE":
+        # treat codes like YE-DEC and YE-JAN as "year":
         slice_unit = "year"
     else:
         raise NotImplementedError(
@@ -204,9 +217,7 @@ def validate_resample_supported_by_snowflake(
     """
     rule = resample_kwargs.get("rule")
 
-    _, slice_unit = rule_to_snowflake_width_and_slice_unit(
-        rule  # type:  ignore[arg-type]
-    )
+    _, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
 
     if slice_unit not in SUPPORTED_RESAMPLE_RULES:
         _argument_not_implemented("rule", rule)
@@ -216,8 +227,13 @@ def validate_resample_supported_by_snowflake(
         _argument_not_implemented("axis", axis)
 
     closed = resample_kwargs.get("closed")
-    if closed is not None:  # pragma: no cover
+    if closed not in ("left", None) and slice_unit in RULE_SECOND_TO_DAY:
         _argument_not_implemented("closed", closed)
+    if slice_unit in RULE_WEEK_TO_YEAR:
+        if closed != "left":
+            ErrorMessage.not_implemented(
+                f"resample with rule offset {rule} is only implemented with closed='left'"
+            )
 
     label = resample_kwargs.get("label")
     if label is not None:  # pragma: no cover
@@ -376,8 +392,7 @@ def perform_resample_binning_on_frame(
     # Time slices in Snowflake are aligned to snowflake_timeslice_alignment_date,
     # so we must normalize input datetimes.
     normalization_amt = (
-        native_pd.to_datetime(start_date)
-        - native_pd.to_datetime(SNOWFLAKE_TIMESLICE_ALIGNMENT_DATE)
+        pd.to_datetime(start_date) - pd.to_datetime(SNOWFLAKE_TIMESLICE_ALIGNMENT_DATE)
     ).total_seconds()
 
     # Subtract the normalization amount in seconds from the input datetime.
@@ -399,7 +414,12 @@ def perform_resample_binning_on_frame(
 
     # Call time_slice on the normalized datetime column with the slice_width and slice_unit.
     # time_slice is not supported for timestamps with timezones, only TIMESTAMP_NTZ
-    normalized_dates_set_to_bins = time_slice(normalized_dates, slice_width, slice_unit)
+    normalized_dates_set_to_bins = time_slice(
+        column=normalized_dates,
+        slice_length=slice_width,
+        date_or_time_part=slice_unit,
+        start_or_end="start" if slice_unit in RULE_SECOND_TO_DAY else "end",
+    )
     # frame:
     #             data_col
     # date
@@ -414,8 +434,13 @@ def perform_resample_binning_on_frame(
     # 1970-01-10         9
 
     # Add the normalization amount in seconds back to the input datetime for the correct result.
-    unnormalized_dates_set_to_bins = dateadd(
-        "second", lit(normalization_amt), normalized_dates_set_to_bins
+    unnormalized_dates_set_to_bins = (
+        dateadd("second", lit(normalization_amt), normalized_dates_set_to_bins)
+        if slice_unit in RULE_SECOND_TO_DAY
+        else last_day(
+            dateadd("second", lit(normalization_amt), normalized_dates_set_to_bins),
+            slice_unit,
+        )
     )
     # frame:
     #             data_col

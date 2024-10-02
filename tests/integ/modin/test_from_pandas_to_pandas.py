@@ -19,7 +19,6 @@ from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
 )
 from snowflake.snowpark.types import ArrayType, MapType, StructType
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     BASIC_TYPE_DATA1,
     BASIC_TYPE_DATA2,
@@ -29,6 +28,7 @@ from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
 
 # Those index types are used to verify the type mapping in a round trip, i.e., from_pandas to to_pandas.
@@ -308,7 +308,7 @@ def test_from_to_pandas_datetime64_support():
     )
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=4)
 def test_rw_datetimeindex():
     test_datetime_index = native_pd.DatetimeIndex(
         ["2017-12-31 16:00:00", "2017-12-31 17:00:00", "2017-12-31 18:00:00"],
@@ -327,7 +327,9 @@ def test_rw_datetimeindex():
     df = pd.DataFrame({"ntz": test_datetime_index, "tz": test_datetime_index_tz})
     assert_series_equal(
         df.dtypes,
-        native_pd.Series(["datetime64[ns]", "datetime64[ns]"], index=["ntz", "tz"]),
+        native_pd.Series(
+            ["datetime64[ns]", "datetime64[ns, UTC-08:00]"], index=["ntz", "tz"]
+        ),
     )
     assert_series_equal(
         df.to_pandas().dtypes,
