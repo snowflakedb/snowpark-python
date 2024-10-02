@@ -5383,8 +5383,8 @@ def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
         |"OBJECTS"  |
         -------------
         |[          |
-        |  "b",       |
-        |  "c"        |
+        |  "b",     |
+        |  "c"      |
         |]          |
         -------------
         <BLANKLINE>
