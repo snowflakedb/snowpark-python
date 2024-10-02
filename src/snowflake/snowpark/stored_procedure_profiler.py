@@ -112,7 +112,7 @@ class StoredProcedureProfiler:
 
     def get_output(self) -> str:
         """
-        Return the profiles of last executed stored procedure.
+        Return the profiles of last executed stored procedure in current thread.
 
         Note:
             This function must be called right after the execution of stored procedure you want to profile.
