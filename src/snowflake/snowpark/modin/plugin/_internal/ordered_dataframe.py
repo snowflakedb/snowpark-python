@@ -545,9 +545,14 @@ class OrderedDataFrame:
             extracted as the quoted identifier.
         2) when it is a str
             a) if it is a start (*), then all projected columns snowflake quoted identifiers are added
-            b) otherwise, it is treated as a name of existing column, and only active columns of the current
-                ordered dataframe can be used.
+            b) otherwise, it is treated as a name of existing column, and a validation check is applied
+                to ensure that only active columns of the current ordered dataframe can be used
         e) AssertionError is raised for all cases can not be handled.
+
+        Args:
+            col: ColumnOrName, Snowpark Column expression or column name
+            active_columns: the active columns of the current ordered dataframe to perform the check against,
+                includes all projected columns, row position columns and ordering columns.
         """
         from snowflake.snowpark.modin.plugin._internal.utils import (
             is_valid_snowflake_quoted_identifier,
