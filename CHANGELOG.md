@@ -54,6 +54,7 @@
 - Fixed a bug where `Series.sort_values` failed if series name overlapped with index column name.
 - Fixed a bug where transposing a dataframe would map `Timedelta` index levels to integer column levels.
 - Fixed a bug where `Resampler` methods on timedelta columns would produce integer results.
+- Fixed a bug where `pd.to_numeric()` would leave `Timedelta` inputs as `Timedelta` instead of converting them to integers.
 
 ## 1.22.1 (2024-09-11)
 This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for detailed release content.
