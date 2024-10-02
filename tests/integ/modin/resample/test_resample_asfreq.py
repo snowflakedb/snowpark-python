@@ -7,13 +7,10 @@ import numpy as np
 import pandas as native_pd
 import pytest
 
-from snowflake.snowpark.modin.plugin._internal.resample_utils import (
-    IMPLEMENTED_DATEOFFSET_STRINGS,
-)
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
-freq = pytest.mark.parametrize("freq", IMPLEMENTED_DATEOFFSET_STRINGS)
+freq = pytest.mark.parametrize("freq", ["min", "s", "h", "D"])
 interval = pytest.mark.parametrize("interval", [1, 2, 3, 5, 15])
 
 
@@ -24,7 +21,10 @@ def test_asfreq_no_method(freq, interval):
     rule = f"{interval}{freq}"
     eval_snowpark_pandas_result(
         *create_test_dfs(
-            {"A": np.random.randn(15)},
+            {
+                "A": np.random.randn(15),
+                "B": native_pd.timedelta_range("1 days", periods=15),
+            },
             index=native_pd.date_range("2020-01-01", periods=15, freq=f"1{freq}"),
         ),
         lambda df: df.asfreq(freq=rule),
@@ -49,7 +49,10 @@ def test_asfreq_ffill():
 def test_resampler_asfreq(freq):
     eval_snowpark_pandas_result(
         *create_test_dfs(
-            {"A": np.random.randn(15)},
+            {
+                "A": np.random.randn(15),
+                "B": native_pd.timedelta_range("1 days", periods=15),
+            },
             index=native_pd.date_range("2020-01-01", periods=15, freq="1min"),
         ),
         lambda df: df.resample(freq).asfreq(),
@@ -58,7 +61,7 @@ def test_resampler_asfreq(freq):
 
 
 @sql_count_checker(query_count=0)
-def test_asfreq_negative():
+def test_asfreq_parameter_negative():
     snow_df = pd.DataFrame(
         {"A": np.random.randn(15)},
         index=native_pd.date_range("2020-01-01", periods=15, freq="1s"),
@@ -71,3 +74,16 @@ def test_asfreq_negative():
         snow_df.asfreq(freq="5s", method="ffill", fill_value=2)
     with pytest.raises(NotImplementedError):
         snow_df.resample("5s").asfreq(fill_value=2)
+
+
+@sql_count_checker(query_count=0)
+def test_asfreq_rule_negative():
+    snow_df = pd.DataFrame(
+        {"A": np.random.randn(15)},
+        index=native_pd.date_range("2020-01-01", periods=15, freq="1ME"),
+    )
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas `asfreq` does not yet support frequencies week, month, quarter, or year",
+    ):
+        snow_df.asfreq(freq="3ME")

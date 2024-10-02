@@ -24,7 +24,10 @@ from snowflake.snowpark._internal.compiler.repeated_subquery_elimination import 
 from snowflake.snowpark._internal.compiler.telemetry_constants import (
     CompilationStageTelemetryField,
 )
-from snowflake.snowpark._internal.compiler.utils import create_query_generator
+from snowflake.snowpark._internal.compiler.utils import (
+    create_query_generator,
+    plot_plan_if_enabled,
+)
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark.mock._connection import MockServerConnection
 
@@ -81,6 +84,7 @@ class PlanCompiler:
                 self._plan.cumulative_node_complexity
             )
             logical_plans: List[LogicalPlan] = [copy.deepcopy(self._plan)]
+            plot_plan_if_enabled(self._plan, "original_plan")
             deep_copy_end_time = time.time()
 
             # 2. create a code generator with the original plan
@@ -100,6 +104,8 @@ class PlanCompiler:
                 get_complexity_score(logical_plan.cumulative_node_complexity)
                 for logical_plan in logical_plans
             ]
+            for i, plan in enumerate(logical_plans):
+                plot_plan_if_enabled(plan, f"cte_optimized_plan_{i}")
 
             # Large query breakdown
             if self._plan.session.large_query_breakdown_enabled:
@@ -113,6 +119,8 @@ class PlanCompiler:
                 get_complexity_score(logical_plan.cumulative_node_complexity)
                 for logical_plan in logical_plans
             ]
+            for i, plan in enumerate(logical_plans):
+                plot_plan_if_enabled(plan, f"large_query_breakdown_plan_{i}")
 
             # 4. do a final pass of code generation
             queries = query_generator.generate_queries(logical_plans)

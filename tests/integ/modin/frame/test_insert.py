@@ -212,7 +212,7 @@ def test_insert_dataframe_shape_negative(native_df):
         (np.ones((1, 1)), 1),
         ([1, 2], 1),  # len < number of rows
         ((6, 7, 8, 9), 1),  # len > number of rows
-        ({"a", "b", "c"}, 1),  # python set
+        ({"a", "b", "c"}, 0),  # python set
     ],
 )
 def test_insert_value_negative(native_df, value, expected_query_count):
@@ -286,7 +286,7 @@ def test_insert_loc_negative(native_df, loc, expected_query_count):
         (1, 1, 0),  # int scalar
     ],
 )
-def test_insert_multiindex_array_like_and_scaler(
+def test_insert_multiindex_array_like_and_scalar(
     value, expected_query_count, expected_join_count
 ):
     arrays = [[3, 4, 5, 6], [1, 2, 1, 2]]
@@ -619,7 +619,6 @@ def test_insert_into_empty_df_with_single_column():
     def helper(df):
         temp_series = series
         if isinstance(df, pd.DataFrame):
-            df = pd.DataFrame(df)
             temp_series = pd.Series(temp_series)
 
         df.insert(0, "X", temp_series)
@@ -725,7 +724,6 @@ def test_insert_multiindex_column_negative(snow_df, columns, insert_label):
         [["a", "b", "b", "d", "e"], ["x", "y", "z", "u", "u"], True],
     ],
 )
-# Two extra queries to convert index to native pandas when creating snowpark pandas dataframes
 @sql_count_checker(query_count=3, join_count=1)
 def test_insert_with_unique_and_duplicate_index_values(
     index_values, other_index_values, expect_mismatch

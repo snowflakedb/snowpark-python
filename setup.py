@@ -47,6 +47,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "openpyxl",  # used in read_excel test, not a requirement for distribution
     "matplotlib",  # used in plot tests
     "pre-commit",
+    "graphviz",  # used in plot tests
 ]
 
 # read the version
@@ -91,11 +92,6 @@ setup(
         "snowflake.snowpark.mock",
         "snowflake.snowpark.modin",
         "snowflake.snowpark.modin.config",
-        "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas",
-        "snowflake.snowpark.modin.core.execution.dispatching",
-        "snowflake.snowpark.modin.core.execution.dispatching.factories",
-        "snowflake.snowpark.modin.pandas",
-        "snowflake.snowpark.modin.pandas.api.extensions",
         "snowflake.snowpark.modin.plugin",
         "snowflake.snowpark.modin.plugin._internal",
         "snowflake.snowpark.modin.plugin.compiler",

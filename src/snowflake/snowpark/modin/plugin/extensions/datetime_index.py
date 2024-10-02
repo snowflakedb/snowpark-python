@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from datetime import timedelta, tzinfo
 
-import modin
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 from pandas._libs import lib
@@ -42,7 +42,6 @@ from pandas._typing import (
     TimeNonexistent,
 )
 
-from snowflake.snowpark.modin.pandas import to_datetime, to_timedelta
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -73,7 +72,7 @@ class DatetimeIndex(Index):
 
     def __new__(
         cls,
-        data: ArrayLike | native_pd.Index | modin.pandas.Sereis | None = None,
+        data: ArrayLike | native_pd.Index | pd.Series | None = None,
         freq: Frequency | lib.NoDefault = _CONSTRUCTOR_DEFAULTS["freq"],
         tz=_CONSTRUCTOR_DEFAULTS["tz"],
         normalize: bool | lib.NoDefault = _CONSTRUCTOR_DEFAULTS["normalize"],
@@ -166,7 +165,7 @@ class DatetimeIndex(Index):
 
     def __init__(
         self,
-        data: ArrayLike | native_pd.Index | modin.pandas.Sereis | None = None,
+        data: ArrayLike | native_pd.Index | pd.Series | None = None,
         freq: Frequency | lib.NoDefault = _CONSTRUCTOR_DEFAULTS["freq"],
         tz=_CONSTRUCTOR_DEFAULTS["tz"],
         normalize: bool | lib.NoDefault = _CONSTRUCTOR_DEFAULTS["normalize"],
@@ -1542,7 +1541,7 @@ default 'raise'
             raise ValueError(
                 f"axis={axis} is not supported, this parameter is ignored. 0 is the only valid axis."
             )
-        return to_datetime(
+        return pd.to_datetime(
             self.to_series().astype("int64").agg("mean", axis=0, skipna=skipna)
         )
 
@@ -1605,7 +1604,7 @@ default 'raise'
         # convert the nanoseconds to seconds and then compute the standard deviation.
         # The timestamp is converted to seconds instead of the float version of nanoseconds since that can lead to
         # floating point precision issues
-        return to_timedelta(
+        return pd.to_timedelta(
             (self.to_series().astype(int) // 1_000_000_000).agg(
                 "std", axis=0, ddof=ddof, skipna=skipna, **kwargs
             )

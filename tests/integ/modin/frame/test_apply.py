@@ -35,6 +35,15 @@ from tests.integ.modin.utils import (
 # test data which has a python type as return type that is not a pandas Series/pandas DataFrame/tuple/list
 BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP = [
     [[[1.1, 2.2], [3, np.nan]], np.min, "float"],
+    param(
+        [[1.0, 2.2], [3, np.nan]],
+        lambda x: native_pd.Timedelta(1),
+        "native_pd.Timedelta",
+        id="return_timedelta_scalar",
+        marks=pytest.mark.xfail(
+            strict=True, raises=AssertionError, reason="SNOW-1619940"
+        ),
+    ),
     [[[1.1, 2.2], [3, np.nan]], lambda x: x.sum(), "float"],
     [[[1.1, 2.2], [3, np.nan]], lambda x: x.size, "int"],
     [[[1.1, 2.2], [3, np.nan]], lambda x: "0" if x.sum() > 1 else 0, "object"],
@@ -57,6 +66,16 @@ BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP = [
         [[{"a": "b"}, {"c": "d"}], [{"c": "b"}, {"a": "d"}]],
         lambda x: str(x[0]) + str(x[1]),
         "str",
+    ),
+    param(
+        [
+            [native_pd.Timedelta(1), native_pd.Timedelta(2)],
+            [native_pd.Timedelta(3), native_pd.Timedelta(4)],
+        ],
+        lambda row: row.sum().value,
+        "int",
+        id="apply_on_frame_with_timedelta_data_columns_returns_int",
+        marks=pytest.mark.xfail(strict=True, raises=NotImplementedError),
     ),
 ]
 
@@ -122,6 +141,17 @@ def test_axis_1_index_passed_as_name(df, row_label):
     #  Invoking a single UDF typically requires 3 queries (package management, code upload, UDF registration) upfront.
     with SqlCounter(query_count=4, join_count=0, udtf_count=0):
         eval_snowpark_pandas_result(snow_df, df, lambda x: x.apply(foo, axis=1))
+
+
+@pytest.mark.xfail(strict=True, raises=NotImplementedError)
+@sql_count_checker(query_count=0)
+def test_frame_with_timedelta_index():
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            native_pd.DataFrame([0], index=[native_pd.Timedelta(1)]),
+        ),
+        lambda df: df.apply(lambda row: row, axis=1)
+    )
 
 
 @pytest.mark.parametrize(
