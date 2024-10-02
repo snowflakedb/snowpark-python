@@ -3,7 +3,7 @@
 #
 import re
 import threading
-from typing import List
+from typing import List, Optional
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.utils import validate_object_name
@@ -22,11 +22,11 @@ class StoredProcedureProfiler:
         session: "snowflake.snowpark.Session" = None,
     ) -> None:
         self.stage = ""
-        self.active_profiler = ""
+        self.active_profiler_type = ""
         self.registered_stored_procedures = []
-        self.pattern = r"WITH\s+.*?\s+AS\s+PROCEDURE\s+.*?\s+CALL\s+.*"
         self.session = session
-        self.query_history = session.query_history(include_thread_id=True)
+        self._pattern = r"WITH\s+.*?\s+AS\s+PROCEDURE\s+.*?\s+CALL\s+.*"
+        self._query_history = session.query_history(include_thread_id=True)
 
     def register_modules(self, stored_procedures: List[str]):
         """
@@ -70,38 +70,41 @@ class StoredProcedureProfiler:
         sql_statement = f'alter session set PYTHON_PROFILER_TARGET_STAGE ="{stage}"'
         self.session.sql(sql_statement).collect()
 
-    def set_active_profiler(self, active_profiler: str):
+    def set_active_profiler(self, active_profiler_type: Optional[str] = None):
         """
         Set active profiler.
 
         Note:
             Active profiler must be either 'LINE' or 'MEMORY' (case-sensitive). Active profiler is 'LINE' by default.
         Args:
-            active_profiler: String that represent active_profiler, must be either 'LINE' or 'MEMORY' (case-sensitive).
+            active_profiler_type: String that represent active_profiler, must be either 'LINE' or 'MEMORY' (case-sensitive).
 
         """
-        if active_profiler not in ["LINE", "MEMORY", ""]:
+        if active_profiler_type is None:
+            active_profiler_type = ""
+
+        if active_profiler_type not in ["LINE", "MEMORY", ""]:
             raise ValueError(
-                f"active_profiler expect 'LINE', 'MEMORY' or empty string '', got {active_profiler} instead"
+                f"active_profiler expect 'LINE', 'MEMORY' or empty string '', got {active_profiler_type} instead"
             )
-        self.active_profiler = active_profiler
-        sql_statement = f"alter session set ACTIVE_PYTHON_PROFILER = '{self.active_profiler.upper()}'"
+        self.active_profiler_type = active_profiler_type
+        sql_statement = f"alter session set ACTIVE_PYTHON_PROFILER = '{self.active_profiler_type.upper()}'"
         self.session.sql(sql_statement).collect()
 
     def disable(self):
         """
         Disable profiler.
         """
-        self.active_profiler = ""
+        self.active_profiler_type = ""
         sql_statement = "alter session set ACTIVE_PYTHON_PROFILER = ''"
         self.session.sql(sql_statement).collect()
 
     def _is_sp_call(self, query):
-        return re.match(self.pattern, query, re.DOTALL) is not None
+        return re.match(self._pattern, query, re.DOTALL) is not None
 
     def _get_last_query_id(self):
         current_thread = threading.get_ident()
-        for query in self.query_history.queries[::-1]:
+        for query in self._query_history.queries[::-1]:
             query_thread = getattr(query, "thread_id", None)
             if query_thread is None or query_thread == current_thread:
                 if query.sql_text.upper().startswith("CALL") or self._is_sp_call(
