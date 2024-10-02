@@ -68,6 +68,7 @@
 #### Bug Fixes
 
 - Fixed a bug where nullable columns were annotated wrongly.
+- Fixed a bug where the `date_add` and `date_sub` functions failed for `NULL` values.
 - Fixed a bug where `equal_null` could fail inside a merge statement.
 - Fixed a bug where `row_number` could fail inside a Window function.
 - Fixed a bug where updates could fail when the source is the result of a join.
