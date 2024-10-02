@@ -6,8 +6,8 @@ import modin.pandas as pd
 import pandas as native_pd
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal, assert_series_equal
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=3)

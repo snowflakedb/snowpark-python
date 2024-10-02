@@ -18,7 +18,6 @@ from snowflake.snowpark.types import (
     StringType,
     VariantType,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_series_equal,
@@ -27,6 +26,7 @@ from tests.integ.modin.utils import (
     create_test_series,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 def validate_series_snowpark_dtype(series: pd.Series, snowpark_type: DataType) -> None:
