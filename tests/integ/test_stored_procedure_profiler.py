@@ -148,3 +148,29 @@ AS 'fake'
 CALL myProcedure()INTO :result
     """
     assert pro._is_sp_call(sp_call_sql)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
+def test_query_history_destroyed_after_finish_profiling(
+    profiler_session, db_parameters, tmp_stage_name
+):
+    profiler_session.stored_procedure_profiler.set_targeted_stage(
+        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
+    )
+
+    profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
+    assert (
+        profiler_session.stored_procedure_profiler._query_history
+        in profiler_session._conn._query_listener
+    )
+
+    profiler_session.stored_procedure_profiler.disable()
+    assert (
+        profiler_session.stored_procedure_profiler._query_history
+        not in profiler_session._conn._query_listener
+    )
+
+    profiler_session.stored_procedure_profiler.register_modules([])
