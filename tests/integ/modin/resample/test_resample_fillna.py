@@ -4,12 +4,12 @@
 import pandas as native_pd
 import pytest
 
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     create_test_dfs,
     create_test_series,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 interval = pytest.mark.parametrize("interval", [1, 2, 3, 5, 15])
 agg_func = pytest.mark.parametrize("agg_func", ["ffill", "bfill"])
@@ -35,7 +35,11 @@ def test_resample_fill(interval, agg_func):
     )
     eval_snowpark_pandas_result(
         *create_test_dfs(
-            {"a": range(len(datecol)), "b": range(len(datecol) - 1, -1, -1)},
+            {
+                "a": range(len(datecol)),
+                "b": range(len(datecol) - 1, -1, -1),
+                "c": native_pd.timedelta_range("1 days", periods=len(datecol)),
+            },
             index=datecol,
         ),
         lambda df: getattr(df.resample(rule=f"{interval}D"), agg_func)(),
