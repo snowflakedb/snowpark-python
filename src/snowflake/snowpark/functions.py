@@ -8729,11 +8729,11 @@ def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
 
 
 if TYPE_CHECKING:
-    from snowflake.snowpark import DataFrame
+    import snowflake.snowpark
 
 
 def map(
-    dataframe: "DataFrame",
+    dataframe: "snowflake.snowpark.DataFrame",
     func: Callable,
     output_types: List[StructType],
     output_column_names: Optional[List[str]] = None,
