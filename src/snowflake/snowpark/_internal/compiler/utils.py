@@ -95,7 +95,7 @@ def resolve_and_update_snowflake_plan(
     node.expr_to_alias = new_snowflake_plan.expr_to_alias
     node.is_ddl_on_temp_object = new_snowflake_plan.is_ddl_on_temp_object
     node._output_dict = new_snowflake_plan._output_dict
-    node.df_aliased_col_name_to_real_col_name = (
+    node.df_aliased_col_name_to_real_col_name.update(
         new_snowflake_plan.df_aliased_col_name_to_real_col_name
     )
     node.placeholder_query = new_snowflake_plan.placeholder_query
@@ -136,6 +136,9 @@ def replace_child(
 
     elif isinstance(parent, SelectStatement):
         parent.from_ = to_selectable(new_child, query_generator)
+        # once the subquery is updated, set _merge_projection_complexity_with_subquery to False to
+        # disable the projection complexity merge
+        parent._merge_projection_complexity_with_subquery = False
 
     elif isinstance(parent, SetStatement):
         new_child_as_selectable = to_selectable(new_child, query_generator)
@@ -235,6 +238,8 @@ def update_resolvable_node(
         # the projection expression can be re-analyzed during code generation
         node._projection_in_str = None
         node.analyzer = query_generator
+        # reset the _projection_complexities fields to re-calculate the complexities
+        node._projection_complexities = None
 
         # update the pre_actions and post_actions for the select statement
         node.pre_actions = node.from_.pre_actions
@@ -352,13 +357,13 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     """
     import os
 
-    import graphviz  # pyright: ignore[reportMissingImports]
-
     if (
         os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING", "false").lower()
         != "true"
     ):
         return
+
+    import graphviz  # pyright: ignore[reportMissingImports]
 
     def get_stat(node: LogicalPlan):
         def get_name(node: Optional[LogicalPlan]) -> str:

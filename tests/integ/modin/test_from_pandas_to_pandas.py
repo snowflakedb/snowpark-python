@@ -19,7 +19,6 @@ from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
 )
 from snowflake.snowpark.types import ArrayType, MapType, StructType
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     BASIC_TYPE_DATA1,
     BASIC_TYPE_DATA2,
@@ -29,6 +28,7 @@ from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
 
 # Those index types are used to verify the type mapping in a round trip, i.e., from_pandas to to_pandas.

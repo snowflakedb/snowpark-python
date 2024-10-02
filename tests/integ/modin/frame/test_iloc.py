@@ -20,12 +20,12 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.frame.test_head_tail import eval_result_and_query_with_no_join
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_snowpark_pandas_equal_to_pandas,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
 
 # default_index_snowpark_pandas_df and default_index_native_df have size of axis_len x axis_len

@@ -14,12 +14,12 @@ from tests.integ.modin.series.test_apply import (
     TEST_NUMPY_FUNCS,
     create_func_with_return_type_hint,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize("data,func,return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)

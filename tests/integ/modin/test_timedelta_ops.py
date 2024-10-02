@@ -9,12 +9,12 @@ import pandas as native_pd
 from pandas import Timestamp
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_series_equal,
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 TIME_DATA1 = {
     "CREATED_AT": ["2018-8-26 15:09:02", "2018-8-25 11:10:07", "2018-8-27 12:05:00"],
