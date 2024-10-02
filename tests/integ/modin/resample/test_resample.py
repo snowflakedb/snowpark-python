@@ -368,6 +368,6 @@ def test_resample_quantile_various_q(q):
             {"A": np.random.randn(15)},
             index=native_pd.date_range("2020-01-01", periods=15, freq="1s"),
         ),
-        lambda df: df.resample(rule="1s").quantile(q=q),
+        lambda df: df.resample(rule="3s").quantile(q=q),
         check_freq=False,
     )
