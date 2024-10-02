@@ -1399,22 +1399,7 @@ class Session:
                     continue
                 use_local_version = False
             package_req = Requirement(package)
-            # get the standard package name if there is no underscore
-            # underscores are discouraged in package names, but are still used in Anaconda channel
-            # pkg_resources.Requirement.parse will convert all underscores to dashes
-            # the regexp is to deal with case that "_" is in the package requirement as well as version restrictions
-            # we only extract the valid package name from the string by following:
-            # https://packaging.python.org/en/latest/specifications/name-normalization/
-            # A valid name consists only of ASCII letters and numbers, period, underscore and hyphen.
-            # It must start and end with a letter or number.
-            # however, we don't validate the pkg name as this is done by pkg_resources.Requirement.parse
-            # find the index of the first char which is not an valid package name character
-            package_name = package_req.name
-            if not use_local_version and "_" in package:
-                reg_match = re.search(r"[^0-9a-zA-Z\-_.]", package)
-                package_name = package[: reg_match.start()] if reg_match else package
-
-            package_dict[package] = (package_name, use_local_version, package_req)
+            package_dict[package] = (package_req.name, use_local_version, package_req)
         return package_dict
 
     def _get_dependency_packages(
