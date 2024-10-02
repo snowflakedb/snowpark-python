@@ -39,7 +39,9 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 from snowflake.snowpark.column import CaseExpr, Column
+from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import col, lit, seq1, uniform
+from tests.utils import Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -48,6 +50,57 @@ pytestmark = [
         run=False,
     )
 ]
+
+
+def create_df_with_deep_nested_with_column_dependencies(
+    session, temp_table_name, nest_level: int
+) -> DataFrame:
+    """
+    This creates a sample table with 1
+    """
+    # create a tabel with 11 columns (1 int columns and 10 string columns) for testing
+    struct_fields = [T.StructField("intCol", T.IntegerType(), True)]
+    for i in range(1, 11):
+        struct_fields.append(T.StructField(f"col{i}", T.StringType(), True))
+    schema = T.StructType(struct_fields)
+
+    Utils.create_table(
+        session, temp_table_name, attribute_to_schema_string(schema), is_temporary=True
+    )
+
+    df = session.table(temp_table_name)
+
+    def get_col_ref_expression(iter_num: int, col_func: Callable) -> Column:
+        ref_cols = [F.lit(str(iter_num))]
+        for i in range(1, 5):
+            col_name = f"col{i}"
+            ref_col = col_func(df[col_name])
+            ref_cols.append(ref_col)
+        return F.concat(*ref_cols)
+
+    for i in range(1, nest_level):
+        int_col = df["intCol"]
+        col1_base = get_col_ref_expression(i, F.initcap)
+        case_expr: Optional[CaseExpr] = None
+        # generate the condition expression based on the number of conditions
+        for j in range(1, 3):
+            if j == 1:
+                cond_col = int_col < 100
+                col_ref_expr = get_col_ref_expression(i, F.upper)
+            else:
+                cond_col = int_col < 300
+                col_ref_expr = get_col_ref_expression(i, F.lower)
+            case_expr = (
+                F.when(cond_col, col_ref_expr)
+                if case_expr is None
+                else case_expr.when(cond_col, col_ref_expr)
+            )
+
+        col1 = case_expr.otherwise(col1_base)
+
+        df = df.with_columns(["col1"], [col1])
+
+    return df
 
 
 def verify_column_state(
@@ -314,49 +367,15 @@ def test_create_or_replace_view(session):
 
 
 def test_deep_nested_select(session):
-    temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-    # create a tabel with 11 columns (1 int columns and 10 string columns) for testing
-    struct_fields = [T.StructField("intCol", T.IntegerType(), True)]
-    for i in range(1, 11):
-        struct_fields.append(T.StructField(f"col{i}", T.StringType(), True))
-    schema = T.StructType(struct_fields)
-    session.sql(
-        f"create temp table {temp_table_name}({attribute_to_schema_string(schema)})"
-    ).collect()
-    df = session.table(temp_table_name)
-
-    def get_col_ref_expression(iter_num: int, col_func: Callable) -> Column:
-        ref_cols = [F.lit(str(iter_num))]
-        for i in range(1, 5):
-            col_name = f"col{i}"
-            ref_col = col_func(df[col_name])
-            ref_cols.append(ref_col)
-        return F.concat(*ref_cols)
-
-    for i in range(1, 20):
-        int_col = df["intCol"]
-        col1_base = get_col_ref_expression(i, F.initcap)
-        case_expr: Optional[CaseExpr] = None
-        # generate the condition expression based on the number of conditions
-        for j in range(1, 3):
-            if j == 1:
-                cond_col = int_col < 100
-                col_ref_expr = get_col_ref_expression(i, F.upper)
-            else:
-                cond_col = int_col < 300
-                col_ref_expr = get_col_ref_expression(i, F.lower)
-            case_expr = (
-                F.when(cond_col, col_ref_expr)
-                if case_expr is None
-                else case_expr.when(cond_col, col_ref_expr)
-            )
-
-        col1 = case_expr.otherwise(col1_base)
-
-        df = df.with_columns(["col1"], [col1])
-
-    # make a copy of the final df plan
-    copied_plan = copy.deepcopy(df._plan)
-    # skip the checking of plan attribute for this plan, because the plan is complicated for
-    # compilation, and attribute issues describing call which will timeout during server compilation.
-    check_copied_plan(copied_plan, df._plan, skip_attribute=True)
+    temp_table_name = Utils.random_table_name()
+    try:
+        df = create_df_with_deep_nested_with_column_dependencies(
+            session, temp_table_name, 20
+        )
+        # make a copy of the final df plan
+        copied_plan = copy.deepcopy(df._plan)
+        # skip the checking of plan attribute for this plan, because the plan is complicated for
+        # compilation, and attribute issues describing call which will timeout during server compilation.
+        check_copied_plan(copied_plan, df._plan, skip_attribute=True)
+    finally:
+        Utils.drop_table(session, temp_table_name)

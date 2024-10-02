@@ -8,9 +8,11 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.snow_partition_iterator import PARTITION_SIZE
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
+    PARTITION_SIZE,
+)
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
 
 # To generate seeded random data.

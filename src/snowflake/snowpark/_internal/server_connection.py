@@ -268,7 +268,15 @@ class ServerConnection:
                 and listener.include_describe,
                 self._query_listener,
             ):
-                listener._add_query(QueryRecord(cursor.sfqid, query, True))
+                thread_id = (
+                    threading.get_ident()
+                    if getattr(listener, "include_thread_id", False)
+                    else None
+                )
+                query_record = QueryRecord(
+                    cursor.sfqid, query, True, thread_id=thread_id
+                )
+                listener._add_query(query_record)
 
         return result_metadata
 
@@ -387,7 +395,16 @@ class ServerConnection:
     def notify_query_listeners(self, query_record: QueryRecord) -> None:
         with self._lock:
             for listener in self._query_listener:
-                listener._add_query(query_record)
+                if getattr(listener, "include_thread_id", False):
+                    new_record = QueryRecord(
+                        query_record.query_id,
+                        query_record.sql_text,
+                        query_record.is_describe,
+                        thread_id=threading.get_ident(),
+                    )
+                    listener._add_query(new_record)
+                else:
+                    listener._add_query(query_record)
 
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any

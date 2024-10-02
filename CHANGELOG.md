@@ -2,11 +2,24 @@
 
 ## 1.23.0 (TBD)
 
-### Snowpark pandas API Updates
+### Snowpark Python API Updates
 
+#### New Features
+
+- Added the following new functions in `snowflake.snowpark.functions`:
+  - `make_interval`
+- Added support for using Snowflake Interval constants with `Window.range_between()` when the order by column is TIMESTAMP or DATE type.
+- Added support for file writes. This feature is currently in private preview.
+- Added support for `DataFrameGroupBy.fillna` and `SeriesGroupBy.fillna`.
+- Added support for constructing `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` arguments.
+- Added support for constructing `Series` and `DataFrame` objects with `index` and `column` values not present in `DataFrame`/`Series` `data`.
+- Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
+- 
 #### Improvements
 
-- Improved `to_pandas` to persist the original timezone offset for TIMESTAMP_TZ type.
+#### Bug Fixes
+
+### Snowpark pandas API Updates
 
 #### New Features
 
@@ -14,12 +27,34 @@
 - Added support for some cases of aggregating `Timedelta` columns on `axis=0` with `agg` or `aggregate`.
 - Added support for `by`, `left_by`, `right_by`, `left_index`, and `right_index` for `pd.merge_asof`.
 - Added support for passing parameter `include_describe` to `Session.query_history`.
+- Added support for `DatetimeIndex.mean` and `DatetimeIndex.std` methods.
+- Added support for `Resampler.asfreq`.
+- Added support for `resample` frequency `W`, `ME`, `YE` with `closed = "left"`.
+- Added support for `DataFrame.rolling.corr` and `Series.rolling.corr` for `pairwise = False` and int `window`.
+- Added support for string time-based `window` and `min_periods = None` for `Rolling`.
+- Added support for `pd.read_sas` (Uses native pandas for processing).
+- Added suppport for applying `rolling().count()` and `expanding().count()` to `Timedelta` series and columns.
+
+#### Improvements
+
+- Improved `to_pandas` to persist the original timezone offset for TIMESTAMP_TZ type.
+- Improved `dtype` results for TIMESTAMP_TZ type to show correct timezone offset.
+- Improved `dtype` results for TIMESTAMP_LTZ type to show correct timezone.
+- Improved error message when passing non-bool value to `numeric_only` for groupby aggregations.
+- Removed unnecessary warning about sort algorithm in `sort_values`.
+- Use SCOPED object for internal create temp tables. The SCOPED objects will be stored sproc scoped if created within stored sproc, otherwise will be session scoped, and the object will be automatically cleaned at the end of the scope.
+- Improved warning messages for operations that lead to materialization with inadvertent slowness.
+- Removed unnecessary warning message about `convert_dtype` in `Series.apply`.
 
 #### Bug Fixes
 
 - Fixed a bug where an `Index` object created from a `Series`/`DataFrame` incorrectly updates the `Series`/`DataFrame`'s index name after an inplace update has been applied to the original `Series`/`DataFrame`.
 - Suppressed an unhelpful `SettingWithCopyWarning` that sometimes appeared when printing `Timedelta` columns.
 - Fixed `inplace` argument for `Series` objects derived from other `Series` objects.
+- Fixed a bug where `Series.sort_values` failed if series name overlapped with index column name.
+- Fixed a bug where transposing a dataframe would map `Timedelta` index levels to integer column levels.
+- Fixed a bug where `Resampler` methods on timedelta columns would produce integer results.
+- Fixed a bug where `pd.to_numeric()` would leave `Timedelta` inputs as `Timedelta` instead of converting them to integers.
 
 ## 1.22.1 (2024-09-11)
 This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for detailed release content.
