@@ -336,11 +336,12 @@ def test_same_duplicate_subtree(session):
 )
 def test_save_as_table(session, mode):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-    expected_query_count = 1
     if mode == "append":
-        # append mode uses create table with insert
-        # TODO (SNOW-1703599): Show table query is executed twice when new compilation stage is enabled
-        expected_query_count = 4 if session._query_compilation_stage_enabled else 3
+        expected_query_count = 3
+    elif mode == "truncate":
+        expected_query_count = 2
+    else:
+        expected_query_count = 1
     with SqlCounter(query_count=expected_query_count, union_count=1):
         with session.query_history() as query_history:
             df.union_all(df).write.save_as_table(
