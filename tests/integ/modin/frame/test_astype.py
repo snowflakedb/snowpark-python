@@ -15,12 +15,12 @@ from tests.integ.modin.series.test_astype import (
     get_expected_dtype,
     get_expected_to_pandas_dtype,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_series_equal,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
 
 

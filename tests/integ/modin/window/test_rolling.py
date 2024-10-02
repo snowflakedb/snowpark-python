@@ -7,18 +7,27 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pandas.errors import DataError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+    _TIMEDELTA_ROLLING_AGGREGATION_NOT_SUPPORTED,
+    _TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED,
+)
 from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    create_test_dfs,
+    create_test_series,
     eval_snowpark_pandas_result,
 )
-
-agg_func = pytest.mark.parametrize(
-    "agg_func", ["count", "sum", "mean", "var", "std", "min", "max", "sem"]
+from tests.integ.modin.window.utils import (
+    agg_func,
+    agg_func_not_supported_for_timedelta,
+    agg_func_supported_for_timedelta,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+
 window = pytest.mark.parametrize("window", [1, 2, 3, 4, 6])
 min_periods = pytest.mark.parametrize("min_periods", [None, 1, 2])
 center = pytest.mark.parametrize("center", [True, False])
@@ -485,3 +494,118 @@ def test_rolling_aggregation_unsupported(agg_func, agg_func_kwargs):
     snow_df = pd.DataFrame({"B": [0, 1, 2, np.nan, 4]})
     with pytest.raises(NotImplementedError):
         getattr(snow_df.rolling(window=2, min_periods=1), agg_func)(agg_func_kwargs)
+
+
+class TestTimedelta:
+    @pytest.mark.parametrize(
+        "create_function",
+        [
+            pytest.param(create_test_dfs, id="dataframe"),
+            pytest.param(create_test_series, id="series"),
+        ],
+    )
+    @pytest.mark.parametrize("agg_func", agg_func_not_supported_for_timedelta)
+    @sql_count_checker(query_count=0)
+    def test_rolling_aggregation_unsupported(self, create_function, agg_func):
+        eval_snowpark_pandas_result(
+            *create_function(
+                [
+                    native_pd.Timedelta(-1),
+                    native_pd.Timedelta(1),
+                    native_pd.Timedelta(2),
+                    native_pd.Timedelta(5),
+                    native_pd.NaT,
+                ]
+            ),
+            lambda object: getattr(object.rolling(window=1), agg_func)(
+                numeric_only=False
+            ),
+            expect_exception=True,
+            expect_exception_type=DataError,
+            # pandas error message is different for dataframe and series, but
+            # Snowpark pandas always uses the same message. Accept either
+            # message.
+            expect_exception_match=(
+                f"(?:{re.escape('No numeric types to aggregate')})|"
+                + f"(?:{re.escape(_TIMEDELTA_ROLLING_AGGREGATION_NOT_SUPPORTED)})"
+            ),
+            assert_exception_equal=False,
+        )
+
+    @pytest.mark.parametrize(
+        "create_function, input_data",
+        [
+            pytest.param(
+                create_test_dfs,
+                [
+                    [pd.Timedelta(3), pd.Timedelta(4)],
+                    [pd.Timedelta(1), pd.Timedelta(2)],
+                ],
+                id="dataframe",
+            ),
+            pytest.param(
+                create_test_series, [pd.Timedelta(3), pd.Timedelta(4)], id="series"
+            ),
+        ],
+    )
+    @sql_count_checker(query_count=0)
+    def test_rolling_corr_unsupported(self, create_function, input_data):
+        eval_snowpark_pandas_result(
+            *create_function(input_data),
+            lambda object: object.rolling(window=2).corr(other=object),
+            expect_exception=True,
+            expect_exception_type=NotImplementedError,
+            expect_exception_match=re.escape(_TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED),
+        )
+
+    @pytest.mark.parametrize(
+        "create_function",
+        [
+            pytest.param(create_test_dfs, id="dataframe"),
+            pytest.param(create_test_series, id="series"),
+        ],
+    )
+    @pytest.mark.parametrize("agg_func", agg_func_supported_for_timedelta)
+    @window
+    @min_periods
+    @center
+    def test_rolling_aggregation_supported(
+        self, create_function, agg_func, window, min_periods, center
+    ):
+        snow_series, native_series = create_function(
+            [
+                native_pd.Timedelta(-1),
+                native_pd.Timedelta(1),
+                native_pd.Timedelta(2),
+                native_pd.Timedelta(5),
+                native_pd.NaT,
+            ]
+        )
+
+        if min_periods is not None and min_periods > window:
+            with SqlCounter(query_count=0):
+                eval_snowpark_pandas_result(
+                    snow_series,
+                    native_series,
+                    lambda series: getattr(
+                        series.rolling(
+                            window=window, min_periods=min_periods, center=center
+                        ),
+                        agg_func,
+                    )(),
+                    expect_exception=True,
+                    expect_exception_type=ValueError,
+                    expect_exception_match=f"min_periods {min_periods} must be <= window {window}",
+                )
+        else:
+            with SqlCounter(query_count=1):
+                eval_snowpark_pandas_result(
+                    snow_series,
+                    native_series,
+                    lambda series: getattr(
+                        series.rolling(
+                            window=window, min_periods=min_periods, center=center
+                        ),
+                        agg_func,
+                    )(),
+                )

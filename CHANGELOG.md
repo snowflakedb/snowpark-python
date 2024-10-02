@@ -13,7 +13,8 @@
 - Added support for `DataFrameGroupBy.fillna` and `SeriesGroupBy.fillna`.
 - Added support for constructing `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` arguments.
 - Added support for constructing `Series` and `DataFrame` objects with `index` and `column` values not present in `DataFrame`/`Series` `data`.
-
+- Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
+- 
 #### Improvements
 
 #### Bug Fixes
@@ -32,6 +33,7 @@
 - Added support for `DataFrame.rolling.corr` and `Series.rolling.corr` for `pairwise = False` and int `window`.
 - Added support for string time-based `window` and `min_periods = None` for `Rolling`.
 - Added support for `pd.read_sas` (Uses native pandas for processing).
+- Added suppport for applying `rolling().count()` and `expanding().count()` to `Timedelta` series and columns.
 
 #### Improvements
 
@@ -51,6 +53,7 @@
 - Fixed `inplace` argument for `Series` objects derived from other `Series` objects.
 - Fixed a bug where `Series.sort_values` failed if series name overlapped with index column name.
 - Fixed a bug where transposing a dataframe would map `Timedelta` index levels to integer column levels.
+- Fixed a bug where `Resampler` methods on timedelta columns would produce integer results.
 
 ## 1.22.1 (2024-09-11)
 This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for detailed release content.

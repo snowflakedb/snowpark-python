@@ -21,7 +21,6 @@ from snowflake.snowpark.modin.plugin.utils.exceptions import (
     SnowparkPandasException,
 )
 from snowflake.snowpark.session import Session
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     BASIC_TYPE_DATA1,
     BASIC_TYPE_DATA2,
@@ -32,6 +31,7 @@ from tests.integ.modin.utils import (
     assert_series_equal,
     create_table_with_type,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
 
 paramList = [False, True]

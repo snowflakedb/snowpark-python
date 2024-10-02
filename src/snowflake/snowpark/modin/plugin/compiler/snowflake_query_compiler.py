@@ -63,6 +63,7 @@ from pandas.api.types import (
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_dict_like, is_list_like, pandas_dtype
 from pandas.core.indexes.base import ensure_index
+from pandas.errors import DataError
 from pandas.io.formats.format import format_percentiles
 from pandas.io.formats.printing import PrettyDict
 
@@ -398,6 +399,13 @@ NANOSECONDS_PER_SECOND = 10**9
 NANOSECONDS_PER_MICROSECOND = 10**3
 MICROSECONDS_PER_SECOND = 10**6
 NANOSECONDS_PER_DAY = SECONDS_PER_DAY * NANOSECONDS_PER_SECOND
+
+# Matches pandas
+_TIMEDELTA_ROLLING_AGGREGATION_NOT_SUPPORTED = "No numeric types to aggregate"
+# Matches pandas
+_TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED = (
+    "ops for Rolling for this dtype timedelta64[ns] are not implemented"
+)
 
 
 class SnowflakeQueryCompiler(BaseQueryCompiler):
@@ -12264,6 +12272,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         frame = self._modin_frame
 
+        if resample_method in ("var", np.var) and any(
+            isinstance(t, TimedeltaType)
+            for t in frame.cached_data_column_snowpark_pandas_types
+        ):
+            raise TypeError("timedelta64 type does not support var operations")
+
         snowflake_index_column_identifier = (
             get_snowflake_quoted_identifier_for_resample_index_col(frame)
         )
@@ -12382,9 +12396,35 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 qc._modin_frame, rule, start_date, end_date
             )
             if resample_method in ("sum", "count", "size"):
-                # For these aggregations, we need to fill NaN values as 0
+                values_arg: Union[int, dict]
+                if resample_method == "sum":
+                    # For sum(), we need to fill NaN values as Timedelta(0)
+                    # for timedelta columns and as 0 for other columns.
+                    values_arg = {}
+                    for pandas_label in frame.data_column_pandas_labels:
+                        label_dtypes: native_pd.Series = self.dtypes[[pandas_label]]
+                        # query compiler's fillna() takes a dictionary mapping
+                        # pandas labels to values. When we have two columns
+                        # with the same pandas label and different dtypes, we
+                        # may have to specify different fill values for each
+                        # column, but the fillna() interface won't let us do
+                        # that. Fall back to 0 in that case.
+                        values_arg[pandas_label] = (
+                            native_pd.Timedelta(0)
+                            if len(set(label_dtypes)) == 1
+                            and is_timedelta64_dtype(label_dtypes.iloc[0])
+                            else 0
+                        )
+                    if is_series:
+                        # For series, fillna() can't handle a dictionary, but
+                        # there should only be one column, so pass a scalar fill
+                        # value.
+                        assert len(values_arg) == 1
+                        values_arg = list(values_arg.values())[0]
+                else:
+                    values_arg = 0
                 return SnowflakeQueryCompiler(frame).fillna(
-                    value=0, self_is_series=is_series
+                    value=values_arg, self_is_series=is_series
                 )
         else:
             ErrorMessage.not_implemented(
@@ -13663,8 +13703,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         return self._window_agg(
             window_func=WindowFunction.ROLLING,
             agg_func="count",
@@ -13682,8 +13720,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_sum", engine, engine_kwargs
         )
@@ -13704,8 +13740,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_mean", engine, engine_kwargs
         )
@@ -13738,8 +13772,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_var", engine, engine_kwargs
         )
@@ -13761,8 +13793,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_var", engine, engine_kwargs
         )
@@ -13783,8 +13813,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_min", engine, engine_kwargs
         )
@@ -13805,8 +13833,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_max", engine, engine_kwargs
         )
@@ -13917,8 +13943,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         return self._window_agg(
             window_func=WindowFunction.ROLLING,
             agg_func="sem",
@@ -14017,8 +14041,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 -create_snowpark_interval_from_window(window), Window.CURRENT_ROW
             )
 
+        input_contains_timedelta = any(
+            isinstance(t, TimedeltaType)
+            for t in frame.cached_data_column_snowpark_pandas_types
+        )
+
         # Perform Aggregation over the window_expr
         if agg_func == "sem":
+            if input_contains_timedelta:
+                raise DataError(_TIMEDELTA_ROLLING_AGGREGATION_NOT_SUPPORTED)
+
             # Standard error of mean (SEM) does not have native Snowflake engine support
             # so calculate as STDDEV/SQRT(N-ddof)
             ddof = agg_kwargs.get("ddof", 1)
@@ -14057,6 +14089,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 }
             ).frame
         elif agg_func == "corr":
+            if input_contains_timedelta:
+                ErrorMessage.not_implemented(_TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED)
             if not isinstance(window, int):
                 ErrorMessage.not_implemented(
                     "Snowpark pandas does not yet support non-integer 'window' for 'Rolling.corr'"
@@ -14134,6 +14168,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ErrorMessage.not_implemented(  # pragma: no cover
                     f"Window aggregation does not support the aggregation {repr_aggregate_function(agg_func, agg_kwargs)}"
                 )
+            if (
+                snowflake_agg_func.snowpark_aggregation is not count
+                # pandas only supports rolling timedelta aggregation for
+                # count(), so we do the same.
+                and input_contains_timedelta
+            ):
+                raise DataError(_TIMEDELTA_ROLLING_AGGREGATION_NOT_SUPPORTED)
+
             new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
                 {
                     # If aggregation is count use count on row_position_quoted_identifier
@@ -14164,8 +14206,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         expanding_kwargs: dict,
         numeric_only: bool = False,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         return self._window_agg(
             window_func=WindowFunction.EXPANDING,
             agg_func="count",
@@ -14181,8 +14221,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_sum", engine, engine_kwargs
         )
@@ -14201,8 +14239,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_mean", engine, engine_kwargs
         )
@@ -14232,8 +14268,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_var", engine, engine_kwargs
         )
@@ -14253,8 +14287,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_std", engine, engine_kwargs
         )
@@ -14273,8 +14305,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_min", engine, engine_kwargs
         )
@@ -14293,8 +14323,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_max", engine, engine_kwargs
         )
@@ -14383,8 +14411,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ddof: int = 1,
         numeric_only: bool = False,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
-
         return self._window_agg(
             window_func=WindowFunction.EXPANDING,
             agg_func="sem",
