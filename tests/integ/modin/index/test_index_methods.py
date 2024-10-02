@@ -16,7 +16,6 @@ from tests.integ.modin.index.conftest import (
     NATIVE_INDEX_UNIQUE_TEST_DATA,
     TEST_DFS,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_index_equal,
@@ -24,6 +23,7 @@ from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @sql_count_checker(query_count=2)
