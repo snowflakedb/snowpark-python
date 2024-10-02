@@ -5376,6 +5376,7 @@ def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
         |NULL       |
         -------------
         <BLANKLINE>
+
     See Also:
         - `ARRAY <https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-array>`_ for more details on semi-structured arrays.
     """
