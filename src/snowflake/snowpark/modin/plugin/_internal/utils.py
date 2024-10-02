@@ -1906,7 +1906,7 @@ def append_columns(
         column_object.as_(column_identifier)
         for column_identifier, column_object in zip(column_identifiers, column_objects)
     ]
-    return df.select('*', *new_columns)
+    return df.select("*", *new_columns)
 
 
 def cache_result(ordered_dataframe: OrderedDataFrame) -> OrderedDataFrame:
