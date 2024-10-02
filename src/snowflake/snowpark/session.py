@@ -796,6 +796,12 @@ class Session:
     @cte_optimization_enabled.setter
     @experimental_parameter(version="1.15.0")
     def cte_optimization_enabled(self, value: bool) -> None:
+        if threading.active_count() > 1:
+            # TODO (SNOW-1541096): Remove the limitation once old cte implementation is removed.
+            _logger.warning(
+                "Setting cte_optimization_enabled is not currently thread-safe. Ignoring the update"
+            )
+            return
         with self._lock:
             if value:
                 self._conn._telemetry_client.send_cte_optimization_telemetry(
