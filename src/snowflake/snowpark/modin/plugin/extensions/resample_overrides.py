@@ -347,15 +347,13 @@ class Resampler(metaclass=TelemetryMeta):
 
     def nunique(self, *args: Any, **kwargs: Any) -> pd.Series:
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        is_series = not self._dataframe._is_dataframe
-
         return self._dataframe.__constructor__(
             query_compiler=self._query_compiler.resample(
                 self.resample_kwargs,
                 "nunique",
                 tuple(),
                 dict(),
-                is_series,
+                True,
             )
         )
 
@@ -621,14 +619,12 @@ class Resampler(metaclass=TelemetryMeta):
     ) -> Union[pd.DataFrame, pd.Series]:
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         agg_kwargs = dict(q=q)
-        is_series = not self._dataframe._is_dataframe
-
         return self._dataframe.__constructor__(
             query_compiler=self._query_compiler.resample(
                 self.resample_kwargs,
                 "quantile",
                 tuple(),
                 agg_kwargs,
-                is_series,
+                False,
             )
         )
