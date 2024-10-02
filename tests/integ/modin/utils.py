@@ -470,7 +470,9 @@ def eval_snowpark_pandas_result(
                 ), "attrs on Snowpark pandas result was not empty"
             else:
                 # Check that attrs was properly propagated.
-                assert snow_result.attrs == pd_result.attrs
+                assert (
+                    snow_result.attrs == pd_result.attrs
+                ), f"Snowpark pandas attrs {snow_result.attrs} doesn't match pandas attrs {pd_result.attrs}"
         comparator(snow_result, pd_result, **(kwargs or {}))
 
 
