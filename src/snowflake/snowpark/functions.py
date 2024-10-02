@@ -5377,14 +5377,15 @@ def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
         -------------
         <BLANKLINE>
 
-        >>> df = session.create_dataframe([(['a', 'b', 'c', 'a', 'a'],)], ['data'])
-        >>> df.select(array_remove(df.data, lit('a')).alias("objects")).show()
+        >>> df.select(array_remove(df.data, lit('2')).alias("objects")).show()
         -------------
         |"OBJECTS"  |
         -------------
         |[          |
-        |  "b",     |
-        |  "c"      |
+        |  1,       |
+        |  3.1,     |
+        |  1,       |
+        |  1        |
         |]          |
         -------------
         <BLANKLINE>
