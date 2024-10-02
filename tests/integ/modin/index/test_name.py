@@ -7,8 +7,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=0)
@@ -95,7 +95,7 @@ def test_index_rename_copy(new_name):
 
 
 @pytest.mark.parametrize("new_name", [None, "grade", ("grade",), ("A", "B")])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_df_index_rename_inplace(new_name):
     # 1 query to create the DataFrame.
     # Create the DataFrame and the new index.
@@ -117,7 +117,7 @@ def test_df_index_rename_inplace(new_name):
 
 
 @pytest.mark.parametrize("new_name", [None, "grade", ("grade",), ("A", "B")])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_df_index_rename_copy(new_name):
     # 1 query to create the DataFrame.
     # Create the DataFrame and the new index.
@@ -183,7 +183,7 @@ def test_index_set_names_copy(new_name):
 
 
 @pytest.mark.parametrize("new_name", [None, "grade", ["grade"], ("grade",)])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_df_index_set_names_inplace(new_name):
     # 1 query to create the DataFrame.
     # Create the DataFrame and the new index.
@@ -213,7 +213,7 @@ def test_df_index_set_names_inplace(new_name):
 
 
 @pytest.mark.parametrize("new_name", [None, "grade", ["grade"], ("grade",)])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_df_index_set_names_copy(new_name):
     # 1 query to create the DataFrame.
     # Create the DataFrame and the new index.

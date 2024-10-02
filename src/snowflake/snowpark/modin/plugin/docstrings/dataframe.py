@@ -82,16 +82,13 @@ class DataFrame(BasePandasDataset):
     Notes
     -----
     ``DataFrame`` can be created either from passed `data` or `query_compiler`. If both
-    parameters are provided, data source will be prioritized in the next order:
+    parameters are provided, an assertion error will be raised. `query_compiler` can only
+    be specified when the `data`, `index`, and `columns` are None.
 
-    1) Modin ``DataFrame`` or ``Series`` passed with `data` parameter.
-    2) Query compiler from the `query_compiler` parameter.
-    3) Various pandas/NumPy/Python data structures passed with `data` parameter.
-
-    The last option is less desirable since import of such data structures is very
-    inefficient, please use previously created Modin structures from the fist two
-    options or import data using highly efficient Modin IO tools (for example
-    ``pd.read_csv``).
+    Using pandas/NumPy/Python data structures as the `data` parameter is less desirable since
+    importing such data structures is very inefficient.
+    Please use previously created Modin structures or import data using highly efficient Modin IO
+    tools (for example ``pd.read_csv``).
 
     Examples
     --------

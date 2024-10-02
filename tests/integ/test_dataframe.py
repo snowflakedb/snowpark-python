@@ -31,7 +31,7 @@ import pytest
 from snowflake.connector import IntegrityError, ProgrammingError
 from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
-from snowflake.snowpark._internal.analyzer.expression import Attribute, Interval, Star
+from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
@@ -48,6 +48,7 @@ from snowflake.snowpark.functions import (
     explode,
     get_path,
     lit,
+    make_interval,
     rank,
     seq1,
     seq2,
@@ -4107,20 +4108,18 @@ def test_dataframe_interval_operation(session):
     df2 = df.with_column(
         "TWO_DAYS_AHEAD",
         df["a"]
-        + Column(
-            Interval(
-                year=1,
-                quarter=1,
-                month=1,
-                week=2,
-                day=2,
-                hour=2,
-                minute=3,
-                second=3,
-                millisecond=3,
-                microsecond=4,
-                nanosecond=4,
-            )
+        + make_interval(
+            years=1,
+            quarters=1,
+            months=1,
+            weeks=2,
+            days=2,
+            hours=2,
+            minutes=3,
+            seconds=3,
+            milliseconds=3,
+            microseconds=4,
+            nanoseconds=4,
         ),
     )
     Utils.check_answer(
