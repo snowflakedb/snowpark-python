@@ -15,7 +15,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DoubleType, LongType, StringType
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import Utils
 
 

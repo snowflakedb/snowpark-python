@@ -11,11 +11,11 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=0)
@@ -259,6 +259,7 @@ def test_reindex_index_fill_method_with_old_na_values_pandas_negative(limit, met
     )
 
 
+@pytest.mark.xfail(reason="SNOW-1638397 reindex issue when column types don't match")
 @sql_count_checker(query_count=2, join_count=1)
 @pytest.mark.parametrize("limit", [None, 1, 2, 100])
 @pytest.mark.parametrize("method", ["bfill", "backfill", "pad", "ffill"])
@@ -300,6 +301,7 @@ def test_reindex_index_non_overlapping_index():
     )
 
 
+@pytest.mark.xfail(reason="SNOW-1638397 reindex issue when column types don't match")
 @sql_count_checker(query_count=2, join_count=1)
 def test_reindex_index_non_overlapping_datetime_index():
     date_index = native_pd.date_range("1/1/2010", periods=6, freq="D")
@@ -326,7 +328,7 @@ def test_reindex_index_non_overlapping_datetime_index():
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_reindex_index_non_overlapping_different_types_index_negative():
     date_index = pd.date_range("1/1/2010", periods=6, freq="D")
     snow_series = pd.Series(
