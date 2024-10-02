@@ -5364,7 +5364,19 @@ def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
         -------------
         <BLANKLINE>
 
-        >>> from snowflake.snowpark.types import VariantType
+        >>> df.select(array_remove(df.data, lit('2').cast(VariantType())).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |[          |
+        |  1,       |
+        |  3.1,     |
+        |  1,       |
+        |  1        |
+        |]          |
+        -------------
+        <BLANKLINE>
+
         >>> df = session.create_dataframe([(["a", "b", "c", "a", "a"],)], ['data'])
         >>> df.select(array_remove(df.data, "a").alias("objects")).show()
         -------------
