@@ -62,9 +62,7 @@ def test_profiler_with_profiler_class(
     pro.set_active_profiler("LINE")
 
     profiler_session.call("table_sp")
-    res = pro.collect()
-    pro.show()
-
+    res = pro.get_output()
     pro.disable()
 
     pro.register_modules([])
@@ -91,7 +89,7 @@ def test_single_return_value_of_sp(
     profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
 
     profiler_session.call("single_value_sp")
-    res = profiler_session.stored_procedure_profiler.collect()
+    res = profiler_session.stored_procedure_profiler.get_output()
 
     profiler_session.stored_procedure_profiler.disable()
 
@@ -119,7 +117,7 @@ def test_anonymous_procedure(
     profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
 
     single_value_sp()
-    res = profiler_session.stored_procedure_profiler.collect()
+    res = profiler_session.stored_procedure_profiler.get_output()
 
     profiler_session.stored_procedure_profiler.disable()
 
@@ -134,35 +132,6 @@ def test_set_incorrect_active_profiler(profiler_session):
             "wrong_active_profiler"
         )
     assert "active_profiler expect 'LINE', 'MEMORY' or empty string ''" in str(e)
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="session.sql is not supported in localtesting",
-)
-def test_dump_profile_to_file(
-    is_profiler_function_exist, profiler_session, db_parameters, tmpdir, tmp_stage_name
-):
-    file = tmpdir.join("profile.lprof")
-
-    def single_value_sp(session: snowflake.snowpark.Session) -> str:
-        return "success"
-
-    single_value_sp = profiler_session.sproc.register(single_value_sp, anonymous=True)
-    profiler_session.stored_procedure_profiler.set_targeted_stage(
-        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
-    )
-
-    profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
-
-    single_value_sp()
-    profiler_session.stored_procedure_profiler.dump(file)
-
-    profiler_session.stored_procedure_profiler.disable()
-
-    profiler_session.stored_procedure_profiler.register_modules([])
-    with open(file) as f:
-        assert "Modules Profiled" in f.read()
 
 
 def test_sp_call_match(profiler_session):
