@@ -96,17 +96,17 @@ class StoredProcedureProfiler:
         self._session.sql(sql_statement).collect()
 
     @staticmethod
-    def _is_sp_call(query):
-        return re.match(STORED_PROCEDURE_CALL_PATTERN, query, re.DOTALL) is not None
+    def _is_sp_call(query: str):
+        return re.match(
+            STORED_PROCEDURE_CALL_PATTERN, query.strip(" "), re.DOTALL
+        ) is not None or query.upper().strip(" ").startswith("CALL")
 
     def _get_last_query_id(self):
         current_thread = threading.get_ident()
         for query in self._query_history.queries[::-1]:
             query_thread = getattr(query, "thread_id", None)
             if query_thread is None or query_thread == current_thread:
-                if query.sql_text.upper().startswith("CALL") or self._is_sp_call(
-                    query.sql_text
-                ):
+                if self._is_sp_call(query.sql_text):
                     return query.query_id
         return None
 
