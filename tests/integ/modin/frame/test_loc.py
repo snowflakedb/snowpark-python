@@ -4095,29 +4095,44 @@ def test_df_loc_set_row_from_series(index):
     )
 
 
-@sql_count_checker(query_count=2, join_count=1)
-@pytest.mark.parametrize("index", [[3, 4, 5], [0, 1, 2]])
-def test_df_loc_full_set_row_from_series_pandas_errors(index):
-    native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]])
+@pytest.mark.parametrize("row_obj", [[0, 1, 2], native_pd.Index([0, 1, 2])])
+def test_df_loc_full_set_row_from_list_like(row_obj):
+    native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
     snow_df = pd.DataFrame(native_df)
 
-    with pytest.raises(ValueError, match="setting an array element with a sequence."):
-        native_df.loc[:] = native_pd.Series([1, 4, 9], index=index)
+    def locset(df):
+        obj = (
+            row_obj
+            if isinstance(df, native_pd.DataFrame) or isinstance(row_obj, list)
+            else pd.Index([0, 1, 2])
+        )
+        df.loc[:] = obj
+        return df
+
+    query_count = 1 if isinstance(row_obj, list) else 4
+    with SqlCounter(query_count=query_count):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            locset,
+        )
+
+
+@sql_count_checker(query_count=2, join_count=1)
+def test_df_loc_full_set_row_from_series_using_series_column_key():
+    native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
+    snow_df = pd.DataFrame(native_df)
 
     def locset(df):
-        series = (
-            pd.Series([1, 4, 9], index=index)
-            if isinstance(df, pd.DataFrame)
-            else native_pd.Series([1, 4, 9], index=index)
+        key = native_pd.Series([True, False, True], index=list("ABC"))
+        obj = (
+            native_pd.Series([1, 3, 5])
+            if isinstance(df, native_pd.DataFrame)
+            else pd.Series([1, 3, 5])
         )
         if isinstance(df, pd.DataFrame):
-            df.loc[:] = series
-        else:
-            if index == [0, 1, 2]:
-                df.loc[0] = series
-                df.loc[1] = None
-            else:
-                df.loc[[0, 1]] = None
+            key = pd.Series(key)
+        df.loc[:, key] = obj
         return df
 
     eval_snowpark_pandas_result(
@@ -4125,6 +4140,25 @@ def test_df_loc_full_set_row_from_series_pandas_errors(index):
         native_df,
         locset,
     )
+
+
+@sql_count_checker(query_count=2, join_count=1)
+@pytest.mark.parametrize(
+    "index, expected_result",
+    [
+        ([3, 4, 5], native_pd.DataFrame([[None] * 3] * 2)),
+        ([0, 1, 2], native_pd.DataFrame([[1, 4, 9], [None] * 3])),
+    ],
+)
+def test_df_loc_full_set_row_from_series_pandas_errors(index, expected_result):
+    native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]])
+    snow_df = pd.DataFrame(native_df)
+
+    with pytest.raises(ValueError, match="setting an array element with a sequence."):
+        native_df.loc[:] = native_pd.Series([1, 4, 9], index=index)
+
+    snow_df.loc[:] = pd.Series([1, 4, 9], index=index)
+    assert_snowpark_pandas_equal_to_pandas(snow_df, expected_result)
 
 
 @sql_count_checker(query_count=1)

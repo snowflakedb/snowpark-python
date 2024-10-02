@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import typing
-from collections.abc import Hashable
+from collections.abc import Hashable, Sized
 from enum import Enum
 from typing import Any, Literal, Optional, Union
 
@@ -2062,35 +2062,6 @@ def set_frame_2d_labels(
     item_is_frame = isinstance(item, InternalFrame)
     item_is_scalar = is_scalar(item)
     original_index = index
-    # If `item` is from a Series (rather than a Dataframe), flip the series item values to apply them
-    # across columns rather than rows.
-    if frame_is_df_and_item_is_series and (columns == slice(None) or len(columns) > 1):  # type: ignore[arg-type]
-        # If columns is slice(None), we are setting all columns in the InternalFrame.
-        matching_item_columns_by_label = True
-        col_len = (
-            len(internal_frame.data_column_snowflake_quoted_identifiers)
-            if columns == slice(None)
-            else len(columns)  # type: ignore[arg-type]
-        )
-        item = get_item_series_as_single_row_frame(
-            item, col_len, move_index_to_cols=True
-        )
-
-        if is_scalar(index):
-            new_item = item.append_column("__index__", pandas_lit(index))
-            item = InternalFrame.create(
-                ordered_dataframe=new_item.ordered_dataframe,
-                data_column_pandas_labels=item.data_column_pandas_labels,
-                data_column_snowflake_quoted_identifiers=item.data_column_snowflake_quoted_identifiers,
-                data_column_pandas_index_names=item.data_column_pandas_index_names,
-                index_column_pandas_labels=item.index_column_pandas_labels,
-                index_column_snowflake_quoted_identifiers=[
-                    new_item.data_column_snowflake_quoted_identifiers[-1]
-                ],
-                data_column_types=item.cached_data_column_snowpark_pandas_types,
-                index_column_types=[item.cached_data_column_snowpark_pandas_types[-1]],
-            )
-            index = pd.Series([index])._query_compiler._modin_frame
 
     assert not isinstance(index, slice) or index == slice(
         None
@@ -2101,6 +2072,74 @@ def set_frame_2d_labels(
     # map from item's data column label to its position in the joined frame or item_column_values
     item_data_col_label_to_pos_map: dict[Hashable, int] = {}
     if item_is_frame:
+        from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+            SnowflakeQueryCompiler,
+        )
+
+        # If `item` is from a Series (rather than a Dataframe), flip the series item values to apply them
+        # across columns rather than rows.
+        is_multi_col_set = (
+            columns == slice(None)
+            or (isinstance(columns, Sized) and len(columns) > 1)
+            or (isinstance(columns, SnowflakeQueryCompiler))
+        )
+        if frame_is_df_and_item_is_series and is_multi_col_set:
+            # If columns is slice(None), we are setting all columns in the InternalFrame.
+            matching_item_columns_by_label = True
+            matching_item_rows_by_label = False
+
+            def slice_len(slice_obj: slice) -> int:
+                """Helper method to calculate length of slice object for columns."""
+                start = slice_obj.start or 0
+                end = slice_obj.stop or len(
+                    internal_frame.data_column_snowflake_quoted_identifiers
+                )
+                return end - start
+
+            if columns == slice(None):
+                col_len = len(internal_frame.data_column_snowflake_quoted_identifiers)
+            elif isinstance(columns, slice):
+                col_len = slice_len(columns)
+            elif isinstance(columns, Sized):
+                col_len = len(columns)
+            else:
+                col_len = len(columns.index)
+
+            if isinstance(columns, SnowflakeQueryCompiler):
+                item = (
+                    SnowflakeQueryCompiler(item)
+                    .set_index_from_series(columns)
+                    ._modin_frame
+                )
+
+            item = (
+                SnowflakeQueryCompiler(
+                    get_item_series_as_single_row_frame(
+                        item, col_len, move_index_to_cols=True
+                    )
+                )
+                .reset_index(drop=True)
+                ._modin_frame
+            )
+
+            if is_scalar(index):
+                new_item = item.append_column("__index__", pandas_lit(index))
+                item = InternalFrame.create(
+                    ordered_dataframe=new_item.ordered_dataframe,
+                    data_column_pandas_labels=item.data_column_pandas_labels,
+                    data_column_snowflake_quoted_identifiers=item.data_column_snowflake_quoted_identifiers,
+                    data_column_pandas_index_names=item.data_column_pandas_index_names,
+                    index_column_pandas_labels=item.index_column_pandas_labels,
+                    index_column_snowflake_quoted_identifiers=[
+                        new_item.data_column_snowflake_quoted_identifiers[-1]
+                    ],
+                    data_column_types=item.cached_data_column_snowpark_pandas_types,
+                    index_column_types=[
+                        item.cached_data_column_snowpark_pandas_types[-1]
+                    ],
+                )
+                index = pd.Series([index])._query_compiler._modin_frame
+
         # when item is not frame, this map will be initialized later
         item_data_col_label_to_pos_map = {
             label: pos
