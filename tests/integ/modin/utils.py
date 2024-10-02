@@ -461,18 +461,11 @@ def eval_snowpark_pandas_result(
         if inplace:
             pd_result = native_pandas
             snow_result = snow_pandas
-        if test_attrs and isinstance(snow_pandas, (Series, DataFrame)):
-            if len(pd_result.attrs) == 0:
-                # If the native result's attrs was empty, the snow result's attrs should be empty
-                # i.e. attrs should not have been propagated.
-                assert (
-                    snow_result.attrs == {}
-                ), "attrs on Snowpark pandas result was not empty"
-            else:
-                # Check that attrs was properly propagated.
-                assert (
-                    snow_result.attrs == pd_result.attrs
-                ), f"Snowpark pandas attrs {snow_result.attrs} doesn't match pandas attrs {pd_result.attrs}"
+        if test_attrs and isinstance(snow_result, (Series, DataFrame)):
+            # Check that attrs was properly propagated.
+            assert (
+                snow_result.attrs == pd_result.attrs
+            ), f"Snowpark pandas attrs {snow_result.attrs} doesn't match pandas attrs {pd_result.attrs}"
         comparator(snow_result, pd_result, **(kwargs or {}))
 
 
