@@ -8,6 +8,7 @@ import importlib
 import inspect
 import os
 import sys
+import threading
 import time
 from logging import getLogger
 from typing import (
@@ -257,7 +258,12 @@ class ServerConnection:
             and listener.include_describe,
             self._query_listener,
         ):
-            listener._add_query(QueryRecord(cursor.sfqid, query, True))
+            query_record = QueryRecord(cursor.sfqid, query, True)
+            if getattr(listener, "include_thread_id", False):
+                query_record = QueryRecord(
+                    cursor.sfqid, query, True, threading.get_ident()
+                )
+            listener._add_query(query_record)
 
         return result_metadata
 
@@ -375,7 +381,16 @@ class ServerConnection:
 
     def notify_query_listeners(self, query_record: QueryRecord) -> None:
         for listener in self._query_listener:
-            listener._add_query(query_record)
+            if getattr(listener, "include_thread_id", False):
+                new_record = QueryRecord(
+                    query_record.query_id,
+                    query_record.sql_text,
+                    query_record.is_describe,
+                    thread_id=threading.get_ident(),
+                )
+                listener._add_query(new_record)
+            else:
+                listener._add_query(query_record)
 
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
