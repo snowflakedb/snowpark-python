@@ -119,7 +119,7 @@ def test_anonymous_procedure(
     single_value_sp()
     res = profiler_session.stored_procedure_profiler.get_output()
 
-    profiler_session.stored_procedure_profiler.set_active_profiler()
+    profiler_session.stored_procedure_profiler.disable()
 
     profiler_session.stored_procedure_profiler.register_modules([])
     assert res is not None
@@ -131,7 +131,7 @@ def test_set_incorrect_active_profiler(profiler_session):
         profiler_session.stored_procedure_profiler.set_active_profiler(
             "wrong_active_profiler"
         )
-    assert "active_profiler expect 'LINE', 'MEMORY' or empty string ''" in str(e)
+    assert "active_profiler expect 'LINE', 'MEMORY'" in str(e)
 
 
 def test_sp_call_match(profiler_session):
