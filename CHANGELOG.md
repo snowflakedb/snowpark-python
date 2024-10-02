@@ -55,6 +55,16 @@
 - Fixed a bug where transposing a dataframe would map `Timedelta` index levels to integer column levels.
 - Fixed a bug where `Resampler` methods on timedelta columns would produce integer results.
 
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug where nullable columns were annotated wrongly.
+- Fixed a bug where `equal_null` could fail inside a merge statement.
+- Fixed a bug where `row_number` could fail inside a Window function.
+- Fixed a bug where updates could fail when the source is the result of a join.
+
+
 ## 1.22.1 (2024-09-11)
 This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for detailed release content.
 
