@@ -1534,6 +1534,36 @@ def __getitem__(self, key):
     return self.loc[:, key]
 
 
+# Modin uses the unique() query compiler method as of 0.30.1.
+@register_base_override("drop_duplicates")
+def drop_duplicates(
+    self, keep="first", inplace=False, **kwargs
+):  # noqa: PR01, RT01, D200
+    """
+    Return `BasePandasDataset` with duplicate rows removed.
+    """
+    inplace = validate_bool_kwarg(inplace, "inplace")
+    ignore_index = kwargs.get("ignore_index", False)
+    subset = kwargs.get("subset", None)
+    if subset is not None:
+        if is_list_like(subset):
+            if not isinstance(subset, list):
+                subset = list(subset)
+        else:
+            subset = [subset]
+        df = self[subset]
+    else:
+        df = self
+    duplicated = df.duplicated(keep=keep)
+    result = self[~duplicated]
+    if ignore_index:
+        result.index = pandas.RangeIndex(stop=len(result))
+    if inplace:
+        self._update_inplace(result._query_compiler)
+    else:
+        return result
+
+
 # Snowpark pandas does extra argument validation, which may need to be upstreamed.
 @register_base_override("sort_values")
 def sort_values(

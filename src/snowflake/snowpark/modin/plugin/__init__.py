@@ -141,6 +141,7 @@ from modin.pandas.api.extensions import (  # isort: skip  # noqa: E402,F401
     register_pd_accessor,
     register_series_accessor,
 )
+from modin.pandas.accessor import ModinAPI  # isort: skip  # noqa: E402,F401
 
 from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip  # noqa: E402,F401
     TELEMETRY_PRIVATE_METHODS,
@@ -148,10 +149,22 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip
     try_add_telemetry_to_attribute,
 )
 
+# Add telemetry on the ModinAPI accessor object
+for attr_name in dir(ModinAPI):
+    if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
+        setattr(
+            ModinAPI,
+            attr_name,
+            try_add_telemetry_to_attribute(attr_name, getattr(ModinAPI, attr_name)),
+        )
+
 for attr_name in dir(Series):
     # Since Series is defined in upstream Modin, all of its members were either defined upstream
     # or overridden by extension.
-    if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
+    # Skip the `modin` accessor object, since we apply telemetry to all its fields.
+    if attr_name != "modin" and (
+        not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
+    ):
         register_series_accessor(attr_name)(
             try_add_telemetry_to_attribute(attr_name, getattr(Series, attr_name))
         )
@@ -159,7 +172,10 @@ for attr_name in dir(Series):
 for attr_name in dir(DataFrame):
     # Since DataFrame is defined in upstream Modin, all of its members were either defined upstream
     # or overridden by extension.
-    if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
+    # Skip the `modin` accessor object, since we apply telemetry to all its fields.
+    if attr_name != "modin" and (
+        not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
+    ):
         register_dataframe_accessor(attr_name)(
             try_add_telemetry_to_attribute(attr_name, getattr(DataFrame, attr_name))
         )
