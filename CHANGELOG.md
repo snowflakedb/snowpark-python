@@ -15,6 +15,8 @@
 - Added support for constructing `Series` and `DataFrame` objects with `index` and `column` values not present in `DataFrame`/`Series` `data`.
 
 #### Improvements
+- Removed the use of `pkg_resources`, which is deprecated. No more deprecation warnings about it. Used `packaging` and `importlib.metadata` to replace `pkg_resources`.
+
 
 #### Bug Fixes
 
