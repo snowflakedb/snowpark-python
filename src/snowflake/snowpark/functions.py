@@ -162,7 +162,17 @@ import sys
 import typing
 from random import randint
 from types import ModuleType
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    overload,
+)
 
 import snowflake.snowpark
 import snowflake.snowpark.table_function
@@ -8718,8 +8728,12 @@ def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
     return builtin(sql_func_name)(text_col)
 
 
+if TYPE_CHECKING:
+    from snowflake.snowpark import DataFrame
+
+
 def map(
-    dataframe,
+    dataframe: "DataFrame",
     func: Callable,
     output_types: List[StructType],
     output_column_names: Optional[List[str]] = None,
@@ -8728,6 +8742,12 @@ def map(
 ):
     """Returns a new DataFrame with the result of applying `func` to each of the
     rows of the specified DataFrame.
+
+    This function registers an `UDTF
+    <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions>`_ . When
+    the `wrap_row` argument is `True` the UDTF is invoked with a :class:`Row` instance containing
+    all the values of the current row. If the `wrap_row` argument is `False` the UDTF is invoked using
+    the values of all columns of the DataFrame as separate arguments.
 
     Args:
         dataframe: The DataFrame instance.
@@ -8834,5 +8854,7 @@ def map(
         column.alias(desired_name)
         for column, desired_name in zip(output_cols, output_column_names)
     ]
-    _input_cols = [dataframe[column_name] for column_name in dataframe.columns]
-    return dataframe.join_table_function(map_udtf(*_input_cols)).select(*_output_cols)
+
+    return dataframe.join_table_function(map_udtf(*dataframe.columns)).select(
+        *_output_cols
+    )
