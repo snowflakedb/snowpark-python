@@ -20,7 +20,6 @@ from tests.integ.modin.frame.test_loc import (
     negative_snowpark_pandas_input_keys,
     row_inputs,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
@@ -28,6 +27,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
     generate_a_random_permuted_list_exclude_self,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 EMPTY_LIST_LIKE_VALUES = [
     [],

@@ -503,6 +503,11 @@ def tz_localize(
 
 
 @register_base_not_implemented()
+def update(self, other) -> None:  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_base_not_implemented()
 def xs(
     self,
     key,

@@ -14,7 +14,6 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     _TIMEDELTA_ROLLING_AGGREGATION_NOT_SUPPORTED,
     _TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -27,6 +26,7 @@ from tests.integ.modin.window.utils import (
     agg_func_not_supported_for_timedelta,
     agg_func_supported_for_timedelta,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 window = pytest.mark.parametrize("window", [1, 2, 3, 4, 6])
 min_periods = pytest.mark.parametrize("min_periods", [None, 1, 2])

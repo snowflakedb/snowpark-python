@@ -11,8 +11,8 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=1)
