@@ -7,8 +7,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 # (+1 query, +0 join) materialize first frame's index for comparison
 # (+1 query, +0 join) materialize second frame's index for comparison

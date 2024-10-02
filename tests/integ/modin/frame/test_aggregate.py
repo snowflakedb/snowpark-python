@@ -13,7 +13,6 @@ from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.types import VariantType
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     ColumnSchema,
     assert_snowpark_pandas_equal_to_pandas,
@@ -21,6 +20,7 @@ from tests.integ.modin.utils import (
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 def sensitive_function_name(col: native_pd.Series) -> int:
