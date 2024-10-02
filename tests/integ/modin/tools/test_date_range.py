@@ -297,9 +297,11 @@ def test_tz(date_range_func, start, end, periods, tz, tz_offset):
         "periods": periods,
         "tz": tz,
     }
+    # TODO: SNOW-1707640 fix this bug: bdate_range returns less data points than expected
     if date_range_func == "bdate_range" and kwargs.get("freq", None) is None:
         kwargs["freq"] = "D"
     assert_snowpark_pandas_equal_to_pandas(
         getattr(pd, date_range_func)(**kwargs),
+        # convert expected index with tz offset
         getattr(native_pd, date_range_func)(**kwargs).tz_convert(tz_offset),
     )
