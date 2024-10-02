@@ -110,19 +110,7 @@ class StoredProcedureProfiler:
                     return query.query_id
         return None
 
-    def show(self) -> None:
-        """
-        Show the profiles of the last executed stored procedure.
-
-        Note:
-            This function must be called right after the execution of stored procedure you want to profile.
-        """
-        query_id = self._get_last_query_id()
-        sql = f"select snowflake.core.get_python_profiler_output('{query_id}')"
-        res = self.session.sql(sql).collect()
-        print(res[0][0])  # noqa: T201: we need to print here.
-
-    def collect(self) -> str:
+    def get_output(self) -> str:
         """
         Return the profiles of last executed stored procedure.
 
@@ -132,19 +120,3 @@ class StoredProcedureProfiler:
         query_id = self._get_last_query_id()
         sql = f"select snowflake.core.get_python_profiler_output('{query_id}')"
         return self.session.sql(sql).collect()[0][0]
-
-    def dump(self, dst_file: str):
-        """
-        Write the profiles of last executed stored procedure to given file.
-
-        Note:
-            This function must be called right after the execution of stored procedure you want to profile.
-
-        Args:
-            dst_file: String of file name that you want to store the profiles.
-        """
-        query_id = self._get_last_query_id()
-        sql = f"select snowflake.core.get_python_profiler_output('{query_id}')"
-        res = self.session.sql(sql).collect()
-        with open(dst_file, "w") as f:
-            f.write(str(res[0][0]))
