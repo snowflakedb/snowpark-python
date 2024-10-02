@@ -34,6 +34,7 @@
 - Added support for string time-based `window` and `min_periods = None` for `Rolling`.
 - Added support for `pd.read_sas` (Uses native pandas for processing).
 - Added suppport for applying `rolling().count()` and `expanding().count()` to `Timedelta` series and columns.
+- Added support for `tz` in both `pd.date_range` and `pd.bdate_range`.
 
 #### Improvements
 
