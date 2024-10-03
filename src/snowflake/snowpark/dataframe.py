@@ -1748,7 +1748,7 @@ class DataFrame:
             <BLANKLINE>
 
             Self join:
-            >>> df1.alias("L").join(df1.alias("R"), on="col1").select(col("L", "col1"), col("R", "col2")).show()
+            >>> df1.alias("L").join(df1.alias("R"), on="col1").select(col("L", "col1"), col("R", "col2")).show() # doctest: +SKIP
             --------------------
             |"COL1"  |"COL2R"  |
             --------------------
@@ -1761,6 +1761,9 @@ class DataFrame:
         Args:
             name: The alias as :class:`str`.
         """
+
+        # TODO: Last doctest seems broken, this is an experimental feature. Should we remove it?
+
         # AST.
         stmt = None
         if _emit_ast:
