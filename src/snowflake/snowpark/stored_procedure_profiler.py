@@ -53,19 +53,14 @@ class StoredProcedureProfiler:
             stage: String of fully qualified name of targeted stage
         """
         validate_object_name(stage)
+        [db_name, schema_name, stage_name] = stage.split(".")
+        existing_stages = self._session.sql(
+            f"show stages like '{stage_name}' in database {db_name}"
+        )._internal_collect_with_tag_no_telemetry()
+        existing_stages_schema_list = [row.schema_name for row in existing_stages]  # type: ignore
         if (
-            len(
-                self._session.sql(  # type: ignore
-                    f"show stages like '{stage}'"
-                )._internal_collect_with_tag_no_telemetry()
-            )
-            == 0
-            and len(
-                self._session.sql(  # type: ignore
-                    f"show stages like '{stage.split('.')[-1]}'"
-                )._internal_collect_with_tag_no_telemetry()
-            )
-            == 0
+            existing_stages_schema_list == []
+            or schema_name not in existing_stages_schema_list
         ):
             self._session.sql(
                 f"create temp stage if not exists {stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
