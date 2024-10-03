@@ -14,19 +14,19 @@ pandas_df = df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"}
 
 df = session.table("test_table")
 
-pandas_df = Add a handler for Empty$ in Unparser.spDataframeExpr().to_pandas_batches()
+pandas_df = df.to_pandas_batches()
 
 pandas_df
 
-pandas_df = Add a handler for Empty$ in Unparser.spDataframeExpr().to_pandas_batches(block=False)
+pandas_df = df.to_pandas_batches(block=False)
 
 pandas_df
 
-pandas_df = Add a handler for Empty$ in Unparser.spDataframeExpr().to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+pandas_df = df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
 pandas_df
 
-pandas_df = Add a handler for Empty$ in Unparser.spDataframeExpr().to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
+pandas_df = df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
 
 pandas_df
 
