@@ -90,6 +90,7 @@ class PlanCompiler:
             # 2. create a code generator with the original plan
             query_generator = create_query_generator(self._plan)
 
+            extra_optimization_status = {}
             # 3. apply each optimizations if needed
             # CTE optimization
             cte_start_time = time.time()
@@ -97,7 +98,15 @@ class PlanCompiler:
                 repeated_subquery_eliminator = RepeatedSubqueryElimination(
                     logical_plans, query_generator
                 )
-                logical_plans = repeated_subquery_eliminator.apply()
+                elimination_result = repeated_subquery_eliminator.apply()
+                logical_plans = elimination_result.logical_plans
+                # add the extra repeated subquery
+                extra_optimization_status[
+                    CompilationStageTelemetryField.CTE_TRANSFORMATION_APPLIED.value
+                ] = elimination_result.elimination_applied
+                extra_optimization_status[
+                    CompilationStageTelemetryField.CTE_NODE_CREATED.value
+                ] = elimination_result.total_num_of_ctes
 
             cte_end_time = time.time()
             complexity_scores_after_cte = [
@@ -142,7 +151,7 @@ class PlanCompiler:
                 CompilationStageTelemetryField.COMPLEXITY_SCORE_BEFORE_COMPILATION.value: complexity_score_before_compilation,
                 CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION.value: complexity_scores_after_cte,
                 CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_LARGE_QUERY_BREAKDOWN.value: complexity_scores_after_large_query_breakdown,
-            }
+            }.update(extra_optimization_status)
             session._conn._telemetry_client.send_query_compilation_summary_telemetry(
                 session_id=session.session_id,
                 plan_uuid=self._plan.uuid,

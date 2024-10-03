@@ -25,6 +25,7 @@ from typing import (
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
+    PlanState,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
@@ -34,6 +35,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.select_statement import (
         Selectable,
+        SelectStatement,
     )  # pragma: no cover
     import snowflake.snowpark.session
     import snowflake.snowpark.dataframe
@@ -416,20 +418,37 @@ class SnowflakePlan(LogicalPlan):
 
     @cached_property
     def plan_height(self) -> int:
-        height = 0
-        current_level = [self]
-        while len(current_level) > 0:
-            next_level = []
-            for node in current_level:
-                next_level.extend(node.children_plan_nodes)
-            height += 1
-            current_level = next_level
-        return height
+        return self.plan_state[PlanState.PLAN_HEIGHT]
+
+    @cached_property
+    def num_selects_with_complexity_merged(self) -> int:
+        return self.plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
 
     @cached_property
     def num_duplicate_nodes(self) -> int:
         duplicated_nodes, _ = find_duplicate_subtrees(self)
         return len(duplicated_nodes)
+
+    @cached_property
+    def plan_state(self) -> Dict[PlanState, Any]:
+        height = 0
+        num_selects_with_complexity_merged = 0
+        current_level = [self]
+        while len(current_level) > 0:
+            next_level = []
+            for node in current_level:
+                next_level.extend(node.children_plan_nodes)
+                if (
+                    isinstance(node, SelectStatement)
+                    and node._merge_projection_complexity_with_subquery
+                ):
+                    num_selects_with_complexity_merged += 1
+            height += 1
+            current_level = next_level
+        return {
+            PlanState.PLAN_HEIGHT: height,
+            PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: num_selects_with_complexity_merged,
+        }
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
