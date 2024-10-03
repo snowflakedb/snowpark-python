@@ -453,7 +453,7 @@ def eval_snowpark_pandas_result(
             ), f"Snowpark pandas Exception {snow_e.value} doesn't match pandas Exception {pd_e.value}"
     else:
         test_attrs_dict = {"key": "attrs propagation test"}
-        if test_attrs:
+        if test_attrs and isinstance(snow_pandas, (Series, DataFrame)):
             native_pandas.attrs = test_attrs_dict
             snow_pandas.attrs = test_attrs_dict
         pd_result = operation(native_pandas)
