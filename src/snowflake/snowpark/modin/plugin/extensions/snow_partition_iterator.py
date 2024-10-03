@@ -3,9 +3,10 @@
 #
 
 from collections.abc import Iterator
-from typing import Any, Callable
+from typing import Any, Callable, Union
 
 import modin.pandas.dataframe as DataFrame
+import modin.pandas.series as Series
 import pandas
 
 PARTITION_SIZE = 4096
@@ -13,7 +14,8 @@ PARTITION_SIZE = 4096
 
 class SnowparkPandasRowPartitionIterator(Iterator):
     """
-    Iterator on partitioned data used by DataFrame.iterrows and DataFrame.itertuples to iterate over axis=0 or rows.
+    Iterator on partitioned data used by Series.items, DataFrame.iterrows and DataFrame.itertuples to iterate
+    over axis=0 or rows.
 
     SnowparkPandasRowPartitionIterator pulls table data in batches (where number of rows = PARTITION_SIZE) to iterate
     over rows. This is to prevent the table from being queried for every single row - the batch of rows pulled in is
@@ -27,7 +29,7 @@ class SnowparkPandasRowPartitionIterator(Iterator):
 
     Parameters
     ----------
-    df : DataFrame
+    df : DataFrame or Series
         The dataframe to iterate over.
     axis : {0, 1}
         Axis to iterate over.
@@ -41,7 +43,7 @@ class SnowparkPandasRowPartitionIterator(Iterator):
 
     def __init__(
         self,
-        df: DataFrame,
+        df: Union[DataFrame, Series],
         func: Callable,
         enable_partition_with_native_pandas: bool = False,
     ) -> None:

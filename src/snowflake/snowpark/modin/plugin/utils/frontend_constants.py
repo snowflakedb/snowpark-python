@@ -43,6 +43,12 @@ SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SCALAR_ERROR_MESSAGE = (
     "Scalar key incompatible with {} value"
 )
 
+SERIES_ITEMS_WARNING_MESSAGE = (
+    "{} will result eager evaluation and potential data pulling, which is inefficient. For efficient Snowpark "
+    "pandas usage, consider rewriting the code with an operator (such as Series.apply) which "
+    "can work on the entire Series in one shot."
+)
+
 DF_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE = (
     "Currently do not support Series or list-like keys with range-like values"
 )
