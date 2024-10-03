@@ -3,7 +3,7 @@
 #
 import re
 import threading
-from typing import List, Literal
+from typing import List, Literal, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.utils import validate_object_name
@@ -40,7 +40,7 @@ class StoredProcedureProfiler:
         sql_statement = (
             f"alter session set python_profiler_modules='{','.join(stored_procedures)}'"
         )
-        self._session.sql(sql_statement).collect()
+        self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
 
     def set_targeted_stage(self, stage: str):
         """
@@ -54,19 +54,24 @@ class StoredProcedureProfiler:
         """
         validate_object_name(stage)
         if (
-            len(self._session.sql(f"show stages like '{stage}'").collect()) == 0
+            len(
+                self._session.sql(
+                    f"show stages like '{stage}'"
+                )._internal_collect_with_tag_no_telemetry()
+            )
+            == 0
             and len(
                 self._session.sql(
                     f"show stages like '{stage.split('.')[-1]}'"
-                ).collect()
+                )._internal_collect_with_tag_no_telemetry()
             )
             == 0
         ):
             self._session.sql(
                 f"create temp stage if not exists {stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
-            ).collect()
+            )._internal_collect_with_tag_no_telemetry()
         sql_statement = f'alter session set PYTHON_PROFILER_TARGET_STAGE ="{stage}"'
-        self._session.sql(sql_statement).collect()
+        self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
 
     def set_active_profiler(self, active_profiler_type: Literal["LINE", "MEMORY"]):
         """
@@ -84,24 +89,24 @@ class StoredProcedureProfiler:
                 f"active_profiler expect 'LINE', 'MEMORY', got {active_profiler_type} instead"
             )
         sql_statement = f"alter session set ACTIVE_PYTHON_PROFILER = '{active_profiler_type.upper()}'"
-        self._session.sql(sql_statement).collect()
+        self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
         self._query_history = self._session.query_history(include_thread_id=True)
 
-    def disable(self):
+    def disable(self) -> None:
         """
         Disable profiler.
         """
         self._session._conn.remove_query_listener(self._query_history)
         sql_statement = "alter session set ACTIVE_PYTHON_PROFILER = ''"
-        self._session.sql(sql_statement).collect()
+        self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
 
     @staticmethod
-    def _is_sp_call(query: str):
+    def _is_sp_call(query: str) -> bool:
         return re.match(
             STORED_PROCEDURE_CALL_PATTERN, query.strip(" "), re.DOTALL
         ) is not None or query.upper().strip(" ").startswith("CALL")
 
-    def _get_last_query_id(self):
+    def _get_last_query_id(self) -> Union[str, None]:
         current_thread = threading.get_ident()
         for query in self._query_history.queries[::-1]:
             query_thread = getattr(query, "thread_id", None)
@@ -119,4 +124,4 @@ class StoredProcedureProfiler:
         """
         query_id = self._get_last_query_id()
         sql = f"select snowflake.core.get_python_profiler_output('{query_id}')"
-        return self._session.sql(sql).collect()[0][0]
+        return self._session.sql(sql)._internal_collect_with_tag_no_telemetry()[0][0]
