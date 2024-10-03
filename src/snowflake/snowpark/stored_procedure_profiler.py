@@ -22,7 +22,7 @@ class StoredProcedureProfiler:
 
     def __init__(
         self,
-        session: "snowflake.snowpark.Session" = None,
+        session: "snowflake.snowpark.Session",
     ) -> None:
         self._session = session
         self._query_history = None
@@ -55,13 +55,13 @@ class StoredProcedureProfiler:
         validate_object_name(stage)
         if (
             len(
-                self._session.sql(
+                self._session.sql(  # type: ignore
                     f"show stages like '{stage}'"
                 )._internal_collect_with_tag_no_telemetry()
             )
             == 0
             and len(
-                self._session.sql(
+                self._session.sql(  # type: ignore
                     f"show stages like '{stage.split('.')[-1]}'"
                 )._internal_collect_with_tag_no_telemetry()
             )
@@ -98,7 +98,7 @@ class StoredProcedureProfiler:
         """
         Disable profiler.
         """
-        self._session._conn.remove_query_listener(self._query_history)
+        self._session._conn.remove_query_listener(self._query_history)  # type: ignore
         sql_statement = "alter session set ACTIVE_PYTHON_PROFILER = ''"
         self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
 
@@ -110,7 +110,7 @@ class StoredProcedureProfiler:
 
     def _get_last_query_id(self) -> Union[str, None]:
         current_thread = threading.get_ident()
-        for query in self._query_history.queries[::-1]:
+        for query in self._query_history.queries[::-1]:  # type: ignore
             query_thread = getattr(query, "thread_id", None)
             if query_thread is None or query_thread == current_thread:
                 if self._is_sp_call(query.sql_text):
@@ -128,4 +128,4 @@ class StoredProcedureProfiler:
         if query_id is None:
             raise ValueError("Last executed stored procedure does not exist")
         sql = f"select snowflake.core.get_python_profiler_output('{query_id}')"
-        return self._session.sql(sql)._internal_collect_with_tag_no_telemetry()[0][0]
+        return self._session.sql(sql)._internal_collect_with_tag_no_telemetry()[0][0]  # type: ignore
