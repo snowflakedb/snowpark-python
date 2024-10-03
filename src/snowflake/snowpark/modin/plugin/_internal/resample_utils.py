@@ -45,6 +45,8 @@ IMPLEMENTED_AGG_METHODS = [
     "size",
     "first",
     "last",
+    "quantile",
+    "nunique",
 ]
 IMPLEMENTED_MISC_METHODS = ["ffill"]
 SUPPORTED_RESAMPLE_RULES = ("second", "minute", "hour", "day", "week", "month", "year")
