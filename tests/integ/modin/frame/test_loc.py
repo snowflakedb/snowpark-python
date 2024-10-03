@@ -4150,7 +4150,9 @@ def test_df_loc_full_set_row_from_series_using_series_column_key():
         ([0, 1, 2], native_pd.DataFrame([[1, 4, 9], [None] * 3])),
     ],
 )
-def test_df_loc_full_set_row_from_series_pandas_errors(index, expected_result):
+def test_df_loc_full_set_row_from_series_pandas_errors_default_columns(
+    index, expected_result
+):
     native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]])
     snow_df = pd.DataFrame(native_df)
 
@@ -4161,18 +4163,24 @@ def test_df_loc_full_set_row_from_series_pandas_errors(index, expected_result):
     assert_snowpark_pandas_equal_to_pandas(snow_df, expected_result)
 
 
-@sql_count_checker(query_count=1)
-def test_df_loc_full_set_row_from_series_errors():
-    # We error here because our join columns are an int (item.index)
-    # and a string (value.index) column respectively, and we do not
-    # support joins between those.
-    snow_df = pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
+@sql_count_checker(query_count=2, join_count=1)
+@pytest.mark.parametrize("series_index", [list("ABC"), list("ABC")[::-1]])
+def test_df_loc_full_set_row_from_series_pandas_errors_string_columns(series_index):
+    native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
+    snow_df = pd.DataFrame(native_df)
 
-    with pytest.raises(
-        SnowparkSQLException, match="Numeric value 'A' is not recognized"
-    ):
-        snow_df.loc[:] = pd.Series([1, 4, 9], index=list("ABC"))
-        snow_df.to_pandas()  # Force materialization.
+    with pytest.raises(ValueError, match="setting an array element with a sequence."):
+        native_df.loc[:] = native_pd.Series([1, 4, 9], index=series_index)
+
+    snow_df.loc[:] = pd.Series([1, 4, 9], index=series_index)
+    if series_index == list("ABC"):
+        expected_result = native_pd.DataFrame([[1, 4, 9]] * 2, columns=list("ABC"))
+    else:
+        expected_result = native_pd.DataFrame(
+            [[1, 4, 9][::-1]] * 2, columns=list("ABC")
+        )
+
+    assert_snowpark_pandas_equal_to_pandas(snow_df, expected_result)
 
 
 @sql_count_checker(query_count=0)
@@ -4192,3 +4200,65 @@ def test_df_loc_invalid_key():
         expect_exception_type=KeyError,
         expect_exception_match="D",
     )
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        list("ABC"),
+        list("CBA"),
+    ],
+)
+@pytest.mark.parametrize("convert_key_to_series", [True, False])
+@pytest.mark.parametrize("row_loc", [None, 0])
+def test_df_loc_set_series_value(key, convert_key_to_series, row_loc):
+    native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
+    snow_df = pd.DataFrame(native_df)
+    query_count = 2
+    key_sorted = key == list("ABC")
+    if row_loc is not None:
+        if convert_key_to_series:
+            join_count = 7
+        else:
+            join_count = 4
+    else:
+        if convert_key_to_series:
+            join_count = 3
+        else:
+            join_count = 1
+
+    if convert_key_to_series:
+        query_count = 4
+        snow_key = pd.Series(key)
+        native_key = native_pd.Series(key)
+    else:
+        snow_key = native_key = key
+    with SqlCounter(query_count=query_count, join_count=join_count):
+        if row_loc is None:
+            snow_df.loc[:, snow_key] = pd.Series([1, 4, 9], index=list("ABC"))
+            # This is a bug in pandas. Issue filed here: https://github.com/pandas-dev/pandas/issues/59933
+            with pytest.raises(
+                ValueError, match="setting an array element with a sequence."
+            ):
+                native_df.loc[:, native_key] = native_pd.Series(
+                    [1, 4, 9], index=list("ABC")
+                )
+            # We differ from pandas here because we ignore the index of the value when the key is a pandas object.
+            if key_sorted or isinstance(snow_key, list):
+                native_df = native_pd.DataFrame([[1, 4, 9]] * 2, columns=list("ABC"))
+            else:
+                native_df = native_pd.DataFrame(
+                    [[1, 4, 9][::-1]] * 2, columns=list("ABC")
+                )
+        else:
+            snow_df.loc[row_loc, snow_key] = pd.Series([1, 4, 9], index=list("ABC"))
+            native_df.loc[row_loc, native_key] = native_pd.Series(
+                [1, 4, 9], index=list("ABC")
+            )
+            # We differ from pandas here because we ignore the index of the value when the key is a pandas object.
+            if not key_sorted and convert_key_to_series:
+                native_df = native_pd.DataFrame(
+                    [[9, 4, 1], [4, 5, 6]], columns=list("ABC")
+                )
+
+        assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
