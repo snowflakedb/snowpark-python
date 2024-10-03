@@ -521,6 +521,12 @@ def test_concurrent_update_on_sensitive_configs(session, config, value, caplog):
         session_.conf.set(config, value)
 
     caplog.clear()
+    change_config_value(session)
+    assert (
+        f"Session configuration update for {config} in multithreaded mode is not thread-safe"
+        not in caplog.text
+    )
+
     with caplog.at_level(logging.WARNING):
         with ThreadPoolExecutor(max_workers=5) as executor:
             for _ in range(5):
