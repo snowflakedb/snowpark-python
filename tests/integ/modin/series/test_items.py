@@ -48,6 +48,8 @@ def assert_items_results_equal(snow_result, pandas_result) -> None:
         native_pd.Series(),
         native_pd.Series(index=["a"]),
         native_pd.Series(native_pd.timedelta_range(10, periods=10)),
+        native_pd.Series(index=["a", "a", "a"]),
+        native_pd.Series(data={"a": 1, "b": 2, "c": 3}),
     ],
 )
 @sql_count_checker(query_count=1)
