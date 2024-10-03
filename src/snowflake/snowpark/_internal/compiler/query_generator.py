@@ -211,7 +211,7 @@ class QueryGenerator(Analyzer):
                 ] = resolved_child.queries[-1]
 
             resolved_plan = self.plan_builder.with_query_block(
-                logical_plan.name,
+                logical_plan,
                 resolved_child,
                 logical_plan,
             )
