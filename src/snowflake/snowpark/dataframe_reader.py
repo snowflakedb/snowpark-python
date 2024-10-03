@@ -720,7 +720,7 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast:
-            reader = proto.SpDataframegReader()
+            reader = proto.SpDataframeReader()
             ast = with_src_position(reader.sp_dataframe_reader_options)
             ast.reader.CopyFrom(self._ast)
             for k, v in configs.items():
