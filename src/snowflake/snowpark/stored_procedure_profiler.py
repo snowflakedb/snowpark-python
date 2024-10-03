@@ -3,7 +3,7 @@
 #
 import re
 import threading
-from typing import List, Literal, Union
+from typing import List, Literal, Optional
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.utils import validate_object_name
@@ -27,7 +27,7 @@ class StoredProcedureProfiler:
         self._session = session
         self._query_history = None
 
-    def register_modules(self, stored_procedures: List[str]):
+    def register_modules(self, stored_procedures: List[str]) -> None:
         """
         Register stored procedures to generate profiles for them.
 
@@ -42,7 +42,7 @@ class StoredProcedureProfiler:
         )
         self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
 
-    def set_targeted_stage(self, stage: str):
+    def set_targeted_stage(self, stage: str) -> None:
         """
         Set targeted stage for profiler output.
 
@@ -73,7 +73,9 @@ class StoredProcedureProfiler:
         sql_statement = f'alter session set PYTHON_PROFILER_TARGET_STAGE ="{stage}"'
         self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
 
-    def set_active_profiler(self, active_profiler_type: Literal["LINE", "MEMORY"]):
+    def set_active_profiler(
+        self, active_profiler_type: Literal["LINE", "MEMORY"]
+    ) -> None:
         """
         Set active profiler.
 
@@ -104,17 +106,17 @@ class StoredProcedureProfiler:
 
     @staticmethod
     def _is_sp_call(query: str) -> bool:
+        query = query.upper().strip(" ")
         return re.match(
-            STORED_PROCEDURE_CALL_PATTERN, query.strip(" "), re.DOTALL
-        ) is not None or query.upper().strip(" ").startswith("CALL")
+            STORED_PROCEDURE_CALL_PATTERN, query, re.DOTALL
+        ) is not None or query.startswith("CALL")
 
-    def _get_last_query_id(self) -> Union[str, None]:
+    def _get_last_query_id(self) -> Optional[str]:
         current_thread = threading.get_ident()
         for query in self._query_history.queries[::-1]:  # type: ignore
             query_thread = getattr(query, "thread_id", None)
-            if query_thread is None or query_thread == current_thread:
-                if self._is_sp_call(query.sql_text):
-                    return query.query_id
+            if query_thread == current_thread and self._is_sp_call(query.sql_text):
+                return query.query_id
         return None
 
     def get_output(self) -> str:
