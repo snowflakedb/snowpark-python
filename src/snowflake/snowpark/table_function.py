@@ -23,6 +23,7 @@ from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.types import ArrayType, MapType
 
 from ._internal.analyzer.snowflake_plan import SnowflakePlan
+from ._internal.ast_utils import with_src_position
 
 
 class TableFunctionCall:
@@ -40,7 +41,7 @@ class TableFunctionCall:
         self,
         func_name: Union[str, Iterable[str]],
         *func_arguments: ColumnOrName,
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast: Optional[proto.Expr] = None,
         _emit_ast: bool = True,
         **func_named_arguments: ColumnOrName,
     ) -> None:
@@ -59,10 +60,7 @@ class TableFunctionCall:
         self._order_by = None
         self._aliases: Optional[Iterable[str]] = None
         self._api_call_source = None
-
-        self._ast_stmt = _ast_stmt
-        if _ast_stmt is not None:
-            self._ast_id = _ast_stmt.var_id.bitfield1
+        self._ast = _ast
 
     def _set_api_call_source(self, api_call_source):
         self._api_call_source = api_call_source
@@ -92,9 +90,14 @@ class TableFunctionCall:
         Note that if this function is called but both ``partition_by`` and ``order_by`` are ``None``, the table function call will put all input rows into a single partition.
         If this function isn't called at all, the Snowflake database will use implicit partitioning.
         """
-        # TODO(oplaton): Extend over() to collect the AST.
+        ast = None
+        if _emit_ast:
+            ast = proto.Expr()
+            expr = with_src_position(ast.sp_table_fn_call_over)
+            expr.lhs.CopyFrom(self._ast)
+
         new_table_function = TableFunctionCall(
-            self.name, *self.arguments, **self.named_arguments
+            self.name, *self.arguments, _ast=ast, **self.named_arguments
         )
         new_table_function._over = True
 
@@ -138,12 +141,18 @@ class TableFunctionCall:
         Raises:
             ValueError: Raises error when the aliases are not unique after being canonicalized.
         """
-        # TODO(oplaton): Extend alias() to collect the AST.
+        ast = None
+        if _emit_ast:
+            ast = proto.Expr()
+            expr = with_src_position(ast.sp_table_fn_call_alias)
+            expr.lhs.CopyFrom(self._ast)
+
         canon_aliases = [quote_name(col) for col in aliases]
         if len(set(canon_aliases)) != len(aliases):
             raise ValueError("All output column names after aliasing must be unique.")
 
         self._aliases = canon_aliases
+        self._ast = ast
         return self
 
     as_ = alias

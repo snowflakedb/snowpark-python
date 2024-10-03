@@ -400,6 +400,7 @@ def build_session_table_fn_apply(
     build_fn_apply_args(ast, *args, **kwargs)
 
 
+# DO NOT MERGE. Remove this function when done refactoring.
 def build_table_fn_apply(
     ast: proto.Expr,
     name: Union[str, Iterable[str], None],
@@ -429,8 +430,39 @@ def build_table_fn_apply(
     build_fn_apply_args(ast, *args, **kwargs)
 
 
+def build_call_table_function_apply(
+    ast: proto.Expr,
+    name: str,
+    *args: Tuple[Union[proto.Expr, Any]],
+    **kwargs: Dict[str, Union[proto.Expr, Any]],
+) -> None:
+    expr = with_src_position(ast.apply_expr)
+    _set_fn_name(name, expr.fn.call_table_function_expr)
+    with_src_position(expr.fn.call_table_function_expr)
+    build_fn_apply_args(ast, *args, **kwargs)
+
+
+def build_indirect_table_fn_apply(
+    ast_batch: AstBatch,
+    ast: proto.Expr,
+    func: Union[str, List[str], "snowflake.snowpark.table_function.TableFunctionCall"],
+    *func_arguments: ColumnOrName,
+    **func_named_arguments: ColumnOrName,
+) -> None:
+    expr = with_src_position(ast.apply_expr)
+    if isinstance(func, snowflake.snowpark.table_function.TableFunctionCall):
+        stmt = ast_batch.assign()
+        stmt.expr.CopyFrom(func._ast)
+        fn_expr = expr.fn.indirect_table_fn_call_ref
+    else:
+        fn_expr = expr.fn.indirect_table_fn_name_call
+        _set_fn_name(func, fn_expr)
+    with_src_position(fn_expr)
+    build_fn_apply_args(ast, *func_arguments, **func_named_arguments)
+
+
 def build_fn_apply_args(
-    ast: Union[proto.Expr, proto.ApplyExpr],
+    ast: proto.Expr,
     *args: Tuple[Union[proto.Expr, Any]],
     **kwargs: Dict[str, Union[proto.Expr, Any]],
 ) -> None:
@@ -441,12 +473,7 @@ def build_fn_apply_args(
         *args: Positional arguments to pass to function.
         **kwargs: Keyword arguments to pass to function.
     """
-    expr: Optional[proto.ApplyExpr] = None
-    if hasattr(ast, "apply_expr"):
-        expr = ast.apply_expr
-    else:
-        expr = ast
-    expr: proto.ApplyExpr = expr
+    expr = ast.apply_expr
 
     for arg in args:
         if isinstance(arg, proto.Expr):
