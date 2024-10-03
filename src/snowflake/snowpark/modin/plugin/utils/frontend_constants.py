@@ -44,9 +44,9 @@ SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SCALAR_ERROR_MESSAGE = (
 )
 
 SERIES_ITEMS_WARNING_MESSAGE = (
-    "{} will result eager evaluation and potential data pulling, which is inefficient. For efficient Snowpark "
-    "pandas usage, consider rewriting the code with an operator (such as Series.apply) which "
-    "can work on the entire Series in one shot."
+    "{} may result in executing one more queries to fetch each row of this series. For better " +
+    "performance, consider instead using a method like Series.apply that Snowpark pandas " +
+    "can execute lazily and without fetching data from Snowflake."
 )
 
 DF_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE = (
