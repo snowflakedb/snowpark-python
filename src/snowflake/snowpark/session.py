@@ -114,6 +114,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_single_quote,
     unwrap_stage_location_single_quote,
     validate_object_name,
+    warn_session_config_update_in_multithreaded_mode,
     warning,
     zip_file_or_directory_to_stream,
 )
@@ -781,12 +782,7 @@ class Session:
 
     @sql_simplifier_enabled.setter
     def sql_simplifier_enabled(self, value: bool) -> None:
-        if threading.active_count() > 1:
-            _logger.warning(
-                "Setting sql_simplifier_enabled is not currently thread-safe. "
-                "Ignoring the update"
-            )
-            return
+        warn_session_config_update_in_multithreaded_mode("sql_simplifier_enabled")
 
         with self._lock:
             self._conn._telemetry_client.send_sql_simplifier_telemetry(
@@ -803,12 +799,7 @@ class Session:
     @cte_optimization_enabled.setter
     @experimental_parameter(version="1.15.0")
     def cte_optimization_enabled(self, value: bool) -> None:
-        if threading.active_count() > 1:
-            # TODO (SNOW-1541096): Remove the limitation once old cte implementation is removed.
-            _logger.warning(
-                "Setting cte_optimization_enabled is not currently thread-safe. Ignoring the update"
-            )
-            return
+        warn_session_config_update_in_multithreaded_mode("cte_optimization_enabled")
 
         with self._lock:
             if value:
@@ -821,12 +812,9 @@ class Session:
     @experimental_parameter(version="1.20.0")
     def eliminate_numeric_sql_value_cast_enabled(self, value: bool) -> None:
         """Set the value for eliminate_numeric_sql_value_cast_enabled"""
-        if threading.active_count() > 1:
-            _logger.warning(
-                "Setting eliminate_numeric_sql_value_cast_enabled is not currently thread-safe. "
-                "Ignoring the update"
-            )
-            return
+        warn_session_config_update_in_multithreaded_mode(
+            "eliminate_numeric_sql_value_cast_enabled"
+        )
 
         if value in [True, False]:
             with self._lock:
@@ -843,12 +831,9 @@ class Session:
     @experimental_parameter(version="1.21.0")
     def auto_clean_up_temp_table_enabled(self, value: bool) -> None:
         """Set the value for auto_clean_up_temp_table_enabled"""
-        if threading.active_count() > 1:
-            _logger.warning(
-                "Setting auto_clean_up_temp_table_enabled is not currently thread-safe. "
-                "Ignoring the update"
-            )
-            return
+        warn_session_config_update_in_multithreaded_mode(
+            "auto_clean_up_temp_table_enabled"
+        )
 
         if value in [True, False]:
             self._conn._telemetry_client.send_auto_clean_up_temp_table_telemetry(
@@ -868,11 +853,9 @@ class Session:
         materialize the partitions, and then combine them to execute the query to improve
         overall performance.
         """
-        if threading.active_count() > 1:
-            _logger.warning(
-                "Setting large_query_breakdown_enabled is not currently thread-safe. Ignoring the update"
-            )
-            return
+        warn_session_config_update_in_multithreaded_mode(
+            "large_query_breakdown_enabled"
+        )
 
         if value in [True, False]:
             with self._lock:
@@ -888,12 +871,9 @@ class Session:
     @large_query_breakdown_complexity_bounds.setter
     def large_query_breakdown_complexity_bounds(self, value: Tuple[int, int]) -> None:
         """Set the lower and upper bounds for the complexity score used in large query breakdown optimization."""
-        if threading.active_count() > 1:
-            _logger.warning(
-                "Setting large_query_breakdown_complexity_bounds is not currently thread-safe. "
-                "Ignoring the update"
-            )
-            return
+        warn_session_config_update_in_multithreaded_mode(
+            "large_query_breakdown_complexity_bounds"
+        )
 
         if len(value) != 2:
             raise ValueError(

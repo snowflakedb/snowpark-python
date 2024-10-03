@@ -17,6 +17,7 @@ import platform
 import random
 import re
 import string
+import threading
 import traceback
 import zipfile
 from enum import Enum
@@ -295,6 +296,14 @@ def normalize_path(path: str, is_local: bool) -> str:
     if not any(path.startswith(prefix) for prefix in prefixes):
         path = f"{prefixes[0]}{path}"
     return f"'{path}'"
+
+
+def warn_session_config_update_in_multithreaded_mode(config):
+    if threading.active_count() > 1:
+        logger.warning(
+            f"Session configuration update for {config} in multithreaded mode is not thread-safe. "
+            "Please update the session configuration before starting the threads."
+        )
 
 
 def normalize_remote_file_or_dir(name: str) -> str:
