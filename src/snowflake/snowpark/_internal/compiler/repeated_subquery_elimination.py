@@ -22,8 +22,11 @@ from snowflake.snowpark._internal.utils import (
 
 
 class RepeatedSubqueryEliminationResult:
+    # the result logical plans after repeated subquery elimination
     logical_plans: List[LogicalPlan]
+    # whether actual elimination is applied
     elimination_applied: bool
+    # total number of cte nodes created the transformation
     total_num_of_ctes: int
 
     def __init__(
@@ -95,7 +98,7 @@ class RepeatedSubqueryElimination:
                 )
                 final_logical_plans.append(deduplicated_plan)
                 elimination_applied = True
-                total_num_ctes += duplicated_nodes
+                total_num_ctes += len(duplicated_nodes)
             else:
                 final_logical_plans.append(logical_plan)
 
