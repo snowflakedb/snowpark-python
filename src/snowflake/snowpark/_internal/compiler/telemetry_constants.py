@@ -29,6 +29,10 @@ class CompilationStageTelemetryField(Enum):
         "complexity_score_after_large_query_breakdown"
     )
 
+    # keys for repeated subquery elimination
+    CTE_TRANSFORMATION_APPLIED = "cte_transformation_applied"
+    CTE_NODE_CREATED = "cte_node_created"
+
 
 class SkipLargeQueryBreakdownCategory(Enum):
     ACTIVE_TRANSACTION = "active transaction"
