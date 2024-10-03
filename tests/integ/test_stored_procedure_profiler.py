@@ -126,6 +126,10 @@ def test_anonymous_procedure(
     assert "Modules Profiled" in res
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
 def test_set_incorrect_active_profiler(profiler_session, db_parameters, tmp_stage_name):
     with pytest.raises(ValueError) as e:
         profiler_session.stored_procedure_profiler.set_active_profiler(
