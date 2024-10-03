@@ -12398,7 +12398,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             frame = fill_missing_resample_bins_for_frame(
                 qc._modin_frame, rule, start_date, end_date
             )
-            if resample_method in ("sum", "count", "size"):
+            if resample_method in ("sum", "count", "size", "nunique"):
                 values_arg: Union[int, dict]
                 if resample_method == "sum":
                     # For sum(), we need to fill NaN values as Timedelta(0)
