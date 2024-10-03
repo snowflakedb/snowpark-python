@@ -44,6 +44,11 @@ class PlanNodeCategory(Enum):
         return self.name
 
 
+class PlanState(Enum):
+    PLAN_HEIGHT = "plan_height"
+    NUM_SELECTS_WITH_COMPLEXITY_MERGED = "num_selects_with_complexity_merged"
+
+
 def sum_node_complexities(
     *node_complexities: Dict[PlanNodeCategory, int]
 ) -> Dict[PlanNodeCategory, int]:

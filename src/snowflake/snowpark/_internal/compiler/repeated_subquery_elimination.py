@@ -21,6 +21,12 @@ from snowflake.snowpark._internal.utils import (
 )
 
 
+class RepeatedSubqueryEliminationResult:
+    logical_plans: List[LogicalPlan]
+    elimination_applied: bool
+    total_num_of_ctes: int
+
+
 class RepeatedSubqueryElimination:
     """
     Optimization that used eliminate duplicated queries in the plan.
@@ -53,7 +59,7 @@ class RepeatedSubqueryElimination:
         self._logical_plans = logical_plans
         self._query_generator = query_generator
 
-    def apply(self) -> List[LogicalPlan]:
+    def apply(self) -> RepeatedSubqueryEliminationResult:
         """
         Applies Common SubDataframe elimination on the set of logical plans one after another.
 
@@ -61,6 +67,8 @@ class RepeatedSubqueryElimination:
             A set of the new LogicalPlans with common sub dataframe deduplicated with CTE node.
         """
         final_logical_plans: List[LogicalPlan] = []
+        total_num_ctes = 0
+        elimination_applied = False
         for logical_plan in self._logical_plans:
             # NOTE: the current common sub-dataframe elimination relies on the
             # fact that all intermediate steps are resolved properly. Here we
@@ -76,11 +84,18 @@ class RepeatedSubqueryElimination:
                     logical_plan, duplicated_nodes, node_parents_map
                 )
                 final_logical_plans.append(deduplicated_plan)
+                elimination_applied = True
+                total_num_ctes += duplicated_nodes
             else:
                 final_logical_plans.append(logical_plan)
 
         # TODO (SNOW-1566363): Add telemetry for CTE
-        return final_logical_plans
+        # return final_logical_plans
+        return RepeatedSubqueryEliminationResult(
+            logical_plans=final_logical_plans,
+            elimination_applied=elimination_applied,
+            total_num_ctes=total_num_ctes,
+        )
 
     def _replace_duplicate_node_with_cte(
         self,
