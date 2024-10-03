@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import calendar
+import copy
 import functools
 import inspect
 import itertools
@@ -425,6 +426,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # self.snowpark_pandas_api_calls a list of lazy Snowpark pandas telemetry api calls
         # Copying and modifying self.snowpark_pandas_api_calls is taken care of in telemetry decorators
         self.snowpark_pandas_api_calls: list = []
+        self._attrs: dict[Any, Any] = {}
 
     def _raise_not_implemented_error_for_timedelta(
         self, frame: InternalFrame = None
@@ -7282,6 +7284,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         raise ValueError(
                             f"Indexes have overlapping values. Few of them are: {overlap}. Please run df1.index.intersection(df2.index) to see complete list"
                         )
+        # If each input's `attrs` was identical and not empty, then copy it to the output.
+        # Otherwise, leave `attrs` empty.
+        if len(self._attrs) > 0 and all(self._attrs == o._attrs for o in other):
+            qc._attrs = copy.deepcopy(self._attrs)
         return qc
 
     def cumsum(

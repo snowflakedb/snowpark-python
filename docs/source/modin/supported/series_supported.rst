@@ -21,9 +21,11 @@ Attributes
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``at``                      | P                               | ``N`` for set with MultiIndex                      |
 +-----------------------------+---------------------------------+----------------------------------------------------+
-| ``attrs``                   | N                               | Reading ``attrs`` always returns an empty dict,    |
-|                             |                                 | and attempting to modify or set ``attrs`` will     |
-|                             |                                 | fail.                                              |
+| ``attrs``                   | P                               | ``Y`` for most Series and SeriesGroupBy methods.   |
+|                             |                                 | Snowpark pandas does not preserve ``attrs`` across |
+|                             |                                 | other operations that native pandas does, such as  |
+|                             |                                 | `str`, `dt`, indexing, resample, and window        |
+|                             |                                 | functions.                                         |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``axes``                    | Y                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
