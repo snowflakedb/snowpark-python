@@ -461,7 +461,11 @@ def eval_snowpark_pandas_result(
         if inplace:
             pd_result = native_pandas
             snow_result = snow_pandas
-        if test_attrs and isinstance(snow_result, (Series, DataFrame)):
+        if (
+            test_attrs
+            and isinstance(snow_pandas, (Series, DataFrame))
+            and isinstance(snow_result, (Series, DataFrame))
+        ):
             # Check that attrs was properly propagated.
             assert (
                 snow_result.attrs == pd_result.attrs
