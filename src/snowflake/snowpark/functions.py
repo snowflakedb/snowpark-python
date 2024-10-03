@@ -9239,6 +9239,7 @@ def call_table_function(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
+
         ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__call_table_fn = True
         build_table_fn_apply(ast, function_name, *args, **kwargs)
 
