@@ -415,14 +415,6 @@ class SnowflakePlan(LogicalPlan):
             }
         return self._output_dict
 
-    # @cached_property
-    # def plan_height(self) -> int:
-    #    return self.plan_state[PlanState.PLAN_HEIGHT]
-
-    # @cached_property
-    # def num_selects_with_complexity_merged(self) -> int:
-    #    return self.plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
-
     @cached_property
     def num_duplicate_nodes(self) -> int:
         duplicated_nodes, _ = find_duplicate_subtrees(self)
