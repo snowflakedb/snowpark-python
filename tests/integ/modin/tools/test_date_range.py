@@ -266,19 +266,6 @@ def test_value_error_negative(kwargs, match):
         pd.date_range(**kwargs).to_pandas()
 
 
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        # Specify tz to set the timezone. TODO: SNOW-879476 support tz with other tz APIs
-        {"start": "1/1/2018", "periods": 5, "tz": "Asia/Tokyo"},
-    ],
-)
-@sql_count_checker(query_count=0)
-def test_not_supported(kwargs):
-    with pytest.raises(NotImplementedError):
-        pd.date_range(**kwargs).to_pandas()
-
-
 @sql_count_checker(query_count=0)
 def test_bdate_range_negative():
     with pytest.raises(TypeError):
@@ -286,3 +273,35 @@ def test_bdate_range_negative():
 
     with pytest.raises(NotImplementedError):
         pd.bdate_range(holidays="set")
+
+
+@pytest.mark.parametrize(
+    "start, end, periods, tz, tz_offset",
+    [
+        ["2018-04-24", None, 10, "Asia/Tokyo", "UTC+09:00"],
+        ["2018-04-24", None, 10, "UTC", "UTC"],
+        [
+            native_pd.to_datetime("1/1/2018").tz_localize("Europe/Berlin"),
+            native_pd.to_datetime("1/08/2018").tz_localize("Europe/Berlin"),
+            None,
+            None,
+            "UTC+01:00",
+        ],
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_tz(date_range_func, start, end, periods, tz, tz_offset):
+    kwargs = {
+        "start": start,
+        "end": end,
+        "periods": periods,
+        "tz": tz,
+    }
+    # TODO: SNOW-1707640 fix this bug: bdate_range returns less data points than expected
+    if date_range_func == "bdate_range" and kwargs.get("freq", None) is None:
+        kwargs["freq"] = "D"
+    assert_snowpark_pandas_equal_to_pandas(
+        getattr(pd, date_range_func)(**kwargs),
+        # convert expected index with tz offset
+        getattr(native_pd, date_range_func)(**kwargs).tz_convert(tz_offset),
+    )
