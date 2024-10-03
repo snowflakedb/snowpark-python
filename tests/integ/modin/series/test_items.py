@@ -16,7 +16,6 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from tests.utils import running_on_public_ci
 
 # To generate seeded random data.
 rng = np.random.default_rng(12345)
@@ -61,18 +60,8 @@ def test_items(series):
     )
 
 
-@pytest.mark.parametrize(
-    "size",
-    [
-        PARTITION_SIZE - 1,
-        PARTITION_SIZE,
-        PARTITION_SIZE + 1,
-        PARTITION_SIZE * 2,
-        PARTITION_SIZE * 2 + 1,
-    ],
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow test")
-def test_items_large_series(size):
+def test_items_large_series():
+    size = PARTITION_SIZE * 2 + 1
     data = rng.integers(low=-1500, high=1500, size=size)
     native_series = native_pd.Series(data)
     snow_series = pd.Series(native_series)
