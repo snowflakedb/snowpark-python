@@ -261,6 +261,10 @@ class DataFrameWriter:
                 SaveMode.APPEND,
                 SaveMode.TRUNCATE,
             ]:
+                # whether the table already exists in the database
+                # determines the compiled SQL for APPEND and TRUNCATE mode
+                # if the table does not exist, we need to create it first;
+                # if the table exists, we can skip the creation step and insert data directly
                 table_exists = session._table_exists(table_name)
             else:
                 table_exists = None

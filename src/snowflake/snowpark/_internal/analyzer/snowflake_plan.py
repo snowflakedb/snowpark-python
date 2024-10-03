@@ -1016,6 +1016,7 @@ class SnowflakePlanBuilder:
             )
 
         if mode == SaveMode.APPEND:
+            assert table_exists is not None
             if table_exists:
                 return self.build(
                     lambda x: insert_into_statement(
@@ -1031,6 +1032,7 @@ class SnowflakePlanBuilder:
                 return get_create_and_insert_plan(child, replace=False, error=False)
 
         elif mode == SaveMode.TRUNCATE:
+            assert table_exists is not None
             if table_exists:
                 return self.build(
                     lambda x: insert_into_statement(

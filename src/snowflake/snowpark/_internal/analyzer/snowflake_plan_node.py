@@ -245,6 +245,8 @@ class SnowflakeCreateTable(LogicalPlan):
         self.change_tracking = change_tracking
         self.copy_grants = copy_grants
         self.iceberg_config = iceberg_config
+        # whether the table already exists in the database
+        # determines the compiled SQL for APPEND and TRUNCATE mode
         self.table_exists = table_exists
 
     @property

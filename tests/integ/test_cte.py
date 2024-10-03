@@ -337,10 +337,13 @@ def test_same_duplicate_subtree(session):
 def test_save_as_table(session, mode):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     if mode == "append":
+        # 1 show query + 1 create table query + 1 insert query
         expected_query_count = 3
     elif mode == "truncate":
+        # 1 show query + 1 create table query
         expected_query_count = 2
     else:
+        # 1 create table query
         expected_query_count = 1
     with SqlCounter(query_count=expected_query_count, union_count=1):
         with session.query_history() as query_history:
