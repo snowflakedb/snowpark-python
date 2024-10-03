@@ -10,6 +10,7 @@ from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.pivot.pivot_utils import (
+    pivot_table_test_helper,
     pivot_table_test_helper_expects_exception,
 )
 from tests.integ.utils.sql_counter import sql_count_checker
@@ -205,3 +206,31 @@ def test_pivot_table_aggfunc_not_implemented_or_supported(df_data, func, error_p
         pd.DataFrame(df_data).pivot_table(
             index="A", columns="C", values=["D", "E", "F"], aggfunc=func
         )
+
+
+@pytest.mark.xfail(strict=True, raises=NotImplementedError)
+@pytest.mark.parametrize(
+    "df_data",
+    [
+        {
+            "A": ["foo", "bar"],
+            "B": ["one", "two"],
+            "C": [pd.Timedelta(1), pd.Timedelta(2)],
+        },
+        {
+            "A": [pd.Timedelta(1), pd.Timedelta(2)],
+            "B": ["one", "two"],
+            "C": ["foo", "bar"],
+        },
+        {
+            "A": ["one", "two"],
+            "B": [pd.Timedelta(1), pd.Timedelta(2)],
+            "C": ["foo", "bar"],
+        },
+    ],
+)
+def test_timedelta_input_not_supported(df_data):
+    pivot_table_test_helper(
+        df_data,
+        pivot_table_kwargs=dict(index="A", columns="B", values="C", aggfunc="max"),
+    )
