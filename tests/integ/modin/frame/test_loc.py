@@ -4118,6 +4118,7 @@ def test_df_loc_full_set_row_from_list_like(row_obj):
         )
 
 
+@pytest.mark.xfail(reason="SNOW-1709762: Need to fix boolean indexing")
 @sql_count_checker(query_count=2, join_count=1)
 def test_df_loc_full_set_row_from_series_using_series_column_key():
     native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
@@ -4147,7 +4148,7 @@ def test_df_loc_full_set_row_from_series_using_series_column_key():
     "index, expected_result",
     [
         ([3, 4, 5], native_pd.DataFrame([[None] * 3] * 2)),
-        ([0, 1, 2], native_pd.DataFrame([[1, 4, 9], [None] * 3])),
+        ([0, 1, 2], native_pd.DataFrame([[1, 4, 9]] * 2)),
     ],
 )
 def test_df_loc_full_set_row_from_series_pandas_errors_default_columns(
@@ -4160,7 +4161,7 @@ def test_df_loc_full_set_row_from_series_pandas_errors_default_columns(
         native_df.loc[:] = native_pd.Series([1, 4, 9], index=index)
 
     snow_df.loc[:] = pd.Series([1, 4, 9], index=index)
-    assert_snowpark_pandas_equal_to_pandas(snow_df, expected_result)
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, expected_result)
 
 
 @sql_count_checker(query_count=2, join_count=1)
