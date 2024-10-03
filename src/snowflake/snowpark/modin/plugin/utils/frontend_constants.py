@@ -43,6 +43,12 @@ SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SCALAR_ERROR_MESSAGE = (
     "Scalar key incompatible with {} value"
 )
 
+SERIES_ITEMS_WARNING_MESSAGE = (
+    "Series.items may result in executing one more query to fetch each row of this series. For better "
+    "performance, consider instead using a method like Series.apply that Snowpark pandas "
+    "can execute lazily and without fetching data from Snowflake."
+)
+
 DF_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE = (
     "Currently do not support Series or list-like keys with range-like values"
 )
