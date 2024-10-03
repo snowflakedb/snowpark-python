@@ -957,7 +957,9 @@ def test_copy_non_csv_transformation(
                     TS_NTZ=datetime.datetime(2022, 4, 1, 4, 11, 11)
                     if not running_on_public_ci()
                     else datetime.datetime(2022, 4, 1, 11, 11, 11),
-                    TS=datetime.datetime(2022, 4, 1, 4, 11, 11),
+                    TS=datetime.datetime(2022, 4, 1, 4, 11, 11)
+                    if not running_on_public_ci()
+                    else datetime.datetime(2022, 4, 1, 11, 11, 11),
                     V='{"key":"value"}',
                 )
             ],
