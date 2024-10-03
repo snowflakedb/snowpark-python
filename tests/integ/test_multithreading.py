@@ -505,18 +505,30 @@ class OffsetSumUDAFHandler:
             executor.submit(register_and_test_udaf, session, i)
 
 
-def test_concurrent_update_on_cte_optimization_enabled(session, caplog):
-    def run_cte_optimization(session_, thread_id):
-        if thread_id % 2 == 0:
-            session_.cte_optimization_enabled = True
-        else:
-            session_.cte_optimization_enabled = False
+@pytest.mark.parametrize(
+    "config,value",
+    [
+        ("cte_optimization_enabled", True),
+        ("sql_simplifier_enabled", True),
+        ("eliminate_numeric_sql_value_cast_enabled", True),
+        ("auto_clean_up_temp_table_enabled", True),
+        ("large_query_breakdown_enabled", True),
+        ("large_query_breakdown_complexity_bounds", (20, 30)),
+    ],
+)
+def test_concurrent_update_on_sensitive_configs(session, config, value, caplog):
+    def change_config_value(session_):
+        session_.conf.set(config, value)
 
     caplog.clear()
+
+    # check everything works find outside multiple threads
+    with caplog.at_level(logging.WARNING):
+        change_config_value(session)
+    assert f"Setting {config} is not currently thread-safe" not in caplog.text
+
     with caplog.at_level(logging.WARNING):
         with ThreadPoolExecutor(max_workers=5) as executor:
-            for i in range(5):
-                executor.submit(run_cte_optimization, session, i)
-    assert (
-        "Setting cte_optimization_enabled is not currently thread-safe" in caplog.text
-    )
+            for _ in range(5):
+                executor.submit(change_config_value, session)
+    assert f"Setting {config} is not currently thread-safe" in caplog.text
