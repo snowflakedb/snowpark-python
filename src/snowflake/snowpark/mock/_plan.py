@@ -12,7 +12,7 @@ import uuid
 from collections.abc import Iterable
 from enum import Enum
 from functools import cached_property, partial, reduce
-from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -96,6 +96,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     UnresolvedAttribute,
     WithinGroup,
 )
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
     Query,
@@ -206,9 +207,12 @@ class MockExecutionPlan(LogicalPlan):
         return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
 
     @cached_property
-    def plan_height(self) -> int:
+    def plan_state(self) -> Dict[PlanState, Any]:
         # dummy return
-        return -1
+        return {
+            PlanState.PLAN_HEIGHT: -1,
+            PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: -1,
+        }
 
     @cached_property
     def num_duplicate_nodes(self) -> int:

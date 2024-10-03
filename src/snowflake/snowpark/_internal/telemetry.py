@@ -14,6 +14,7 @@ from snowflake.connector.telemetry import (
     TelemetryField as PCTelemetryField,
 )
 from snowflake.connector.time_util import get_time_millis
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
 from snowflake.snowpark._internal.compiler.telemetry_constants import (
     CompilationStageTelemetryField,
 )
@@ -77,6 +78,9 @@ class TelemetryField(Enum):
     LARGE_QUERY_BREAKDOWN_ENABLED = "large_query_breakdown_enabled"
     # dataframe query stats
     QUERY_PLAN_HEIGHT = "query_plan_height"
+    QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED = (
+        "query_plan_num_selects_with_complexity_merged"
+    )
     QUERY_PLAN_NUM_DUPLICATE_NODES = "query_plan_num_duplicate_nodes"
     QUERY_PLAN_COMPLEXITY = "query_plan_complexity"
     # temp table cleanup
@@ -181,7 +185,12 @@ def df_collect_api_telemetry(func):
             0
         ]._session.sql_simplifier_enabled
         try:
-            api_calls[0][TelemetryField.QUERY_PLAN_HEIGHT.value] = plan.plan_height
+            api_calls[0][TelemetryField.QUERY_PLAN_HEIGHT.value] = plan.plan_state[
+                PlanState.PLAN_HEIGHT
+            ]
+            api_calls[0][
+                TelemetryField.QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED.value
+            ] = plan.plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
             # The uuid for df._select_statement can be different from df._plan. Since plan
             # can take both values, we cannot use plan.uuid. We always use df._plan.uuid
             # to track the queries.

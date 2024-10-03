@@ -25,6 +25,7 @@ import snowflake.snowpark._internal.utils
 from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
+    PlanState,
     subtract_complexities,
     sum_node_complexities,
 )
@@ -326,9 +327,13 @@ class Selectable(LogicalPlan, ABC):
             self._snowflake_plan.api_calls = self.api_calls
         return self._snowflake_plan
 
+    # @property
+    # def plan_height(self) -> int:
+    #     return self.snowflake_plan.plan_height
+
     @property
-    def plan_height(self) -> int:
-        return self.snowflake_plan.plan_height
+    def plan_state(self) -> Dict[PlanState, Any]:
+        return self.snowflake_plan.plan_state
 
     @property
     def num_duplicate_nodes(self) -> int:
