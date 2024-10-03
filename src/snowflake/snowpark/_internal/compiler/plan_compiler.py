@@ -4,7 +4,7 @@
 
 import copy
 import time
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
@@ -90,7 +90,7 @@ class PlanCompiler:
             # 2. create a code generator with the original plan
             query_generator = create_query_generator(self._plan)
 
-            extra_optimization_status = {}
+            extra_optimization_status: Dict[str, Any] = {}
             # 3. apply each optimizations if needed
             # CTE optimization
             cte_start_time = time.time()
@@ -151,7 +151,9 @@ class PlanCompiler:
                 CompilationStageTelemetryField.COMPLEXITY_SCORE_BEFORE_COMPILATION.value: complexity_score_before_compilation,
                 CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION.value: complexity_scores_after_cte,
                 CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_LARGE_QUERY_BREAKDOWN.value: complexity_scores_after_large_query_breakdown,
-            }.update(extra_optimization_status)
+            }
+            # add the extra optimization status
+            summary_value.update(extra_optimization_status)
             session._conn._telemetry_client.send_query_compilation_summary_telemetry(
                 session_id=session.session_id,
                 plan_uuid=self._plan.uuid,
