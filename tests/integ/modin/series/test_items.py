@@ -2,12 +2,24 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-from tests.integ.modin.utils import create_test_series, eval_snowpark_pandas_result
+from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
+    PARTITION_SIZE,
+)
+from tests.integ.modin.utils import (
+    assert_values_equal,
+    create_test_series,
+    eval_snowpark_pandas_result,
+)
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.utils import running_on_public_ci
+
+# To generate seeded random data.
+rng = np.random.default_rng(12345)
 
 
 def assert_items_results_equal(snow_result, pandas_result) -> None:
@@ -22,12 +34,8 @@ def assert_items_results_equal(snow_result, pandas_result) -> None:
         snow_list, pandas_list
     ):
         with SqlCounter(query_count=0):
-            assert snow_index == pandas_index
-            # Workaround using NumPy since nan != nan
-            if type(snow_value).__module__ == np.__name__:
-                assert np.isnan(snow_value) and np.isnan(pandas_value)
-            else:
-                assert snow_value == pandas_value
+            assert_values_equal(snow_index, pandas_index)
+            assert_values_equal(snow_value, pandas_value)
 
 
 @pytest.mark.parametrize(
@@ -38,6 +46,7 @@ def assert_items_results_equal(snow_result, pandas_result) -> None:
             index=["panda", "polar", "koala"],
         ),
         native_pd.Series(data=["a"]),
+        native_pd.Series(),
         native_pd.Series(index=["a"]),
         native_pd.Series(native_pd.timedelta_range(10, periods=10)),
     ],
@@ -50,3 +59,33 @@ def test_items(series):
         lambda series: series.items(),
         comparator=assert_items_results_equal,
     )
+
+
+@pytest.mark.parametrize(
+    "size",
+    [
+        PARTITION_SIZE - 1,
+        PARTITION_SIZE,
+        PARTITION_SIZE + 1,
+        PARTITION_SIZE * 2,
+        PARTITION_SIZE * 2 + 1,
+    ],
+)
+@pytest.mark.skipif(running_on_public_ci(), reason="slow test")
+def test_items_large_series(size):
+    data = rng.integers(low=-1500, high=1500, size=size)
+    native_series = native_pd.Series(data)
+    snow_series = pd.Series(native_series)
+    query_count = (np.floor(size / PARTITION_SIZE) + 1) * 6
+    with SqlCounter(
+        query_count=query_count,
+        join_count=0,
+        high_count_expected=True,
+        high_count_reason="Series spans multiple iteration partitions, each of which requires 6 queries",
+    ):
+        eval_snowpark_pandas_result(
+            snow_series,
+            native_series,
+            lambda series: series.items(),
+            comparator=assert_items_results_equal,
+        )
