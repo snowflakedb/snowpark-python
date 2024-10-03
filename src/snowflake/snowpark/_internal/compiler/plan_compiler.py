@@ -98,10 +98,7 @@ class PlanCompiler:
                 )
                 elimination_result = repeated_subquery_eliminator.apply()
                 logical_plans = elimination_result.logical_plans
-                # add the extra repeated subquery
-                extra_optimization_status[
-                    CompilationStageTelemetryField.CTE_TRANSFORMATION_APPLIED.value
-                ] = elimination_result.elimination_applied
+                # add the extra repeated subquery elimination status
                 extra_optimization_status[
                     CompilationStageTelemetryField.CTE_NODE_CREATED.value
                 ] = elimination_result.total_num_of_ctes
