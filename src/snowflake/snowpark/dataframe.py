@@ -2320,6 +2320,9 @@ class DataFrame:
         column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
         unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
 
+        # TODO: Support unpivot in MockServerConnection.
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
         df: DataFrame = (
             self._with_plan(
                 SelectStatement(
@@ -2330,8 +2333,13 @@ class DataFrame:
                 )
             )
             if self._select_statement
-            else self._with_plan(unpivot_plan)
+            and not (
+                isinstance(self._session._conn, MockServerConnection)
+                and self._session._conn._suppress_not_implemented_error
+            )
+            else self._with_plan(unpivot_plan, ast_stmt=stmt)
         )
+
         if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
         return df
