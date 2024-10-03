@@ -23,10 +23,20 @@ from tests.integ.modin.frame.test_head_tail import eval_result_and_query_with_no
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_snowpark_pandas_equal_to_pandas,
-    eval_snowpark_pandas_result,
+    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
+
+
+# Snowpark pandas does not yet propagate attrs through loc/iloc
+def eval_snowpark_pandas_result(*args, **kwargs):
+    return _eval_snowpark_pandas_result(
+        *args,
+        test_attrs=False,
+        **kwargs,
+    )
+
 
 # default_index_snowpark_pandas_df and default_index_native_df have size of axis_len x axis_len
 AXIS_LEN = 7

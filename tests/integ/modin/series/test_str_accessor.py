@@ -11,8 +11,20 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.utils import eval_snowpark_pandas_result
-from tests.integ.utils.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.utils import (
+    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
+)
+
+
+# Snowpark pandas does not yet propagate attrs through str/dt
+def eval_snowpark_pandas_result(*args, **kwargs):
+    return _eval_snowpark_pandas_result(
+        *args,
+        test_attrs=False,
+        **kwargs,
+    )
+
 
 TEST_DATA = [
     "a%_.*?|&^$bc",
