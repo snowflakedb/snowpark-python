@@ -3,10 +3,9 @@
 #
 
 from collections.abc import Iterator
-from typing import Any, Callable, Union
+from typing import Any, Callable
 
 import modin.pandas.dataframe as DataFrame
-import modin.pandas.series as Series
 import pandas
 
 PARTITION_SIZE = 4096
@@ -29,7 +28,7 @@ class SnowparkPandasRowPartitionIterator(Iterator):
 
     Parameters
     ----------
-    df : DataFrame or Series
+    df : DataFrame
         The dataframe to iterate over.
     axis : {0, 1}
         Axis to iterate over.
@@ -43,7 +42,7 @@ class SnowparkPandasRowPartitionIterator(Iterator):
 
     def __init__(
         self,
-        df: Union[DataFrame, Series],
+        df: DataFrame,
         func: Callable,
         enable_partition_with_native_pandas: bool = False,
     ) -> None:

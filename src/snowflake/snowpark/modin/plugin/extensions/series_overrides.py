@@ -207,6 +207,8 @@ def item(self):  # noqa: RT01, D200
     pass  # pragma: no cover
 
 
+# Snowpark pandas has a custom iterator.
+@register_series_accessor("items")
 def items(self):
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     """
@@ -220,8 +222,7 @@ def items(self):
     # Raise warning message since Series.items is very inefficient.
     WarningMessage.single_warning(SERIES_ITEMS_WARNING_MESSAGE.format("Series.items"))
 
-    partition_iterator = SnowparkPandasRowPartitionIterator(self, items_builder)
-    yield from partition_iterator
+    return SnowparkPandasRowPartitionIterator(DataFrame(self), items_builder, True)
 
 
 @register_series_not_implemented()
