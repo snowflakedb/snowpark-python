@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import numpy as np
 import pandas as native_pd
 import pytest
 
@@ -22,7 +23,11 @@ def assert_items_results_equal(snow_result, pandas_result) -> None:
     ):
         with SqlCounter(query_count=0):
             assert snow_index == pandas_index
-            assert snow_value == pandas_value
+            # Workaround using NumPy since nan != nan
+            if type(snow_value).__module__ == np.__name__:
+                assert np.isnan(snow_value) and np.isnan(pandas_value)
+            else:
+                assert snow_value == pandas_value
 
 
 @pytest.mark.parametrize(
@@ -33,11 +38,13 @@ def assert_items_results_equal(snow_result, pandas_result) -> None:
             index=["panda", "polar", "koala"],
         ),
         native_pd.Series(data=["a"]),
+        native_pd.Series(index=["a"]),
         native_pd.Series(native_pd.timedelta_range(10, periods=10)),
     ],
 )
 @sql_count_checker(query_count=1)
 def test_items(series):
+    # 1 row count query is issued when building the SnowparkPandasRowPartitionIterator
     eval_snowpark_pandas_result(
         *create_test_series(series),
         lambda series: series.items(),

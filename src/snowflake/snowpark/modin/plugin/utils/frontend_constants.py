@@ -44,8 +44,8 @@ SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SCALAR_ERROR_MESSAGE = (
 )
 
 SERIES_ITEMS_WARNING_MESSAGE = (
-    "{} may result in executing one more queries to fetch each row of this series. For better " +
-    "performance, consider instead using a method like Series.apply that Snowpark pandas " +
+    "Series.items may result in executing one more queries to fetch each row of this series. For better "
+    "performance, consider instead using a method like Series.apply that Snowpark pandas "
     "can execute lazily and without fetching data from Snowflake."
 )
 

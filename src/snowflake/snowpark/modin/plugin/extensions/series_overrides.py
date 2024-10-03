@@ -220,7 +220,7 @@ def items(self):
         return s.name, s.squeeze()
 
     # Raise warning message since Series.items is very inefficient.
-    WarningMessage.single_warning(SERIES_ITEMS_WARNING_MESSAGE.format("Series.items"))
+    WarningMessage.single_warning(SERIES_ITEMS_WARNING_MESSAGE)
 
     return SnowparkPandasRowPartitionIterator(DataFrame(self), items_builder, True)
 
