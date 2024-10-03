@@ -655,11 +655,13 @@ def single_pivot_helper(
     # 2. Drop any that are None
     # 3. Add prefix pandas label if provided
     # 4. Generate output data_columns
-    for (
-        snowflake_quoted_identifier
-    ) in pivot_ordered_dataframe.projected_column_snowflake_quoted_identifiers[
-        len(index_snowflake_quoted_identifiers) :
-    ]:
+    pivot_frame_data_column_identifiers = (
+        pivot_ordered_dataframe.projected_column_snowflake_quoted_identifiers[
+            len(index_snowflake_quoted_identifiers) :
+        ]
+    )
+    pivot_frame_data_column_data_pandas_labels = []
+    for snowflake_quoted_identifier in pivot_frame_data_column_identifiers:
         if (
             pivot_snowflake_quoted_identifiers
             and len(pivot_snowflake_quoted_identifiers) > 1
@@ -688,28 +690,37 @@ def single_pivot_helper(
             pandas_label = prefix_pandas_labels + (
                 pandas_label if isinstance(pandas_label, tuple) else (pandas_label,)
             )
-            pandas_label_column = str(pandas_label)
-        else:
-            pandas_label_column = pandas_label
+        pivot_frame_data_column_data_pandas_labels.append(pandas_label)
 
-        # If the snowflake quoted identifier conflicts with an earlier identifier, ensure it is unique in snowflake
-        renamed_snowflake_quoted_identifier = (
-            pivot_ordered_dataframe.generate_snowflake_quoted_identifiers(
-                pandas_labels=[pandas_label_column],
-                excluded=existing_snowflake_quoted_identifiers,
-            )[0]
+    pandas_labels = [
+        str(label) if not isinstance(label, str) else label
+        for label in pivot_frame_data_column_data_pandas_labels
+    ]
+
+    # If the snowflake quoted identifier conflicts with an earlier identifier, ensure it is unique in snowflake
+    renamed_snowflake_quoted_identifiers = (
+        pivot_ordered_dataframe.generate_snowflake_quoted_identifiers(
+            pandas_labels=pandas_labels,
+            excluded=existing_snowflake_quoted_identifiers,
         )
+    )
 
-        if renamed_snowflake_quoted_identifier != snowflake_quoted_identifier:
-            pivot_ordered_dataframe = append_columns(
-                pivot_ordered_dataframe,
-                renamed_snowflake_quoted_identifier,
-                col(snowflake_quoted_identifier),
-            )
-            snowflake_quoted_identifier = renamed_snowflake_quoted_identifier
-
-        data_column_snowflake_quoted_identifiers.append(snowflake_quoted_identifier)
-        data_column_pandas_labels.append(pandas_label)
+    new_colum_identifiers = []
+    new_column_objects = []
+    for renamed_identifier, original_identifier in zip(
+        renamed_snowflake_quoted_identifiers, pivot_frame_data_column_identifiers
+    ):
+        if renamed_identifier != original_identifier:
+            new_colum_identifiers.append(renamed_identifier)
+            new_column_objects.append(col(original_identifier))
+    if len(new_colum_identifiers) > 0:
+        pivot_ordered_dataframe = append_columns(
+            pivot_ordered_dataframe, new_colum_identifiers, new_column_objects
+        )
+    data_column_snowflake_quoted_identifiers.extend(
+        renamed_snowflake_quoted_identifiers
+    )
+    data_column_pandas_labels.extend(pivot_frame_data_column_data_pandas_labels)
 
     return (
         pivot_ordered_dataframe,
