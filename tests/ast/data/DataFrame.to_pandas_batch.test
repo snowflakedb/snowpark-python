@@ -2,38 +2,30 @@
 
 df = session.table("test_table")
 
-pandas_df = df.to_pandas_batches()
+df.to_pandas_batches()
 
-pandas_df = df.to_pandas_batches(block=False)
+df.to_pandas_batches(block=False)
 
-pandas_df = df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
-pandas_df = df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
+df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
 
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("test_table")
 
-pandas_df = df.to_pandas_batches()
+df.to_pandas_batches()
 
-pandas_df
+df.to_pandas_batches(block=False)
 
-pandas_df = df.to_pandas_batches(block=False)
+df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
-pandas_df
-
-pandas_df = df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
-
-pandas_df
-
-pandas_df = df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
-
-pandas_df
+df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
 
 ## EXPECTED ENCODED AST
 
-CkMKQQozwgswEg4KDAoKdGVzdF90YWJsZRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFoiAggBEgQKAmRmGAEiAggBCjwKOgolwgkiCAESAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXBILCglwYW5kYXNfZGYYAiICCAIKCBIGCAMSAggCEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgV
-CjoKOAojwgkgEgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKF4SCwoJcGFuZGFzX2RmGAQiAggECggSBggFEgIIBBABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFQ==
-ClgKVgpBwgk+CAESAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoYCIaCgpTRl9QQVJUTkVSEgxGQUtFX1BBUlRORVISCwoJcGFuZGFzX2RmGAYiAggGCggSBggHEgIIBhABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFQ==
-ClYKVAo/wgk8EgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGIiGgoKU0ZfUEFSVE5FUhIMRkFLRV9QQVJUTkVSEgsKCXBhbmRhc19kZhgIIgIICAoIEgYICRICCAgQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBU=
+CkMKQQozwgswEg4KDAoKdGVzdF90YWJsZRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFoiAggBEgQKAmRmGAEiAggBCjEKLwolwgkiCAESAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXBIAGAIiAggCCggSBggDEgIIAhABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFQ==
+Ci8KLQojwgkgEgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKF4SABgEIgIIBAoIEgYIBRICCAQQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBU=
+Ck0KSwpBwgk+CAESAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoYCIaCgpTRl9QQVJUTkVSEgxGQUtFX1BBUlRORVISABgGIgIIBgoIEgYIBxICCAYQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBU=
+CksKSQo/wgk8EgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGIiGgoKU0ZfUEFSVE5FUhIMRkFLRV9QQVJUTkVSEgAYCCICCAgKCBIGCAkSAggIEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgV
 EAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgV
