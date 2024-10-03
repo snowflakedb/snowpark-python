@@ -382,8 +382,9 @@ jobs:
         # only run doctest for macos on aws
       - if: ${{ matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws' }}
         name: Run Snowpark pandas API doctests
-        run: python -m tox -e "py${PYTHON_VERSION}-doctest-snowparkpandasdoctest-modin-ci"
+        run: python -m tox -e "modin_pandas_version-py${PYTHON_VERSION}-doctest-snowparkpandasdoctest-modin-ci"
         env:
+          MODIN_PANDAS_PATCH_VERSION: 2.2.2  # TODO unpin when 2.2.3 is available in snowflake anaconda
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
@@ -394,8 +395,9 @@ jobs:
         # do not run other tests for macos on aws
       - if: ${{ !(matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws') }}
         name: Run Snowpark pandas API tests (excluding doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasnotdoctest-modin-ci"
+        run: python -m tox -e "modin_pandas_version-py${PYTHON_VERSION/\./}-snowparkpandasnotdoctest-modin-ci"
         env:
+          MODIN_PANDAS_PATCH_VERSION: 2.2.2  # TODO unpin when 2.2.3 is available in snowflake anaconda
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short

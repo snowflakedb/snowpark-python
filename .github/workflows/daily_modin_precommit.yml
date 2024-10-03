@@ -174,7 +174,7 @@ jobs:
             .tox/coverage.xml
 
   test-pandas-patch-versions:
-    name: Test Snowpark pandas with pandas ${{ matrix.python-version }}
+    name: Test Snowpark pandas with pandas ${{ matrix.pandas-version }}
     needs: build
     runs-on: ${{ matrix.os.image_name }}
     strategy:
@@ -183,7 +183,7 @@ jobs:
         os:
           - image_name: ubuntu-latest-64-cores
             download_name: linux
-        pandas-version: ["2.2.1", "2.2.2", "2.2.3"]
+        pandas-version: ["2.2.1", "2.2.2"] # TODO include 2.2.3 once it's available in snowflake anaconda
         python-version: ["3.9"]
         cloud-provider: [aws]
     steps:
