@@ -30,7 +30,6 @@ class CompilationStageTelemetryField(Enum):
     )
 
     # keys for repeated subquery elimination
-    CTE_TRANSFORMATION_APPLIED = "cte_transformation_applied"
     CTE_NODE_CREATED = "cte_node_created"
 
 

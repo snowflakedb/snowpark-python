@@ -1204,6 +1204,7 @@ def test_post_compilation_stage_telemetry(session):
             "complexity_score_before_compilation": 1148,
             "complexity_score_after_cte_optimization": [1148],
             "complexity_score_after_large_query_breakdown": [514, 636],
+            "cte_node_created": 2,
         }
         client.send_query_compilation_summary_telemetry(
             session_id=session.session_id,
@@ -1226,6 +1227,7 @@ def test_post_compilation_stage_telemetry(session):
         "complexity_score_before_compilation": 1148,
         "complexity_score_after_cte_optimization": [1148],
         "complexity_score_after_large_query_breakdown": [514, 636],
+        "cte_node_created": 2,
     }
 
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
