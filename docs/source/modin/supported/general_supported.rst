@@ -161,7 +161,6 @@ Top-level dealing with datetime-like data
 |                             |                                 |                                  | - or if params ``exact``, ``infer_datetime_format``|
 |                             |                                 |                                  | is given                                           |
 |                             |                                 |                                  | - or ``origin == "julian"``                        |
-|                             |                                 |                                  | - or ``error == "ignore"``                         |
 |                             |                                 |                                  | - or ``arg`` is DataFrame and data type is not int |
 |                             |                                 |                                  | - or ``arg`` is Series and data type is string     |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
