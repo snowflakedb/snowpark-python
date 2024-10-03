@@ -11,6 +11,7 @@ from typing import Any, Callable, Literal, Optional, Union
 import cloudpickle
 import numpy as np
 import pandas as native_pd
+from modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from pandas._typing import AggFuncType
 from pandas.api.types import is_scalar
 
@@ -29,7 +30,6 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     parse_snowflake_object_construct_identifier_to_map,
 )
-from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
     ArrayType,

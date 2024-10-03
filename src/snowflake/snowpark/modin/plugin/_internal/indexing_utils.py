@@ -9,6 +9,7 @@ from typing import Any, Literal, Optional, Union
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
+from modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from pandas._typing import AnyArrayLike, Scalar
 from pandas.api.types import is_list_like
 from pandas.core.common import is_bool_indexer
@@ -60,7 +61,6 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     rindex,
 )
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
-from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.types import (
     ArrayType,
     BooleanType,

@@ -23,6 +23,7 @@ import pandas.core.resample
 import pandas.io.parsers
 import pandas.io.parsers.readers
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
+from modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from pandas import Timedelta
 from pandas._libs import lib
 from pandas._libs.lib import no_default
@@ -356,7 +357,6 @@ from snowflake.snowpark.modin.plugin._typing import (
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
     ArrayType,
