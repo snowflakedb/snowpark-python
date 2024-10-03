@@ -35,7 +35,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.select_statement import (
         Selectable,
-        SelectStatement,
     )  # pragma: no cover
     import snowflake.snowpark.session
     import snowflake.snowpark.dataframe
@@ -432,6 +431,10 @@ class SnowflakePlan(LogicalPlan):
 
     @cached_property
     def plan_state(self) -> Dict[PlanState, Any]:
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            SelectStatement,
+        )
+
         height = 0
         num_selects_with_complexity_merged = 0
         current_level = [self]
