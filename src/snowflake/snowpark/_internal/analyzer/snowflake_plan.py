@@ -97,6 +97,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
     SnowflakeCreateTable,
     TableCreationSource,
+    WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateDynamicTableCommand,
@@ -227,7 +228,7 @@ class SnowflakePlan(LogicalPlan):
         # This field records all the CTE tables that are referred by the
         # current SnowflakePlan tree. This is needed for the final query
         # generation to generate the correct sql query with CTE definition.
-        referenced_ctes: Optional[Set[str]] = None,
+        referenced_ctes: Optional[Set[WithQueryBlock]] = None,
         *,
         session: "snowflake.snowpark.session.Session",
     ) -> None:
@@ -257,7 +258,7 @@ class SnowflakePlan(LogicalPlan):
         # query and the associated query parameters. We use this id for equality comparison
         # to determine if two plans are the same.
         self._id = encode_id(queries[-1].sql, queries[-1].params)
-        self.referenced_ctes: Set[str] = (
+        self.referenced_ctes: Set[WithQueryBlock] = (
             referenced_ctes.copy() if referenced_ctes else set()
         )
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
@@ -455,7 +456,7 @@ class SnowflakePlan(LogicalPlan):
         self._cumulative_node_complexity = value
 
     def reset_cumulative_node_complexity(self) -> None:
-        self._cumulative_node_complexity = None
+        super().reset_cumulative_node_complexity()
         if self.source_plan:
             self.source_plan.reset_cumulative_node_complexity()
 
@@ -643,7 +644,7 @@ class SnowflakePlanBuilder:
             if post_action not in post_actions:
                 post_actions.append(copy.copy(post_action))
 
-        referenced_ctes: Set[str] = set()
+        referenced_ctes: Set[WithQueryBlock] = set()
         if (
             self.session.cte_optimization_enabled
             and self.session._query_compilation_stage_enabled
@@ -1630,13 +1631,17 @@ class SnowflakePlanBuilder:
             )
 
     def with_query_block(
-        self, name: str, child: SnowflakePlan, source_plan: LogicalPlan
+        self,
+        with_query_block: WithQueryBlock,
+        child: SnowflakePlan,
+        source_plan: LogicalPlan,
     ) -> SnowflakePlan:
         if not self._skip_schema_query:
             raise ValueError(
                 "schema query for WithQueryBlock is currently not supported"
             )
 
+        name = with_query_block.name
         new_query = project_statement([], name)
 
         # note we do not propagate the query parameter of the child here,
@@ -1644,7 +1649,7 @@ class SnowflakePlanBuilder:
         # query generation stage.
         queries = child.queries[:-1] + [Query(sql=new_query)]
         # propagate the cte table
-        referenced_ctes = {name}.union(child.referenced_ctes)
+        referenced_ctes = {with_query_block}.union(child.referenced_ctes)
 
         return SnowflakePlan(
             queries,
