@@ -9,6 +9,7 @@ from types import MappingProxyType
 from typing import Any, Callable, NamedTuple, Optional, Union
 
 import pandas as native_pd
+from modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from pandas import DatetimeTZDtype
 from pandas._typing import IndexLabel
 
@@ -56,7 +57,6 @@ from snowflake.snowpark.modin.plugin._typing import (
     LabelTuple,
     PandasLabelToSnowflakeIdentifierPair,
 )
-from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.window import Window
 

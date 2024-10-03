@@ -8,6 +8,8 @@
 import functools
 from typing import Any, Callable
 
+from modin.utils import MODIN_UNNAMED_SERIES_LABEL
+
 from snowflake.snowpark.column import Column as SnowparkColumn
 from snowflake.snowpark.functions import col, iff, sum as sum_sp
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
@@ -21,7 +23,6 @@ from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
 from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
-from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.window import Window
 
 
