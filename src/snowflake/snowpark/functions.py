@@ -162,17 +162,7 @@ import sys
 import typing
 from random import randint
 from types import ModuleType
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Union,
-    overload,
-)
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark.table_function
@@ -199,7 +189,10 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrSqlExpr,
     LiteralType,
 )
-from snowflake.snowpark._internal.udf_utils import check_decorator_args
+from snowflake.snowpark._internal.udf_utils import (
+    add_snowpark_package_to_sproc_packages,
+    check_decorator_args,
+)
 from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
     validate_object_name,
@@ -8728,10 +8721,6 @@ def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
     return builtin(sql_func_name)(text_col)
 
 
-if TYPE_CHECKING:
-    import snowflake.snowpark
-
-
 def map(
     dataframe: "snowflake.snowpark.DataFrame",
     func: Callable,
@@ -8810,14 +8799,25 @@ def map(
         The result of the `func` function must be either a scalar value or a tuple containing the same number of elements
         as specified in the `output_types` argument.
     """
-    if "packages" not in kwargs:
-        kwargs["packages"] = ["snowflake-snowpark-python"]
+
+    kwargs["packages"] = add_snowpark_package_to_sproc_packages(
+        dataframe._session, kwargs.get("packages")
+    )
     if len(output_types) == 0:
         raise ValueError("output_types cannot be empty.")
     input_types = [field.datatype for field in dataframe.schema.fields]
     num_fields = len(dataframe.schema.fields)
+
+    if output_column_names is None:
+        output_column_names = [f"c_{i+1}" for i in range(len(output_types))]
+    elif len(output_column_names) != len(output_types):
+        raise ValueError(
+            "'output_column_names' and 'output_types' must be of the same size."
+        )
+
     output_schema = [
-        StructField(f"c_{i + 1}", output_types[i]) for i in range(len(output_types))
+        StructField(name, type_)
+        for name, type_ in zip(output_column_names, output_types)
     ]
     output_cols = [
         col(f"${i + 1}") for i in range(num_fields, num_fields + len(output_types))
@@ -8846,9 +8846,6 @@ def map(
         is_permanent=False,
         **kwargs,
     )
-
-    if not output_column_names:
-        output_column_names = [field.name for field in output_schema]
 
     _output_cols = [
         column.alias(desired_name)

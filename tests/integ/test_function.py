@@ -2381,3 +2381,11 @@ def test_map(session):
 
     with pytest.raises(ValueError):
         map(df1, lambda row: [row.B, row.C], output_types=[])
+
+    with pytest.raises(ValueError):
+        map(
+            df1,
+            lambda row: [row.B, row.C],
+            output_types=[IntegerType(), StringType()],
+            output_column_names=["a", "b", "c"],
+        )
