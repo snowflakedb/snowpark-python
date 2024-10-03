@@ -1955,6 +1955,82 @@ def _set_2d_labels_helper_for_single_column_wise_item(
     ).result_frame
 
 
+def _convert_series_item_to_row_for_set_frame_2d_labels(
+    internal_frame: InternalFrame,
+    columns: Union[
+        "snowflake_query_compiler.SnowflakeQueryCompiler",
+        tuple,
+        slice,
+        list,
+        "pd.Index",
+        np.ndarray,
+    ],
+    index: Union[Scalar, slice, InternalFrame],
+    item: InternalFrame,
+) -> tuple[InternalFrame, Union[slice, InternalFrame]]:
+    """
+    Helper method to convert a Series to a row for a locset.
+
+    Args:
+        internal_frame: the main frame
+        index: the row labels to set. None means all rows are included.
+        columns: the column labels to set
+        item: the new values to set
+    Returns:
+        New item frame that has been converted from Series (single column) to single
+        row - in effect a transpose, as well as new index value (in the case that
+        index is a scalar, it is converted to a Series with a single value).
+    """
+    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+        SnowflakeQueryCompiler,
+    )
+
+    def slice_len(slice_obj: slice) -> int:
+        """Helper method to calculate length of slice object for columns."""
+        start = internal_frame.data_column_pandas_labels.index(slice_obj.start) or 0
+        end = internal_frame.data_column_pandas_labels.index(slice_obj.stop) or len(
+            internal_frame.data_column_snowflake_quoted_identifiers
+        )
+        return end - start
+
+    if columns == slice(None):
+        col_len = len(internal_frame.data_column_snowflake_quoted_identifiers)
+    elif isinstance(columns, slice):
+        col_len = slice_len(columns)
+    elif isinstance(columns, Sized):
+        col_len = len(columns)
+    else:
+        col_len = len(columns.index)
+
+    if isinstance(columns, SnowflakeQueryCompiler):
+        item = SnowflakeQueryCompiler(item).set_index_from_series(columns)._modin_frame
+
+    item = (
+        SnowflakeQueryCompiler(
+            get_item_series_as_single_row_frame(item, col_len, move_index_to_cols=True)
+        )
+        .reset_index(drop=True)
+        ._modin_frame
+    )
+
+    if is_scalar(index):
+        new_item = item.append_column("__index__", pandas_lit(index))
+        item = InternalFrame.create(
+            ordered_dataframe=new_item.ordered_dataframe,
+            data_column_pandas_labels=item.data_column_pandas_labels,
+            data_column_snowflake_quoted_identifiers=item.data_column_snowflake_quoted_identifiers,
+            data_column_pandas_index_names=item.data_column_pandas_index_names,
+            index_column_pandas_labels=item.index_column_pandas_labels,
+            index_column_snowflake_quoted_identifiers=[
+                new_item.data_column_snowflake_quoted_identifiers[-1]
+            ],
+            data_column_types=item.cached_data_column_snowpark_pandas_types,
+            index_column_types=[item.cached_data_column_snowpark_pandas_types[-1]],
+        )
+        index = pd.Series([index])._query_compiler._modin_frame
+    return item, index
+
+
 def set_frame_2d_labels(
     internal_frame: InternalFrame,
     index: Union[Scalar, slice, InternalFrame],
@@ -2087,60 +2163,9 @@ def set_frame_2d_labels(
             # If columns is slice(None), we are setting all columns in the InternalFrame.
             matching_item_columns_by_label = True
             matching_item_rows_by_label = False
-
-            def slice_len(slice_obj: slice) -> int:
-                """Helper method to calculate length of slice object for columns."""
-                start = (
-                    internal_frame.data_column_pandas_labels.index(slice_obj.start) or 0
-                )
-                end = internal_frame.data_column_pandas_labels.index(
-                    slice_obj.stop
-                ) or len(internal_frame.data_column_snowflake_quoted_identifiers)
-                return end - start
-
-            if columns == slice(None):
-                col_len = len(internal_frame.data_column_snowflake_quoted_identifiers)
-            elif isinstance(columns, slice):
-                col_len = slice_len(columns)
-            elif isinstance(columns, Sized):
-                col_len = len(columns)
-            else:
-                col_len = len(columns.index)
-
-            if isinstance(columns, SnowflakeQueryCompiler):
-                item = (
-                    SnowflakeQueryCompiler(item)
-                    .set_index_from_series(columns)
-                    ._modin_frame
-                )
-
-            item = (
-                SnowflakeQueryCompiler(
-                    get_item_series_as_single_row_frame(
-                        item, col_len, move_index_to_cols=True
-                    )
-                )
-                .reset_index(drop=True)
-                ._modin_frame
+            item, index = _convert_series_item_to_row_for_set_frame_2d_labels(
+                internal_frame, columns, index, item
             )
-
-            if is_scalar(index):
-                new_item = item.append_column("__index__", pandas_lit(index))
-                item = InternalFrame.create(
-                    ordered_dataframe=new_item.ordered_dataframe,
-                    data_column_pandas_labels=item.data_column_pandas_labels,
-                    data_column_snowflake_quoted_identifiers=item.data_column_snowflake_quoted_identifiers,
-                    data_column_pandas_index_names=item.data_column_pandas_index_names,
-                    index_column_pandas_labels=item.index_column_pandas_labels,
-                    index_column_snowflake_quoted_identifiers=[
-                        new_item.data_column_snowflake_quoted_identifiers[-1]
-                    ],
-                    data_column_types=item.cached_data_column_snowpark_pandas_types,
-                    index_column_types=[
-                        item.cached_data_column_snowpark_pandas_types[-1]
-                    ],
-                )
-                index = pd.Series([index])._query_compiler._modin_frame
 
         # when item is not frame, this map will be initialized later
         item_data_col_label_to_pos_map = {
