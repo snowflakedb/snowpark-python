@@ -226,6 +226,7 @@ def session(
     key2 = f"key2{Utils.random_alphanumeric_str(10)}"
     integration1 = f"integration1{Utils.random_alphanumeric_str(10)}"
     integration2 = f"integration2{Utils.random_alphanumeric_str(10)}"
+
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
