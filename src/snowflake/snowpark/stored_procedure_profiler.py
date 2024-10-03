@@ -1,14 +1,14 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-import re
 import threading
 from typing import List, Literal, Optional
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.utils import validate_object_name
-
-STORED_PROCEDURE_CALL_PATTERN = r"WITH\s+.*?\s+AS\s+PROCEDURE\s+.*?\s+CALL\s+.*"
+from snowflake.snowpark._internal.utils import (
+    SNOWFLAKE_ANONYMOUS_CALL_WITH_PATTERN,
+    validate_object_name,
+)
 
 
 class StoredProcedureProfiler:
@@ -102,8 +102,8 @@ class StoredProcedureProfiler:
     @staticmethod
     def _is_sp_call(query: str) -> bool:
         query = query.upper().strip(" ")
-        return re.match(
-            STORED_PROCEDURE_CALL_PATTERN, query, re.DOTALL
+        return SNOWFLAKE_ANONYMOUS_CALL_WITH_PATTERN.match(
+            query
         ) is not None or query.startswith("CALL")
 
     def _get_last_query_id(self) -> Optional[str]:
