@@ -525,4 +525,7 @@ def test_concurrent_update_on_sensitive_configs(session, config, value, caplog):
         with ThreadPoolExecutor(max_workers=5) as executor:
             for _ in range(5):
                 executor.submit(change_config_value, session)
-    assert f"Setting {config} is not currently thread-safe" in caplog.text
+    assert (
+        f"Session configuration update for {config} in multithreaded mode is not thread-safe"
+        in caplog.text
+    )
