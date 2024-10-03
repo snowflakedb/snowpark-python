@@ -602,7 +602,7 @@ class Session:
         self._conf = self.RuntimeConfig(self, options or {})
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
-        self.stored_procedure_profiler = StoredProcedureProfiler(session=self)
+        self._sp_profiler = StoredProcedureProfiler(session=self)
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -3244,6 +3244,14 @@ class Session:
         See details of how to use this object in :class:`stored_procedure.StoredProcedureRegistration`.
         """
         return self._sp_registration
+
+    @property
+    def stored_procedure_profiler(self) -> StoredProcedureProfiler:
+        """
+        Returns a :class:`stored_procedure_profiler.StoredProcedureProfiler` object that you can use to profile stored procedures.
+        See details of how to use this object in :class:`stored_procedure_profiler.StoredProcedureProfiler`.
+        """
+        return self._sp_profiler
 
     def _infer_is_return_table(
         self, sproc_name: str, *args: Any, log_on_exception: bool = False
