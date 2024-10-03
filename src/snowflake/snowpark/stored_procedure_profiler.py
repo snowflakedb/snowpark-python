@@ -53,7 +53,7 @@ class StoredProcedureProfiler:
             stage: String of fully qualified name of targeted stage
         """
         validate_object_name(stage)
-        [db_name, schema_name, stage_name] = stage.split(".")
+        db_name, schema_name, stage_name = stage.split(".")
         existing_stages = self._session.sql(
             f"show stages like '{stage_name}' in database {db_name}"
         )._internal_collect_with_tag_no_telemetry()
