@@ -146,31 +146,29 @@ def test_set_incorrect_active_profiler(profiler_session, db_parameters, tmp_stag
     assert "Last executed stored procedure does not exist" in str(e)
 
 
-def test_sp_call_match(profiler_session):
+@pytest.mark.parametrize(
+    "sp_call_sql",
+    [
+        """WITH myProcedure AS PROCEDURE ()
+      RETURNS TABLE ( )
+      LANGUAGE PYTHON
+      RUNTIME_VERSION = '3.8'
+      PACKAGES = ( 'snowflake-snowpark-python==1.2.0', 'pandas==1.3.3' )
+      IMPORTS = ( '@my_stage/file1.py', '@my_stage/file2.py' )
+      HANDLER = 'my_function'
+      RETURNS NULL ON NULL INPUT
+    AS 'fake'
+    CALL myProcedure()INTO :result
+        """,
+        """CALL MY_SPROC()""",
+        """    CALL MY_SPROC()""",
+        """WITH myProcedure AS PROCEDURE () CALL  myProcedure""",
+        """   WITH myProcedure AS PROCEDURE ... CALL  myProcedure""",
+    ],
+)
+def test_sp_call_match(profiler_session, sp_call_sql):
     pro = profiler_session.stored_procedure_profiler
-    sp_call_sql = """WITH myProcedure AS PROCEDURE ()
-  RETURNS TABLE ( )
-  LANGUAGE PYTHON
-  RUNTIME_VERSION = '3.8'
-  PACKAGES = ( 'snowflake-snowpark-python==1.2.0', 'pandas==1.3.3' )
-  IMPORTS = ( '@my_stage/file1.py', '@my_stage/file2.py' )
-  HANDLER = 'my_function'
-  RETURNS NULL ON NULL INPUT
-AS 'fake'
-CALL myProcedure()INTO :result
-    """
-    assert pro._is_sp_call(sp_call_sql)
 
-    sp_call_sql = """CALL MY_SPROC()"""
-    assert pro._is_sp_call(sp_call_sql)
-
-    sp_call_sql = """    CALL MY_SPROC()"""
-    assert pro._is_sp_call(sp_call_sql)
-
-    sp_call_sql = """WITH myProcedure AS PROCEDURE () CALL  myProcedure"""
-    assert pro._is_sp_call(sp_call_sql)
-
-    sp_call_sql = """   WITH myProcedure AS PROCEDURE ... CALL  myProcedure"""
     assert pro._is_sp_call(sp_call_sql)
 
 
