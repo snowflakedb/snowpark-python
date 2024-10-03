@@ -298,14 +298,12 @@ def normalize_path(path: str, is_local: bool) -> str:
     return f"'{path}'"
 
 
-def warn_session_config_update_in_multithreaded_mode(config) -> bool:
+def warn_session_config_update_in_multithreaded_mode(config) -> None:
     if threading.active_count() > 1:
         logger.warning(
             f"Session configuration update for {config} in multithreaded mode is not thread-safe. "
             "Please update the session configuration before starting the threads."
         )
-        return True
-    return False
 
 
 def normalize_remote_file_or_dir(name: str) -> str:
