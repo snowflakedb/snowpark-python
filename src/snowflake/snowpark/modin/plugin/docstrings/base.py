@@ -1704,6 +1704,10 @@ class BasePandasDataset:
         - Special indexing for DatetimeIndex is unsupported in Snowpark pandas, e.g., `partial string indexing <https://pandas.pydata.org/docs/user_guide/timeseries.html#partial-string-indexing>`_.
         - While setting rows with duplicated index, Snowpark pandas won't raise ValueError for duplicate labels to avoid
           eager evaluation.
+        - When using ``.loc`` to set values with a Series key and Series item, the index of the item is ignored, and values are set positionally.
+        - pandas ``.loc`` may sometimes raise a ValueError when using ``.loc`` to set values in a DataFrame from a Series using a Series as the
+          column key, but Snowpark pandas ``.loc`` supports this type of operation according to the rules specified above.
+        - ``.loc`` with boolean indexers for columns is currently unsupported.
 
         See Also
         --------
@@ -1936,6 +1940,32 @@ class BasePandasDataset:
                    mark ii          1       4
         viper      mark ii          7       1
 
+        Set column values from Series with Series key.
+
+        >>> df = pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
+        >>> df.loc[:, pd.Series(list("ABC"))] = pd.Series([-10, -20, -30])
+        >>> df
+            A   B   C
+        0 -10 -20 -30
+        1 -10 -20 -30
+        >>> df.loc[:, pd.Series(list("ABC"))] = pd.Series([10, 20, 30], index=list("CBA"))
+        >>> df
+            A   B   C
+        0  10  20  30
+        1  10  20  30
+        >>> df.loc[:, pd.Series(list("BAC"))] = pd.Series([-10, -20, -30], index=list("ABC"))
+        >>> df
+            A   B   C
+        0 -20 -10 -30
+        1 -20 -10 -30
+
+        Set column values from Series with list key.
+
+        >>> df.loc[:, list("ABC")] = pd.Series([1, 3, 5], index=list("CAB"))
+        >>> df
+           A  B  C
+        0  3  5  1
+        1  3  5  1
         """
 
     @doc(

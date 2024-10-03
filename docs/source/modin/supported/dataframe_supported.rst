@@ -38,16 +38,7 @@ Attributes
 | ``index``                   | Y                               | This operation is not recommended since it pulls   |
 |                             |                                 | the index into local memory.                       |
 +-----------------------------+---------------------------------+----------------------------------------------------+
-| ``loc``                     | P                               | ``N`` for set with MultiIndex. When the column key |
-|                             |                                 | is a Series object and the value being set is a    |
-|                             |                                 | Series object, the index of the value is ignored,  |
-|                             |                                 | and values are set positionally. Additionally,     |
-|                             |                                 | vanilla pandas sometimes errors out when using loc |
-|                             |                                 | to set values in a DataFrame from a Series using   |
-|                             |                                 | a Series as the column key. Our behavior diverges  |
-|                             |                                 | from vanilla pandas in that we support those types |
-|                             |                                 | of operations according to the rules specified     |
-|                             |                                 | above.                                             |
+| ``loc``                     | P                               | ``N`` for set with MultiIndex.                     |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``ndim``                    | Y                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
