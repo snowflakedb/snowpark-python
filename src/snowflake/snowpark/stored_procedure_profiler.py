@@ -88,7 +88,9 @@ class StoredProcedureProfiler:
             raise ValueError(
                 f"active_profiler expect 'LINE', 'MEMORY', got {active_profiler_type} instead"
             )
-        sql_statement = f"alter session set ACTIVE_PYTHON_PROFILER = '{active_profiler_type.upper()}'"
+        sql_statement = (
+            f"alter session set ACTIVE_PYTHON_PROFILER = '{active_profiler_type}'"
+        )
         self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
         self._query_history = self._session.query_history(include_thread_id=True)
 
