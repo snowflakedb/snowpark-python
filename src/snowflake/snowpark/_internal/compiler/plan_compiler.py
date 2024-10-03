@@ -80,9 +80,7 @@ class PlanCompiler:
             # preparation for compilation
             # 1. make a copy of the original plan
             start_time = time.time()
-            complexity_score_before_compilation = get_complexity_score(
-                self._plan.cumulative_node_complexity
-            )
+            complexity_score_before_compilation = get_complexity_score(self._plan)
             logical_plans: List[LogicalPlan] = [copy.deepcopy(self._plan)]
             plot_plan_if_enabled(self._plan, "original_plan")
             plot_plan_if_enabled(logical_plans[0], "deep_copied_plan")
@@ -102,8 +100,7 @@ class PlanCompiler:
 
             cte_end_time = time.time()
             complexity_scores_after_cte = [
-                get_complexity_score(logical_plan.cumulative_node_complexity)
-                for logical_plan in logical_plans
+                get_complexity_score(logical_plan) for logical_plan in logical_plans
             ]
             for i, plan in enumerate(logical_plans):
                 plot_plan_if_enabled(plan, f"cte_optimized_plan_{i}")
@@ -117,8 +114,7 @@ class PlanCompiler:
 
             large_query_breakdown_end_time = time.time()
             complexity_scores_after_large_query_breakdown = [
-                get_complexity_score(logical_plan.cumulative_node_complexity)
-                for logical_plan in logical_plans
+                get_complexity_score(logical_plan) for logical_plan in logical_plans
             ]
             for i, plan in enumerate(logical_plans):
                 plot_plan_if_enabled(plan, f"large_query_breakdown_plan_{i}")
