@@ -123,5 +123,7 @@ class StoredProcedureProfiler:
             This function must be called right after the execution of stored procedure you want to profile.
         """
         query_id = self._get_last_query_id()
+        if query_id is None:
+            raise ValueError("Last executed stored procedure does not exist")
         sql = f"select snowflake.core.get_python_profiler_output('{query_id}')"
         return self._session.sql(sql)._internal_collect_with_tag_no_telemetry()[0][0]
