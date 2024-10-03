@@ -92,20 +92,15 @@ class TempTableAutoCleaner:
         return self.cleanup_thread is not None and self.cleanup_thread.is_alive()
 
     def start(self) -> None:
-        # Disable temp auto cleaner because of its threading bugs.
-        # self.stop_event.clear()
-        # if not self.is_alive():
-        #     self.cleanup_thread = Thread(target=self.process_cleanup)
-        #     self.cleanup_thread.start()
-        self.cleanup_thread = None
-        pass
+        self.stop_event.clear()
+        if not self.is_alive():
+            self.cleanup_thread = Thread(target=self.process_cleanup)
+            self.cleanup_thread.start()
 
     def stop(self) -> None:
         """
         The cleaner will stop immediately and leave unfinished temp tables in the queue.
         """
-        # Disable temp auto cleaner because of its threading bugs.
-        pass
-        # self.stop_event.set()
-        # if self.is_alive():
-        #     self.cleanup_thread.join()
+        self.stop_event.set()
+        if self.is_alive():
+            self.cleanup_thread.join()
