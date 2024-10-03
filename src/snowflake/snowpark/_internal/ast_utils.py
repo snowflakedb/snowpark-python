@@ -298,7 +298,7 @@ def build_proto_from_struct_type(
         ast_field.nullable = field.nullable
 
 
-def _set_fn_name(name: Union[str, Iterable[str]], fn: proto.FnRefExpr) -> None:
+def _set_fn_name(name: Union[str, Iterable[str]], fn: proto.FnNameRefExpr) -> None:
     """
     Set the function name in the AST. The function name can be a string or an iterable of strings.
     Args:
@@ -430,7 +430,7 @@ def build_table_fn_apply(
 
 
 def build_fn_apply_args(
-    ast: proto.Expr,
+    ast: Union[proto.Expr, proto.ApplyExpr],
     *args: Tuple[Union[proto.Expr, Any]],
     **kwargs: Dict[str, Union[proto.Expr, Any]],
 ) -> None:
@@ -441,7 +441,12 @@ def build_fn_apply_args(
         *args: Positional arguments to pass to function.
         **kwargs: Keyword arguments to pass to function.
     """
-    expr = ast.apply_expr
+    expr: Optional[proto.ApplyExpr] = None
+    if hasattr(ast, "apply_expr"):
+        expr = ast.apply_expr
+    else:
+        expr = ast
+    expr: proto.ApplyExpr = expr
 
     for arg in args:
         if isinstance(arg, proto.Expr):

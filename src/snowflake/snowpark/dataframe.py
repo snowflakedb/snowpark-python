@@ -3297,20 +3297,19 @@ class DataFrame:
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_join_table_function, stmt)
-            self.set_ast_ref(ast.lhs)
-            apply_expr = ast.apply_expr
+            self._set_ast_ref(ast.lhs)
 
             # DO NOT SUBMIT. Make this a build_table_fn_apply call (after fixing that API)
             if isinstance(func, str):
-                _set_fn_name(str, apply_expr.fn.indirect_fn_name_call)
+                _set_fn_name(func, ast.func.fn.indirect_fn_name_call)
             elif isinstance(func, Iterable):
-                _set_fn_name(str, apply_expr.fn.indirect_fn_name_call)
+                _set_fn_name(func, ast.func.fn.indirect_fn_name_call)
             elif isinstance(func, TableFunctionCall):
-                apply_expr.fn.indirect_table_fn_call_ref.id.bitfield1 = func._ast_id
+                ast.func.fn.indirect_table_fn_call_ref.id.bitfield1 = func._ast_id
             else:
                 raise TypeError(f"Invalid input type for table function: {type(func)}")
 
-            build_fn_apply_args(ast, func_arguments, func_named_arguments)
+            build_fn_apply_args(ast.func, func_arguments, func_named_arguments)
 
         func_expr = _create_table_function_expression(
             func, *func_arguments, **func_named_arguments
