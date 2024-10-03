@@ -254,6 +254,8 @@ def run_test(session):
             r"SNOWPARK_TEMP_TABLE_(\w+)", "SNOWPARK_TEMP_TABLE_xxx", raw_unparser_output
         )
         return unparser_output, "\n".join(base64_batches)
+    except Exception as e:
+        raise Exception("Generated AST test failed") from e
     finally:
         os.unlink(test_file.name)
 
@@ -277,6 +279,10 @@ def test_ast(session, test_case):
         session, test_case.filename.replace(".", "_"), test_case.source
     )
     if pytest.update_expectations:
+        assert pytest.unparser_jar, (
+            "Can only update expectations with unparser jar set. Either run the test with --unparser-jar=<path> or"
+            " update the environment variable SNOWPARK_UNPARSER_JAR."
+        )
         with open(DATA_DIR / test_case.filename, "w", encoding="utf-8") as f:
             f.writelines(
                 [

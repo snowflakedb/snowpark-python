@@ -835,8 +835,28 @@ class DataFrame:
             case_sensitive: A bool value which controls the case sensitivity of the fields in the
                 :class:`Row` objects returned by the ``to_local_iterator``. Defaults to ``True``.
         """
+
+        kwargs = {}
         if _emit_ast:
-            raise NotImplementedError("TODO SNOW-1672573: Support to_local_iterator.")
+            # Add an Assign node that applies SpDataframeToLocalIterator() to the input, followed by its Eval.
+            stmt = self._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_to_local_iterator)
+
+            debug_check_missing_ast(self._ast_id, self)
+
+            expr.id.bitfield1 = self._ast_id
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = expr.statement_params.add()
+                    t._1 = k
+                    t._2 = v
+            expr.block = block
+            expr.case_sensitive = case_sensitive
+
+            self._session._ast_batch.eval(stmt)
+
+            # Flush the AST and encode it as part of the query.
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
         return self._session._conn.execute(
             self._plan,
@@ -849,6 +869,7 @@ class DataFrame:
                 SKIP_LEVELS_THREE,
             ),
             case_sensitive=case_sensitive,
+            **kwargs,
         )
 
     def __copy__(self) -> "DataFrame":
@@ -2306,6 +2327,9 @@ class DataFrame:
         column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
         unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
 
+        # TODO: Support unpivot in MockServerConnection.
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
         df: DataFrame = (
             self._with_plan(
                 SelectStatement(
@@ -2316,8 +2340,13 @@ class DataFrame:
                 )
             )
             if self._select_statement
-            else self._with_plan(unpivot_plan)
+            and not (
+                isinstance(self._session._conn, MockServerConnection)
+                and self._session._conn._suppress_not_implemented_error
+            )
+            else self._with_plan(unpivot_plan, ast_stmt=stmt)
         )
+
         if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
         return df
