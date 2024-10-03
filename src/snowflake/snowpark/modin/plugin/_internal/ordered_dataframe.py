@@ -537,7 +537,7 @@ class OrderedDataFrame:
         return column_quoted_identifiers
 
     def _extract_quoted_identifiers_from_column_or_name(
-        self, col: ColumnOrName
+        self, col: ColumnOrName, active_columns: list[str]
     ) -> list[str]:
         """
         Extract the snowflake quoted identifiers out of a Column or column name with following rule:
@@ -545,9 +545,14 @@ class OrderedDataFrame:
             extracted as the quoted identifier.
         2) when it is a str
             a) if it is a start (*), then all projected columns snowflake quoted identifiers are added
-            b) otherwise, it is treated as a name of existing column, and only active columns of the current
-                ordered dataframe can be used.
+            b) otherwise, it is treated as a name of existing column, and a validation check is applied
+                to ensure that only active columns of the current ordered dataframe can be used
         e) AssertionError is raised for all cases can not be handled.
+
+        Args:
+            col: ColumnOrName, Snowpark Column expression or column name
+            active_columns: the active columns of the current ordered dataframe to perform the check against,
+                includes all projected columns, row position columns and ordering columns.
         """
         from snowflake.snowpark.modin.plugin._internal.utils import (
             is_valid_snowflake_quoted_identifier,
@@ -569,7 +574,6 @@ class OrderedDataFrame:
                 # star adds all projected columns to the result
                 return self.projected_column_snowflake_quoted_identifiers
             else:
-                active_columns = self._get_active_column_snowflake_quoted_identifiers()
                 if col in active_columns:
                     return [col]
                 else:
@@ -612,6 +616,7 @@ class OrderedDataFrame:
         new_snowpark_column_objects: list[Column] = []
         # a list of snowflake quoted identifiers as projected columns for new OrderedDataFrame
         new_projected_columns: list[str] = []
+        active_columns = self._get_active_column_snowflake_quoted_identifiers()
         for e in exprs:
             if isinstance(e, TableFunctionCall):
                 # we couldn't handle TableFunctionCall, so just use the original select
@@ -620,7 +625,9 @@ class OrderedDataFrame:
                 )
                 return OrderedDataFrame(DataFrameReference(snowpark_dataframe))
             elif isinstance(e, (Column, str)):
-                column_names = self._extract_quoted_identifiers_from_column_or_name(e)
+                column_names = self._extract_quoted_identifiers_from_column_or_name(
+                    e, active_columns
+                )
                 new_projected_columns.extend(column_names)
                 if isinstance(e, Column):
                     new_snowpark_column_objects.append(e)
@@ -725,9 +732,12 @@ class OrderedDataFrame:
         exprs = parse_positional_args_to_list(*agg_exprs)
         # extract the aggregation function name
         result_column_quoted_identifiers: list[str] = []
+        active_columns = self._get_active_column_snowflake_quoted_identifiers()
         for e in exprs:
             if isinstance(e, (Column, str)):
-                column_names = self._extract_quoted_identifiers_from_column_or_name(e)
+                column_names = self._extract_quoted_identifiers_from_column_or_name(
+                    e, active_columns
+                )
                 result_column_quoted_identifiers.extend(column_names)
             else:
                 raise AssertionError(
