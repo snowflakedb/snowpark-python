@@ -24,19 +24,15 @@ from snowflake.snowpark._internal.utils import (
 class RepeatedSubqueryEliminationResult:
     # the result logical plans after repeated subquery elimination
     logical_plans: List[LogicalPlan]
-    # whether actual elimination is applied
-    elimination_applied: bool
     # total number of cte nodes created the transformation
     total_num_of_ctes: int
 
     def __init__(
         self,
         logical_plans: List[LogicalPlan],
-        elimination_applied: bool,
         total_num_ctes: int,
     ) -> None:
         self.logical_plans = logical_plans
-        self.elimination_applied = elimination_applied
         self.total_num_of_ctes = total_num_ctes
 
 
@@ -63,6 +59,7 @@ class RepeatedSubqueryElimination:
     # original logical plans to apply the optimization on
     _logical_plans: List[LogicalPlan]
     _query_generator: QueryGenerator
+    _total_number_ctes: int
 
     def __init__(
         self,
@@ -71,6 +68,7 @@ class RepeatedSubqueryElimination:
     ) -> None:
         self._logical_plans = logical_plans
         self._query_generator = query_generator
+        self._total_number_ctes = 0
 
     def apply(self) -> RepeatedSubqueryEliminationResult:
         """
@@ -80,8 +78,6 @@ class RepeatedSubqueryElimination:
             A set of the new LogicalPlans with common sub dataframe deduplicated with CTE node.
         """
         final_logical_plans: List[LogicalPlan] = []
-        total_num_ctes = 0
-        elimination_applied = False
         for logical_plan in self._logical_plans:
             # NOTE: the current common sub-dataframe elimination relies on the
             # fact that all intermediate steps are resolved properly. Here we
@@ -97,8 +93,6 @@ class RepeatedSubqueryElimination:
                     logical_plan, duplicated_nodes, node_parents_map
                 )
                 final_logical_plans.append(deduplicated_plan)
-                elimination_applied = True
-                total_num_ctes += len(duplicated_nodes)
             else:
                 final_logical_plans.append(logical_plan)
 
@@ -106,8 +100,7 @@ class RepeatedSubqueryElimination:
         # return final_logical_plans
         return RepeatedSubqueryEliminationResult(
             logical_plans=final_logical_plans,
-            elimination_applied=elimination_applied,
-            total_num_ctes=total_num_ctes,
+            total_num_ctes=self._total_number_ctes,
         )
 
     def _replace_duplicate_node_with_cte(
@@ -171,6 +164,7 @@ class RepeatedSubqueryElimination:
                 _update_parents(
                     node, should_replace_child=True, new_child=resolved_with_block
                 )
+                self._total_number_ctes += 1
             elif node in updated_nodes:
                 # if the node is updated, make sure all nodes up to parent is updated
                 _update_parents(node, should_replace_child=False)
