@@ -239,6 +239,7 @@ def test_df_groupby_rank(data, index, method, ascending, na_option, dropna):
         lambda df: df.groupby("group", dropna=dropna).rank(
             method=method, na_option=na_option, ascending=ascending
         ),
+        test_attrs=False,  # pandas doesn't propagate attrs through groupby.rank
     )
 
 
@@ -299,6 +300,7 @@ def test_df_groupby_rank_by_list(data, index, method, ascending, na_option):
         lambda df: df.groupby(["group", "a"]).rank(
             method=method, na_option=na_option, ascending=ascending
         ),
+        test_attrs=False,  # pandas doesn't propagate attrs through groupby.rank
     )
 
 
@@ -353,4 +355,5 @@ def test_groupby_rank_negative(
                 sort=True,
                 group_keys=True,
             ).rank(method=method, ascending=ascending, na_option=na_option, pct=pct),
+            test_attrs=False,  # pandas doesn't propagate attrs through groupby.rank
         )
