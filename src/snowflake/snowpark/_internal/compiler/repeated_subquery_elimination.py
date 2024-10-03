@@ -26,6 +26,16 @@ class RepeatedSubqueryEliminationResult:
     elimination_applied: bool
     total_num_of_ctes: int
 
+    def __init__(
+        self,
+        logical_plans: List[LogicalPlan],
+        elimination_applied: bool,
+        total_num_ctes: int,
+    ) -> None:
+        self.logical_plans = logical_plans
+        self.elimination_applied = elimination_applied
+        self.total_num_of_ctes = total_num_ctes
+
 
 class RepeatedSubqueryElimination:
     """
