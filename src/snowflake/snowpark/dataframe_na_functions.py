@@ -392,7 +392,8 @@ class DataFrameNaFunctions:
         if not value_dict:
             new_df = copy.copy(self._dataframe)
             add_api_call(new_df, "DataFrameNaFunctions.fill")
-            new_df._ast_id = stmt.var_id.bitfield1
+            if _emit_ast:
+                new_df._ast_id = stmt.var_id.bitfield1
             return new_df
         if not all(
             [
@@ -594,7 +595,8 @@ class DataFrameNaFunctions:
         elif len(subset) == 0:
             new_df = copy.copy(self._dataframe)
             add_api_call(new_df, "DataFrameNaFunctions.replace")
-            new_df._ast_id = stmt.var_id.bitfield1
+            if _emit_ast:
+                new_df._ast_id = stmt.var_id.bitfield1
             return new_df
 
         if isinstance(to_replace, dict):
@@ -615,7 +617,8 @@ class DataFrameNaFunctions:
         if not replacement:
             new_df = copy.copy(self._dataframe)
             add_api_call(new_df, "DataFrameNaFunctions.replace")
-            new_df._ast_id = stmt.var_id.bitfield1
+            if _emit_ast:
+                new_df._ast_id = stmt.var_id.bitfield1
             return new_df
         if not all(
             [

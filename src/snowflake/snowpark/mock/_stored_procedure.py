@@ -8,14 +8,8 @@ from copy import copy
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
-from google.protobuf import proto
-
 import snowflake.snowpark
-from snowflake.snowpark._internal.ast_utils import (
-    build_sproc,
-    build_sproc_apply,
-    with_src_position,
-)
+from snowflake.snowpark._internal.ast_utils import build_sproc, with_src_position
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,

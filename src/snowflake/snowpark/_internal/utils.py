@@ -772,7 +772,7 @@ def publicapi(func) -> Callable:
                 ),
             ):
                 kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
-            elif hasattr(args[0], "_session"):
+            elif hasattr(args[0], "_session") and args[0]._session is not None:
                 kwargs["_emit_ast"] = args[0]._session.ast_enabled
             elif isinstance(args[0], snowflake.snowpark.session.Session):
                 kwargs["_emit_ast"] = args[0].ast_enabled
@@ -1088,6 +1088,11 @@ def prepare_pivot_arguments(
         )
 
     return df, pc, pivot_values, default_on_null
+
+
+def check_flatten_mode(mode: str) -> None:
+    if not isinstance(mode, str) or mode.upper() not in ["OBJECT", "ARRAY", "BOTH"]:
+        raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
 
 class MissingModin(MissingOptionalDependency):

@@ -679,9 +679,9 @@ def test_sql_simplifier_disabled_on_session(db_parameters):
 )
 def test_cte_optimization_enabled_on_session(db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:
-        assert new_session.cte_optimization_enabled is False
-        new_session.cte_optimization_enabled = True
         assert new_session.cte_optimization_enabled is True
+        new_session.cte_optimization_enabled = False
+        assert new_session.cte_optimization_enabled is False
         new_session.cte_optimization_enabled = False
         assert new_session.cte_optimization_enabled is False
 

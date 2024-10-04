@@ -660,9 +660,6 @@ class MockServerConnection:
             # we do not mock the splitting into data chunks behavior
             rows = [rows] if to_iter else rows
 
-        if to_iter:
-            return iter(rows)
-
         # Notify query listeners.
         notify_kwargs = {"requestId": str(uuid.uuid4())}
         if "_dataframe_ast" in kwargs:
@@ -671,7 +668,7 @@ class MockServerConnection:
 
         self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)
 
-        return rows
+        return iter(rows) if to_iter else rows
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(

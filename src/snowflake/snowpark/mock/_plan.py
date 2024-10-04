@@ -398,6 +398,10 @@ def handle_function_expression(
             raise_error=NotImplementedError,
         )
 
+    # Use the non-decorated function.
+    if "__wrapped__" in original_func.__dict__:
+        original_func = original_func.__wrapped__
+
     signatures = inspect.signature(original_func)
     spec = inspect.getfullargspec(original_func)
     to_pass_args = []
@@ -762,9 +766,10 @@ def handle_sproc_expression(
         if type(sproc.func) is tuple:
             module_name, handler_name = sproc.func
             exec(f"from {module_name} import {handler_name}")
-            sproc_handler = eval(handler_name)
-        else:
-            sproc_handler = sproc.func
+            # TODO: vbudati, uncomment!!
+        #     sproc_handler = eval(handler_name)
+        # else:
+        #     sproc_handler = sproc.func
 
         # Compute input data and validate typing
         if len(exp.children) != len(sproc._input_types):

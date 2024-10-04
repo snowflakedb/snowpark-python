@@ -1,0 +1,46 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+rows = [row for row in df.to_local_iterator()]
+
+rows = [row for row in df.to_local_iterator(block=False)]
+
+rows = [row for row in df.select("*").to_local_iterator()]
+
+rows = [row for row in df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"})]
+
+rows = [row for row in df.filter(df["num"] > 1).to_local_iterator(block=False)]
+
+rows = [row for row in df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, case_sensitive=False)]
+
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("test_table")
+
+df.to_local_iterator()
+
+df.to_local_iterator(block=False)
+
+rows = df.select("*")
+
+rows.to_local_iterator()
+
+df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+rows = df.filter(df["num"] > 1)
+
+rows.to_local_iterator(block=False)
+
+df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, case_sensitive=False)
+
+## EXPECTED ENCODED AST
+
+CkMKQQozwgswEg4KDAoKdGVzdF90YWJsZRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFoiAggBEgQKAmRmGAEiAggBCjMKMQonsgkkCAEQARoCCAEiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShcEgAYAiICCAIKCBIGCAMSAggCEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgV
+CjEKLwolsgkiEAEaAggBIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXhIAGAQiAggECggSBggFEgIIBBABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFQ==
+CmAKXgpO4ghLCiKCBR8SASoaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShgEgeKAgQKAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoYCABEgYKBHJvd3MYBiICCAYKMwoxCieyCSQIARABGgIIBiIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGASABgHIgIIBwoIEgYICBICCAcQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBU=
+Ck8KTQpDsglACAEQARoCCAEiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShiKhoKClNGX1BBUlRORVISDEZBS0VfUEFSVE5FUhIAGAkiAggJCggSBggKEgIICRABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFQ==
+CrABCq0BCpwBigeYAQpx+gFuCi2iBioKA251bRIHigIECgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGQSIZICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGQQARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGQSB4oCBAoCCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShkEgYKBHJvd3MYCyICCAsKMQovCiWyCSIQARoCCAsiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShkEgAYDCICCAwKCBIGCA0SAggMEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgV
+Ck0KSwpBsgk+CAEaAggBIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoZioaCgpTRl9QQVJUTkVSEgxGQUtFX1BBUlRORVISABgOIgIIDgoIEgYIDxICCA4QARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBU=
+EAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgV

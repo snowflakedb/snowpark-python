@@ -102,6 +102,7 @@ from snowflake.snowpark._internal.utils import (
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
+    check_flatten_mode,
     deprecated,
     escape_quotes,
     experimental,
@@ -2044,7 +2045,7 @@ class Session:
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(name, self, stmt, ast_stmt=stmt, _emit_ast=_emit_ast)
+        t = Table(name, self, stmt, _ast_stmt=stmt, _emit_ast=_emit_ast)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t
@@ -2300,14 +2301,14 @@ class Session:
                     ),
                     analyzer=self._analyzer,
                 ),
-                ast_stmt=stmt,
+                _ast_stmt=stmt,
                 _emit_ast=_emit_ast,
             )
         else:
             d = DataFrame(
                 self,
                 TableFunctionRelation(func_expr),
-                ast_stmt=stmt,
+                _ast_stmt=stmt,
                 _emit_ast=_emit_ast,
             )
         set_api_call_source(d, "Session.generator")
@@ -2382,7 +2383,7 @@ class Session:
                     from_=SelectSQL(query, analyzer=self._analyzer, params=params),
                     analyzer=self._analyzer,
                 ),
-                ast_stmt=stmt,
+                _ast_stmt=stmt,
             )
         else:
             d = DataFrame(
@@ -2390,7 +2391,7 @@ class Session:
                 self._analyzer.plan_builder.query(
                     query, source_plan=None, params=params
                 ),
-                ast_stmt=stmt,
+                _ast_stmt=stmt,
             )
         set_api_call_source(d, "Session.sql")
         return d
@@ -3098,8 +3099,8 @@ class Session:
         # Create AST statement.
         stmt = self._ast_batch.assign() if _emit_ast else None
 
-        if self.sql_simplifier_enabled:
-            df = DataFrame(
+        df = (
+            DataFrame(
                 self,
                 self._analyzer.create_select_statement(
                     from_=self._analyzer.create_select_snowflake_plan(
@@ -3108,17 +3109,19 @@ class Session:
                     ),
                     analyzer=self._analyzer,
                 ),
-                ast_stmt=stmt,
                 _emit_ast=False,
             ).select(project_columns, _emit_ast=False)
-        else:
-            df = DataFrame(
+            if self.sql_simplifier_enabled
+            else DataFrame(
                 self,
                 SnowflakeValues(attrs, converted, schema_query=schema_query),
-                ast_stmt=stmt,
                 _emit_ast=False,
             ).select(project_columns, _emit_ast=False)
+        )
         set_api_call_source(df, "Session.create_dataframe[values]")
+
+        if _emit_ast:
+            df._ast_id = stmt.var_id.bitfield1
 
         if (
             installed_pandas
@@ -3598,7 +3601,7 @@ class Session:
                 build_expr_from_python_val(expr.pos_args.add(), arg)
             if statement_params is not None:
                 for k in statement_params:
-                    entry = expr.named_args.list.add()
+                    entry = expr.named_args.add()
                     entry._1 = k
                     build_expr_from_python_val(entry._2, statement_params[k])
             expr.fn.stored_procedure.log_on_exception.value = log_on_exception
@@ -3698,7 +3701,8 @@ class Session:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
-        mode = mode.upper()
+
+        check_flatten_mode(mode)
 
         # AST.
         stmt = None
@@ -3710,14 +3714,12 @@ class Session:
                 expr.path.value = path
             expr.outer = outer
             expr.recursive = recursive
-            if mode == "OBJECT":
+            if mode.upper() == "OBJECT":
                 expr.mode.sp_flatten_mode_object = True
-            elif mode == "ARRAY":
+            elif mode.upper() == "ARRAY":
                 expr.mode.sp_flatten_mode_array = True
-            elif mode == "BOTH":
-                expr.mode.sp_flatten_mode_both = True
             else:
-                raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+                expr.mode.sp_flatten_mode_both = True
 
         if isinstance(self._conn, MockServerConnection):
             if self._conn._suppress_not_implemented_error:
@@ -3734,7 +3736,7 @@ class Session:
             TableFunctionRelation(
                 FlattenFunction(input._expression, path, outer, recursive, mode)
             ),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
         set_api_call_source(df, "Session.flatten")
         return df

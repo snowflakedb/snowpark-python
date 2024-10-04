@@ -118,6 +118,7 @@ class StoredProcedure:
 
         return args, session
 
+    @publicapi
     def __call__(
         self,
         *args: Any,
