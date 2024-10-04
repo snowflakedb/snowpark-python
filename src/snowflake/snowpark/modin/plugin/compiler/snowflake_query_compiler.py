@@ -18771,6 +18771,53 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return result
 
+    def tz_convert(
+        self,
+        tz: Union[str, tzinfo],
+        axis: int = 0,
+        level: Optional[Level] = None,
+        copy: bool = True,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Convert tz-aware axis to target time zone.
+
+        Parameters
+        ----------
+        tz : str or tzinfo object or None
+            Target time zone. Passing None will convert to UTC and remove the timezone information.
+        axis : {0 or ‘index’, 1 or ‘columns’}, default 0
+            The axis to convert
+        level : int, str, default None
+            If axis is a MultiIndex, convert a specific level. Otherwise must be None.
+        copy : bool, default True
+            Also make a copy of the underlying data.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            The result of applying time zone conversion.
+        """
+        if axis in (1, "columns"):
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas 'tz_convert' method doesn't yet support 'axis={axis}'"
+            )
+        if level is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'tz_convert' method doesn't yet support the 'level' parameter"
+            )
+        if copy is not True:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'tz_convert' method doesn't support 'copy=False'"
+            )
+
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                lambda column: tz_convert_column(column, tz),
+                include_data=False,
+                include_index=True,
+            )
+        )
+
     def tz_localize(
         self,
         tz: Union[str, tzinfo],
