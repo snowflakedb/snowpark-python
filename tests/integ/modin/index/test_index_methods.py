@@ -16,7 +16,6 @@ from tests.integ.modin.index.conftest import (
     NATIVE_INDEX_UNIQUE_TEST_DATA,
     TEST_DFS,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_index_equal,
@@ -24,6 +23,7 @@ from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @sql_count_checker(query_count=2)
@@ -347,14 +347,12 @@ def test_df_index_to_frame(native_df, index, name):
     )
 
 
-@sql_count_checker(query_count=0)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_dtype(native_index):
-    snow_index = pd.Index(native_index)
-    if isinstance(native_index, native_pd.DatetimeIndex):
-        # Snowpark pandas does not include timezone info in dtype datetime64[ns],
-        assert snow_index.dtype == "datetime64[ns]"
-    else:
+    with SqlCounter(
+        query_count=1 if getattr(native_index.dtype, "tz", None) is not None else 0
+    ):
+        snow_index = pd.Index(native_index)
         assert snow_index.dtype == native_index.dtype
 
 

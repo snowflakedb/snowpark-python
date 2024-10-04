@@ -17,7 +17,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
 
 
@@ -151,3 +151,17 @@ def test_to_numpy_copy_true(caplog):
     with caplog.at_level(logging.WARNING):
         assert_array_equal(series.to_numpy(copy=True), native_pd.Series([1]).to_numpy())
         assert "has been ignored by Snowpark pandas" in caplog.text
+
+
+@sql_count_checker(query_count=1)
+def test_to_numpy_warning(caplog):
+    series = pd.Series([1])
+
+    caplog.clear()
+    WarningMessage.printed_warnings.clear()
+    with caplog.at_level(logging.WARNING):
+        series.to_numpy()
+        assert (
+            "The current operation leads to materialization and can be slow if the data is large!"
+            in caplog.text
+        )

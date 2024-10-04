@@ -9,7 +9,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.conftest import IRIS_DF
-from tests.integ.modin.sql_counter import SqlCounter
+from tests.integ.utils.sql_counter import SqlCounter
 
 SERIES_TO_TEST = [(IRIS_DF.iloc[:, i], 1, 0) for i in range(IRIS_DF.shape[1])] + [
     (native_pd.Series(), 1, 0),

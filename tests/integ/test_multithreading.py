@@ -4,9 +4,9 @@
 
 import gc
 import hashlib
+import logging
 import os
 import tempfile
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple  # noqa: F401
 from unittest.mock import patch
@@ -15,6 +15,7 @@ import pytest
 
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType
+from tests.integ.test_temp_table_cleanup import wait_for_drop_table_sql_done
 
 try:
     import dateutil
@@ -28,7 +29,7 @@ except ImportError:
 
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.row import Row
-from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_LINUX, IS_WINDOWS, TestFiles, Utils
 
 
 def test_concurrent_select_queries(session):
@@ -205,6 +206,12 @@ def test_file_io(session, resources_path, temp_stage, use_stream):
         with ThreadPoolExecutor(max_workers=10) as executor:
             for file_path in resources_files:
                 executor.submit(put_and_get_file, file_path, download_dir)
+
+        if not use_stream:
+            # assert all files are downloaded
+            assert set(os.listdir(download_dir)) == {
+                os.path.basename(file_path) for file_path in resources_files
+            }
 
 
 def test_concurrent_add_packages(session):
@@ -505,7 +512,7 @@ class OffsetSumUDAFHandler:
     reason="session.sql is not supported in local testing mode",
     run=False,
 )
-def test_auto_temp_table_cleaner(session):
+def test_auto_temp_table_cleaner(session, caplog):
     session._temp_table_auto_cleaner.ref_count_map.clear()
     original_auto_clean_up_temp_table_enabled = session.auto_clean_up_temp_table_enabled
     session.auto_clean_up_temp_table_enabled = True
@@ -526,7 +533,7 @@ def test_auto_temp_table_cleaner(session):
             table_names.append(future.result())
 
     gc.collect()
-    time.sleep(1)
+    wait_for_drop_table_sql_done(session, caplog, expect_drop=True)
 
     try:
         for table_name in table_names:
@@ -537,3 +544,39 @@ def test_auto_temp_table_cleaner(session):
         session.auto_clean_up_temp_table_enabled = (
             original_auto_clean_up_temp_table_enabled
         )
+
+
+@pytest.mark.skipif(
+    IS_LINUX or IS_WINDOWS,
+    reason="Linux and Windows test show multiple active threads when no threadpool is enabled",
+)
+@pytest.mark.parametrize(
+    "config,value",
+    [
+        ("cte_optimization_enabled", True),
+        ("sql_simplifier_enabled", True),
+        ("eliminate_numeric_sql_value_cast_enabled", True),
+        ("auto_clean_up_temp_table_enabled", True),
+        ("large_query_breakdown_enabled", True),
+        ("large_query_breakdown_complexity_bounds", (20, 30)),
+    ],
+)
+def test_concurrent_update_on_sensitive_configs(session, config, value, caplog):
+    def change_config_value(session_):
+        session_.conf.set(config, value)
+
+    caplog.clear()
+    change_config_value(session)
+    assert (
+        f"You might have more than one threads sharing the Session object trying to update {config}"
+        not in caplog.text
+    )
+
+    with caplog.at_level(logging.WARNING):
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            for _ in range(5):
+                executor.submit(change_config_value, session)
+    assert (
+        f"You might have more than one threads sharing the Session object trying to update {config}"
+        in caplog.text
+    )

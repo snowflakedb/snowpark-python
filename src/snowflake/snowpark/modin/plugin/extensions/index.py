@@ -45,22 +45,24 @@ from pandas.core.dtypes.common import (
     is_integer_dtype,
     is_numeric_dtype,
     is_object_dtype,
-    is_timedelta64_dtype,
     pandas_dtype,
 )
 from pandas.core.dtypes.inference import is_hashable
 
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import DateTimeOrigin
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     index_not_implemented,
 )
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.modin.plugin.utils.warning_message import (
+    WarningMessage,
+    materialization_warning,
+)
 from snowflake.snowpark.types import ArrayType
 
 _CONSTRUCTOR_DEFAULTS = {
@@ -156,10 +158,9 @@ class Index(metaclass=TelemetryMeta):
         query_compiler = cls._init_query_compiler(
             data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs
         )
-        dtype = query_compiler.index_dtypes[0]
-        if is_datetime64_any_dtype(dtype):
+        if query_compiler.is_datetime64_any_dtype(idx=0, is_index=True):
             return DatetimeIndex(query_compiler=query_compiler)
-        if is_timedelta64_dtype(dtype):
+        if query_compiler.is_timedelta64_dtype(idx=0, is_index=True):
             return TimedeltaIndex(query_compiler=query_compiler)
         index = object.__new__(cls)
         # Initialize the Index
@@ -421,6 +422,7 @@ class Index(metaclass=TelemetryMeta):
             f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
         )
 
+    @materialization_warning
     def to_pandas(
         self,
         *,
@@ -2190,6 +2192,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458139 implement hasnans
 
+    @materialization_warning
     def tolist(self) -> list:
         """
         Return a list of the values.
@@ -2593,6 +2596,7 @@ class Index(metaclass=TelemetryMeta):
         WarningMessage.index_to_pandas_warning("_summary")
         return self.to_pandas()._summary(name=name)
 
+    @materialization_warning
     def __array__(self, dtype: Any = None) -> np.ndarray:
         """
         The array interface, return the values.

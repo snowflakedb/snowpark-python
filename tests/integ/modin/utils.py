@@ -22,7 +22,7 @@ from pandas.core.dtypes.inference import is_scalar
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.utils import SupportsPublicToPandas
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import StructField, StructType

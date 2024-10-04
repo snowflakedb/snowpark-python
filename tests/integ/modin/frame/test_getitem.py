@@ -12,14 +12,14 @@ import pytest
 from pandas import isna
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize(
