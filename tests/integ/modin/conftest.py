@@ -15,7 +15,7 @@ from pytest import fail
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.pandas_api_coverage import PandasAPICoverageGenerator
-from tests.integ.modin.sql_counter import (
+from tests.integ.utils.sql_counter import (
     SqlCounter,
     clear_sql_counter_called,
     generate_sql_count_report,
@@ -44,7 +44,6 @@ def pytest_addoption(parser):
     parser.addoption(
         "--generate_pandas_api_coverage", action="store_true", default=False
     )
-    parser.addoption("--skip_sql_count_check", action="store_true", default=False)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -52,17 +51,6 @@ def setup_pandas_api_coverage_generator(pytestconfig):
     enable_coverage = pytestconfig.getoption("generate_pandas_api_coverage")
     if enable_coverage:
         PandasAPICoverageGenerator()
-
-
-SKIP_SQL_COUNT_CHECK = False
-
-
-@pytest.fixture(scope="session", autouse=True)
-def setup_skip_sql_count_check(pytestconfig):
-    skip = pytestconfig.getoption("skip_sql_count_check")
-    if skip:
-        global SKIP_SQL_COUNT_CHECK
-        SKIP_SQL_COUNT_CHECK = True
 
 
 @pytest.fixture(scope="function")
@@ -371,9 +359,7 @@ def iloc_snowpark_pandas_input_map():
         "categorical[int]": pd.Categorical([1, 3, 4]),
         "Index": pd.Index([-0.9, -1.0, -1.1, 0.0, 1.0, 0.9, 1.1, 1]),
         "Series": pd.Series([-0.9, -1.0, -1.1, 0.0, 1.0, 0.9, 1.1, -1]),
-        "Series[positive_int]": pd.Series(
-            [0, 1]
-        ),  # To test `convert_positional_key` shortcircuit
+        "Series[positive_int]": pd.Series([0, 1]),
         "Series_all_positive_int": pd.Series([1, 1, 2]),
         "RangeIndex": pd.RangeIndex(1, 4),
         "Index[bool]": pd.Index([True, True, False, False, False, True, True]),

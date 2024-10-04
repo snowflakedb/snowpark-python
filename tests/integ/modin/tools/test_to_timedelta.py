@@ -14,12 +14,12 @@ import pytest
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     VALID_PANDAS_TIMEDELTA_ABBREVS,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_index_equal,
     assert_series_equal,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 TIMEDELTA_DATA = [
     "1W",

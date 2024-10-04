@@ -38,6 +38,7 @@ class TelemetryField(Enum):
     TYPE_PERFORMANCE_DATA = "snowpark_performance_data"
     TYPE_FUNCTION_USAGE = "snowpark_function_usage"
     TYPE_SESSION_CREATED = "snowpark_session_created"
+    TYPE_CURSOR_CREATED = "snowpark_cursor_created"
     TYPE_SQL_SIMPLIFIER_ENABLED = "snowpark_sql_simplifier_enabled"
     TYPE_CTE_OPTIMIZATION_ENABLED = "snowpark_cte_optimization_enabled"
     # telemetry for optimization that eliminates the extra cast expression generated for expressions
@@ -537,6 +538,18 @@ class TelemetryClient:
                         upper_bound,
                     ),
                 },
+            },
+        }
+        self.send(message)
+
+    def send_cursor_created_telemetry(self, session_id: int, thread_id: int):
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_CURSOR_CREATED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.THREAD_IDENTIFIER.value: thread_id,
             },
         }
         self.send(message)

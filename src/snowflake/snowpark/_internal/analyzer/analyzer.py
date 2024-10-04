@@ -124,6 +124,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     Cast,
     UnaryExpression,
+    UnaryMinus,
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
@@ -166,13 +167,6 @@ class Analyzer:
         self.generated_alias_maps = {}
         self.subquery_plans = []
         self.alias_maps_to_use: Optional[Dict[uuid.UUID, str]] = None
-        self._eliminate_numeric_sql_value_cast_enabled: Optional[bool] = None
-
-    @property
-    def eliminate_numeric_sql_value_cast_enabled(self) -> bool:
-        if self._eliminate_numeric_sql_value_cast_enabled is None:
-            return self.session.eliminate_numeric_sql_value_cast_enabled
-        return self._eliminate_numeric_sql_value_cast_enabled
 
     def analyze(
         self,
@@ -271,7 +265,7 @@ class Analyzer:
         if isinstance(expr, MultipleExpression):
             block_expressions = []
             for expression in expr.expressions:
-                if self.eliminate_numeric_sql_value_cast_enabled:
+                if self.session.eliminate_numeric_sql_value_cast_enabled:
                     resolved_expr = self.to_sql_try_avoid_cast(
                         expression,
                         df_aliased_col_name_to_real_col_name,
@@ -290,7 +284,7 @@ class Analyzer:
         if isinstance(expr, InExpression):
             in_values = []
             for expression in expr.values:
-                if self.eliminate_numeric_sql_value_cast_enabled:
+                if self.session.eliminate_numeric_sql_value_cast_enabled:
                     in_value = self.to_sql_try_avoid_cast(
                         expression,
                         df_aliased_col_name_to_real_col_name,
@@ -351,14 +345,10 @@ class Analyzer:
             return specified_window_frame_expression(
                 expr.frame_type.sql,
                 self.window_frame_boundary(
-                    self.to_sql_try_avoid_cast(
-                        expr.lower, df_aliased_col_name_to_real_col_name
-                    )
+                    expr.lower, df_aliased_col_name_to_real_col_name
                 ),
                 self.window_frame_boundary(
-                    self.to_sql_try_avoid_cast(
-                        expr.upper, df_aliased_col_name_to_real_col_name
-                    )
+                    expr.upper, df_aliased_col_name_to_real_col_name
                 ),
             )
         if isinstance(expr, UnspecifiedFrame):
@@ -685,7 +675,7 @@ class Analyzer:
         df_aliased_col_name_to_real_col_name,
         parse_local_name=False,
     ) -> str:
-        if self.eliminate_numeric_sql_value_cast_enabled:
+        if self.session.eliminate_numeric_sql_value_cast_enabled:
             left_sql_expr = self.to_sql_try_avoid_cast(
                 expr.left, df_aliased_col_name_to_real_col_name, parse_local_name
             )
@@ -729,12 +719,28 @@ class Analyzer:
             df_aliased_col_name_to_real_col_name,
         )
 
-    def window_frame_boundary(self, offset: str) -> str:
-        try:
-            num = int(offset)
-            return window_frame_boundary_expression(str(abs(num)), num >= 0)
-        except Exception:
-            return offset
+    def window_frame_boundary(
+        self,
+        boundary: Expression,
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+    ) -> str:
+        # it means interval preceding
+        if isinstance(boundary, UnaryMinus) and isinstance(boundary.child, Interval):
+            return window_frame_boundary_expression(
+                boundary.child.sql, is_following=False
+            )
+        elif isinstance(boundary, Interval):
+            return window_frame_boundary_expression(boundary.sql, is_following=True)
+        else:
+            # boundary should be an integer
+            offset = self.to_sql_try_avoid_cast(
+                boundary, df_aliased_col_name_to_real_col_name
+            )
+            try:
+                num = int(offset)
+                return window_frame_boundary_expression(str(abs(num)), num >= 0)
+            except Exception:
+                return offset
 
     def to_sql_try_avoid_cast(
         self,
@@ -767,28 +773,12 @@ class Analyzer:
         self.subquery_plans = []
         self.generated_alias_maps = {}
 
-        # To ensure that the context remain unchanged during resolving the plan, we
-        # read these values at the beginning and reset them at the end.
-        self.plan_builder._cte_optimization_enabled = (
-            self.session.cte_optimization_enabled
-        )
-        self.plan_builder._query_compilation_stage_enabled = (
-            self.session._query_compilation_stage_enabled
-        )
-        self._eliminate_numeric_sql_value_cast_enabled = (
-            self.session.eliminate_numeric_sql_value_cast_enabled
-        )
-
         result = self.do_resolve(logical_plan)
 
         result.add_aliases(self.generated_alias_maps)
 
         if self.subquery_plans:
             result = result.with_subqueries(self.subquery_plans)
-
-        self.plan_builder._cte_optimization_enabled = None
-        self.plan_builder._query_compilation_stage_enabled = None
-        self._eliminate_numeric_sql_value_cast_enabled = None
 
         return result
 

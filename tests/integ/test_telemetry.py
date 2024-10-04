@@ -1281,3 +1281,19 @@ def test_temp_table_cleanup_exception(session):
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
     assert data == expected_data
     assert type_ == "snowpark_temp_table_cleanup_abnormal_exception"
+
+
+def test_cursor_created_telemetry(session):
+    client = session._conn._telemetry_client
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    def send_telemetry():
+        client.send_cursor_created_telemetry(session_id=session.session_id, thread_id=1)
+
+    expected_data = {
+        "session_id": session.session_id,
+        "thread_ident": 1,
+    }
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
+    assert data == expected_data
+    assert type_ == "snowpark_cursor_created"

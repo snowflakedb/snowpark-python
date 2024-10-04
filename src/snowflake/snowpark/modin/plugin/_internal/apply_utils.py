@@ -492,7 +492,9 @@ def create_udtf_for_groupby_apply(
     # Get the length of this list outside the vUDTF function because the vUDTF
     # doesn't have access to the Snowpark module, which defines these types.
     num_by = len(by_types)
-    from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+    from snowflake.snowpark.modin.plugin.extensions.utils import (
+        try_convert_index_to_native,
+    )
 
     data_column_index = try_convert_index_to_native(data_column_index)
 
