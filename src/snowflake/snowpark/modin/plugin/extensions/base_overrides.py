@@ -491,11 +491,6 @@ def truncate(
 
 
 @register_base_not_implemented()
-def tz_convert(self, tz, axis=0, level=None, copy=True):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_base_not_implemented()
 def tz_localize(
     self, tz, axis=0, level=None, copy=True, ambiguous="raise", nonexistent="raise"
 ):  # noqa: PR01, RT01, D200

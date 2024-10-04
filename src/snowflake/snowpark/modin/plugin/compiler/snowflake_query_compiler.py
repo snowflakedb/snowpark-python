@@ -11684,7 +11684,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
-                property_function, include_index
+                property_function, include_index=include_index
             )
         )
 
@@ -17243,7 +17243,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
                 lambda column: tz_localize_column(column, tz),
-                include_index,
+                include_index=include_index,
             )
         )
 
@@ -17265,7 +17265,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
                 lambda column: tz_convert_column(column, tz),
-                include_index,
+                include_index=include_index,
             )
         )
 
@@ -17346,7 +17346,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
-                ceil_func, include_index, return_type
+                ceil_func,
+                include_index=include_index,
+                return_type=return_type,
             )
         )
 
@@ -17505,7 +17507,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
-                round_func, include_index, return_type
+                round_func,
+                include_index=include_index,
+                return_type=return_type,
             )
         )
 
@@ -17578,7 +17582,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
-                floor_func, include_index, return_type
+                floor_func,
+                include_index=include_index,
+                return_type=return_type,
             ),
         )
 
@@ -17600,7 +17606,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
-                normalize_column, include_index
+                normalize_column,
+                include_index=include_index,
             )
         )
 
@@ -17633,7 +17640,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
-                month_name_func, include_index
+                month_name_func,
+                include_index=include_index,
             )
         )
 
@@ -17666,7 +17674,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
-                day_name_func, include_index
+                day_name_func,
+                include_index=include_index,
             )
         )
 
@@ -17688,7 +17697,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             self._modin_frame.apply_snowpark_function_to_columns(
                 # Cast the column to decimal of scale 9 to ensure no precision loss.
                 lambda x: x.cast(DecimalType(scale=9)) / 1_000_000_000,
-                include_index,
+                include_index=include_index,
             )
         )
 
@@ -18766,8 +18775,52 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return result
 
-    def tz_convert(self, *args: Any, **kwargs: Any) -> None:
-        ErrorMessage.method_not_implemented_error("tz_convert", "BasePandasDataset")
+    def tz_convert(
+        self,
+        tz: Union[str, tzinfo],
+        axis: int = 0,
+        level: Optional[Level] = None,
+        copy: bool = True,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Convert tz-aware axis to target time zone.
+
+        Parameters
+        ----------
+        tz : str or tzinfo object or None
+            Target time zone. Passing None will convert to UTC and remove the timezone information.
+        axis : {0 or ‘index’, 1 or ‘columns’}, default 0
+            The axis to convert
+        level : int, str, default None
+            If axis is a MultiIndex, convert a specific level. Otherwise must be None.
+        copy : bool, default True
+            Also make a copy of the underlying data.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            The result of applying time zone conversion.
+        """
+        if axis in (1, "columns"):
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas 'tz_convert' method doesn't yet support 'axis={axis}'"
+            )
+        if level is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'tz_convert' method doesn't yet support the 'level' parameter"
+            )
+        if copy is not True:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'tz_convert' method doesn't support 'copy=False'"
+            )
+
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                lambda column: tz_convert_column(column, tz),
+                include_data=False,
+                include_index=True,
+            )
+        )
 
     def tz_localize(self, *args: Any, **kwargs: Any) -> None:
         ErrorMessage.method_not_implemented_error("tz_convert", "BasePandasDataset")
@@ -18815,5 +18868,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 f"Snowpark pandas doesn't yet support the property '{class_prefix}.{property_name}'"
             )  # pragma: no cover
         return SnowflakeQueryCompiler(
-            self._modin_frame.apply_snowpark_function_to_columns(func, include_index)
+            self._modin_frame.apply_snowpark_function_to_columns(
+                func,
+                include_index=include_index,
+            )
         )
