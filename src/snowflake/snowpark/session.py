@@ -545,6 +545,11 @@ class Session:
         self._udtf_registration = UDTFRegistration(self)
         self._udaf_registration = UDAFRegistration(self)
 
+        self._plan_builder = (
+            SnowflakePlanBuilder(self)
+            if isinstance(self._conn, ServerConnection)
+            else MockSnowflakePlanBuilder(self)
+        )
         self._last_action_id = 0
         self._last_canceled_id = 0
         self._use_scoped_temp_objects: bool = (
@@ -638,16 +643,6 @@ class Session:
                 else MockAnalyzer(self)
             )
         return self._thread_store.analyzer
-
-    @property
-    def _plan_builder(self):
-        if not hasattr(self._thread_store, "plan_builder"):
-            self._thread_store.plan_builder = (
-                SnowflakePlanBuilder(self)
-                if isinstance(self._conn, ServerConnection)
-                else MockSnowflakePlanBuilder(self)
-            )
-        return self._thread_store.plan_builder
 
     def close(self) -> None:
         """Close this session."""
