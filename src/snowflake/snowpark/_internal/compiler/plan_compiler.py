@@ -98,7 +98,7 @@ class PlanCompiler:
             # 3. apply each optimizations if needed
             # CTE optimization
             cte_start_time = time.time()
-            if self.cte_optimization_enabled:
+            if session.cte_optimization_enabled:
                 repeated_subquery_eliminator = RepeatedSubqueryElimination(
                     logical_plans, query_generator
                 )
@@ -113,12 +113,12 @@ class PlanCompiler:
                 plot_plan_if_enabled(plan, f"cte_optimized_plan_{i}")
 
             # Large query breakdown
-            if self.large_query_breakdown_enabled:
+            if session.large_query_breakdown_enabled:
                 large_query_breakdown = LargeQueryBreakdown(
                     session,
                     query_generator,
                     logical_plans,
-                    self.large_query_breakdown_complexity_bounds,
+                    session.large_query_breakdown_complexity_bounds,
                 )
                 logical_plans = large_query_breakdown.apply()
 
