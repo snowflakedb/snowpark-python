@@ -37,6 +37,7 @@
 - Added support for `tz` in both `pd.date_range` and `pd.bdate_range`.
 - Added support for `Series.items`.
 - Added support for `errors="ignore"` in `pd.to_datetime`.
+- Added support for `DataFrame.tz_localize` and `Series.tz_localize`.
 
 #### Improvements
 
