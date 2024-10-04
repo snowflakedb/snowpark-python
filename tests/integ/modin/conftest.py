@@ -14,6 +14,7 @@ from pandas.core.indexing import IndexingError
 from pytest import fail
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from tests.conftest import SKIP_SQL_COUNT_CHECK
 from tests.integ.modin.pandas_api_coverage import PandasAPICoverageGenerator
 from tests.integ.utils.sql_counter import (
     SqlCounter,
