@@ -9,14 +9,14 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
     try_cast_to_snowpark_pandas_dataframe,
     try_cast_to_snowpark_pandas_series,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 def _test_isin_with_snowflake_logic(s, values):

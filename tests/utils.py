@@ -1414,6 +1414,14 @@ class TestFiles:
         return os.path.join(self.resources_path, "test.orc")
 
     @property
+    def test_file_sas_sas7bdat(self):
+        return os.path.join(self.resources_path, "test_sas.sas7bdat")
+
+    @property
+    def test_file_sas_xpt(self):
+        return os.path.join(self.resources_path, "test_sas.xpt")
+
+    @property
     def test_file_xml(self):
         return os.path.join(self.resources_path, "test.xml")
 

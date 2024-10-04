@@ -25,7 +25,9 @@ def mock_single_col_query_compiler() -> SnowflakeQueryCompiler:
         '"A"': None
     }
     mock_internal_frame.get_snowflake_type.return_value = [StringType()]
-
+    mock_internal_frame.quoted_identifier_to_snowflake_type.return_value = {
+        '"A"': StringType()
+    }
     fake_query_compiler = SnowflakeQueryCompiler(mock_internal_frame)
 
     return fake_query_compiler

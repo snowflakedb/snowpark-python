@@ -156,7 +156,7 @@ class ServerConnection:
         conn: Optional[SnowflakeConnection] = None,
     ) -> None:
         self._lock = threading.RLock()
-        self._thread_stored = threading.local()
+        self._thread_store = threading.local()
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self._add_application_parameters()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
@@ -187,9 +187,12 @@ class ServerConnection:
 
     @property
     def _cursor(self) -> SnowflakeCursor:
-        if not hasattr(self._thread_stored, "cursor"):
-            self._thread_stored.cursor = self._conn.cursor()
-        return self._thread_stored.cursor
+        if not hasattr(self._thread_store, "cursor"):
+            self._thread_store.cursor = self._conn.cursor()
+            self._telemetry_client.send_cursor_created_telemetry(
+                self.get_session_id(), threading.get_ident()
+            )
+        return self._thread_store.cursor
 
     def _add_application_parameters(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
@@ -254,8 +257,31 @@ class ServerConnection:
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
         return convert_result_meta_to_attribute(
-            run_new_describe(self._cursor, query), self.max_string_size
+            self._run_new_describe(self._cursor, query), self.max_string_size
         )
+
+    def _run_new_describe(
+        self, cursor: SnowflakeCursor, query: str
+    ) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:
+        result_metadata = run_new_describe(cursor, query)
+
+        with self._lock:
+            for listener in filter(
+                lambda listener: hasattr(listener, "include_describe")
+                and listener.include_describe,
+                self._query_listener,
+            ):
+                thread_id = (
+                    threading.get_ident()
+                    if getattr(listener, "include_thread_id", False)
+                    else None
+                )
+                query_record = QueryRecord(
+                    cursor.sfqid, query, True, thread_id=thread_id
+                )
+                listener._add_query(query_record)
+
+        return result_metadata
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
     def upload_file(
@@ -372,7 +398,16 @@ class ServerConnection:
     def notify_query_listeners(self, query_record: QueryRecord) -> None:
         with self._lock:
             for listener in self._query_listener:
-                listener._add_query(query_record)
+                if getattr(listener, "include_thread_id", False):
+                    new_record = QueryRecord(
+                        query_record.query_id,
+                        query_record.sql_text,
+                        query_record.is_describe,
+                        thread_id=threading.get_ident(),
+                    )
+                    listener._add_query(new_record)
+                else:
+                    listener._add_query(query_record)
 
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any

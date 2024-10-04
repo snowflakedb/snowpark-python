@@ -9,14 +9,17 @@ pandas, such as `Series.memory_usage`.
 
 from __future__ import annotations
 
-from typing import IO, Any, Callable, Hashable, Literal, Mapping, Sequence
+from typing import IO, Any, Callable, Hashable, Literal, Mapping, Sequence, get_args
 
 import modin.pandas as pd
 import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
+from modin.pandas.api.extensions import register_series_accessor
 from modin.pandas.base import BasePandasDataset
+from modin.pandas.io import from_pandas
+from modin.pandas.utils import is_scalar
 from pandas._libs.lib import NoDefault, is_integer, no_default
 from pandas._typing import (
     AggFuncType,
@@ -27,24 +30,19 @@ from pandas._typing import (
     IndexKeyFunc,
     IndexLabel,
     Level,
+    NaPosition,
     Renamer,
     Scalar,
 )
-from pandas.api.types import (
-    is_datetime64_any_dtype,
-    is_string_dtype,
-    is_timedelta64_dtype,
-)
 from pandas.core.common import apply_if_callable, is_bool_indexer
 from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
-from pandas.util._validators import validate_bool_kwarg
+from pandas.util._validators import validate_ascending, validate_bool_kwarg
 
-from snowflake.snowpark.modin import pandas as spd  # noqa: F401
-from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
-from snowflake.snowpark.modin.pandas.utils import (
-    from_pandas,
-    is_scalar,
-    try_convert_index_to_native,
+from snowflake.snowpark.modin.plugin._internal.utils import (
+    assert_fields_are_none,
+    convert_index_to_list_of_qcs,
+    convert_index_to_qc,
+    error_checking_for_init,
 )
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
@@ -57,7 +55,10 @@ from snowflake.snowpark.modin.plugin.utils.frontend_constants import (
     SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE,
     SERIES_SETITEM_SLICE_AS_SCALAR_VALUE_ERROR_MESSAGE,
 )
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.modin.plugin.utils.warning_message import (
+    WarningMessage,
+    materialization_warning,
+)
 from snowflake.snowpark.modin.utils import (
     MODIN_UNNAMED_SERIES_LABEL,
     _inherit_docstrings,
@@ -349,37 +350,91 @@ def __init__(
     # use this list to update inplace when there is a shallow copy.
     self._siblings = []
 
-    # modified:
-    # Engine.subscribe(_update_engine)
+    from snowflake.snowpark.modin.plugin.extensions.index import Index
 
-    # Convert lazy index to Series without pulling the data to client.
-    if isinstance(data, pd.Index):
-        query_compiler = data.to_series(index=index, name=name)._query_compiler
-        query_compiler = query_compiler.reset_index(drop=True)
-    elif isinstance(data, type(self)):
-        query_compiler = data._query_compiler.copy()
-        if index is not None:
-            if any(i not in data.index for i in index):
-                ErrorMessage.not_implemented(
-                    "Passing non-existent columns or index values to constructor "
-                    + "not yet implemented."
-                )  # pragma: no cover
-            query_compiler = data.loc[index]._query_compiler
-    if query_compiler is None:
-        # Defaulting to pandas
-        if name is None:
-            name = MODIN_UNNAMED_SERIES_LABEL
-            if (
-                isinstance(data, (native_pd.Series, native_pd.Index, pd.Index))
-                and data.name is not None
-            ):
-                name = data.name
+    # Setting the query compiler
+    # --------------------------
+    if query_compiler is not None:
+        # If a query_compiler is passed in, only use the query_compiler and name fields to create a new Series.
+        # Verify that the data and index parameters are None.
+        assert_fields_are_none(class_name="Series", data=data, index=index, dtype=dtype)
+        self._query_compiler = query_compiler.columnarize()
+        if name is not None:
+            self.name = name
+        return
 
+    # A DataFrame cannot be used as an index and Snowpark pandas does not support the Categorical type yet.
+    # Check that index is not a DataFrame and dtype is not "category".
+    error_checking_for_init(index, dtype)
+
+    if isinstance(data, pd.DataFrame):
+        # data cannot be a DataFrame, raise a clear error message.
+        # pandas raises an ambiguous error:
+        # ValueError: The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().
+        raise ValueError("Data cannot be a DataFrame")
+
+    # The logic followed here is:
+    # STEP 1: Create a query_compiler from the provided data.
+    # STEP 2: If an index is provided, set the index. This is either through set_index or reindex.
+    # STEP 3: If a dtype is given, and it is different from the current dtype of the query compiler so far,
+    #         convert the query compiler to the given dtype if the data is lazy.
+    # STEP 4: The resultant query_compiler is columnarized and set as the query_compiler for the Series.
+    # STEP 5: If a name is provided, set the name.
+
+    # STEP 1: Setting the data
+    # ------------------------
+    if isinstance(data, Index):
+        # If the data is an Index object, convert it to a Series, and get the query_compiler.
+        query_compiler = (
+            data.to_series(index=None, name=name).reset_index(drop=True)._query_compiler
+        )
+
+    elif isinstance(data, Series):
+        # If the data is a Series object, use its query_compiler.
+        query_compiler = data._query_compiler
+        if (
+            copy is False
+            and index is None
+            and name is None
+            and (dtype is None or dtype == getattr(data, "dtype", None))
+        ):
+            # When copy is False and no index, name, and dtype are provided, the Series is a shallow copy of the
+            # original Series.
+            # If a dtype is provided, and the new dtype does not match the dtype of the original query compiler,
+            # self is no longer a sibling of the original DataFrame.
+            self._query_compiler = query_compiler
+            data._add_sibling(self)
+            return
+
+    else:
+        # If the data is not a Snowpark pandas object, convert it to a query compiler.
+        # The query compiler uses the '__reduced__' name internally as a column name to represent pandas
+        # Series objects that are not explicitly assigned a name.
+        # This helps to distinguish between an N-element Series and 1xN DataFrame.
+        name = name or MODIN_UNNAMED_SERIES_LABEL
+        if hasattr(data, "name") and data.name is not None:
+            # If data is an object that has a name field, use that as the name of the new Series.
+            name = data.name
+        # If any of the values are Snowpark pandas objects, convert them to native pandas objects.
+        if not isinstance(
+            data, (native_pd.DataFrame, native_pd.Series, native_pd.Index)
+        ) and is_list_like(data):
+            if is_dict_like(data):
+                data = {
+                    k: v.to_list() if isinstance(v, (Index, BasePandasDataset)) else v
+                    for k, v in data.items()
+                }
+            else:
+                data = [
+                    v.to_list() if isinstance(v, (Index, BasePandasDataset)) else v
+                    for v in data
+                ]
         query_compiler = from_pandas(
             native_pd.DataFrame(
                 native_pd.Series(
-                    data=try_convert_index_to_native(data),
-                    index=try_convert_index_to_native(index),
+                    data=data,
+                    # If the index is a lazy index, handle setting it outside this block.
+                    index=None if isinstance(index, (Index, Series)) else index,
                     dtype=dtype,
                     name=name,
                     copy=copy,
@@ -387,6 +442,44 @@ def __init__(
                 )
             )
         )._query_compiler
+
+    # STEP 2: Setting the index
+    # -------------------------
+    # The index is already set if the data is a non-Snowpark pandas object.
+    # If either the data or the index is a Snowpark pandas object, set the index here.
+    if index is not None and (
+        isinstance(index, (Index, type(self))) or isinstance(data, (Index, type(self)))
+    ):
+        if is_dict_like(data) or isinstance(data, (type(self), type(None))):
+            # The `index` parameter is used to select the rows from `data` that will be in the resultant Series.
+            # If a value in `index` is not present in `data`'s index, it will be filled with a NaN value.
+            # If data is None and an index is provided, all the values in the Series will be NaN and the index
+            # will be the provided index.
+            query_compiler = query_compiler.reindex(
+                axis=0, labels=convert_index_to_qc(index)
+            )
+        else:
+            # Performing set index to directly set the index column (joining on row-position instead of index).
+            query_compiler = query_compiler.set_index(
+                convert_index_to_list_of_qcs(index)
+            )
+
+    # STEP 3: Setting the dtype if data is lazy
+    # -----------------------------------------
+    # If data is a Snowpark pandas object and a dtype is provided, and it does not match the current dtype of the
+    # query compiler, convert the query compiler's dtype to the new dtype.
+    # Local data should have the dtype parameter taken care of by the pandas constructor at the end.
+    if (
+        dtype is not None
+        and isinstance(data, (Index, Series))
+        and dtype != getattr(data, "dtype", None)
+    ):
+        query_compiler = query_compiler.astype(
+            {col: dtype for col in query_compiler.columns}
+        )
+
+    # STEP 4 and STEP 5: Setting the query compiler and name
+    # ------------------------------------------------------
     self._query_compiler = query_compiler.columnarize()
     if name is not None:
         self.name = name
@@ -881,14 +974,6 @@ def apply(
     self._validate_function(func)
     new_query_compiler = self._query_compiler.apply_on_series(func, args, **kwargs)
 
-    if convert_dtype:
-        # TODO SNOW-810614: call convert_dtypes for consistency
-        WarningMessage.ignored_argument(
-            operation="apply",
-            argument="convert_dtype",
-            message="convert_dtype is ignored in Snowflake backend",
-        )
-
     return self.__constructor__(query_compiler=new_query_compiler)
 
 
@@ -1182,10 +1267,9 @@ def dt(self):  # noqa: RT01, D200
     Accessor object for datetimelike properties of the Series values.
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    current_dtype = self.dtype
-    if not is_datetime64_any_dtype(current_dtype) and not is_timedelta64_dtype(
-        current_dtype
-    ):
+    if not self._query_compiler.is_datetime64_any_dtype(
+        idx=0, is_index=False
+    ) and not self._query_compiler.is_timedelta64_dtype(idx=0, is_index=False):
         raise AttributeError("Can only use .dt accessor with datetimelike values")
 
     from modin.pandas.series_utils import DatetimeProperties
@@ -1202,8 +1286,7 @@ def _str(self):  # noqa: RT01, D200
     Vectorized string functions for Series and Index.
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    current_dtype = self.dtype
-    if not is_string_dtype(current_dtype):
+    if not self._query_compiler.is_string_dtype(idx=0, is_index=False):
         raise AttributeError("Can only use .str accessor with string values!")
 
     from modin.pandas.series_utils import StringMethods
@@ -1287,7 +1370,7 @@ def groupby(
     Group Series using a mapper or by a Series of columns.
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    from snowflake.snowpark.modin.pandas.groupby import (
+    from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
         SeriesGroupBy,
         validate_groupby_args,
     )
@@ -1538,7 +1621,6 @@ def sort_values(
     Sort by the values.
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    from modin.pandas.dataframe import DataFrame
 
     if is_list_like(ascending) and len(ascending) != 1:
         raise ValueError(f"Length of ascending ({len(ascending)}) must be 1 for Series")
@@ -1546,25 +1628,26 @@ def sort_values(
     if axis is not None:
         # Validate `axis`
         self._get_axis_number(axis)
+    # Validate inplace, ascending and na_position.
+    inplace = validate_bool_kwarg(inplace, "inplace")
+    ascending = validate_ascending(ascending)
+    if na_position not in get_args(NaPosition):
+        # Same error message as native pandas for invalid 'na_position' value.
+        raise ValueError(f"invalid na_position: {na_position}")
 
-    # When we convert to a DataFrame, the name is automatically converted to 0 if it
-    # is None, so we do this to avoid a KeyError.
-    by = self.name if self.name is not None else 0
-    result = (
-        DataFrame(self.copy())
-        .sort_values(
-            by=by,
-            ascending=ascending,
-            inplace=False,
-            kind=kind,
-            na_position=na_position,
-            ignore_index=ignore_index,
-            key=key,
-        )
-        .squeeze(axis=1)
+    # Convert 'ascending' to sequence if needed.
+    if not isinstance(ascending, Sequence):
+        ascending = [ascending]
+    result = self._query_compiler.sort_rows_by_column_values(
+        self._query_compiler.columns,
+        ascending,
+        kind,
+        na_position,
+        ignore_index,
+        key,
+        include_index=False,
     )
-    result.name = self.name
-    return self._create_or_update_from_compiler(result._query_compiler, inplace=inplace)
+    return self._create_or_update_from_compiler(result, inplace=inplace)
 
 
 # Upstream Modin defaults at the frontend layer.
@@ -1692,6 +1775,7 @@ def _to_datetime(self, **kwargs):
 
 # Modin uses the query compiler to_list method, which we should try to implement instead of calling self.values.
 @register_series_accessor("to_list")
+@materialization_warning
 def to_list(self) -> list:
     """
     Return a list of the values.
@@ -1703,6 +1787,7 @@ def to_list(self) -> list:
 register_series_accessor("tolist")(to_list)
 
 
+@materialization_warning
 @register_series_accessor("to_dict")
 def to_dict(self, into: type[dict] = dict) -> dict:
     """
@@ -1712,6 +1797,7 @@ def to_dict(self, into: type[dict] = dict) -> dict:
     return self._to_pandas().to_dict(into=into)
 
 
+@materialization_warning
 @register_series_accessor("to_numpy")
 def to_numpy(
     self,
@@ -1738,6 +1824,7 @@ def to_numpy(
 
 # Snowpark pandas has the extra `statement_params` argument.
 @register_series_accessor("_to_pandas")
+@materialization_warning
 def _to_pandas(
     self,
     *,
