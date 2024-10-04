@@ -232,18 +232,19 @@ def test_thread_safe_on_activate_and_disable(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_create_temp_stage(profiler_session, tmp_stage_name):
+def test_create_temp_stage(profiler_session):
     pro = profiler_session.stored_procedure_profiler
     db_name = Utils.random_temp_database()
     schema_name = Utils.random_temp_schema()
+    temp_stage = Utils.random_stage_name()
     current_db = profiler_session.sql("select current_database()").collect()[0][0]
     try:
         profiler_session.sql(f"create database {db_name}").collect()
         profiler_session.sql(f"create schema {schema_name}").collect()
-        pro.set_target_stage(f"{db_name}.{schema_name}.{tmp_stage_name}")
+        pro.set_target_stage(f"{db_name}.{schema_name}.{temp_stage}")
 
         res = profiler_session.sql(
-            f"show stages like '{tmp_stage_name}' in schema {db_name}.{schema_name}"
+            f"show stages like '{temp_stage}' in schema {db_name}.{schema_name}"
         ).collect()
         assert len(res) != 0
     finally:
