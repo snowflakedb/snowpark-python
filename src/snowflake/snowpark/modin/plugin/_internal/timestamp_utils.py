@@ -25,12 +25,14 @@ from snowflake.snowpark.functions import (
     dayofmonth,
     hour,
     iff,
+    max as max_,
     minute,
     month,
     second,
     timestamp_tz_from_parts,
     to_decimal,
     to_timestamp_ntz,
+    to_variant,
     trunc,
     year,
 )
@@ -256,7 +258,7 @@ def generate_timestamp_col(
     datatype: DataType,
     *,
     sf_format: Optional[str] = None,
-    errors: Literal["raise", "coerce"] = "raise",
+    errors: DateTimeErrorChoices = "raise",
     target_tz: Optional[str] = None,
     unit: Literal["D", "s", "ms", "us", "ns"],
     origin: DateTimeOrigin = "unix",
@@ -280,9 +282,13 @@ def generate_timestamp_col(
     Returns:
         The column under to_timestamp_* function
     """
-    assert errors in ["raise", "coerce"], f"errors={errors} cannot be handled here"
+    assert errors in [
+        "raise",
+        "coerce",
+        "ignore",
+    ], f"errors={errors} cannot be handled here"
     to_timestamp_func_name = "to_timestamp_ntz"
-    if errors == "coerce":
+    if errors != "raise":
         to_timestamp_func_name = "try_" + to_timestamp_func_name
     new_col = col
 
@@ -380,7 +386,7 @@ def generate_timestamp_col(
         new_col = convert_timezone(
             target_timezone=pandas_lit(target_tz), source_time=new_col
         )
-    if errors == "coerce":
+    if errors != "raise":
         # pandas return NaT when the timestamp is out of bound
         new_col = iff(
             new_col.between(
@@ -390,6 +396,10 @@ def generate_timestamp_col(
             new_col,
             None,
         )
+    if errors == "ignore":
+        new_col = iff(
+            max_(new_col.is_null()).over() == 1, to_variant(col), to_variant(new_col)
+        )
     return new_col
 
 
@@ -398,7 +408,6 @@ def raise_if_to_datetime_not_supported(
     exact: Union[bool, lib.NoDefault] = lib.no_default,
     infer_datetime_format: Union[lib.NoDefault, bool] = lib.no_default,
     origin: DateTimeOrigin = "unix",
-    errors: DateTimeErrorChoices = "raise",
 ) -> None:
     """
     Raise not implemented error to_datetime API has any unsupported parameter or
@@ -408,7 +417,6 @@ def raise_if_to_datetime_not_supported(
         exact: the exact argument for to_datetime
         infer_datetime_format: the infer_datetime_format argument for to_datetime
         origin: the origin argument for to_datetime
-        errors: the errors argument for to_datetime
     """
     error_message = None
     if format is not None and not is_snowflake_timestamp_format_valid(
@@ -429,10 +437,6 @@ def raise_if_to_datetime_not_supported(
         error_message = (
             "Snowpark pandas to_datetime API doesn't yet support julian calendar"
         )
-    elif errors == "ignore":
-        # ignore requires return the whole original input which is not applicable in Snowfalke
-        error_message = "Snowpark pandas to_datetime API doesn't yet support 'ignore' value for errors parameter"
-
     if error_message:
         ErrorMessage.not_implemented(error_message)
 
