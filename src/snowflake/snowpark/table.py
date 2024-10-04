@@ -279,12 +279,12 @@ class Table(DataFrame):
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         is_temp_table_for_cleanup: bool = False,
-        ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Assign] = None,
         _emit_ast: bool = True,
     ) -> None:
-        if ast_stmt is None and session is not None and _emit_ast:
-            ast_stmt = session._ast_batch.assign()
-            ast = with_src_position(ast_stmt.expr.sp_table, ast_stmt)
+        if _ast_stmt is None and session is not None and _emit_ast:
+            _ast_stmt = session._ast_batch.assign()
+            ast = with_src_position(_ast_stmt.expr.sp_table, _ast_stmt)
             ast.name.sp_table_name_flat.name = table_name
             ast.variant.sp_table_init = True
             ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
@@ -294,7 +294,7 @@ class Table(DataFrame):
             session=session,
             is_temp_table_for_cleanup=is_temp_table_for_cleanup,
         )
-        super().__init__(session, snowflake_table_plan, ast_stmt=ast_stmt)
+        super().__init__(session, snowflake_table_plan, _ast_stmt=_ast_stmt)
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
         self._is_temp_table_for_cleanup = is_temp_table_for_cleanup
