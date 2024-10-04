@@ -3250,9 +3250,6 @@ class Session:
         """
         Returns a :class:`stored_procedure_profiler.StoredProcedureProfiler` object that you can use to profile stored procedures.
         See details of how to use this object in :class:`stored_procedure_profiler.StoredProcedureProfiler`.
-
-        See more details about stored procedure profiler at:
-        https://docs.snowflake.com/LIMITEDACCESS/stored-procedures-python-profiler
         """
         return self._sp_profiler
 
