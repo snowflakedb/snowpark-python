@@ -23,7 +23,11 @@ from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.types import ArrayType, MapType
 
 from ._internal.analyzer.snowflake_plan import SnowflakePlan
-from ._internal.ast_utils import build_expr_from_python_val, with_src_position
+from ._internal.ast_utils import (
+    build_expr_from_python_val,
+    build_expr_from_snowpark_column_or_col_name,
+    with_src_position,
+)
 
 
 class TableFunctionCall:
@@ -95,6 +99,26 @@ class TableFunctionCall:
             ast = proto.Expr()
             expr = with_src_position(ast.sp_table_fn_call_over)
             expr.lhs.CopyFrom(self._ast)
+            if partition_by is not None:
+                if isinstance(partition_by, Iterable):
+                    for partition_clause in partition_by:
+                        build_expr_from_snowpark_column_or_col_name(
+                            expr.partition_by.add(), partition_clause
+                        )
+                else:
+                    build_expr_from_snowpark_column_or_col_name(
+                        expr.partition_by.add(), partition_by
+                    )
+            if order_by is not None:
+                if isinstance(order_by, Iterable):
+                    for order_clause in order_by:
+                        build_expr_from_snowpark_column_or_col_name(
+                            expr.order_by.add(), order_clause
+                        )
+                else:
+                    build_expr_from_snowpark_column_or_col_name(
+                        expr.order_by.add(), order_by
+                    )
 
         new_table_function = TableFunctionCall(
             self.name, *self.arguments, _ast=ast, **self.named_arguments
