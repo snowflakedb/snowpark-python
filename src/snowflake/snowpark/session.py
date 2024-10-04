@@ -114,6 +114,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_single_quote,
     unwrap_stage_location_single_quote,
     validate_object_name,
+    warn_session_config_update_in_multithreaded_mode,
     warning,
     zip_file_or_directory_to_stream,
 )
@@ -339,38 +340,44 @@ class Session:
                 "use_constant_subquery_alias": True,
                 "flatten_select_after_filter_and_orderby": True,
             }  # For config that's temporary/to be removed soon
+            self._lock = self._session._lock
             for key, val in conf.items():
                 if self.is_mutable(key):
                     self.set(key, val)
 
         def get(self, key: str, default=None) -> Any:
-            if hasattr(Session, key):
-                return getattr(self._session, key)
-            if hasattr(self._session._conn._conn, key):
-                return getattr(self._session._conn._conn, key)
-            return self._conf.get(key, default)
+            with self._lock:
+                if hasattr(Session, key):
+                    return getattr(self._session, key)
+                if hasattr(self._session._conn._conn, key):
+                    return getattr(self._session._conn._conn, key)
+                return self._conf.get(key, default)
 
         def is_mutable(self, key: str) -> bool:
-            if hasattr(Session, key) and isinstance(getattr(Session, key), property):
-                return getattr(Session, key).fset is not None
-            if hasattr(SnowflakeConnection, key) and isinstance(
-                getattr(SnowflakeConnection, key), property
-            ):
-                return getattr(SnowflakeConnection, key).fset is not None
-            return key in self._conf
+            with self._lock:
+                if hasattr(Session, key) and isinstance(
+                    getattr(Session, key), property
+                ):
+                    return getattr(Session, key).fset is not None
+                if hasattr(SnowflakeConnection, key) and isinstance(
+                    getattr(SnowflakeConnection, key), property
+                ):
+                    return getattr(SnowflakeConnection, key).fset is not None
+                return key in self._conf
 
         def set(self, key: str, value: Any) -> None:
-            if self.is_mutable(key):
-                if hasattr(Session, key):
-                    setattr(self._session, key, value)
-                if hasattr(SnowflakeConnection, key):
-                    setattr(self._session._conn._conn, key, value)
-                if key in self._conf:
-                    self._conf[key] = value
-            else:
-                raise AttributeError(
-                    f'Configuration "{key}" does not exist or is not mutable in runtime'
-                )
+            with self._lock:
+                if self.is_mutable(key):
+                    if hasattr(Session, key):
+                        setattr(self._session, key, value)
+                    if hasattr(SnowflakeConnection, key):
+                        setattr(self._session._conn._conn, key, value)
+                    if key in self._conf:
+                        self._conf[key] = value
+                else:
+                    raise AttributeError(
+                        f'Configuration "{key}" does not exist or is not mutable in runtime'
+                    )
 
     class SessionBuilder:
         """
@@ -770,36 +777,46 @@ class Session:
 
     @sql_simplifier_enabled.setter
     def sql_simplifier_enabled(self, value: bool) -> None:
-        self._conn._telemetry_client.send_sql_simplifier_telemetry(
-            self._session_id, value
-        )
-        try:
-            self._conn._cursor.execute(
-                f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
+        warn_session_config_update_in_multithreaded_mode("sql_simplifier_enabled")
+
+        with self._lock:
+            self._conn._telemetry_client.send_sql_simplifier_telemetry(
+                self._session_id, value
             )
-        except Exception:
-            pass
-        self._sql_simplifier_enabled = value
+            try:
+                self._conn._cursor.execute(
+                    f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
+                )
+            except Exception:
+                pass
+            self._sql_simplifier_enabled = value
 
     @cte_optimization_enabled.setter
     @experimental_parameter(version="1.15.0")
     def cte_optimization_enabled(self, value: bool) -> None:
-        if value:
-            self._conn._telemetry_client.send_cte_optimization_telemetry(
-                self._session_id
-            )
-        self._cte_optimization_enabled = value
+        warn_session_config_update_in_multithreaded_mode("cte_optimization_enabled")
+
+        with self._lock:
+            if value:
+                self._conn._telemetry_client.send_cte_optimization_telemetry(
+                    self._session_id
+                )
+            self._cte_optimization_enabled = value
 
     @eliminate_numeric_sql_value_cast_enabled.setter
     @experimental_parameter(version="1.20.0")
     def eliminate_numeric_sql_value_cast_enabled(self, value: bool) -> None:
         """Set the value for eliminate_numeric_sql_value_cast_enabled"""
+        warn_session_config_update_in_multithreaded_mode(
+            "eliminate_numeric_sql_value_cast_enabled"
+        )
 
         if value in [True, False]:
-            self._conn._telemetry_client.send_eliminate_numeric_sql_value_cast_telemetry(
-                self._session_id, value
-            )
-            self._eliminate_numeric_sql_value_cast_enabled = value
+            with self._lock:
+                self._conn._telemetry_client.send_eliminate_numeric_sql_value_cast_telemetry(
+                    self._session_id, value
+                )
+                self._eliminate_numeric_sql_value_cast_enabled = value
         else:
             raise ValueError(
                 "value for eliminate_numeric_sql_value_cast_enabled must be True or False!"
@@ -809,6 +826,10 @@ class Session:
     @experimental_parameter(version="1.21.0")
     def auto_clean_up_temp_table_enabled(self, value: bool) -> None:
         """Set the value for auto_clean_up_temp_table_enabled"""
+        warn_session_config_update_in_multithreaded_mode(
+            "auto_clean_up_temp_table_enabled"
+        )
+
         if value in [True, False]:
             self._conn._telemetry_client.send_auto_clean_up_temp_table_telemetry(
                 self._session_id, value
@@ -827,12 +848,16 @@ class Session:
         materialize the partitions, and then combine them to execute the query to improve
         overall performance.
         """
+        warn_session_config_update_in_multithreaded_mode(
+            "large_query_breakdown_enabled"
+        )
 
         if value in [True, False]:
-            self._conn._telemetry_client.send_large_query_breakdown_telemetry(
-                self._session_id, value
-            )
-            self._large_query_breakdown_enabled = value
+            with self._lock:
+                self._conn._telemetry_client.send_large_query_breakdown_telemetry(
+                    self._session_id, value
+                )
+                self._large_query_breakdown_enabled = value
         else:
             raise ValueError(
                 "value for large_query_breakdown_enabled must be True or False!"
@@ -841,6 +866,9 @@ class Session:
     @large_query_breakdown_complexity_bounds.setter
     def large_query_breakdown_complexity_bounds(self, value: Tuple[int, int]) -> None:
         """Set the lower and upper bounds for the complexity score used in large query breakdown optimization."""
+        warn_session_config_update_in_multithreaded_mode(
+            "large_query_breakdown_complexity_bounds"
+        )
 
         if len(value) != 2:
             raise ValueError(
@@ -850,16 +878,20 @@ class Session:
             raise ValueError(
                 f"Expecting a tuple of lower and upper bound with the lower bound less than the upper bound. Got (lower, upper) = ({value[0], value[1]})"
             )
-        self._conn._telemetry_client.send_large_query_breakdown_update_complexity_bounds(
-            self._session_id, value[0], value[1]
-        )
+        with self._lock:
+            self._conn._telemetry_client.send_large_query_breakdown_update_complexity_bounds(
+                self._session_id, value[0], value[1]
+            )
 
-        self._large_query_breakdown_complexity_bounds = value
+            self._large_query_breakdown_complexity_bounds = value
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
     def custom_package_usage_config(self, config: Dict) -> None:
-        self._custom_package_usage_config = {k.lower(): v for k, v in config.items()}
+        with self._lock:
+            self._custom_package_usage_config = {
+                k.lower(): v for k, v in config.items()
+            }
 
     def cancel_all(self) -> None:
         """
@@ -1458,7 +1490,8 @@ class Session:
             statement_params=statement_params,
         )
 
-        custom_package_usage_config = self._custom_package_usage_config.copy()
+        with self._lock:
+            custom_package_usage_config = self._custom_package_usage_config.copy()
 
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
