@@ -1,13 +1,20 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
 import snowflake.snowpark
 from snowflake.snowpark import DataFrame
 from snowflake.snowpark.functions import sproc
+from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
 from tests.utils import Utils
+
+
+def multi_thread_helper_function(pro: StoredProcedureProfiler):
+    pro.set_active_profiler("LINE")
+    pro.disable()
 
 
 @pytest.fixture(scope="function")
@@ -196,3 +203,22 @@ def test_query_history_destroyed_after_finish_profiling(
     )
 
     profiler_session.stored_procedure_profiler.register_modules([])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
+def test_thread_safe_on_activate_and_disable(
+    profiler_session, db_parameters, tmp_stage_name
+):
+    pro = profiler_session.stored_procedure_profiler
+    pro.register_modules(["table_sp"])
+    pro.set_targeted_stage(
+        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
+    )
+    with ThreadPoolExecutor(max_workers=2) as tpe:
+        for _ in range(6):
+            tpe.submit(multi_thread_helper_function, pro)
+    assert pro._query_history is None
+    pro.register_modules([])
