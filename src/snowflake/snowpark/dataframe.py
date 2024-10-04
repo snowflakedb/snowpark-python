@@ -939,7 +939,20 @@ class DataFrame:
         """
 
         if _emit_ast:
-            raise NotImplementedError("TODO SNOW-1672576: Support to_pandas.")
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_to_pandas, stmt)
+            debug_check_missing_ast(self._ast_id, self)
+            ast.id.bitfield1 = self._ast_id
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = ast.statement_params.add()
+                    t._1 = k
+                    t._2 = v
+            ast.block = block
+            self._session._ast_batch.eval(stmt)
+
+            # Flush the AST and encode it as part of the query.
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
         with open_telemetry_context_manager(self.to_pandas, self):
             result = self._session._conn.execute(
@@ -1030,7 +1043,20 @@ class DataFrame:
             :func:`Session.sql` can only be a SELECT statement.
         """
         if _emit_ast:
-            raise NotImplementedError("TODO SNOW-1672576: Support to_pandas_batches.")
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_to_pandas_batches, stmt)
+            debug_check_missing_ast(self._ast_id, self)
+            ast.id.bitfield1 = self._ast_id
+            if statement_params is not None:
+                for k, v in statement_params.items():
+                    t = ast.statement_params.add()
+                    t._1 = k
+                    t._2 = v
+            ast.block = block
+            self._session._ast_batch.eval(stmt)
+
+            # Flush the AST and encode it as part of the query.
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
         return self._session._conn.execute(
             self._plan,
