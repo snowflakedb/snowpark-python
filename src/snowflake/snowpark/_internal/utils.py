@@ -688,6 +688,10 @@ class DummyLock:
         pass
 
 
+class DummyThreadLocal:
+    pass
+
+
 warning_dict: Dict[str, WarningHelper] = {}
 
 
