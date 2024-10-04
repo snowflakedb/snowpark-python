@@ -187,7 +187,7 @@ def test_group_by_pivot(session):
         ).agg([sum(col("amount")), avg(col("amount"))])
 
 
-@multithreaded_run(num_threads=5)
+@multithreaded_run()
 def test_group_by_pivot_dynamic_any(session, caplog):
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)

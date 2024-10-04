@@ -745,7 +745,7 @@ def test_concat_dict(df1, df2, dict_keys, axis):
         )
 
 
-@multithreaded_run(num_threads=5)
+@multithreaded_run()
 @pytest.mark.parametrize("dict_keys", [["x", "y"], ["y", "x"]])
 @pytest.mark.parametrize("keys", [["x", "y"], ["y", "x"], ["x"], ["y"]])
 def test_concat_dict_with_keys(df1, df2, dict_keys, keys, axis):

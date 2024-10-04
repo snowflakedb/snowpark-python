@@ -50,7 +50,7 @@ def test_column_names_with_space(session):
     assert df.select(df[c2]).collect() == [Row("a")]
 
 
-@multithreaded_run(num_threads=5)
+@multithreaded_run()
 def test_column_alias_and_case_insensitive_name(session):
     df = session.create_dataframe([1, 2]).to_df(["a"])
     assert df.select(df["a"].as_("b")).schema.fields[0].name == "B"
@@ -168,7 +168,7 @@ def test_leq_and_geq(session):
     ]
 
 
-@multithreaded_run(num_threads=5)
+@multithreaded_run()
 def test_null_safe_operators(session):
     df = session.create_dataframe([[None, 1], [2, 2], [None, None]], schema=["a", "b"])
     assert df.select(df["A"].equal_null(df["B"])).collect() == [
@@ -206,7 +206,7 @@ def test_and_or(session):
     ]
 
 
-@multithreaded_run(num_threads=5)
+@multithreaded_run()
 def test_add_subtract_multiply_divide_mod_pow(session):
     df = session.create_dataframe([[11, 13]], schema=["a", "b"])
     assert df.select(df["A"] + df["B"]).collect() == [Row(24)]
@@ -286,7 +286,7 @@ def test_order(session):
     ]
 
 
-@multithreaded_run(num_threads=5)
+@multithreaded_run()
 def test_bitwise_operator(session):
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     assert df.select(df["A"].bitand(df["B"])).collect() == [Row(0)]
