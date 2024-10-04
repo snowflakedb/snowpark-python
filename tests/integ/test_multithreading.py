@@ -3,6 +3,7 @@
 #
 
 import hashlib
+import logging
 import os
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -26,7 +27,7 @@ except ImportError:
 
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.row import Row
-from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_LINUX, IS_WINDOWS, TestFiles, Utils
 
 
 def test_concurrent_select_queries(session):
@@ -502,3 +503,39 @@ class OffsetSumUDAFHandler:
     with ThreadPoolExecutor(max_workers=10) as executor:
         for i in range(10):
             executor.submit(register_and_test_udaf, session, i)
+
+
+@pytest.mark.skipif(
+    IS_LINUX or IS_WINDOWS,
+    reason="Linux and Windows test show multiple active threads when no threadpool is enabled",
+)
+@pytest.mark.parametrize(
+    "config,value",
+    [
+        ("cte_optimization_enabled", True),
+        ("sql_simplifier_enabled", True),
+        ("eliminate_numeric_sql_value_cast_enabled", True),
+        ("auto_clean_up_temp_table_enabled", True),
+        ("large_query_breakdown_enabled", True),
+        ("large_query_breakdown_complexity_bounds", (20, 30)),
+    ],
+)
+def test_concurrent_update_on_sensitive_configs(session, config, value, caplog):
+    def change_config_value(session_):
+        session_.conf.set(config, value)
+
+    caplog.clear()
+    change_config_value(session)
+    assert (
+        f"You might have more than one threads sharing the Session object trying to update {config}"
+        not in caplog.text
+    )
+
+    with caplog.at_level(logging.WARNING):
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            for _ in range(5):
+                executor.submit(change_config_value, session)
+    assert (
+        f"You might have more than one threads sharing the Session object trying to update {config}"
+        in caplog.text
+    )
