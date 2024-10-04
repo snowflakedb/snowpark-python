@@ -54,7 +54,7 @@ class StoredProcedureProfiler:
         existing_stages = self._session.sql(
             f"show stages like '{strip_double_quotes_in_like_statement_in_table_name(names[2])}' in schema {names[0]}.{names[1]}"
         )._internal_collect_with_tag_no_telemetry()
-        if len(existing_stages) == 0:
+        if len(existing_stages) == 0:  # type: ignore
             self._session.sql(
                 f"create temp stage if not exists {stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
             )._internal_collect_with_tag_no_telemetry()
