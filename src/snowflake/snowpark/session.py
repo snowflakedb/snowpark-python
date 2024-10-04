@@ -601,8 +601,10 @@ class Session:
             ),
         )
 
-        self._thread_safe_session_enabled: bool = self._conf.get(
-            _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION, False
+        self._thread_safe_session_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION, False
+            )
         )
         self._thread_store = (
             threading.local()
