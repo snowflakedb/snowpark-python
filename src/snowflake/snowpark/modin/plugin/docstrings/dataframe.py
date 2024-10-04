@@ -4179,6 +4179,52 @@ class DataFrame(BasePandasDataset):
         Cast to DatetimeIndex of timestamps, at *beginning* of period.
         """
 
+    def tz_convert():
+        """
+        Convert tz-aware axis to target time zone.
+
+        Parameters
+        ----------
+        tz : str or tzinfo object or None
+            Target time zone. Passing None will convert to UTC and remove the timezone information.
+        axis : {0 or ‘index’, 1 or ‘columns’}, default 0
+            The axis to convert
+        level : int, str, default None
+            If axis is a MultiIndex, convert a specific level. Otherwise must be None.
+        copy : bool, default True
+            Also make a copy of the underlying data.
+
+        Returns
+        -------
+        Series/DataFrame
+            Object with time zone converted axis.
+
+        Raises
+        ------
+        TypeError
+            If the axis is tz-naive.
+
+        Examples
+        --------
+        Change to another time zone:
+
+        >>> s = pd.Series(
+        ...     [1],
+        ...     index=pd.DatetimeIndex(['2018-09-15 01:30:00+02:00']),
+        ... )
+        >>> s.tz_convert('Asia/Shanghai')
+        2018-09-15 07:30:00+08:00    1
+        Freq: None, dtype: int64
+
+        Pass None to convert to UTC and get a tz-naive index:
+
+        >>> s = pd.Series([1],
+        ...             index=pd.DatetimeIndex(['2018-09-15 01:30:00+02:00']))
+        >>> s.tz_convert(None)
+        2018-09-14 23:30:00    1
+        Freq: None, dtype: int64
+        """
+
     def tz_localize():
         """
         Localize tz-naive index of a Series or DataFrame to target time zone.
@@ -4192,10 +4238,10 @@ class DataFrame(BasePandasDataset):
         axis : {0 or ‘index’, 1 or ‘columns’}, default 0
             The axis to localize
         level : int, str, default None
-            If axis ia a MultiIndex, localize a specific level. Otherwise must be None.
+            If axis is a MultiIndex, localize a specific level. Otherwise must be None.
         copy : bool, default True
             Also make a copy of the underlying data.
-        ambiguou: ‘infer’, bool-ndarray, ‘NaT’, default ‘raise’
+        ambiguous: ‘infer’, bool-ndarray, ‘NaT’, default ‘raise’
             When clocks moved backward due to DST, ambiguous times may arise. For example in Central European Time (UTC+01), when going from 03:00 DST to 02:00 non-DST, 02:30:00 local time occurs both at 00:30:00 UTC and at 01:30:00 UTC. In such a situation, the ambiguous parameter dictates how ambiguous times should be handled.
             - ‘infer’ will attempt to infer fall dst-transition hours based on order
             - bool-ndarray where True signifies a DST time, False designates a non-DST time (note that this flag is only applicable for ambiguous times)
