@@ -28,14 +28,6 @@ from snowflake.snowpark.session import Session
 from tests.utils import Utils
 
 
-@pytest.fixture(scope="module", autouse=True)
-def setup(session):
-    original_thread_safe_session_enabled = session._thread_safe_session_enabled
-    session._thread_safe_session_enabled = True
-    yield
-    session._thread_safe_session_enabled = original_thread_safe_session_enabled
-
-
 def test_table_update_merge_delete(session):
     table_name = Utils.random_table_name()
     num_threads = 10
