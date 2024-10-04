@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import gc
 import hashlib
 import logging
 import os
@@ -14,6 +15,7 @@ import pytest
 
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType
+from tests.integ.test_temp_table_cleanup import wait_for_drop_table_sql_done
 
 try:
     import dateutil
@@ -503,6 +505,45 @@ class OffsetSumUDAFHandler:
     with ThreadPoolExecutor(max_workers=10) as executor:
         for i in range(10):
             executor.submit(register_and_test_udaf, session, i)
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in local testing mode",
+    run=False,
+)
+def test_auto_temp_table_cleaner(session, caplog):
+    session._temp_table_auto_cleaner.ref_count_map.clear()
+    original_auto_clean_up_temp_table_enabled = session.auto_clean_up_temp_table_enabled
+    session.auto_clean_up_temp_table_enabled = True
+
+    def create_temp_table(session_, thread_id):
+        df = session.sql(f"select {thread_id} as A").cache_result()
+        table_name = df.table_name
+        del df
+        return table_name
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = []
+        table_names = []
+        for i in range(10):
+            futures.append(executor.submit(create_temp_table, session, i))
+
+        for future in as_completed(futures):
+            table_names.append(future.result())
+
+    gc.collect()
+    wait_for_drop_table_sql_done(session, caplog, expect_drop=True)
+
+    try:
+        for table_name in table_names:
+            assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 0
+        assert session._temp_table_auto_cleaner.num_temp_tables_created == 10
+        assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 10
+    finally:
+        session.auto_clean_up_temp_table_enabled = (
+            original_auto_clean_up_temp_table_enabled
+        )
 
 
 @pytest.mark.skipif(

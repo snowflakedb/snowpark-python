@@ -831,10 +831,11 @@ class Session:
         )
 
         if value in [True, False]:
-            self._conn._telemetry_client.send_auto_clean_up_temp_table_telemetry(
-                self._session_id, value
-            )
-            self._auto_clean_up_temp_table_enabled = value
+            with self._lock:
+                self._conn._telemetry_client.send_auto_clean_up_temp_table_telemetry(
+                    self._session_id, value
+                )
+                self._auto_clean_up_temp_table_enabled = value
         else:
             raise ValueError(
                 "value for auto_clean_up_temp_table_enabled must be True or False!"
