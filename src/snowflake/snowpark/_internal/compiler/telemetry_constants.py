@@ -6,7 +6,8 @@ from enum import Enum
 
 
 class CompilationStageTelemetryField(Enum):
-    # dataframe query stats
+    # dataframe query stats that are used for the
+    # new compilation stage optimizations
     QUERY_PLAN_HEIGHT = "query_plan_height"
     QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED = (
         "query_plan_num_selects_with_complexity_merged"
