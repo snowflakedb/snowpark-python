@@ -14,7 +14,8 @@
 - Added support for constructing `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` arguments.
 - Added support for constructing `Series` and `DataFrame` objects with `index` and `column` values not present in `DataFrame`/`Series` `data`.
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
-- 
+- Added support for `Session.stored_procedure_profiler`.
+
 #### Improvements
 
 #### Bug Fixes
@@ -70,7 +71,6 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Added the following new functions in `snowflake.snowpark.functions`:
   - `array_remove`
   - `ln`
-- Added Snowpark Python API for stored procedure profiler.
 
 #### Improvements
 
