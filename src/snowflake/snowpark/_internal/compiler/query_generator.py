@@ -116,11 +116,13 @@ class QueryGenerator(Analyzer):
                 assert logical_plan.source_plan is not None
                 # when encounter a SnowflakePlan with no queries, try to re-resolve
                 # the source plan to construct the result
-                res = self.do_resolve(logical_plan.source_plan)
-                resolved_children[logical_plan] = res
-                resolved_plan = res
-            else:
-                resolved_plan = logical_plan
+                from snowflake.snowpark._internal.compiler.utils import (
+                    resolve_and_update_snowflake_plan,
+                )
+
+                resolve_and_update_snowflake_plan(logical_plan, self)
+
+            resolved_plan = logical_plan
 
         elif isinstance(logical_plan, SnowflakeCreateTable):
             from snowflake.snowpark._internal.compiler.utils import (

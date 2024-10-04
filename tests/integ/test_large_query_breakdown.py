@@ -4,6 +4,8 @@
 
 
 import logging
+import os
+import tempfile
 from unittest.mock import patch
 
 import pytest
@@ -16,7 +18,7 @@ from snowflake.snowpark.session import (
     DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
     Session,
 )
-from tests.utils import Utils
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -33,7 +35,7 @@ def large_query_df(session):
     df1 = base_df.with_column("A", col("A") + lit(1))
     df2 = base_df.with_column("B", col("B") + lit(1))
 
-    for i in range(100):
+    for i in range(110):
         df1 = df1.with_column("A", col("A") + lit(i))
         df2 = df2.with_column("B", col("B") + lit(i))
     df1 = df1.group_by(col("A")).agg(sum_distinct(col("B")).alias("B"))
@@ -85,13 +87,17 @@ def check_result_with_and_without_breakdown(session, df):
         session._large_query_breakdown_enabled = large_query_enabled
 
 
-def test_no_valid_nodes_found(session, large_query_df, caplog):
+def test_no_valid_nodes_found(session, sql_simplifier_enabled, caplog):
     """Test large query breakdown works with default bounds"""
+    if not sql_simplifier_enabled:
+        pytest.skip(
+            "without sql simplifier, the plan is too large and hits max recursion depth"
+        )
     base_df = session.sql("select 1 as A, 2 as B")
     df1 = base_df.with_column("A", col("A") + lit(1))
     df2 = base_df.with_column("B", col("B") + lit(1))
 
-    for i in range(102):
+    for i in range(160):
         df1 = df1.with_column("A", col("A") + lit(i))
         df2 = df2.with_column("B", col("B") + lit(i))
 
@@ -105,8 +111,12 @@ def test_no_valid_nodes_found(session, large_query_df, caplog):
     assert "Could not find a valid node for partitioning" in caplog.text
 
 
-def test_large_query_breakdown_with_cte_optimization(session):
+def test_large_query_breakdown_with_cte_optimization(session, sql_simplifier_enabled):
     """Test large query breakdown works with cte optimized plan"""
+    if not sql_simplifier_enabled:
+        # the complexity bounds are updated since nested selected calculation is not supported
+        # when sql simplifier disabled
+        set_bounds(session, 60, 90)
     session._cte_optimization_enabled = True
     df0 = session.sql("select 2 as b, 32 as c")
     df1 = session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
@@ -114,9 +124,9 @@ def test_large_query_breakdown_with_cte_optimization(session):
 
     df2 = df1.filter(col("b") == 2).union_all(df1)
     df3 = df1.with_column("a", col("a") + 1)
-    for i in range(100):
-        df2 = df2.with_column("a", col("a") + i)
-        df3 = df3.with_column("b", col("b") + i)
+    for i in range(7):
+        df2 = df2.with_column("a", col("a") + i + col("a"))
+        df3 = df3.with_column("b", col("b") + i + col("b"))
 
     df2 = df2.group_by("a").agg(sum_distinct(col("b")).alias("b"))
     df3 = df3.group_by("b").agg(sum_distinct(col("a")).alias("a"))
@@ -124,12 +134,13 @@ def test_large_query_breakdown_with_cte_optimization(session):
     df4 = df2.union_all(df3).filter(col("a") > 2).with_column("a", col("a") + 1)
     check_result_with_and_without_breakdown(session, df4)
 
-    assert len(df4.queries["queries"]) == 2
-    assert df4.queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
-    assert df4.queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
+    queries = df4.queries
+    assert len(queries["queries"]) == 2
+    assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+    assert queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
 
-    assert len(df4.queries["post_actions"]) == 1
-    assert df4.queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
+    assert len(queries["post_actions"]) == 1
+    assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
 
 
 def test_save_as_table(session, large_query_df):
@@ -146,7 +157,11 @@ def test_save_as_table(session, large_query_df):
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
-def test_update_delete_merge(session, large_query_df):
+def test_update_delete_merge(session, large_query_df, sql_simplifier_enabled):
+    if not sql_simplifier_enabled:
+        pytest.skip(
+            "without sql simplifier, the plan is too large and hits max recursion depth"
+        )
     session._large_query_breakdown_enabled = True
     table_name = Utils.random_table_name()
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
@@ -202,27 +217,33 @@ def test_copy_into_location(session, large_query_df):
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
-def test_pivot_unpivot(session):
-    session.sql(
-        """create or replace temp table monthly_sales(A int, B int, month text)
-                as select * from values
-                (1, 10000, 'JAN'),
-                (1, 400, 'JAN'),
-                (2, 4500, 'JAN'),
-                (2, 35000, 'JAN'),
-                (1, 5000, 'FEB'),
-                (1, 3000, 'FEB'),
-                (2, 200, 'FEB')"""
-    ).collect()
-    df_pivot = session.table("monthly_sales").with_column("A", col("A") + lit(1))
+def test_pivot_unpivot(session, sql_simplifier_enabled):
+    if not sql_simplifier_enabled:
+        # the complexity bounds are updated since nested selected calculation is not supported
+        # when sql simplifier disabled
+        set_bounds(session, 40, 60)
+    table_name = Utils.random_table_name()
+    session.create_dataframe(
+        [
+            (1, 10000, "JAN"),
+            (1, 400, "JAN"),
+            (2, 4500, "JAN"),
+            (2, 35000, "JAN"),
+            (1, 5000, "FEB"),
+            (1, 3000, "FEB"),
+            (2, 200, "FEB"),
+        ],
+        schema=["A", "B", "month"],
+    ).write.save_as_table(table_name, table_type="temp")
+    df_pivot = session.table(table_name).with_column("A", col("A") + lit(1))
     df_unpivot = session.create_dataframe(
         [(1, "electronics", 100, 200), (2, "clothes", 100, 300)],
         schema=["A", "dept", "jan", "feb"],
     )
 
-    for i in range(100):
-        df_pivot = df_pivot.with_column("A", col("A") + lit(i))
-        df_unpivot = df_unpivot.with_column("A", col("A") + lit(i))
+    for i in range(6):
+        df_pivot = df_pivot.with_column("A", col("A") + lit(i) + col("A"))
+        df_unpivot = df_unpivot.with_column("A", col("A") + lit(i) + col("A"))
 
     df_pivot = df_pivot.pivot("month", ["JAN", "FEB"]).sum("B")
     df_unpivot = df_unpivot.unpivot("sales", "month", ["jan", "feb"])
@@ -240,12 +261,16 @@ def test_pivot_unpivot(session):
     assert plan_queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
 
 
-def test_sort(session):
+def test_sort(session, sql_simplifier_enabled):
+    if not sql_simplifier_enabled:
+        pytest.skip(
+            "without sql simplifier, the plan is too large and hits max recursion depth"
+        )
     base_df = session.sql("select 1 as A, 2 as B")
     df1 = base_df.with_column("A", col("A") + lit(1))
     df2 = base_df.with_column("B", col("B") + lit(1))
 
-    for i in range(100):
+    for i in range(160):
         df1 = df1.with_column("A", col("A") + lit(i))
         df2 = df2.with_column("B", col("B") + lit(i))
     df1_with_sort = df1.order_by("A")
@@ -272,7 +297,11 @@ def test_sort(session):
     assert len(plan_queries["post_actions"]) == 0
 
 
-def test_multiple_query_plan(session, large_query_df):
+def test_multiple_query_plan(session, sql_simplifier_enabled):
+    if not sql_simplifier_enabled:
+        pytest.skip(
+            "without sql simplifier, the plan is too large and hits max recursion depth"
+        )
     original_threshold = analyzer.ARRAY_BIND_THRESHOLD
     try:
         analyzer.ARRAY_BIND_THRESHOLD = 2
@@ -281,7 +310,7 @@ def test_multiple_query_plan(session, large_query_df):
         df1 = base_df.with_column("A", col("A") + lit(1))
         df2 = base_df.with_column("B", col("B") + lit(1))
 
-        for i in range(100):
+        for i in range(160):
             df1 = df1.with_column("A", col("A") + lit(i))
             df2 = df2.with_column("B", col("B") + lit(i))
         df1 = df1.group_by(col("A")).agg(sum_distinct(col("B")).alias("B"))
@@ -373,7 +402,7 @@ def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
         session._conn, "run_query", wraps=session._conn.run_query
     ) as patched_run_query:
         result = large_query_df.collect()
-        Utils.check_answer(result, [Row(1, 4954), Row(2, 4953)])
+        Utils.check_answer(result, [Row(1, 5999), Row(2, 5998)])
 
         plan = large_query_df._plan
         # 1 for current transaction, 1 for partition, 1 for main query, 1 for post action
@@ -387,11 +416,17 @@ def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
                 assert call.kwargs["_statement_params"]["_PLAN_UUID"] == plan.uuid
 
 
-def test_complexity_bounds_affect_num_partitions(session, large_query_df):
+def test_complexity_bounds_affect_num_partitions(
+    session, large_query_df, sql_simplifier_enabled
+):
     """Test complexity bounds affect number of partitions.
     Also test that when partitions are added, drop table queries are added.
     """
-    set_bounds(session, 300, 600)
+    if sql_simplifier_enabled:
+        set_bounds(session, 300, 600)
+    else:
+        set_bounds(session, 400, 600)
+
     assert len(large_query_df.queries["queries"]) == 2
     assert len(large_query_df.queries["post_actions"]) == 1
     assert large_query_df.queries["queries"][0].startswith(
@@ -401,7 +436,10 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
         "DROP  TABLE  If  EXISTS"
     )
 
-    set_bounds(session, 300, 412)
+    if sql_simplifier_enabled:
+        set_bounds(session, 300, 455)
+    else:
+        set_bounds(session, 400, 450)
     assert len(large_query_df.queries["queries"]) == 3
     assert len(large_query_df.queries["post_actions"]) == 2
     assert large_query_df.queries["queries"][0].startswith(
@@ -430,3 +468,37 @@ def test_large_query_breakdown_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
         session.large_query_breakdown_enabled = True
     assert "large_query_breakdown_enabled is experimental" in caplog.text
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="requires graphviz")
+@pytest.mark.parametrize("enabled", [False, True])
+def test_plotter(session, large_query_df, enabled):
+    original_plotter_enabled = os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING")
+    try:
+        os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"] = str(enabled)
+        tmp_dir = tempfile.gettempdir()
+
+        with patch("graphviz.Graph.render") as mock_render:
+            large_query_df.collect()
+            assert mock_render.called == enabled
+            if not enabled:
+                return
+
+            assert mock_render.call_count == 4
+            expected_files = [
+                "original_plan",
+                "cte_optimized_plan_0",
+                "large_query_breakdown_plan_0",
+                "large_query_breakdown_plan_1",
+            ]
+            for i, file in enumerate(expected_files):
+                path = os.path.join(tmp_dir, "snowpark_query_plan_plots", file)
+                assert mock_render.call_args_list[i][0][0] == path
+
+    finally:
+        if original_plotter_enabled is not None:
+            os.environ[
+                "ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"
+            ] = original_plotter_enabled
+        else:
+            del os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"]

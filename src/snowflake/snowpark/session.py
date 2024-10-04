@@ -49,7 +49,6 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectStatement,
     SelectTableFunction,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Range,
     SnowflakeValues,
@@ -114,6 +113,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_single_quote,
     unwrap_stage_location_single_quote,
     validate_object_name,
+    warn_session_config_update_in_multithreaded_mode,
     warning,
     zip_file_or_directory_to_stream,
 )
@@ -136,12 +136,10 @@ from snowflake.snowpark.functions import (
     column,
     lit,
     parse_json,
-    to_array,
     to_date,
     to_decimal,
     to_geography,
     to_geometry,
-    to_object,
     to_time,
     to_timestamp,
     to_timestamp_ltz,
@@ -156,7 +154,6 @@ from snowflake.snowpark.mock._pandas_util import (
     _convert_dataframe_to_table,
     _extract_schema_and_data_from_pandas_df,
 )
-from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.mock._stored_procedure import MockStoredProcedureRegistration
 from snowflake.snowpark.mock._udf import MockUDFRegistration
 from snowflake.snowpark.query_history import QueryHistory
@@ -640,16 +637,6 @@ class Session:
             )
         return self._thread_store.analyzer
 
-    @property
-    def _plan_builder(self):
-        if not hasattr(self._thread_store, "plan_builder"):
-            self._thread_store.plan_builder = (
-                SnowflakePlanBuilder(self)
-                if isinstance(self._conn, ServerConnection)
-                else MockSnowflakePlanBuilder(self)
-            )
-        return self._thread_store.plan_builder
-
     def close(self) -> None:
         """Close this session."""
         if is_in_stored_procedure():
@@ -783,6 +770,8 @@ class Session:
 
     @sql_simplifier_enabled.setter
     def sql_simplifier_enabled(self, value: bool) -> None:
+        warn_session_config_update_in_multithreaded_mode("sql_simplifier_enabled")
+
         with self._lock:
             self._conn._telemetry_client.send_sql_simplifier_telemetry(
                 self._session_id, value
@@ -798,6 +787,8 @@ class Session:
     @cte_optimization_enabled.setter
     @experimental_parameter(version="1.15.0")
     def cte_optimization_enabled(self, value: bool) -> None:
+        warn_session_config_update_in_multithreaded_mode("cte_optimization_enabled")
+
         with self._lock:
             if value:
                 self._conn._telemetry_client.send_cte_optimization_telemetry(
@@ -809,6 +800,9 @@ class Session:
     @experimental_parameter(version="1.20.0")
     def eliminate_numeric_sql_value_cast_enabled(self, value: bool) -> None:
         """Set the value for eliminate_numeric_sql_value_cast_enabled"""
+        warn_session_config_update_in_multithreaded_mode(
+            "eliminate_numeric_sql_value_cast_enabled"
+        )
 
         if value in [True, False]:
             with self._lock:
@@ -825,6 +819,10 @@ class Session:
     @experimental_parameter(version="1.21.0")
     def auto_clean_up_temp_table_enabled(self, value: bool) -> None:
         """Set the value for auto_clean_up_temp_table_enabled"""
+        warn_session_config_update_in_multithreaded_mode(
+            "auto_clean_up_temp_table_enabled"
+        )
+
         if value in [True, False]:
             with self._lock:
                 self._conn._telemetry_client.send_auto_clean_up_temp_table_telemetry(
@@ -844,6 +842,9 @@ class Session:
         materialize the partitions, and then combine them to execute the query to improve
         overall performance.
         """
+        warn_session_config_update_in_multithreaded_mode(
+            "large_query_breakdown_enabled"
+        )
 
         if value in [True, False]:
             with self._lock:
@@ -859,6 +860,9 @@ class Session:
     @large_query_breakdown_complexity_bounds.setter
     def large_query_breakdown_complexity_bounds(self, value: Tuple[int, int]) -> None:
         """Set the lower and upper bounds for the complexity score used in large query breakdown optimization."""
+        warn_session_config_update_in_multithreaded_mode(
+            "large_query_breakdown_complexity_bounds"
+        )
 
         if len(value) != 2:
             raise ValueError(
@@ -2884,14 +2888,15 @@ class Session:
                 if isinstance(
                     field.datatype,
                     (
-                        VariantType,
                         ArrayType,
-                        MapType,
-                        TimeType,
                         DateType,
-                        TimestampType,
                         GeographyType,
                         GeometryType,
+                        MapType,
+                        StructType,
+                        TimeType,
+                        TimestampType,
+                        VariantType,
                         VectorType,
                     ),
                 )
@@ -2929,7 +2934,9 @@ class Session:
                     data_type, ArrayType
                 ):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
-                elif isinstance(value, dict) and isinstance(data_type, MapType):
+                elif isinstance(value, dict) and isinstance(
+                    data_type, (MapType, StructType)
+                ):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 elif isinstance(data_type, VariantType):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
@@ -2977,10 +2984,10 @@ class Session:
                 project_columns.append(to_geography(column(name)).as_(name))
             elif isinstance(field.datatype, GeometryType):
                 project_columns.append(to_geometry(column(name)).as_(name))
-            elif isinstance(field.datatype, ArrayType):
-                project_columns.append(to_array(parse_json(column(name))).as_(name))
-            elif isinstance(field.datatype, MapType):
-                project_columns.append(to_object(parse_json(column(name))).as_(name))
+            elif isinstance(field.datatype, (ArrayType, MapType, StructType)):
+                project_columns.append(
+                    parse_json(column(name)).cast(field.datatype).as_(name)
+                )
             elif isinstance(field.datatype, VectorType):
                 project_columns.append(
                     parse_json(column(name)).cast(field.datatype).as_(name)
@@ -3509,16 +3516,24 @@ class Session:
         set_api_call_source(df, "Session.flatten")
         return df
 
-    def query_history(self) -> QueryHistory:
+    def query_history(
+        self, include_describe: bool = False, include_thread_id: bool = False
+    ) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
 
-        >>> with session.query_history() as query_history:
+        Args:
+            include_describe: Include query notifications for describe queries
+            include_thread_id: Include thread id where queries are called
+
+        >>> with session.query_history(True) as query_history:
         ...     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
         ...     df = df.filter(df.a == 1)
         ...     res = df.collect()
-        >>> assert len(query_history.queries) == 1
+        >>> assert len(query_history.queries) == 2
+        >>> assert query_history.queries[0].is_describe
+        >>> assert not query_history.queries[1].is_describe
         """
-        query_listener = QueryHistory(self)
+        query_listener = QueryHistory(self, include_describe, include_thread_id)
         self._conn.add_query_listener(query_listener)
         return query_listener
 
