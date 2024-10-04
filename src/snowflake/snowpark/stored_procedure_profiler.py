@@ -26,6 +26,8 @@ class StoredProcedureProfiler:
     ) -> None:
         self._session = session
         self._query_history = None
+        self._lock = threading.RLock()
+        self._active_profiler_number = 0
 
     def register_modules(self, stored_procedures: List[str]) -> None:
         """
@@ -81,6 +83,8 @@ class StoredProcedureProfiler:
             (case-sensitive).
 
         """
+        with self._lock:
+            self._active_profiler_number += 1
         if active_profiler_type not in ["LINE", "MEMORY"]:
             raise ValueError(
                 f"active_profiler expect 'LINE', 'MEMORY', got {active_profiler_type} instead"
@@ -89,13 +93,21 @@ class StoredProcedureProfiler:
             f"alter session set ACTIVE_PYTHON_PROFILER = '{active_profiler_type}'"
         )
         self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
-        self._query_history = self._session.query_history(include_thread_id=True)
+        with self._lock:
+            if self._query_history is None:
+                self._query_history = self._session.query_history(
+                    include_thread_id=True
+                )
 
     def disable(self) -> None:
         """
         Disable profiler.
         """
-        self._session._conn.remove_query_listener(self._query_history)  # type: ignore
+        with self._lock:
+            self._active_profiler_number -= 1
+            if self._active_profiler_number == 0:
+                self._session._conn.remove_query_listener(self._query_history)  # type: ignore
+                self._query_history = None
         sql_statement = "alter session set ACTIVE_PYTHON_PROFILER = ''"
         self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
 
