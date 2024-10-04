@@ -175,6 +175,7 @@ def test_table_create(session, mode):
         table_type="temp",
         clustering_exprs=None,
         comment=None,
+        table_exists=False,
     )
     snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
     expected_query_count = 0
