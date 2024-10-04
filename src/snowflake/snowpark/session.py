@@ -49,6 +49,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectStatement,
     SelectTableFunction,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Range,
     SnowflakeValues,
@@ -156,6 +157,7 @@ from snowflake.snowpark.mock._pandas_util import (
     _convert_dataframe_to_table,
     _extract_schema_and_data_from_pandas_df,
 )
+from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
 from snowflake.snowpark.mock._stored_procedure import MockStoredProcedureRegistration
 from snowflake.snowpark.mock._udf import MockUDFRegistration
 from snowflake.snowpark.query_history import QueryHistory
@@ -541,6 +543,11 @@ class Session:
         self._udtf_registration = UDTFRegistration(self)
         self._udaf_registration = UDAFRegistration(self)
 
+        self._plan_builder = (
+            SnowflakePlanBuilder(self)
+            if isinstance(self._conn, ServerConnection)
+            else MockSnowflakePlanBuilder(self)
+        )
         self._last_action_id = 0
         self._last_canceled_id = 0
         self._use_scoped_temp_objects: bool = (
