@@ -58,7 +58,7 @@ def how(request):
     return request.param
 
 
-@multithreaded_run(num_threads=5)
+@multithreaded_run()
 @sql_count_checker(query_count=2, join_count=2)
 def test_merge(left_df, right_df, how):
     left_df, right_df = pd.DataFrame(left_df), pd.DataFrame(right_df)

@@ -89,7 +89,7 @@ def test_cut_with_labels(data, cuts, labels, right, include_lowest, precision, o
     assert_series_equal(snow_ans, native_ans)
 
 
-@multithreaded_run(num_threads=5)
+@multithreaded_run()
 def test_cut_with_ordered_is_false_negative():
     # ordered=False requires labels to be specified.
     # Test here the scenario where labels=None and ordered=False.

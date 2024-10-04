@@ -260,7 +260,7 @@ def test_dataframe_close_session(session, db_parameters):
     assert ex_info.value.error_code == "1404"
 
 
-@multithreaded_run(num_threads=5)
+@multithreaded_run()
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="transactions not supported by local testing.",

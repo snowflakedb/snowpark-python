@@ -46,7 +46,7 @@ def test_lead_lag_with_positive_offset(session):
     )
 
 
-@multithreaded_run(num_threads=5)
+@multithreaded_run()
 def test_reverse_lead_lag_with_positive_offset(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
@@ -104,7 +104,7 @@ def test_lead_lag_with_default_value(session, default):
     )
 
 
-@multithreaded_run(num_threads=5)
+@multithreaded_run()
 def test_lead_lag_with_ignore_or_respect_nulls(session):
     df = session.create_dataframe(
         [(1, 5), (2, 4), (3, None), (4, 2), (5, None), (6, None), (7, 6)],

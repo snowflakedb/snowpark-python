@@ -141,7 +141,7 @@ def running_in_multi_threaded_mode() -> bool:
     return os.getenv("SNOWPARK_MULTITHREADING_MODE") == "true"
 
 
-def multithreaded_run(num_threads: int) -> None:
+def multithreaded_run(num_threads: int = 5) -> None:
     """When multithreading_mode is enabled, run the decorated test function in multiple threads."""
 
     def decorator(func):

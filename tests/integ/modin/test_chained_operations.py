@@ -25,7 +25,7 @@ def test_chained_op1():
     )
 
 
-@multithreaded_run(num_threads=5)
+@multithreaded_run()
 @sql_count_checker(query_count=1, join_count=2)
 def test_mul_after_add():
     # bug fix SNOW-1632454

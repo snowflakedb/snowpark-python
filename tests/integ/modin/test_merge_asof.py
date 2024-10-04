@@ -132,7 +132,7 @@ allow_exact_matches = pytest.mark.parametrize("allow_exact_matches", [True, Fals
 direction = pytest.mark.parametrize("direction", ["backward", "forward"])
 
 
-@multithreaded_run(num_threads=5)
+@multithreaded_run()
 @pytest.mark.parametrize("on", ["a", ["a"]])
 @allow_exact_matches
 @direction

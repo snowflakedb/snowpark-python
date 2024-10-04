@@ -74,7 +74,7 @@ def path4(temp_source_directory):
     yield filename
 
 
-@multithreaded_run(num_threads=5)
+@multithreaded_run()
 def test_put_with_one_file(
     session, temp_stage, path1, path2, path3, local_testing_mode
 ):
