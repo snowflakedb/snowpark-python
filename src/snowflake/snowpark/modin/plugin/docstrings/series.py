@@ -3438,7 +3438,7 @@ class Series(BasePandasDataset):
         axis : {0 or ‘index’, 1 or ‘columns’}, default 0
             The axis to localize
         level : int, str, default None
-            If axis ia a MultiIndex, localize a specific level. Otherwise must be None.
+            If axis is a MultiIndex, localize a specific level. Otherwise must be None.
         copy : bool, default True
             Also make a copy of the underlying data.
         ambiguous : ‘infer’, bool-ndarray, ‘NaT’, default ‘raise’

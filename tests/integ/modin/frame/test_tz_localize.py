@@ -59,10 +59,13 @@ def test_tz_localize(tz):
     datetime_index = native_pd.DatetimeIndex(
         [
             "2014-04-04 23:56:01.000000001",
+            "2015-04-03",
             pd.NaT,
         ],
     )
-    native_df = native_pd.DataFrame([[1, 2]], datetime_index)
+    native_df = native_pd.DataFrame(
+        [[None, 2, 3], [4, None, 6], [7, 8, None]], datetime_index
+    )
     snow_df = pd.DataFrame(native_df)
 
     eval_snowpark_pandas_result(
@@ -94,10 +97,13 @@ def test_tz_localize_negative(axis, level, copy, ambiguous, nonexistent, excepti
     datetime_index = native_pd.DatetimeIndex(
         [
             "2014-04-04 23:56:01.000000001",
+            "2015-04-03",
             pd.NaT,
         ],
     )
-    native_df = native_pd.DataFrame([[1, 2]], datetime_index)
+    native_df = native_pd.DataFrame(
+        [[None, 2, 3], [4, None, 6], [7, 8, None]], datetime_index
+    )
     snow_df = pd.DataFrame(native_df)
 
     with pytest.raises(exception):
