@@ -7,8 +7,8 @@ import pandas as native_pd
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import assert_frame_equal, eval_snowpark_pandas_result
-from tests.utils import multithreaded_run
 from tests.integ.utils.sql_counter import sql_count_checker
+from tests.utils import multithreaded_run
 
 
 @sql_count_checker(query_count=2)
