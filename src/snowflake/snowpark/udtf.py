@@ -690,6 +690,8 @@ class UDTFRegistration:
             )
 
             native_app_params = kwargs.get("native_app_params", None)
+            if "native_app_params" in kwargs:
+                del kwargs["native_app_params"]
 
             # register udtf
             return self._do_register_udtf(

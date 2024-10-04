@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Any, Dict, NamedTuple, Optional, Union
+from typing import Any, Dict, Iterable, NamedTuple, Optional, Union
 
 from pandas.core.dtypes.common import (
     is_bool_dtype,
@@ -160,6 +160,14 @@ SNOW_DATA_TYPE_CONVERSION_DICT = {
     (x.from_type, x.to_type): x for x in SNOW_DATA_TYPE_CONVERSION_LIST
 }
 """
+
+
+def isna_helper(obj: Any) -> bool:
+    """Small helper function to detect whether object is considered NULL. Needed because for
+    lists, tuples, ... pandas isna() does not handle correctly."""
+    if isinstance(obj, Iterable):
+        return False
+    return pd.isna(obj)
 
 
 class ColumnType(NamedTuple):
@@ -520,7 +528,7 @@ class ColumnEmulator(PandasSeriesType):
         else:
             # Can not use short cut self.isna().any() as this leads to endless recursion
             # due to ColumnEmulator inheriting from a pandas Series.
-            nullable = any([pd.isna(obj) for obj in self.values])
+            nullable = any([isna_helper(obj) for obj in self.values])
 
             if is_object_dtype(self.dtype) and len(self) != 0:
                 # Infer from data when object type for the type to become more specific.

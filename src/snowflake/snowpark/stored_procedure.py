@@ -106,11 +106,13 @@ class StoredProcedure:
 
         return args, session
 
+    @publicapi
     def __call__(
         self,
         *args: Any,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
     ) -> Any:
         args, session = self._validate_call(args, session)
 
@@ -137,6 +139,7 @@ class StoredProcedure:
                 *args,
                 is_return_table=self._is_return_table,
                 statement_params=statement_params,
+                _emit_ast=_emit_ast,
             )
 
 
