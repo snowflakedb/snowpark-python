@@ -680,6 +680,7 @@ class WarningHelper:
         self.count += 1
 
 
+# TODO: SNOW-1720855: Remove DummyLock and DummyThreadLocal after the rollout
 class DummyLock:
     def __enter__(self):
         pass
