@@ -61,7 +61,15 @@ def setup(request, session):
     session._query_compilation_stage_enabled = is_query_compilation_enabled
 
 
-def check_result(session, df, expect_cte_optimized):
+def check_result(
+        session,
+        df,
+        expect_cte_optimized: bool,
+        expected_query_count,
+        expected_describe_count,
+        union_count,
+        join_count,
+):
     df = df.sort(df.columns)
     session._cte_optimization_enabled = False
     result = df.collect()
