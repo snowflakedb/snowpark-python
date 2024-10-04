@@ -506,7 +506,8 @@ class OffsetSumUDAFHandler:
 
 
 @pytest.mark.skipif(
-    IS_LINUX or IS_WINDOWS, reason="Linux and Windows behave badly for this test"
+    IS_LINUX or IS_WINDOWS,
+    reason="Linux and Windows test show multiple active threads when no threadpool is enabled",
 )
 @pytest.mark.parametrize(
     "config,value",
