@@ -6810,9 +6810,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler:
             QueryCompiler with a single data column converted to datetime dtype.
         """
-        raise_if_to_datetime_not_supported(
-            format, exact, infer_datetime_format, origin, errors
-        )
+        raise_if_to_datetime_not_supported(format, exact, infer_datetime_format, origin)
         if origin != "unix":
             """
             Non-default values of the `origin` argument are only valid for scalars and 1D arrays.
@@ -7005,9 +7003,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler:
             QueryCompiler with a single data column converted to datetime dtype.
         """
-        raise_if_to_datetime_not_supported(
-            format, exact, infer_datetime_format, origin, errors
-        )
+        raise_if_to_datetime_not_supported(format, exact, infer_datetime_format, origin)
         # convert format to sf_format which will be valid to use by to_timestamp functions in Snowflake
         sf_format = (
             to_snowflake_timestamp_format(format) if format is not None else None
