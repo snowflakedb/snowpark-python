@@ -3305,18 +3305,6 @@ class DataFrame:
                 **func_named_arguments,
             )
 
-            # # DO NOT SUBMIT. Make this a build_table_fn_apply call (after fixing that API)
-            # if isinstance(func, str):
-            #     _set_fn_name(func, ast.func.fn.indirect_fn_name_call)
-            # elif isinstance(func, Iterable):
-            #     _set_fn_name(func, ast.func.fn.indirect_fn_name_call)
-            # elif isinstance(func, TableFunctionCall):
-            #     ast.func.fn.indirect_table_fn_call_ref.id.bitfield1 = func._ast_id
-            # else:
-            #     raise TypeError(f"Invalid input type for table function: {type(func)}")
-            #
-            # build_fn_apply_args(ast, *func_arguments, **func_named_arguments)
-
         func_expr = _create_table_function_expression(
             func, *func_arguments, **func_named_arguments
         )
