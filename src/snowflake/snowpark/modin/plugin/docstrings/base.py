@@ -1708,6 +1708,8 @@ class BasePandasDataset:
         - pandas ``.loc`` may sometimes raise a ValueError when using ``.loc`` to set values in a DataFrame from a Series using a Series as the
           column key, but Snowpark pandas ``.loc`` supports this type of operation according to the rules specified above.
         - ``.loc`` with boolean indexers for columns is currently unsupported.
+        - When using ``.loc`` to set column values for a Series item, with a ``slice(None)`` for the row columns, Snowpark pandas
+          sets the value for each row from the Series.
 
         See Also
         --------
@@ -1966,6 +1968,14 @@ class BasePandasDataset:
            A  B  C
         0  3  5  1
         1  3  5  1
+
+        Set column values for all rows from Series item.
+
+        >>> df.loc[:, "A":"B"] = pd.Series([10, 20, 30], index=list("ABC"))
+        >>> df
+            A   B  C
+        0  10  20  1
+        1  10  20  1
         """
 
     @doc(

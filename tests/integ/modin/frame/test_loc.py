@@ -4263,3 +4263,46 @@ def test_df_loc_set_series_value(key, convert_key_to_series, row_loc):
                 )
 
         assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        slice("A", "B"),
+        slice("C", "A", -1),
+    ],
+)
+@pytest.mark.parametrize("row_loc", [None, 0])
+def test_df_loc_set_series_value_slice_key(key, row_loc):
+    native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
+    snow_df = pd.DataFrame(native_df)
+    query_count = 2
+    if row_loc is not None:
+        join_count = 4
+    else:
+        join_count = 1
+
+    with SqlCounter(query_count=query_count, join_count=join_count):
+        if row_loc is None:
+            snow_df.loc[:, key] = pd.Series([1, 4, 9], index=list("ABC"))
+            if key.start == "A":
+                # The pandas bug does not apply to this codepath since we only set one column.
+                # Instead, there is another difference from pandas behavior, where pandas
+                # sets every value to NaN despite the labels matching.
+                native_df = native_pd.DataFrame(
+                    [[1, 4, 3], [1, 4, 6]], columns=list("ABC")
+                )
+            else:
+                # This is a bug in pandas. Issue filed here: https://github.com/pandas-dev/pandas/issues/59933
+                with pytest.raises(
+                    ValueError, match="setting an array element with a sequence."
+                ):
+                    native_df.loc[:, key] = native_pd.Series(
+                        [1, 4, 9], index=list("ABC")
+                    )
+                # Since the key is a slice, we rely on the index values of the Series item for label matching.
+                native_df = native_pd.DataFrame([[1, 4, 9]] * 2, columns=list("ABC"))
+        else:
+            snow_df.loc[row_loc, key] = pd.Series([1, 4, 9], index=list("ABC"))
+            native_df.loc[row_loc, key] = native_pd.Series([1, 4, 9], index=list("ABC"))
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)

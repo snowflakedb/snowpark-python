@@ -2156,7 +2156,7 @@ def set_frame_2d_labels(
         # across columns rather than rows.
         is_multi_col_set = (
             (isinstance(columns, Sized) and len(columns) > 1)
-            or columns == slice(None)
+            or isinstance(columns, slice)
             or (isinstance(columns, SnowflakeQueryCompiler))
         )
         if frame_is_df_and_item_is_series and is_multi_col_set:
