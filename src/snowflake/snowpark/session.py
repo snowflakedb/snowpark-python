@@ -3246,8 +3246,8 @@ class Session:
         """
         return self._sp_registration
 
-    @private_preview(version="1.23.0")
     @property
+    @private_preview(version="1.23.0")
     def stored_procedure_profiler(self) -> StoredProcedureProfiler:
         """
         Returns a :class:`stored_procedure_profiler.StoredProcedureProfiler` object that you can use to profile stored procedures.
