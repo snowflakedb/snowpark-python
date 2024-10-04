@@ -8,7 +8,14 @@ from copy import copy
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
+from google.protobuf import proto
+
 import snowflake.snowpark
+from snowflake.snowpark._internal.ast_utils import (
+    build_sproc,
+    build_sproc_apply,
+    with_src_position,
+)
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,
@@ -44,6 +51,7 @@ class MockStoredProcedure(StoredProcedure):
         execute_as: typing.Literal["caller", "owner"] = "owner",
         anonymous_sp_sql: Optional[str] = None,
         strict=False,
+        **kwargs,
     ) -> None:
         self.imports = imports
         self.strict = strict
@@ -54,6 +62,7 @@ class MockStoredProcedure(StoredProcedure):
             name,
             execute_as=execute_as,
             anonymous_sp_sql=anonymous_sp_sql,
+            **kwargs,
         )
 
     def __call__(
@@ -72,7 +81,7 @@ class MockStoredProcedure(StoredProcedure):
             if isinstance(arg, Column):
                 expr = arg._expression
 
-                # If expression does not define its datatype we cannot verify it's compatibale.
+                # If an expression does not define its datatype, we cannot verify if it's compatible.
                 # This is potentially unsafe.
                 if expr.datatype and not types_are_compatible(
                     expr.datatype, expected_type
@@ -92,7 +101,7 @@ class MockStoredProcedure(StoredProcedure):
                     {},
                 )
 
-                # If the length of the resolved expression is not a single value we cannot pass it as a literal.
+                # If the length of the resolved expression is not a single value, we cannot pass it as a literal.
                 if len(resolved_expr) != 1:
                     raise SnowparkLocalTestingException(
                         f"Unexpected type {expr.__class__.__name__} for sproc argument of type {expected_type}"
@@ -183,6 +192,18 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
 
         return module_name
 
+    def get_sproc(self, sproc_name: str) -> MockStoredProcedure:
+        if sproc_name not in self._registry:
+            raise SnowparkLocalTestingException(f"Sproc {sproc_name} does not exist.")
+        return self._registry[sproc_name]
+
+    def get_sproc_imports(self, sproc_name: str) -> Set[str]:
+        sproc = self._registry.get(sproc_name)
+        if not sproc:
+            return set()
+        else:
+            return sproc.imports
+
     def _do_register_sp(
         self,
         func: Union[Callable, Tuple[str, str]],
@@ -209,7 +230,36 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         force_inline_code: bool = False,
         comment: Optional[str] = None,
         native_app_params: Optional[Dict[str, Any]] = None,
+        _emit_ast: bool = True,
+        **kwargs,
     ) -> StoredProcedure:
+        ast = None
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sproc, stmt)
+            build_sproc(
+                ast,
+                func,
+                return_type,
+                input_types,
+                sp_name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                strict,
+                external_access_integrations,
+                secrets,
+                comment,
+                statement_params=statement_params,
+                source_code_display=source_code_display,
+                is_permanent=is_permanent,
+                session=self._session,
+                **kwargs,
+            )
 
         if is_permanent:
             self._session._conn.log_not_supported_error(
@@ -253,7 +303,10 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             raise ValueError("options replace and if_not_exists are incompatible")
 
         if sproc_name in self._registry and if_not_exists:
-            return self._registry[sproc_name]
+            ans = self._registry[sproc_name]
+            ans._ast = ast
+            ans._ast_id = stmt.var_id.bitfield1
+            return ans
 
         if sproc_name in self._registry and not replace:
             raise SnowparkLocalTestingException(
@@ -303,6 +356,8 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             sproc_imports,
             execute_as=execute_as,
             strict=strict,
+            _ast=ast,
+            _ast_id=stmt.var_id.bitfield1,
         )
 
         self._registry[sproc_name] = sproc

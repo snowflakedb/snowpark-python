@@ -9,9 +9,16 @@ import typing
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+from google.protobuf import proto
+
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
+from snowflake.snowpark._internal.ast_utils import (
+    build_sproc,
+    build_sproc_apply,
+    with_src_position,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import (
     open_telemetry_udf_context_manager,
@@ -68,6 +75,8 @@ class StoredProcedure:
         execute_as: typing.Literal["caller", "owner"] = "owner",
         anonymous_sp_sql: Optional[str] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
+        _ast: Optional[proto.Sproc] = None,
+        _ast_id: Optional[int] = None,
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -79,8 +88,11 @@ class StoredProcedure:
         self._execute_as = execute_as
         self._anonymous_sp_sql = anonymous_sp_sql
         self._is_return_table = isinstance(return_type, StructType)
-
         self._packages = packages
+
+        # If None, no ast will be emitted. Else, passed whenever sproc is invoked.
+        self._ast = _ast
+        self._ast_id = _ast_id
 
     def _validate_call(
         self,
@@ -111,12 +123,23 @@ class StoredProcedure:
         *args: Any,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
     ) -> Any:
         args, session = self._validate_call(args, session)
 
         session._conn._telemetry_client.send_function_usage_telemetry(
             "StoredProcedure.__call__", TelemetryField.FUNC_CAT_USAGE.value
         )
+
+        # TODO: vbudati: Check if this is the right place to build sproc_expr. If not, where do I build it?
+        sproc_expr = None
+        if _emit_ast and self._ast is not None:
+            assert (
+                self._ast is not None
+            ), "Need to ensure _emit_ast is True when registering stored procedure."
+            assert self._ast_id is not None, "Need to assign sproc an ID."
+            sproc_expr = proto.Expr()
+            build_sproc_apply(sproc_expr, self._ast_id, statement_params, *args)
 
         if self._anonymous_sp_sql:
             call_sql = generate_call_python_sp_sql(session, self.name, *args)
@@ -128,16 +151,18 @@ class StoredProcedure:
                 df = session.sql(result_scan_statement(qid))
                 return df
             df = session.sql(query)
-            return df._internal_collect_with_tag(statement_params=statement_params)[0][
-                0
-            ]
+            res = df._internal_collect_with_tag(statement_params=statement_params)[0][0]
         else:
-            return session._call(
+            res = session._call(
                 self.name,
                 *args,
                 is_return_table=self._is_return_table,
                 statement_params=statement_params,
+                _emit_ast=_emit_ast,
             )
+
+        res._ast = sproc_expr
+        return res
 
 
 class StoredProcedureRegistration:
@@ -241,7 +266,7 @@ class StoredProcedureRegistration:
             [Row(MY_COPY_SP='SUCCESS')]
             >>> session.table("test_to").count()
             10
-            >>> # call using session#call API
+            >>> # call using session.call API
             >>> _ = session.sql("drop table if exists test_to").collect()
             >>> session.call("my_copy_sp", "test_from", "test_to", 10)
             'SUCCESS'
@@ -408,7 +433,7 @@ class StoredProcedureRegistration:
             -------------
             <BLANKLINE>
 
-    Example 9
+    Example 11
         Creating a table stored procedure using implicit type hints::
 
             >>> from snowflake.snowpark.dataframe import DataFrame
@@ -591,6 +616,7 @@ class StoredProcedureRegistration:
                 # in pandas API to create stored procedures not registered by users.
                 force_inline_code=kwargs.get("force_inline_code", False),
                 native_app_params=native_app_params,
+                _emit_ast=_emit_ast,
             )
 
     @publicapi
@@ -617,6 +643,7 @@ class StoredProcedureRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         skip_upload_on_content_match: bool = False,
+        _emit_ast: bool = True,
     ) -> StoredProcedure:
         """
         Registers a Python function as a Snowflake Python stored procedure from a Python or zip file,
@@ -739,6 +766,7 @@ class StoredProcedureRegistration:
                 source_code_display=source_code_display,
                 skip_upload_on_content_match=skip_upload_on_content_match,
                 is_permanent=is_permanent,
+                _emit_ast=_emit_ast,
             )
 
     def _do_register_sp(
@@ -767,7 +795,38 @@ class StoredProcedureRegistration:
         force_inline_code: bool = False,
         comment: Optional[str] = None,
         native_app_params: Optional[Dict[str, Any]] = None,
+        _emit_ast: bool = True,
+        **kwargs,
     ) -> StoredProcedure:
+        # AST. Capture original parameters, before any pre-processing.
+        ast = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.udf, stmt)
+            build_sproc(
+                ast,
+                func,
+                return_type=return_type,
+                input_types=input_types,
+                sp_name=sp_name,
+                stage_location=stage_location,
+                imports=imports,
+                packages=packages,
+                replace=replace,
+                if_not_exists=if_not_exists,
+                parallel=parallel,
+                statement_params=statement_params,
+                execute_as=execute_as,
+                strict=strict,
+                source_code_display=source_code_display,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                comment=comment,
+                is_permanent=is_permanent,
+                session=self._session,
+                **kwargs,
+            )
+
         (
             udf_name,
             is_pandas_udf,
@@ -894,7 +953,7 @@ class StoredProcedureRegistration:
                         self._session, upload_file_stage_location, stage_location
                     )
 
-        return StoredProcedure(
+        sproc = StoredProcedure(
             func,
             return_type,
             input_types,
@@ -903,3 +962,9 @@ class StoredProcedureRegistration:
             anonymous_sp_sql=anonymous_sp_sql,
             packages=packages,
         )
+
+        sproc._ast = ast
+        if _emit_ast:
+            sproc._ast_id = stmt.var_id.bitfield1
+
+        return sproc

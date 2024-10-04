@@ -9303,8 +9303,15 @@ def call_function(
         <BLANKLINE>
 
     """
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_table_fn_apply(ast, function_name, *args)
 
-    return _call_function(function_name, False, *args, _emit_ast=_emit_ast)
+    fn = _call_function(function_name, False, *args, _emit_ast=_emit_ast)
+    fn._ast = ast
+
+    return fn
 
 
 @publicapi
@@ -9538,9 +9545,6 @@ def sproc(
         2
     """
 
-    if _emit_ast:
-        raise NotImplementedError("TODO 1675257: support sprocs for AST.")
-
     # Initial check to make sure no unexpected args are passed in
     check_decorator_args(**kwargs)
 
@@ -9574,6 +9578,7 @@ def sproc(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            _emit_ast=_emit_ast,
             **kwargs,
         )
     else:
@@ -9596,6 +9601,7 @@ def sproc(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            _emit_ast=_emit_ast,
             **kwargs,
         )
 
