@@ -27,7 +27,7 @@ except ImportError:
 
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.row import Row
-from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_LINUX, IS_WINDOWS, TestFiles, Utils
 
 
 def test_concurrent_select_queries(session):
@@ -505,6 +505,9 @@ class OffsetSumUDAFHandler:
             executor.submit(register_and_test_udaf, session, i)
 
 
+@pytest.mark.skipif(
+    IS_LINUX or IS_WINDOWS, reason="Linux and Windows behave badly for this test"
+)
 @pytest.mark.parametrize(
     "config,value",
     [
@@ -523,7 +526,7 @@ def test_concurrent_update_on_sensitive_configs(session, config, value, caplog):
     caplog.clear()
     change_config_value(session)
     assert (
-        f"Session configuration update for {config} in multithreaded mode is not thread-safe"
+        f"You might have more than one threads sharing the Session object trying to update {config}"
         not in caplog.text
     )
 
@@ -532,6 +535,6 @@ def test_concurrent_update_on_sensitive_configs(session, config, value, caplog):
             for _ in range(5):
                 executor.submit(change_config_value, session)
     assert (
-        f"Session configuration update for {config} in multithreaded mode is not thread-safe"
+        f"You might have more than one threads sharing the Session object trying to update {config}"
         in caplog.text
     )

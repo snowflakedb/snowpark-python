@@ -301,7 +301,8 @@ def normalize_path(path: str, is_local: bool) -> str:
 def warn_session_config_update_in_multithreaded_mode(config) -> None:
     if threading.active_count() > 1:
         logger.warning(
-            f"Session configuration update for {config} in multithreaded mode is not thread-safe. "
+            "You might have more than one threads sharing the Session object trying to update "
+            f"{config}. This is currently not thread-safe and may cause unexpected behavior. "
             "Please update the session configuration before starting the threads."
         )
 
