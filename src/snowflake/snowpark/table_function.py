@@ -23,7 +23,7 @@ from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.types import ArrayType, MapType
 
 from ._internal.analyzer.snowflake_plan import SnowflakePlan
-from ._internal.ast_utils import with_src_position
+from ._internal.ast_utils import build_expr_from_python_val, with_src_position
 
 
 class TableFunctionCall:
@@ -146,6 +146,9 @@ class TableFunctionCall:
             ast = proto.Expr()
             expr = with_src_position(ast.sp_table_fn_call_alias)
             expr.lhs.CopyFrom(self._ast)
+            expr.aliases.variadic = True
+            for arg in aliases:
+                build_expr_from_python_val(expr.aliases.args.add(), arg)
 
         canon_aliases = [quote_name(col) for col in aliases]
         if len(set(canon_aliases)) != len(aliases):
