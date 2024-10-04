@@ -612,3 +612,40 @@ def test_reindex_with_lazy_index():
             index=native_idx if isinstance(df, native_pd.DataFrame) else lazy_idx
         ),
     )
+
+
+def test_reindex_str_idx_with_tuple_index():
+    index = ['A', 'B', 'C', 'D']
+    native_df = native_pd.DataFrame(
+        {'one': [200, 200, 404, 404],
+         'two': [200, 200, 404, 404]},
+        index=index
+    )
+    snow_df = pd.DataFrame(native_df)
+    nat_df = native_df.reindex(
+            index=native_pd.Series(data=[("A", "B"), ("C", "D")])
+        )
+    res_df = snow_df.reindex(
+            index=pd.Series(data=[("A", "B"), ("C", "D")])
+        )
+    # return res_df
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            res_df, nat_df)
+
+def test_reindex_int_idx_with_tuple_index():
+    native_df = native_pd.DataFrame(
+        {'one': [200, 200, 404, 404],
+         'two': [200, 200, 404, 404]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    nat_df = native_df.reindex(
+        index=native_pd.Series(data=[("A", "B"), ("C", "D")])
+    )
+    idx = pd.Series(data=[("A", "B"), ("C", "D")])
+    res_df = snow_df.reindex(
+        index=idx
+    )
+    # return res_df
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        res_df, nat_df)
+
