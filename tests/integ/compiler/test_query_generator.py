@@ -175,13 +175,10 @@ def test_table_create(session, mode):
         table_type="temp",
         clustering_exprs=None,
         comment=None,
+        table_exists=False,
     )
     snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
     expected_query_count = 0
-    if mode == SaveMode.APPEND or mode == SaveMode.TRUNCATE:
-        # when the mode is append or truncate, extra queries is issued to check if
-        # the table exists
-        expected_query_count = 2
     check_generated_plan_queries(
         snowflake_plan, expected_query_count=expected_query_count
     )
