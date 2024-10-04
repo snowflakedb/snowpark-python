@@ -601,11 +601,6 @@ class Session:
             ),
         )
 
-        self._custom_package_usage_config: Dict = {}
-        self._conf = self.RuntimeConfig(self, options or {})
-        self._runtime_version_from_requirement: str = None
-        self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
-
         self._thread_safe_session_enabled: bool = self._conf.get(
             _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION, False
         )
@@ -624,6 +619,12 @@ class Session:
         self._package_lock = (
             threading.RLock() if self._thread_safe_session_enabled else DummyLock()
         )
+
+        self._custom_package_usage_config: Dict = {}
+        self._conf = self.RuntimeConfig(self, options or {})
+        self._runtime_version_from_requirement: str = None
+        self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
+
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
