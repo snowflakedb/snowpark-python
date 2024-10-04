@@ -62,7 +62,7 @@ def test_profiler_with_profiler_class(
 
     pro = profiler_session.stored_procedure_profiler
     pro.register_modules(["table_sp"])
-    pro.set_targeted_stage(
+    pro.set_target_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
     )
 
@@ -89,7 +89,7 @@ def test_single_return_value_of_sp(
         return "success"
 
     profiler_session.stored_procedure_profiler.register_modules(["single_value_sp"])
-    profiler_session.stored_procedure_profiler.set_targeted_stage(
+    profiler_session.stored_procedure_profiler.set_target_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
     )
 
@@ -100,7 +100,7 @@ def test_single_return_value_of_sp(
 
     profiler_session.stored_procedure_profiler.disable()
 
-    profiler_session.stored_procedure_profiler.register_modules([])
+    profiler_session.stored_procedure_profiler.register_modules()
     assert res is not None
     assert "Modules Profiled" in res
 
@@ -117,7 +117,7 @@ def test_anonymous_procedure(
 
     single_value_sp = profiler_session.sproc.register(single_value_sp, anonymous=True)
 
-    profiler_session.stored_procedure_profiler.set_targeted_stage(
+    profiler_session.stored_procedure_profiler.set_target_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
     )
 
@@ -128,7 +128,7 @@ def test_anonymous_procedure(
 
     profiler_session.stored_procedure_profiler.disable()
 
-    profiler_session.stored_procedure_profiler.register_modules([])
+    profiler_session.stored_procedure_profiler.register_modules()
     assert res is not None
     assert "Modules Profiled" in res
 
@@ -145,7 +145,11 @@ def test_set_incorrect_active_profiler(profiler_session, db_parameters, tmp_stag
     assert "active_profiler expect 'LINE', 'MEMORY'" in str(e)
 
     with pytest.raises(ValueError) as e:
-        profiler_session.stored_procedure_profiler.set_targeted_stage(
+        profiler_session.stored_procedure_profiler.set_target_stage(f"{tmp_stage_name}")
+    assert "stage name must be fully qualified name" in str(e)
+
+    with pytest.raises(ValueError) as e:
+        profiler_session.stored_procedure_profiler.set_target_stage(
             f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
         )
         profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
@@ -186,7 +190,7 @@ def test_sp_call_match(profiler_session, sp_call_sql):
 def test_query_history_destroyed_after_finish_profiling(
     profiler_session, db_parameters, tmp_stage_name
 ):
-    profiler_session.stored_procedure_profiler.set_targeted_stage(
+    profiler_session.stored_procedure_profiler.set_target_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
     )
 
@@ -202,7 +206,7 @@ def test_query_history_destroyed_after_finish_profiling(
         not in profiler_session._conn._query_listener
     )
 
-    profiler_session.stored_procedure_profiler.register_modules([])
+    profiler_session.stored_procedure_profiler.register_modules()
 
 
 @pytest.mark.skipif(
@@ -214,11 +218,11 @@ def test_thread_safe_on_activate_and_disable(
 ):
     pro = profiler_session.stored_procedure_profiler
     pro.register_modules(["table_sp"])
-    pro.set_targeted_stage(
+    pro.set_target_stage(
         f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
     )
     with ThreadPoolExecutor(max_workers=2) as tpe:
         for _ in range(6):
             tpe.submit(multi_thread_helper_function, pro)
     assert pro._query_history is None
-    pro.register_modules([])
+    pro.register_modules()
