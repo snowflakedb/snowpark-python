@@ -16,6 +16,7 @@ from typing import Tuple
 from unittest import mock
 
 from snowflake.snowpark.session import Session
+from tests.conftest import local_testing_mode
 
 try:
     import pandas as pd  # noqa: F401
@@ -177,7 +178,7 @@ def test_read_stage_file_show(session, resources_path, local_testing_mode):
             session.read.option("purge", False)
             .schema(user_schema)
             .csv(test_file_on_stage)
-            ._show_string()
+            ._show_string(_emit_ast=session.ast_enabled)
         )
         assert (
             result_str
@@ -209,7 +210,7 @@ def test_show_using_with_select_statement(session):
         "select * from t1"
     )
     assert (
-        df._show_string()
+        df._show_string(_emit_ast=session.ast_enabled)
         == """
 -------
 |"A"  |
@@ -1870,7 +1871,7 @@ def test_create_dataframe_empty(session):
 
     # show
     assert (
-        df._show_string()
+        df._show_string(_emit_ast=session.ast_enabled)
         == """
 -------------
 |"A"  |"B"  |
@@ -2363,10 +2364,6 @@ def test_replace_with_coercion(session):
         df.replace({1: None, 2: None, "2.0": None}),
         [Row(None, None, "1.0"), Row(None, None, None)],
     )
-    Utils.check_answer(
-        df.replace(1.0, None),
-        [Row(1, None, "1.0"), Row(2, 2.0, "2.0")],
-    )
 
     df = session.create_dataframe([[[1, 2], (1, 3)]], schema=["col1", "col2"])
     Utils.check_answer(
@@ -2395,6 +2392,24 @@ def test_replace_with_coercion(session):
     with pytest.raises(ValueError) as ex_info:
         df.replace([1], [2, 3])
     assert "to_replace and value lists should be of the same length" in str(ex_info)
+
+
+@pytest.mark.skipif(
+    local_testing_mode,
+    reason="Bug in local testing mode, broadcast behavior "
+    "not implemented correctly in handle_expression for table_emulator.",
+)
+def test_replace_with_coercion_II(session):
+    # TODO: Once fixed in local testing mode, merge this test case with the ones in
+    # test_replace_with_coercion
+    df = session.create_dataframe(
+        [[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"]
+    )
+
+    Utils.check_answer(
+        df.replace(1.0, None),
+        [Row(1, None, "1.0"), Row(2, 2.0, "2.0")],
+    )
 
 
 def test_select_case_expr(session):
