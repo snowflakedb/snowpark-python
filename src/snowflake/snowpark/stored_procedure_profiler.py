@@ -8,6 +8,7 @@ import snowflake.snowpark
 from snowflake.snowpark._internal.utils import (
     SNOWFLAKE_ANONYMOUS_CALL_WITH_PATTERN,
     parse_table_name,
+    strip_double_quotes_in_like_statement_in_table_name,
 )
 
 
@@ -15,9 +16,6 @@ class StoredProcedureProfiler:
     """
     Set up profiler to receive profiles of stored procedures. This feature cannot be used in owner's right stored
     procedure because owner's right stored procedure will not be able to set session-level parameters.
-
-    See more details about stored procedure profiler at:
-    https://docs.snowflake.com/LIMITEDACCESS/stored-procedures-python-profiler
     """
 
     def __init__(
@@ -54,7 +52,7 @@ class StoredProcedureProfiler:
                 f"stage name must be fully qualified name, got {stage} instead"
             )
         existing_stages = self._session.sql(
-            f"show stages like '{names[2]}' in schema {names[0]}.{names[1]}"
+            f"show stages like '{strip_double_quotes_in_like_statement_in_table_name(names[2])}' in schema {names[0]}.{names[1]}"
         )._internal_collect_with_tag_no_telemetry()
         if len(existing_stages) == 0:
             self._session.sql(
