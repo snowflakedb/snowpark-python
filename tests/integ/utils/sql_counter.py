@@ -8,15 +8,16 @@ import re
 import sys
 import threading
 import traceback
-from typing import Optional
+from typing import Dict, List, Optional, Union
 
 import pytest
 from decorator import decorator
-from pandas._typing import Scalar
 
-from snowflake.snowpark import QueryRecord
+from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.session import Session
 from tests.utils import IS_IN_STORED_PROC
+
+PythonScalar = Union[str, float, bool]
 
 UPDATED_SUFFIX = "updated"
 ORIGINAL_SUFFIX = "original"
@@ -43,6 +44,7 @@ UDF_COUNT_PARAMETER = "udf_count"
 UDTF_COUNT_PARAMETER = "udtf_count"
 SELECT_COUNT_PARAMETER = "select_count"
 UNION_COUNT_PARAMETER = "union_count"
+DESCRIBE_COUNT_PARAMETER = "describe_count"
 EXPECT_HIGH_COUNT = "expect_high_count"
 HIGH_COUNT_REASON = "high_count_reason"
 
@@ -54,6 +56,7 @@ SQL_COUNT_PARAMETERS = [
     UDTF_COUNT_PARAMETER,
     SELECT_COUNT_PARAMETER,
     UNION_COUNT_PARAMETER,
+    DESCRIBE_COUNT_PARAMETER,
 ]
 BOOL_PARAMETERS = [EXPECT_HIGH_COUNT]
 
@@ -119,7 +122,7 @@ class SqlCounter:
         high_count_reason=None,
         **kwargs,
     ) -> "SqlCounter":
-        from tests.integ.modin.conftest import SKIP_SQL_COUNT_CHECK
+        from tests.conftest import SKIP_SQL_COUNT_CHECK
 
         self._queries: list[QueryRecord] = []
 
@@ -155,6 +158,11 @@ class SqlCounter:
             self.session = Session.SessionBuilder().getOrCreate()
             # Add SqlCounter as a snowpark query listener.
             self.session._conn.add_query_listener(self)
+
+    # The query history listener will include describe queries if this is true.
+    @property
+    def include_describe(self) -> bool:
+        return True
 
     @staticmethod
     def set_record_mode(record_mode):
@@ -251,7 +259,7 @@ class SqlCounter:
 
         # If there are any failures, print out all the captured queries so clear which are being counted.
         if failed:
-            title = f"{'='*20} SqlCounter Captured Queries {'='*20}"
+            title = f"\n{'='*20} SqlCounter Captured Queries {'='*20}\n"
             print(title, file=sys.stderr)
             for query in self._get_actual_queries():
                 print(query, file=sys.stderr)
@@ -268,7 +276,12 @@ class SqlCounter:
                         for fw in FILTER_OUT_QUERIES
                     ]
                 ),
-                list(map(lambda q: q.sql_text, self._queries)),
+                list(
+                    map(
+                        lambda q: q.sql_text,
+                        [q for q in self._queries if not q.is_describe],
+                    )
+                ),
             )
         )
 
@@ -328,6 +341,9 @@ class SqlCounter:
 
     def actual_union_count(self):
         return self._count_instances_by_query_substr(contains=[UNION])
+
+    def actual_describe_count(self):
+        return len([q for q in self._queries if q.is_describe])
 
     def get_actual_counts(self):
         """Retrieve all actual counts so far."""
@@ -404,7 +420,7 @@ def get_readable_sql_count_values(tr):
 
 
 def update_test_code_with_sql_counts(
-    sql_count_records: dict[str, dict[str, list[dict[str, Optional[Scalar]]]]]
+    sql_count_records: Dict[str, Dict[str, List[Dict[str, Optional[PythonScalar]]]]]
 ):
     """This helper takes sql count records and rewrites the source test files to validate sql counts where possible.
 
@@ -416,7 +432,7 @@ def update_test_code_with_sql_counts(
     last_status_file = None
 
     # Iterate through each sql count record, this is nested dictionary structured as:
-    #     sql_count_records[test_file][test_name] -> dict[Str, Scalar]
+    #     sql_count_records[test_file][test_name] -> dict[Str, PythonScalar]
     # The valid keys are:
     #     "test_name" for alternative reference
     #     "test_parms" if the test is parameterized

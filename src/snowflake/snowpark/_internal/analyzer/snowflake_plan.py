@@ -25,7 +25,6 @@ from typing import (
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
-    sum_node_complexities,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
@@ -446,15 +445,24 @@ class SnowflakePlan(LogicalPlan):
     @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         if self._cumulative_node_complexity is None:
-            self._cumulative_node_complexity = sum_node_complexities(
-                self.individual_node_complexity,
-                *(node.cumulative_node_complexity for node in self.children_plan_nodes),
-            )
+            # if source plan is available, the source plan complexity
+            # is the snowflake plan complexity.
+            if self.source_plan:
+                self._cumulative_node_complexity = (
+                    self.source_plan.cumulative_node_complexity
+                )
+            else:
+                self._cumulative_node_complexity = {}
         return self._cumulative_node_complexity
 
     @cumulative_node_complexity.setter
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
         self._cumulative_node_complexity = value
+
+    def reset_cumulative_node_complexity(self) -> None:
+        self._cumulative_node_complexity = None
+        if self.source_plan:
+            self.source_plan.reset_cumulative_node_complexity()
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:

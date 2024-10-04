@@ -5,6 +5,7 @@
 # this module houses classes for IO and interacting with Snowflake engine
 
 import inspect
+from collections import OrderedDict
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -18,6 +19,7 @@ from typing import (
 )
 
 import pandas
+from modin.core.io import BaseIO
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     CSVEngine,
@@ -29,7 +31,6 @@ from pandas._typing import (
 )
 from pandas.core.dtypes.common import is_list_like
 
-from snowflake.snowpark.modin.core.execution.dispatching.factories.baseio import BaseIO
 from snowflake.snowpark.modin.plugin._internal.io_utils import (
     is_local_filepath,
     is_snowflake_stage_path,
@@ -177,6 +178,28 @@ class PandasOnSnowflakeIO(BaseIO):
         return cls.query_compiler_cls.from_pandas(df, pandas.DataFrame)
 
     @classmethod
+    def read_excel(cls, **kwargs):  # noqa: PR01
+        """
+        Read an excel file into a query compiler.
+
+        Snowpark pandas has a slightly different error message from the upstream modin version.
+        """
+        try:
+            intermediate = pandas.read_excel(**kwargs)
+        except ImportError as e:
+            raise ImportError(
+                "Snowpark Pandas requires an additional package to read excel files such as openpyxl, pyxlsb, or xlrd",
+                e,
+            )
+        if isinstance(intermediate, (OrderedDict, dict)):  # pragma: no cover
+            parsed = type(intermediate)()
+            for key in intermediate.keys():
+                parsed[key] = cls.from_pandas(intermediate.get(key))
+            return parsed
+        else:
+            return cls.from_pandas(intermediate)
+
+    @classmethod
     def read_snowflake(
         cls,
         name_or_query: Union[str, Iterable[str]],
@@ -185,7 +208,7 @@ class PandasOnSnowflakeIO(BaseIO):
     ):
         """
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
-        src/snowflake/snowpark/modin/pandas/io.py
+        src/snowflake/snowpark/modin/plugin/pd_extensions.py
         """
         return cls.query_compiler_cls.from_snowflake(name_or_query, index_col, columns)
 
@@ -635,19 +658,11 @@ class PandasOnSnowflakeIO(BaseIO):
         pass  # pragma: no cover
 
     @classmethod
-    @pandas_module_level_function_not_implemented()
-    def read_sas(
-        cls,
-        filepath_or_buffer,
-        *,
-        format=None,
-        index=None,
-        encoding=None,
-        chunksize=None,
-        iterator=False,
-        **kwargs,
-    ):
-        pass  # pragma: no cover
+    def read_sas(cls, **kwargs):  # noqa: PR01
+        """
+        Read SAS files stored as either XPORT or SAS7BDAT format files into a query compiler.
+        """
+        return cls.from_pandas(pandas.read_sas(**kwargs))
 
     @classmethod
     @pandas_module_level_function_not_implemented()
