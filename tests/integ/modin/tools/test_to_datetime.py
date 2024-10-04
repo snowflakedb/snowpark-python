@@ -18,6 +18,7 @@ import pytz
 from modin.pandas import NaT, Series, Timestamp, to_datetime
 from pandas import DatetimeIndex
 from pandas.core.arrays import DatetimeArray
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import (
@@ -28,6 +29,7 @@ from tests.integ.modin.utils import (
     assert_index_equal,
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
+    create_test_series,
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import sql_count_checker
@@ -862,17 +864,23 @@ class TestToDatetime:
         assert pd.to_datetime(None) == native_pd.to_datetime(None)
 
     @sql_count_checker(query_count=0)
-    def test_bool(self):
+    @pytest.mark.parametrize(
+        "input_data,dtype_description_in_error",
+        [
+            param([True, False], "bool", id="bool"),
+            param(pd.Timedelta(1), "timedelta64[ns]", id="timedelta"),
+        ],
+    )
+    def test_invalid_input_type(self, input_data, dtype_description_in_error):
         eval_snowpark_pandas_result(
-            pd.Series([True, False]),
-            native_pd.Series([True, False]),
+            *create_test_series(input_data),
             lambda df: pd.to_datetime(df)
             if isinstance(df, pd.Series)
             else native_pd.to_datetime(df),
             expect_exception=True,
             expect_exception_type=TypeError,
             expect_exception_match=re.escape(
-                "dtype bool cannot be converted to datetime64[ns]"
+                f"dtype {dtype_description_in_error} cannot be converted to datetime64[ns]"
             ),
         )
 
@@ -923,3 +931,15 @@ class TestToDatetime:
             if isinstance(df, pd.Series)
             else native_pd.to_datetime(df, format="%Y%m%d", errors="ignore"),
         )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("samples", [["0101", "20000101"], ["20100101", "20000101"]])
+def test_errors_ignore(samples):
+    eval_snowpark_pandas_result(
+        pd.Series(samples),
+        native_pd.Series(samples),
+        lambda df: pd.to_datetime(df, format="%Y%m%d", errors="ignore")
+        if isinstance(df, pd.Series)
+        else native_pd.to_datetime(df, format="%Y%m%d", errors="ignore"),
+    )

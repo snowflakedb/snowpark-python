@@ -762,10 +762,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             x is None for x in [periods, start, end]
         ), "Must provide freq argument if no data is supplied"
 
-        if tz is not None:
-            # TODO: SNOW-879476 support tz with other tz APIs
-            ErrorMessage.not_implemented("tz is not supported.")
-
         remove_non_business_days = False
 
         if freq is not None:
@@ -6814,9 +6810,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler:
             QueryCompiler with a single data column converted to datetime dtype.
         """
-        raise_if_to_datetime_not_supported(
-            format, exact, infer_datetime_format, origin, errors
-        )
+        raise_if_to_datetime_not_supported(format, exact, infer_datetime_format, origin)
         if origin != "unix":
             """
             Non-default values of the `origin` argument are only valid for scalars and 1D arrays.
@@ -7009,9 +7003,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler:
             QueryCompiler with a single data column converted to datetime dtype.
         """
-        raise_if_to_datetime_not_supported(
-            format, exact, infer_datetime_format, origin, errors
-        )
+        raise_if_to_datetime_not_supported(format, exact, infer_datetime_format, origin)
         # convert format to sf_format which will be valid to use by to_timestamp functions in Snowflake
         sf_format = (
             to_snowflake_timestamp_format(format) if format is not None else None
@@ -9335,7 +9327,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     f"invalid error value specified: {errors}"
                 )  # pragma: no cover
 
-        if isinstance(col_id_sf_type, (_NumericType, BooleanType)):
+        if isinstance(col_id_sf_type, (_NumericType, BooleanType)) and not isinstance(
+            col_id_sf_type, TimedeltaType
+        ):
             # no need to convert
             return self
 
@@ -9352,6 +9346,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if isinstance(col_id_sf_type, TimestampType):
             # turn those date time type to nanoseconds
             new_col = date_part("epoch_nanosecond", new_col)
+            new_col_type_is_numeric = True
+        elif isinstance(col_id_sf_type, TimedeltaType):
+            new_col = column_astype(
+                col_id, col_id_sf_type, "int64", TypeMapper.to_snowflake("int64")
+            )
             new_col_type_is_numeric = True
         elif not isinstance(col_id_sf_type, StringType):
             # convert to string by default for better error message
@@ -12395,7 +12394,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             frame = fill_missing_resample_bins_for_frame(
                 qc._modin_frame, rule, start_date, end_date
             )
-            if resample_method in ("sum", "count", "size"):
+            if resample_method in ("sum", "count", "size", "nunique"):
                 values_arg: Union[int, dict]
                 if resample_method == "sum":
                     # For sum(), we need to fill NaN values as Timedelta(0)

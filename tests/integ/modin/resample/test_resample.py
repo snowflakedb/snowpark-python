@@ -357,3 +357,17 @@ def test_resample_date_trunc_hour():
         lambda df: df.resample("2H").min(),
         check_freq=False,
     )
+
+
+# One extra query to convert index to native pandas for dataframe constructor
+@pytest.mark.parametrize("q", [0.1, 0.7])
+@sql_count_checker(query_count=3, join_count=1)
+def test_resample_quantile_various_q(q):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            {"A": np.random.randn(15)},
+            index=native_pd.date_range("2020-01-01", periods=15, freq="1s"),
+        ),
+        lambda df: df.resample(rule="3s").quantile(q=q),
+        check_freq=False,
+    )

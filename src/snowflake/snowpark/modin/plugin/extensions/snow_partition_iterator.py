@@ -13,7 +13,8 @@ PARTITION_SIZE = 4096
 
 class SnowparkPandasRowPartitionIterator(Iterator):
     """
-    Iterator on partitioned data used by DataFrame.iterrows and DataFrame.itertuples to iterate over axis=0 or rows.
+    Iterator on partitioned data used by Series.items, DataFrame.iterrows and DataFrame.itertuples to iterate
+    over axis=0 or rows.
 
     SnowparkPandasRowPartitionIterator pulls table data in batches (where number of rows = PARTITION_SIZE) to iterate
     over rows. This is to prevent the table from being queried for every single row - the batch of rows pulled in is

@@ -111,20 +111,8 @@ class QueryGenerator(Analyzer):
         resolved_children: Dict[LogicalPlan, SnowflakePlan],
         df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
     ) -> SnowflakePlan:
-        if isinstance(logical_plan, SnowflakePlan):
-            if logical_plan.queries is None:
-                assert logical_plan.source_plan is not None
-                # when encounter a SnowflakePlan with no queries, try to re-resolve
-                # the source plan to construct the result
-                from snowflake.snowpark._internal.compiler.utils import (
-                    resolve_and_update_snowflake_plan,
-                )
 
-                resolve_and_update_snowflake_plan(logical_plan, self)
-
-            resolved_plan = logical_plan
-
-        elif isinstance(logical_plan, SnowflakeCreateTable):
+        if isinstance(logical_plan, SnowflakeCreateTable):
             from snowflake.snowpark._internal.compiler.utils import (
                 get_snowflake_plan_queries,
             )
@@ -223,7 +211,7 @@ class QueryGenerator(Analyzer):
                 ] = resolved_child.queries[-1]
 
             resolved_plan = self.plan_builder.with_query_block(
-                logical_plan.name,
+                logical_plan,
                 resolved_child,
                 logical_plan,
             )
