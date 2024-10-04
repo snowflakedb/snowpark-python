@@ -4,6 +4,7 @@
 import base64
 import binascii
 import datetime
+import decimal
 import json
 import math
 import numbers
@@ -320,8 +321,10 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
 
     notna = column[~column.isna()]
     res = notna.mean()
-    if isinstance(res_type, Decimal):
-        res = round(res, scale)
+    if isinstance(res_type, DecimalType):
+        fmt_string = f"{{:.{res_type.scale}f}}"
+        res_formatted = fmt_string.format(res)
+        res = decimal.Decimal(res_formatted)
     return ColumnEmulator(data=[res], sf_type=ColumnType(res_type, False))
 
 
