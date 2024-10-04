@@ -35,6 +35,7 @@
 - Added support for `pd.read_sas` (Uses native pandas for processing).
 - Added support for applying `rolling().count()` and `expanding().count()` to `Timedelta` series and columns.
 - Added support for `tz` in both `pd.date_range` and `pd.bdate_range`.
+- Added support for `Series.items`.
 - Added support for `errors="ignore"` in `pd.to_datetime`.
 
 #### Improvements

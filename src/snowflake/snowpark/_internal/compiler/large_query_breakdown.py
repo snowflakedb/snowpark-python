@@ -181,7 +181,7 @@ class LargeQueryBreakdown:
             )
             return [root]
 
-        complexity_score = get_complexity_score(root.cumulative_node_complexity)
+        complexity_score = get_complexity_score(root)
         _logger.debug(f"Complexity score for root {type(root)} is: {complexity_score}")
 
         if complexity_score <= self.complexity_score_upper_bound:
@@ -200,7 +200,7 @@ class LargeQueryBreakdown:
 
             partition = self._get_partitioned_plan(root, child)
             plans.append(partition)
-            complexity_score = get_complexity_score(root.cumulative_node_complexity)
+            complexity_score = get_complexity_score(root)
 
         plans.append(root)
         return plans
@@ -276,7 +276,7 @@ class LargeQueryBreakdown:
         Returns:
             A tuple of boolean indicating if the node is valid for partitioning and the complexity score.
         """
-        score = get_complexity_score(node.cumulative_node_complexity)
+        score = get_complexity_score(node)
         valid_node = (
             self.complexity_score_lower_bound
             < score

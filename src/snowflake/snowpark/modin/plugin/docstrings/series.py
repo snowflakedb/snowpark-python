@@ -1730,6 +1730,37 @@ class Series(BasePandasDataset):
     def items():
         """
         Lazily iterate over (index, value) tuples.
+
+        This method returns an iterable tuple (index, value). This is convenient if you want
+        to create a lazy iterator.
+
+        Returns
+        -------
+        Iterable
+            Iterable of tuples containing the (index, value) pairs from a Series.
+
+        See Also
+        --------
+        :func:`DataFrame.items <modin.pandas.DataFrame.items>`
+            Iterate over (column name, Series) pairs.
+        :func:`DataFrame.iterrows <modin.pandas.DataFrame.iterrows>`
+            Iterate over DataFrame rows as (index, Series) pairs.
+
+        Notes
+        -----
+        1. Iterating over rows is an antipattern in Snowpark pandas and pandas. Use Series.apply() or other aggregation
+           methods when possible instead of iterating over a Series. Iterators and for loops do not scale well.
+        2. You should **never modify** something you are iterating over. This will not work. The iterator returns a copy
+           of the data and writing to it will have no effect.
+
+        Examples
+        --------
+        >>> s = pd.Series(['A', 'B', 'C'])
+        >>> for index, value in s.items():
+        ...     print(f"Index : {index}, Value : {value}")
+        Index : 0, Value : A
+        Index : 1, Value : B
+        Index : 2, Value : C
         """
 
     def keys():
