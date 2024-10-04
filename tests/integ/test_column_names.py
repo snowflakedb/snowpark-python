@@ -900,7 +900,7 @@ def test_str_column_name_no_quotes(session, local_testing_mode):
 def test_show_column_name_with_quotes(session, local_testing_mode):
     df = session.create_dataframe([1, 2], schema=["a"])
     assert (
-        df.select(col("a"))._show_string()
+        df.select(col("a"))._show_string(_emit_ast=session.ast_enabled)
         == """\
 -------
 |"A"  |
@@ -911,7 +911,7 @@ def test_show_column_name_with_quotes(session, local_testing_mode):
 """
     )
     assert (
-        df.select(avg(col("a")))._show_string()
+        df.select(avg(col("a")))._show_string(_emit_ast=session.ast_enabled)
         == """\
 ----------------
 |"AVG(""A"")"  |
@@ -924,7 +924,7 @@ def test_show_column_name_with_quotes(session, local_testing_mode):
     # column name with quotes
     df = session.create_dataframe([1, 2], schema=['"a"'])
     assert (
-        df.select(col('"a"'))._show_string()
+        df.select(col('"a"'))._show_string(_emit_ast=session.ast_enabled)
         == """\
 -------
 |"a"  |
@@ -935,7 +935,7 @@ def test_show_column_name_with_quotes(session, local_testing_mode):
 """
     )
     assert (
-        df.select(avg(col('"a"')))._show_string()
+        df.select(avg(col('"a"')))._show_string(_emit_ast=session.ast_enabled)
         == """\
 ----------------
 |"AVG(""A"")"  |

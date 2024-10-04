@@ -107,10 +107,7 @@ class UserDefinedAggregateFunction:
                 )
 
         udaf_expr = None
-        if _emit_ast:
-            assert (
-                self._ast is not None
-            ), "Need to ensure _emit_ast is True when registering UDAF."
+        if _emit_ast and self._ast is not None:
             assert self._ast_id is not None, "Need to assign UDAF an ID."
             udaf_expr = proto.Expr()
             build_udaf_apply(udaf_expr, self._ast_id, *cols)
@@ -361,6 +358,7 @@ class UDAFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         immutable: bool = False,
+        _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedAggregateFunction:
         """
@@ -480,6 +478,7 @@ class UDAFRegistration:
                 secrets=secrets,
                 comment=comment,
                 native_app_params=native_app_params,
+                _emit_ast=_emit_ast,
             )
 
     @publicapi
@@ -505,6 +504,7 @@ class UDAFRegistration:
         source_code_display: bool = True,
         skip_upload_on_content_match: bool = False,
         immutable: bool = False,
+        _emit_ast: bool = True,
     ) -> UserDefinedAggregateFunction:
         """
         Registers a Python class as a Snowflake Python UDAF from a Python or zip file,
@@ -635,6 +635,7 @@ class UDAFRegistration:
                 is_permanent=is_permanent,
                 immutable=immutable,
                 comment=comment,
+                _emit_ast=_emit_ast,
             )
 
     def _do_register_udaf(

@@ -1,0 +1,31 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df.to_pandas_batches()
+
+df.to_pandas_batches(block=False)
+
+df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("test_table")
+
+df.to_pandas_batches()
+
+df.to_pandas_batches(block=False)
+
+df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
+
+## EXPECTED ENCODED AST
+
+CkMKQQozwgswEg4KDAoKdGVzdF90YWJsZRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFoiAggBEgQKAmRmGAEiAggBCjEKLwolwgkiCAESAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXBIAGAIiAggCCggSBggDEgIIAhABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFQ==
+Ci8KLQojwgkgEgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKF4SABgEIgIIBAoIEgYIBRICCAQQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBU=
+Ck0KSwpBwgk+CAESAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoYCIaCgpTRl9QQVJUTkVSEgxGQUtFX1BBUlRORVISABgGIgIIBgoIEgYIBxICCAYQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBU=
+CksKSQo/wgk8EgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGIiGgoKU0ZfUEFSVE5FUhIMRkFLRV9QQVJUTkVSEgAYCCICCAgKCBIGCAkSAggIEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgV
+EAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgV

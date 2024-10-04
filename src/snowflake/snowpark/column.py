@@ -372,6 +372,9 @@ class Column:
         """Less than."""
         expr = None
         _emit_ast = bool(self._ast is not None)
+        if isinstance(other, (Column, Expression)) and other._ast is None:
+            _emit_ast = False
+
         if _emit_ast:
             expr = proto.Expr()
             ast = with_src_position(expr.lt)
@@ -739,7 +742,7 @@ class Column:
     ) -> "Column":
         """Between lower bound and upper bound."""
         expr = None
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_between)
             ast.col.CopyFrom(self._ast)
@@ -758,7 +761,7 @@ class Column:
     ) -> "Column":
         """Bitwise and."""
         expr = None
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             expr = proto.Expr()
             ast = with_src_position(expr.bit_and)
             ast.lhs.CopyFrom(self._ast)
@@ -775,7 +778,7 @@ class Column:
     ) -> "Column":
         """Bitwise or."""
         expr = None
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             expr = proto.Expr()
             ast = with_src_position(expr.bit_or)
             ast.lhs.CopyFrom(self._ast)
@@ -792,7 +795,7 @@ class Column:
     ) -> "Column":
         """Bitwise xor."""
         expr = None
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             expr = proto.Expr()
             ast = with_src_position(expr.bit_xor)
             ast.lhs.CopyFrom(self._ast)
@@ -821,7 +824,7 @@ class Column:
     def equal_null(self, other: "Column", _emit_ast: bool = True) -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
         expr = None
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_equal_null)
             ast.lhs.CopyFrom(self._ast)
@@ -836,7 +839,7 @@ class Column:
     def equal_nan(self, _emit_ast: bool = True) -> "Column":
         """Is NaN."""
         expr = None
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_equal_nan)
             ast.col.CopyFrom(self._ast)
@@ -846,7 +849,7 @@ class Column:
     def is_null(self, _emit_ast: bool = True) -> "Column":
         """Is null."""
         expr = None
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_is_null)
             ast.col.CopyFrom(self._ast)
@@ -856,7 +859,7 @@ class Column:
     def is_not_null(self, _emit_ast: bool = True) -> "Column":
         """Is not null."""
         expr = None
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_is_not_null)
             ast.col.CopyFrom(self._ast)
@@ -1155,7 +1158,7 @@ class Column:
 
         other = snowflake.snowpark.functions.lit(other)
         return Column(
-            snowflake.snowpark.functions.startswith(self, other)._expression,
+            snowflake.snowpark.functions.endswith(self, other)._expression,
             ast=expr,
             _emit_ast=_emit_ast,
         )
