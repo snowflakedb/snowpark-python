@@ -107,6 +107,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
+    private_preview,
     quote_name,
     random_name_for_temp_object,
     strip_double_quotes_in_like_statement_in_table_name,
@@ -3245,6 +3246,7 @@ class Session:
         """
         return self._sp_registration
 
+    @private_preview(version="1.23.0")
     @property
     def stored_procedure_profiler(self) -> StoredProcedureProfiler:
         """
