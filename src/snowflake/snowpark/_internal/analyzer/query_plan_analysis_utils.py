@@ -45,7 +45,15 @@ class PlanNodeCategory(Enum):
 
 
 class PlanState(Enum):
+    """
+    This is an enum class for the state that are extracted for a given SnowflakePlan
+    or SelectStatement.
+    """
+
+    # the height of the given plan
     PLAN_HEIGHT = "plan_height"
+    # the number of SelectStatement nodes in the plan that have
+    # _merge_projection_complexity_with_subquery set to True
     NUM_SELECTS_WITH_COMPLEXITY_MERGED = "num_selects_with_complexity_merged"
 
 

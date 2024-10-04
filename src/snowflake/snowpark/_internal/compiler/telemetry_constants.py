@@ -6,6 +6,14 @@ from enum import Enum
 
 
 class CompilationStageTelemetryField(Enum):
+    # dataframe query stats
+    QUERY_PLAN_HEIGHT = "query_plan_height"
+    QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED = (
+        "query_plan_num_selects_with_complexity_merged"
+    )
+    QUERY_PLAN_NUM_DUPLICATE_NODES = "query_plan_num_duplicate_nodes"
+    QUERY_PLAN_COMPLEXITY = "query_plan_complexity"
+
     # types
     TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED = (
         "snowpark_large_query_breakdown_optimization_skipped"
