@@ -236,6 +236,7 @@ def test_create_temp_stage(profiler_session, tmp_stage_name):
     pro = profiler_session.stored_procedure_profiler
     db_name = Utils.random_temp_database()
     schema_name = Utils.random_temp_schema()
+    current_db = profiler_session.sql("select current_database()").collect()[0][0]
     try:
         profiler_session.sql(f"create database {db_name}").collect()
         profiler_session.sql(f"create schema {schema_name}").collect()
@@ -247,3 +248,4 @@ def test_create_temp_stage(profiler_session, tmp_stage_name):
         assert len(res) != 0
     finally:
         profiler_session.sql(f"drop database if exists {db_name}").collect()
+        profiler_session.sql(f"use database {current_db}").collect()
