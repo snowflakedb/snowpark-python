@@ -226,3 +226,24 @@ def test_thread_safe_on_activate_and_disable(
             tpe.submit(multi_thread_helper_function, pro)
     assert pro._query_history is None
     pro.register_modules()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
+def test_create_temp_stage(profiler_session, tmp_stage_name):
+    pro = profiler_session.stored_procedure_profiler
+    db_name = Utils.random_temp_database()
+    schema_name = Utils.random_temp_schema()
+    try:
+        profiler_session.sql(f"create database {db_name}").collect()
+        profiler_session.sql(f"create schema {schema_name}").collect()
+        pro.set_target_stage(f"{db_name}.{schema_name}.{tmp_stage_name}")
+
+        res = profiler_session.sql(
+            f"show stages like '{tmp_stage_name}' in schema {db_name}.{schema_name}"
+        ).collect()
+        assert len(res) != 0
+    finally:
+        profiler_session.sql(f"drop database if exists {db_name}").collect()
