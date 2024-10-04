@@ -1255,25 +1255,38 @@ class InternalFrame:
     def apply_snowpark_function_to_columns(
         self,
         snowpark_func: Callable[[Any], SnowparkColumn],
+        include_data: bool = True,
         include_index: bool = False,
         return_type: Optional[SnowparkPandasType] = None,
     ) -> "InternalFrame":
         """
-        Apply snowpark function callable to all data columns of an InternalFrame. If
-        include_index is True also apply this function to all index columns. The
-        snowflake quoted identifiers are preserved.
+        Apply snowpark function callable to all data columns and/or all index columns of an InternalFrame.
+        If include_data is True, apply the function to all data columns.
+        If include_index is True, apply the function to all index columns.
+        Raise an error if both include_data and include_index are False.
+        The snowflake quoted identifiers are preserved.
 
         Arguments:
             snowpark_func: Snowpark function to apply to columns of underlying snowpark df.
-            return_type: The optional SnowparkPandasType for the new column.
+            include_data: Whether to apply the function to data columns.
             include_index: Whether to apply the function to index columns as well.
+            return_type: The optional SnowparkPandasType for the new column.
 
         Returns:
-            InternalFrame with snowpark_func applies to columns of original frame, all other columns remain unchanged.
+            InternalFrame with snowpark_func applied to columns of original frame, all other columns remain unchanged.
         """
-        snowflake_ids = self.data_column_snowflake_quoted_identifiers
-        if include_index:
+
+        assert (
+            include_data or include_index
+        ), "Internal error: Cannoy exclude both of data columns and index columns."
+        if include_data and include_index:
+            snowflake_ids = self.data_column_snowflake_quoted_identifiers
             snowflake_ids.extend(self.index_column_snowflake_quoted_identifiers)
+        elif include_data:
+            snowflake_ids = self.data_column_snowflake_quoted_identifiers
+        else:
+            assert include_index
+            snowflake_ids = self.index_column_snowflake_quoted_identifiers
 
         return self.update_snowflake_quoted_identifiers_with_expressions(
             {col_id: snowpark_func(col(col_id)) for col_id in snowflake_ids},
