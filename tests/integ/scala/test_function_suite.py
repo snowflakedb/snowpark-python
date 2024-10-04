@@ -2829,6 +2829,28 @@ def test_array_append(session):
     reason="array_remove is not yet supported in local testing mode.",
 )
 def test_array_remove(session):
+    Utils.check_answer(
+        [
+            Row("[\n  2,\n  3\n]"),
+            Row("[\n  6,\n  7\n]"),
+        ],
+        TestData.array1(session).select(
+            array_remove(array_remove(col("arr1"), lit(1)), lit(8))
+        ),
+        sort=False,
+    )
+
+    Utils.check_answer(
+        [
+            Row("[\n  2,\n  3\n]"),
+            Row("[\n  6,\n  7\n]"),
+        ],
+        TestData.array1(session).select(
+            array_remove(array_remove(col("arr1"), 1), lit(8))
+        ),
+        sort=False,
+    )
+
     actual = session.createDataFrame([([1, 2, 4, 4, 3],), ([],)], ["data"])
     actual = actual.select(array_remove(actual.data, 4))
     expected = session.createDataFrame(
