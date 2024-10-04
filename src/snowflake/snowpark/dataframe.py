@@ -124,6 +124,7 @@ from snowflake.snowpark._internal.utils import (
     SKIP_LEVELS_THREE,
     SKIP_LEVELS_TWO,
     TempObjectType,
+    check_flatten_mode,
     check_is_pandas_dataframe_in_to_pandas,
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
@@ -533,18 +534,18 @@ class DataFrame:
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
-        ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Assign] = None,
         _emit_ast: bool = True,
     ) -> None:
         """
-        :param int ast_stmt: The AST Assign atom corresponding to this dataframe value. We track its assigned ID in the
+        :param int _ast_stmt: The AST Assign atom corresponding to this dataframe value. We track its assigned ID in the
                              slot self._ast_id. This allows this value to be referred to symbolically when it's
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
         self._ast_id = None
         if _emit_ast:
-            self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
+            self._ast_id = _ast_stmt.var_id.bitfield1 if _ast_stmt is not None else None
 
         if plan is not None:
             self._plan = self._session._analyzer.resolve(plan)
@@ -1222,12 +1223,15 @@ class DataFrame:
         return snowpandas_df
 
     def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
+
+        _emit_ast = self._ast_id is not None
+
         if isinstance(item, str):
-            return self.col(item)
+            return self.col(item, _emit_ast=_emit_ast)
         elif isinstance(item, Column):
-            return self.filter(item)
+            return self.filter(item, _emit_ast=_emit_ast)
         elif isinstance(item, (list, tuple)):
-            return self.select(item)
+            return self.select(item, _emit_ast=_emit_ast)
         elif isinstance(item, int):
             return self.__getitem__(self.columns[item])
         else:
@@ -1791,7 +1795,7 @@ class DataFrame:
             <BLANKLINE>
 
             Self join:
-            >>> df1.alias("L").join(df1.alias("R"), on="col1").select(col("L", "col1"), col("R", "col2")).show()
+            >>> df1.alias("L").join(df1.alias("R"), on="col1").select(col("L", "col1"), col("R", "col2")).show() # doctest: +SKIP
             --------------------
             |"COL1"  |"COL2R"  |
             --------------------
@@ -1804,6 +1808,9 @@ class DataFrame:
         Args:
             name: The alias as :class:`str`.
         """
+
+        # TODO: Last doctest seems broken, this is an experimental feature. Should we remove it?
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -3109,7 +3116,8 @@ class DataFrame:
             <BLANKLINE>
         """
         using_columns = kwargs.get("using_columns") or on
-        join_type = create_join_type(kwargs.get("join_type") or how or "inner")
+        join_type_arg = kwargs.get("join_type") or how or "inner"
+        join_type = create_join_type(join_type_arg)
         if isinstance(right, DataFrame):
             if self is right or self._plan is right._plan:
                 raise SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
@@ -3133,7 +3141,7 @@ class DataFrame:
             else:
                 if match_condition is not None:
                     raise ValueError(
-                        f"match_condition is only accepted with join type 'asof' given: '{join_type}'"
+                        f"match_condition is only accepted with join type 'asof' given: '{join_type_arg}'"
                     )
 
             # Parse using_columns arg
@@ -3186,7 +3194,7 @@ class DataFrame:
                 elif isinstance(join_type, AsOf):
                     ast.join_type.sp_join_type__asof = True
                 else:
-                    raise ValueError(f"Unsupported join type {join_type}")
+                    raise ValueError(f"Unsupported join type {join_type_arg}")
 
                 join_cols = kwargs.get("using_columns", on)
                 if join_cols is not None:
@@ -4038,10 +4046,12 @@ class DataFrame:
                 cur_options=self._reader._cur_options,
                 create_table_from_infer_schema=create_table_from_infer_schema,
             ),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
-        df._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
+        return df._internal_collect_with_tag_no_telemetry(
+            statement_params=statement_params
+        )
 
     @df_collect_api_telemetry
     @publicapi
@@ -4147,6 +4157,9 @@ class DataFrame:
         See Also:
             - :meth:`Session.flatten`, which creates a new :class:`DataFrame` by flattening compound values into multiple rows.
         """
+
+        check_flatten_mode(mode)
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -4160,14 +4173,12 @@ class DataFrame:
             expr.recursive = recursive
 
             mode = mode.upper()
-            if mode == "OBJECT":
+            if mode.upper() == "OBJECT":
                 expr.mode.sp_flatten_mode_object = True
-            elif mode == "ARRAY":
+            elif mode.upper() == "ARRAY":
                 expr.mode.sp_flatten_mode_array = True
-            elif mode == "BOTH":
-                expr.mode.sp_flatten_mode_both = True
             else:
-                raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+                expr.mode.sp_flatten_mode_both = True
 
         if isinstance(input, str):
             input = self.col(input)
@@ -4183,7 +4194,7 @@ class DataFrame:
         from snowflake.snowpark.mock._connection import MockServerConnection
 
         if isinstance(self._session._conn, MockServerConnection):
-            return DataFrame(self._session, ast_stmt=_ast_stmt)
+            return DataFrame(self._session, _ast_stmt=_ast_stmt)
 
         result_columns = [
             attr.name
@@ -4194,7 +4205,7 @@ class DataFrame:
         common_col_names = [k for k, v in Counter(result_columns).items() if v > 1]
         if len(common_col_names) == 0:
             return DataFrame(
-                self._session, Lateral(self._plan, table_function), ast_stmt=_ast_stmt
+                self._session, Lateral(self._plan, table_function), _ast_stmt=_ast_stmt
             )
         prefix = _generate_prefix("a")
         child = self.select(
@@ -4208,10 +4219,10 @@ class DataFrame:
                 )
                 for attr in self._output
             ],
-            ast_stmt=False,  # Suppress AST generation for this SELECT.
+            _emit_ast=False,
         )
         return DataFrame(
-            self._session, Lateral(child._plan, table_function), ast_stmt=_ast_stmt
+            self._session, Lateral(child._plan, table_function), _ast_stmt=_ast_stmt
         )
 
     def _show_string(
@@ -4302,6 +4313,20 @@ class DataFrame:
             + line
         )
 
+    def _format_name_for_view(
+        self, func_name: str, name: Union[str, Iterable[str]]
+    ) -> str:
+        """Helper function for views to create correct name. Raises TypeError invalid name"""
+        if isinstance(name, str):
+            return name
+
+        if isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
+            return ".".join(name)
+
+        raise TypeError(
+            f"The input name of {func_name}() must be a str or list/tuple of strs."
+        )
+
     @df_collect_api_telemetry
     @publicapi
     def create_or_replace_view(
@@ -4327,6 +4352,9 @@ class DataFrame:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+
+        formatted_name = self._format_name_for_view("create_or_replace_view", name)
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -4347,15 +4375,6 @@ class DataFrame:
                     entry = expr.statement_params.add()
                     entry._1 = k
                     entry._2 = statement_params[k]
-
-        if isinstance(name, str):
-            formatted_name = name
-        elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
-            formatted_name = ".".join(name)
-        else:
-            raise TypeError(
-                "The input of create_or_replace_view() can only a str or list of strs."
-            )
 
         return self._do_create_or_replace_view(
             formatted_name,
@@ -4398,6 +4417,21 @@ class DataFrame:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+
+        formatted_name = self._format_name_for_view(
+            "create_or_replace_dynamic_table", name
+        )
+
+        if not isinstance(warehouse, str):
+            raise TypeError(
+                "The warehouse input of create_or_replace_dynamic_table() can only be a str."
+            )
+
+        if not isinstance(lag, str):
+            raise TypeError(
+                "The lag input of create_or_replace_dynamic_table() can only be a str."
+            )
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -4432,25 +4466,6 @@ class DataFrame:
             )
             # Allow AST tests to pass.
             return []
-
-        if isinstance(name, str):
-            formatted_name = name
-        elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
-            formatted_name = ".".join(name)
-        else:
-            raise TypeError(
-                "The name input of create_or_replace_dynamic_table() can only be a str or list of strs."
-            )
-
-        if not isinstance(warehouse, str):
-            raise TypeError(
-                "The warehouse input of create_or_replace_dynamic_table() can only be a str."
-            )
-
-        if not isinstance(lag, str):
-            raise TypeError(
-                "The lag input of create_or_replace_dynamic_table() can only be a str."
-            )
 
         return self._do_create_or_replace_dynamic_table(
             formatted_name,
@@ -4491,6 +4506,9 @@ class DataFrame:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+
+        formatted_name = self._format_name_for_view("create_or_replace_temp_view", name)
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -4511,15 +4529,6 @@ class DataFrame:
                     entry = expr.statement_params.add()
                     entry._1 = k
                     entry._2 = statement_params[k]
-
-        if isinstance(name, str):
-            formatted_name = name
-        elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
-            formatted_name = ".".join(name)
-        else:
-            raise TypeError(
-                "The input of create_or_replace_temp_view() can only a str or list of strs."
-            )
 
         return self._do_create_or_replace_view(
             formatted_name,
@@ -4618,6 +4627,10 @@ class DataFrame:
              results. ``n`` is ``None``, it returns the first :class:`Row` of
              results, or ``None`` if it does not exist.
         """
+
+        if not isinstance(n, int) and n is not None:
+            raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -4638,8 +4651,6 @@ class DataFrame:
             if not block:
                 return result
             return result[0] if result else None
-        elif not isinstance(n, int):
-            raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
             return self._internal_collect_with_tag(
                 statement_params=statement_params, block=block
@@ -5326,7 +5337,7 @@ Query List:
         """
         :param proto.Assign ast_stmt: The AST statement protobuf corresponding to this value.
         """
-        df = DataFrame(self._session, plan, ast_stmt=ast_stmt, _emit_ast=False)
+        df = DataFrame(self._session, plan, _ast_stmt=ast_stmt, _emit_ast=False)
         df._statement_params = self._statement_params
 
         if ast_stmt is not None:

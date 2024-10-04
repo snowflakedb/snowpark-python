@@ -54,6 +54,7 @@ def pytest_addoption(parser):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
     parser.addoption("--local_testing_mode", action="store_true", default=False)
     parser.addoption("--enable_cte_optimization", action="store_true", default=False)
+    parser.addoption("--enable-ast", action="store_true", default=False)
 
 
 def pytest_ignore_collect(collection_path, path, config):
@@ -115,6 +116,11 @@ def local_testing_telemetry_setup():
     LocalTestOOBTelemetryService.get_instance()._is_internal_usage = True
     yield
     LocalTestOOBTelemetryService.get_instance().disable()
+
+
+@pytest.fixture(scope="session")
+def ast_enabled(pytestconfig):
+    return pytestconfig.getoption("enable_ast")
 
 
 @pytest.fixture(scope="session")
