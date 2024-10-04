@@ -6810,9 +6810,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler:
             QueryCompiler with a single data column converted to datetime dtype.
         """
-        raise_if_to_datetime_not_supported(
-            format, exact, infer_datetime_format, origin, errors
-        )
+        raise_if_to_datetime_not_supported(format, exact, infer_datetime_format, origin)
         if origin != "unix":
             """
             Non-default values of the `origin` argument are only valid for scalars and 1D arrays.
@@ -7005,9 +7003,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler:
             QueryCompiler with a single data column converted to datetime dtype.
         """
-        raise_if_to_datetime_not_supported(
-            format, exact, infer_datetime_format, origin, errors
-        )
+        raise_if_to_datetime_not_supported(format, exact, infer_datetime_format, origin)
         # convert format to sf_format which will be valid to use by to_timestamp functions in Snowflake
         sf_format = (
             to_snowflake_timestamp_format(format) if format is not None else None
@@ -18822,8 +18818,77 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
-    def tz_localize(self, *args: Any, **kwargs: Any) -> None:
-        ErrorMessage.method_not_implemented_error("tz_convert", "BasePandasDataset")
+    def tz_localize(
+        self,
+        tz: Union[str, tzinfo],
+        axis: int = 0,
+        level: Optional[Level] = None,
+        copy: bool = True,
+        ambiguous: str = "raise",
+        nonexistent: str = "raise",
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Localize tz-naive index of a Series or DataFrame to target time zone.
+
+        This operation localizes the Index. To localize the values in a timezone-naive Series, use Series.dt.tz_localize().
+
+        Parameters
+        ----------
+        tz : str or tzinfo or None
+            Time zone to localize. Passing None will remove the time zone information and preserve local time.
+        axis : {0 or ‘index’, 1 or ‘columns’}, default 0
+            The axis to localize
+        level : int, str, default None
+            If axis is a MultiIndex, localize a specific level. Otherwise must be None.
+        copy : bool, default True
+            Also make a copy of the underlying data.
+        ambiguous: ‘infer’, bool-ndarray, ‘NaT’, default ‘raise’
+            When clocks moved backward due to DST, ambiguous times may arise. For example in Central European Time (UTC+01), when going from 03:00 DST to 02:00 non-DST, 02:30:00 local time occurs both at 00:30:00 UTC and at 01:30:00 UTC. In such a situation, the ambiguous parameter dictates how ambiguous times should be handled.
+            - ‘infer’ will attempt to infer fall dst-transition hours based on order
+            - bool-ndarray where True signifies a DST time, False designates a non-DST time (note that this flag is only applicable for ambiguous times)
+            - ‘NaT’ will return NaT where there are ambiguous times
+            - ‘raise’ will raise an AmbiguousTimeError if there are ambiguous times.
+        nonexistent : str, default ‘raise’
+            A nonexistent time does not exist in a particular timezone where clocks moved forward due to DST. Valid values are:
+            - ‘shift_forward’ will shift the nonexistent time forward to the closest existing time
+            - ‘shift_backward’ will shift the nonexistent time backward to the closest existing time
+            - ‘NaT’ will return NaT where there are nonexistent times
+            - timedelta objects will shift nonexistent times by the timedelta
+            - ‘raise’ will raise an NonExistentTimeError if there are nonexistent times.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            The result of applying time zone localization.
+        """
+        if axis in (1, "columns"):
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas 'tz_localize' method doesn't yet support 'axis={axis}'"
+            )
+        if level is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'tz_localize' method doesn't yet support the 'level' parameter"
+            )
+        if copy is not True:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'tz_localize' method doesn't support 'copy=False'"
+            )
+        if not isinstance(ambiguous, str) or ambiguous != "raise":
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'tz_localize' method doesn't yet support the 'ambiguous' parameter"
+            )
+        if not isinstance(nonexistent, str) or nonexistent != "raise":
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'tz_localize' method doesn't yet support the 'nonexistent' parameter"
+            )
+
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                lambda column: tz_localize_column(column, tz),
+                include_data=False,
+                include_index=True,
+            )
+        )
 
     def timedelta_property(
         self, property_name: str, include_index: bool = False

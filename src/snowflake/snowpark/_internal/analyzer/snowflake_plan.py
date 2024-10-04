@@ -865,6 +865,7 @@ class SnowflakePlanBuilder:
         creation_source: TableCreationSource,
         child_attributes: Optional[List[Attribute]],
         iceberg_config: Optional[dict] = None,
+        table_exists: Optional[bool] = None,
     ) -> SnowflakePlan:
         """Returns a SnowflakePlan to materialize the child plan into a table.
 
@@ -898,6 +899,8 @@ class SnowflakePlanBuilder:
                 base_location: the base directory that snowflake can write iceberg metadata and files to
                 catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
                 storage_serialization_policy: specifies the storage serialization policy for the table
+            table_exists: whether the table already exists in the database.
+                Only used for APPEND and TRUNCATE mode.
         """
         is_generated = creation_source in (
             TableCreationSource.CACHE_RESULT,
@@ -1013,7 +1016,8 @@ class SnowflakePlanBuilder:
             )
 
         if mode == SaveMode.APPEND:
-            if self.session._table_exists(table_name):
+            assert table_exists is not None
+            if table_exists:
                 return self.build(
                     lambda x: insert_into_statement(
                         table_name=full_table_name,
@@ -1028,7 +1032,8 @@ class SnowflakePlanBuilder:
                 return get_create_and_insert_plan(child, replace=False, error=False)
 
         elif mode == SaveMode.TRUNCATE:
-            if self.session._table_exists(table_name):
+            assert table_exists is not None
+            if table_exists:
                 return self.build(
                     lambda x: insert_into_statement(
                         full_table_name, x, [x.name for x in child.attributes], True

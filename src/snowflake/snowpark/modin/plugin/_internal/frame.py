@@ -1278,7 +1278,7 @@ class InternalFrame:
 
         assert (
             include_data or include_index
-        ), "Internal error: Cannot exclude both of data columns and index columns."
+        ), "Internal error: Cannot exclude both of data columns and index columns"
         if include_data and include_index:
             snowflake_ids = self.data_column_snowflake_quoted_identifiers
             snowflake_ids.extend(self.index_column_snowflake_quoted_identifiers)

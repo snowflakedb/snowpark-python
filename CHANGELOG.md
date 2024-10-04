@@ -33,9 +33,11 @@
 - Added support for `DataFrame.rolling.corr` and `Series.rolling.corr` for `pairwise = False` and int `window`.
 - Added support for string time-based `window` and `min_periods = None` for `Rolling`.
 - Added support for `pd.read_sas` (Uses native pandas for processing).
-- Added suppport for applying `rolling().count()` and `expanding().count()` to `Timedelta` series and columns.
+- Added support for applying `rolling().count()` and `expanding().count()` to `Timedelta` series and columns.
 - Added support for `tz` in both `pd.date_range` and `pd.bdate_range`.
 - Added support for `Series.items`.
+- Added support for `errors="ignore"` in `pd.to_datetime`.
+- Added support for `DataFrame.tz_localize` and `Series.tz_localize`.
 - Added support for `DataFrame.tz_convert` and `Series.tz_convert`.
 
 #### Improvements
