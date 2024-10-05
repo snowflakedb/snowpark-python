@@ -220,6 +220,39 @@ def session(
 
 
 @pytest.fixture(scope="function")
+def profiler_session(
+    db_parameters,
+    resources_path,
+    sql_simplifier_enabled,
+    local_testing_mode,
+    cte_optimization_enabled,
+):
+    rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
+    rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
+    key1 = f"key1{Utils.random_alphanumeric_str(10)}"
+    key2 = f"key2{Utils.random_alphanumeric_str(10)}"
+    integration1 = f"integration1{Utils.random_alphanumeric_str(10)}"
+    integration2 = f"integration2{Utils.random_alphanumeric_str(10)}"
+    session = (
+        Session.builder.configs(db_parameters)
+        .config("local_testing", local_testing_mode)
+        .create()
+    )
+    session.sql_simplifier_enabled = sql_simplifier_enabled
+    session._cte_optimization_enabled = cte_optimization_enabled
+    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
+        set_up_external_access_integration_resources(
+            session, rule1, rule2, key1, key2, integration1, integration2
+        )
+    yield session
+    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
+        clean_up_external_access_integration_resources(
+            session, rule1, rule2, key1, key2, integration1, integration2
+        )
+    session.close()
+
+
+@pytest.fixture(scope="function")
 def temp_schema(connection, session, local_testing_mode) -> None:
     """Set up and tear down a temp schema for cross-schema test.
     This is automatically called per test module."""
