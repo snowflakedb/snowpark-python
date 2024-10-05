@@ -632,7 +632,6 @@ class Session:
         self._conf = self.RuntimeConfig(self, options or {})
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
-
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):

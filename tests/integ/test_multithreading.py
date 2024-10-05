@@ -32,16 +32,6 @@ from snowflake.snowpark.row import Row
 from tests.utils import IS_IN_STORED_PROC, IS_LINUX, IS_WINDOWS, TestFiles, Utils
 
 
-@pytest.fixture(scope="module", autouse=True)
-def session(db_parameters):
-    session_ = (
-        Session.builder.configs(db_parameters)
-        .config("PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", True)
-        .create()
-    )
-    yield session_
-
-
 def test_concurrent_select_queries(session):
     def run_select(session_, thread_id):
         df = session_.sql(f"SELECT {thread_id} as A")
