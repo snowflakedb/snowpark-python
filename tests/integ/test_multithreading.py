@@ -8,6 +8,7 @@ import logging
 import os
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Tuple  # noqa: F401
 from unittest.mock import patch
 
 import pytest
