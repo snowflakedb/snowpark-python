@@ -96,8 +96,6 @@ class RepeatedSubqueryElimination:
             else:
                 final_logical_plans.append(logical_plan)
 
-        # TODO (SNOW-1566363): Add telemetry for CTE
-        # return final_logical_plans
         return RepeatedSubqueryEliminationResult(
             logical_plans=final_logical_plans,
             total_num_ctes=self._total_number_ctes,
