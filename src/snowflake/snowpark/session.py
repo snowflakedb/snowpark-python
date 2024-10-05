@@ -608,25 +608,24 @@ class Session:
             ),
         )
 
-        self._thread_safe_session_enabled: bool = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION, False
-            )
-        )
         self._thread_store = (
             threading.local()
-            if self._thread_safe_session_enabled
+            if self._conn._thread_safe_session_enabled
             else DummyThreadLocal()
         )
         self._lock = (
-            threading.RLock() if self._thread_safe_session_enabled else DummyLock()
+            threading.RLock()
+            if self._conn._thread_safe_session_enabled
+            else DummyLock()
         )
 
         # this lock is used to protect _packages. We use introduce a new lock because add_packages
         # launches a query to snowflake to get all version of packages available in snowflake. This
         # query can be slow and prevent other threads from moving on waiting for _lock.
         self._package_lock = (
-            threading.RLock() if self._thread_safe_session_enabled else DummyLock()
+            threading.RLock()
+            if self._conn._thread_safe_session_enabled
+            else DummyLock()
         )
 
         self._custom_package_usage_config: Dict = {}
@@ -799,7 +798,7 @@ class Session:
     @sql_simplifier_enabled.setter
     def sql_simplifier_enabled(self, value: bool) -> None:
         warn_session_config_update_in_multithreaded_mode(
-            "sql_simplifier_enabled", self._thread_safe_session_enabled
+            "sql_simplifier_enabled", self._conn._thread_safe_session_enabled
         )
 
         with self._lock:
@@ -818,7 +817,7 @@ class Session:
     @experimental_parameter(version="1.15.0")
     def cte_optimization_enabled(self, value: bool) -> None:
         warn_session_config_update_in_multithreaded_mode(
-            "cte_optimization_enabled", self._thread_safe_session_enabled
+            "cte_optimization_enabled", self._conn._thread_safe_session_enabled
         )
 
         with self._lock:
@@ -834,7 +833,7 @@ class Session:
         """Set the value for eliminate_numeric_sql_value_cast_enabled"""
         warn_session_config_update_in_multithreaded_mode(
             "eliminate_numeric_sql_value_cast_enabled",
-            self._thread_safe_session_enabled,
+            self._conn._thread_safe_session_enabled,
         )
 
         if value in [True, False]:
@@ -853,7 +852,7 @@ class Session:
     def auto_clean_up_temp_table_enabled(self, value: bool) -> None:
         """Set the value for auto_clean_up_temp_table_enabled"""
         warn_session_config_update_in_multithreaded_mode(
-            "auto_clean_up_temp_table_enabled", self._thread_safe_session_enabled
+            "auto_clean_up_temp_table_enabled", self._conn._thread_safe_session_enabled
         )
 
         if value in [True, False]:
@@ -876,7 +875,7 @@ class Session:
         overall performance.
         """
         warn_session_config_update_in_multithreaded_mode(
-            "large_query_breakdown_enabled", self._thread_safe_session_enabled
+            "large_query_breakdown_enabled", self._conn._thread_safe_session_enabled
         )
 
         if value in [True, False]:
@@ -894,7 +893,8 @@ class Session:
     def large_query_breakdown_complexity_bounds(self, value: Tuple[int, int]) -> None:
         """Set the lower and upper bounds for the complexity score used in large query breakdown optimization."""
         warn_session_config_update_in_multithreaded_mode(
-            "large_query_breakdown_complexity_bounds", self._thread_safe_session_enabled
+            "large_query_breakdown_complexity_bounds",
+            self._conn._thread_safe_session_enabled,
         )
 
         if len(value) != 2:
