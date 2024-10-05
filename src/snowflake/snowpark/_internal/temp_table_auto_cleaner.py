@@ -35,7 +35,9 @@ class TempTableAutoCleaner:
         self.ref_count_map: Dict[str, int] = defaultdict(int)
         # Lock to protect the ref_count_map
         self.lock = (
-            threading.RLock() if session._thread_safe_session_enabled else DummyLock()
+            threading.RLock()
+            if session._conn._thread_safe_session_enabled
+            else DummyLock()
         )
 
     def add(self, table: SnowflakeTable) -> None:

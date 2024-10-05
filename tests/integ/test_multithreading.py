@@ -8,7 +8,6 @@ import logging
 import os
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Tuple  # noqa: F401
 from unittest.mock import patch
 
 import pytest
@@ -30,6 +29,16 @@ except ImportError:
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.row import Row
 from tests.utils import IS_IN_STORED_PROC, IS_LINUX, IS_WINDOWS, TestFiles, Utils
+
+
+@pytest.fixture(scope="module", autouse=True)
+def session(db_parameters):
+    session_ = (
+        Session.builder.configs(db_parameters)
+        .config("PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", True)
+        .create()
+    )
+    yield session_
 
 
 def test_concurrent_select_queries(session):
