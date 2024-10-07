@@ -265,12 +265,6 @@ class SqlCounter:
                 print(query, file=sys.stderr)
             print("=" * len(title), file=sys.stderr)
 
-            title = f"\n{'=' * 20} SqlCounter Captured Describe Queries {'=' * 20}\n"
-            print(title, file=sys.stderr)
-            for query in self._get_actual_describe_queries():
-                print(query, file=sys.stderr)
-            print("=" * len(title), file=sys.stderr)
-
         self.clear()
 
     def _get_actual_queries(self):
@@ -286,24 +280,6 @@ class SqlCounter:
                     map(
                         lambda q: q.sql_text,
                         [q for q in self._queries if not q.is_describe],
-                    )
-                ),
-            )
-        )
-
-    def _get_actual_describe_queries(self):
-        return list(
-            filter(
-                lambda q: not any(
-                    [
-                        all([p.upper() in q.upper() for p in fw])
-                        for fw in FILTER_OUT_QUERIES
-                    ]
-                ),
-                list(
-                    map(
-                        lambda q: q.sql_text,
-                        [q for q in self._queries if q.is_describe],
                     )
                 ),
             )
