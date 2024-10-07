@@ -62,13 +62,13 @@ def setup(request, session):
 
 
 def check_result(
-        session,
-        df,
-        expect_cte_optimized: bool,
-        expected_query_count,
-        expected_describe_count,
-        union_count,
-        join_count,
+    session,
+    df,
+    expect_cte_optimized: bool,
+    expected_query_count=None,
+    expected_describe_count=None,
+    union_count=None,
+    join_count=None,
 ):
     df = df.sort(df.columns)
     session._cte_optimization_enabled = False
