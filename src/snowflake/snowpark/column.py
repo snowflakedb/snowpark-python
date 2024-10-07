@@ -795,7 +795,7 @@ class Column:
     def equal_null(self, other: "Column", _emit_ast: bool = True) -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
         expr = None
-        if _emit_ast and self._ast is not None:
+        if _emit_ast := _emit_ast and self.__emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_equal_null)
             ast.lhs.CopyFrom(self._ast)
