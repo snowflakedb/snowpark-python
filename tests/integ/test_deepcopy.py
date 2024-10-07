@@ -379,3 +379,37 @@ def test_deep_nested_select(session):
         check_copied_plan(copied_plan, df._plan, skip_attribute=True)
     finally:
         Utils.drop_table(session, temp_table_name)
+
+
+def test_deepcopy_no_duplicate(session):
+    base_df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df1 = base_df.select("a", "b").sort("a")
+    df2 = base_df.filter(col("a") == 1)
+    df3 = df1.union_all(df2)
+
+    copied_plan = copy.deepcopy(df3._plan)
+    check_copied_plan(copied_plan, df3._plan)
+
+    # we will traverse the plan to assert that the tuple (plan._id, type(plan)) have a unique id(plan)
+    # note that two nodes with same plan._id can have different id(plan) since SnowflakePlan inherits plan._id
+    # from its source selectable.
+    #   plan._id: calculated by hashing the query sql and query params of plan
+    #   type(plan): the type of the plan
+    #   id(plan): the memory address of the plan object
+    # If the same plan._id has multiple id(plan), it means the deepcopy is duplicating source nodes
+
+    def traverse_plan(plan, plan_id_map):
+        plan_id = plan._id
+        plan_type = type(plan)
+        plan_memo = id(plan)
+        identifier_tuple = (plan_id, plan_type)
+
+        if identifier_tuple not in plan_id_map:
+            plan_id_map[identifier_tuple] = plan_memo
+        else:
+            assert plan_id_map[identifier_tuple] == plan_memo
+
+        for child in plan.children_plan_nodes:
+            traverse_plan(child, plan_id_map)
+
+    traverse_plan(copied_plan, {})

@@ -489,38 +489,30 @@ class SnowflakePlan(LogicalPlan):
                 referenced_ctes=self.referenced_ctes,
             )
 
-    def __deepcopy__(self, memodict=None) -> "SnowflakePlan":  # noqa: B006
-        if memodict is None:
-            memodict = {}
-
+    def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
         if (self_id := id(self)) in memodict:
+            # return the memoized copy if it exists
             return memodict[self_id]
 
-        if self.source_plan is None:
-            copied_source_plan = None
+        if self.source_plan:
+            copied_source_plan = copy.deepcopy(self.source_plan, memodict)
         else:
-            if (source_id := id(self.source_plan)) in memodict:
-                copied_source_plan = memodict[source_id]
-            else:
-                copied_source_plan = copy.deepcopy(self.source_plan, memodict)
-                memodict[source_id] = copied_source_plan
+            copied_source_plan = None
 
         copied_plan = SnowflakePlan(
-            queries=copy.deepcopy(self.queries, memodict) if self.queries else [],
+            queries=copy.deepcopy(self.queries) if self.queries else [],
             schema_query=self.schema_query,
-            post_actions=copy.deepcopy(self.post_actions, memodict)
+            post_actions=copy.deepcopy(self.post_actions)
             if self.post_actions
             else None,
-            expr_to_alias=copy.deepcopy(self.expr_to_alias, memodict)
+            expr_to_alias=copy.deepcopy(self.expr_to_alias)
             if self.expr_to_alias
             else None,
             source_plan=copied_source_plan,
             is_ddl_on_temp_object=self.is_ddl_on_temp_object,
-            api_calls=copy.deepcopy(self.api_calls, memodict)
-            if self.api_calls
-            else None,
+            api_calls=copy.deepcopy(self.api_calls) if self.api_calls else None,
             df_aliased_col_name_to_real_col_name=copy.deepcopy(
-                self.df_aliased_col_name_to_real_col_name, memodict
+                self.df_aliased_col_name_to_real_col_name
             )
             if self.df_aliased_col_name_to_real_col_name
             else None,
