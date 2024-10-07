@@ -4073,7 +4073,7 @@ def test_df_loc_get_with_timedelta_and_none_key():
     assert_frame_equal(snow_df.loc[None], expected_df, check_column_type=False)
 
 
-@sql_count_checker(query_count=2, join_count=4)
+@sql_count_checker(query_count=2, join_count=6)
 @pytest.mark.parametrize("index", [list("ABC"), [0, 1, 2]])
 def test_df_loc_set_row_from_series(index):
     native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
@@ -4219,9 +4219,9 @@ def test_df_loc_set_series_value(key, convert_key_to_series, row_loc):
     key_sorted = key == list("ABC")
     if row_loc is not None:
         if convert_key_to_series:
-            join_count = 7
+            join_count = 9
         else:
-            join_count = 4
+            join_count = 6
     else:
         if convert_key_to_series:
             join_count = 3
@@ -4278,7 +4278,7 @@ def test_df_loc_set_series_value_slice_key(key, row_loc):
     snow_df = pd.DataFrame(native_df)
     query_count = 2
     if row_loc is not None:
-        join_count = 4
+        join_count = 6
     else:
         join_count = 1
 

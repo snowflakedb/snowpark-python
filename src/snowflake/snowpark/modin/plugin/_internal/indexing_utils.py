@@ -1955,7 +1955,7 @@ def _set_2d_labels_helper_for_single_column_wise_item(
     ).result_frame
 
 
-def _convert_series_item_to_row_for_set_frame_2d_labels(
+def _get_columns_length(
     internal_frame: InternalFrame,
     columns: Union[
         "snowflake_query_compiler.SnowflakeQueryCompiler",
@@ -1965,25 +1965,16 @@ def _convert_series_item_to_row_for_set_frame_2d_labels(
         "pd.Index",
         np.ndarray,
     ],
-    index: Union[Scalar, slice, InternalFrame],
-    item: InternalFrame,
-) -> tuple[InternalFrame, Union[slice, InternalFrame]]:
+) -> int:
     """
-    Helper method to convert a Series to a row for a locset.
+    Helper method to get length of the columns indexer for the specified InternalFrame.
 
     Args:
         internal_frame: the main frame
-        index: the row labels to set. None means all rows are included.
         columns: the column labels to set
-        item: the new values to set
     Returns:
-        New item frame that has been converted from Series (single column) to single
-        row - in effect a transpose, as well as new index value (in the case that
-        index is a scalar, it is converted to a Series with a single value).
+        Number of columns to set according to the columns label.
     """
-    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
-        SnowflakeQueryCompiler,
-    )
 
     def slice_len(slice_obj: slice) -> int:
         """Helper method to calculate length of slice object for columns."""
@@ -1994,17 +1985,73 @@ def _convert_series_item_to_row_for_set_frame_2d_labels(
         return end - start
 
     if columns == slice(None):
-        col_len = len(internal_frame.data_column_snowflake_quoted_identifiers)
+        return len(internal_frame.data_column_snowflake_quoted_identifiers)
     elif isinstance(columns, slice):
-        col_len = slice_len(columns)
+        return slice_len(columns)
     elif isinstance(columns, Sized):
-        col_len = len(columns)
+        return len(columns)
     else:
-        col_len = len(columns.index)
+        return len(columns.index)
+
+
+def _convert_series_item_to_row_for_set_frame_2d_labels(
+    internal_frame: InternalFrame,
+    columns: Union[
+        "snowflake_query_compiler.SnowflakeQueryCompiler",
+        tuple,
+        slice,
+        list,
+        "pd.Index",
+        np.ndarray,
+    ],
+    item: InternalFrame,
+) -> InternalFrame:
+    """
+    Helper method to convert a Series to a row for a locset.
+
+    Args:
+        internal_frame: the main frame
+        columns: the column labels to set
+        item: the new values to set
+    Returns:
+        New item frame that has been converted from Series (single column) to single
+        row - in effect a transpose.
+    """
+    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+        SnowflakeQueryCompiler,
+    )
+
+    col_len = _get_columns_length(internal_frame, columns)
 
     if isinstance(columns, SnowflakeQueryCompiler):
+        # In the following step, we convert the Series item value to a single row.
+        # The column names for that row will come from the Series index. In the
+        # remainder of this set operation, we will use label based matching to
+        # match the column names of the item value and the column names of the
+        # frame that we are setting. If we are passed in columns as a Series,
+        # we want to match the values positionally (example below). To do this,
+        # we set the index of the item frame to the columns key passed in, so
+        # that after the next step, the item frame (single row frame) will have
+        # the columns key as the columns.
+        # Example:
+        # df.loc[:, pd.Series(["C", "B", "A"])] = pd.Series([1, 2, 3])
+        # In the above example, we want to set column C to 1, column B
+        # to 2, and column A to 3. If we didn't do the step below (the set_index
+        # step), then after the transpose, the item would look like this:
+        #    0  1  2
+        # 0  1  2  3
+        # but we want instead for it to look like this:
+        #    C  B  A
+        # 0  1  2  3
+        # so by setting the index to ["C", "B", "A"], then we get the desired result.
         item = SnowflakeQueryCompiler(item).set_index_from_series(columns)._modin_frame
 
+    # Here we do the `reset_index`, since it may be the case that we set the index
+    # in the previous step to the columns key, rather than what the index was previously,
+    # which can lead to Snowflake internal errors if, for example, the index of the internal
+    # frame we are setting is of type int, but the columns are of type string, since the
+    # new index of item after the transpose will be of type string rather than of type int
+    # causing a join error.
     item = (
         SnowflakeQueryCompiler(
             get_item_series_as_single_row_frame(item, col_len, move_index_to_cols=True)
@@ -2012,23 +2059,29 @@ def _convert_series_item_to_row_for_set_frame_2d_labels(
         .reset_index(drop=True)
         ._modin_frame
     )
+    return item
 
-    if is_scalar(index):
-        new_item = item.append_column("__index__", pandas_lit(index))
-        item = InternalFrame.create(
-            ordered_dataframe=new_item.ordered_dataframe,
-            data_column_pandas_labels=item.data_column_pandas_labels,
-            data_column_snowflake_quoted_identifiers=item.data_column_snowflake_quoted_identifiers,
-            data_column_pandas_index_names=item.data_column_pandas_index_names,
-            index_column_pandas_labels=item.index_column_pandas_labels,
-            index_column_snowflake_quoted_identifiers=[
-                new_item.data_column_snowflake_quoted_identifiers[-1]
-            ],
-            data_column_types=item.cached_data_column_snowpark_pandas_types,
-            index_column_types=[item.cached_data_column_snowpark_pandas_types[-1]],
-        )
-        index = pd.Series([index])._query_compiler._modin_frame
-    return item, index
+
+def _add_scalar_index_to_item_and_convert_index_to_internal_frame(
+    item: InternalFrame, index: Scalar
+) -> tuple[InternalFrame, InternalFrame]:
+    """
+    Helper method to convert a scalar index to an InternalFrame and add it to the item InternalFrame.
+
+    Args:
+        item: the new values to set
+        index: the row labels to set. None means all rows are included.
+    Returns:
+        New item value with the index value as its index, and new index value converted
+        to a Series with a single value.
+    """
+    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+        SnowflakeQueryCompiler,
+    )
+
+    index = pd.Series([index])._query_compiler
+    item = SnowflakeQueryCompiler(item).set_index_from_series(index)._modin_frame
+    return item, index._modin_frame
 
 
 def set_frame_2d_labels(
@@ -2155,17 +2208,22 @@ def set_frame_2d_labels(
         # If `item` is from a Series (rather than a Dataframe), flip the series item values to apply them
         # across columns rather than rows.
         is_multi_col_set = (
-            (isinstance(columns, Sized) and len(columns) > 1)
-            or isinstance(columns, slice)
-            or (isinstance(columns, SnowflakeQueryCompiler))
-        )
+            isinstance(columns, Sized) and len(columns) > 1
+        ) or isinstance(columns, (slice, SnowflakeQueryCompiler))
         if frame_is_df_and_item_is_series and is_multi_col_set:
             # If columns is slice(None), we are setting all columns in the InternalFrame.
             matching_item_columns_by_label = True
             matching_item_rows_by_label = False
-            item, index = _convert_series_item_to_row_for_set_frame_2d_labels(
-                internal_frame, columns, index, item
+            item = _convert_series_item_to_row_for_set_frame_2d_labels(
+                internal_frame, columns, item
             )
+            if is_scalar(index):
+                (
+                    item,
+                    index,
+                ) = _add_scalar_index_to_item_and_convert_index_to_internal_frame(
+                    item, index
+                )
 
         # when item is not frame, this map will be initialized later
         item_data_col_label_to_pos_map = {
