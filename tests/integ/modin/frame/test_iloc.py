@@ -3207,3 +3207,48 @@ def test_raise_set_cell_with_list_like_value_error():
         s.iloc[0] = [0, 0]
     with pytest.raises(NotImplementedError):
         s.to_frame().iloc[0, 0] = [0, 0]
+
+
+@sql_count_checker(query_count=1, join_count=3)
+@pytest.mark.parametrize("index", [list("ABC"), [0, 1, 2]])
+def test_df_iloc_set_row_from_series(index):
+    native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
+    snow_df = pd.DataFrame(native_df)
+
+    def ilocset(df):
+        series = (
+            pd.Series([1, 4, 9], index=index)
+            if isinstance(df, pd.DataFrame)
+            else native_pd.Series([1, 4, 9], index=index)
+        )
+        df.iloc[1] = series
+        return df
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        ilocset,
+    )
+
+
+@sql_count_checker(query_count=1, join_count=3)
+@pytest.mark.parametrize("index", [[3, 4, 5], [0, 1, 2], list("ABC")])
+@pytest.mark.parametrize("columns", [None, list("ABC")])
+def test_df_iloc_full_set_row_from_series(columns, index):
+    native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=columns)
+    snow_df = pd.DataFrame(native_df)
+
+    def ilocset(df):
+        series = (
+            pd.Series([1, 4, 9], index=index)
+            if isinstance(df, pd.DataFrame)
+            else native_pd.Series([1, 4, 9], index=index)
+        )
+        df.iloc[:] = series
+        return df
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        ilocset,
+    )
