@@ -9,6 +9,7 @@ import re
 
 import pytest
 
+from snowflake.connector.options import installed_pandas, pandas as pd
 from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
@@ -245,6 +246,32 @@ def test_join_using_conditions_and_specifying_join_type(session):
     Utils.check_answer(df1.join(df2, join_cond, "semi"), [Row(1, 2, "1")])
     Utils.check_answer(df1.join(df2, join_cond, "left_anti"), [Row(3, 4, "3")])
     Utils.check_answer(df1.join(df2, join_cond, "anti"), [Row(3, 4, "3")])
+
+
+@pytest.mark.skipif(
+    not installed_pandas,
+    reason="Test requires pandas.",
+)
+@pytest.mark.skip(
+    reason="SNOW-1668981: Update after anti-join returns incorrect result.",
+)
+def test_snow_1668981_repro(session):
+    # Use pandas to force temp table
+    df1 = session.create_dataframe(pd.DataFrame({"A": [0, 1], "B": ["a", "b"]}))
+    df2 = session.create_dataframe(pd.DataFrame({"A": [0, 1], "B": ["a", "c"]}))
+
+    anti = df1.join(df2, on=["A", "B"], how="anti")
+    assert anti.collect() == [Row(1, "b")]
+
+    df1.update(
+        assignments={"B": lit("f")},
+        condition=(df1["A"] == anti["A"]) & (df1["B"] == anti["B"]),
+        source=anti,
+    )
+    assert session.table(df1.table_name).order_by("A").collect() == [
+        Row(0, "a"),
+        Row(1, "f"),
+    ]
 
 
 def test_natural_join(session):
