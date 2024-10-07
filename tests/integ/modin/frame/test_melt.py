@@ -17,12 +17,12 @@ from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 data = [
     {"frame": {"abc": ["A", np.nan, "C"], "123": ["1", "2", np.nan]}, "kargs": {}},

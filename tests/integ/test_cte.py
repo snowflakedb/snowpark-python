@@ -18,14 +18,20 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.functions import avg, col, lit, seq1, uniform, when_matched
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 pytestmark = [
-    pytest.mark.xfail(
+    pytest.mark.skipif(
         "config.getoption('local_testing_mode', default=False)",
         reason="CTE is a SQL feature",
         run=False,
-    )
+    ),
+    pytest.mark.skipif(
+        (not installed_pandas),
+        reason="SQL Counter changes when pandas not installed",
+        run=False,
+    ),
 ]
 
 binary_operations = [
@@ -74,12 +80,15 @@ def check_result(session, df, expect_cte_optimized):
 
         assert_frame_equal(result_pandas, cte_result_pandas)
 
-    last_query = df.queries["queries"][-1]
-    if expect_cte_optimized:
-        assert last_query.startswith(WITH)
-        assert last_query.count(WITH) == 1
-    else:
-        assert last_query.count(WITH) == 0
+    # verify no actual query or describe query is issued during that process
+    with SqlCounter(query_count=0, describe_count=0):
+        last_query = df.queries["queries"][-1]
+
+        if expect_cte_optimized:
+            assert last_query.startswith(WITH)
+            assert last_query.count(WITH) == 1
+        else:
+            assert last_query.count(WITH) == 0
 
 
 def count_number_of_ctes(query):
@@ -100,6 +109,12 @@ def count_number_of_ctes(query):
         lambda x: x.to_df("a1", "b1").alias("L"),
     ],
 )
+@sql_count_checker(
+    query_count=12,
+    union_count=6,
+    high_count_expected=True,
+    high_count_reason="multiple evaluations",
+)
 def test_unary(session, action):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     df_action = action(df)
@@ -110,10 +125,12 @@ def test_unary(session, action):
 @pytest.mark.parametrize("action", binary_operations)
 def test_binary(session, action):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-    check_result(session, action(df, df), expect_cte_optimized=True)
+    with SqlCounter(query_count=6):
+        check_result(session, action(df, df), expect_cte_optimized=True)
 
     df1 = session.create_dataframe([[3, 4], [2, 1]], schema=["a", "b"])
-    check_result(session, action(df, df1), expect_cte_optimized=False)
+    with SqlCounter(query_count=6):
+        check_result(session, action(df, df1), expect_cte_optimized=False)
 
     # multiple queries
     original_threshold = analyzer.ARRAY_BIND_THRESHOLD
@@ -122,14 +139,20 @@ def test_binary(session, action):
         df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_threshold
-    df3 = action(df2, df2)
-    check_result(session, df3, expect_cte_optimized=True)
-    plan_queries = df3.queries
-    # check the number of queries
-    assert len(plan_queries["queries"]) == 3
-    assert len(plan_queries["post_actions"]) == 1
+    with SqlCounter(
+        query_count=36,
+        high_count_expected=True,
+        high_count_reason="small array bind threshold",
+    ):
+        df3 = action(df2, df2)
+        check_result(session, df3, expect_cte_optimized=True)
+        plan_queries = df3.queries
+        # check the number of queries
+        assert len(plan_queries["queries"]) == 3
+        assert len(plan_queries["post_actions"]) == 1
 
 
+@sql_count_checker(query_count=2, join_count=2)
 def test_join_with_alias_dataframe(session):
     df1 = session.create_dataframe([[1, 6]], schema=["col1", "col2"])
     df_res = (
@@ -146,9 +169,10 @@ def test_join_with_alias_dataframe(session):
 
     Utils.check_answer(cte_result, result)
 
-    last_query = df_res.queries["queries"][-1]
-    assert last_query.startswith(WITH)
-    assert last_query.count(WITH) == 1
+    with SqlCounter(query_count=0, describe_count=0):
+        last_query = df_res.queries["queries"][-1]
+        assert last_query.startswith(WITH)
+        assert last_query.count(WITH) == 1
 
 
 @pytest.mark.parametrize("action", binary_operations)
@@ -163,8 +187,10 @@ def test_variable_binding_binary(session, action):
         "select $1 as a, $2 as b from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]
     )
 
-    check_result(session, action(df1, df3), expect_cte_optimized=True)
-    check_result(session, action(df1, df2), expect_cte_optimized=False)
+    with SqlCounter(query_count=6):
+        check_result(session, action(df1, df3), expect_cte_optimized=True)
+    with SqlCounter(query_count=6):
+        check_result(session, action(df1, df2), expect_cte_optimized=False)
 
 
 def test_variable_binding_multiple(session):
@@ -181,35 +207,39 @@ def test_variable_binding_multiple(session):
     )
 
     df_res = df1.union(df1).union(df2)
-    check_result(session, df_res, expect_cte_optimized=True)
-    plan_queries = df_res._plan.execution_queries
+    with SqlCounter(query_count=6, union_count=12):
+        check_result(session, df_res, expect_cte_optimized=True)
+    with SqlCounter(query_count=0, describe_count=0):
+        plan_queries = df_res._plan.execution_queries
 
-    assert plan_queries[PlanQueryType.QUERIES][-1].params == [
-        1,
-        "a",
-        2,
-        "b",
-        1,
-        "c",
-        3,
-        "d",
-    ]
+        assert plan_queries[PlanQueryType.QUERIES][-1].params == [
+            1,
+            "a",
+            2,
+            "b",
+            1,
+            "c",
+            3,
+            "d",
+        ]
 
     df_res = df2.union(df1).union(df2).union(df1)
-    check_result(session, df_res, expect_cte_optimized=True)
-    plan_queries = df_res._plan.execution_queries
+    with SqlCounter(query_count=6, union_count=18):
+        check_result(session, df_res, expect_cte_optimized=True)
+    with SqlCounter(query_count=0, describe_count=0):
+        plan_queries = df_res._plan.execution_queries
 
-    assert plan_queries[PlanQueryType.QUERIES][-1].params == [
-        1,
-        "a",
-        2,
-        "b",
-        1,
-        "c",
-        3,
-        "d",
-    ]
-    assert plan_queries[PlanQueryType.QUERIES][-1].sql.count(WITH) == 1
+        assert plan_queries[PlanQueryType.QUERIES][-1].params == [
+            1,
+            "a",
+            2,
+            "b",
+            1,
+            "c",
+            3,
+            "d",
+        ]
+        assert plan_queries[PlanQueryType.QUERIES][-1].sql.count(WITH) == 1
 
 
 @pytest.mark.parametrize(
@@ -226,30 +256,38 @@ def test_number_of_ctes(session, action):
 
     # only df1 will be converted to a CTE
     root = action(df1, df1)
-    check_result(session, root, expect_cte_optimized=True)
-    assert count_number_of_ctes(root.queries["queries"][-1]) == 1
+    with SqlCounter(query_count=6):
+        check_result(session, root, expect_cte_optimized=True)
+    with SqlCounter(query_count=0, describe_count=0):
+        assert count_number_of_ctes(root.queries["queries"][-1]) == 1
 
     # df1 and df3 will be converted to CTEs
     root = action(root, df3)
-    check_result(session, root, expect_cte_optimized=True)
-    assert count_number_of_ctes(root.queries["queries"][-1]) == 2
+    with SqlCounter(query_count=6):
+        check_result(session, root, expect_cte_optimized=True)
+    with SqlCounter(query_count=0, describe_count=0):
+        assert count_number_of_ctes(root.queries["queries"][-1]) == 2
 
     # df1, df2 and df3 will be converted to CTEs
     root = action(root, df2)
-    check_result(session, root, expect_cte_optimized=True)
-    # if SQL simplifier is enabled, filter and select will be one query,
-    # so there are only 2 CTEs
-    assert count_number_of_ctes(root.queries["queries"][-1]) == (
-        2 if session._sql_simplifier_enabled else 3
-    )
+    with SqlCounter(query_count=6):
+        check_result(session, root, expect_cte_optimized=True)
+    with SqlCounter(query_count=0, describe_count=0):
+        # if SQL simplifier is enabled, filter and select will be one query,
+        # so there are only 2 CTEs
+        assert count_number_of_ctes(root.queries["queries"][-1]) == (
+            2 if session._sql_simplifier_enabled else 3
+        )
 
 
+@sql_count_checker(query_count=6, union_count=6)
 def test_different_df_same_query(session):
     df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a")
     df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a")
     df = df2.union_all(df1)
     check_result(session, df, expect_cte_optimized=True)
-    assert count_number_of_ctes(df.queries["queries"][-1]) == 1
+    with SqlCounter(query_count=0, describe_count=0):
+        assert count_number_of_ctes(df.queries["queries"][-1]) == 1
 
 
 def test_same_duplicate_subtree(session):
@@ -268,8 +306,10 @@ def test_same_duplicate_subtree(session):
     df2 = df1.filter(col("a") == 1)
     df3 = df2.select("b")
     df_result1 = df3.union_all(df3)
-    check_result(session, df_result1, expect_cte_optimized=True)
-    assert count_number_of_ctes(df_result1.queries["queries"][-1]) == 1
+    with SqlCounter(query_count=6, union_count=6):
+        check_result(session, df_result1, expect_cte_optimized=True)
+    with SqlCounter(query_count=0, describe_count=0):
+        assert count_number_of_ctes(df_result1.queries["queries"][-1]) == 1
     """
                               root
                              /    \
@@ -285,24 +325,41 @@ def test_same_duplicate_subtree(session):
     """
     df4 = df2.select("a")
     df_result2 = df3.union_all(df3).union_all(df4.union_all(df4))
-    check_result(session, df_result2, expect_cte_optimized=True)
-    assert count_number_of_ctes(df_result2.queries["queries"][-1]) == 3
+    with SqlCounter(query_count=6, union_count=18):
+        check_result(session, df_result2, expect_cte_optimized=True)
+    with SqlCounter(query_count=0, describe_count=0):
+        assert count_number_of_ctes(df_result2.queries["queries"][-1]) == 3
 
 
-@pytest.mark.parametrize("mode", ["append", "overwrite", "errorifexists", "ignore"])
+@pytest.mark.parametrize(
+    "mode", ["append", "truncate", "overwrite", "errorifexists", "ignore"]
+)
 def test_save_as_table(session, mode):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-    with session.query_history() as query_history:
-        df.union_all(df).write.save_as_table(
-            random_name_for_temp_object(TempObjectType.TABLE),
-            table_type="temp",
-            mode=mode,
-        )
+    if mode == "append":
+        # 1 show query + 1 create table query + 1 insert query
+        expected_query_count = 3
+    elif mode == "truncate":
+        # 1 show query + 1 create table query
+        expected_query_count = 2
+    else:
+        # 1 create table query
+        expected_query_count = 1
+    with SqlCounter(query_count=expected_query_count, union_count=1):
+        with session.query_history() as query_history:
+            df.union_all(df).write.save_as_table(
+                random_name_for_temp_object(TempObjectType.TABLE),
+                table_type="temp",
+                mode=mode,
+            )
     query = query_history.queries[-1].sql_text
     assert query.count(WITH) == 1
     assert count_number_of_ctes(query) == 1
+    if mode in ["append", "truncate"]:
+        assert sum("show" in q.sql_text for q in query_history.queries) == 1
 
 
+@sql_count_checker(query_count=1, union_count=1)
 def test_create_or_replace_view(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     with session.query_history() as query_history:
@@ -314,6 +371,7 @@ def test_create_or_replace_view(session):
     assert count_number_of_ctes(query) == 1
 
 
+@sql_count_checker(query_count=4, union_count=3)
 def test_table_update_delete_merge(session):
     table_name = random_name_for_temp_object(TempObjectType.VIEW)
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -345,6 +403,7 @@ def test_table_update_delete_merge(session):
     assert count_number_of_ctes(query) == 1
 
 
+@sql_count_checker(query_count=1, union_count=1)
 def test_copy_into_location(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     df1 = df.union_all(df)
@@ -362,6 +421,7 @@ def test_copy_into_location(session):
     assert count_number_of_ctes(query) == 1
 
 
+@sql_count_checker(query_count=1, union_count=1)
 def test_explain(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     explain_string = df.union_all(df)._explain_string()
@@ -383,37 +443,46 @@ def test_sql_simplifier(session):
     df2 = df1.select("a", "b")
     df3 = df1.select("a", "b").select("a", "b")
     df4 = df1.union_by_name(df2).union_by_name(df3)
-    check_result(session, df4, expect_cte_optimized=True)
-    # after applying sql simplifier, there is only one CTE (df1, df2, df3 have the same query)
-    assert count_number_of_ctes(df4.queries["queries"][-1]) == 1
-    assert df4.queries["queries"][-1].count(filter_clause) == 1
+    with SqlCounter(query_count=6, union_count=12):
+        check_result(session, df4, expect_cte_optimized=True)
+    with SqlCounter(query_count=0, describe_count=0):
+        # after applying sql simplifier, there is only one CTE (df1, df2, df3 have the same query)
+        assert count_number_of_ctes(df4.queries["queries"][-1]) == 1
+        assert df4.queries["queries"][-1].count(filter_clause) == 1
 
     df5 = df1.join(df2).join(df3)
-    check_result(session, df5, expect_cte_optimized=True)
-    # when joining the dataframe with the same column names, we will add random suffix to column names,
-    # so df1, df2 and df3 have 3 different queries, and we can't convert them to a CTE
-    # the only CTE is from df
-    assert count_number_of_ctes(df5.queries["queries"][-1]) == 1
-    assert df5.queries["queries"][-1].count(filter_clause) == 3
+    with SqlCounter(query_count=6, join_count=12):
+        check_result(session, df5, expect_cte_optimized=True)
+    with SqlCounter(query_count=0, describe_count=0):
+        # when joining the dataframe with the same column names, we will add random suffix to column names,
+        # so df1, df2 and df3 have 3 different queries, and we can't convert them to a CTE
+        # the only CTE is from df
+        assert count_number_of_ctes(df5.queries["queries"][-1]) == 1
+        assert df5.queries["queries"][-1].count(filter_clause) == 3
 
     df6 = df1.join(df2, lsuffix="_xxx").join(df3, lsuffix="_yyy")
-    check_result(session, df6, expect_cte_optimized=True)
-    # When adding a lsuffix, the columns of right dataframe don't need to be renamed,
-    # so we will get a common CTE with filter
-    assert count_number_of_ctes(df6.queries["queries"][-1]) == 2
-    assert df6.queries["queries"][-1].count(filter_clause) == 2
+    with SqlCounter(query_count=6, join_count=12):
+        check_result(session, df6, expect_cte_optimized=True)
+    with SqlCounter(query_count=0, describe_count=0):
+        # When adding a lsuffix, the columns of right dataframe don't need to be renamed,
+        # so we will get a common CTE with filter
+        assert count_number_of_ctes(df6.queries["queries"][-1]) == 2
+        assert df6.queries["queries"][-1].count(filter_clause) == 2
 
     df7 = df1.with_column("c", lit(1))
     df8 = df1.with_column("c", lit(1)).with_column("d", lit(1))
     df9 = df1.join(df7, lsuffix="_xxx").join(df8, lsuffix="_yyy")
-    check_result(session, df9, expect_cte_optimized=True)
-    # after applying sql simplifier, with_column operations are flattened,
-    # so df1, df7 and df8 have different queries, and we can't convert them to a CTE
-    # the only CTE is from df
-    assert count_number_of_ctes(df9.queries["queries"][-1]) == 1
-    assert df9.queries["queries"][-1].count(filter_clause) == 3
+    with SqlCounter(query_count=6, join_count=12):
+        check_result(session, df9, expect_cte_optimized=True)
+    with SqlCounter(query_count=0, describe_count=0):
+        # after applying sql simplifier, with_column operations are flattened,
+        # so df1, df7 and df8 have different queries, and we can't convert them to a CTE
+        # the only CTE is from df
+        assert count_number_of_ctes(df9.queries["queries"][-1]) == 1
+        assert df9.queries["queries"][-1].count(filter_clause) == 3
 
 
+@sql_count_checker(query_count=6, union_count=6)
 def test_table_function(session):
     df = (
         session.generator(seq1(1), uniform(1, 10, 2), rowcount=150)
@@ -425,6 +494,7 @@ def test_table_function(session):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
+@sql_count_checker(query_count=7, union_count=6)
 def test_table(session):
     temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
     session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
@@ -451,8 +521,20 @@ def test_sql(session, query):
 
     df = session.sql(query).filter(lit(True))
     df_result = df.union_all(df).select("*")
-    check_result(session, df_result, expect_cte_optimized=True)
-    assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
+    expected_query_count = 6
+    high_query_count_expected = False
+    if "show tables" in query:
+        expected_query_count = 12
+        high_query_count_expected = True
+    with SqlCounter(
+        query_count=expected_query_count,
+        union_count=6,
+        high_count_expected=high_query_count_expected,
+        high_count_reason="extra query from show tables",
+    ):
+        check_result(session, df_result, expect_cte_optimized=True)
+    with SqlCounter(query_count=0, describe_count=0):
+        assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
 @pytest.mark.parametrize(
@@ -462,6 +544,7 @@ def test_sql(session, query):
         lambda x: x.group_by("a").avg("b"),
     ],
 )
+@sql_count_checker(query_count=7, union_count=6)
 def test_aggregate(session, action):
     temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
     session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
@@ -485,9 +568,19 @@ def test_df_reader(session, mode, resources_path):
     )
     df = reader.option("INFER_SCHEMA", True).csv(test_file_on_stage)
     df_result = df.union_by_name(df)
-    check_result(session, df_result, expect_cte_optimized=True)
+    expected_query_count = 18
+    if mode == "copy":
+        expected_query_count = 24
+    with SqlCounter(
+        query_count=expected_query_count,
+        union_count=6,
+        high_count_expected=True,
+        high_count_reason="extra query for file operations",
+    ):
+        check_result(session, df_result, expect_cte_optimized=True)
 
 
+@sql_count_checker(query_count=6, join_count=15)
 def test_join_table_function(session):
     df = session.sql(
         "select 'James' as name, 'address1 address2 address3' as addresses"
@@ -498,6 +591,7 @@ def test_join_table_function(session):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
+@sql_count_checker(query_count=7, join_count=9, union_count=6)
 def test_pivot_unpivot(session):
     table_name = Utils.random_table_name()
     session.create_dataframe(
@@ -523,6 +617,7 @@ def test_pivot_unpivot(session):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
+@sql_count_checker(query_count=6, union_count=6)
 def test_window_function(session):
     window1 = (
         Window.partition_by("value").order_by("key").rows_between(Window.CURRENT_ROW, 2)
@@ -565,7 +660,12 @@ def test_in_with_subquery_multiple_query(session):
         df_filter = df0.filter(col("a") < 3)
         df_in = df.filter(~df["a"].in_(df_filter))
         df_result = df_in.union_all(df_in).select("*")
-        check_result(session, df_result, expect_cte_optimized=True)
+        with SqlCounter(
+            query_count=66,
+            high_count_expected=True,
+            high_count_reason="multiple queries for both df0 and df",
+        ):
+            check_result(session, df_result, expect_cte_optimized=True)
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_threshold
 
@@ -575,13 +675,16 @@ def test_select_with_column_expr_alias(session):
     df1 = df.select("a", "b", (col("a") + col("b")).as_("c"))
     df2 = df1.select("a", "b", "c", (col("a") + col("b") + 1).as_("d"))
     df_result = df2.union_all(df2).select("*")
-    check_result(session, df_result, expect_cte_optimized=True)
+    with SqlCounter(query_count=6, union_count=6):
+        check_result(session, df_result, expect_cte_optimized=True)
 
     df2 = df.select_expr("a + 1 as a", "b + 1 as b")
     df_result = df2.union_all(df2).select("*")
-    check_result(session, df_result, expect_cte_optimized=True)
+    with SqlCounter(query_count=6, union_count=6):
+        check_result(session, df_result, expect_cte_optimized=True)
 
 
+@sql_count_checker(query_count=0)
 def test_cte_optimization_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
         session.cte_optimization_enabled = True

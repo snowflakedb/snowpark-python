@@ -13,6 +13,8 @@
 - Added support for `DataFrameGroupBy.fillna` and `SeriesGroupBy.fillna`.
 - Added support for constructing `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` arguments.
 - Added support for constructing `Series` and `DataFrame` objects with `index` and `column` values not present in `DataFrame`/`Series` `data`.
+- Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
+- Added support for `Session.stored_procedure_profiler`.
 
 #### Improvements
 - Removed the use of `pkg_resources`, which is deprecated. No more deprecation warnings about it. Used `packaging` and `importlib.metadata` to replace `pkg_resources`.
@@ -29,11 +31,17 @@
 - Added support for `by`, `left_by`, `right_by`, `left_index`, and `right_index` for `pd.merge_asof`.
 - Added support for passing parameter `include_describe` to `Session.query_history`.
 - Added support for `DatetimeIndex.mean` and `DatetimeIndex.std` methods.
-- Added support for `Resampler.asfreq`.
+- Added support for `Resampler.asfreq`, `Resampler.nunique`, and `Resampler.quantile`.
 - Added support for `resample` frequency `W`, `ME`, `YE` with `closed = "left"`.
 - Added support for `DataFrame.rolling.corr` and `Series.rolling.corr` for `pairwise = False` and int `window`.
 - Added support for string time-based `window` and `min_periods = None` for `Rolling`.
 - Added support for `pd.read_sas` (Uses native pandas for processing).
+- Added support for applying `rolling().count()` and `expanding().count()` to `Timedelta` series and columns.
+- Added support for `tz` in both `pd.date_range` and `pd.bdate_range`.
+- Added support for `Series.items`.
+- Added support for `errors="ignore"` in `pd.to_datetime`.
+- Added support for `DataFrame.tz_localize` and `Series.tz_localize`.
+- Added support for `DataFrame.tz_convert` and `Series.tz_convert`.
 
 #### Improvements
 
@@ -53,6 +61,8 @@
 - Fixed `inplace` argument for `Series` objects derived from other `Series` objects.
 - Fixed a bug where `Series.sort_values` failed if series name overlapped with index column name.
 - Fixed a bug where transposing a dataframe would map `Timedelta` index levels to integer column levels.
+- Fixed a bug where `Resampler` methods on timedelta columns would produce integer results.
+- Fixed a bug where `pd.to_numeric()` would leave `Timedelta` inputs as `Timedelta` instead of converting them to integers.
 
 ## 1.22.1 (2024-09-11)
 This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for detailed release content.
