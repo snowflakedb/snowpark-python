@@ -6,6 +6,8 @@
 
 #### New Features
 
+- Updated `Session` class to be thread-safe. This allows concurrent query submission, dataframe operations, UDF and store procedure registration, and concurret file uploads.
+  - One limitation is that updating `Session` configurations inside multiple-threads may cause other active thread to break. Please update `Session` configurations before starting multiple threads.
 - Added the following new functions in `snowflake.snowpark.functions`:
   - `make_interval`
 - Added support for using Snowflake Interval constants with `Window.range_between()` when the order by column is TIMESTAMP or DATE type.
@@ -14,7 +16,7 @@
 - Added support for constructing `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` arguments.
 - Added support for constructing `Series` and `DataFrame` objects with `index` and `column` values not present in `DataFrame`/`Series` `data`.
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
-- 
+
 #### Improvements
 
 #### Bug Fixes
@@ -174,7 +176,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 - Improve concat, join performance when operations are performed on series coming from the same dataframe by avoiding unnecessary joins.
 - Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
-- Improved `pd.to_datetime` to handle all local input cases. 
+- Improved `pd.to_datetime` to handle all local input cases.
 - Create a lazy index from another lazy index without pulling data to client.
 - Raised `NotImplementedError` for Index bitwise operators.
 - Display a more clear error message when `Index.names` is set to a non-like-like object.
