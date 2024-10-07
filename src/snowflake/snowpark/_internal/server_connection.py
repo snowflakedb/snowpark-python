@@ -453,6 +453,7 @@ class ServerConnection:
         params: Optional[Sequence[Any]] = None,
         num_statements: Optional[int] = None,
         ignore_results: bool = False,
+        placeholders: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -500,6 +501,7 @@ class ServerConnection:
                 log_on_exception,
                 case_sensitive=case_sensitive,
                 num_statements=num_statements,
+                placeholders=placeholders,
                 **kwargs,
             )
 
@@ -670,6 +672,7 @@ class ServerConnection:
                     num_statements=len(main_queries),
                     params=params,
                     ignore_results=ignore_results,
+                    placeholders=placeholders,
                     **kwargs,
                 )
 
