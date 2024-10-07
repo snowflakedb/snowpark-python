@@ -25,6 +25,7 @@ from typing import (
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
+    PlanState,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
@@ -416,21 +417,34 @@ class SnowflakePlan(LogicalPlan):
         return self._output_dict
 
     @cached_property
-    def plan_height(self) -> int:
+    def num_duplicate_nodes(self) -> int:
+        duplicated_nodes, _ = find_duplicate_subtrees(self)
+        return len(duplicated_nodes)
+
+    @cached_property
+    def plan_state(self) -> Dict[PlanState, Any]:
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            SelectStatement,
+        )
+
         height = 0
+        num_selects_with_complexity_merged = 0
         current_level = [self]
         while len(current_level) > 0:
             next_level = []
             for node in current_level:
                 next_level.extend(node.children_plan_nodes)
+                if (
+                    isinstance(node, SelectStatement)
+                    and node._merge_projection_complexity_with_subquery
+                ):
+                    num_selects_with_complexity_merged += 1
             height += 1
             current_level = next_level
-        return height
-
-    @cached_property
-    def num_duplicate_nodes(self) -> int:
-        duplicated_nodes, _ = find_duplicate_subtrees(self)
-        return len(duplicated_nodes)
+        return {
+            PlanState.PLAN_HEIGHT: height,
+            PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: num_selects_with_complexity_merged,
+        }
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
