@@ -14,7 +14,6 @@ from pandas.core.indexing import IndexingError
 from pytest import fail
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.conftest import SKIP_SQL_COUNT_CHECK
 from tests.integ.modin.pandas_api_coverage import PandasAPICoverageGenerator
 from tests.integ.utils.sql_counter import (
     SqlCounter,
@@ -80,6 +79,8 @@ def auto_annotate_sql_counter(request):
 
 @pytest.fixture(autouse=True)
 def check_sql_counter_invoked(request):
+    from tests.conftest import SKIP_SQL_COUNT_CHECK
+
     do_check = (
         INTEG_PANDAS_SUBPATH in request.node.location[0]
         and running_on_public_ci()
