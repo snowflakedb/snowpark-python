@@ -32,12 +32,18 @@ pytestmark = [
 ]
 
 
-@pytest.fixture(autouse=True)
-def setup(session):
+paramList = [False, True]
+
+
+@pytest.fixture(params=paramList, autouse=True)
+def setup(request, session):
     is_simplifier_enabled = session._sql_simplifier_enabled
+    large_query_breakdown_enabled = session.large_query_breakdown_enabled
+    session.large_query_breakdown_enabled = request.param
     session._sql_simplifier_enabled = True
     yield
     session._sql_simplifier_enabled = is_simplifier_enabled
+    session.large_query_breakdown_enabled = large_query_breakdown_enabled
 
 
 @pytest.fixture(scope="module")
@@ -57,7 +63,9 @@ def get_cumulative_node_complexity(df: DataFrame) -> Dict[str, int]:
     return df._plan.cumulative_node_complexity
 
 
-def assert_df_subtree_query_complexity(df: DataFrame, estimate: Dict[str, int]):
+def assert_df_subtree_query_complexity(
+    df: DataFrame, estimate: Dict[PlanNodeCategory, int]
+):
     assert (
         get_cumulative_node_complexity(df) == estimate
     ), f"query = {df.queries['queries'][-1]}"

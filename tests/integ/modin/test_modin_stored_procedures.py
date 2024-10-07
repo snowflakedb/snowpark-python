@@ -11,7 +11,7 @@ from snowflake.snowpark.modin.plugin import (
     supported_modin_version,
     supported_pandas_version,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker
 
 PACKAGE_LIST = [
     f"pandas=={supported_pandas_version}",
