@@ -6,6 +6,7 @@ import gc
 import hashlib
 import logging
 import os
+import re
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple  # noqa: F401
@@ -14,7 +15,14 @@ from unittest.mock import patch
 import pytest
 
 from snowflake.snowpark.session import Session
-from snowflake.snowpark.types import IntegerType
+from snowflake.snowpark.types import (
+    DoubleType,
+    IntegerType,
+    LongType,
+    StringType,
+    StructField,
+    StructType,
+)
 from tests.integ.test_temp_table_cleanup import wait_for_drop_table_sql_done
 
 try:
@@ -580,3 +588,92 @@ def test_concurrent_update_on_sensitive_configs(session, config, value, caplog):
         f"You might have more than one threads sharing the Session object trying to update {config}"
         in caplog.text
     )
+
+
+def test_temp_name_placeholder_for_sync(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+
+    def process_data(df_, thread_id):
+        df_cleaned = df_.filter(df.A == thread_id)
+        return df_cleaned.collect()
+
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 4
+        df = session.create_dataframe([[1, 2], [3, 4]], ["A", "B"])
+
+        with session.query_history() as history:
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                for i in range(10):
+                    executor.submit(process_data, df, i)
+
+        queries_sent = [query.sql_text for query in history.queries]
+        unique_create_table_queries = set()
+        unique_drop_table_queries = set()
+        for query in queries_sent:
+            assert "temp_name_placeholder" not in query
+            if query.startswith("CREATE  OR  REPLACE"):
+                match = re.search(r"SNOWPARK_TEMP_TABLE_[\w]+", query)
+                assert match is not None, query
+                table_name = match.group()
+                unique_create_table_queries.add(table_name)
+            elif query.startswith("DROP  TABLE"):
+                match = re.search(r"SNOWPARK_TEMP_TABLE_[\w]+", query)
+                assert match is not None, query
+                table_name = match.group()
+                unique_drop_table_queries.add(table_name)
+        assert len(unique_create_table_queries) == 10, queries_sent
+        assert len(unique_drop_table_queries) == 10, queries_sent
+
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
+
+
+def test_temp_name_placeholder_for_async(session, resources_path, temp_stage):
+    stage_prefix = f"prefix_{Utils.random_alphanumeric_str(10)}"
+    stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
+    test_files = TestFiles(resources_path)
+    session.file.put(test_files.test_file_csv, stage_with_prefix, auto_compress=False)
+    filename = os.path.basename(test_files.test_file_csv)
+
+    def process_data(df_, thread_id):
+        df_cleaned = df_.filter(df.A == thread_id)
+        job = df_cleaned.collect(block=False)
+        job.result()
+
+    df = session.read.schema(
+        StructType(
+            [
+                StructField("A", LongType()),
+                StructField("B", StringType()),
+                StructField("C", DoubleType()),
+            ]
+        )
+    ).csv(f"{stage_with_prefix}/{filename}")
+
+    with session.query_history() as history:
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            for i in range(10):
+                executor.submit(process_data, df, i)
+
+    queries_sent = [query.sql_text for query in history.queries]
+
+    unique_create_file_format_queries = set()
+    unique_drop_file_format_queries = set()
+    for query in queries_sent:
+        assert "temp_name_placeholder" not in query
+        if query.startswith(" CREATE SCOPED TEMPORARY FILE  FORMAT"):
+            match = re.search(r"SNOWPARK_TEMP_FILE_FORMAT_[\w]+", query)
+            assert match is not None, query
+            file_format_name = match.group()
+            unique_create_file_format_queries.add(file_format_name)
+        else:
+            assert query.startswith("DROP  FILE  FORMAT")
+            match = re.search(r"SNOWPARK_TEMP_FILE_FORMAT_[\w]+", query)
+            assert match is not None, query
+            file_format_name = match.group()
+            unique_drop_file_format_queries.add(file_format_name)
+
+    assert len(unique_create_file_format_queries) == 10
+    assert len(unique_drop_file_format_queries) == 10
