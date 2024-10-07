@@ -1704,6 +1704,12 @@ class BasePandasDataset:
         - Special indexing for DatetimeIndex is unsupported in Snowpark pandas, e.g., `partial string indexing <https://pandas.pydata.org/docs/user_guide/timeseries.html#partial-string-indexing>`_.
         - While setting rows with duplicated index, Snowpark pandas won't raise ValueError for duplicate labels to avoid
           eager evaluation.
+        - When using ``.loc`` to set values with a Series key and Series item, the index of the item is ignored, and values are set positionally.
+        - pandas ``.loc`` may sometimes raise a ValueError when using ``.loc`` to set values in a DataFrame from a Series using a Series as the
+          column key, but Snowpark pandas ``.loc`` supports this type of operation according to the rules specified above.
+        - ``.loc`` with boolean indexers for columns is currently unsupported.
+        - When using ``.loc`` to set column values for a Series item, with a ``slice(None)`` for the row columns, Snowpark pandas
+          sets the value for each row from the Series.
 
         See Also
         --------
@@ -1830,6 +1836,15 @@ class BasePandasDataset:
         viper               0       0
         sidewinder          0       0
 
+        Setting the values with a Series item.
+
+        >>> df.loc["viper"] = pd.Series([99, 99], index=["max_speed", "shield"])
+        >>> df
+                    max_speed  shield
+        cobra              30      10
+        viper              99      99
+        sidewinder          0       0
+
         **Getting values on a DataFrame with an index that has integer labels**
 
         Another example using integers for the index
@@ -1927,6 +1942,40 @@ class BasePandasDataset:
                    mark ii          1       4
         viper      mark ii          7       1
 
+        Set column values from Series with Series key.
+
+        >>> df = pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
+        >>> df.loc[:, pd.Series(list("ABC"))] = pd.Series([-10, -20, -30])
+        >>> df
+            A   B   C
+        0 -10 -20 -30
+        1 -10 -20 -30
+        >>> df.loc[:, pd.Series(list("ABC"))] = pd.Series([10, 20, 30], index=list("CBA"))
+        >>> df
+            A   B   C
+        0  10  20  30
+        1  10  20  30
+        >>> df.loc[:, pd.Series(list("BAC"))] = pd.Series([-10, -20, -30], index=list("ABC"))
+        >>> df
+            A   B   C
+        0 -20 -10 -30
+        1 -20 -10 -30
+
+        Set column values from Series with list key.
+
+        >>> df.loc[:, list("ABC")] = pd.Series([1, 3, 5], index=list("CAB"))
+        >>> df
+           A  B  C
+        0  3  5  1
+        1  3  5  1
+
+        Set column values for all rows from Series item.
+
+        >>> df.loc[:, "A":"B"] = pd.Series([10, 20, 30], index=list("ABC"))
+        >>> df
+            A   B  C
+        0  10  20  1
+        1  10  20  1
         """
 
     @doc(
