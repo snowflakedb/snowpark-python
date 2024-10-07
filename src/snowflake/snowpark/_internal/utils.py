@@ -782,18 +782,41 @@ def publicapi(func) -> Callable:
             ):
                 kwargs["_emit_ast"] = args[0]._df._session.ast_enabled
             else:
+                session = None
                 try:
-                    # Get from default session.
+                    # Multiple default session attempts:
                     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
                         None
                     )
-                    # If session is None, do nothing (i.e., keep encoding AST).
-                    # This happens when the decorator is called before a session is started.
-                    if session is not None:
+                    assert session is not None
+                except (
+                    snowflake.snowpark.exceptions.SnowparkSessionException,
+                    AssertionError,
+                ):
+                    # Use modin session retrieval first, as it supports multiple sessions.
+                    # Expect this to fail if modin was not installed, for Python 3.8, ... but that's ok.
+                    try:
+                        import modin.pandas as pd
+
+                        session = pd.session
+                    except Exception as e:  # noqa: F841
+                        try:
+                            # Get from default session.
+                            from snowflake.snowpark.context import get_active_session
+
+                            session = get_active_session()
+                        except Exception as e:  # noqa: F841
+                            pass
+                finally:
+                    if session is None:
+                        logging.debug(
+                            f"Could not retrieve default session "
+                            f"for function {func.__qualname__}, capturing AST by default."
+                        )
+                        # session has not been created yet. To not lose information, always encode AST.
+                        kwargs["_emit_ast"] = True
+                    else:
                         kwargs["_emit_ast"] = session.ast_enabled
-                except snowflake.snowpark.exceptions.SnowparkSessionException:
-                    # session has not been created yet. To not lose information, always encode AST.
-                    kwargs["_emit_ast"] = True
 
         # TODO: Could modify internal docstring to display that users should not modify the _emit_ast parameter.
 
