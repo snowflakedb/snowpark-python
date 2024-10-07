@@ -109,7 +109,6 @@ from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
     get_copy_into_table_options,
     is_sql_select_statement,
-    random_name_for_temp_object,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -702,7 +701,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         schema_query: Optional[str],
     ) -> SnowflakePlan:
-        temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        temp_table_name = f"temp_name_placeholder_{generate_random_alphanumeric()}"
         attributes = [
             Attribute(attr.name, attr.datatype, attr.nullable) for attr in output
         ]
@@ -726,7 +725,11 @@ class SnowflakePlanBuilder:
         else:
             schema_query = schema_query or schema_value_statement(attributes)
         queries = [
-            Query(create_table_stmt, is_ddl_on_temp_object=True),
+            Query(
+                create_table_stmt,
+                is_ddl_on_temp_object=True,
+                temp_name_place_holder=(temp_table_name, TempObjectType.TABLE),
+            ),
             BatchInsertQuery(insert_stmt, data),
             Query(select_stmt),
         ]
@@ -1269,7 +1272,7 @@ class SnowflakePlanBuilder:
             queries: List[Query] = []
             post_queries: List[Query] = []
             format_name = self.session.get_fully_qualified_name_if_possible(
-                random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+                f"temp_name_placeholder_{generate_random_alphanumeric()}"
             )
             queries.append(
                 Query(
@@ -1283,6 +1286,7 @@ class SnowflakePlanBuilder:
                         is_generated=True,
                     ),
                     is_ddl_on_temp_object=True,
+                    temp_name_place_holder=(format_name, TempObjectType.FILE_FORMAT),
                 )
             )
             post_queries.append(
@@ -1340,7 +1344,7 @@ class SnowflakePlanBuilder:
             )
 
             temp_table_name = self.session.get_fully_qualified_name_if_possible(
-                random_name_for_temp_object(TempObjectType.TABLE)
+                f"temp_name_placeholder_{generate_random_alphanumeric()}"
             )
             queries = [
                 Query(
@@ -1353,6 +1357,7 @@ class SnowflakePlanBuilder:
                         is_generated=True,
                     ),
                     is_ddl_on_temp_object=True,
+                    temp_name_place_holder=(temp_table_name, TempObjectType.TABLE),
                 ),
                 Query(
                     copy_into_table(
@@ -1673,6 +1678,7 @@ class Query:
         *,
         query_id_place_holder: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
+        temp_name_place_holder: Optional[Tuple[str, TempObjectType]] = None,
         params: Optional[Sequence[Any]] = None,
     ) -> None:
         self.sql = sql
@@ -1681,6 +1687,13 @@ class Query:
             if query_id_place_holder
             else f"query_id_place_holder_{generate_random_alphanumeric()}"
         )
+        # This is a temporary workaround to handle the case when a snowflake plan is created
+        # in the following way in a multi-threaded environment:
+        # 1. Create a temp object
+        # 2. Use the temp object in a query
+        # 3. Drop the temp object
+        # When auto-temp table cleaner is rolled out, we should implement it using temp table cleaner
+        self.temp_name_place_holder = temp_name_place_holder
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
         self.params = params or []
 
@@ -1699,6 +1712,7 @@ class Query:
             self.sql == other.sql
             and self.query_id_place_holder == other.query_id_place_holder
             and self.is_ddl_on_temp_object == other.is_ddl_on_temp_object
+            and self.temp_name_place_holder == other.temp_name_place_holder
             and self.params == other.params
         )
 

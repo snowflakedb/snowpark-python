@@ -55,6 +55,7 @@ from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
     normalize_local_file,
     normalize_remote_file_or_dir,
+    random_name_for_temp_object,
     result_set_to_iter,
     result_set_to_rows,
     unwrap_stage_location_single_quote,
@@ -638,10 +639,20 @@ class ServerConnection:
                 final_queries = []
                 last_place_holder = None
                 for q in main_queries:
+                    query = q.sql
+                    if q.temp_name_place_holder:
+                        temp_name, temp_object_type = q.temp_name_place_holder
+                        placeholders[temp_name] = random_name_for_temp_object(
+                            temp_object_type
+                        )
+
+                    for holder, id_ in placeholders.items():
+                        query = query.replace(holder, id_)
+
                     final_queries.append(
-                        q.sql.replace(f"'{last_place_holder}'", "LAST_QUERY_ID()")
+                        query.replace(f"'{last_place_holder}'", "LAST_QUERY_ID()")
                         if last_place_holder
-                        else q.sql
+                        else query
                     )
                     last_place_holder = q.query_id_place_holder
                     params.extend(q.params)
@@ -669,13 +680,20 @@ class ServerConnection:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
             else:
                 for i, query in enumerate(main_queries):
+                    final_query = query.sql
+                    if query.temp_name_place_holder:
+                        temp_name, temp_object_type = query.temp_name_place_holder
+                        placeholders[temp_name] = random_name_for_temp_object(
+                            temp_object_type
+                        )
+
+                    for holder, id_ in placeholders.items():
+                        final_query = final_query.replace(holder, id_)
+
                     if isinstance(query, BatchInsertQuery):
-                        self.run_batch_insert(query.sql, query.rows, **kwargs)
+                        self.run_batch_insert(final_query, query.rows, **kwargs)
                     else:
                         is_last = i == len(main_queries) - 1 and not block
-                        final_query = query.sql
-                        for holder, id_ in placeholders.items():
-                            final_query = final_query.replace(holder, id_)
                         result = self.run_query(
                             final_query,
                             to_pandas,
@@ -700,8 +718,11 @@ class ServerConnection:
             # delete created tmp object
             if block:
                 for action in plan_queries[PlanQueryType.POST_ACTIONS]:
+                    query = action.sql
+                    for holder, id_ in placeholders.items():
+                        query = query.replace(holder, id_)
                     self.run_query(
-                        action.sql,
+                        query,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,
                         block=block,
                         log_on_exception=log_on_exception,
