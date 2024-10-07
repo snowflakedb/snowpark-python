@@ -50,7 +50,7 @@ pytestmark = [
 ]
 
 
-def reset_node(node: LogicalPlan, query_generator: QueryGenerator) -> None:
+def reset_node(node: LogicalPlan) -> None:
     def reset_selectable(selectable_node: Selectable) -> None:
         # reset the analyzer to use the current query generator instance to
         # ensure the new query generator is used during the resolve process
@@ -60,8 +60,6 @@ def reset_node(node: LogicalPlan, query_generator: QueryGenerator) -> None:
         if isinstance(selectable_node, (SelectStatement, SetStatement)):
             selectable_node._sql_query = None
             selectable_node._projection_in_str = None
-        if isinstance(selectable_node, SelectStatement):
-            selectable_node.expr_to_alias = selectable_node.from_.expr_to_alias
 
     if isinstance(node, SnowflakePlan):
         # do not reset leaf snowflake plan
@@ -105,9 +103,9 @@ def check_generated_plan_queries(
 
         nodes = nodes[::-1]  # reverse the list
         for node in nodes:
-            reset_node(node, query_generator)
+            reset_node(node)
             if isinstance(node, SnowflakePlan):
-                re_resolve_and_compare_plan_queries(node, query_generator)
+                re_resolve_and_compare_plan_queries(plan, query_generator)
 
 
 def verify_multiple_create_queries(
@@ -377,8 +375,8 @@ def test_multiple_plan_query_generation(session):
     )
     snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
     query_generator = create_query_generator(snowflake_plan)
-    reset_node(snowflake_plan, query_generator)
-    reset_node(df_res._plan, query_generator)
+    reset_node(snowflake_plan)
+    reset_node(df_res._plan)
     logical_plans = [snowflake_plan.source_plan, df_res._plan.source_plan]
     with SqlCounter(query_count=0, describe_count=0):
         generated_queries = query_generator.generate_queries(logical_plans)
