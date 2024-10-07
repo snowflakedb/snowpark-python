@@ -381,14 +381,22 @@ def test_deep_nested_select(session):
         Utils.drop_table(session, temp_table_name)
 
 
-def test_deepcopy_no_duplicate(session):
-    base_df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-    df1 = base_df.select("a", "b").sort("a")
-    df2 = base_df.filter(col("a") == 1)
-    df3 = df1.union_all(df2)
+@pytest.mark.parametrize(
+    "generator",
+    [
+        lambda session_: session_.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]),
+        lambda session_: session_.sql("select 1 as a, 2 as b"),
+    ],
+)
+def test_deepcopy_no_duplicate(session, generator):
+    base_df = generator(session)
+    df1 = base_df.select("a", col("b").alias("c")).sort("a")
+    df2 = base_df.filter(col("a") == 1).with_column("C", col("A") + col("B"))
+    df3 = df1.cache_result()
+    final_df = df1.union_all(df2.select("a", "c")).union_all(df3)
 
-    copied_plan = copy.deepcopy(df3._plan)
-    check_copied_plan(copied_plan, df3._plan)
+    copied_plan = copy.deepcopy(final_df._plan)
+    check_copied_plan(copied_plan, final_df._plan)
 
     # we will traverse the plan to assert that the tuple (plan._id, type(plan)) have a unique id(plan)
     # note that two nodes with same plan._id can have different id(plan) since SnowflakePlan inherits plan._id
