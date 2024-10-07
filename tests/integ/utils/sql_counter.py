@@ -374,6 +374,8 @@ def sql_count_checker(
     udf_count=None,
     udtf_count=None,
     union_count=None,
+    *args,
+    **kwargs,
 ):
     """SqlCounter decorator that automatically validates the sql counts when test finishes."""
     all_args = inspect.getargvalues(inspect.currentframe())
