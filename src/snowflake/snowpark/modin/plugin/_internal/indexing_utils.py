@@ -1955,47 +1955,7 @@ def _set_2d_labels_helper_for_single_column_wise_item(
     ).result_frame
 
 
-def _get_columns_length(
-    internal_frame: InternalFrame,
-    columns: Union[
-        "snowflake_query_compiler.SnowflakeQueryCompiler",
-        tuple,
-        slice,
-        list,
-        "pd.Index",
-        np.ndarray,
-    ],
-) -> int:
-    """
-    Helper method to get length of the columns indexer for the specified InternalFrame.
-
-    Args:
-        internal_frame: the main frame
-        columns: the column labels to set
-    Returns:
-        Number of columns to set according to the columns label.
-    """
-
-    def slice_len(slice_obj: slice) -> int:
-        """Helper method to calculate length of slice object for columns."""
-        start = internal_frame.data_column_pandas_labels.index(slice_obj.start) or 0
-        end = internal_frame.data_column_pandas_labels.index(slice_obj.stop) or len(
-            internal_frame.data_column_snowflake_quoted_identifiers
-        )
-        return end - start
-
-    if columns == slice(None):
-        return len(internal_frame.data_column_snowflake_quoted_identifiers)
-    elif isinstance(columns, slice):
-        return slice_len(columns)
-    elif isinstance(columns, Sized):
-        return len(columns)
-    else:
-        return len(columns.index)
-
-
 def _convert_series_item_to_row_for_set_frame_2d_labels(
-    internal_frame: InternalFrame,
     columns: Union[
         "snowflake_query_compiler.SnowflakeQueryCompiler",
         tuple,
@@ -2004,14 +1964,15 @@ def _convert_series_item_to_row_for_set_frame_2d_labels(
         "pd.Index",
         np.ndarray,
     ],
+    col_info: LocSetColInfo,
     item: InternalFrame,
 ) -> InternalFrame:
     """
     Helper method to convert a Series to a row for a locset.
 
     Args:
-        internal_frame: the main frame
         columns: the column labels to set
+        col_info: information about the column labels to set
         item: the new values to set
     Returns:
         New item frame that has been converted from Series (single column) to single
@@ -2021,7 +1982,7 @@ def _convert_series_item_to_row_for_set_frame_2d_labels(
         SnowflakeQueryCompiler,
     )
 
-    col_len = _get_columns_length(internal_frame, columns)
+    col_len = len(col_info.existing_column_positions)
 
     if isinstance(columns, SnowflakeQueryCompiler):
         # In the following step, we convert the Series item value to a single row.
@@ -2215,7 +2176,7 @@ def set_frame_2d_labels(
             matching_item_columns_by_label = True
             matching_item_rows_by_label = False
             item = _convert_series_item_to_row_for_set_frame_2d_labels(
-                internal_frame, columns, item
+                columns, col_info, item
             )
             if is_scalar(index):
                 (
