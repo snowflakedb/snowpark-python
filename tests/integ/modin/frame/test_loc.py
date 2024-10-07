@@ -4229,7 +4229,7 @@ def test_df_loc_set_series_value(key, convert_key_to_series, row_loc):
             join_count = 1
 
     if convert_key_to_series:
-        query_count = 4
+        query_count = 3
         snow_key = pd.Series(key)
         native_key = native_pd.Series(key)
     else:
