@@ -1992,17 +1992,21 @@ def test_register_sproc_after_switch_schema(session):
         session.use_database(current_database)
         session.use_schema(current_schema)
 
+
 def test_register_sproc_with_package_underscore_name(session):
+    """Test registering a stored procedure with a package that has an underscore in its name.
+    It passes if no exception is thrown.
+    """
     session.sproc.register(
         lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[0][0],
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
-        packages=["huggingface_hub"]
+        packages=["huggingface_hub"],
     )
 
     session.sproc.register(
         lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[0][0],
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
-        packages=["huggingface_hub>0.15.1"]
+        packages=["huggingface_hub>0.15.1"],
     )
