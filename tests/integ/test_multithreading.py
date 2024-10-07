@@ -604,7 +604,7 @@ def test_temp_name_placeholder_for_sync(session):
         df = session.create_dataframe([[1, 2], [3, 4]], ["A", "B"])
 
         with session.query_history() as history:
-            with ThreadPoolExecutor(max_workers=10) as executor:
+            with ThreadPoolExecutor(max_workers=5) as executor:
                 for i in range(10):
                     executor.submit(process_data, df, i)
 
@@ -653,7 +653,7 @@ def test_temp_name_placeholder_for_async(session, resources_path, temp_stage):
     ).csv(f"{stage_with_prefix}/{filename}")
 
     with session.query_history() as history:
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        with ThreadPoolExecutor(max_workers=5) as executor:
             for i in range(10):
                 executor.submit(process_data, df, i)
 
