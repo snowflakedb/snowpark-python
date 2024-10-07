@@ -14,7 +14,8 @@
 - Added support for constructing `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` arguments.
 - Added support for constructing `Series` and `DataFrame` objects with `index` and `column` values not present in `DataFrame`/`Series` `data`.
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
-- 
+- Added support for `Session.stored_procedure_profiler`.
+
 #### Improvements
 
 #### Bug Fixes
@@ -37,6 +38,8 @@
 - Added support for `tz` in both `pd.date_range` and `pd.bdate_range`.
 - Added support for `Series.items`.
 - Added support for `errors="ignore"` in `pd.to_datetime`.
+- Added support for `DataFrame.tz_localize` and `Series.tz_localize`.
+- Added support for `DataFrame.tz_convert` and `Series.tz_convert`.
 
 #### Improvements
 
