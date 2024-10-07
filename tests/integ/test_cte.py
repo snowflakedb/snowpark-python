@@ -640,9 +640,6 @@ def test_window_function(session):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
-)
 def test_in_with_subquery_multiple_query(session):
     if session._sql_simplifier_enabled:
         pytest.skip(
@@ -684,6 +681,9 @@ def test_select_with_column_expr_alias(session):
         check_result(session, df_result, expect_cte_optimized=True)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
+)
 @sql_count_checker(query_count=0)
 def test_cte_optimization_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
