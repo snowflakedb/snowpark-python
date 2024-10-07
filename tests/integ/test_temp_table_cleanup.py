@@ -235,6 +235,18 @@ def test_save_as_table_no_drop(session, caplog):
     assert session._table_exists([temp_table_name])
 
 
+def test_session_close(db_parameters, caplog):
+    with Session.builder.configs(db_parameters).create() as new_session:
+        df = new_session.create_dataframe(
+            [[1, 2], [3, 4]], schema=["a", "b"]
+        ).cache_result()
+
+    with caplog.at_level(logging.WARNING):
+        del df
+        gc.collect()
+    assert "Failed to drop temp table" not in caplog.text
+
+
 def test_auto_clean_up_temp_table_enabled_parameter(db_parameters, session, caplog):
     warning_dict.clear()
     with caplog.at_level(logging.WARNING):
