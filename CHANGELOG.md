@@ -29,7 +29,7 @@
 - Added support for `by`, `left_by`, `right_by`, `left_index`, and `right_index` for `pd.merge_asof`.
 - Added support for passing parameter `include_describe` to `Session.query_history`.
 - Added support for `DatetimeIndex.mean` and `DatetimeIndex.std` methods.
-- Added support for `Resampler.asfreq`, `Resampler.nunique`, and `Resampler.quantile`.
+- Added support for `Resampler.asfreq`, `Resampler.indices`, `Resampler.nunique`, and `Resampler.quantile`.
 - Added support for `resample` frequency `W`, `ME`, `YE` with `closed = "left"`.
 - Added support for `DataFrame.rolling.corr` and `Series.rolling.corr` for `pairwise = False` and int `window`.
 - Added support for string time-based `window` and `min_periods = None` for `Rolling`.

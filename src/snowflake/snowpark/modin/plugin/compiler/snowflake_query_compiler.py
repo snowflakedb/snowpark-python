@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import calendar
+import collections
 import functools
 import inspect
 import itertools
@@ -5003,6 +5004,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         by: Any,
         axis: int,
         groupby_kwargs: dict[str, Any],
+        values_as_np_array: bool = True,
     ) -> dict[Hashable, np.ndarray]:
         """
         Get a dict mapping group keys to row labels.
@@ -5012,6 +5014,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 Use this to determine the groups.
             axis: 0 (index) or 1 (columns)
             groupby_kwargs: keyword arguments passed for the groupby.
+            values_as_np_array: bool
+                Whether the values of the resulting dict should be mapped as a numpy array.
+                Set to False when called with 'resample.indices'.
 
         Returns:
             dict: a map from group keys to row labels.
@@ -5019,7 +5024,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self._raise_not_implemented_error_for_timedelta()
 
         frame = self._modin_frame.ensure_row_position_column()
-        return dict(
+        qc = (
             # .indices aggregates row position numbers, so we add a row
             # position data column and then aggregate that.
             SnowflakeQueryCompiler(
@@ -5038,8 +5043,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
             .to_pandas()
             .iloc[:, 0]
-            .map(np.array)
         )
+        qc = qc.map(np.array) if values_as_np_array else qc
+        return dict(qc)
 
     def groupby_cumcount(
         self,
@@ -12237,7 +12243,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         resample_method_args: tuple[Any],
         resample_method_kwargs: dict[str, Any],
         is_series: bool,
-    ) -> "SnowflakeQueryCompiler":
+    ) -> Union["SnowflakeQueryCompiler", dict[Hashable, np.ndarray]]:
         """
         Return new SnowflakeQueryCompiler whose ordered frame holds the result of a resample operation.
 
@@ -12260,8 +12266,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Returns
         -------
-        SnowflakeQueryCompiler
-            Holds an ordered frame with the result of the resample operation.
+        SnowflakeQueryCompiler or dict[Hashable, np.ndarray]
+            Holds an ordered frame with the result of the resample operation, or a dictionary
+            if resample_method is 'indices'.
 
         Raises
         ------
@@ -12346,7 +12353,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             expected_frame = get_expected_resample_bins_frame(
                 rule, start_date, end_date
             )
-
             # The output frame's DatetimeIndex is identical to expected_frame's. For each date in the DatetimeIndex,
             # a single row is selected from the input frame, where its date is the closest match in time based on
             # the filling method. We perform an ASOF join to accomplish this.
@@ -12357,7 +12363,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return SnowflakeQueryCompiler(output_frame).set_index_names(index_name)
         elif resample_method in IMPLEMENTED_AGG_METHODS:
             frame = perform_resample_binning_on_frame(frame, start_date, rule)
-            if resample_method == "size":
+            if resample_method == "indices":
+                # Convert groupby_indices output of dict[Hashable, np.ndarray] to
+                # collections.defaultdict
+                result_dict = SnowflakeQueryCompiler(frame).groupby_indices(
+                    by=self._modin_frame.index_column_pandas_labels,
+                    axis=resample_kwargs.get("axis", 0),
+                    groupby_kwargs=dict(),
+                    values_as_np_array=False,
+                )
+                return collections.defaultdict(list, result_dict)  # type: ignore
+            elif resample_method == "size":
                 # Call groupby_size directly on the dataframe or series with the index reset
                 # to ensure we perform count aggregation on row positions which cannot be null
                 qc = (
@@ -12394,6 +12410,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     numeric_only=resample_method_kwargs.get("numeric_only", False),
                     is_series_groupby=is_series,
                 )
+
             frame = fill_missing_resample_bins_for_frame(
                 qc._modin_frame, rule, start_date, end_date
             )
