@@ -1376,6 +1376,10 @@ class DataFrame:
                         f"Called '{table_func.user_visible_name}' and '{e.user_visible_name}'."
                     )
                 table_func = e
+                if _emit_ast and ast:
+                    build_intermediate_stmt(self._session._ast_batch, table_func)
+                    build_indirect_table_fn_apply(ast.cols.add(), table_func)
+
                 func_expr = _create_table_function_expression(func=table_func)
 
                 if isinstance(e, _ExplodeFunctionCall):
