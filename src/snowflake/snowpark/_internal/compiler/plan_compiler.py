@@ -111,11 +111,13 @@ class PlanCompiler:
                 plot_plan_if_enabled(plan, f"cte_optimized_plan_{i}")
 
             # Large query breakdown
+            breakdown_summary = {}
             if self._plan.session.large_query_breakdown_enabled:
                 large_query_breakdown = LargeQueryBreakdown(
                     self._plan.session, query_generator, logical_plans
                 )
                 logical_plans = large_query_breakdown.apply()
+                breakdown_summary = large_query_breakdown.breakdown_summary
 
             large_query_breakdown_end_time = time.time()
             complexity_scores_after_large_query_breakdown = [
@@ -144,7 +146,7 @@ class PlanCompiler:
                 CompilationStageTelemetryField.COMPLEXITY_SCORE_BEFORE_COMPILATION.value: complexity_score_before_compilation,
                 CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION.value: complexity_scores_after_cte,
                 CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_LARGE_QUERY_BREAKDOWN.value: complexity_scores_after_large_query_breakdown,
-                CompilationStageTelemetryField.BREAKDOWN_FAILURE_SUMMARY.value: large_query_breakdown.breakdown_failure_summary,
+                CompilationStageTelemetryField.BREAKDOWN_FAILURE_SUMMARY.value: breakdown_summary,
             }
             # add the extra optimization status
             summary_value.update(extra_optimization_status)

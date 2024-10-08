@@ -129,7 +129,7 @@ class LargeQueryBreakdown:
         # This is used to track the number of partitions we could not breakdown because we
         # could not find any valid nodes. We also track if we could have broken down the plan
         # only if externally referenced CTEs were considered valid.
-        self.breakdown_failure_summary = defaultdict(int)
+        self.breakdown_summary = defaultdict(int)
 
     def apply(self) -> List[LogicalPlan]:
         if is_active_transaction(self.session):
@@ -251,11 +251,11 @@ class LargeQueryBreakdown:
             current_level = next_level
 
         if candidate_node is None:
-            self._breakdown_failure_summary[
-                CompilationStageTelemetryField.NUM_PARTITIONS_WITHOUT_VALID_NODES
+            self.breakdown_summary[
+                CompilationStageTelemetryField.NUM_PARTITIONS_WITHOUT_VALID_NODES.value
             ] += 1
-            self._breakdown_failure_summary[
-                CompilationStageTelemetryField.NUM_PARTITIONS_INVALID_DUE_TO_EXTERNAL_CTE_REF
+            self.breakdown_summary[
+                CompilationStageTelemetryField.NUM_PARTITIONS_INVALID_DUE_TO_EXTERNAL_CTE_REF.value
             ] += (1 if invalid_due_to_referenced_cte_encountered else 0)
 
         # If no valid node is found, candidate_node will be None.
@@ -319,10 +319,6 @@ class LargeQueryBreakdown:
             _logger.debug(
                 f"Added node of type {type(node)} with score {score} to pipeline breaker list."
             )
-        else:
-            self._breakdown_failure_summary[
-                CompilationStageTelemetryField.NUM_PARTITIONS_WITHOUT_VALID_NODES
-            ] += 1
 
         return valid_node, score, is_invalid_due_to_external_cte
 
@@ -352,7 +348,7 @@ class LargeQueryBreakdown:
         number of times each unique WithQueryBlock node is referenced in the subtree compared
         to the number of times it is referenced in the root node.
         """
-        for with_query_block, node_count in node.referenced_ctes:
+        for with_query_block, node_count in node.referenced_ctes.items():
             root_count = root.referenced_ctes[with_query_block]
             if node_count != root_count:
                 return True
