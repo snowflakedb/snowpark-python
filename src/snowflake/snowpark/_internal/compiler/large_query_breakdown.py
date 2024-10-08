@@ -129,11 +129,7 @@ class LargeQueryBreakdown:
         # This is used to track the number of partitions we could not breakdown because we
         # could not find any valid nodes. We also track if we could have broken down the plan
         # only if externally referenced CTEs were considered valid.
-        self._breakdown_failure_summary = defaultdict(int)
-
-    def get_breakdown_failure_summary(self) -> dict:
-        """Returns breakdown failure summary."""
-        return self._breakdown_failure_summary
+        self.breakdown_failure_summary = defaultdict(int)
 
     def apply(self) -> List[LogicalPlan]:
         if is_active_transaction(self.session):
@@ -336,11 +332,15 @@ class LargeQueryBreakdown:
         """Method to check if a node contains a CTE in its subtree that is also referenced
         by a different node that lies outside the subtree. An example situation is:
 
-                            node1
+                                   root
+                                /       \
+                            node1       node5
                             /    \
                         node2    node3
                        /    |      |
                    node4   WithQueryBlock
+                                |
+                              node6
 
         In this example, node2 contains a WithQueryBlock node that is also referenced
         externally by node3.
