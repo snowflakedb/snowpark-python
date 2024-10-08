@@ -11,7 +11,8 @@ from typing import Literal, Optional, Union
 import numpy as np
 import pandas as native_pd
 from pandas._libs import lib
-from pandas._typing import DateTimeErrorChoices
+from pandas._libs.tslibs import to_offset
+from pandas._typing import DateTimeErrorChoices, Frequency
 from pandas.api.types import is_datetime64_any_dtype, is_float_dtype, is_integer_dtype
 
 from snowflake.snowpark import Column
@@ -21,8 +22,19 @@ from snowflake.snowpark.functions import (
     cast,
     convert_timezone,
     date_part,
+    dayofmonth,
+    hour,
     iff,
+    max as max_,
+    minute,
+    month,
+    second,
+    timestamp_tz_from_parts,
     to_decimal,
+    to_timestamp_ntz,
+    to_variant,
+    trunc,
+    year,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
@@ -38,6 +50,57 @@ from snowflake.snowpark.types import (
     VariantType,
     _FractionalType,
 )
+
+# Reference: https://github.com/pandas-dev/pandas/blob/ef3368a8046f3c2e98c773be179f0a49a51d4bdc/pandas/_libs/tslibs/timedeltas.pyx#L109
+# Note: this does not include deprecated units 'M' and 'Y'.
+VALID_PANDAS_TIMEDELTA_ABBREVS = {
+    "W": "W",
+    "w": "W",
+    "D": "D",
+    "d": "D",
+    "days": "D",
+    "day": "D",
+    "hours": "h",
+    "hour": "h",
+    "hr": "h",
+    "h": "h",
+    "m": "m",
+    "minute": "m",
+    "min": "m",
+    "minutes": "m",
+    "s": "s",
+    "seconds": "s",
+    "sec": "s",
+    "second": "s",
+    "ms": "ms",
+    "milliseconds": "ms",
+    "millisecond": "ms",
+    "milli": "ms",
+    "millis": "ms",
+    "us": "us",
+    "microseconds": "us",
+    "microsecond": "us",
+    "µs": "us",
+    "micro": "us",
+    "micros": "us",
+    "ns": "ns",
+    "nanoseconds": "ns",
+    "nano": "ns",
+    "nanos": "ns",
+    "nanosecond": "ns",
+}
+
+# multipliers to convert the timedelta unit to nanoseconds
+TIMEDELTA_UNIT_MULTIPLIER = {
+    "W": 7 * 24 * 3600 * (10**9),
+    "D": 24 * 3600 * (10**9),
+    "h": 3600 * (10**9),
+    "m": 60 * (10**9),
+    "s": (10**9),
+    "ms": (10**6),
+    "us": (10**3),
+    "ns": 1,
+}
 
 VALID_TO_DATETIME_DF_KEYS = {
     "year": "year",
@@ -71,6 +134,11 @@ we can check against in code. Valid column names include plural and abbreviated 
 the specified time units.
 """
 
+AUTO_FORMAT_WARNING_MSG = """Snowflake automatic format detection is used when a format is not provided.
+In this case Snowflake's auto format may yield different result values compared to pandas.
+See https://docs.snowflake.com/en/sql-reference/date-time-input-output#supported-formats-for-auto-detection for details
+"""
+
 # TODO: SNOW-1127160: support other units
 VALID_TO_DATETIME_UNIT = ["D", "s", "ms", "us", "ns"]
 
@@ -90,7 +158,7 @@ def origin_to_ns(
     elif unit == "us":
         return origin * (10**3)
     else:
-        assert unit == "ns"
+        assert unit == "ns", f"unit {unit} is not ns"
         return origin
 
 
@@ -107,8 +175,32 @@ def col_to_s(col: Column, unit: Literal["D", "s", "ms", "us", "ns"]) -> Column:
     elif unit == "us":
         return col / 10**6
     else:
-        assert unit == "ns"
+        assert unit == "ns", f"unit {unit} is not ns"
         return col / 10**9
+
+
+def timedelta_freq_to_nanos(freq: Frequency) -> int:
+    """
+    Convert a pandas frequency string to nanoseconds.
+
+    Args:
+        freq: Timedelta frequency string or offset.
+
+    Returns:
+        int: nanoseconds
+    """
+    return to_offset(freq).nanos
+
+
+def col_to_timedelta(col: Column, unit: str) -> Column:
+    """
+    Converts ``col`` (stored in the specified units) to timedelta nanoseconds.
+    """
+    td_unit = VALID_PANDAS_TIMEDELTA_ABBREVS.get(unit.lower())
+    if not td_unit:
+        # Same error as native pandas.
+        raise ValueError(f"invalid unit abbreviation: {unit}")
+    return trunc(col * TIMEDELTA_UNIT_MULTIPLIER[td_unit])
 
 
 PANDAS_DATETIME_FORMAT_TO_SNOWFLAKE_MAPPING = {
@@ -166,7 +258,7 @@ def generate_timestamp_col(
     datatype: DataType,
     *,
     sf_format: Optional[str] = None,
-    errors: Literal["raise", "coerce"] = "raise",
+    errors: DateTimeErrorChoices = "raise",
     target_tz: Optional[str] = None,
     unit: Literal["D", "s", "ms", "us", "ns"],
     origin: DateTimeOrigin = "unix",
@@ -190,9 +282,13 @@ def generate_timestamp_col(
     Returns:
         The column under to_timestamp_* function
     """
-    assert errors in ["raise", "coerce"], f"errors={errors} cannot be handled here"
+    assert errors in [
+        "raise",
+        "coerce",
+        "ignore",
+    ], f"errors={errors} cannot be handled here"
     to_timestamp_func_name = "to_timestamp_ntz"
-    if errors == "coerce":
+    if errors != "raise":
         to_timestamp_func_name = "try_" + to_timestamp_func_name
     new_col = col
 
@@ -241,9 +337,7 @@ def generate_timestamp_col(
         if isinstance(datatype, (StringType, VariantType)):
             WarningMessage.mismatch_with_pandas(
                 "to_datetime",
-                "Snowpark pandas to_datetime uses Snowflake's automatic format "
-                "detection to convert string to datetime when a format is not provided. "
-                "In this case Snowflake's auto format may yield different result values compared to pandas.",
+                AUTO_FORMAT_WARNING_MSG.replace("\n", ""),
             )
 
         from snowflake.snowpark.modin.plugin._internal.type_utils import (
@@ -292,7 +386,7 @@ def generate_timestamp_col(
         new_col = convert_timezone(
             target_timezone=pandas_lit(target_tz), source_time=new_col
         )
-    if errors == "coerce":
+    if errors != "raise":
         # pandas return NaT when the timestamp is out of bound
         new_col = iff(
             new_col.between(
@@ -302,6 +396,10 @@ def generate_timestamp_col(
             new_col,
             None,
         )
+    if errors == "ignore":
+        new_col = iff(
+            max_(new_col.is_null()).over() == 1, to_variant(col), to_variant(new_col)
+        )
     return new_col
 
 
@@ -310,7 +408,6 @@ def raise_if_to_datetime_not_supported(
     exact: Union[bool, lib.NoDefault] = lib.no_default,
     infer_datetime_format: Union[lib.NoDefault, bool] = lib.no_default,
     origin: DateTimeOrigin = "unix",
-    errors: DateTimeErrorChoices = "raise",
 ) -> None:
     """
     Raise not implemented error to_datetime API has any unsupported parameter or
@@ -320,7 +417,6 @@ def raise_if_to_datetime_not_supported(
         exact: the exact argument for to_datetime
         infer_datetime_format: the infer_datetime_format argument for to_datetime
         origin: the origin argument for to_datetime
-        errors: the errors argument for to_datetime
     """
     error_message = None
     if format is not None and not is_snowflake_timestamp_format_valid(
@@ -341,10 +437,6 @@ def raise_if_to_datetime_not_supported(
         error_message = (
             "Snowpark pandas to_datetime API doesn't yet support julian calendar"
         )
-    elif errors == "ignore":
-        # ignore requires return the whole original input which is not applicable in Snowfalke
-        error_message = "Snowpark pandas to_datetime API doesn't yet support 'ignore' value for errors parameter"
-
     if error_message:
         ErrorMessage.not_implemented(error_message)
 
@@ -387,3 +479,60 @@ def convert_dateoffset_to_interval(
             )
         interval_kwargs[new_param] = offset
     return Interval(**interval_kwargs)
+
+
+def tz_localize_column(column: Column, tz: Union[str, dt.tzinfo]) -> Column:
+    """
+        Localize tz-naive to tz-aware.
+        Args:
+            tz : str, pytz.timezone, optional
+    Localize a tz-naive datetime column to tz-aware
+
+    Args:
+        column: the Snowpark datetime column
+        tz: time zone for time. Corresponding timestamps would be converted to this time zone of the Datetime Array/Index. A tz of None will convert to UTC and remove the timezone information.
+
+    Returns:
+        The column after tz localization
+    """
+    if tz is None:
+        # If this column is already a TIMESTAMP_NTZ, this cast does nothing.
+        # If the column is a TIMESTAMP_TZ, the cast drops the timezone and converts
+        # to TIMESTAMP_NTZ.
+        return to_timestamp_ntz(column)
+    else:
+        if isinstance(tz, dt.tzinfo):
+            tz_name = tz.tzname(None)
+        else:
+            tz_name = tz
+        return timestamp_tz_from_parts(
+            year(column),
+            month(column),
+            dayofmonth(column),
+            hour(column),
+            minute(column),
+            second(column),
+            date_part("nanosecond", column),
+            pandas_lit(tz_name),
+        )
+
+
+def tz_convert_column(column: Column, tz: Union[str, dt.tzinfo]) -> Column:
+    """
+    Converts a datetime column to the specified timezone
+
+    Args:
+        column: the Snowpark datetime column
+        tz: the target timezone
+
+    Returns:
+        The column after conversion to the specified timezone
+    """
+    if tz is None:
+        return to_timestamp_ntz(convert_timezone(pandas_lit("UTC"), column))
+    else:
+        if isinstance(tz, dt.tzinfo):
+            tz_name = tz.tzname(None)
+        else:
+            tz_name = tz
+        return convert_timezone(pandas_lit(tz_name), column)

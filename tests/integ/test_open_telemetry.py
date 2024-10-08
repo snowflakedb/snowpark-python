@@ -57,6 +57,31 @@ def span_extractor(dict_exporter: InMemorySpanExporter):
     return spans
 
 
+def test_without_open_telemetry(monkeypatch, dict_exporter, session):
+    from snowflake.snowpark._internal import open_telemetry
+
+    monkeypatch.setattr(open_telemetry, "open_telemetry_found", False)
+    session.create_dataframe([1, 2, 3, 4]).to_df("a").collect()
+
+    lineno = inspect.currentframe().f_lineno - 1
+    answer = (
+        "collect",
+        {"code.lineno": lineno, "code.filepath": "test_open_telemetry.py"},
+    )
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer) is False
+
+    def minus_udf(x: int, y: int) -> int:
+        return x - y
+
+    session.udf.register(minus_udf, name="test_minus_unit_no_telemetry")
+    lineno = inspect.currentframe().f_lineno - 1
+    answer = (
+        "register",
+        {"code.lineno": lineno, "snow.executable.name": "test_minus_unit_no_telemetry"},
+    )
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer) is False
+
+
 def test_open_telemetry_in_table_stored_proc(session, dict_exporter):
     df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
     df._execute_and_get_query_id()

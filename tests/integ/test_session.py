@@ -5,6 +5,7 @@
 
 import os
 from functools import partial
+from unittest.mock import patch
 
 import pytest
 
@@ -677,20 +678,20 @@ def test_sql_simplifier_disabled_on_session(db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="reading server side parameter is not supported in local testing",
 )
-def test_cte_optimization_enabled_on_session(db_parameters):
+def test_cte_optimization_enabled_on_session(session, db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:
-        assert new_session.cte_optimization_enabled is False
-        new_session.cte_optimization_enabled = True
-        assert new_session.cte_optimization_enabled is True
-        new_session.cte_optimization_enabled = False
-        assert new_session.cte_optimization_enabled is False
+        default_value = new_session.cte_optimization_enabled
+        new_session.cte_optimization_enabled = not default_value
+        assert new_session.cte_optimization_enabled is not default_value
+        new_session.cte_optimization_enabled = default_value
+        assert new_session.cte_optimization_enabled is default_value
 
     parameters = db_parameters.copy()
     parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING: True
+        _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING: not default_value
     }
     with Session.builder.configs(parameters).create() as new_session2:
-        assert new_session2.cte_optimization_enabled is True
+        assert new_session2.cte_optimization_enabled is not default_value
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
@@ -698,11 +699,19 @@ def test_cte_optimization_enabled_on_session(db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="reading server side parameter is not supported in local testing",
 )
+@pytest.mark.parametrize("server_parameter_enabled", [True, False])
 def test_eliminate_numeric_sql_value_cast_optimization_enabled_on_session(
-    db_parameters,
+    db_parameters, server_parameter_enabled
 ):
-    with Session.builder.configs(db_parameters).create() as new_session:
-        assert new_session.eliminate_numeric_sql_value_cast_enabled is False
+    parameters = db_parameters.copy()
+    parameters["session_parameters"] = {
+        _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED: server_parameter_enabled
+    }
+    with Session.builder.configs(parameters).create() as new_session:
+        assert (
+            new_session.eliminate_numeric_sql_value_cast_enabled
+            is server_parameter_enabled
+        )
         new_session.eliminate_numeric_sql_value_cast_enabled = True
         assert new_session.eliminate_numeric_sql_value_cast_enabled is True
         new_session.eliminate_numeric_sql_value_cast_enabled = False
@@ -710,12 +719,30 @@ def test_eliminate_numeric_sql_value_cast_optimization_enabled_on_session(
         with pytest.raises(ValueError):
             new_session.eliminate_numeric_sql_value_cast_enabled = None
 
-    parameters = db_parameters.copy()
-    parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED: True
-    }
-    with Session.builder.configs(parameters).create() as new_session2:
-        assert new_session2.eliminate_numeric_sql_value_cast_enabled is True
+
+def test_large_query_breakdown_complexity_bounds(session):
+    original_bounds = session.large_query_breakdown_complexity_bounds
+    try:
+        with pytest.raises(ValueError, match="Expecting a tuple of two integers"):
+            session.large_query_breakdown_complexity_bounds = (1, 2, 3)
+
+        with pytest.raises(
+            ValueError, match="Expecting a tuple of lower and upper bound"
+        ):
+            session.large_query_breakdown_complexity_bounds = (3, 2)
+
+        with patch.object(
+            session._conn._telemetry_client,
+            "send_large_query_breakdown_update_complexity_bounds",
+        ) as patch_send:
+            session.large_query_breakdown_complexity_bounds = (1, 2)
+            assert session.large_query_breakdown_complexity_bounds == (1, 2)
+            assert patch_send.call_count == 1
+            assert patch_send.call_args[0][0] == session.session_id
+            assert patch_send.call_args[0][1] == 1
+            assert patch_send.call_args[0][2] == 2
+    finally:
+        session.large_query_breakdown_complexity_bounds = original_bounds
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
@@ -739,3 +766,49 @@ def test_create_session_from_default_config_file(monkeypatch, db_parameters):
         # sensitive information that this test needs to handle.
         # db_parameter contains passwords.
         pytest.fail("something failed", pytrace=False)
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="use schema is not allowed in stored proc (owner mode)"
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="running sql query is not supported in local testing",
+)
+def test_get_session_stage(session):
+    with session.query_history() as history:
+        session_stage = session.get_session_stage()
+    assert len(history.queries) == 1
+    assert "stage if not exists" in history.queries[0].sql_text
+    # check if session_stage is a fully qualified name
+    assert session.get_current_database() in session_stage
+    assert session.get_current_schema() in session_stage
+
+    # no create stage sql again
+    with session.query_history() as history:
+        session_stage = session.get_session_stage()
+    assert len(history.queries) == 0
+
+    # switch database and schema, session stage will not be created again
+    new_schema = f"schema_{Utils.random_alphanumeric_str(10)}"
+    new_database = f"db_{Utils.random_alphanumeric_str(10)}"
+    current_schema = session.get_current_schema()
+    current_database = session.get_current_database()
+    try:
+        session._run_query(f"create schema if not exists {new_schema}")
+        session.use_schema(new_schema)
+        new_session_stage = session.get_session_stage()
+        assert session_stage == new_session_stage
+    finally:
+        Utils.drop_schema(session, new_schema)
+        session.use_schema(current_schema)
+
+    try:
+        session._run_query(f"create database if not exists {new_database}")
+        session.use_database(new_database)
+        new_session_stage = session.get_session_stage()
+        assert session_stage == new_session_stage
+    finally:
+        Utils.drop_database(session, new_database)
+        session.use_database(current_database)
+        session.use_schema(current_schema)

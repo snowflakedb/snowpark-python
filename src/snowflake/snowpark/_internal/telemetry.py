@@ -14,6 +14,10 @@ from snowflake.connector.telemetry import (
     TelemetryField as PCTelemetryField,
 )
 from snowflake.connector.time_util import get_time_millis
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
+from snowflake.snowpark._internal.compiler.telemetry_constants import (
+    CompilationStageTelemetryField,
+)
 from snowflake.snowpark._internal.utils import (
     get_application_name,
     get_os_name,
@@ -41,6 +45,7 @@ class TelemetryField(Enum):
         "snowpark_eliminate_numeric_sql_value_cast_enabled"
     )
     TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = "snowpark_auto_clean_up_temp_table_enabled"
+    TYPE_LARGE_QUERY_BREAKDOWN_ENABLED = "snowpark_large_query_breakdown_enabled"
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
     KEY_START_TIME = "start_time"
@@ -66,14 +71,25 @@ class TelemetryField(Enum):
     FUNC_CAT_CREATE = "create"
     # performance categories
     PERF_CAT_UPLOAD_FILE = "upload_file"
-    # sql simplifier
+    # optimizations
     SESSION_ID = "session_id"
     SQL_SIMPLIFIER_ENABLED = "sql_simplifier_enabled"
     CTE_OPTIMIZATION_ENABLED = "cte_optimization_enabled"
-    # dataframe query stats
-    QUERY_PLAN_HEIGHT = "query_plan_height"
-    QUERY_PLAN_NUM_DUPLICATE_NODES = "query_plan_num_duplicate_nodes"
-    QUERY_PLAN_COMPLEXITY = "query_plan_complexity"
+    LARGE_QUERY_BREAKDOWN_ENABLED = "large_query_breakdown_enabled"
+    # temp table cleanup
+    TYPE_TEMP_TABLE_CLEANUP = "snowpark_temp_table_cleanup"
+    NUM_TEMP_TABLES_CLEANED = "num_temp_tables_cleaned"
+    NUM_TEMP_TABLES_CREATED = "num_temp_tables_created"
+    TEMP_TABLE_CLEANER_ENABLED = "temp_table_cleaner_enabled"
+    TYPE_TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION = (
+        "snowpark_temp_table_cleanup_abnormal_exception"
+    )
+    TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION_TABLE_NAME = (
+        "temp_table_cleanup_abnormal_exception_table_name"
+    )
+    TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION_MESSAGE = (
+        "temp_table_cleanup_abnormal_exception_message"
+    )
 
 
 # These DataFrame APIs call other DataFrame APIs
@@ -162,11 +178,21 @@ def df_collect_api_telemetry(func):
             0
         ]._session.sql_simplifier_enabled
         try:
-            api_calls[0][TelemetryField.QUERY_PLAN_HEIGHT.value] = plan.plan_height
             api_calls[0][
-                TelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
+                CompilationStageTelemetryField.QUERY_PLAN_HEIGHT.value
+            ] = plan.plan_state[PlanState.PLAN_HEIGHT]
+            api_calls[0][
+                CompilationStageTelemetryField.QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED.value
+            ] = plan.plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
+            # The uuid for df._select_statement can be different from df._plan. Since plan
+            # can take both values, we cannot use plan.uuid. We always use df._plan.uuid
+            # to track the queries.
+            uuid = args[0]._plan.uuid
+            api_calls[0][CompilationStageTelemetryField.PLAN_UUID.value] = uuid
+            api_calls[0][
+                CompilationStageTelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
             ] = plan.num_duplicate_nodes
-            api_calls[0][TelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
+            api_calls[0][CompilationStageTelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
                 key.value: value
                 for key, value in plan.cumulative_node_complexity.items()
             }
@@ -364,7 +390,7 @@ class TelemetryClient:
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
-                TelemetryField.SQL_SIMPLIFIER_ENABLED.value: True,
+                TelemetryField.SQL_SIMPLIFIER_ENABLED.value: sql_simplifier_enabled,
             },
         }
         self.send(message)
@@ -405,6 +431,109 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED.value: value,
+            },
+        }
+        self.send(message)
+
+    def send_large_query_breakdown_telemetry(
+        self, session_id: str, value: bool
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_ENABLED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: value,
+            },
+        }
+        self.send(message)
+
+    def send_query_compilation_summary_telemetry(
+        self,
+        session_id: int,
+        plan_uuid: str,
+        compilation_stage_summary: Dict[str, Any],
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                CompilationStageTelemetryField.TYPE_COMPILATION_STAGE_STATISTICS.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
+                **compilation_stage_summary,
+            },
+        }
+        self.send(message)
+
+    def send_large_query_optimization_skipped_telemetry(
+        self, session_id: int, reason: str
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                CompilationStageTelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                CompilationStageTelemetryField.KEY_REASON.value: reason,
+            },
+        }
+        self.send(message)
+
+    def send_temp_table_cleanup_telemetry(
+        self,
+        session_id: str,
+        temp_table_cleaner_enabled: bool,
+        num_temp_tables_cleaned: int,
+        num_temp_tables_created: int,
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_TEMP_TABLE_CLEANUP.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.TEMP_TABLE_CLEANER_ENABLED.value: temp_table_cleaner_enabled,
+                TelemetryField.NUM_TEMP_TABLES_CLEANED.value: num_temp_tables_cleaned,
+                TelemetryField.NUM_TEMP_TABLES_CREATED.value: num_temp_tables_created,
+            },
+        }
+        self.send(message)
+
+    def send_temp_table_cleanup_abnormal_exception_telemetry(
+        self,
+        session_id: str,
+        table_name: str,
+        exception_message: str,
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION_TABLE_NAME.value: table_name,
+                TelemetryField.TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION_MESSAGE.value: exception_message,
+            },
+        }
+        self.send(message)
+
+    def send_large_query_breakdown_update_complexity_bounds(
+        self, session_id: int, lower_bound: int, upper_bound: int
+    ):
+        message = {
+            **self._create_basic_telemetry_data(
+                CompilationStageTelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_UPDATE_COMPLEXITY_BOUNDS.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.KEY_DATA.value: {
+                    CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: (
+                        lower_bound,
+                        upper_bound,
+                    ),
+                },
             },
         }
         self.send(message)

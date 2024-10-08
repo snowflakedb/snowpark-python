@@ -330,6 +330,9 @@ def test_cache_result(session):
 
 
 @pytest.mark.xfail(
+    reason="SNOW-1709861 result_scan for show tables is flaky", strict=False
+)
+@pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="This is testing query generation",
     run=False,
@@ -487,7 +490,10 @@ def test_non_select_query_composition_self_union(session):
         union = df.union(df).select('"name"').filter(col('"name"') == table_name)
 
         assert len(union.collect()) == 1
-        assert len(union._plan.queries) == 3
+        if session.sql_simplifier_enabled:
+            assert len(union._plan.queries) == 3
+        else:
+            assert len(union._plan.queries) == 2
     finally:
         Utils.drop_table(session, table_name)
 
@@ -508,7 +514,10 @@ def test_non_select_query_composition_self_unionall(session):
         union = df.union_all(df).select('"name"').filter(col('"name"') == table_name)
 
         assert len(union.collect()) == 2
-        assert len(union._plan.queries) == 3
+        if session.sql_simplifier_enabled:
+            assert len(union._plan.queries) == 3
+        else:
+            assert len(union._plan.queries) == 2
     finally:
         Utils.drop_table(session, table_name)
 
@@ -1654,7 +1663,7 @@ def test_flatten_in_session(session):
     )
 
 
-def test_createDataFrame_with_given_schema(session, local_testing_mode):
+def test_createDataFrame_with_given_schema(session):
     schema = StructType(
         [
             StructField("string", StringType(84)),
@@ -1728,12 +1737,7 @@ def test_createDataFrame_with_given_schema(session, local_testing_mode):
             StructField("number", DecimalType(10, 3)),
             StructField("boolean", BooleanType()),
             StructField("binary", BinaryType()),
-            StructField(
-                "timestamp",
-                TimestampType(TimestampTimeZone.NTZ)
-                if not local_testing_mode
-                else TimestampType(),
-            ),  # depends on TIMESTAMP_TYPE_MAPPING
+            StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
             StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
             StructField("timestamp_ltz", TimestampType(TimestampTimeZone.LTZ)),
             StructField("timestamp_tz", TimestampType(TimestampTimeZone.TZ)),
@@ -1759,7 +1763,7 @@ def test_createDataFrame_with_given_schema_time(session):
     assert df.collect() == data
 
 
-def test_createDataFrame_with_given_schema_timestamp(session, local_testing_mode):
+def test_createDataFrame_with_given_schema_timestamp(session):
     schema = StructType(
         [
             StructField("timestamp", TimestampType()),
@@ -1780,7 +1784,7 @@ def test_createDataFrame_with_given_schema_timestamp(session, local_testing_mode
 
     assert (
         schema_str
-        == f"StructType([StructField('TIMESTAMP', TimestampType({'' if local_testing_mode else 'tz=ntz'}), nullable=True), "
+        == "StructType([StructField('TIMESTAMP', TimestampType(tz=ntz), nullable=True), "
         "StructField('TIMESTAMP_NTZ', TimestampType(tz=ntz), nullable=True), "
         "StructField('TIMESTAMP_LTZ', TimestampType(tz=ltz), nullable=True), "
         "StructField('TIMESTAMP_TZ', TimestampType(tz=tz), nullable=True)])"

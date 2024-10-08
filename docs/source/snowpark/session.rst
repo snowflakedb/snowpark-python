@@ -59,6 +59,7 @@ Snowpark Session
       Session.get_packages
       Session.get_session_stage
       Session.query_history
+      Session.stored_procedure_profiler
       Session.range
       Session.remove_import
       Session.remove_package

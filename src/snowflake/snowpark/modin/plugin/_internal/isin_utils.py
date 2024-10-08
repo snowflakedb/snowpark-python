@@ -14,6 +14,9 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.indexing_utils import set_frame_2d_labels
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    SnowparkPandasType,
+)
 from snowflake.snowpark.modin.plugin._internal.type_utils import infer_series_type
 from snowflake.snowpark.modin.plugin._internal.utils import (
     append_columns,
@@ -100,6 +103,13 @@ def scalar_isin_expression(
             for literal_expr in values
         ]
 
+    # Case 4: If column's and values' data type differs and any of the type is SnowparkPandasType
+    elif values_dtype != column_dtype and (
+        isinstance(values_dtype, SnowparkPandasType)
+        or isinstance(column_dtype, SnowparkPandasType)
+    ):
+        return pandas_lit(False)
+
     values = array_construct(*values)
 
     # to_variant is a requirement for array_contains, else an error is produced.
@@ -138,10 +148,11 @@ def compute_isin_with_series(
         slice(None),
         [agg_label],
         values_series,
-        False,
-        True,
-        False,
-        False,
+        matching_item_columns_by_label=False,
+        matching_item_rows_by_label=True,
+        index_is_bool_indexer=False,
+        deduplicate_columns=False,
+        frame_is_df_and_item_is_series=False,
     )
 
     # apply isin operation for all columns except the appended agg_label/agg_identifier column.
@@ -232,6 +243,8 @@ def compute_isin_with_dataframe(
         + new_identifiers,
         index_column_pandas_labels=frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
     # local import to avoid circular import
@@ -258,6 +271,7 @@ def compute_isin_with_dataframe(
         values_frame_with_matching_columns_only,
         False,
         True,
+        False,
         False,
         False,
     )

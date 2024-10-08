@@ -40,7 +40,7 @@ engine_kwargs : dict, default None {ek}
 
 Returns
 -------
-:class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+:class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
     Computed {fname} of values within each group.
 
 Examples
@@ -203,7 +203,108 @@ class DataFrameGroupBy:
         pass
 
     def value_counts():
-        pass
+        """
+        Return a Series or DataFrame containing counts of unique rows.
+
+        Parameters
+        ----------
+        subset : list-like, optional
+            Columns to use when counting unique combinations.
+
+        normalize : bool, default False
+            Return proportions rather than frequencies.
+
+            Note that when `normalize=True`, `groupby` is called with `sort=False`, and `value_counts`
+            is called with `sort=True`, Snowpark pandas will order results differently from
+            native pandas. This occurs because native pandas sorts on frequencies before converting
+            them to proportions, while Snowpark pandas computes proportions within groups before sorting.
+
+            See issue for details: https://github.com/pandas-dev/pandas/issues/59307
+
+        sort : bool, default True
+            Sort by frequencies.
+
+        ascending : bool, default False
+            Sort in ascending order.
+
+        dropna : bool, default True
+            Don't include counts of rows that contain NA values.
+
+        Returns
+        -------
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
+            Series if the groupby as_index is True, otherwise DataFrame.
+
+        Notes
+        -----
+        - If the groupby as_index is True then the returned Series will have a MultiIndex with one level per input column.
+        - If the groupby as_index is False then the returned DataFrame will have an additional column with the value_counts.
+          The column is labelled 'count' or 'proportion', depending on the normalize parameter.
+
+        By default, rows that contain any NA values are omitted from the result.
+
+        By default, the result will be in descending order so that the first element of each group is the most frequently-occurring row.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({
+        ...     'gender': ['male', 'male', 'female', 'male', 'female', 'male'],
+        ...     'education': ['low', 'medium', 'high', 'low', 'high', 'low'],
+        ...     'country': ['US', 'FR', 'US', 'FR', 'FR', 'FR']
+        ... })
+
+        >>> df  # doctest: +NORMALIZE_WHITESPACE
+                gender  education   country
+        0       male    low         US
+        1       male    medium      FR
+        2       female  high        US
+        3       male    low         FR
+        4       female  high        FR
+        5       male    low         FR
+
+        >>> df.groupby('gender').value_counts()  # doctest: +NORMALIZE_WHITESPACE
+        gender  education  country
+        female  high       FR         1
+                           US         1
+        male    low        FR         2
+                           US         1
+                medium     FR         1
+        Name: count, dtype: int64
+
+        >>> df.groupby('gender').value_counts(ascending=True)  # doctest: +NORMALIZE_WHITESPACE
+        gender  education  country
+        female  high       FR         1
+                           US         1
+        male    low        US         1
+                medium     FR         1
+                low        FR         2
+        Name: count, dtype: int64
+
+        >>> df.groupby('gender').value_counts(normalize=True)  # doctest: +NORMALIZE_WHITESPACE
+        gender  education  country
+        female  high       FR         0.50
+                           US         0.50
+        male    low        FR         0.50
+                           US         0.25
+                medium     FR         0.25
+        Name: proportion, dtype: float64
+
+        >>> df.groupby('gender', as_index=False).value_counts()  # doctest: +NORMALIZE_WHITESPACE
+           gender education country  count
+        0  female      high      FR      1
+        1  female      high      US      1
+        2    male       low      FR      2
+        3    male       low      US      1
+        4    male    medium      FR      1
+
+        >>> df.groupby('gender', as_index=False).value_counts(normalize=True)  # doctest: +NORMALIZE_WHITESPACE
+           gender education country  proportion
+        0  female      high      FR        0.50
+        1  female      high      US        0.50
+        2    male       low      FR        0.50
+        3    male       low      US        0.25
+        4    male    medium      FR        0.25
+        """
 
     def mean():
         """
@@ -232,7 +333,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
 
         Examples
         --------
@@ -606,7 +707,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Object shifted within each group.
 
         Examples
@@ -661,7 +762,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
 
         See also
         --------
@@ -756,7 +857,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
 
         See also
         --------
@@ -834,7 +935,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
 
         See Also
         --------
@@ -933,7 +1034,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
 
         See also
         --------
@@ -1019,7 +1120,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Standard deviation of values within each group.
 
         Examples
@@ -1140,7 +1241,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame` with ranking of values within each group
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame` with ranking of values within each group
 
         Examples
         --------
@@ -1242,7 +1343,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Variance of values within each group.
 
         Examples
@@ -1550,7 +1651,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Median of values within each group.
 
         Examples
@@ -1608,7 +1709,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Subset of the original Series or DataFrame as determined by n.
 
         See also
@@ -1784,7 +1885,94 @@ class DataFrameGroupBy:
         pass
 
     def fillna():
-        pass
+        """
+        Fill NA/NaN values using the specified method within groups.
+
+        Parameters
+        ----------
+        value : scalar, dict, Series, or DataFrame
+            value to use to fill holes (e.g. 0), alternately a dict/Series/DataFrame of values
+            specifying which value to use for each index (for a Series) or column (for a
+            DataFrame). Values not in the dict/Series/DataFrame will not be filled. This
+            value cannot be a list.
+
+        method : {{‘bfill’, ‘ffill’, None}}, default None
+            Method to use for filling holes. 'ffill' will propagate the last valid observation
+            forward within a group. 'bfill' will use next valid observation to fill the gap.
+
+        axis : {0 or ‘index’, 1 or ‘columns’}
+            Axis along which to fill missing values. When the DataFrameGroupBy axis
+            argument is 0, using axis=1 here will produce the same results as
+            DataFrame.fillna(). When the DataFrameGroupBy axis argument is 1, using
+            axis=0 or axis=1 here will produce the same results.
+
+        inplace : bool, default False
+            Ignored.
+
+        limit : int, default None
+            If method is specified, this is the maximum number of consecutive NaN values to
+            forward/backward fill within a group. In other words, if there is a gap with more than
+            this number of consecutive NaNs, it will only be partially filled. If method is not
+            specified, this is the maximum number of entries along the entire axis where NaNs
+            will be filled. Must be greater than 0 if not None.
+
+        downcast : dict, default is None
+            A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will
+            try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
+
+            This parameter is not yet supported in Snowpark pandas.
+
+        Returns
+        -------
+        :class:`~modin.pandas.DataFrame`
+           Object with missing values filled.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame(
+        ...     {
+        ...         "key": [0, 0, 1, 1, 1],
+        ...         "A": [np.nan, 2, np.nan, 3, np.nan],
+        ...         "B": [2, 3, np.nan, np.nan, np.nan],
+        ...         "C": [np.nan, np.nan, 2, np.nan, np.nan],
+        ...     }
+        ... )
+        >>> df
+           key    A    B    C
+        0    0  NaN  2.0  NaN
+        1    0  2.0  3.0  NaN
+        2    1  NaN  NaN  2.0
+        3    1  3.0  NaN  NaN
+        4    1  NaN  NaN  NaN
+
+        Propagate non-null values forward or backward within each group along columns.
+
+        >>> df.groupby("key").fillna(method="ffill")
+             A    B    C
+        0  NaN  2.0  NaN
+        1  2.0  3.0  NaN
+        2  NaN  NaN  2.0
+        3  3.0  NaN  2.0
+        4  3.0  NaN  2.0
+
+        >>> df.groupby("key").fillna(method="bfill")
+             A    B    C
+        0  2.0  2.0  NaN
+        1  2.0  3.0  NaN
+        2  3.0  NaN  2.0
+        3  3.0  NaN  NaN
+        4  NaN  NaN  NaN
+
+        Only replace the first NaN element within a group along rows.
+
+        >>> df.groupby("key").fillna(method="ffill", limit=1)
+             A    B    C
+        0  NaN  2.0  NaN
+        1  2.0  3.0  NaN
+        2  NaN  NaN  2.0
+        3  3.0  NaN  2.0
+        4  3.0  NaN  NaN
+        """
 
     def count():
         """
@@ -1792,7 +1980,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Count of values within each group.
 
         Examples
@@ -1901,7 +2089,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Subset of the original Series or DataFrame as determined by n.
 
         See also
@@ -1991,7 +2179,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Return type determined by caller of GroupBy object.
         """
 
@@ -2103,8 +2291,45 @@ class SeriesGroupBy:
         """
         pass
 
-    def unique(self):
+    def unique():
         pass
 
     def apply():
         pass
+
+    def value_counts():
+        """
+        Return a Series or DataFrame containing counts of unique rows.
+
+        Parameters
+        ----------
+        subset : list-like, optional
+            Columns to use when counting unique combinations.
+
+        normalize : bool, default False
+            Return proportions rather than frequencies.
+
+            Note that when `normalize=True`, `groupby` is called with `sort=False`, and `value_counts`
+            is called with `sort=True`, Snowpark pandas will order results differently from
+            native pandas. This occurs because native pandas sorts on frequencies before converting
+            them to proportions, while Snowpark pandas computes proportions within groups before sorting.
+
+            See issue for details: https://github.com/pandas-dev/pandas/issues/59307
+
+        sort : bool, default True
+            Sort by frequencies.
+
+        ascending : bool, default False
+            Sort in ascending order.
+
+        bins : int, optional
+            Rather than count values, group them into half-open bins, a convenience for `pd.cut`, only works with numeric data.
+            This parameter is not yet supported in Snowpark pandas.
+
+        dropna : bool, default True
+            Don't include counts of rows that contain NA values.
+
+        Returns
+        -------
+        :class:`~modin.pandas.Series`
+        """

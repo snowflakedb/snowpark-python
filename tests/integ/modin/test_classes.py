@@ -10,7 +10,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 def expect_type_check(df, expected_type: type, expected_class_name: str) -> None:
@@ -34,14 +34,14 @@ def test_class_names_constructors():
     expect_type_check(
         df,
         pd.DataFrame,
-        "snowflake.snowpark.modin.pandas.dataframe.DataFrame",
+        "modin.pandas.dataframe.DataFrame",
     )
 
     s = pd.Series(index=[1, 2, 3], data=[3, 2, 1])
     expect_type_check(
         s,
         pd.Series,
-        "snowflake.snowpark.modin.pandas.series.Series",
+        "modin.pandas.series.Series",
     )
 
 
@@ -63,7 +63,7 @@ def test_op():
     expect_type_check(
         df,
         pd.DataFrame,
-        "snowflake.snowpark.modin.pandas.dataframe.DataFrame",
+        "modin.pandas.dataframe.DataFrame",
     )
 
 
@@ -77,7 +77,7 @@ def test_native_conversion():
     expect_type_check(
         df,
         pd.DataFrame,
-        "snowflake.snowpark.modin.pandas.dataframe.DataFrame",
+        "modin.pandas.dataframe.DataFrame",
     )
 
     # Snowpark pandas -> native pandas

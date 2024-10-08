@@ -9,12 +9,12 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
 
 
@@ -98,7 +98,7 @@ def test_empty_str_empty_cat():
     assert pd.Series(dtype=object).str.cat() == ""
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=0)
 def test_empty_df_float_raises():
     with pytest.raises(AttributeError):
         pd.Series(dtype="float64").str.cat()
@@ -356,7 +356,7 @@ def test_index_not_found_raises():
 @sql_count_checker(query_count=0)
 def test_index_raises_not_implemented_error(method):
     obj = pd.Series([], dtype=object)
-    msg = f"{method} is not yet implemented for Series.str"
+    msg = f"Snowpark pandas does not yet support the method Series.str.{method}"
 
     with pytest.raises(NotImplementedError, match=msg):
         getattr(obj.str, method)("sub")

@@ -10,7 +10,7 @@ import pytest
 from _pytest.logging import LogCaptureFixture
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 def eval_and_validate_unsupported_methods(
@@ -56,8 +56,7 @@ UNSUPPORTED_DATAFRAME_METHODS = [
 # unsupported methods that can only be applied on series
 # This set triggers SeriesDefault.register
 UNSUPPORTED_SERIES_METHODS = [
-    (lambda se: se.is_monotonic_increasing, "property fget:is_monotonic_increasing"),
-    (lambda se: se.is_monotonic_decreasing, "property fget:is_monotonic_decreasing"),
+    (lambda df: df.transform(lambda x: x + 1), "transform"),
 ]
 
 # unsupported binary operations that can be applied on both dataframe and series
@@ -150,27 +149,22 @@ def test_unsupported_str_methods(func, func_name, caplog) -> None:
 
 # unsupported methods for Index
 UNSUPPORTED_INDEX_METHODS = [
-    lambda idx: idx.is_monotonic_increasing(),
-    lambda idx: idx.is_monotonic_decreasing(),
+    lambda idx: idx.duplicated(),
+    lambda idx: idx.drop(),
+    lambda idx: idx.union(),
+    lambda idx: idx.difference(),
+    lambda idx: idx.get_indexer_for(),
+    lambda idx: idx.get_level_values(),
+    lambda idx: idx.slice_indexer(),
     lambda idx: idx.nbytes(),
     lambda idx: idx.memory_usage(),
     lambda idx: idx.delete(),
     lambda idx: idx.drop_duplicates(),
     lambda idx: idx.factorize(),
-    lambda idx: idx.identical(),
     lambda idx: idx.insert(),
     lambda idx: idx.is_(),
-    lambda idx: idx.is_boolean(),
     lambda idx: idx.is_categorical(),
-    lambda idx: idx.is_floating(),
-    lambda idx: idx.is_integer(),
     lambda idx: idx.is_interval(),
-    lambda idx: idx.is_numeric(),
-    lambda idx: idx.is_object(),
-    lambda idx: idx.min(),
-    lambda idx: idx.max(),
-    lambda idx: idx.reindex(),
-    lambda idx: idx.rename(),
     lambda idx: idx.repeat(),
     lambda idx: idx.where(),
     lambda idx: idx.take(),

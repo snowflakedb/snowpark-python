@@ -10,6 +10,7 @@ import numbers
 import operator
 import re
 import string
+import threading
 from decimal import Decimal
 from functools import partial, reduce
 from numbers import Real
@@ -22,6 +23,8 @@ import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import FunctionExpression
 from snowflake.snowpark.mock._options import numpy, pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
+    _TIMESTAMP_TYPE_MAPPING,
+    _TIMESTAMP_TYPE_TIMEZONE_MAPPING,
     ColumnEmulator,
     ColumnType,
     TableEmulator,
@@ -128,14 +131,17 @@ class MockedFunction:
 
 class MockedFunctionRegistry:
     _instance = None
+    _lock_init = threading.Lock()
 
     def __init__(self) -> None:
         self._registry = dict()
+        self._lock = threading.RLock()
 
     @classmethod
     def get_or_create(cls) -> "MockedFunctionRegistry":
-        if cls._instance is None:
-            cls._instance = MockedFunctionRegistry()
+        with cls._lock_init:
+            if cls._instance is None:
+                cls._instance = MockedFunctionRegistry()
         return cls._instance
 
     def get_function(
@@ -149,10 +155,11 @@ class MockedFunctionRegistry:
             distinct = func.is_distinct
         func_name = func_name.lower()
 
-        if func_name not in self._registry:
-            return None
+        with self._lock:
+            if func_name not in self._registry:
+                return None
 
-        function = self._registry[func_name]
+            function = self._registry[func_name]
 
         return function.distinct if distinct else function
 
@@ -167,7 +174,8 @@ class MockedFunctionRegistry:
             snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
         )
         mocked_function = MockedFunction(name, func_implementation, *args, **kwargs)
-        self._registry[name] = mocked_function
+        with self._lock:
+            self._registry[name] = mocked_function
         return mocked_function
 
     def unregister(
@@ -178,8 +186,9 @@ class MockedFunctionRegistry:
             snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
         )
 
-        if name in self._registry:
-            del self._registry[name]
+        with self._lock:
+            if name in self._registry:
+                del self._registry[name]
 
 
 class LocalTimezone:
@@ -390,6 +399,15 @@ def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEm
     )
 
 
+@patch("array_agg")
+def mock_array_agg(column: ColumnEmulator, is_distinct: bool) -> ColumnEmulator:
+    columns_data = ColumnEmulator(column.unique()) if is_distinct else column
+    return ColumnEmulator(
+        data=[list(columns_data.dropna())],
+        sf_type=ColumnType(ArrayType(), False),
+    )
+
+
 @patch("listagg")
 def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column
@@ -403,6 +421,13 @@ def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
 @patch("sqrt")
 def mock_sqrt(column: ColumnEmulator):
     result = column.apply(math.sqrt)
+    result.sf_type = ColumnType(FloatType(), column.sf_type.nullable)
+    return result
+
+
+@patch("ln")
+def mock_ln(column: ColumnEmulator):
+    result = column.apply(math.log)
     result.sf_type = ColumnType(FloatType(), column.sf_type.nullable)
     return result
 
@@ -933,13 +958,17 @@ def mock_to_timestamp(
     fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
-    result = mock_timestamp_ntz(column, fmt, try_cast)
-    result.sf_type = ColumnType(TimestampType(), column.sf_type.nullable)
+    result = mock_to_timestamp_ntz(column, fmt, try_cast)
+
+    result.sf_type = ColumnType(
+        TimestampType(_TIMESTAMP_TYPE_TIMEZONE_MAPPING[_TIMESTAMP_TYPE_MAPPING]),
+        column.sf_type.nullable,
+    )
     return result
 
 
 @patch("to_timestamp_ntz")
-def mock_timestamp_ntz(
+def mock_to_timestamp_ntz(
     column: ColumnEmulator,
     fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
@@ -1976,12 +2005,21 @@ def cast_column_to(
 ) -> Optional[ColumnEmulator]:
     # col.sf_type.nullable = target_column_type.nullable
     target_data_type = target_column_type.datatype
+    if col.sf_type == target_column_type:
+        return col
     if isinstance(target_data_type, DateType):
         return mock_to_date(col, try_cast=try_cast)
     if isinstance(target_data_type, TimeType):
         return mock_to_time(col, try_cast=try_cast)
     if isinstance(target_data_type, TimestampType):
-        return mock_to_timestamp(col, try_cast=try_cast)
+        if target_data_type.tz is TimestampTimeZone.LTZ:
+            return mock_to_timestamp_ltz(col, try_cast=try_cast)
+        elif target_data_type.tz is TimestampTimeZone.NTZ:
+            return mock_to_timestamp_ntz(col, try_cast=try_cast)
+        elif target_data_type.tz is TimestampTimeZone.TZ:
+            return mock_to_timestamp_tz(col, try_cast=try_cast)
+        else:
+            return mock_to_timestamp(col, try_cast=try_cast)
     if isinstance(target_data_type, DecimalType):
         return mock_to_decimal(
             col,
