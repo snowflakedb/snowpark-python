@@ -15,6 +15,7 @@
 - Added support for constructing `Series` and `DataFrame` objects with `index` and `column` values not present in `DataFrame`/`Series` `data`.
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
 - Added support for `Session.stored_procedure_profiler`.
+- Added support for 'Service' domain to `session.lineage.trace` API. 
 
 #### Improvements
 
