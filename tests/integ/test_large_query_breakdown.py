@@ -136,16 +136,17 @@ def test_large_query_breakdown_externally_referenced_cte(session):
         session._conn._telemetry_client, "send_query_compilation_summary_telemetry"
     ) as patch_send:
         queries = final_df.queries
-        # assert that we did not break the plan
-        assert len(queries["queries"]) == 1
 
-        patch_send.assert_called_once()
-        _, kwargs = patch_send.call_args
-        summary_value = kwargs["compilation_stage_summary"]
-        assert summary_value["breakdown_failure_summary"] == {
-            "num_partitions_without_valid_nodes": 1,
-            "num_partitions_invalid_due_to_external_cte_ref": 1,
-        }
+    # assert that we did not break the plan
+    assert len(queries["queries"]) == 1
+
+    patch_send.assert_called_once()
+    _, kwargs = patch_send.call_args
+    summary_value = kwargs["compilation_stage_summary"]
+    assert summary_value["breakdown_failure_summary"] == {
+        "num_partitions_without_valid_nodes": 1,
+        "num_partitions_invalid_due_to_external_cte_ref": 1,
+    }
 
 
 def test_large_query_breakdown_with_cte_optimization(session):
@@ -160,7 +161,7 @@ def test_large_query_breakdown_with_cte_optimization(session):
     df1 = df1.join(df0, on=["b"], how="inner")
 
     df2 = df1.filter(col("b") == 2).union_all(df1)
-    df3 = df1.with_column("a", col("a") + 1)
+    df3 = df0.with_column("a", col("b") + 1)
     for i in range(7):
         df2 = df2.with_column("a", col("a") + i + col("a"))
         df3 = df3.with_column("b", col("b") + i + col("b"))
@@ -171,13 +172,22 @@ def test_large_query_breakdown_with_cte_optimization(session):
     df4 = df2.union_all(df3).filter(col("a") > 2).with_column("a", col("a") + 1)
     check_result_with_and_without_breakdown(session, df4)
 
-    queries = df4.queries
+    with patch.object(
+        session._conn._telemetry_client, "send_query_compilation_summary_telemetry"
+    ) as patch_send:
+        queries = df4.queries
+
     assert len(queries["queries"]) == 2
     assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
     assert queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
 
     assert len(queries["post_actions"]) == 1
     assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
+
+    patch_send.assert_called_once()
+    _, kwargs = patch_send.call_args
+    summary_value = kwargs["compilation_stage_summary"]
+    assert summary_value["breakdown_failure_summary"] == {}
 
 
 def test_save_as_table(session, large_query_df):
