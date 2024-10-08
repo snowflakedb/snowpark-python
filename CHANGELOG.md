@@ -10,7 +10,6 @@
   - `make_interval`
 - Added support for using Snowflake Interval constants with `Window.range_between()` when the order by column is TIMESTAMP or DATE type.
 - Added support for file writes. This feature is currently in private preview.
-- Added support for `DataFrameGroupBy.fillna` and `SeriesGroupBy.fillna`.
 - Added support for constructing `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` arguments.
 - Added support for constructing `Series` and `DataFrame` objects with `index` and `column` values not present in `DataFrame`/`Series` `data`.
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
@@ -33,6 +32,7 @@
 - Added support for `resample` frequency `W`, `ME`, `YE` with `closed = "left"`.
 - Added support for `DataFrame.rolling.corr` and `Series.rolling.corr` for `pairwise = False` and int `window`.
 - Added support for string time-based `window` and `min_periods = None` for `Rolling`.
+- Added support for `DataFrameGroupBy.fillna` and `SeriesGroupBy.fillna`.
 - Added support for `pd.read_sas` (Uses native pandas for processing).
 - Added support for applying `rolling().count()` and `expanding().count()` to `Timedelta` series and columns.
 - Added support for `tz` in both `pd.date_range` and `pd.bdate_range`.
