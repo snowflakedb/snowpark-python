@@ -180,12 +180,14 @@ class Resampler(metaclass=TelemetryMeta):
         )
 
     @property
-    def indices(self):  # pragma: no cover
+    def indices(self):
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        self._method_not_implemented("indices")
-        # Same as groups, keeps the return because indices requires return value
-        return self._query_compiler.default_to_pandas(
-            lambda df: pandas.DataFrame.resample(df, **self.resample_kwargs).indices
+        return self._query_compiler.resample(
+            self.resample_kwargs,
+            "indices",
+            tuple(),
+            dict(),
+            False,
         )
 
     def get_group(self, name, obj=None):  # pragma: no cover
