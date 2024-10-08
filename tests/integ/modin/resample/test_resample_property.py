@@ -37,6 +37,7 @@ def test_resample_indices_df(freq, interval):
 
 @freq
 @interval
+@sql_count_checker(query_count=2)
 def test_resample_indices_series(freq, interval):
     rule = f"{interval}{freq}"
     eval_snowpark_pandas_result(

@@ -23,7 +23,8 @@
 # existing code originally distributed by the pandas project, under the BSD 3-Clause License
 
 """Implement Resampler public API."""
-from typing import Any, Callable, Literal, Optional, Union
+import collections
+from typing import Any, Callable, Hashable, Literal, Optional, Union
 
 import modin.pandas as pd
 import numpy as np
@@ -180,7 +181,7 @@ class Resampler(metaclass=TelemetryMeta):
         )
 
     @property
-    def indices(self):
+    def indices(self) -> collections.defaultdict[Hashable, list]:
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         return self._query_compiler.resample(
             self.resample_kwargs,

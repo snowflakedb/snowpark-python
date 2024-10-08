@@ -58,9 +58,7 @@ class Resampler:
         Freq: None, dtype: int64
 
         >>> ser1.resample('2D').indices
-        defaultdict(list,
-                    {Timestamp('2020-01-01 00:00:00'): [0, 1],
-                     Timestamp('2020-01-03 00:00:00'): [2, 3]})
+        defaultdict(list, {Timestamp('2020-01-01 00:00:00'): [0, 1], Timestamp('2020-01-03 00:00:00'): [2, 3]})
 
         For DataFrame:
 
@@ -76,9 +74,7 @@ class Resampler:
         2020-01-04  2  6  9
 
         >>> df.resample('2D').indices
-        defaultdict(list,
-                    {Timestamp('2020-01-01 00:00:00'): [0, 1],
-                     Timestamp('2020-01-03 00:00:00'): [2, 3]})
+        defaultdict(list, {Timestamp('2020-01-01 00:00:00'): [0, 1], Timestamp('2020-01-03 00:00:00'): [2, 3]})
         """
 
     def get_group():
