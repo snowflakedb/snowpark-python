@@ -167,6 +167,7 @@ class QueryGenerator(Analyzer):
                 creation_source=logical_plan.creation_source,
                 child_attributes=child_attributes,
                 iceberg_config=logical_plan.iceberg_config,
+                table_exists=logical_plan.table_exists,
             )
 
         elif isinstance(
@@ -211,7 +212,7 @@ class QueryGenerator(Analyzer):
                 ] = resolved_child.queries[-1]
 
             resolved_plan = self.plan_builder.with_query_block(
-                logical_plan.name,
+                logical_plan,
                 resolved_child,
                 logical_plan,
             )
