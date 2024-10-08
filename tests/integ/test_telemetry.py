@@ -606,6 +606,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "thread_ident": thread_ident,
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
+            "query_plan_num_selects_with_complexity_merged": 0,
             "query_plan_complexity": {
                 "filter": filter,
                 "low_impact": low_impact,
@@ -630,6 +631,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "thread_ident": thread_ident,
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
+            "query_plan_num_selects_with_complexity_merged": 0,
             "query_plan_complexity": {
                 "filter": filter,
                 "low_impact": low_impact,
@@ -654,6 +656,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "thread_ident": thread_ident,
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
+            "query_plan_num_selects_with_complexity_merged": 0,
             "query_plan_complexity": {
                 "filter": filter,
                 "low_impact": low_impact,
@@ -678,6 +681,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "thread_ident": thread_ident,
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
+            "query_plan_num_selects_with_complexity_merged": 0,
             "query_plan_complexity": {
                 "filter": filter,
                 "low_impact": low_impact,
@@ -702,6 +706,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "thread_ident": thread_ident,
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
+            "query_plan_num_selects_with_complexity_merged": 0,
             "query_plan_complexity": {
                 "filter": filter,
                 "low_impact": low_impact,
@@ -855,6 +860,7 @@ def test_dataframe_stat_functions_api_calls(session):
             "thread_ident": thread_ident,
             "query_plan_height": 4,
             "query_plan_num_duplicate_nodes": 0,
+            "query_plan_num_selects_with_complexity_merged": 0,
             "query_plan_complexity": {"group_by": 1, "column": column, "literal": 48},
         },
         {
@@ -866,6 +872,7 @@ def test_dataframe_stat_functions_api_calls(session):
             ],
         },
     ]
+
     # check to make sure that the original DF is unchanged
     assert df._plan.api_calls == [
         {
@@ -875,6 +882,7 @@ def test_dataframe_stat_functions_api_calls(session):
             "thread_ident": thread_ident,
             "query_plan_height": 4,
             "query_plan_num_duplicate_nodes": 0,
+            "query_plan_num_selects_with_complexity_merged": 0,
             "query_plan_complexity": {"group_by": 1, "column": column, "literal": 48},
         }
     ]
@@ -1206,6 +1214,7 @@ def test_post_compilation_stage_telemetry(session):
             "complexity_score_before_compilation": 1148,
             "complexity_score_after_cte_optimization": [1148],
             "complexity_score_after_large_query_breakdown": [514, 636],
+            "cte_node_created": 2,
         }
         client.send_query_compilation_summary_telemetry(
             session_id=session.session_id,
@@ -1228,6 +1237,7 @@ def test_post_compilation_stage_telemetry(session):
         "complexity_score_before_compilation": 1148,
         "complexity_score_after_cte_optimization": [1148],
         "complexity_score_after_large_query_breakdown": [514, 636],
+        "cte_node_created": 2,
     }
 
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)

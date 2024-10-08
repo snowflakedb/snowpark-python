@@ -53,6 +53,7 @@ def setup(session):
     is_query_compilation_stage_enabled = session._query_compilation_stage_enabled
     session._query_compilation_stage_enabled = True
     session._large_query_breakdown_enabled = True
+    session._cte_optimization_enabled = False
     set_bounds(session, 300, 600)
     yield
     session._query_compilation_stage_enabled = is_query_compilation_stage_enabled
@@ -87,9 +88,9 @@ def check_result_with_and_without_breakdown(session, df):
         session._large_query_breakdown_enabled = large_query_enabled
 
 
-def test_no_valid_nodes_found(session, sql_simplifier_enabled, caplog):
+def test_no_valid_nodes_found(session, caplog):
     """Test large query breakdown works with default bounds"""
-    if not sql_simplifier_enabled:
+    if not session.sql_simplifier_enabled:
         pytest.skip(
             "without sql simplifier, the plan is too large and hits max recursion depth"
         )
@@ -111,9 +112,9 @@ def test_no_valid_nodes_found(session, sql_simplifier_enabled, caplog):
     assert "Could not find a valid node for partitioning" in caplog.text
 
 
-def test_large_query_breakdown_with_cte_optimization(session, sql_simplifier_enabled):
+def test_large_query_breakdown_with_cte_optimization(session):
     """Test large query breakdown works with cte optimized plan"""
-    if not sql_simplifier_enabled:
+    if not session.sql_simplifier_enabled:
         # the complexity bounds are updated since nested selected calculation is not supported
         # when sql simplifier disabled
         set_bounds(session, 60, 90)
@@ -157,8 +158,8 @@ def test_save_as_table(session, large_query_df):
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
-def test_update_delete_merge(session, large_query_df, sql_simplifier_enabled):
-    if not sql_simplifier_enabled:
+def test_update_delete_merge(session, large_query_df):
+    if not session.sql_simplifier_enabled:
         pytest.skip(
             "without sql simplifier, the plan is too large and hits max recursion depth"
         )
@@ -217,8 +218,8 @@ def test_copy_into_location(session, large_query_df):
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
-def test_pivot_unpivot(session, sql_simplifier_enabled):
-    if not sql_simplifier_enabled:
+def test_pivot_unpivot(session):
+    if not session.sql_simplifier_enabled:
         # the complexity bounds are updated since nested selected calculation is not supported
         # when sql simplifier disabled
         set_bounds(session, 40, 60)
@@ -261,8 +262,8 @@ def test_pivot_unpivot(session, sql_simplifier_enabled):
     assert plan_queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
 
 
-def test_sort(session, sql_simplifier_enabled):
-    if not sql_simplifier_enabled:
+def test_sort(session):
+    if not session.sql_simplifier_enabled:
         pytest.skip(
             "without sql simplifier, the plan is too large and hits max recursion depth"
         )
@@ -297,8 +298,8 @@ def test_sort(session, sql_simplifier_enabled):
     assert len(plan_queries["post_actions"]) == 0
 
 
-def test_multiple_query_plan(session, sql_simplifier_enabled):
-    if not sql_simplifier_enabled:
+def test_multiple_query_plan(session):
+    if not session.sql_simplifier_enabled:
         pytest.skip(
             "without sql simplifier, the plan is too large and hits max recursion depth"
         )
@@ -416,13 +417,11 @@ def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
                 assert call.kwargs["_statement_params"]["_PLAN_UUID"] == plan.uuid
 
 
-def test_complexity_bounds_affect_num_partitions(
-    session, large_query_df, sql_simplifier_enabled
-):
+def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     """Test complexity bounds affect number of partitions.
     Also test that when partitions are added, drop table queries are added.
     """
-    if sql_simplifier_enabled:
+    if session.sql_simplifier_enabled:
         set_bounds(session, 300, 600)
     else:
         set_bounds(session, 400, 600)
@@ -436,7 +435,7 @@ def test_complexity_bounds_affect_num_partitions(
         "DROP  TABLE  If  EXISTS"
     )
 
-    if sql_simplifier_enabled:
+    if session.sql_simplifier_enabled:
         set_bounds(session, 300, 455)
     else:
         set_bounds(session, 400, 450)

@@ -331,14 +331,20 @@ def test_same_duplicate_subtree(session):
         assert count_number_of_ctes(df_result2.queries["queries"][-1]) == 3
 
 
-@pytest.mark.parametrize("mode", ["append", "overwrite", "errorifexists", "ignore"])
+@pytest.mark.parametrize(
+    "mode", ["append", "truncate", "overwrite", "errorifexists", "ignore"]
+)
 def test_save_as_table(session, mode):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-    expected_query_count = 1
     if mode == "append":
-        # append mode uses create table with insert
-        # TODO (SNOW-1703599): Show table query is executed twice when new compilation stage is enabled
-        expected_query_count = 4 if session._query_compilation_stage_enabled else 3
+        # 1 show query + 1 create table query + 1 insert query
+        expected_query_count = 3
+    elif mode == "truncate":
+        # 1 show query + 1 create table query
+        expected_query_count = 2
+    else:
+        # 1 create table query
+        expected_query_count = 1
     with SqlCounter(query_count=expected_query_count, union_count=1):
         with session.query_history() as query_history:
             df.union_all(df).write.save_as_table(
@@ -349,6 +355,8 @@ def test_save_as_table(session, mode):
     query = query_history.queries[-1].sql_text
     assert query.count(WITH) == 1
     assert count_number_of_ctes(query) == 1
+    if mode in ["append", "truncate"]:
+        assert sum("show" in q.sql_text for q in query_history.queries) == 1
 
 
 @sql_count_checker(query_count=1, union_count=1)
@@ -632,9 +640,6 @@ def test_window_function(session):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
-)
 def test_in_with_subquery_multiple_query(session):
     if session._sql_simplifier_enabled:
         pytest.skip(
@@ -676,6 +681,9 @@ def test_select_with_column_expr_alias(session):
         check_result(session, df_result, expect_cte_optimized=True)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
+)
 @sql_count_checker(query_count=0)
 def test_cte_optimization_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
