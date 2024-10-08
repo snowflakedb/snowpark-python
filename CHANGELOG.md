@@ -40,6 +40,7 @@
 - Added support for `errors="ignore"` in `pd.to_datetime`.
 - Added support for `DataFrame.tz_localize` and `Series.tz_localize`.
 - Added support for `DataFrame.tz_convert` and `Series.tz_convert`.
+- Added support for applying Snowpark Python functions (e.g., `sin`) in `Series.map`, `Series.apply`, `DataFrame.apply` and `DataFrame.applymap`.
 
 #### Improvements
 
