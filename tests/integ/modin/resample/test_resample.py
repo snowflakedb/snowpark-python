@@ -20,7 +20,9 @@ from tests.integ.modin.utils import (
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 # Parametrize on all IMPLEMENTED_AGG_METHODS except 'indices' which is tested in a separate file
-agg_func = pytest.mark.parametrize("agg_func", IMPLEMENTED_AGG_METHODS[:13])
+agg_func = pytest.mark.parametrize(
+    "agg_func", list(filter(lambda x: x not in ["indices"], IMPLEMENTED_AGG_METHODS))
+)
 freq = pytest.mark.parametrize("freq", IMPLEMENTED_DATEOFFSET_STRINGS)
 interval = pytest.mark.parametrize("interval", [1, 2, 3, 5, 15])
 
