@@ -385,56 +385,6 @@ def build_udtf_apply(
     build_fn_apply_args(ast, *args, **kwargs)
 
 
-def build_session_table_fn_apply(
-    ast: proto.Expr,
-    name: Union[str, Iterable[str]],
-    *args: Tuple[Union[proto.Expr, Any]],
-    **kwargs: Dict[str, Union[proto.Expr, Any]],
-) -> None:
-    """
-    Creates AST encoding for ApplyExpr(SessionTableFn(<name>), List(<args...>), Map(<kwargs...>)) for session table functions.
-    Args:
-        ast: Expr node to fill.
-        name: Name of the session table function to call.
-        *args: Positional arguments to pass to function.
-        **kwargs: Keyword arguments to pass to function.
-    """
-    expr = with_src_position(ast.apply_expr)
-    _set_fn_name(name, expr.fn.session_table_fn)
-    with_src_position(expr.fn.session_table_fn)
-    build_fn_apply_args(ast, *args, **kwargs)
-
-
-# DO NOT MERGE. Remove this function when done refactoring.
-def build_table_fn_apply(
-    ast: proto.Expr,
-    name: Union[str, Iterable[str], None],
-    *args: Tuple[Union[proto.Expr, Any]],
-    **kwargs: Dict[str, Union[proto.Expr, Any]],
-) -> None:
-    """
-    Creates AST encoding for ApplyExpr(TableFn(<name>), List(<args...>), Map(<kwargs...>)) for table functions.
-    Args:
-        ast: Expr node to fill.
-        name: Name of the table function to call. The name can be None and is ignored for table function calls of type SessionTableFn.
-        *args: Positional arguments to pass to function.
-        **kwargs: Keyword arguments to pass to function.
-
-    Requires that ast.apply_expr.fn.table_fn.call_type is set to a valid TableFnCallType.
-    """
-    expr = with_src_position(ast.apply_expr)
-    assert (
-        ast.apply_expr.fn.table_fn.call_type.WhichOneof("variant") is not None
-    ), f"Explicitly set the call type before calling this function {str(ast.apply_expr.fn.table_fn)}"
-    if not expr.fn.table_fn.call_type.table_fn_call_type__session_table_fn:
-        assert (
-            name is not None
-        ), f"Table function name must be provided {str(ast.apply_expr.fn.table_fn)}"
-        _set_fn_name(name, expr.fn.table_fn)
-    with_src_position(expr.fn.table_fn)
-    build_fn_apply_args(ast, *args, **kwargs)
-
-
 def build_call_table_function_apply(
     ast: proto.Expr,
     name: str,
@@ -455,10 +405,13 @@ def build_indirect_table_fn_apply(
     **func_named_arguments: ColumnOrName,
 ) -> None:
     expr = with_src_position(ast.apply_expr)
-    if isinstance(func, snowflake.snowpark.table_function.TableFunctionCall):
+    if isinstance(
+        func, snowflake.snowpark.table_function.TableFunctionCall
+    ) or isinstance(func, Callable):
         stmt = ast_batch.assign()
         stmt.expr.CopyFrom(func._ast)
         fn_expr = expr.fn.indirect_table_fn_call_ref
+        fn_expr.id.bitfield1 = stmt.var_id.bitfield1
     else:
         fn_expr = expr.fn.indirect_table_fn_name_call
         _set_fn_name(func, fn_expr)
