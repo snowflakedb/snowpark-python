@@ -30,7 +30,52 @@ class Resampler:
 
     @property
     def indices():
-        pass
+        """
+        Dict {group name -> group indices}.
+
+        Returns
+        -------
+        collections.defaultdict[Hashable, list]
+
+        Notes
+        -----
+        Beware that the return value is a python dictionary, so evaluating this
+        property will trigger evaluation of the pandas dataframe and will
+        materialize data that could be as large as the size of the grouping
+        columns.
+
+        Examples
+        --------
+        For Series:
+
+        >>> lst1 = pd.date_range('2020-01-01', periods=4, freq='1D')
+        >>> ser1 = pd.Series([1, 2, 3, 4], index=lst1)
+        >>> ser1
+        2020-01-01    1
+        2020-01-02    2
+        2020-01-03    3
+        2020-01-04    4
+        Freq: None, dtype: int64
+
+        >>> ser1.resample('2D').indices
+        defaultdict(<class 'list'>, {Timestamp('2020-01-01 00:00:00'): [0, 1], Timestamp('2020-01-03 00:00:00'): [2, 3]})
+
+        For DataFrame:
+
+        >>> data = [[1, 8, 2], [1, 2, 5], [2, 5, 8], [2, 6, 9]]
+        >>> df = pd.DataFrame(data,
+        ...      columns=["a", "b", "c"],
+        ...      index=pd.date_range('2020-01-01', periods=4, freq='1D'))
+        >>> df
+                    a  b  c
+        2020-01-01  1  8  2
+        2020-01-02  1  2  5
+        2020-01-03  2  5  8
+        2020-01-04  2  6  9
+
+        >>> df.resample('2D').indices
+        defaultdict(<class 'list'>, {Timestamp('2020-01-01 00:00:00'): [0, 1], Timestamp('2020-01-03 00:00:00'): [2, 3]})
+        """
 
     def get_group():
         pass
