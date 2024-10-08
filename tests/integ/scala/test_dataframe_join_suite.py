@@ -252,9 +252,9 @@ def test_join_using_conditions_and_specifying_join_type(session):
     not installed_pandas,
     reason="Test requires pandas.",
 )
-@pytest.mark.skip(
-    reason="SNOW-1668981: Update after anti-join returns incorrect result.",
-)
+# @pytest.mark.skip(
+#     reason="SNOW-1668981: Update after anti-join returns incorrect result.",
+# )
 def test_snow_1668981_repro(session):
     # Use pandas to force temp table
     df1 = session.create_dataframe(pd.DataFrame({"A": [0, 1], "B": ["a", "b"]}))
