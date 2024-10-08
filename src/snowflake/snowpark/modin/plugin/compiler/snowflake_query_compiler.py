@@ -12267,8 +12267,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns
         -------
         SnowflakeQueryCompiler or collections.defaultdict[Hashable, list]
-            Holds an ordered frame with the result of the resample operation, or a dictionary
-            if resample_method is 'indices'.
+            A SnowflakeQueryCompiler that holds an ordered frame with the result of the resample operation,
+            or a dictionary if resample_method is 'indices'.
 
         Raises
         ------
