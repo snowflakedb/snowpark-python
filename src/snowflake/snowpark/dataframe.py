@@ -3342,7 +3342,6 @@ class DataFrame:
             ast = with_src_position(stmt.expr.sp_dataframe_join_table_function, stmt)
             self._set_ast_ref(ast.lhs)
             build_indirect_table_fn_apply(
-                self._session._ast_batch,
                 ast.func,
                 func,
                 *func_arguments,
