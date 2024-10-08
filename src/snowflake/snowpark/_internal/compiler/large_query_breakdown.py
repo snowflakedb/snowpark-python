@@ -129,7 +129,7 @@ class LargeQueryBreakdown:
         # This is used to track the number of partitions we could not breakdown because we
         # could not find any valid nodes. We also track if we could have broken down the plan
         # only if externally referenced CTEs were considered valid.
-        self.breakdown_summary = defaultdict(int)
+        self.breakdown_failure_summary = defaultdict(int)
 
     def apply(self) -> List[LogicalPlan]:
         if is_active_transaction(self.session):
@@ -251,10 +251,10 @@ class LargeQueryBreakdown:
             current_level = next_level
 
         if candidate_node is None:
-            self.breakdown_summary[
+            self.breakdown_failure_summary[
                 CompilationStageTelemetryField.NUM_PARTITIONS_WITHOUT_VALID_NODES.value
             ] += 1
-            self.breakdown_summary[
+            self.breakdown_failure_summary[
                 CompilationStageTelemetryField.NUM_PARTITIONS_INVALID_DUE_TO_EXTERNAL_CTE_REF.value
             ] += (1 if invalid_due_to_referenced_cte_encountered else 0)
 
