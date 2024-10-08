@@ -331,21 +331,5 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             sproc_name = get_fully_qualified_name(
                 sproc_name, current_schema, current_database
             )
-
-        # TODO: Support call in MockServerConnection.
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
-        if sproc_name not in self._registry:
-            if (
-                isinstance(self._session._conn, MockServerConnection)
-                and self._session._conn._suppress_not_implemented_error
-            ):
-                return None
-            else:
-                raise SnowparkLocalTestingException(
-                    f"Unknown function {sproc_name}. Stored procedure by that name does not exist."
-                )
-
             sproc = self._registry[sproc_name]
-
-        return sproc(*args, session=session, statement_params=statement_params)
+            return sproc(*args, session=session, statement_params=statement_params)
