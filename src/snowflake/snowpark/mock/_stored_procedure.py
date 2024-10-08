@@ -9,7 +9,12 @@ from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.ast_utils import build_sproc, with_src_position
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
+from snowflake.snowpark._internal.ast_utils import (
+    build_sproc,
+    build_sproc_apply,
+    with_src_position,
+)
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,
@@ -191,12 +196,11 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             raise SnowparkLocalTestingException(f"Sproc {sproc_name} does not exist.")
         return self._registry[sproc_name]
 
-    def get_sproc_imports(self, sproc_name: str) -> Set[str]:
+    def get_sproc_imports(
+        self, sproc_name: str
+    ) -> Union[Set[str], List[Union[str, Tuple[str, str]]]]:
         sproc = self._registry.get(sproc_name)
-        if not sproc:
-            return set()
-        else:
-            return sproc.imports
+        return sproc.imports if sproc else set()
 
     def _do_register_sp(
         self,
@@ -364,7 +368,8 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         *args: Any,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         statement_params: Optional[Dict[str, str]] = None,
-    ):
+        _emit_ast: bool = True,
+    ) -> Any:
         current_schema = self._session.get_current_schema()
         current_database = self._session.get_current_database()
         sproc_name = get_fully_qualified_name(
@@ -385,6 +390,26 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                     f"Unknown function {sproc_name}. Stored procedure by that name does not exist."
                 )
 
-        return self._registry[sproc_name](
-            *args, session=session, statement_params=statement_params
-        )
+        sproc = self._registry[sproc_name]
+        res = sproc(*args, session=session, statement_params=statement_params)
+
+        sproc_expr = None
+        if _emit_ast and self._ast is not None:
+            assert (
+                self._ast is not None
+            ), "Need to ensure _emit_ast is True when registering a stored procedure."
+            assert (
+                self._ast_id is not None
+            ), "Need to assign an ID to the stored procedure."
+            sproc_expr = proto.Expr()
+            build_sproc_apply(sproc_expr, self._ast_id, statement_params, *args)
+
+        if sproc._is_return_table:
+            # If the result is a Column or DataFrame object, the expression `eval` is performed in a later operation
+            # such as `collect` or `show`.
+            res._ast = sproc_expr
+        elif sproc_expr is not None:
+            # If the result is a scalar, we can return it immediately. Perform the `eval` operation here.
+            session._ast_batch.eval(sproc_expr)
+
+        return res

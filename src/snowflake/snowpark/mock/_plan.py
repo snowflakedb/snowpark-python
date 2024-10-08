@@ -766,10 +766,9 @@ def handle_sproc_expression(
         if type(sproc.func) is tuple:
             module_name, handler_name = sproc.func
             exec(f"from {module_name} import {handler_name}")
-            # TODO: vbudati, uncomment!!
-        #     sproc_handler = eval(handler_name)
-        # else:
-        #     sproc_handler = sproc.func
+            sproc_handler = eval(handler_name)
+        else:
+            sproc_handler = sproc.func
 
         # Compute input data and validate typing
         if len(exp.children) != len(sproc._input_types):
@@ -801,10 +800,27 @@ def handle_sproc_expression(
             )
 
         try:
-            res = []
-            # TODO: vbudati, what do I do here?
-            # What makes most sense is the TableEmulator and apply whatever sproc function is provided in a try block.
-            # Do the except like other handler functions.
+            res = sproc_handler(*function_input.values)
+            if sproc._is_return_table:
+                # Emulate a tabular result only if a table is returned. Else, return value is a scalar.
+                output_columns = sproc._output_schema.names
+                sf_types = {
+                    f.name: ColumnType(datatype=f.datatype, nullable=f.nullable)
+                    for f in sproc._output_schema.fields
+                }
+                sf_types_by_col_index = {
+                    idx: ColumnType(datatype=f.datatype, nullable=f.nullable)
+                    for idx, f in enumerate(sproc._output_schema.fields)
+                }
+                # Aliases? Use them then instead of output columns.
+                if exp.aliases:
+                    output_columns = exp.aliases
+                res = TableEmulator(
+                    data=res,
+                    columns=output_columns,
+                    sf_types=sf_types,
+                    sf_types_by_col_index=sf_types_by_col_index,
+                )
         except Exception as err:
             SnowparkLocalTestingException.raise_from_error(
                 err, error_message=f"Python Interpreter Error: {err}"
@@ -2612,7 +2628,6 @@ def calculate_expression(
             return handle_udaf_expression(exp, input_data, analyzer, expr_to_alias)
         else:
             return handle_udf_expression(exp, input_data, analyzer, expr_to_alias)
-    # TODO: vbudati, check what elif statement should I be checking? SnowflakeSproc does not exist.
 
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking Expression {type(exp).__name__}",

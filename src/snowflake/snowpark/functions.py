@@ -9306,7 +9306,7 @@ def call_function(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        build_table_fn_apply(ast, function_name, *args)
+        build_builtin_fn_apply(ast, function_name, *args)
 
     fn = _call_function(function_name, False, *args, _emit_ast=_emit_ast)
     fn._ast = ast

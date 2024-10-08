@@ -9,9 +9,8 @@ import typing
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from google.protobuf import proto
-
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.ast_utils import (
@@ -132,13 +131,14 @@ class StoredProcedure:
             "StoredProcedure.__call__", TelemetryField.FUNC_CAT_USAGE.value
         )
 
-        # TODO: vbudati: Check if this is the right place to build sproc_expr. If not, where do I build it?
         sproc_expr = None
         if _emit_ast and self._ast is not None:
             assert (
                 self._ast is not None
-            ), "Need to ensure _emit_ast is True when registering stored procedure."
-            assert self._ast_id is not None, "Need to assign sproc an ID."
+            ), "Need to ensure _emit_ast is True when registering a stored procedure."
+            assert (
+                self._ast_id is not None
+            ), "Need to assign an ID to the stored procedure."
             sproc_expr = proto.Expr()
             build_sproc_apply(sproc_expr, self._ast_id, statement_params, *args)
 
@@ -150,6 +150,7 @@ class StoredProcedure:
                     query, statement_params=statement_params
                 )
                 df = session.sql(result_scan_statement(qid))
+                df._ast = sproc_expr
                 return df
             df = session.sql(query)
             res = df._internal_collect_with_tag(statement_params=statement_params)[0][0]
@@ -159,10 +160,17 @@ class StoredProcedure:
                 *args,
                 is_return_table=self._is_return_table,
                 statement_params=statement_params,
-                _emit_ast=_emit_ast,
+                _emit_ast=self._is_return_table,
             )
 
-        res._ast = sproc_expr
+        if self._is_return_table:
+            # If the result is a Column or DataFrame object, the expression `eval` is performed in a later operation
+            # such as `collect` or `show`.
+            res._ast = sproc_expr
+        elif sproc_expr is not None:
+            # If the result is a scalar, we can return it immediately. Perform the `eval` operation here.
+            session._ast_batch.eval(sproc_expr)
+
         return res
 
 
