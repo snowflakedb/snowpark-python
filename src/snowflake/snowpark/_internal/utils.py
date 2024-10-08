@@ -760,6 +760,44 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
     warning_dict[name].warning(text)
 
 
+def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:
+    session = None
+    try:
+        # Multiple default session attempts:
+        session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+            None
+        )
+        assert session is not None
+    except (
+        snowflake.snowpark.exceptions.SnowparkSessionException,
+        AssertionError,
+    ):
+        # Use modin session retrieval first, as it supports multiple sessions.
+        # Expect this to fail if modin was not installed, for Python 3.8, ... but that's ok.
+        try:
+            import modin.pandas as pd
+
+            session = pd.session
+        except Exception as e:  # noqa: F841
+            try:
+                # Get from default session.
+                from snowflake.snowpark.context import get_active_session
+
+                session = get_active_session()
+            except Exception as e:  # noqa: F841
+                pass
+    finally:
+        if session is None:
+            logging.debug(
+                f"Could not retrieve default session "
+                f"for function {func.__qualname__}, capturing AST by default."
+            )
+            # session has not been created yet. To not lose information, always encode AST.
+            return True  # noqa: B012
+        else:
+            return session.ast_enabled  # noqa: B012
+
+
 def publicapi(func) -> Callable:
     """decorator to safeguard public APIs with global feature flags."""
 
@@ -792,6 +830,20 @@ def publicapi(func) -> Callable:
                     # This happens when the decorator is called before a session is started.
                     if session is not None:
                         kwargs["_emit_ast"] = session.ast_enabled
+                # Function passed fully with kwargs only (i.e., not a method - self will always be passed positionally)
+                elif len(kwargs) != 0:
+                    # Check if one of the kwargs holds a session object. If so, retrieve AST enabled from there.
+                    session_vars = [
+                        var
+                        for var in kwargs.values()
+                        if isinstance(var, snowflake.snowpark.session.Session)
+                    ]
+                    if session_vars:
+                        kwargs["_emit_ast"] = session_vars[0].ast_enabled
+                    else:
+                        kwargs["_emit_ast"] = infer_ast_enabled_from_global_sessions(
+                            func
+                        )
             elif isinstance(args[0], snowflake.snowpark.dataframe.DataFrame):
                 # special case: __init__ called, self._session is then not initialized yet.
                 if func.__qualname__.endswith(".__init__"):
@@ -846,18 +898,7 @@ def publicapi(func) -> Callable:
             ):
                 kwargs["_emit_ast"] = args[0]._df._session.ast_enabled
             else:
-                try:
-                    # Get from default session.
-                    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
-                        None
-                    )
-                    # If session is None, do nothing (i.e., keep encoding AST).
-                    # This happens when the decorator is called before a session is started.
-                    if session is not None:
-                        kwargs["_emit_ast"] = session.ast_enabled
-                except snowflake.snowpark.exceptions.SnowparkSessionException:
-                    # session has not been created yet. To not lose information, always encode AST.
-                    kwargs["_emit_ast"] = True
+                kwargs["_emit_ast"] = infer_ast_enabled_from_global_sessions(func)
 
         # TODO: Could modify internal docstring to display that users should not modify the _emit_ast parameter.
 
