@@ -1007,6 +1007,46 @@ def return_dict(v: dict) -> Dict[str, str]:
     run=False,
 )
 @pytest.mark.parametrize("register_from_file", [True, False])
+def test_register_udf_with_empty_optional_args(
+    session: Session, tmpdir, register_from_file, caplog
+):
+    func_body = """
+def empty_args() -> str:
+    return "success"
+
+def only_type_hint(s: str) -> str:
+    return s
+"""
+    session.add_packages("snowflake-snowpark-python")
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        if register_from_file:
+            file_path = os.path.join(tmpdir, "register_from_file_optional_args.py")
+            with open(file_path, "w") as f:
+                source = f"{func_body}"
+                f.write(source)
+
+            empty_args_udf = session.udf.register_from_file(file_path, "empty_args")
+            only_type_hint_udf = session.udf.register_from_file(
+                file_path, "only_type_hint"
+            )
+        else:
+            d = {}
+            exec(func_body, {**globals(), **locals()}, d)
+
+            empty_args_udf = session.udf.register(d["empty_args"])
+            only_type_hint_udf = session.udf.register(d["only_type_hint"])
+
+    # assert that no warnings are raised here
+    assert len(caplog.records) == 0
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1412530 to fix bug",
+    run=False,
+)
+@pytest.mark.parametrize("register_from_file", [True, False])
 def test_register_udf_with_optional_args(session: Session, tmpdir, register_from_file):
     import_body = """
 import datetime

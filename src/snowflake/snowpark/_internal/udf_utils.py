@@ -397,6 +397,8 @@ def get_opt_arg_defaults(
         input_types: List[DataType],
         convert_python_str_to_object: bool,
     ) -> List[Optional[str]]:
+        if default_values is None:
+            return EMPTY_DEFAULT_VALUES
         num_optional_args = len(default_values)
         num_positional_args = len(input_types) - num_optional_args
         input_types_for_default_args = input_types[-num_optional_args:]
@@ -441,8 +443,6 @@ def get_opt_arg_defaults(
         elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
             default_values_str = retrieve_func_defaults_from_source(filename, func_name)
 
-        if default_values_str is None:
-            return EMPTY_DEFAULT_VALUES
         return build_default_values_result(default_values_str, input_types, True)
 
     try:
