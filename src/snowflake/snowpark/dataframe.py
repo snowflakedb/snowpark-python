@@ -101,6 +101,7 @@ from snowflake.snowpark._internal.ast_utils import (
     build_expr_from_snowpark_column_or_sql_str,
     build_expr_from_snowpark_column_or_table_fn,
     build_indirect_table_fn_apply,
+    build_intermediate_stmt,
     build_proto_from_pivot_values,
     debug_check_missing_ast,
     fill_ast_for_column,
@@ -3336,6 +3337,7 @@ class DataFrame:
         stmt = None
         ast = None
         if _emit_ast:
+            build_intermediate_stmt(self._session._ast_batch, func)
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_join_table_function, stmt)
             self._set_ast_ref(ast.lhs)

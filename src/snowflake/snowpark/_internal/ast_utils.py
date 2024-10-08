@@ -398,18 +398,14 @@ def build_call_table_function_apply(
 
 
 def build_indirect_table_fn_apply(
-    ast_batch: AstBatch,
     ast: proto.Expr,
     func: Union[str, List[str], "snowflake.snowpark.table_function.TableFunctionCall"],
     *func_arguments: ColumnOrName,
     **func_named_arguments: ColumnOrName,
 ) -> None:
     expr = with_src_position(ast.apply_expr)
-    if isinstance(
-        func, snowflake.snowpark.table_function.TableFunctionCall
-    ) or isinstance(func, Callable):
-        stmt = ast_batch.assign()
-        stmt.expr.CopyFrom(func._ast)
+    if hasattr(func, "_ast_stmt"):
+        stmt = func._ast_stmt
         fn_expr = expr.fn.indirect_table_fn_call_ref
         fn_expr.id.bitfield1 = stmt.var_id.bitfield1
     else:
@@ -1164,3 +1160,13 @@ def build_udtf(
         t = ast.kwargs.add()
         t._1 = k
         build_expr_from_python_val(t._2, v)
+
+
+def build_intermediate_stmt(ast_batch: AstBatch, o: Any) -> None:
+    if hasattr(o, "_ast_stmt"):
+        return
+    if not hasattr(o, "_ast"):
+        return
+    stmt = ast_batch.assign()
+    stmt.expr.CopyFrom(o._ast)
+    o._ast_stmt = stmt
