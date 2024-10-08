@@ -249,21 +249,21 @@ class ServerConnection:
         )
 
     def _run_new_describe(
-        self, cursor: SnowflakeCursor, query: str
+        self, cursor: SnowflakeCursor, query: str, **kwargs: dict
     ) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:
         result_metadata = run_new_describe(cursor, query)
 
         for listener in filter(
-            lambda listener: hasattr(listener, "include_describe")
-            and listener.include_describe,
-            self._query_listener,
+            lambda observer: hasattr(observer, "include_describe")
+            and observer.include_describe,
+            self._query_listeners,
         ):
             query_record = QueryRecord(cursor.sfqid, query, True)
             if getattr(listener, "include_thread_id", False):
                 query_record = QueryRecord(
                     cursor.sfqid, query, True, threading.get_ident()
                 )
-            listener._add_query(query_record)
+            listener._notify(query_record, **kwargs)
 
         return result_metadata
 
