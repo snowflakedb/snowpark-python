@@ -9,6 +9,7 @@ import pandas as native_pd
 import pytest
 
 from snowflake.snowpark.modin.plugin._internal.resample_utils import (
+    IMPLEMENTED_AGG_METHODS,
     IMPLEMENTED_DATEOFFSET_STRINGS,
 )
 from tests.integ.modin.utils import (
@@ -18,24 +19,8 @@ from tests.integ.modin.utils import (
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
-agg_func = pytest.mark.parametrize(
-    "agg_func",
-    [
-        "max",
-        "min",
-        "mean",
-        "median",
-        "sum",
-        "std",
-        "var",
-        "count",
-        "size",
-        "first",
-        "last",
-        "quantile",
-        "nunique",
-    ],
-)
+# Parametrize on all IMPLEMENTED_AGG_METHODS except 'indices' which is tested in a separate file
+agg_func = pytest.mark.parametrize("agg_func", IMPLEMENTED_AGG_METHODS[:13])
 freq = pytest.mark.parametrize("freq", IMPLEMENTED_DATEOFFSET_STRINGS)
 interval = pytest.mark.parametrize("interval", [1, 2, 3, 5, 15])
 
