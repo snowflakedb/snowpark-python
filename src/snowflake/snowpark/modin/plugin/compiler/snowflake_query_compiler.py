@@ -182,6 +182,7 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     groupby_apply_create_internal_frame_from_final_ordered_dataframe,
     groupby_apply_pivot_result_to_final_ordered_dataframe,
     groupby_apply_sort_method,
+    is_supported_snowpark_python_function,
     sort_apply_udtf_result_columns_by_pandas_positions,
 )
 from snowflake.snowpark.modin.plugin._internal.binary_op_utils import (
@@ -8292,6 +8293,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas apply API doesn't yet support DataFrame or Series in 'args' or 'kwargs' of 'func'"
             )
 
+        if is_supported_snowpark_python_function(func):
+            if axis != 0:
+                ErrorMessage.not_implemented(
+                    f"Snowpark pandas apply API doesn't yet support Snowpark Python function `{func.__name__}` with axis = {axis}."
+                )
+            if raw is not False:
+                ErrorMessage.not_implemented(
+                    f"Snowpark pandas apply API doesn't yet support Snowpark Python function `{func.__name__}` with raw = {raw}."
+                )
+            if args:
+                ErrorMessage.not_implemented(
+                    f"Snowpark pandas apply API doesn't yet support Snowpark Python function `{func.__name__}` with args = '{args}'."
+                )
+            return self._apply_snowpark_python_function_to_columns(func)
+
         if axis == 0:
             frame = self._modin_frame
 
@@ -8546,6 +8562,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     func, raw, result_type, args, column_index, input_types, **kwargs
                 )
 
+    def _apply_snowpark_python_function_to_columns(
+        self,
+        snowpark_function: Callable,
+    ) -> "SnowflakeQueryCompiler":
+        """Apply Snowpark Python function to columns."""
+
+        def sf_function(col: SnowparkColumn) -> SnowparkColumn:
+            return snowpark_function(col)
+
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(sf_function)
+        )
+
     def applymap(
         self,
         func: AggFuncType,
@@ -8566,6 +8595,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         self._raise_not_implemented_error_for_timedelta()
 
+        if is_supported_snowpark_python_function(func):
+            if na_action:
+                ErrorMessage.not_implemented(
+                    f"Snowpark pandas applymap API doesn't yet support Snowpark Python function `{func.__name__}` with na_action == '{na_action}'"
+                )
+            if args:
+                ErrorMessage.not_implemented(
+                    f"Snowpark pandas applymap API doesn't yet support Snowpark Python function `{func.__name__}` with args = '{args}'."
+                )
+            return self._apply_snowpark_python_function_to_columns(func)
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.
         # The fix will not land soon, so we are going to raise not implemented error for now.
