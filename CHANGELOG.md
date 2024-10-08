@@ -15,6 +15,7 @@
 - Added support for constructing `Series` and `DataFrame` objects with `index` and `column` values not present in `DataFrame`/`Series` `data`.
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
 - Added support for `Session.stored_procedure_profiler`.
+- Added support for `copy_grants` parameter when registering UDxF and stored procedures.
 
 #### Improvements
 
@@ -180,7 +181,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 - Improve concat, join performance when operations are performed on series coming from the same dataframe by avoiding unnecessary joins.
 - Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
-- Improved `pd.to_datetime` to handle all local input cases. 
+- Improved `pd.to_datetime` to handle all local input cases.
 - Create a lazy index from another lazy index without pulling data to client.
 - Raised `NotImplementedError` for Index bitwise operators.
 - Display a more clear error message when `Index.names` is set to a non-like-like object.
