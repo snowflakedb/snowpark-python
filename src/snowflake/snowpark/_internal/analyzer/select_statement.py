@@ -1476,11 +1476,11 @@ class SetStatement(Selectable):
         # get a union of referenced cte tables from all child nodes
         merged_ctes = dict()
         for node in self._nodes:
-            for cte, count in node.referenced_ctes.items():
-                if cte in merged_ctes:
-                    merged_ctes[cte] += count
+            for with_query_block, count in node.referenced_ctes.items():
+                if with_query_block in merged_ctes:
+                    merged_ctes[with_query_block] += count
                 else:
-                    merged_ctes[cte] = count
+                    merged_ctes[with_query_block] = count
         return merged_ctes
 
 
