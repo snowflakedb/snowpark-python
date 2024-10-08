@@ -298,7 +298,12 @@ def normalize_path(path: str, is_local: bool) -> str:
     return f"'{path}'"
 
 
-def warn_session_config_update_in_multithreaded_mode(config) -> None:
+def warn_session_config_update_in_multithreaded_mode(
+    config: str, thread_safe_mode_enabled: bool
+) -> None:
+    if not thread_safe_mode_enabled:
+        return
+
     if threading.active_count() > 1:
         logger.warning(
             "You might have more than one threads sharing the Session object trying to update "
@@ -673,6 +678,19 @@ class WarningHelper:
         if self.count < self.warning_times:
             logger.warning(text)
         self.count += 1
+
+
+# TODO: SNOW-1720855: Remove DummyLock and DummyThreadLocal after the rollout
+class DummyLock:
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
+class DummyThreadLocal:
+    pass
 
 
 warning_dict: Dict[str, WarningHelper] = {}

@@ -209,6 +209,8 @@ def session(
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
+        # Enable thread safe session for testing
+        .config("PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", True)
         .create()
     )
     session.sql_simplifier_enabled = sql_simplifier_enabled
