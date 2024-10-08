@@ -41,6 +41,8 @@ def test_query_compiler(mock_dataframe) -> SnowflakeQueryCompiler:
         data_column_snowflake_quoted_identifiers=['"a"', '"B"'],
         index_column_pandas_labels=["INDEX", "C"],
         index_column_snowflake_quoted_identifiers=['"INDEX"', '"C"'],
+        data_column_types=None,
+        index_column_types=None,
     )
 
     return SnowflakeQueryCompiler(internal_frame)

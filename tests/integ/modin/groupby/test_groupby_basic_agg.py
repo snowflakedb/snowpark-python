@@ -16,7 +16,6 @@ from pandas.core.groupby.generic import DataFrameGroupBy as PandasDFGroupBy
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import IntegerType, StringType, VariantType
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     TEST_DF_DATA,
     ColumnSchema,
@@ -28,6 +27,7 @@ from tests.integ.modin.utils import (
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
 
 
@@ -58,7 +58,6 @@ def eval_groupby_result(
     return snowpark_pandas_groupby, pandas_groupby
 
 
-@pytest.mark.modin_sp_short_regress
 @pytest.mark.parametrize("by", ["col1", ["col3"], ["col5"]])
 @sql_count_checker(query_count=2)
 def test_basic_single_group_row_groupby(
@@ -1095,3 +1094,83 @@ def test_valid_func_valid_kwarg_should_work(basic_snowpark_pandas_df):
         basic_snowpark_pandas_df.groupby("col1").agg(max, min_count=2),
         basic_snowpark_pandas_df.to_pandas().groupby("col1").max(min_count=2),
     )
+
+
+class TestTimedelta:
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "method",
+        [
+            "count",
+            "mean",
+            "min",
+            "max",
+            "idxmax",
+            "idxmin",
+            "sum",
+            "median",
+            "std",
+            "nunique",
+        ],
+    )
+    @pytest.mark.parametrize("by", ["A", "B"])
+    def test_aggregation_methods(self, method, by):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(
+                {
+                    "A": native_pd.to_timedelta(
+                        ["1 days 06:05:01.00003", "16us", "nan", "16us"]
+                    ),
+                    "B": [8, 8, 12, 10],
+                }
+            ),
+            lambda df: getattr(df.groupby(by), method)(),
+        )
+
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "operation",
+        [
+            lambda df: df.groupby("A").agg({"B": ["sum", "median"], "C": "min"}),
+            lambda df: df.groupby("B").agg({"A": ["sum", "median"], "C": "min"}),
+            lambda df: df.groupby("B").agg({"A": ["sum", "count"], "C": "median"}),
+            lambda df: df.groupby("B").agg(["mean", "std"]),
+            lambda df: df.groupby("B").agg({"A": ["count", np.sum]}),
+            lambda df: df.groupby("B").agg({"A": "sum"}),
+        ],
+    )
+    def test_agg(self, operation):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(
+                native_pd.DataFrame(
+                    {
+                        "A": native_pd.to_timedelta(
+                            ["1 days 06:05:01.00003", "16us", "nan", "16us"]
+                        ),
+                        "B": [8, 8, 12, 10],
+                        "C": [True, False, False, True],
+                    }
+                )
+            ),
+            operation,
+        )
+
+    @sql_count_checker(query_count=1)
+    def test_groupby_timedelta_var(self):
+        """
+        Test that we can group by a timedelta column and take var() of an integer column.
+
+        Note that we can't take the groupby().var() of the timedelta column because
+        var() is not defined for timedelta, in pandas or in Snowpark pandas.
+        """
+        eval_snowpark_pandas_result(
+            *create_test_dfs(
+                {
+                    "A": native_pd.to_timedelta(
+                        ["1 days 06:05:01.00003", "16us", "nan", "16us"]
+                    ),
+                    "B": [8, 8, 12, 10],
+                }
+            ),
+            lambda df: df.groupby("A").var(),
+        )

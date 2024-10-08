@@ -7,8 +7,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize("subset", ["a", ["a"], ["a", "B"], []])
@@ -64,8 +64,7 @@ def test_drop_duplicates(subset, keep, ignore_index):
     query_count = 1
     join_count = 2
     if ignore_index is True:
-        # One extra query to convert index to native pandas in series constructor
-        query_count += 3
+        query_count += 1
         join_count += 3
     with SqlCounter(query_count=query_count, join_count=join_count):
         assert_frame_equal(

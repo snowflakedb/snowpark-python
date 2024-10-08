@@ -2,7 +2,7 @@
 General functions
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.pandas.general
+.. currentmodule:: modin.pandas
 .. rubric:: :doc:`All supported general functions <supported/general_supported>`
 
 .. rubric:: Data manipulations
@@ -11,6 +11,7 @@ General functions
     :toctree: pandas_api/
 
     melt
+    crosstab
     pivot
     pivot_table
     cut
@@ -18,6 +19,7 @@ General functions
     concat
     get_dummies
     merge
+    merge_asof
     unique
 
 .. rubric:: Top-level missing data
@@ -44,4 +46,5 @@ General functions
     :toctree: pandas_api/
 
     date_range
+    bdate_range
     to_datetime

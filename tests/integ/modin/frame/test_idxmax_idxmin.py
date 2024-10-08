@@ -9,8 +9,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @sql_count_checker(query_count=1)
@@ -186,6 +186,36 @@ def test_idxmax_idxmin_with_dates(func, axis):
     )
     native_df["date_1"] = native_pd.to_datetime(native_df["date_1"])
     native_df["date_2"] = native_pd.to_datetime(native_df["date_2"])
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: getattr(df, func)(axis=axis),
+    )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("func", ["idxmax", "idxmin"])
+@pytest.mark.parametrize(
+    "axis",
+    [
+        0,
+        pytest.param(
+            1,
+            marks=pytest.mark.xfail(
+                strict=True, raises=NotImplementedError, reason="SNOW-1653126"
+            ),
+        ),
+    ],
+)
+def test_idxmax_idxmin_with_timedelta(func, axis):
+    native_df = native_pd.DataFrame(
+        data={
+            "date_1": native_pd.timedelta_range(1, periods=3),
+            "date_2": [pd.Timedelta(1), pd.Timedelta(-1), pd.Timedelta(0)],
+        },
+        index=[10, 17, 12],
+    )
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(
         snow_df,

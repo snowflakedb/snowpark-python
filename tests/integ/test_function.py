@@ -107,6 +107,7 @@ from snowflake.snowpark.functions import (
     json_extract_path_text,
     least,
     lit,
+    ln,
     log,
     months_between,
     negate,
@@ -2239,3 +2240,11 @@ def test_negative_function_call(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sum_(col("a"))).collect()
         assert "is not recognized" in str(ex_info)
+
+
+def test_ln(session):
+    from math import e
+
+    df = session.create_dataframe([[e]], schema=["ln_value"])
+    res = df.select(ln(col("ln_value")).alias("result")).collect()
+    assert res[0][0] == 1.0
