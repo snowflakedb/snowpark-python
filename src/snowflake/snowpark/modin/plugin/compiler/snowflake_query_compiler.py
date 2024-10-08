@@ -12243,7 +12243,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         resample_method_args: tuple[Any],
         resample_method_kwargs: dict[str, Any],
         is_series: bool,
-    ) -> Union["SnowflakeQueryCompiler", dict[Hashable, np.ndarray]]:
+    ) -> Union["SnowflakeQueryCompiler", collections.defaultdict[Hashable, list]]:
         """
         Return new SnowflakeQueryCompiler whose ordered frame holds the result of a resample operation.
 
@@ -12266,7 +12266,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Returns
         -------
-        SnowflakeQueryCompiler or dict[Hashable, np.ndarray]
+        SnowflakeQueryCompiler or collections.defaultdict[Hashable, list]
             Holds an ordered frame with the result of the resample operation, or a dictionary
             if resample_method is 'indices'.
 
