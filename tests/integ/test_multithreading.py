@@ -590,6 +590,11 @@ def test_concurrent_update_on_sensitive_configs(session, config, value, caplog):
     )
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not execute sql queries",
+    run=False,
+)
 def test_temp_name_placeholder_for_sync(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 
@@ -630,6 +635,11 @@ def test_temp_name_placeholder_for_sync(session):
         analyzer.ARRAY_BIND_THRESHOLD = original_value
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not execute sql queries",
+    run=False,
+)
 def test_temp_name_placeholder_for_async(session, resources_path, temp_stage):
     stage_prefix = f"prefix_{Utils.random_alphanumeric_str(10)}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
