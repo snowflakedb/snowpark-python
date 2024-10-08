@@ -32,6 +32,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SnowflakeCreateTable,
     SnowflakeTable,
     TableCreationSource,
+    WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
@@ -44,6 +45,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 )
 from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
 from snowflake.snowpark._internal.compiler.telemetry_constants import (
+    CompilationStageTelemetryField,
     SkipLargeQueryBreakdownCategory,
 )
 from snowflake.snowpark._internal.compiler.utils import (
@@ -124,6 +126,14 @@ class LargeQueryBreakdown:
         self.complexity_score_upper_bound = (
             session.large_query_breakdown_complexity_bounds[1]
         )
+        # This is used to track the number of partitions we could not breakdown because we
+        # could not find any valid nodes. We also track if we could have broken down the plan
+        # only if externally referenced CTEs were considered valid.
+        self._breakdown_failure_summary = defaultdict(int)
+
+    def get_breakdown_failure_summary(self) -> dict:
+        """Returns breakdown failure summary."""
+        return self._breakdown_failure_summary
 
     def apply(self) -> List[LogicalPlan]:
         if is_active_transaction(self.session):
@@ -216,6 +226,7 @@ class LargeQueryBreakdown:
         current_level = [root]
         candidate_node = None
         candidate_score = -1  # start with -1 since score is always > 0
+        invalid_due_to_referenced_cte_encountered = False
 
         while current_level:
             next_level = []
@@ -223,7 +234,11 @@ class LargeQueryBreakdown:
                 assert isinstance(node, (Selectable, SnowflakePlan))
                 for child in node.children_plan_nodes:
                     self._parent_map[child].add(node)
-                    valid_to_breakdown, score = self._is_node_valid_to_breakdown(child)
+                    (
+                        valid_to_breakdown,
+                        score,
+                        invalid_due_to_referenced_cte,
+                    ) = self._is_node_valid_to_breakdown(child, root)
                     if valid_to_breakdown:
                         # If the score for valid node is higher than the last candidate,
                         # update the candidate node and score.
@@ -233,8 +248,19 @@ class LargeQueryBreakdown:
                     else:
                         # don't traverse subtrees if parent is a valid candidate
                         next_level.append(child)
+                        invalid_due_to_referenced_cte_encountered |= (
+                            invalid_due_to_referenced_cte
+                        )
 
             current_level = next_level
+
+        if candidate_node is None:
+            self._breakdown_failure_summary[
+                CompilationStageTelemetryField.NUM_PARTITIONS_WITHOUT_VALID_NODES
+            ] += 1
+            self._breakdown_failure_summary[
+                CompilationStageTelemetryField.NUM_PARTITIONS_INVALID_DUE_TO_EXTERNAL_CTE_REF
+            ] += (1 if invalid_due_to_referenced_cte_encountered else 0)
 
         # If no valid node is found, candidate_node will be None.
         # Otherwise, return the node with the highest complexity score.
@@ -270,11 +296,16 @@ class LargeQueryBreakdown:
 
         return temp_table_plan
 
-    def _is_node_valid_to_breakdown(self, node: LogicalPlan) -> Tuple[bool, int]:
+    def _is_node_valid_to_breakdown(
+        self, node: TreeNode, root: TreeNode
+    ) -> Tuple[bool, int, bool]:
         """Method to check if a node is valid to breakdown based on complexity score and node type.
 
         Returns:
-            A tuple of boolean indicating if the node is valid for partitioning and the complexity score.
+            A tuple of =>
+                bool: indicating if the node is valid for partitioning.
+                int: the complexity score of the node.
+                bool: indicating if the node is invalid due to an externally referenced CTE.
         """
         score = get_complexity_score(node)
         valid_node = (
@@ -282,13 +313,53 @@ class LargeQueryBreakdown:
             < score
             < self.complexity_score_upper_bound
         ) and self._is_node_pipeline_breaker(node)
+
+        is_invalid_due_to_external_cte = False
+        if valid_node and self._contains_externally_referenced_cte(node, root):
+            valid_node = False
+            is_invalid_due_to_external_cte = True
+
         if valid_node:
             _logger.debug(
                 f"Added node of type {type(node)} with score {score} to pipeline breaker list."
             )
-        return valid_node, score
+        else:
+            self._breakdown_failure_summary[
+                CompilationStageTelemetryField.NUM_PARTITIONS_WITHOUT_VALID_NODES
+            ] += 1
 
-    def _is_node_pipeline_breaker(self, node: LogicalPlan) -> bool:
+        return valid_node, score, is_invalid_due_to_external_cte
+
+    def _contains_externally_referenced_cte(
+        self, node: TreeNode, root: TreeNode
+    ) -> bool:
+        """Method to check if a node contains a CTE in its subtree that is also referenced
+        by a different node that lies outside the subtree. An example situation is:
+
+                            node1
+                            /    \
+                        node2    node3
+                       /    |      |
+                   node4   WithQueryBlock
+
+        In this example, node2 contains a WithQueryBlock node that is also referenced
+        externally by node3.
+        Similarly, node3 contains a WithQueryBlock node that is also referenced externally
+        by node2.
+        However, node1 contains WithQueryBlock node that is not referenced externally.
+
+        We determine if a node contains an externally referenced CTE by comparing the
+        number of times each unique WithQueryBlock node is referenced in the subtree compared
+        to the number of times it is referenced in the root node.
+        """
+        for with_query_block, node_count in node.referenced_ctes:
+            root_count = root.referenced_ctes[with_query_block]
+            if node_count != root_count:
+                return True
+
+        return False
+
+    def _is_node_pipeline_breaker(self, node: TreeNode) -> bool:
         """Method to check if a node is a pipeline breaker based on the node type.
 
         If the node contains a SnowflakePlan, we check its source plan recursively.
@@ -307,6 +378,10 @@ class LargeQueryBreakdown:
 
         if isinstance(node, (Except, Intersect)):
             # Except and Intersect are pipeline breakers since they are join + distinct
+            return True
+
+        if isinstance(node, WithQueryBlock):
+            # WithQueryBlock is a pipeline breaker
             return True
 
         if isinstance(node, SelectStatement):

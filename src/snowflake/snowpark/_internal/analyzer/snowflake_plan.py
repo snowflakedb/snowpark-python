@@ -18,7 +18,6 @@ from typing import (
     List,
     Optional,
     Sequence,
-    Set,
     Tuple,
     Union,
 )
@@ -229,7 +228,7 @@ class SnowflakePlan(LogicalPlan):
         # This field records all the CTE tables that are referred by the
         # current SnowflakePlan tree. This is needed for the final query
         # generation to generate the correct sql query with CTE definition.
-        referenced_ctes: Optional[Set[WithQueryBlock]] = None,
+        referenced_ctes: Optional[Dict[WithQueryBlock, int]] = None,
         *,
         session: "snowflake.snowpark.session.Session",
     ) -> None:
@@ -259,8 +258,8 @@ class SnowflakePlan(LogicalPlan):
         # query and the associated query parameters. We use this id for equality comparison
         # to determine if two plans are the same.
         self._id = encode_id(queries[-1].sql, queries[-1].params)
-        self.referenced_ctes: Set[WithQueryBlock] = (
-            referenced_ctes.copy() if referenced_ctes else set()
+        self.referenced_ctes: Dict[WithQueryBlock, int] = (
+            referenced_ctes.copy() if referenced_ctes else dict()
         )
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         # UUID for the plan to uniquely identify the SnowflakePlan object. We also use this
@@ -658,7 +657,7 @@ class SnowflakePlanBuilder:
             if post_action not in post_actions:
                 post_actions.append(copy.copy(post_action))
 
-        referenced_ctes: Set[WithQueryBlock] = set()
+        referenced_ctes: Dict[WithQueryBlock, int] = dict()
         if (
             self.session.cte_optimization_enabled
             and self.session._query_compilation_stage_enabled
@@ -668,7 +667,11 @@ class SnowflakePlanBuilder:
             # duplicated queries if there is a common CTE block referenced by
             # both left and right.
             referenced_ctes.update(select_left.referenced_ctes)
-            referenced_ctes.update(select_right.referenced_ctes)
+            for with_query_block, count in select_right.referenced_ctes.items():
+                if with_query_block in referenced_ctes:
+                    referenced_ctes[with_query_block] += count
+                else:
+                    referenced_ctes[with_query_block] = count
 
         queries = merged_queries + [
             Query(
@@ -1668,7 +1671,11 @@ class SnowflakePlanBuilder:
         # query generation stage.
         queries = child.queries[:-1] + [Query(sql=new_query)]
         # propagate the cte table
-        referenced_ctes = {with_query_block}.union(child.referenced_ctes)
+        referenced_ctes = child.referenced_ctes.copy()
+        if with_query_block in referenced_ctes:
+            referenced_ctes[with_query_block] += 1
+        else:
+            referenced_ctes[with_query_block] = 1
 
         return SnowflakePlan(
             queries,

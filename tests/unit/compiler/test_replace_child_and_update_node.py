@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SnowflakeCreateTable,
     SnowflakeTable,
+    WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -63,7 +64,8 @@ def mock_snowflake_plan() -> SnowflakePlan:
     fake_snowflake_plan.is_ddl_on_temp_object = False
     fake_snowflake_plan._output_dict = []
     fake_snowflake_plan.placeholder_query = None
-    fake_snowflake_plan.referenced_ctes = {"TEST_CTE"}
+    with_query_block = WithQueryBlock(name="TEST_CTE", child=LogicalPlan())
+    fake_snowflake_plan.referenced_ctes = {with_query_block: 1}
     fake_snowflake_plan._cumulative_node_complexity = {}
     return fake_snowflake_plan
 
