@@ -20,6 +20,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug where registering a stored procedure or UDxF with type hints would give a warning `'NoneType' has no len() when trying to read default values from function`.
+
 ### Snowpark pandas API Updates
 
 #### New Features
@@ -191,7 +193,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 - Improve concat, join performance when operations are performed on series coming from the same dataframe by avoiding unnecessary joins.
 - Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
-- Improved `pd.to_datetime` to handle all local input cases. 
+- Improved `pd.to_datetime` to handle all local input cases.
 - Create a lazy index from another lazy index without pulling data to client.
 - Raised `NotImplementedError` for Index bitwise operators.
 - Display a more clear error message when `Index.names` is set to a non-like-like object.
