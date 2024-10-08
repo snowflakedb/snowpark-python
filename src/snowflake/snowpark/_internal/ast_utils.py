@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     CaseWhen,
     Expression,
+    FunctionExpression,
     Literal,
     MultipleExpression,
     Star,
@@ -799,6 +800,14 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
     elif isinstance(expr, Star):
         # Comes up in count(), handled there.
         return None
+    elif isinstance(expr, FunctionExpression):
+        # Snowpark pandas API has some usage where injecting the publicapi decorator would lead to issues.
+        # Directly translate here.
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast, expr.name, *tuple(map(snowpark_expression_to_ast, expr.children))
+        )
+        return ast
     else:
         raise NotImplementedError(
             f"Snowpark expr {expr} of type {type(expr)} is an expression with missing AST or for which an AST can not be auto-generated."
