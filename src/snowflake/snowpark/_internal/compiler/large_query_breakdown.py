@@ -355,7 +355,7 @@ class LargeQueryBreakdown:
 
         return False
 
-    def _is_node_pipeline_breaker(self, node: TreeNode) -> bool:
+    def _is_node_pipeline_breaker(self, node: LogicalPlan) -> bool:
         """Method to check if a node is a pipeline breaker based on the node type.
 
         If the node contains a SnowflakePlan, we check its source plan recursively.
