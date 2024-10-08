@@ -8,10 +8,11 @@ import logging
 import pytest
 
 import snowflake.connector.errors
+from snowflake.connector.options import installed_pandas, pandas as pd
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import col, parse_json
+from snowflake.snowpark.functions import col, lit, parse_json
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     DoubleType,
@@ -87,6 +88,23 @@ def test_write_with_target_column_name_order(session, local_testing_mode):
             Utils.check_answer(session.table(special_table_name), [Row(2, 1)])
         finally:
             Utils.drop_table(session, special_table_name)
+
+
+@pytest.mark.skipif(
+    not installed_pandas,
+    reason="Test requires pandas.",
+)
+def test_snow_1668862_repro_save_null_data(session):
+    # Force temp table
+    table_name = Utils.random_table_name()
+
+    test_data = session.create_dataframe(pd.DataFrame({"a": [1, 2]}))
+    df = test_data.with_column("b", lit(None))
+
+    try:
+        df.write.save_as_table(table_name=table_name, mode="truncate")
+    finally:
+        Utils.drop_table(session, table_name)
 
 
 def test_write_truncate_with_less_columns(session):
