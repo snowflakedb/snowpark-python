@@ -5639,6 +5639,45 @@ def array_size(array: ColumnOrName) -> Column:
     return builtin("array_size")(a)
 
 
+def slice(
+    array: ColumnOrName,
+    from_: ColumnOrLiteral,
+    length: ColumnOrLiteral,
+    start_index: int = 1,
+) -> Column:
+    """Returns an ARRAY constructed from a specified subset of elements of the input ARRAY, with an adjustable starting index.
+
+    Args:
+        array: Column containing the source ARRAY.
+        from_: Column or literal value specifying the starting position in the source ARRAY.
+               The position specified by `start_index` parameter is considered as the first element.
+        length: Column or literal value specifying the number of elements to include in the resulting ARRAY from the starting position.
+        start_index: An integer specifying the index value considered as the first position. Default is 1.
+
+    Example::
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row(a=[1, 2, 3, 4, 5])])
+        >>> df.select(slice("a", 2, 2).alias("result")).show()
+        ------------
+        |"RESULT"   |
+        ------------
+        |[          |
+        |  2,       |
+        |  3        |
+        |]          |
+        ------------
+        <BLANKLINE>
+
+    Note:
+        The 'from_' parameter adjusts based on the 'start_index'. For example, if 'start_index' is 1,
+        'from_' is decremented by 1 to align with zero-based indexing.
+    """
+    a = _to_col_if_str(array, "slice")
+    f = _to_col_if_lit(from_, "slice") - lit(start_index)
+    t = _to_col_if_lit(from_, "slice") + _to_col_if_lit(length, "slice")
+    return builtin("array_slice")(a, f, t)
+
+
 def array_slice(array: ColumnOrName, from_: ColumnOrName, to: ColumnOrName) -> Column:
     """Returns an ARRAY constructed from a specified subset of elements of the input ARRAY.
 
