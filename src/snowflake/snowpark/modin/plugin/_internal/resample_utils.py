@@ -49,7 +49,6 @@ IMPLEMENTED_AGG_METHODS = [
     "nunique",
     "indices",
 ]
-IMPLEMENTED_MISC_METHODS = ["ffill"]
 SUPPORTED_RESAMPLE_RULES = ("second", "minute", "hour", "day", "week", "month", "year")
 RULE_SECOND_TO_DAY = ("second", "minute", "hour", "day")
 RULE_WEEK_TO_YEAR = ("week", "quarter", "month", "year")
