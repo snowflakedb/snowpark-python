@@ -1511,7 +1511,6 @@ def explode_outer(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__builtin = True
         build_builtin_fn_apply(ast, "explode_outer", col)
 
     func_call = snowflake.snowpark.table_function._ExplodeFunctionCall(col, lit(True))
@@ -1598,7 +1597,6 @@ def flatten(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__builtin = True
         build_builtin_fn_apply(ast, "flatten", col, path, outer, recursive, mode)
 
     func_call = snowflake.snowpark.table_function.TableFunctionCall(
