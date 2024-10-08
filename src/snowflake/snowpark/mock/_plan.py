@@ -2030,10 +2030,14 @@ def calculate_expression(
                 indexer = EntireWindowIndexer()
                 rolling = res.rolling(indexer)
                 windows = [ordered.loc[w.index] for w in rolling]
+                # rolling can unpredictably change the index of the data
+                # apply a trivial function to materialize the final index
+                res_index = list(rolling.count().index)
 
         elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
             indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
             res = res.rolling(indexer)
+            res_index = list(res.count().index)
             windows = [w for w in res]
 
         elif isinstance(window_spec.frame_spec.frame_type, RangeFrame):
@@ -2063,16 +2067,6 @@ def calculate_expression(
                 isinstance(lower, UnboundedPreceding),
                 isinstance(upper, UnboundedFollowing),
             )
-
-        # Reorder windows to match the index order in res_index
-        reordered_windows = []
-        for idx in res_index:
-            for w in windows:
-                if idx in w.index:
-                    reordered_windows.append(w)
-                    break
-
-        windows = reordered_windows
 
         # compute window function:
         if isinstance(window_function, (FunctionExpression,)):

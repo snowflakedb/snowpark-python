@@ -275,10 +275,6 @@ def test_window_function_should_fail_if_order_by_clause_is_not_specified(session
     assert "requires ORDER BY in window specification" in str(ex_info)
 
 
-# @pytest.mark.skipif(
-#     "config.getoption('local_testing_mode', default=False)",
-#     "SNOW-1360263: row_number currently failing in local testing",
-# )
 def test_snow_1360263_repro(session):
     data = [
         Row(id=1, row_date=date(2024, 1, 1), value=1),
