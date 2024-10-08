@@ -644,6 +644,9 @@ def execute_mock_plan(
                     if isinstance(exp.child, Attribute):
                         quoted_name = quote_name(exp.name)
                         expr_to_alias[exp.child.expr_id] = quoted_name
+                        for k, v in expr_to_alias.items():
+                            if v == exp.child.name:
+                                expr_to_alias[k] = quoted_name
 
         df = pd.concat(data, axis=1)
         result_df = TableEmulator(
@@ -2002,8 +2005,10 @@ def calculate_expression(
 
         # Process partition_by clause
         if window_spec.partition_spec:
+            # Remove duplicate keys while maintaining order
+            keys = list(dict.fromkeys([exp.name for exp in window_spec.partition_spec]))
             res = res.groupby(
-                [exp.name for exp in window_spec.partition_spec],
+                keys,
                 sort=False,
                 as_index=False,
             )
