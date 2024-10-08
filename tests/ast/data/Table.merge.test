@@ -1,0 +1,85 @@
+## TEST CASE
+
+schema = StructType([StructField("num", IntegerType()), StructField("str", StringType())])
+
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=schema)
+
+df1 = session.create_dataframe([[1, "one"], [2, "two"], [3, "three"], ], schema=['num', 'str'], _emit_ast=False)
+
+df1.write.save_as_table("test_table_1", _emit_ast=False)
+target = Table("test_table_1", session)
+
+target.merge(source, (target["num"] == source["num"]) & (target["str"] == "too_old"), [when_matched().update({"str": "value"})])
+
+df1.write.save_as_table("test_table_1b", _emit_ast=False)
+target = Table("test_table_1b", session)
+
+target.merge(source, "bar" != source["str"], clauses=[when_matched(source["str"] == "too_new").update({"str": "value2"}), when_matched().update({"num": 123})])
+
+df1.write.save_as_table("test_table_2", _emit_ast=False)
+target = Table("test_table_2", session)
+
+target.merge(source, (target["num"] != source["num"]) & (target["str"] != "too_old"), [when_not_matched().insert({"str": "value"})])
+
+target = Table("test_table_2b", session)
+df1.write.save_as_table("test_table_2b", _emit_ast=False)
+
+target.merge(source, source["str"] != "foo", clauses=[when_not_matched(source["str"] == "too_new").insert({"str": "value"}), when_matched().update({"str": "value3"})])
+
+df1.write.save_as_table("test_table_3", _emit_ast=False)
+target = Table("test_table_3", session)
+
+target.merge(source=source, join_expr=(target["num"] == source["num"]), clauses=[when_matched().delete()])
+
+df1.write.save_as_table("test_table_4", _emit_ast=False)
+target = Table("test_table_4", session)
+
+target.merge(source, (source["num"] == 1) & (target["num"] == source["num"]), [when_matched(source["str"] == "too_new").delete()], block=False)
+
+df1.write.save_as_table("test_table_5", _emit_ast=False)
+target = Table("test_table_5", session)
+
+target.merge(source, join_expr=(target["num"] == source["num"]), clauses=[when_matched()], block=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+## EXPECTED UNPARSER OUTPUT
+
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType([StructField("num", IntegerType(), nullable=True), StructField("str", StringType(16777216), nullable=True)], structured=False))
+
+target = Table("test_table_1", session)
+
+target.merge(source=source, join_expr=(target["num"] == source["num"]) & (target["str"] == "too_old"), clauses=[when_matched().update({"str": "value"})])
+
+target = Table("test_table_1b", session)
+
+target.merge(source=source, join_expr=source["str"] != "bar", clauses=[when_matched(source["str"] == "too_new").update({"str": "value2"}), when_matched().update({"num": 123})])
+
+target = Table("test_table_2", session)
+
+target.merge(source=source, join_expr=(target["num"] != source["num"]) & (target["str"] != "too_old"), clauses=[when_not_matched().insert({"str": "value"})])
+
+target = Table("test_table_2b", session)
+
+target.merge(source=source, join_expr=source["str"] != "foo", clauses=[when_not_matched(source["str"] == "too_new").insert({"str": "value"}), when_matched().update({"str": "value3"})])
+
+target = Table("test_table_3", session)
+
+target.merge(source=source, join_expr=target["num"] == source["num"], clauses=[when_matched().delete()])
+
+target = Table("test_table_4", session)
+
+target.merge(source=source, join_expr=(source["num"] == 1) & (target["num"] == source["num"]), clauses=[when_matched(source["str"] == "too_new").delete()], block=False)
+
+target = Table("test_table_5", session)
+
+target.merge(source=source, join_expr=target["num"] == source["num"], statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
+
+## EXPECTED ENCODED AST
+
+CqgDCqUDCpID8gWOAwrDAgrAAgpo+gxlChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXBIhugIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXBABEiTaDCEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShcEgNvbmUKaPoMZQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFwSIboCHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFwQAhIk2gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXBIDdHdvCmr6DGcKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShcEiG6Ah4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShcEAMSJtoMIwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFwSBXRocmVlEioSKAomCg0KBQoDbnVtEgJgARgBChUKBQoDc3RyEgqaAQcKBQiAgIAIGAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShcEggKBnNvdXJjZRgBIgIIAQpJCkcKNeILMhIQCg4KDHRlc3RfdGFibGVfMRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGEiAhABEggKBnRhcmdldBgCIgIIAgqvAwqsAwqhA4oMnQMIARJUGlISUApOCiTaDCEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShjEgNzdHISJtoMIwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGMSBXZhbHVlGgIIAiKZAoIBlQIKffIBegotwgYqCgNudW0SB4ICBAoCCAIaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShjEi3CBioKA251bRIHggIECgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGMaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShjEnjyAXUKLcIGKgoDc3RyEgeCAgQKAggCGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoYxIo2gwlChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoYxIHdG9vX29sZBoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGMaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShjKgeCAgQKAggBMhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoYxIAGAMiAggDCggSBggEEgIIAxABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFw==
+CkoKSAo24gszEhEKDwoNdGVzdF90YWJsZV8xYhoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGYiAhABEggKBnRhcmdldBgFIgIIBQrXAwrUAwrJA4oMxQMIARLQARrNAQp48gF1Ci3CBioKA3N0chIHggIECgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGgSKNoMJQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGgSB3Rvb19uZXcaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShoElEKTwok2gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoaBIDc3RyEifaDCQKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShoEgZ2YWx1ZTISTxpNEksKSQok2gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoaBIDbnVtEiG6Ah4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShoEHsaAggFInTyAnEKLcIGKgoDc3RyEgeCAgQKAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoaBIk2gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoaBIDYmFyGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoaCoHggIECgIIATIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGgSABgGIgIIBgoIEgYIBxICCAYQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBc=
+CkkKRwo14gsyEhAKDgoMdGVzdF90YWJsZV8yGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoayICEAESCAoGdGFyZ2V0GAgiAggICq8DCqwDCqEDigydAwgBElQSUhImCiTaDCEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShtEgNzdHIaKAom2gwjChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobRIFdmFsdWUaAggIIpkCggGVAgp98gJ6Ci3CBioKA251bRIHggIECgIICBoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKG0SLcIGKgoDbnVtEgeCAgQKAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKG0SePICdQotwgYqCgNzdHISB4ICBAoCCAgaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShtEijaDCUKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShtEgd0b29fb2xkGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKG0qB4ICBAoCCAEyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShtEgAYCSICCAkKCBIGCAoSAggJEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
+CkoKSAo24gszEhEKDwoNdGVzdF90YWJsZV8yYhoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKG8iAhABEggKBnRhcmdldBgLIgIICwrcAwrZAwrOA4oMygMIARLPARLMAQp48gF1Ci3CBioKA3N0chIHggIECgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHISKNoMJQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHISB3Rvb19uZXcaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShyEiYKJNoMIQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHISA3N0chooCibaDCMKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShyEgV2YWx1ZRJVGlMSUQpPCiTaDCEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShyEgNzdHISJ9oMJAoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHISBnZhbHVlMxoCCAsidPICcQotwgYqCgNzdHISB4ICBAoCCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShyEiTaDCEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShyEgNmb28aGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShyKgeCAgQKAggBMhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUochIAGAwiAggMCggSBggNEgIIDBABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFw==
+CkkKRwo14gsyEhAKDgoMdGVzdF90YWJsZV8zGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodSICEAESCAoGdGFyZ2V0GA4iAggOCsABCr0BCrIBigyuAQgBEgIKABoCCA4iffIBegotwgYqCgNudW0SB4ICBAoCCA4aGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh3Ei3CBioKA251bRIHggIECgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHcaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh3KgeCAgQKAggBMhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodxIAGA8iAggPCggSBggQEgIIDxABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFw==
+CkkKRwo14gsyEhAKDgoMdGVzdF90YWJsZV80GhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoeiICEAESCAoGdGFyZ2V0GBEiAggRCs4DCssDCsADigy8AxJ8CnoKePIBdQotwgYqCgNzdHISB4ICBAoCCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh8EijaDCUKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh8Egd0b29fbmV3GhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUofBoCCBEikgKCAY4CCnHyAW4KLcIGKgoDbnVtEgeCAgQKAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUofBIhugIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUofBABGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUofBJ98gF6Ci3CBioKA251bRIHggIECgIIERoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHwSLcIGKgoDbnVtEgeCAgQKAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUofBoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHwaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh8KgeCAgQKAggBMhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUofBIAGBIiAggSCggSBggTEgIIEhABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFw==
+CkkKRwo14gsyEhAKDgoMdGVzdF90YWJsZV81GhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUofyICEAESCAoGdGFyZ2V0GBQiAggUCtsBCtgBCs0BigzJARoCCBQigAHyAX0KLsIGKwoDbnVtEgeCAgQKAggUGhsaFlNSQ19QT1NJVElPTl9URVNUX01PREUogQESLsIGKwoDbnVtEgeCAgQKAggBGhsaFlNSQ19QT1NJVElPTl9URVNUX01PREUogQEaGxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSiBASoHggIECgIIATIbGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKIEBOhoKClNGX1BBUlRORVISDEZBS0VfUEFSVE5FUhIAGBUiAggVCggSBggWEgIIFRABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFw==
+EAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
