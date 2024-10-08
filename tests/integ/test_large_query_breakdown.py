@@ -112,6 +112,42 @@ def test_no_valid_nodes_found(session, caplog):
     assert "Could not find a valid node for partitioning" in caplog.text
 
 
+def test_large_query_breakdown_externally_referenced_cte(session):
+    if not session.sql_simplifier_enabled:
+        set_bounds(session, 50, 90)
+    session._cte_optimization_enabled = True
+    base_select = session.sql("select 1 as A, 2 as B")
+    df1 = base_select.with_column("A", col("A") + lit(1))
+    df2 = base_select.with_column("B", col("B") + lit(1))
+    base_df = df1.union_all(df2)
+
+    df1 = base_df.with_column("A", col("A") + 1)
+    df2 = base_df.with_column("B", col("B") + 1)
+    for i in range(6):
+        df1 = df1.with_column("A", col("A") + i + col("A"))
+        df2 = df2.with_column("B", col("B") + i + col("B"))
+
+    df1 = df1.group_by("A").agg(sum_distinct(col("B")).alias("B"))
+    df2 = df2.group_by("B").agg(sum_distinct(col("A")).alias("A"))
+    final_df = df1.union_all(df2)
+
+    check_result_with_and_without_breakdown(session, final_df)
+    with patch.object(
+        session._conn._telemetry_client, "send_query_compilation_summary_telemetry"
+    ) as patch_send:
+        queries = final_df.queries
+        # assert that we did not break the plan
+        assert len(queries["queries"]) == 1
+
+        patch_send.assert_called_once()
+        _, kwargs = patch_send.call_args
+        summary_value = kwargs["compilation_stage_summary"]
+        assert summary_value["breakdown_failure_summary"] == {
+            "num_partitions_without_valid_nodes": 1,
+            "num_partitions_invalid_due_to_external_cte_ref": 1,
+        }
+
+
 def test_large_query_breakdown_with_cte_optimization(session):
     """Test large query breakdown works with cte optimized plan"""
     if not session.sql_simplifier_enabled:
