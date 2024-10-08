@@ -11,13 +11,15 @@ import shutil
 import subprocess
 import sys
 import zipfile
+from importlib.metadata import PackageNotFoundError, distribution
 from logging import getLogger
 from pathlib import Path
 from typing import AnyStr, Dict, List, Optional, Set, Tuple
 
-import pkg_resources
 import yaml
-from pkg_resources import Requirement
+from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
+from packaging.version import InvalidVersion
 
 _logger = getLogger(__name__)
 PIP_ENVIRONMENT_VARIABLE: str = "PIP_NAME"
@@ -32,6 +34,36 @@ NATIVE_FILE_EXTENSIONS: Set[str] = {
     ".dylib",
     ".dll" if platform.system() == "Windows" else ".so",
 }
+
+
+def get_distribution_version(name: str) -> Optional[str]:
+    """
+    Get the distribution of a package.
+
+    Args:
+        name (str): The name of the package.
+
+    Returns:
+        Optional[str]: The distribution of the package.
+    """
+    return distribution(name).version
+
+
+def contains_version(specifier: SpecifierSet, version: str) -> bool:
+    """
+    Check if a requirement contains a specific version.
+
+    Args:
+        specifier (SpecifierSet): The requirement to check.
+        version (str): The version to check for.
+
+    Returns:
+        bool: True if the requirement contains the version, False otherwise.
+    """
+    try:
+        return specifier.contains(version)
+    except InvalidVersion:
+        return False
 
 
 def parse_requirements_text_file(file_path: str) -> Tuple[List[str], List[str]]:
@@ -223,7 +255,7 @@ def map_python_packages_to_files_and_folders(
 
                     # Create Requirement objects and store in map
                     package_name_to_record_entries_map[
-                        Requirement.parse(package)
+                        Requirement(package)
                     ] = included_record_entries
 
     return package_name_to_record_entries_map
@@ -264,20 +296,18 @@ def identify_supported_packages(
 
     for package in packages:
         package_name: str = package.name
-        package_version_required: Optional[str] = (
-            package.specs[0][1] if package.specs else None
+        package_specifier: Optional[SpecifierSet] = (
+            package.specifier if package.specifier else None
         )
         version_text = (
-            f"(version {package_version_required})"
-            if package_version_required is not None
-            else ""
+            f"(version {package_specifier})" if package_specifier is not None else ""
         )
 
         if package_name in valid_packages:
             # Detect supported packages
-            if (
-                package_version_required is None
-                or package_version_required in valid_packages[package_name]
+            if package_specifier is None or any(
+                contains_version(package_specifier, x)
+                for x in valid_packages[package_name]
             ):
                 supported_dependencies.append(package)
                 _logger.info(
@@ -291,7 +321,7 @@ def identify_supported_packages(
                         f"Package {package_name}{version_text} contains native code, switching to latest available version "
                         f"in Snowflake instead."
                     )
-                    new_dependencies.append(Requirement.parse(package_name))
+                    new_dependencies.append(Requirement(package_name))
                 dropped_dependencies.append(package)
 
             else:
@@ -483,14 +513,12 @@ def add_snowpark_package(
         channel.
 
     Raises:
-        pkg_resources.DistributionNotFound: If the Snowpark Python Package is not installed in the local environment.
+        importlib.metadata.PackageNotFoundError: If the Snowpark Python Package is not installed in the local environment.
     """
     if SNOWPARK_PACKAGE_NAME not in package_dict:
         package_dict[SNOWPARK_PACKAGE_NAME] = SNOWPARK_PACKAGE_NAME
         try:
-            package_client_version = pkg_resources.get_distribution(
-                SNOWPARK_PACKAGE_NAME
-            ).version
+            package_client_version = get_distribution_version(SNOWPARK_PACKAGE_NAME)
             if package_client_version in valid_packages[SNOWPARK_PACKAGE_NAME]:
                 package_dict[
                     SNOWPARK_PACKAGE_NAME
@@ -501,7 +529,7 @@ def add_snowpark_package(
                     f"{package_client_version}, which is not available in Snowflake. Your UDF might not work when "
                     f"the package version is different between the server and your local environment."
                 )
-        except pkg_resources.DistributionNotFound:
+        except PackageNotFoundError:
             _logger.warning(
                 f"Package '{SNOWPARK_PACKAGE_NAME}' is not installed in the local environment. "
                 f"Your UDF might not work when the package is installed on the server "

@@ -17,6 +17,8 @@
 - Added support for `Session.stored_procedure_profiler`.
 
 #### Improvements
+- Removed the use of `pkg_resources`, which is deprecated. No more deprecation warnings about it. Used `packaging` and `importlib.metadata` to replace `pkg_resources`.
+
 
 #### Bug Fixes
 
