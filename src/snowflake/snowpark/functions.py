@@ -5757,7 +5757,7 @@ def object_construct(*key_values: ColumnOrName) -> Column:
 
         >>> from snowflake.snowpark.types import StructType, StructField, VariantType, StringType
         >>> df = session.create_dataframe(
-        ...     [["name", "Joe"], ["zip", "98004"],["age", None], [None, "value"]],
+        ...     [["name", "Joe"], ["zip", "98004"], ["age", None], [None, "value"]],
         ...     schema=StructType([StructField("k", StringType()), StructField("v", VariantType())])
         ... )
         >>> df.select(object_construct(col("k"), col("v")).alias("result")).show()
@@ -5773,7 +5773,47 @@ def object_construct(*key_values: ColumnOrName) -> Column:
         |{}                |
         |{}                |
         --------------------
-        <BLANKLINE>
+
+    The behavior of `object_construct` can vary depending on how columns are passed:
+
+    - If you pass `col("*")`, it constructs an object where the keys are the column
+    names of the DataFrame, and the values are the corresponding values in each row.
+
+    Example::
+
+        >>> df1 = session.create_dataframe([["name", "Joe"], ["zip", "98004"]], schema=["key", "value"])
+        >>> df1.select(object_construct(col("*"))).show()
+        ----------------------
+        |{                   |
+        |  "KEY": "name",    |
+        |  "VALUE": "Joe"    |
+        |}                   |
+        |{                   |
+        |  "KEY": "zip",     |
+        |  "VALUE": "98004"  |
+        |}                   |
+        ----------------------
+
+    - If you pass `df1.col("*")`, it expands to all columns in the DataFrame and
+    constructs an object by treating the first column's values as keys and the
+    second column's values as the corresponding values.
+    This is equivalent to calling `object_construct("KEY", "VALUE")`.
+
+    Example::
+
+        >>> df1.select(object_construct(df1.col("*"))).show()
+        --------------------
+        |{                 |
+        |  "name": "Joe"   |
+        |}                 |
+        |{                 |
+        |  "zip": "98004"  |
+        |}                 |
+        --------------------
+
+    In this case, the value of the first column (e.g., "KEY") is used as the key,
+    and the value of the second column (e.g., "VALUE") is used as the value
+    in the resulting object.
     """
     kvs = [_to_col_if_str(kv, "object_construct") for kv in key_values]
     return builtin("object_construct")(*kvs)
