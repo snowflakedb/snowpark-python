@@ -5014,7 +5014,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 Use this to determine the groups.
             axis: 0 (index) or 1 (columns)
             groupby_kwargs: keyword arguments passed for the groupby.
-            values_as_np_array: bool
+            values_as_np_array: bool, default True
                 Whether the values of the resulting dict should be mapped as a numpy array.
                 Set to False when called with 'resample.indices'.
 
