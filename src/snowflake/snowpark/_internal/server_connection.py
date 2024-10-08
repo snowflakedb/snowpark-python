@@ -8,6 +8,7 @@ import importlib
 import inspect
 import os
 import sys
+import threading
 import time
 from logging import getLogger
 from typing import (
@@ -244,8 +245,27 @@ class ServerConnection:
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
         return convert_result_meta_to_attribute(
-            run_new_describe(self._cursor, query), self.max_string_size
+            self._run_new_describe(self._cursor, query), self.max_string_size
         )
+
+    def _run_new_describe(
+        self, cursor: SnowflakeCursor, query: str
+    ) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:
+        result_metadata = run_new_describe(cursor, query)
+
+        for listener in filter(
+            lambda listener: hasattr(listener, "include_describe")
+            and listener.include_describe,
+            self._query_listener,
+        ):
+            query_record = QueryRecord(cursor.sfqid, query, True)
+            if getattr(listener, "include_thread_id", False):
+                query_record = QueryRecord(
+                    cursor.sfqid, query, True, threading.get_ident()
+                )
+            listener._add_query(query_record)
+
+        return result_metadata
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
     def upload_file(
@@ -361,7 +381,16 @@ class ServerConnection:
 
     def notify_query_listeners(self, query_record: QueryRecord, **kwargs) -> None:
         for listener in self._query_listeners:
-            listener._notify(query_record, **kwargs)
+            if getattr(listener, "include_thread_id", False):
+                new_record = QueryRecord(
+                    query_record.query_id,
+                    query_record.sql_text,
+                    query_record.is_describe,
+                    thread_id=threading.get_ident(),
+                )
+                listener._notify(new_record, **kwargs)
+            else:
+                listener._notify(query_record, **kwargs)
 
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
@@ -470,7 +499,7 @@ class ServerConnection:
         qid = results_cursor.sfqid
         if to_iter:
             new_cursor = results_cursor.connection.cursor()
-            new_cursor.execute(f"SELECT * FROM TABLE(RESULT_SCAN('{qid}'))")
+            new_cursor.get_results_from_sfqid(qid)
             results_cursor = new_cursor
 
         if to_pandas:
@@ -580,6 +609,9 @@ class ServerConnection:
         action_id = plan.session._generate_new_action_id()
         plan_queries = plan.execution_queries
         result, result_meta = None, None
+        statement_params = kwargs.get("_statement_params", None) or {}
+        statement_params["_PLAN_UUID"] = plan.uuid
+        kwargs["_statement_params"] = statement_params
         try:
             main_queries = plan_queries[PlanQueryType.QUERIES]
             placeholders = {}

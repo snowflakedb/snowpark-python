@@ -3,6 +3,7 @@
 #
 
 import copy
+import logging
 
 import pytest
 
@@ -20,7 +21,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import TestFiles, Utils
+from tests.utils import TestFiles, Utils, iceberg_supported
 
 
 def test_write_with_target_column_name_order(session, local_testing_mode):
@@ -150,6 +151,38 @@ def test_write_with_target_table_autoincrement(
         Utils.check_answer(session.table(table_name), [Row(2, 1, 1)])
     finally:
         Utils.drop_table(session, table_name)
+
+
+def test_iceberg(session, local_testing_mode):
+    if not iceberg_supported(session, local_testing_mode):
+        pytest.skip("Test requires iceberg support.")
+
+    table_name = Utils.random_table_name()
+    df = session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("a", StringType()),
+                StructField("b", IntegerType()),
+            ]
+        ),
+    )
+    df.write.save_as_table(
+        table_name,
+        iceberg_config={
+            "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+            "catalog": "SNOWFLAKE",
+            "base_location": "snowpark_python_tests",
+        },
+    )
+    try:
+        ddl = session._run_query(f"select get_ddl('table', '{table_name}')")
+        assert (
+            ddl[0][0]
+            == f"create or replace ICEBERG TABLE {table_name} (\n\tA STRING,\n\tB LONG\n)\n EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n BASE_LOCATION = 'snowpark_python_tests/';"
+        )
+    finally:
+        session.table(table_name).drop_table()
 
 
 def test_negative_write_with_target_column_name_order(session):
@@ -535,7 +568,7 @@ def test_write_table_names(session, db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
 )
-def test_writer_csv(session, tmpdir_factory):
+def test_writer_csv(session, caplog):
 
     """Tests for df.write.csv()."""
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [3, 7]], schema=["a", "b"])
@@ -590,6 +623,32 @@ def test_writer_csv(session, tmpdir_factory):
         assert result6[0].rows_unloaded == ROWS_COUNT
         data6 = session.read.schema(schema).csv(f"@{path6}")
         Utils.assert_rows_count(data6, ROWS_COUNT)
+
+        # test option alias case
+        path7 = f"{temp_stage}/test_csv_example7/my_file.csv.gz"
+        with caplog.at_level(logging.WARNING):
+            result7 = df.write.csv(
+                path7,
+                format_type_options={"SEP": ":", "quote": '"'},
+                single=True,
+                header=True,
+            )
+        assert "Option 'SEP' is aliased to 'FIELD_DELIMITER'." in caplog.text
+        assert (
+            "Option 'quote' is aliased to 'FIELD_OPTIONALLY_ENCLOSED_BY'."
+            in caplog.text
+        )
+
+        assert result7[0].rows_unloaded == ROWS_COUNT
+        data7 = (
+            session.read.schema(schema)
+            .option("header", True)
+            .option("inferSchema", True)
+            .option("SEP", ":")
+            .option("quote", '"')
+            .csv(f"@{path7}")
+        )
+        Utils.check_answer(data7, df)
     finally:
         Utils.drop_stage(session, temp_stage)
 

@@ -16,9 +16,7 @@ from pandas.testing import assert_frame_equal, assert_series_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-from tests.integ.modin.series.test_bitwise_operators import try_cast_to_snow_series
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -26,6 +24,7 @@ from tests.integ.modin.utils import (
     create_test_series,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
 
 
@@ -1289,20 +1288,20 @@ def test_other_with_native_pandas_object_raises(op):
     ],
 )
 @pytest.mark.parametrize("op", [operator.add])
-@sql_count_checker(query_count=2, join_count=2)
 def test_binary_add_between_series_for_index_alignment(lhs, rhs, op):
     def check_op(native_lhs, native_rhs, snow_lhs, snow_rhs):
         snow_ans = op(snow_lhs, snow_rhs)
         native_ans = op(native_lhs, native_rhs)
         # for one multi-index test case (marked with comment) the "inferred_type" doesn't match (Snowpark: float vs. pandas integer)
-        eval_snowpark_pandas_result(
-            snow_ans, native_ans, lambda s: s, check_index_type=False
-        )
+        with SqlCounter(query_count=1, join_count=1):
+            eval_snowpark_pandas_result(
+                snow_ans, native_ans, lambda s: s, check_index_type=False
+            )
 
-    check_op(lhs, rhs, try_cast_to_snow_series(lhs), try_cast_to_snow_series(rhs))
-
+    snow_lhs, snow_rhs = pd.Series(lhs), pd.Series(rhs)
+    check_op(lhs, rhs, snow_lhs, snow_rhs)
     # commute series
-    check_op(rhs, lhs, try_cast_to_snow_series(rhs), try_cast_to_snow_series(lhs))
+    check_op(rhs, lhs, snow_rhs, snow_lhs)
 
 
 # MOD TESTS
@@ -2585,4 +2584,27 @@ def test_df_sub_series():
 
     eval_snowpark_pandas_result(
         snow_df, native_df, lambda df: df.sub(df["two"], axis="index"), inplace=True
+    )
+
+
+@sql_count_checker(query_count=2, join_count=0)
+def test_binary_op_multi_series_from_same_df():
+    native_df = native_pd.DataFrame(
+        {
+            "A": [1, 2, 3],
+            "B": [2, 3, 4],
+            "C": [4, 5, 6],
+            "D": [2, 2, 3],
+        },
+        index=["a", "b", "c"],
+    )
+    snow_df = pd.DataFrame(native_df)
+    # ensure performing more than one binary operation for series coming from same
+    # dataframe does not produce any join.
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df["A"] + df["B"] + df["C"]
+    )
+    # perform binary operations in different orders
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: (df["A"] + df["B"]) + (df["C"] + df["D"])
     )

@@ -11,11 +11,11 @@ import pandas.testing as tm
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 # this is full test data
 # SCALAR_BITWISE_TEST_DATA = [-1, 0, 1, True, False]

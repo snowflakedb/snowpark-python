@@ -12,7 +12,7 @@ from snowflake.snowpark import QueryListener
 from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.session import Session
 from tests.integ.modin.conftest import IRIS_DF
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 # expected_query_count is for test_repr_html paramterized SqlCounter test
 _DATAFRAMES_TO_TEST = [

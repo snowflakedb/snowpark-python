@@ -64,6 +64,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
 from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoTableNode,
+    DynamicTableCreateMode,
     Limit,
     LogicalPlan,
     SaveMode,
@@ -143,6 +144,7 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     quote_name,
     random_name_for_temp_object,
+    str_to_enum,
     validate_object_name,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
@@ -186,6 +188,7 @@ else:
     from collections.abc import Iterable
 
 if TYPE_CHECKING:
+    import modin.pandas  # pragma: no cover
     from table import Table  # pragma: no cover
 
 _logger = getLogger(__name__)
@@ -1132,7 +1135,7 @@ class DataFrame:
         index_col: Optional[Union[str, List[str]]] = None,
         columns: Optional[List[str]] = None,
         _emit_ast: bool = True,
-    ) -> "snowflake.snowpark.modin.pandas.DataFrame":
+    ) -> "modin.pandas.DataFrame":
         """
         Convert the Snowpark DataFrame to Snowpark pandas DataFrame.
 
@@ -1142,7 +1145,7 @@ class DataFrame:
                 all columns except ones configured in index_col.
 
         Returns:
-            :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            :class:`~modin.pandas.DataFrame`
                 A Snowpark pandas DataFrame contains index and data columns based on the snapshot of the current
                 Snowpark DataFrame, which triggers an eager evaluation.
 
@@ -1158,12 +1161,12 @@ class DataFrame:
         Note:
             Transformations performed on the returned Snowpark pandas Dataframe do not affect the Snowpark DataFrame
             from which it was created. Call
-            - :func:`snowflake.snowpark.modin.pandas.to_snowpark <snowflake.snowpark.modin.pandas.to_snowpark>`
+            - :func:`modin.pandas.to_snowpark <modin.pandas.to_snowpark>`
             to transform a Snowpark pandas DataFrame back to a Snowpark DataFrame.
 
             The column names used for columns or index_cols must be Normalized Snowflake Identifiers, and the
             Normalized Snowflake Identifiers of a Snowpark DataFrame can be displayed by calling df.show().
-            For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~snowflake.snowpark.modin.pandas.read_snowflake`
+            For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~modin.pandas.read_snowflake`
 
             `to_snowpark_pandas` works only when the environment is set up correctly for Snowpark pandas. This environment
             may require version of Python and pandas different from what Snowpark Python uses If the environment is setup
@@ -1174,9 +1177,9 @@ class DataFrame:
             - the installation section https://docs.snowflake.com/en/developer-guide/snowpark/python/snowpark-pandas#installing-the-snowpark-pandas-api
 
         See also:
-            - :func:`snowflake.snowpark.modin.pandas.to_snowpark <snowflake.snowpark.modin.pandas.to_snowpark>`
-            - :func:`snowflake.snowpark.modin.pandas.DataFrame.to_snowpark <snowflake.snowpark.modin.pandas.DataFrame.to_snowpark>`
-            - :func:`snowflake.snowpark.modin.pandas.Series.to_snowpark <snowflake.snowpark.modin.pandas.Series.to_snowpark>`
+            - :func:`modin.pandas.to_snowpark <modin.pandas.to_snowpark>`
+            - :func:`modin.pandas.DataFrame.to_snowpark <modin.pandas.DataFrame.to_snowpark>`
+            - :func:`modin.pandas.Series.to_snowpark <modin.pandas.Series.to_snowpark>`
 
         Example::
             >>> df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
@@ -1201,7 +1204,12 @@ class DataFrame:
             B A
             2 1  1  3  1
         """
-        import snowflake.snowpark.modin.pandas as pd  # pragma: no cover
+        # black and isort disagree on how to format this section with isort: skip
+        # fmt: off
+        import snowflake.snowpark.modin.plugin  # isort: skip  # noqa: F401
+        # If snowflake.snowpark.modin.plugin was successfully imported, then modin.pandas is available
+        import modin.pandas as pd  # isort: skip
+        # fmt: on
 
         if _emit_ast:
             raise NotImplementedError(
@@ -3858,6 +3866,7 @@ class DataFrame:
         transformations: Optional[Iterable[ColumnOrName]] = None,
         format_type_options: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        iceberg_config: Optional[dict] = None,
         _emit_ast: bool = True,
         **copy_options: Any,
     ) -> List[Row]:
@@ -3912,6 +3921,19 @@ class DataFrame:
             transformations: A list of column transformations.
             format_type_options: A dict that contains the ``formatTypeOptions`` of the ``COPY INTO <table>`` command.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            iceberg_config: A dictionary that can contain the following iceberg configuration values:
+
+                * external_volume: specifies the identifier for the external volume where
+                    the Iceberg table stores its metadata files and data in Parquet format
+
+                * catalog: specifies either Snowflake or a catalog integration to use for this table
+
+                * base_location: the base directory that snowflake can write iceberg metadata and files to
+
+                * catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
+
+                * storage_serialization_policy: specifies the storage serialization policy for the table
+
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
 
@@ -4045,6 +4067,7 @@ class DataFrame:
                 user_schema=self._reader._user_schema,
                 cur_options=self._reader._cur_options,
                 create_table_from_infer_schema=create_table_from_infer_schema,
+                iceberg_config=iceberg_config,
             ),
             _ast_stmt=stmt,
         )
@@ -4397,6 +4420,13 @@ class DataFrame:
         warehouse: str,
         lag: str,
         comment: Optional[str] = None,
+        mode: str = "overwrite",
+        refresh_mode: Optional[str] = None,
+        initialize: Optional[str] = None,
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
+        is_transient: bool = False,
+        data_retention_time: Optional[int] = None,
+        max_data_extension_time: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
     ) -> List[Row]:
@@ -4415,7 +4445,28 @@ class DataFrame:
             lag: specifies the target data freshness
             comment: Adds a comment for the created table. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
+            mode: Specifies the behavior of create dynamic table. Allowed values are:
+                - "overwrite" (default): Overwrite the table by dropping the old table.
+                - "errorifexists": Throw and exception if the table already exists.
+                - "ignore": Ignore the operation if table already exists.
+            refresh_mode: Specifies the refresh mode of the dynamic table. The value can be "AUTO",
+                "FULL", or "INCREMENTAL".
+            initialize: Specifies the behavior of initial refresh. The value can be "ON_CREATE" or
+                "ON_SCHEDULE".
+            clustering_keys: Specifies one or more columns or column expressions in the table as the clustering key.
+                See `Clustering Keys & Clustered Tables <https://docs.snowflake.com/en/user-guide/tables-clustering-keys>`_
+                for more details.
+            is_transient: A boolean value that specifies whether the dynamic table is transient.
+            data_retention_time: Specifies the retention period for the dynamic table in days so that
+                Time Travel actions can be performed on historical data in the dynamic table.
+            max_data_extension_time: Specifies the maximum number of days for which Snowflake can extend
+                the data retention period of the dynamic table to prevent streams on the dynamic table
+                from becoming stale.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+        Note:
+            See `understanding dynamic table refresh <https://docs.snowflake.com/en/user-guide/dynamic-tables-refresh>`_.
+            for more details on refresh mode.
         """
 
         formatted_name = self._format_name_for_view(
@@ -4467,11 +4518,20 @@ class DataFrame:
             # Allow AST tests to pass.
             return []
 
+        create_mode = str_to_enum(mode.lower(), DynamicTableCreateMode, "`mode`")
+
         return self._do_create_or_replace_dynamic_table(
-            formatted_name,
-            warehouse,
-            lag,
-            comment,
+            name=formatted_name,
+            warehouse=warehouse,
+            lag=lag,
+            create_mode=create_mode,
+            comment=comment,
+            refresh_mode=refresh_mode,
+            initialize=initialize,
+            clustering_keys=clustering_keys,
+            is_transient=is_transient,
+            data_retention_time=data_retention_time,
+            max_data_extension_time=max_data_extension_time,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
@@ -4563,15 +4623,44 @@ class DataFrame:
         )
 
     def _do_create_or_replace_dynamic_table(
-        self, name: str, warehouse: str, lag: str, comment: Optional[str], **kwargs
+        self,
+        name: str,
+        warehouse: str,
+        lag: str,
+        create_mode: DynamicTableCreateMode,
+        comment: Optional[str] = None,
+        refresh_mode: Optional[str] = None,
+        initialize: Optional[str] = None,
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
+        is_transient: bool = False,
+        data_retention_time: Optional[int] = None,
+        max_data_extension_time: Optional[int] = None,
+        **kwargs,
     ):
         validate_object_name(name)
+        clustering_exprs = (
+            [
+                _to_col_if_str(
+                    col, "DataFrame.create_or_replace_dynamic_table"
+                )._expression
+                for col in clustering_keys
+            ]
+            if clustering_keys
+            else []
+        )
         cmd = CreateDynamicTableCommand(
-            name,
-            warehouse,
-            lag,
-            comment,
-            self._plan,
+            name=name,
+            warehouse=warehouse,
+            lag=lag,
+            comment=comment,
+            create_mode=create_mode,
+            refresh_mode=refresh_mode,
+            initialize=initialize,
+            clustering_exprs=clustering_exprs,
+            is_transient=is_transient,
+            data_retention_time=data_retention_time,
+            max_data_extension_time=max_data_extension_time,
+            child=self._plan,
         )
 
         return self._session._conn.execute(
