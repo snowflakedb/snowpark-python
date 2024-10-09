@@ -18,6 +18,7 @@
 #### Bug Fixes
 
 - Fixed a bug where registering a stored procedure or UDxF with type hints would give a warning `'NoneType' has no len() when trying to read default values from function`.
+- Fixed a bug where `reindex` failed when the new index is a Series with non-overlapping types from the original index.
 
 ### Snowpark pandas API Updates
 
