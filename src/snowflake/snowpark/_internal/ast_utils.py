@@ -391,6 +391,18 @@ def build_call_table_function_apply(
     *args: Tuple[Union[proto.Expr, Any]],
     **kwargs: Dict[str, Union[proto.Expr, Any]],
 ) -> None:
+    """
+    Creates AST encoding for
+        CallTableFunctionExpr(IndirectTableFnNameRef(<table_function_name>), List(<args...>), Map(<kwargs...>))
+      for indirect table functions called by name.
+
+    Args:
+        ast: Expr node to fill.
+        name: Name of the table function to call.
+        *args: Positional arguments to pass to function.
+        **kwargs: Keyword arguments to pass to function.
+
+    """
     expr = with_src_position(ast.apply_expr)
     _set_fn_name(name, expr.fn.call_table_function_expr)
     build_fn_apply_args(ast, *args, **kwargs)
@@ -398,10 +410,25 @@ def build_call_table_function_apply(
 
 def build_indirect_table_fn_apply(
     ast: proto.Expr,
-    func: Union[str, List[str], "snowflake.snowpark.table_function.TableFunctionCall"],
+    func: Union[
+        str, List[str], "snowflake.snowpark.table_function.TableFunctionCall", Callable
+    ],
     *func_arguments: ColumnOrName,
     **func_named_arguments: ColumnOrName,
 ) -> None:
+    """
+    Creates AST encoding for ApplyExpr(<indirect_fn_ref>(<fn_name>), List(<args...>), Map(<kwargs...>)) for indirect
+    table function calls.
+
+    Args:
+        ast: Expr node to fill.
+        func: The table function to call. Can be a string, a list of strings, or a Python object that designates the
+         function to call (e.g. TableFunctionCall or a Callable). The Python object must have an Assign statement
+          attached to its _ast_stmt field.
+        *args: Positional arguments to pass to function.
+        **kwargs: Keyword arguments to pass to function.
+
+    """
     expr = with_src_position(ast.apply_expr)
     if isinstance(
         func, (snowflake.snowpark.table_function.TableFunctionCall, Callable)
