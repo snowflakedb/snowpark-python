@@ -1172,10 +1172,13 @@ def build_udtf(
 
 
 def build_intermediate_stmt(ast_batch: AstBatch, o: Any) -> None:
-    if hasattr(o, "_ast_stmt"):
+    if hasattr(o, "_ast_stmt") and o._ast_stmt._ast_batch is ast_batch:
+        # Already assigned the expression to a variable in the current batch.
         return
     if not hasattr(o, "_ast"):
+        # There's nothing to build from.
         return
     stmt = ast_batch.assign()
     stmt.expr.CopyFrom(o._ast)
+    stmt._ast_batch = ast_batch
     o._ast_stmt = stmt
