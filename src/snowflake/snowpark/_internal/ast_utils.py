@@ -353,7 +353,6 @@ def build_builtin_fn_apply(
     """
     expr = with_src_position(ast.apply_expr)
     _set_fn_name(builtin_name, expr.fn.builtin_fn)
-    with_src_position(expr.fn.builtin_fn)
     build_fn_apply_args(ast, *args, **kwargs)
 
 
@@ -394,7 +393,6 @@ def build_call_table_function_apply(
 ) -> None:
     expr = with_src_position(ast.apply_expr)
     _set_fn_name(name, expr.fn.call_table_function_expr)
-    with_src_position(expr.fn.call_table_function_expr)
     build_fn_apply_args(ast, *args, **kwargs)
 
 
