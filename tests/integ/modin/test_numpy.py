@@ -98,6 +98,7 @@ def test_np_ufunc_arithmetic_operators(np_ufunc):
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
 
 
+@sql_count_checker(query_count=2)
 def test_np_ufunc_notimplemented():
     data = {
         "A": [1],
@@ -108,6 +109,7 @@ def test_np_ufunc_notimplemented():
         np.heaviside(snow_df["A"], snow_df["A"])
 
 
+@sql_count_checker(query_count=0)
 def test_np_ufunc_with_out_notimpl():
     data = {
         "A": [1],
