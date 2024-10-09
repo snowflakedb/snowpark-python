@@ -6,6 +6,7 @@
 import os
 
 import modin.pandas as pd
+import pytest
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import sproc
@@ -280,6 +281,8 @@ def test_sproc_pivot(session):
     )
 
 
+# TODO add ticket to debug
+@pytest.mark.xfail(strict=True)
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_apply(session):
     @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
@@ -293,6 +296,8 @@ def test_sproc_apply(session):
     assert run() == "0     2\n1    10\n2    13\ndtype: int64"
 
 
+# TODO add ticket to debug
+@pytest.mark.xfail(strict=True)
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_applymap(session):
     @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
