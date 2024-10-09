@@ -113,7 +113,7 @@ def map_to_bools(inputs: Any) -> Any:
 # an associated pandas function (pd.where) using a mapping function
 # (where_mapper) which can adapt differing function signatures. These
 # functions are called by numpy
-numpy_to_pandas_func_map = {"where": where_mapper}
+numpy_to_pandas_func_map = {"where": where_mapper, "may_share_memory": (lambda *args, **kwargs: False)}
 
 # Map that associates a numpy universal function name that operates on
 # ndarrays in an element by element fashion with a lambda which performs
