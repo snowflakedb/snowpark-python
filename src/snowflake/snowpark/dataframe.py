@@ -95,13 +95,13 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     ViewType,
 )
 from snowflake.snowpark._internal.ast_utils import (
+    add_intermediate_stmt,
     build_expr_from_python_val,
     build_expr_from_snowpark_column,
     build_expr_from_snowpark_column_or_col_name,
     build_expr_from_snowpark_column_or_sql_str,
     build_expr_from_snowpark_column_or_table_fn,
     build_indirect_table_fn_apply,
-    build_intermediate_stmt,
     build_proto_from_pivot_values,
     debug_check_missing_ast,
     fill_ast_for_column,
@@ -1377,7 +1377,7 @@ class DataFrame:
                     )
                 table_func = e
                 if _emit_ast and ast:
-                    build_intermediate_stmt(self._session._ast_batch, table_func)
+                    add_intermediate_stmt(self._session._ast_batch, table_func)
                     build_indirect_table_fn_apply(ast.cols.add(), table_func)
 
                 func_expr = _create_table_function_expression(func=table_func)
@@ -3341,12 +3341,12 @@ class DataFrame:
         stmt = None
         ast = None
         if _emit_ast:
-            build_intermediate_stmt(self._session._ast_batch, func)
+            add_intermediate_stmt(self._session._ast_batch, func)
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_join_table_function, stmt)
             self._set_ast_ref(ast.lhs)
             build_indirect_table_fn_apply(
-                ast.func,
+                ast.fn,
                 func,
                 *func_arguments,
                 **func_named_arguments,

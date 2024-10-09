@@ -62,9 +62,9 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.analyzer.unary_expression import Cast
 from snowflake.snowpark._internal.ast import AstBatch
 from snowflake.snowpark._internal.ast_utils import (
+    add_intermediate_stmt,
     build_expr_from_python_val,
     build_indirect_table_fn_apply,
-    build_intermediate_stmt,
     build_proto_from_struct_type,
     build_sp_table_name,
     with_src_position,
@@ -2106,11 +2106,11 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            build_intermediate_stmt(self._ast_batch, func_name)
+            add_intermediate_stmt(self._ast_batch, func_name)
             stmt = self._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_session_table_function, stmt)
             build_indirect_table_fn_apply(
-                ast.func,
+                ast.fn,
                 func_name,
                 *func_arguments,
                 **func_named_arguments,

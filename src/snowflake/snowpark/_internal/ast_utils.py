@@ -407,12 +407,11 @@ def build_indirect_table_fn_apply(
     expr = with_src_position(ast.apply_expr)
     if hasattr(func, "_ast_stmt"):
         stmt = func._ast_stmt
-        fn_expr = expr.fn.indirect_table_fn_call_ref
+        fn_expr = expr.fn.indirect_table_fn_id_ref
         fn_expr.id.bitfield1 = stmt.var_id.bitfield1
     else:
-        fn_expr = expr.fn.indirect_table_fn_name_call
+        fn_expr = expr.fn.indirect_table_fn_name_ref
         _set_fn_name(func, fn_expr)
-    with_src_position(fn_expr)
     build_fn_apply_args(ast, *func_arguments, **func_named_arguments)
 
 
@@ -1171,14 +1170,22 @@ def build_udtf(
         build_expr_from_python_val(t._2, v)
 
 
-def build_intermediate_stmt(ast_batch: AstBatch, o: Any) -> None:
-    if hasattr(o, "_ast_stmt") and o._ast_stmt._ast_batch is ast_batch:
-        # Already assigned the expression to a variable in the current batch.
-        return
-    if not hasattr(o, "_ast"):
-        # There's nothing to build from.
+def add_intermediate_stmt(ast_batch: AstBatch, o: Any) -> None:
+    """
+    Helper function that takes an object AST as input and creates an assignment for it.
+
+    This is useful for capturing a potentially complex expression and referring to it from multiple places without
+    inlining it everywhere.
+
+    Args:
+        ast_batch: The AstBatch instance in which to create the assignment.
+        o: The input object. If the object is of type TableFunctionCall, or a callable created by
+         functions.table_function, it must have a field named _ast, of type proto.Expr.
+    """
+    if not isinstance(
+        o, (snowflake.snowpark.table_function.TableFunctionCall, Callable)
+    ):
         return
     stmt = ast_batch.assign()
     stmt.expr.CopyFrom(o._ast)
-    stmt._ast_batch = ast_batch
     o._ast_stmt = stmt
