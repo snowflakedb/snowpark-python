@@ -403,7 +403,9 @@ def build_indirect_table_fn_apply(
     **func_named_arguments: ColumnOrName,
 ) -> None:
     expr = with_src_position(ast.apply_expr)
-    if hasattr(func, "_ast_stmt"):
+    if isinstance(
+        func, (snowflake.snowpark.table_function.TableFunctionCall, Callable)
+    ):
         stmt = func._ast_stmt
         fn_expr = expr.fn.indirect_table_fn_id_ref
         fn_expr.id.bitfield1 = stmt.var_id.bitfield1
