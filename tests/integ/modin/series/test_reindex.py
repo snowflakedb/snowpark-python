@@ -258,7 +258,6 @@ def test_reindex_index_fill_method_with_old_na_values_pandas_negative(limit, met
     )
 
 
-# @pytest.mark.xfail(reason="SNOW-1638397 reindex issue when column types don't match")
 @sql_count_checker(query_count=1, join_count=2)
 @pytest.mark.parametrize("limit", [None, 1, 2, 100])
 @pytest.mark.parametrize("method", ["bfill", "backfill", "pad", "ffill"])
@@ -300,7 +299,6 @@ def test_reindex_index_non_overlapping_index():
     )
 
 
-# @pytest.mark.xfail(reason="SNOW-1638397 reindex issue when column types don't match")
 @sql_count_checker(query_count=1, join_count=2)
 def test_reindex_index_non_overlapping_datetime_index():
     date_index = native_pd.date_range("1/1/2010", periods=6, freq="D")
