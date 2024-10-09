@@ -89,7 +89,7 @@ def test_np_ufunc_arithmetic_operators(np_ufunc):
         # Test binary numpy ufunc
         snow_result = np_ufunc(snow_df["A"], snow_df["B"])
         pandas_result = np_ufunc(pandas_df["A"], pandas_df["B"])
-        assert_almost_equal(np.array(snow_result), np.array(pandas_result), 3)
+        assert_almost_equal(np.array(snow_result), np.array(pandas_result), decimal=3)
 
     with SqlCounter(query_count=1):
         # Test chained numpy ufuncs
