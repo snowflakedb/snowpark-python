@@ -6,7 +6,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
-from numpy.testing import assert_array_equal, assert_almost_equal
+from numpy.testing import assert_almost_equal, assert_array_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
@@ -68,15 +68,9 @@ def test_logical_operators():
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
 
 
-@pytest.mark.parametrize("np_ufunc", 
-                         [
-                            np.add,
-                            np.subtract,
-                            np.divide,
-                            np.multiply,
-                            np.true_divide
-                        ]
-                         )
+@pytest.mark.parametrize(
+    "np_ufunc", [np.add, np.subtract, np.divide, np.multiply, np.true_divide]
+)
 def test_np_ufunc_arithmetic_operators(np_ufunc):
     data = {
         "A": [3, 1, 2, 2, 1, 2, 5, 1, 2],
@@ -97,14 +91,13 @@ def test_np_ufunc_arithmetic_operators(np_ufunc):
         pandas_result = np_ufunc(pandas_df["A"], pandas_df["B"])
         assert_almost_equal(np.array(snow_result), np.array(pandas_result), 3)
 
-
     with SqlCounter(query_count=1):
         # Test chained numpy ufuncs
         snow_result = np_ufunc(snow_df["A"], np_ufunc(snow_df["A"], 1))
         pandas_result = np_ufunc(pandas_df["A"], np_ufunc(pandas_df["A"], 1))
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
 
-        
+
 def test_np_where_notimplemented():
     data = {
         "A": [0, 1, 2, 0, 1, 2, 0, 1, 2],

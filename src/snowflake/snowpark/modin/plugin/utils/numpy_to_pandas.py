@@ -132,7 +132,9 @@ numpy_to_pandas_universal_func_map = {
     "add": lambda obj, inputs, kwargs: obj.__add__(*inputs, **kwargs),
     "subtract": lambda obj, inputs, kwargs: obj.__sub__(*inputs, **kwargs),
     "multiply": lambda obj, inputs, kwargs: obj.__mul__(*inputs, **kwargs),
-    "divide": lambda obj, inputs, kwargs: obj.__truediv__(*inputs, **kwargs), # same as true_divide
+    "divide": lambda obj, inputs, kwargs: obj.__truediv__(
+        *inputs, **kwargs
+    ),  # same as true_divide
     "logaddexp": NotImplemented,
     "logaddexp2": NotImplemented,
     "true_divide": lambda obj, inputs, kwargs: obj.__truediv__(*inputs, **kwargs),
@@ -149,8 +151,8 @@ numpy_to_pandas_universal_func_map = {
     "fabs": NotImplemented,
     "rint": NotImplemented,
     "sign": NotImplemented,
-    "heaviside": NotImplemented, # heaviside step function
-    "conj":  NotImplemented, # same as conjugate
+    "heaviside": NotImplemented,  # heaviside step function
+    "conj": NotImplemented,  # same as conjugate
     "conjugate": NotImplemented,
     "exp": NotImplemented,
     "exp2": NotImplemented,
@@ -161,11 +163,10 @@ numpy_to_pandas_universal_func_map = {
     "log1p": NotImplemented,
     "sqrt": NotImplemented,
     "square": NotImplemented,
-    "cbrt": NotImplemented, # Cube root
+    "cbrt": NotImplemented,  # Cube root
     "reciprocal": NotImplemented,
     "gcd": NotImplemented,
     "lcm": NotImplemented,
-    
     # trigonometric functions
     "sin": NotImplemented,
     "cos": NotImplemented,
@@ -175,7 +176,7 @@ numpy_to_pandas_universal_func_map = {
     "arctan": NotImplemented,
     "arctan2": NotImplemented,
     "hypot": NotImplemented,
-    "sinh": NotImplemented, 
+    "sinh": NotImplemented,
     "cosh": NotImplemented,
     "tanh": NotImplemented,
     "arcsinh": NotImplemented,
@@ -185,7 +186,6 @@ numpy_to_pandas_universal_func_map = {
     "radians": NotImplemented,
     "deg2rad": NotImplemented,
     "rad2deg": NotImplemented,
-    
     # bitwise operations
     "bitwise_and": NotImplemented,
     "bitwise_or": NotImplemented,
@@ -193,7 +193,6 @@ numpy_to_pandas_universal_func_map = {
     "invert": NotImplemented,
     "left_shift": NotImplemented,
     "right_shift": NotImplemented,
-    
     # comparison functions
     "greater": NotImplemented,
     "greater_equal": NotImplemented,
@@ -215,7 +214,6 @@ numpy_to_pandas_universal_func_map = {
     "minimum": NotImplemented,
     "fmax": NotImplemented,
     "fmin": NotImplemented,
-    
     # floating functions
     "isfinite": NotImplemented,
     "isinf": NotImplemented,
