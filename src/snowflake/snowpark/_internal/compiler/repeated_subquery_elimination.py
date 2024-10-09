@@ -21,6 +21,21 @@ from snowflake.snowpark._internal.utils import (
 )
 
 
+class RepeatedSubqueryEliminationResult:
+    # the result logical plans after repeated subquery elimination
+    logical_plans: List[LogicalPlan]
+    # total number of cte nodes created the transformation
+    total_num_of_ctes: int
+
+    def __init__(
+        self,
+        logical_plans: List[LogicalPlan],
+        total_num_ctes: int,
+    ) -> None:
+        self.logical_plans = logical_plans
+        self.total_num_of_ctes = total_num_ctes
+
+
 class RepeatedSubqueryElimination:
     """
     Optimization that used eliminate duplicated queries in the plan.
@@ -44,6 +59,7 @@ class RepeatedSubqueryElimination:
     # original logical plans to apply the optimization on
     _logical_plans: List[LogicalPlan]
     _query_generator: QueryGenerator
+    _total_number_ctes: int
 
     def __init__(
         self,
@@ -52,8 +68,9 @@ class RepeatedSubqueryElimination:
     ) -> None:
         self._logical_plans = logical_plans
         self._query_generator = query_generator
+        self._total_number_ctes = 0
 
-    def apply(self) -> List[LogicalPlan]:
+    def apply(self) -> RepeatedSubqueryEliminationResult:
         """
         Applies Common SubDataframe elimination on the set of logical plans one after another.
 
@@ -79,8 +96,10 @@ class RepeatedSubqueryElimination:
             else:
                 final_logical_plans.append(logical_plan)
 
-        # TODO (SNOW-1566363): Add telemetry for CTE
-        return final_logical_plans
+        return RepeatedSubqueryEliminationResult(
+            logical_plans=final_logical_plans,
+            total_num_ctes=self._total_number_ctes,
+        )
 
     def _replace_duplicate_node_with_cte(
         self,
@@ -143,6 +162,7 @@ class RepeatedSubqueryElimination:
                 _update_parents(
                     node, should_replace_child=True, new_child=resolved_with_block
                 )
+                self._total_number_ctes += 1
             elif node in updated_nodes:
                 # if the node is updated, make sure all nodes up to parent is updated
                 _update_parents(node, should_replace_child=False)
