@@ -8,7 +8,6 @@ import logging
 import pytest
 
 import snowflake.connector.errors
-from snowflake.connector.options import installed_pandas, pandas as pd
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -90,19 +89,13 @@ def test_write_with_target_column_name_order(session, local_testing_mode):
             Utils.drop_table(session, special_table_name)
 
 
-@pytest.mark.skipif(
-    not installed_pandas,
-    reason="Test requires pandas.",
-)
 def test_snow_1668862_repro_save_null_data(session):
-    # Force temp table
     table_name = Utils.random_table_name()
-
-    test_data = session.create_dataframe(pd.DataFrame({"a": [1, 2]}))
+    test_data = session.create_dataframe([(1,), (2,)], ["A"])
     df = test_data.with_column("b", lit(None))
-
     try:
         df.write.save_as_table(table_name=table_name, mode="truncate")
+        assert session.table(table_name).collect() == [Row(1, None), Row(2, None)]
     finally:
         Utils.drop_table(session, table_name)
 
