@@ -4,6 +4,7 @@ NumPy Interoperability
 Snowpark pandas provides limited interoperability with NumPy functions through the NumPy
 NEP18 and NEP13 specifications defined by `__array_ufunc__` and `__array_function__`. 
 A discrete number of NumPy APIs are translated to distributed snowpark pandas functions.
+NumPy ufuncs called with Snowpark pandas arguments will ignore kwargs.
 
 +-----------------------------+----------------------------------------------------+
 | NumPy method                | Notes for current implementation                   |

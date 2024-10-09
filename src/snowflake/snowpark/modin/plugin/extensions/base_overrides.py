@@ -2324,7 +2324,10 @@ def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs, **kwargs):
         ufunc = numpy_to_pandas_universal_func_map[ufunc.__name__]
         if ufunc == NotImplemented:
             return NotImplemented
-        return ufunc(self, inputs[1:], kwargs)
+        # We cannot support the out argument
+        if kwargs.get("out") is not None:
+            return NotImplemented
+        return ufunc(self, inputs[1:])
     # return the sentinel NotImplemented if we do not support this function
     return NotImplemented  # pragma: no cover
 

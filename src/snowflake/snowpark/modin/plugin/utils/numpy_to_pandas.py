@@ -129,15 +129,13 @@ numpy_to_pandas_func_map = {"where": where_mapper}
 # https://numpy.org/doc/stable/reference/ufuncs.html
 numpy_to_pandas_universal_func_map = {
     # Math functions
-    "add": lambda obj, inputs, kwargs: obj.__add__(*inputs, **kwargs),
-    "subtract": lambda obj, inputs, kwargs: obj.__sub__(*inputs, **kwargs),
-    "multiply": lambda obj, inputs, kwargs: obj.__mul__(*inputs, **kwargs),
-    "divide": lambda obj, inputs, kwargs: obj.__truediv__(
-        *inputs, **kwargs
-    ),  # same as true_divide
+    "add": lambda obj, inputs: obj.__add__(*inputs),
+    "subtract": lambda obj, inputs: obj.__sub__(*inputs),
+    "multiply": lambda obj, inputs: obj.__mul__(*inputs),
+    "divide": lambda obj, inputs: obj.__truediv__(*inputs),  # same as true_divide
     "logaddexp": NotImplemented,
     "logaddexp2": NotImplemented,
-    "true_divide": lambda obj, inputs, kwargs: obj.__truediv__(*inputs, **kwargs),
+    "true_divide": lambda obj, inputs, kwargs: obj.__truediv__(*inputs),
     "floor_divide": NotImplemented,
     "negative": NotImplemented,
     "positive": NotImplemented,
@@ -200,15 +198,13 @@ numpy_to_pandas_universal_func_map = {
     "less_equal": NotImplemented,
     "not_equal": NotImplemented,
     "equal": NotImplemented,
-    "logical_and": lambda obj, inputs, kwargs: obj.astype("bool").__and__(
-        *map_to_bools(inputs), **kwargs
+    "logical_and": lambda obj, inputs: obj.astype("bool").__and__(
+        *map_to_bools(inputs)
     ),
-    "logical_or": lambda obj, inputs, kwargs: obj.astype("bool").__or__(
-        *map_to_bools(inputs), **kwargs
-    ),
-    "logical_not": lambda obj, inputs, kwargs: ~obj.astype("bool"),
-    "logical_xor": lambda obj, inputs, kwargs: obj.astype("bool").__xor__(
-        *map_to_bools(inputs), **kwargs
+    "logical_or": lambda obj, inputs: obj.astype("bool").__or__(*map_to_bools(inputs)),
+    "logical_not": lambda obj, inputs: ~obj.astype("bool"),
+    "logical_xor": lambda obj, inputs: obj.astype("bool").__xor__(
+        *map_to_bools(inputs)
     ),
     "maximum": NotImplemented,
     "minimum": NotImplemented,

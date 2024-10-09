@@ -108,6 +108,16 @@ def test_np_ufunc_notimplemented():
         np.heaviside(snow_df["A"], snow_df["A"])
 
 
+def test_np_ufunc_with_out_notimpl():
+    data = {
+        "A": [1],
+    }
+    snow_df = pd.DataFrame(data)
+    with pytest.raises(TypeError):
+        # heaviside is unlikely to be implemented any time soon
+        np.sum(snow_df["A"], snow_df["A"], out=snow_df)
+
+
 def test_np_where_notimplemented():
     data = {
         "A": [0, 1, 2, 0, 1, 2, 0, 1, 2],
