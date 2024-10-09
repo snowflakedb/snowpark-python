@@ -410,7 +410,7 @@ class WindowSpec:
         See Also:
             - :func:`Window.rows_between`
         """
-        boundary_start, boundary_end = _convert_boundary_to_expr(int(start), int(end))
+        boundary_start, boundary_end = _convert_boundary_to_expr(start, end)
 
         # AST.
         ast = None
@@ -448,7 +448,7 @@ class WindowSpec:
             _fill_window_spec_ast_with_relative_positions(window_ast, start, end)
             window_ast.wnd.CopyFrom(self._ast)
 
-        boundary_start, boundary_end = _convert_boundary_to_expr(int(start), int(end))
+        boundary_start, boundary_end = _convert_boundary_to_expr(start, end)
 
         return WindowSpec(
             self.partition_spec,
