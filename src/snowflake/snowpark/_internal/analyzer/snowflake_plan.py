@@ -89,6 +89,7 @@ from snowflake.snowpark._internal.analyzer.cte_utils import (
     find_duplicate_subtrees,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.metadata_utils import infer_metadata
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
@@ -266,6 +267,14 @@ class SnowflakePlan(LogicalPlan):
         # UUID for the plan to uniquely identify the SnowflakePlan object. We also use this
         # to UUID track queries that are generated from the same plan.
         self._uuid = str(uuid.uuid4())
+        self._attributes = None
+        self._quoted_identifiers = None
+        # If _attributes is not None, then _quoted_identifiers will be None.
+        # If _quoted_identifiers is not None, then _attributes will be None.
+        if session.reduce_describe_query_enabled and self.source_plan is not None:
+            self._attributes, self._quoted_identifiers = infer_metadata(
+                self.source_plan
+            )
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         if not isinstance(other, SnowflakePlan):
@@ -393,16 +402,32 @@ class SnowflakePlan(LogicalPlan):
             df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
         )
 
-    @cached_property
+    @property
+    def quoted_identifiers(self) -> List[str]:
+        # If _attributes is not None, retrieve quoted_identifiers from it.
+        # If _attributes is None, retrieve quoted_identifiers from _quoted_identifiers.
+        # If _quoted_identifiers is None, retrieve quoted_identifiers from attributes
+        # (which triggers describe query).
+        if self._attributes is not None:
+            return [attr.name for attr in self._attributes]
+        elif self._quoted_identifiers is not None:
+            return self._quoted_identifiers
+        else:
+            return [attr.name for attr in self.attributes]
+
+    @property
     def attributes(self) -> List[Attribute]:
+        if self._attributes is not None:
+            return self._attributes
         assert (
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
-        output = analyze_attributes(self.schema_query, self.session)
+        self._attributes = analyze_attributes(self.schema_query, self.session)
+        self._quoted_identifiers = None
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
         if not self.schema_query or not self.session.sql_simplifier_enabled:
-            self.schema_query = schema_value_statement(output)
-        return output
+            self.schema_query = schema_value_statement(self._attributes)
+        return self._attributes
 
     @cached_property
     def output(self) -> List[Attribute]:
