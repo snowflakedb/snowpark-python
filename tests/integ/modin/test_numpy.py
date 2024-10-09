@@ -98,6 +98,16 @@ def test_np_ufunc_arithmetic_operators(np_ufunc):
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
 
 
+def test_np_ufunc_notimplemented():
+    data = {
+        "A": [1],
+    }
+    snow_df = pd.DataFrame(data)
+    with pytest.raises(TypeError):
+        # heaviside is unlikely to be implemented any time soon
+        np.heaviside(snow_df["A"], snow_df["A"])
+
+
 def test_np_where_notimplemented():
     data = {
         "A": [0, 1, 2, 0, 1, 2, 0, 1, 2],
