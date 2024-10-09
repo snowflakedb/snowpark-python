@@ -8819,8 +8819,10 @@ def map(
         StructField(name, type_)
         for name, type_ in zip(output_column_names, output_types)
     ]
+
     output_cols = [
-        col(f"${i + 1}") for i in range(num_fields, num_fields + len(output_types))
+        col(f"${i + num_fields + 1}").alias(col_name)
+        for i, col_name in enumerate(output_column_names)
     ]
     input_row_obj = snowflake.snowpark.Row(*dataframe.columns) if wrap_row else None
 
@@ -8843,15 +8845,9 @@ def map(
         _MapFunc,
         output_schema=StructType(output_schema),
         input_types=input_types,
-        is_permanent=False,
         **kwargs,
     )
 
-    _output_cols = [
-        column.alias(desired_name)
-        for column, desired_name in zip(output_cols, output_column_names)
-    ]
-
     return dataframe.join_table_function(map_udtf(*dataframe.columns)).select(
-        *_output_cols
+        *output_cols
     )
