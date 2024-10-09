@@ -1959,7 +1959,7 @@ class OrderedDataFrame:
         # df_s = df.sample(frac=0.5)
         # assert df_s.index == df_s.index may fail because both the LHS and RHS will call the sample method during
         # evaluation and the results won't be deterministic.
-        return cache_result(
+        return (
             OrderedDataFrame(
                 DataFrameReference(
                     snowpark_dataframe,

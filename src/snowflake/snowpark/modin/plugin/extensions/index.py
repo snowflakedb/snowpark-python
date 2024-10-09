@@ -2602,6 +2602,11 @@ class Index(metaclass=TelemetryMeta):
         The array interface, return the values.
         """
         return self.to_pandas().__array__(dtype=dtype)
+    
+
+    from pandas._libs.lib import no_default
+    def to_numpy(self, dtype=None, copy=False, na_value=no_default, **kwargs):
+        return self.to_pandas().to_numpy(dtype=dtype, copy=copy, na_value=na_value, **kwargs)
 
     def __repr__(self) -> str:
         """

@@ -718,7 +718,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return cls(at.to_pandas())
 
     def to_dataframe(self, nan_as_null: bool = False, allow_copy: bool = True) -> None:
-        pass
+        return self.to_pandas().__dataframe__(nan_as_null, allow_copy=allow_copy)
 
     @classmethod
     def from_dataframe(cls, df: native_pd.DataFrame, data_cls: Any) -> None:
