@@ -912,12 +912,7 @@ def test_create_df_with_index_and_columns(index, index_type, index_name, columns
     "index_type",
     [
         "index",
-        pytest.param(
-            "series",
-            marks=pytest.mark.xfail(
-                reason="SNOW-1675191 reindex does not work with tuple series"
-            ),
-        ),
+        "series",
     ],
 )
 @pytest.mark.parametrize("index_name", [None, ("A", "B")])

@@ -25,7 +25,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
 )
 from snowflake.snowpark.modin.plugin._typing import AlignTypeLit, JoinTypeLit
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
-from snowflake.snowpark.types import VariantType
+from snowflake.snowpark.types import TimestampType, VariantType
 
 
 class JoinKeyCoalesceConfig(Enum):
@@ -1152,6 +1152,29 @@ def join_on_index_columns(
     )
 
     return JoinOrAlignInternalFrameResult(joined_frame, result_column_mapper)
+
+
+def convert_index_type_to_variant(
+    frame: InternalFrame,
+) -> InternalFrame:
+    """
+    Converts types of given index identifier if it is not Variant or Timestamp type.
+    Args:
+        frame: InternalFrame whose type needs to be converted.
+    Returns:
+        Frame with updated columns.
+    """
+    frame_ids = frame.data_column_snowflake_quoted_identifiers
+    frame_id_to_type_map = frame.quoted_identifier_to_snowflake_type(frame_ids)
+    frame_to_variant = {}
+    for frame_id in frame_ids:
+        frame_type = frame_id_to_type_map[frame_id]
+        if frame_type != VariantType and frame_type != TimestampType:
+            frame_to_variant[frame_id] = to_variant(frame_id)
+    frame = frame.update_snowflake_quoted_identifiers_with_expressions(
+        frame_to_variant
+    ).frame
+    return frame
 
 
 def convert_incompatible_types_to_variant(
