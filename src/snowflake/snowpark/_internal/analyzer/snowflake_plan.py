@@ -25,6 +25,7 @@ from typing import (
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
+    PlanState,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
@@ -416,21 +417,34 @@ class SnowflakePlan(LogicalPlan):
         return self._output_dict
 
     @cached_property
-    def plan_height(self) -> int:
+    def num_duplicate_nodes(self) -> int:
+        duplicated_nodes, _ = find_duplicate_subtrees(self)
+        return len(duplicated_nodes)
+
+    @cached_property
+    def plan_state(self) -> Dict[PlanState, Any]:
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            SelectStatement,
+        )
+
         height = 0
+        num_selects_with_complexity_merged = 0
         current_level = [self]
         while len(current_level) > 0:
             next_level = []
             for node in current_level:
                 next_level.extend(node.children_plan_nodes)
+                if (
+                    isinstance(node, SelectStatement)
+                    and node._merge_projection_complexity_with_subquery
+                ):
+                    num_selects_with_complexity_merged += 1
             height += 1
             current_level = next_level
-        return height
-
-    @cached_property
-    def num_duplicate_nodes(self) -> int:
-        duplicated_nodes, _ = find_duplicate_subtrees(self)
-        return len(duplicated_nodes)
+        return {
+            PlanState.PLAN_HEIGHT: height,
+            PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: num_selects_with_complexity_merged,
+        }
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -865,6 +879,7 @@ class SnowflakePlanBuilder:
         creation_source: TableCreationSource,
         child_attributes: Optional[List[Attribute]],
         iceberg_config: Optional[dict] = None,
+        table_exists: Optional[bool] = None,
     ) -> SnowflakePlan:
         """Returns a SnowflakePlan to materialize the child plan into a table.
 
@@ -898,6 +913,8 @@ class SnowflakePlanBuilder:
                 base_location: the base directory that snowflake can write iceberg metadata and files to
                 catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
                 storage_serialization_policy: specifies the storage serialization policy for the table
+            table_exists: whether the table already exists in the database.
+                Only used for APPEND and TRUNCATE mode.
         """
         is_generated = creation_source in (
             TableCreationSource.CACHE_RESULT,
@@ -1013,7 +1030,8 @@ class SnowflakePlanBuilder:
             )
 
         if mode == SaveMode.APPEND:
-            if self.session._table_exists(table_name):
+            assert table_exists is not None
+            if table_exists:
                 return self.build(
                     lambda x: insert_into_statement(
                         table_name=full_table_name,
@@ -1028,7 +1046,8 @@ class SnowflakePlanBuilder:
                 return get_create_and_insert_plan(child, replace=False, error=False)
 
         elif mode == SaveMode.TRUNCATE:
-            if self.session._table_exists(table_name):
+            assert table_exists is not None
+            if table_exists:
                 return self.build(
                     lambda x: insert_into_statement(
                         full_table_name, x, [x.name for x in child.attributes], True
