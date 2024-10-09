@@ -222,7 +222,7 @@ class LargeQueryBreakdown:
         current_level = [root]
         candidate_node = None
         candidate_score = -1  # start with -1 since score is always > 0
-        invalid_due_to_referenced_cte_encountered = False
+        invalid_due_to_external_cte_ref_encountered = False
 
         while current_level:
             next_level = []
@@ -247,7 +247,7 @@ class LargeQueryBreakdown:
                             reason_if_invalid
                             == CompilationStageTelemetryField.INVALID_DUE_TO_EXTERNAL_CTE_REF
                         ):
-                            invalid_due_to_referenced_cte_encountered = True
+                            invalid_due_to_external_cte_ref_encountered = True
 
             current_level = next_level
 
@@ -257,7 +257,7 @@ class LargeQueryBreakdown:
             ] += 1
             self.breakdown_failure_summary[
                 CompilationStageTelemetryField.NUM_PARTITIONS_INVALID_DUE_TO_EXTERNAL_CTE_REF.value
-            ] += (1 if invalid_due_to_referenced_cte_encountered else 0)
+            ] += (1 if invalid_due_to_external_cte_ref_encountered else 0)
 
         # If no valid node is found, candidate_node will be None.
         # Otherwise, return the node with the highest complexity score.
@@ -307,7 +307,7 @@ class LargeQueryBreakdown:
         score = get_complexity_score(node)
         is_valid = True
         reason_if_invalid = None
-        if (
+        if not (
             self.complexity_score_lower_bound
             < score
             < self.complexity_score_upper_bound
@@ -319,7 +319,7 @@ class LargeQueryBreakdown:
             is_valid = False
             reason_if_invalid = CompilationStageTelemetryField.INVALID_DUE_TO_PIPELINE
 
-        if is_valid and self._contains_externally_referenced_cte(node, root):
+        if is_valid and self._contains_external_cte_ref(node, root):
             is_valid = False
             reason_if_invalid = (
                 CompilationStageTelemetryField.INVALID_DUE_TO_EXTERNAL_CTE_REF
@@ -332,9 +332,7 @@ class LargeQueryBreakdown:
 
         return reason_if_invalid, score
 
-    def _contains_externally_referenced_cte(
-        self, node: TreeNode, root: TreeNode
-    ) -> bool:
+    def _contains_external_cte_ref(self, node: TreeNode, root: TreeNode) -> bool:
         """Method to check if a node contains a CTE in its subtree that is also referenced
         by a different node that lies outside the subtree. An example situation is:
 

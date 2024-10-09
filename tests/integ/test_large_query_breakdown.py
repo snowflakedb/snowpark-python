@@ -112,7 +112,7 @@ def test_no_valid_nodes_found(session, caplog):
     assert "Could not find a valid node for partitioning" in caplog.text
 
 
-def test_large_query_breakdown_externally_referenced_cte(session):
+def test_large_query_breakdown_external_cte_ref(session):
     if not session.sql_simplifier_enabled:
         set_bounds(session, 50, 90)
     session._cte_optimization_enabled = True
@@ -144,6 +144,9 @@ def test_large_query_breakdown_externally_referenced_cte(session):
     _, kwargs = patch_send.call_args
     summary_value = kwargs["compilation_stage_summary"]
     assert summary_value["breakdown_failure_summary"] == {
+        "num_nodes_invalid_due_to_external_cte_ref": 2,
+        "num_nodes_invalid_due_to_pipeline": 4,
+        "num_nodes_invalid_due_to_score": 25,
         "num_partitions_without_valid_nodes": 1,
         "num_partitions_invalid_due_to_external_cte_ref": 1,
     }
@@ -187,7 +190,10 @@ def test_large_query_breakdown_with_cte_optimization(session):
     patch_send.assert_called_once()
     _, kwargs = patch_send.call_args
     summary_value = kwargs["compilation_stage_summary"]
-    assert summary_value["breakdown_failure_summary"] == {}
+    assert summary_value["breakdown_failure_summary"] == {
+        "num_nodes_invalid_due_to_pipeline": 2,
+        "num_nodes_invalid_due_to_score": 1,
+    }
 
 
 def test_save_as_table(session, large_query_df):
