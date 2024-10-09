@@ -126,7 +126,13 @@ def verify_snowflake_plan(plan: SnowflakePlan, expected_plan: SnowflakePlan) -> 
         == expected_plan.df_aliased_col_name_to_real_col_name
     )
     assert plan.placeholder_query == expected_plan.placeholder_query
-    assert plan.referenced_ctes == expected_plan.referenced_ctes
+    current_referenced_ctes_name_map = {
+        cte.name: count for cte, count in plan.referenced_ctes.items()
+    }
+    expected_referenced_ctes_name_map = {
+        cte.name: count for cte, count in expected_plan.referenced_ctes.items()
+    }
+    assert current_referenced_ctes_name_map == expected_referenced_ctes_name_map
     assert plan._cumulative_node_complexity == expected_plan._cumulative_node_complexity
     assert plan.source_plan is not None
 

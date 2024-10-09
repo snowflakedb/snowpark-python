@@ -43,6 +43,9 @@ class CompilationStageTelemetryField(Enum):
     )
     COMPLEXITY_SCORE_BEFORE_COMPILATION = "complexity_score_before_compilation"
     COMPLEXITY_SCORE_BOUNDS = "complexity_score_bounds"
+    INVALID_DUE_TO_SCORE = "num_nodes_invalid_due_to_score"
+    INVALID_DUE_TO_PIPELINE = "num_nodes_invalid_due_to_pipeline"
+    INVALID_DUE_TO_EXTERNAL_CTE_REF = "num_nodes_invalid_due_to_external_cte_ref"
     NUM_PARTITIONS_INVALID_DUE_TO_EXTERNAL_CTE_REF = (
         "num_partitions_invalid_due_to_external_cte_ref"
     )

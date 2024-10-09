@@ -230,12 +230,10 @@ class LargeQueryBreakdown:
                 assert isinstance(node, (Selectable, SnowflakePlan))
                 for child in node.children_plan_nodes:
                     self._parent_map[child].add(node)
-                    (
-                        valid_to_breakdown,
-                        score,
-                        invalid_due_to_referenced_cte,
-                    ) = self._is_node_valid_to_breakdown(child, root)
-                    if valid_to_breakdown:
+                    reason_if_invalid, score = self._is_node_valid_to_breakdown(
+                        child, root
+                    )
+                    if reason_if_invalid is None:
                         # If the score for valid node is higher than the last candidate,
                         # update the candidate node and score.
                         if score > candidate_score:
@@ -244,9 +242,12 @@ class LargeQueryBreakdown:
                     else:
                         # don't traverse subtrees if parent is a valid candidate
                         next_level.append(child)
-                        invalid_due_to_referenced_cte_encountered |= (
-                            invalid_due_to_referenced_cte
-                        )
+                        self.breakdown_failure_summary[reason_if_invalid.value] += 1
+                        if (
+                            reason_if_invalid
+                            == CompilationStageTelemetryField.INVALID_DUE_TO_EXTERNAL_CTE_REF
+                        ):
+                            invalid_due_to_referenced_cte_encountered = True
 
             current_level = next_level
 
@@ -294,33 +295,42 @@ class LargeQueryBreakdown:
 
     def _is_node_valid_to_breakdown(
         self, node: TreeNode, root: TreeNode
-    ) -> Tuple[bool, int, bool]:
+    ) -> Tuple[Optional[CompilationStageTelemetryField], int]:
         """Method to check if a node is valid to breakdown based on complexity score and node type.
 
         Returns:
             A tuple of =>
-                bool: indicating if the node is valid for partitioning.
+                CompilationStageTelemetryField: indicating the primary reason
+                    for invalidity if the node is not valid else None.
                 int: the complexity score of the node.
-                bool: indicating if the node is invalid due to an externally referenced CTE.
         """
         score = get_complexity_score(node)
-        valid_node = (
+        is_valid = True
+        reason_if_invalid = None
+        if (
             self.complexity_score_lower_bound
             < score
             < self.complexity_score_upper_bound
-        ) and self._is_node_pipeline_breaker(node)
+        ):
+            is_valid = False
+            reason_if_invalid = CompilationStageTelemetryField.INVALID_DUE_TO_SCORE
 
-        is_invalid_due_to_external_cte = False
-        if valid_node and self._contains_externally_referenced_cte(node, root):
-            valid_node = False
-            is_invalid_due_to_external_cte = True
+        if is_valid and not self._is_node_pipeline_breaker(node):
+            is_valid = False
+            reason_if_invalid = CompilationStageTelemetryField.INVALID_DUE_TO_PIPELINE
 
-        if valid_node:
+        if is_valid and self._contains_externally_referenced_cte(node, root):
+            is_valid = False
+            reason_if_invalid = (
+                CompilationStageTelemetryField.INVALID_DUE_TO_EXTERNAL_CTE_REF
+            )
+
+        if is_valid:
             _logger.debug(
                 f"Added node of type {type(node)} with score {score} to pipeline breaker list."
             )
 
-        return valid_node, score, is_invalid_due_to_external_cte
+        return reason_if_invalid, score
 
     def _contains_externally_referenced_cte(
         self, node: TreeNode, root: TreeNode
