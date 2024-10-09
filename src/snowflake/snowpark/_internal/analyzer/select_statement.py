@@ -1179,6 +1179,18 @@ class SelectStatement(Selectable):
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
             )
 
+        # extract any subquery plan from ScalarSubquery expression that may be
+        # present in the col expression.
+        self.analyzer.subquery_plans = []
+        self.analyzer.analyze(col, self.df_aliased_col_name_to_real_col_name)
+        for plan in self.analyzer.subquery_plans:
+            for query in plan.queries[:-1]:
+                if query not in new.pre_actions:
+                    new.pre_actions.append(query)
+            for query in plan.post_actions:
+                if query not in new.post_actions:
+                    new.post_actions.append(query)
+
         return new
 
     def sort(self, cols: List[Expression]) -> "SelectStatement":

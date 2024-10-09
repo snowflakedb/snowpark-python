@@ -158,6 +158,64 @@ def test_save_as_table(session, large_query_df):
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
+def test_in_with_subquery_multiple_query(session):
+    if not session.sql_simplifier_enabled:
+        set_bounds(session, 40, 80)
+
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df0 = session.create_dataframe([[1], [2], [3], [4]], schema=["A"])
+        df1 = session.create_dataframe([[1, 2, 33], [4, 5, 66]], schema=["A", "B", "C"])
+        df_filter = df0.filter(df0.a < 3)
+        df_in = df1.filter(~df1.a.in_(df_filter))
+        df2 = session.create_dataframe(
+            [[11, 12, 13], [21, 22, 23], [31, 32, 33]], schema=["A", "B", "C"]
+        )
+
+        for i in range(7):
+            df_in = df_in.with_column("A", col("A") + i + col("A"))
+            df2 = df2.with_column("A", col("A") + i + col("A"))
+
+        df_in = df_in.group_by("A").agg(
+            sum_distinct(col("B")).alias("B"), sum_distinct(col("C")).alias("C")
+        )
+
+        final_df = df_in.union_all(df2)
+        check_result_with_and_without_breakdown(session, final_df)
+
+        queries = final_df.queries
+        assert len(queries["queries"]) == 8
+        assert len(queries["post_actions"]) == 4
+
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+
+
+def test_variable_binding(session):
+    if not session.sql_simplifier_enabled:
+        set_bounds(session, 40, 80)
+
+    df1 = session.sql(
+        "select $1 as A, $2 as B from values (?,?), (?,?)", params=[1, "a", 2, "b"]
+    )
+    df2 = session.sql(
+        "select $1 as A, $2 as B from values (?,?), (?,?)", params=[3, "c", 4, "d"]
+    )
+
+    for i in range(7):
+        df1 = df1.with_column("A", col("A") + i + col("A"))
+        df2 = df2.with_column("A", col("A") + i + col("A"))
+    df1 = df1.group_by("B").agg(sum_distinct(col("A")).alias("A"))
+    df2 = df2.group_by("B").agg(sum_distinct(col("A")).alias("A"))
+    final_df = df1.union_all(df2)
+
+    check_result_with_and_without_breakdown(session, final_df)
+    queries = final_df.queries
+    assert len(queries["queries"]) == 2
+    assert len(queries["post_actions"]) == 1
+
+
 def test_update_delete_merge(session, large_query_df):
     if not session.sql_simplifier_enabled:
         pytest.skip(
