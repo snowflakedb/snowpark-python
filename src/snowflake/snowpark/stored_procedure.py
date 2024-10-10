@@ -469,6 +469,7 @@ class StoredProcedureRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -544,6 +545,8 @@ class StoredProcedureRegistration:
                 retrieve the secrets using secret API.
             comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is
+                created using CREATE OR REPLACE PROCEDURE.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.sproc`
@@ -578,6 +581,7 @@ class StoredProcedureRegistration:
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
                 comment=comment,
+                copy_grants=copy_grants,
                 statement_params=statement_params,
                 execute_as=execute_as,
                 api_call_source="StoredProcedureRegistration.register",
@@ -610,6 +614,7 @@ class StoredProcedureRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -694,6 +699,8 @@ class StoredProcedureRegistration:
                 retrieve the secrets using secret API.
             comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is
+                created using CREATE OR REPLACE PROCEDURE.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -730,6 +737,7 @@ class StoredProcedureRegistration:
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
                 comment=comment,
+                copy_grants=copy_grants,
                 statement_params=statement_params,
                 execute_as=execute_as,
                 api_call_source="StoredProcedureRegistration.register_from_file",
@@ -764,6 +772,7 @@ class StoredProcedureRegistration:
         force_inline_code: bool = False,
         comment: Optional[str] = None,
         native_app_params: Optional[Dict[str, Any]] = None,
+        copy_grants: bool = False,
     ) -> StoredProcedure:
         (
             udf_name,
@@ -870,6 +879,7 @@ class StoredProcedureRegistration:
                     statement_params=statement_params,
                     comment=comment,
                     native_app_params=native_app_params,
+                    copy_grants=copy_grants,
                 )
             # an exception might happen during registering a stored procedure
             # (e.g., a dependency might not be found on the stage),
