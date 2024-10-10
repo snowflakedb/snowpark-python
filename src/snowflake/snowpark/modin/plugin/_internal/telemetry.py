@@ -492,6 +492,7 @@ TELEMETRY_PRIVATE_METHODS = {
     "__imod__",
     "__rmod__",
     "__rdiv__",
+    "__array_ufunc__",
 }
 
 
