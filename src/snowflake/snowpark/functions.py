@@ -9213,7 +9213,7 @@ def call_udf(udf_name: str, *args: ColumnOrLiteral, _emit_ast: bool = True) -> C
 
 @publicapi
 def call_table_function(
-    function_name: str,
+    function_name: Union[str, Iterable[str]],
     *args: ColumnOrLiteral,
     _emit_ast: bool = True,
     **kwargs: ColumnOrLiteral,
