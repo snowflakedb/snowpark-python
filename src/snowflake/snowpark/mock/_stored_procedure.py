@@ -172,7 +172,7 @@ class MockStoredProcedure(StoredProcedure):
             # If the result is a Column or DataFrame object, the `eval` of the stored procedure expression is performed
             # in a later operation such as `collect` or `show`.
             result._ast = sproc_expr
-        else:
+        elif sproc_expr is not None:
             # If the result is a scalar, we can return it immediately. Perform the `eval` operation here.
             session._ast_batch.eval(sproc_expr)
 
