@@ -95,11 +95,13 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     ViewType,
 )
 from snowflake.snowpark._internal.ast_utils import (
+    add_intermediate_stmt,
     build_expr_from_python_val,
     build_expr_from_snowpark_column,
     build_expr_from_snowpark_column_or_col_name,
     build_expr_from_snowpark_column_or_sql_str,
     build_expr_from_snowpark_column_or_table_fn,
+    build_indirect_table_fn_apply,
     build_proto_from_pivot_values,
     debug_check_missing_ast,
     fill_ast_for_column,
@@ -1374,6 +1376,10 @@ class DataFrame:
                         f"Called '{table_func.user_visible_name}' and '{e.user_visible_name}'."
                     )
                 table_func = e
+                if _emit_ast and ast:
+                    add_intermediate_stmt(self._session._ast_batch, table_func)
+                    build_indirect_table_fn_apply(ast.cols.add(), table_func)
+
                 func_expr = _create_table_function_expression(func=table_func)
 
                 if isinstance(e, _ExplodeFunctionCall):
@@ -3332,9 +3338,18 @@ class DataFrame:
 
         """
 
+        stmt = None
+        ast = None
         if _emit_ast:
-            raise NotImplementedError(
-                "TODO SNOW-1629946: Add AST coverage for TableFunctionCall"
+            add_intermediate_stmt(self._session._ast_batch, func)
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_join_table_function, stmt)
+            self._set_ast_ref(ast.lhs)
+            build_indirect_table_fn_apply(
+                ast.fn,
+                func,
+                *func_arguments,
+                **func_named_arguments,
             )
 
         func_expr = _create_table_function_expression(
@@ -3376,12 +3391,13 @@ class DataFrame:
             )
             if project_cols:
                 select_plan = select_plan.select(project_cols)
-            return self._with_plan(select_plan)
+            return self._with_plan(select_plan, ast_stmt=stmt)
         if project_cols:
-            return self._with_plan(Project(project_cols, join_plan))
+            return self._with_plan(Project(project_cols, join_plan), ast_stmt=stmt)
 
         return self._with_plan(
-            TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
+            TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names),
+            ast_stmt=stmt,
         )
 
     @df_api_usage
