@@ -22,6 +22,7 @@
 - Added support for file writes. This feature is currently in private preview.
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
 - Added support for `Session.stored_procedure_profiler`.
+- Added support for 'Service' domain to `session.lineage.trace` API. 
 
 #### Improvements
 

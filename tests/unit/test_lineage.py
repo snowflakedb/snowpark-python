@@ -309,10 +309,22 @@ def test_build_query():
         "status, createdOn, id}}}}')"
     )
     assert query == _DGQLQueryBuilder.build_query(
-        _SnowflakeDomain.MODULE,
+        _UserDomain.MODEL,
         [LineageDirection.DOWNSTREAM],
         object_name='"db"."sch"."name1"',
         object_version='"v1"',
+    )
+
+    query = (
+        'select SYSTEM$DGQL(\'{V(domain: SNOWSERVICE_INSTANCE, name:"\\\\"db\\\\".\\\\"sch\\\\".\\\\"name1\\\\""'
+        ") {downstream: E(edgeType:[DATA_LINEAGE, OBJECT_DEPENDENCY],direction:OUT){S {domain, refinedDomain, userDomain, name, "
+        "properties, schema, db, status, createdOn, id}, T {domain, refinedDomain, userDomain, name, properties, schema, db, "
+        "status, createdOn, id}}}}')"
+    )
+    assert query == _DGQLQueryBuilder.build_query(
+        _UserDomain.SERVICE,
+        [LineageDirection.DOWNSTREAM],
+        object_name='"db"."sch"."name1"',
     )
 
     query = "select SYSTEM$DGQL('{V(domain: TABLE, id:\"12345\") {downstream: E(edgeType:[DATA_LINEAGE, OBJECT_DEPENDENCY],direction:OUT){S {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, T {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}}}}')"
