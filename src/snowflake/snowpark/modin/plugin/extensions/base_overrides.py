@@ -1534,7 +1534,7 @@ def __getitem__(self, key):
     return self.loc[:, key]
 
 
-# Modin uses the unique() query compiler method as of 0.30.1.
+# Modin uses the unique() query compiler method instead of aliasing the duplicated frontend method as of 0.30.1.
 @register_base_override("drop_duplicates")
 def drop_duplicates(
     self, keep="first", inplace=False, **kwargs
@@ -1548,7 +1548,7 @@ def drop_duplicates(
     if subset is not None:
         if is_list_like(subset):
             if not isinstance(subset, list):
-                subset = list(subset)
+                subset = list(subset)  # pragma: no cover
         else:
             subset = [subset]
         df = self[subset]
@@ -1559,7 +1559,7 @@ def drop_duplicates(
     if ignore_index:
         result.index = pandas.RangeIndex(stop=len(result))
     if inplace:
-        self._update_inplace(result._query_compiler)
+        self._update_inplace(result._query_compiler)  # pragma: no cover
     else:
         return result
 
