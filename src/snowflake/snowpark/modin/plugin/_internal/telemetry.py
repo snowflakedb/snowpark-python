@@ -466,6 +466,7 @@ def snowpark_pandas_telemetry_standalone_function_decorator(func: T) -> T:
 # The list of private methods that telemetry is enabled. Only those methods are interested to use are collected. Note
 # that we cannot collect "__setattr__" or "__getattr__" because it will cause recursive calls.
 TELEMETRY_PRIVATE_METHODS = {
+    "__dataframe__",
     "__getitem__",
     "__setitem__",
     "__iter__",
