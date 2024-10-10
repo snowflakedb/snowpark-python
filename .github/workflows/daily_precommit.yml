@@ -383,8 +383,8 @@ jobs:
             .tox/.coverage
             .tox/coverage.xml
 
-  test-enable-cte-optimization:
-    name: Test Enable CTE Optimization py-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+  test-disable-cte-optimization:
+    name: Test Disable CTE Optimization py-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os.image_name }}
     strategy:
@@ -428,7 +428,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --enable_cte_optimization
+          PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Run tests (excluding doctests)
@@ -436,7 +436,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --enable_cte_optimization
+          PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
@@ -447,7 +447,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           include-hidden-files: true
-          name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-enable-cte-optimization
+          name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-disable-cte-optimization
           path: |
             .tox/.coverage
             .tox/coverage.xml
