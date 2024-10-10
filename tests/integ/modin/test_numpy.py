@@ -69,9 +69,24 @@ def test_logical_operators():
 
 
 @pytest.mark.parametrize(
-    "np_ufunc", [np.add, np.subtract, np.divide, np.multiply, np.true_divide]
+    "np_ufunc",
+    [
+        np.add,
+        np.subtract,
+        np.divide,
+        np.multiply,
+        np.true_divide,
+        np.float_power,
+        np.mod,
+        np.greater,
+        np.greater_equal,
+        np.less,
+        np.less_equal,
+        np.not_equal,
+        np.equal,
+    ],
 )
-def test_np_ufunc_arithmetic_operators(np_ufunc):
+def test_np_ufunc_binop_operators(np_ufunc):
     data = {
         "A": [3, 1, 2, 2, 1, 2, 5, 1, 2],
         "B": [1, 2, 3, 4, 1, 2, 3, 4, 1],
@@ -93,8 +108,13 @@ def test_np_ufunc_arithmetic_operators(np_ufunc):
 
     with SqlCounter(query_count=1):
         # Test chained numpy ufuncs
-        snow_result = np_ufunc(snow_df["A"], np_ufunc(snow_df["A"], 1))
-        pandas_result = np_ufunc(pandas_df["A"], np_ufunc(pandas_df["A"], 1))
+        snow_result = np_ufunc(
+            np_ufunc(snow_df["A"], snow_df["A"]), np_ufunc(snow_df["A"], snow_df["A"])
+        )
+        pandas_result = np_ufunc(
+            np_ufunc(pandas_df["A"], pandas_df["A"]),
+            np_ufunc(pandas_df["A"], pandas_df["A"]),
+        )
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
 
 
