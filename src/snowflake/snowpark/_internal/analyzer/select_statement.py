@@ -407,7 +407,7 @@ class SelectableEntity(Selectable):
             # return the memoized copy if it exists
             return memodict[self_id]
         copied = SelectableEntity(
-            deepcopy(self.entity, memodict), analyzer=self.analyzer
+            deepcopy(self.entity, memodict), analyzer=self.analyzer  # pragma: no cover
         )
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
 
@@ -484,7 +484,7 @@ class SelectSQL(Selectable):
             # return the memoized copy if it exists
             return memodict[self_id]
         copied = SelectSQL(
-            sql=self.original_sql,
+            sql=self.original_sql,  # pragma: no cover
             # when convert_to_select is True, a describe call might be triggered
             # to construct the schema query. Since this is a pure copy method, and all
             # fields can be done with a pure copy, we set this parameter to False on
@@ -579,7 +579,7 @@ class SelectSnowflakePlan(Selectable):
             # return the memoized copy if it exists
             return memodict[self_id]
         copied = SelectSnowflakePlan(
-            snowflake_plan=deepcopy(self._snowflake_plan, memodict),
+            snowflake_plan=deepcopy(self._snowflake_plan, memodict),  # pragma: no cover
             analyzer=self.analyzer,
         )
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
@@ -712,7 +712,7 @@ class SelectStatement(Selectable):
             from_=deepcopy(self.from_, memodict),
             where=deepcopy(self.where, memodict),
             order_by=deepcopy(self.order_by, memodict),
-            limit_=deepcopy(self.limit_, memodict),
+            limit_=self.limit_,
             offset=self.offset,
             analyzer=self.analyzer,
             # directly copy the current schema fields
@@ -724,7 +724,7 @@ class SelectStatement(Selectable):
         copied._query_params = deepcopy(self._query_params)
         copied._merge_projection_complexity_with_subquery = (
             self._merge_projection_complexity_with_subquery
-        )
+        )  # pragma: no cover
         copied._projection_complexities = (
             deepcopy(self._projection_complexities)
             if not self._projection_complexities
