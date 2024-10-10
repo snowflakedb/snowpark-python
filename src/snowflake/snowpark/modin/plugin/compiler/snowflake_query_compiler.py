@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import calendar
+import collections
 import functools
 import inspect
 import itertools
@@ -182,6 +183,7 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     groupby_apply_create_internal_frame_from_final_ordered_dataframe,
     groupby_apply_pivot_result_to_final_ordered_dataframe,
     groupby_apply_sort_method,
+    is_supported_snowpark_python_function,
     sort_apply_udtf_result_columns_by_pandas_positions,
 )
 from snowflake.snowpark.modin.plugin._internal.binary_op_utils import (
@@ -5003,6 +5005,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         by: Any,
         axis: int,
         groupby_kwargs: dict[str, Any],
+        values_as_np_array: bool = True,
     ) -> dict[Hashable, np.ndarray]:
         """
         Get a dict mapping group keys to row labels.
@@ -5012,6 +5015,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 Use this to determine the groups.
             axis: 0 (index) or 1 (columns)
             groupby_kwargs: keyword arguments passed for the groupby.
+            values_as_np_array: bool, default True
+                Whether the values of the resulting dict should be mapped as a numpy array.
+                Set to False when called with 'resample.indices'.
 
         Returns:
             dict: a map from group keys to row labels.
@@ -5019,7 +5025,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self._raise_not_implemented_error_for_timedelta()
 
         frame = self._modin_frame.ensure_row_position_column()
-        return dict(
+        qc = (
             # .indices aggregates row position numbers, so we add a row
             # position data column and then aggregate that.
             SnowflakeQueryCompiler(
@@ -5038,8 +5044,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
             .to_pandas()
             .iloc[:, 0]
-            .map(np.array)
         )
+        qc = qc.map(np.array) if values_as_np_array else qc
+        return dict(qc)
 
     def groupby_cumcount(
         self,
@@ -8292,6 +8299,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas apply API doesn't yet support DataFrame or Series in 'args' or 'kwargs' of 'func'"
             )
 
+        if is_supported_snowpark_python_function(func):
+            if axis != 0:
+                ErrorMessage.not_implemented(
+                    f"Snowpark pandas apply API doesn't yet support Snowpark Python function `{func.__name__}` with axis = {axis}."
+                )
+            if raw is not False:
+                ErrorMessage.not_implemented(
+                    f"Snowpark pandas apply API doesn't yet support Snowpark Python function `{func.__name__}` with raw = {raw}."
+                )
+            if args:
+                ErrorMessage.not_implemented(
+                    f"Snowpark pandas apply API doesn't yet support Snowpark Python function `{func.__name__}` with args = '{args}'."
+                )
+            return self._apply_snowpark_python_function_to_columns(func)
+
         if axis == 0:
             frame = self._modin_frame
 
@@ -8546,6 +8568,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     func, raw, result_type, args, column_index, input_types, **kwargs
                 )
 
+    def _apply_snowpark_python_function_to_columns(
+        self,
+        snowpark_function: Callable,
+    ) -> "SnowflakeQueryCompiler":
+        """Apply Snowpark Python function to columns."""
+
+        def sf_function(col: SnowparkColumn) -> SnowparkColumn:
+            return snowpark_function(col)
+
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(sf_function)
+        )
+
     def applymap(
         self,
         func: AggFuncType,
@@ -8566,6 +8601,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         self._raise_not_implemented_error_for_timedelta()
 
+        if is_supported_snowpark_python_function(func):
+            if na_action:
+                ErrorMessage.not_implemented(
+                    f"Snowpark pandas applymap API doesn't yet support Snowpark Python function `{func.__name__}` with na_action == '{na_action}'"
+                )
+            if args:
+                ErrorMessage.not_implemented(
+                    f"Snowpark pandas applymap API doesn't yet support Snowpark Python function `{func.__name__}` with args = '{args}'."
+                )
+            return self._apply_snowpark_python_function_to_columns(func)
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.
         # The fix will not land soon, so we are going to raise not implemented error for now.
@@ -12237,7 +12282,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         resample_method_args: tuple[Any],
         resample_method_kwargs: dict[str, Any],
         is_series: bool,
-    ) -> "SnowflakeQueryCompiler":
+    ) -> Union["SnowflakeQueryCompiler", collections.defaultdict[Hashable, list]]:
         """
         Return new SnowflakeQueryCompiler whose ordered frame holds the result of a resample operation.
 
@@ -12260,8 +12305,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Returns
         -------
-        SnowflakeQueryCompiler
-            Holds an ordered frame with the result of the resample operation.
+        SnowflakeQueryCompiler or collections.defaultdict[Hashable, list]
+            A SnowflakeQueryCompiler that holds an ordered frame with the result of the resample operation,
+            or a dictionary if resample_method is 'indices'.
 
         Raises
         ------
@@ -12346,7 +12392,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             expected_frame = get_expected_resample_bins_frame(
                 rule, start_date, end_date
             )
-
             # The output frame's DatetimeIndex is identical to expected_frame's. For each date in the DatetimeIndex,
             # a single row is selected from the input frame, where its date is the closest match in time based on
             # the filling method. We perform an ASOF join to accomplish this.
@@ -12357,7 +12402,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return SnowflakeQueryCompiler(output_frame).set_index_names(index_name)
         elif resample_method in IMPLEMENTED_AGG_METHODS:
             frame = perform_resample_binning_on_frame(frame, start_date, rule)
-            if resample_method == "size":
+            if resample_method == "indices":
+                # Convert groupby_indices output of dict[Hashable, np.ndarray] to
+                # collections.defaultdict
+                result_dict = SnowflakeQueryCompiler(frame).groupby_indices(
+                    by=self._modin_frame.index_column_pandas_labels,
+                    axis=resample_kwargs.get("axis", 0),
+                    groupby_kwargs=dict(),
+                    values_as_np_array=False,
+                )
+                return collections.defaultdict(list, result_dict)  # type: ignore
+            elif resample_method == "size":
                 # Call groupby_size directly on the dataframe or series with the index reset
                 # to ensure we perform count aggregation on row positions which cannot be null
                 qc = (
@@ -12394,6 +12449,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     numeric_only=resample_method_kwargs.get("numeric_only", False),
                     is_series_groupby=is_series,
                 )
+
             frame = fill_missing_resample_bins_for_frame(
                 qc._modin_frame, rule, start_date, end_date
             )
