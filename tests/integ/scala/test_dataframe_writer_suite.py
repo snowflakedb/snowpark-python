@@ -11,7 +11,7 @@ import snowflake.connector.errors
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import col, parse_json
+from snowflake.snowpark.functions import col, lit, parse_json
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     DoubleType,
@@ -87,6 +87,17 @@ def test_write_with_target_column_name_order(session, local_testing_mode):
             Utils.check_answer(session.table(special_table_name), [Row(2, 1)])
         finally:
             Utils.drop_table(session, special_table_name)
+
+
+def test_snow_1668862_repro_save_null_data(session):
+    table_name = Utils.random_table_name()
+    test_data = session.create_dataframe([(1,), (2,)], ["A"])
+    df = test_data.with_column("b", lit(None))
+    try:
+        df.write.save_as_table(table_name=table_name, mode="truncate")
+        assert session.table(table_name).collect() == [Row(1, None), Row(2, None)]
+    finally:
+        Utils.drop_table(session, table_name)
 
 
 def test_write_truncate_with_less_columns(session):
