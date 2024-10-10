@@ -505,7 +505,6 @@ class SnowflakePlan(LogicalPlan):
             post_actions=copy.deepcopy(self.post_actions)
             if self.post_actions
             else None,
-            # pragma: no cover
             expr_to_alias=copy.deepcopy(self.expr_to_alias)
             if self.expr_to_alias
             else None,
