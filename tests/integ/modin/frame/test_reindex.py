@@ -615,7 +615,8 @@ def test_reindex_with_lazy_index():
     )
 
 
-def test_reindex_str_idx_with_tuple_index():
+@sql_count_checker(query_count=1, join_count=1)
+def test_reindex_str_index_with_tuple_index():
     index = ["A", "B", "C", "D"]
     native_df = native_pd.DataFrame(
         {"one": [200, 200, 404, 404], "two": [200, 200, 404, 404]}, index=index
@@ -627,7 +628,8 @@ def test_reindex_str_idx_with_tuple_index():
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(res_df, nat_df)
 
 
-def test_reindex_int_idx_with_tuple_index():
+@sql_count_checker(query_count=1, join_count=1)
+def test_reindex_int_index_with_tuple_index():
     native_df = native_pd.DataFrame(
         {"one": [200, 200, 404, 404], "two": [200, 200, 404, 404]}
     )
@@ -639,7 +641,8 @@ def test_reindex_int_idx_with_tuple_index():
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(res_df, nat_df)
 
 
-def test_reindex_int_idx_with_str_index():
+@sql_count_checker(query_count=1, join_count=1)
+def test_reindex_int_index_with_str_index():
     native_df = native_pd.DataFrame(
         {"one": [200, 200, 404, 404], "two": [200, 200, 404, 404]}
     )
@@ -651,7 +654,8 @@ def test_reindex_int_idx_with_str_index():
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(res_df, nat_df)
 
 
-def test_reindex_mixed_idx_type():
+@sql_count_checker(query_count=1, join_count=1)
+def test_reindex_mixed_index_type():
     native_df = native_pd.DataFrame(
         {"one": [200, 300], "two": [200, 200]},
     )
