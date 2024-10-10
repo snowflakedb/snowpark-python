@@ -795,6 +795,7 @@ class SelectStatement(Selectable):
             placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
             self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
         else:
+            self.analyzer.subquery_plans = []
             where_clause = (
                 f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
                 if self.where is not None
@@ -816,6 +817,19 @@ class SelectStatement(Selectable):
                 else snowflake.snowpark._internal.utils.EMPTY_STRING
             )
             self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+
+            for plan in self.analyzer.subquery_plans:
+                for query in plan.queries[:-1]:
+                    if self.pre_actions is None:
+                        self.pre_actions = []  # pragma: no cover
+                    if query not in self.pre_actions:
+                        self.pre_actions.append(query)
+                for query in plan.post_actions:
+                    if self.post_actions is None:
+                        self.post_actions = []  # pragma: no cover
+                    if query not in self.post_actions:
+                        self.post_actions.append(query)
+
         return self._sql_query
 
     @property
