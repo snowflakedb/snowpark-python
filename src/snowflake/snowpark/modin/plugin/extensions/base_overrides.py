@@ -48,6 +48,7 @@ from pandas._typing import (
     TimedeltaConvertibleTypes,
     TimestampConvertibleTypes,
 )
+from pandas.api.types import is_timedelta64_dtype
 from pandas.core.common import apply_if_callable
 from pandas.core.dtypes.common import (
     is_dict_like,
@@ -82,6 +83,10 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
 from snowflake.snowpark.modin.utils import validate_int_kwarg
+
+_TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE = (
+    "pct_change(axis=1) is invalid when one column is Timedelta another column is not."
+)
 
 
 def register_base_override(method_name: str):
@@ -1889,16 +1894,23 @@ def pct_change(
     if limit is lib.no_default:
         limit = None
 
-    if "axis" in kwargs:
-        kwargs["axis"] = self._get_axis_number(kwargs["axis"])
+    kwargs["axis"] = self._get_axis_number(kwargs.get("axis", 0))
 
     # Attempting to match pandas error behavior here
     if not isinstance(periods, int):
         raise TypeError(f"periods must be an int. got {type(periods)} instead")
 
+    if (
+        kwargs["axis"] == 1
+        and any(is_timedelta64_dtype(t) for t in self._get_dtypes())
+        and not all(is_timedelta64_dtype(t) for t in self._get_dtypes())
+    ):
+        # pct_change() between timedelta and a non-timedelta type is invalid.
+        raise TypeError(_TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE)
+
     # Attempting to match pandas error behavior here
     for dtype in self._get_dtypes():
-        if not is_numeric_dtype(dtype):
+        if not is_numeric_dtype(dtype) and not is_timedelta64_dtype(dtype):
             raise TypeError(
                 f"cannot perform pct_change on non-numeric column with dtype {dtype}"
             )

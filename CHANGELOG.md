@@ -67,6 +67,9 @@
 - Fixed a bug where `Resampler` methods on timedelta columns would produce integer results.
 - Fixed a bug where `pd.to_numeric()` would leave `Timedelta` inputs as `Timedelta` instead of converting them to integers.
 - Fixed `loc` set when setting a single row, or multiple rows, of a DataFrame with a Series value.
+- Fixed a bug where `DataFrame` and `Series` `pct_change()` would raise `TypeError` when input contained timedelta columns.
+- Fixed a bug where `replace()` would sometimes propagate `Timedelta` types incorrectly through `replace()`. Instead raise `NotImplementedError` for `replace()` on `Timedelta`.
+- Fixed a bug where `DataFrame` and `Series` `round()` would raise `AssertionError` for `Timedelta` columns. Instead raise `NotImplementedError` for `round()` on `Timedelta`.
 
 ### Snowpark Local Testing Updates
 
