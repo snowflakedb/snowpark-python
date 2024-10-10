@@ -50,7 +50,7 @@ def _convert_boundary_to_expr(
         elif start <= Window.UNBOUNDED_PRECEDING:
             boundary_start = UnboundedPreceding()
         else:
-            boundary_start = Literal(start)
+            boundary_start = Literal(int(start))
     elif isinstance(start, snowflake.snowpark.Column):
         boundary_start = start._expression
     else:
@@ -62,7 +62,7 @@ def _convert_boundary_to_expr(
         elif end >= Window.UNBOUNDED_FOLLOWING:
             boundary_end = UnboundedFollowing()
         else:
-            boundary_end = Literal(end)
+            boundary_end = Literal(int(end))
     elif isinstance(end, snowflake.snowpark.Column):
         boundary_end = end._expression
     else:
