@@ -98,6 +98,7 @@ def test_np_ufunc_arithmetic_operators(np_ufunc):
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
 
 
+# The query count here is from the argument logging performed by numpy on error
 @sql_count_checker(query_count=2)
 def test_np_ufunc_notimplemented():
     data = {
@@ -109,15 +110,15 @@ def test_np_ufunc_notimplemented():
         np.heaviside(snow_df["A"], snow_df["A"])
 
 
-@sql_count_checker(query_count=0)
+# The query count here is from the argument logging performed by numpy on error
+@sql_count_checker(query_count=3)
 def test_np_ufunc_with_out_notimpl():
     data = {
         "A": [1],
     }
     snow_df = pd.DataFrame(data)
     with pytest.raises(TypeError):
-        # heaviside is unlikely to be implemented any time soon
-        np.sum(snow_df["A"], snow_df["A"], out=snow_df)
+        np.add(snow_df["A"], snow_df["A"], out=snow_df)
 
 
 def test_np_where_notimplemented():
