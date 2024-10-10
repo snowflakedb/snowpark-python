@@ -15,7 +15,7 @@ import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from functools import reduce
-from typing import Any, Callable, List, Literal, Optional, Union, get_args
+from typing import Any, Callable, List, Literal, Optional, TypeVar, Union, get_args
 
 import modin.pandas as pd
 import numpy as np
@@ -411,7 +411,64 @@ _TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED = (
     "ops for Rolling for this dtype timedelta64[ns] are not implemented"
 )
 
+# List of query methods where attrs should not be propagated from this query compiler to the result.
+_NO_COPY_ATTRS_METHODS = [
+    "concat",  # concat is special-cased since it checks all of its inputs
+    "agg",
+    "compare",
+]
 
+
+T = TypeVar("T", bound=Callable[..., Any])
+
+
+def _propagate_attrs_on_methods(cls):  # type: ignore
+    """
+    Decorator that modifies all methods on the class to copy `_attrs` from `self`
+    to the output of the method, if the output is another query compiler.
+    """
+
+    def method_decorator(method: T) -> T:
+        @functools.wraps(method)
+        def wrap(self, *args, **kwargs):  # type: ignore
+            result = method(self, *args, **kwargs)
+            if isinstance(result, SnowflakeQueryCompiler):
+                result._attrs = copy.deepcopy(self._attrs)
+            return result
+
+        return typing.cast(T, wrap)
+
+    for attr_name, attr_value in cls.__dict__.items():
+        if attr_name.startswith("_") or attr_name in _NO_COPY_ATTRS_METHODS:
+            continue
+        if isinstance(attr_value, property):
+            setattr(
+                cls,
+                attr_name,
+                property(
+                    method_decorator(
+                        attr_value.fget
+                        if attr_value.fget is not None
+                        else attr_value.__get__
+                    ),
+                    method_decorator(
+                        attr_value.fset
+                        if attr_value.fset is not None
+                        else attr_value.__set__
+                    ),
+                    method_decorator(
+                        attr_value.fdel
+                        if attr_value.fdel is not None
+                        else attr_value.__delete__
+                    ),
+                ),
+            )
+        elif inspect.isfunction(attr_value):
+            setattr(cls, attr_name, method_decorator(attr_value))
+    return cls
+
+
+@_propagate_attrs_on_methods
 class SnowflakeQueryCompiler(BaseQueryCompiler):
     """based on: https://modin.readthedocs.io/en/0.11.0/flow/modin/backends/base/query_compiler.html
     this class is best explained by looking at https://github.com/modin-project/modin/blob/a8be482e644519f2823668210cec5cf1564deb7e/modin/experimental/core/storage_formats/hdk/query_compiler.py
@@ -855,7 +912,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             The QueryCompiler converted to pandas.
 
         """
-        return self._modin_frame.to_pandas(statement_params, **kwargs)
+        result = self._modin_frame.to_pandas(statement_params, **kwargs)
+        if self._attrs:
+            result.attrs = self._attrs
+        return result
 
     def finalize(self) -> None:
         pass

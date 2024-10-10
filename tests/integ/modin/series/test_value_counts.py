@@ -82,7 +82,6 @@ def test_value_counts_sort_ascending(test_data, sort, ascending, has_name):
         snow_series,
         native_series,
         lambda x: x.value_counts(sort=sort, ascending=ascending),
-        test_attrs=False,  # pandas doesn't propagate attrs through value_counts
     )
 
 
@@ -116,7 +115,6 @@ def test_value_counts_dropna(test_data, dropna):
         native_series,
         lambda x: x.value_counts(dropna=dropna),
         check_index_type=dropna,
-        test_attrs=False,  # pandas doesn't propagate attrs through value_counts
     )
 
 
@@ -149,7 +147,6 @@ def test_series_value_counts(native_series, normalize, sort, ascending, dropna):
         lambda s: s.value_counts(
             normalize=normalize, sort=sort, ascending=ascending, dropna=dropna
         ),
-        test_attrs=False,  # pandas doesn't propagate attrs through value_counts
     )
 
 

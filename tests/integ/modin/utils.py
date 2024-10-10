@@ -467,6 +467,7 @@ def eval_snowpark_pandas_result(
             and isinstance(snow_result, (Series, DataFrame))
         ):
             # Check that attrs was properly propagated.
+            # Note that attrs may be empty--all that matters is that snow_result and pd_result agree.
             assert (
                 snow_result.attrs == pd_result.attrs
             ), f"Snowpark pandas attrs {snow_result.attrs} doesn't match pandas attrs {pd_result.attrs}"

@@ -24,20 +24,10 @@ from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
-    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
+    eval_snowpark_pandas_result,
     generate_a_random_permuted_list_exclude_self,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-
-
-# Snowpark pandas does not yet propagate attrs through loc/iloc
-def eval_snowpark_pandas_result(*args, **kwargs):
-    return _eval_snowpark_pandas_result(
-        *args,
-        test_attrs=False,
-        **kwargs,
-    )
-
 
 EMPTY_LIST_LIKE_VALUES = [
     [],

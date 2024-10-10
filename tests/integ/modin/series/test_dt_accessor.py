@@ -11,21 +11,8 @@ import pytest
 import pytz
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.utils import (
-    create_test_series,
-    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
-)
+from tests.integ.modin.utils import create_test_series, eval_snowpark_pandas_result
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-
-
-# Snowpark pandas does not yet propagate attrs through str/dt
-def eval_snowpark_pandas_result(*args, **kwargs):
-    return _eval_snowpark_pandas_result(
-        *args,
-        test_attrs=False,
-        **kwargs,
-    )
-
 
 dt_properties = pytest.mark.parametrize(
     "property_name",
