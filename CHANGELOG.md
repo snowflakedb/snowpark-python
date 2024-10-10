@@ -28,7 +28,6 @@
 #### Bug Fixes
 
 - Fixed a bug where registering a stored procedure or UDxF with type hints would give a warning `'NoneType' has no len() when trying to read default values from function`.
-- Fixed a bug where in expression values created using a dataframe would throw errors like `Object 'SNOWPARK_TEMP_TABLE_ABCDXYZ123' does not exist or not authorized`.
 
 ### Snowpark pandas API Updates
 
