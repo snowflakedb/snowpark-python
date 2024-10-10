@@ -253,7 +253,7 @@ def test_plan_num_duplicate_nodes_describe_query(session, temp_table):
     assert len(query_history.queries) == 1
 
 
-def test_create_scoped_temp_table(session, sql_simplifier_enabled):
+def test_create_scoped_temp_table(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name, "num int, str string(8)")
@@ -310,7 +310,7 @@ def test_create_scoped_temp_table(session, sql_simplifier_enabled):
         )
         inner_select_sql = (
             f" SELECT  *  FROM {table_name}"
-            if sql_simplifier_enabled
+            if session._sql_simplifier_enabled
             else f" SELECT  *  FROM ({table_name})"
         )
         assert (
