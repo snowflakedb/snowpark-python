@@ -74,8 +74,9 @@ class StoredProcedure:
         execute_as: typing.Literal["caller", "owner"] = "owner",
         anonymous_sp_sql: Optional[str] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
-        _ast: Optional[proto.Sproc] = None,
+        _ast: Optional[proto.StoredProcedure] = None,
         _ast_id: Optional[int] = None,
+        _stmt: Optional[proto.Assign] = None,
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -92,6 +93,9 @@ class StoredProcedure:
         # If None, no ast will be emitted. Else, passed whenever sproc is invoked.
         self._ast = _ast
         self._ast_id = _ast_id
+        self._stmt = (
+            _stmt  # field to hold the assign statement for the stored procedure
+        )
 
     def _validate_call(
         self,
@@ -167,9 +171,9 @@ class StoredProcedure:
             # If the result is a Column or DataFrame object, the expression `eval` is performed in a later operation
             # such as `collect` or `show`.
             res._ast = sproc_expr
-        elif sproc_expr is not None:
+        elif self._stmt is not None:
             # If the result is a scalar, we can return it immediately. Perform the `eval` operation here.
-            session._ast_batch.eval(sproc_expr)
+            session._ast_batch.eval(self._stmt)
 
         return res
 
@@ -809,6 +813,7 @@ class StoredProcedureRegistration:
     ) -> StoredProcedure:
         # AST. Capture original parameters, before any pre-processing.
         ast = None
+        stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.udf, stmt)
@@ -970,6 +975,9 @@ class StoredProcedureRegistration:
             execute_as=execute_as,
             anonymous_sp_sql=anonymous_sp_sql,
             packages=packages,
+            _ast=ast,
+            _ast_id=stmt.var_id.bitfield1 if _emit_ast else None,
+            _stmt=stmt,
         )
 
         sproc._ast = ast

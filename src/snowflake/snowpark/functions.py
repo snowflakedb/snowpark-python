@@ -9303,15 +9303,7 @@ def call_function(
         <BLANKLINE>
 
     """
-    ast = None
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(ast, function_name, *args)
-
-    fn = _call_function(function_name, False, *args, _emit_ast=_emit_ast)
-    fn._ast = ast
-
-    return fn
+    return _call_function(function_name, False, *args, _emit_ast=_emit_ast)
 
 
 @publicapi

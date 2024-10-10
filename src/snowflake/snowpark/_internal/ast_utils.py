@@ -9,6 +9,7 @@ import logging
 import os
 import platform
 import sys
+import typing
 from functools import reduce
 from logging import getLogger
 from pathlib import Path
@@ -379,7 +380,7 @@ def build_udaf_apply(
 def build_udtf_apply(
     ast: proto.Expr, udtf_id: int, *args: Tuple[Union[proto.Expr, Any]], **kwargs
 ) -> None:
-    """Builds call to UDTF into ast as Snowpark IR expression."""
+    """Builds call to UDTF into ast as a Snowpark IR expression."""
     expr = with_src_position(ast.apply_expr)
     expr.fn.sp_fn_ref.id.bitfield1 = udtf_id
     build_fn_apply_args(ast, *args, **kwargs)
@@ -392,7 +393,7 @@ def build_sproc_apply(
     *args: Tuple[Union[proto.Expr, Any]],
     **kwargs,
 ) -> None:
-    """Builds call to stored procedure into ast as Snowpark IR expression."""
+    """Builds call to stored procedure into ast as a Snowpark IR expression."""
     expr = with_src_position(ast.apply_expr)
     expr.fn.sp_fn_ref.id.bitfield1 = sproc_id
     build_fn_apply_args(ast, *args, **kwargs)
@@ -1195,7 +1196,7 @@ def build_udtf(
 
 
 def build_sproc(
-    ast: proto.Sproc,
+    ast: proto.StoredProcedure,
     func: Union[Callable, Tuple[str, str]],
     return_type: Optional[DataType],
     input_types: Optional[List[DataType]],
@@ -1211,6 +1212,7 @@ def build_sproc(
     secrets: Optional[Dict[str, str]] = None,
     comment: Optional[str] = None,
     statement_params: Optional[Dict[str, str]] = None,
+    execute_as: typing.Literal["caller", "owner"] = "owner",
     source_code_display: bool = True,
     is_permanent: bool = False,
     session=None,
@@ -1254,6 +1256,7 @@ def build_sproc(
             t._1 = k
             t._2 = v
 
+    ast.execute_as = execute_as
     ast.source_code_display = source_code_display
     ast.strict = strict
     if (
