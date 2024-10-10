@@ -270,10 +270,10 @@ class SnowflakePlan(LogicalPlan):
     def __eq__(self, other: "SnowflakePlan") -> bool:
         if not isinstance(other, SnowflakePlan):
             return False
-        if self._id is not None and other._id is not None:
-            return isinstance(other, SnowflakePlan) and self._id == other._id
-        else:
-            return super().__eq__(other)
+        if (self._id is not None) and (other._id is not None) and (self._id == other._id):
+            return True
+            # return isinstance(other, SnowflakePlan) and self._id == other._id
+        return super().__eq__(other)
 
     def __hash__(self) -> int:
         return hash(self._id) if self._id else super().__hash__()

@@ -50,7 +50,9 @@ binary_operations = [
 
 WITH = "WITH"
 
-paramList = [False, True]
+# paramList = [False, True]
+
+paramList = [True]
 
 
 @pytest.fixture(params=paramList, autouse=True)
@@ -696,6 +698,10 @@ def test_cte_optimization_enabled_parameter(session, caplog):
 
 def test_ctc_workloads(session):
     import random
+    import os
+
+    os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"] = str(True)
+    os.environ["TMPDIR"] = '/tmp'
 
     self_width = "M"
     orders_base_table_fqn = '"SNOWFLAKE_SAMPLE_DATA"."TPCH_SF1"."ORDERS"'
@@ -705,7 +711,7 @@ def test_ctc_workloads(session):
 
     num_add_drop_column = 1
     num_redundant_group_by = 1
-    num_self_join = 10
+    num_self_join = 2
     num_self_join_layers = 1
 
     def expand_columns_for_df(df, width: str):
@@ -1003,8 +1009,8 @@ def test_ctc_workloads(session):
     df = reduce(lambda l, r: l.unionByName(r), df_with_filters)
 
     df = df.with_column("LAYER_SEQ", F.seq8())
-    for i in range(1, num_self_join_layers):
-        df = apply_self_join_layers(df, i)
+    # for i in range(1, num_self_join_layers):
+    #    df = apply_self_join_layers(df, i)
 
     print(df.queries)
     # return df

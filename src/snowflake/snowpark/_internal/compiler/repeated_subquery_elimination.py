@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+import logging
 from typing import Dict, List, Optional, Set
 
 from snowflake.snowpark._internal.analyzer.cte_utils import find_duplicate_subtrees
@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.compiler.utils import (
     TreeNode,
     replace_child,
     update_resolvable_node,
+    plot_plan_if_enabled,
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
@@ -130,17 +131,18 @@ class RepeatedSubqueryElimination:
         updated_nodes: Set[TreeNode] = set()
 
         def _update_parents(
-            node: TreeNode,
+            cur_node: TreeNode,
             should_replace_child: bool,
             new_child: Optional[TreeNode] = None,
         ) -> None:
-            parents = node_parents_map[node]
+            parents = node_parents_map[cur_node]
             for parent in parents:
+                # logging.debug("update par")
                 if should_replace_child:
                     assert (
                         new_child is not None
                     ), "no new child is provided for replacement"
-                    replace_child(parent, node, new_child, self._query_generator)
+                    replace_child(parent, cur_node, new_child, self._query_generator)
                 update_resolvable_node(parent, self._query_generator)
                 updated_nodes.add(parent)
 
@@ -162,6 +164,7 @@ class RepeatedSubqueryElimination:
                 _update_parents(
                     node, should_replace_child=True, new_child=resolved_with_block
                 )
+                plot_plan_if_enabled(root, f"with_{with_block.name}")
                 self._total_number_ctes += 1
             elif node in updated_nodes:
                 # if the node is updated, make sure all nodes up to parent is updated

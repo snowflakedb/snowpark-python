@@ -242,10 +242,10 @@ class Selectable(LogicalPlan, ABC):
     def __eq__(self, other: "Selectable") -> bool:
         if not isinstance(other, Selectable):
             return False
-        if self._id is not None and other._id is not None:
-            return type(self) is type(other) and self._id == other._id
-        else:
-            return super().__eq__(other)
+        if (self._id is not None) and (other._id is not None) and type(self) is type(other) and (self._id == other._id):
+            return True
+
+        return super().__eq__(other)
 
     def __hash__(self) -> int:
         return hash(self._id) if self._id else super().__hash__()
