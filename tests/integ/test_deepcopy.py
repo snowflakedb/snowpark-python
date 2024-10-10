@@ -386,14 +386,16 @@ def test_deep_nested_select(session):
     [
         lambda session_: session_.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]),
         lambda session_: session_.sql("select 1 as a, 2 as b"),
+        lambda session_: session_.table(
+            session_.sql("select 1 as a, 2 as b").cache_result().table_name
+        ),
     ],
 )
 def test_deepcopy_no_duplicate(session, generator):
     base_df = generator(session)
-    df1 = base_df.select("a", col("b").alias("c")).sort("a")
+    df1 = base_df.select(base_df.a, base_df.b.alias("c")).sort("a")
     df2 = base_df.filter(col("a") == 1).with_column("C", col("A") + col("B"))
-    df3 = df1.cache_result()
-    final_df = df1.union_all(df2.select("a", "c")).union_all(df3)
+    final_df = df1.union_all(df2.select("a", "c"))
 
     copied_plan = copy.deepcopy(final_df._plan)
     check_copied_plan(copied_plan, final_df._plan)
