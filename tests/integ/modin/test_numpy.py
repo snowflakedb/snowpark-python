@@ -78,6 +78,7 @@ def test_logical_operators():
         np.true_divide,
         np.float_power,
         np.mod,
+        np.remainder,
         np.greater,
         np.greater_equal,
         np.less,
