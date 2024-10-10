@@ -624,7 +624,6 @@ def test_reindex_str_index_with_tuple_index():
     snow_df = pd.DataFrame(native_df)
     nat_df = native_df.reindex(index=native_pd.Series(data=[("A", "B"), ("C", "D")]))
     res_df = snow_df.reindex(index=pd.Series(data=[("A", "B"), ("C", "D")]))
-    # return res_df
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(res_df, nat_df)
 
 
@@ -637,7 +636,6 @@ def test_reindex_int_index_with_tuple_index():
     nat_df = native_df.reindex(index=native_pd.Series(data=[("A", "B"), ("C", "D")]))
     idx = pd.Series(data=[("A", "B"), ("C", "D")])
     res_df = snow_df.reindex(index=idx)
-    # return res_df
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(res_df, nat_df)
 
 
@@ -650,7 +648,6 @@ def test_reindex_int_index_with_str_index():
     nat_df = native_df.reindex(index=native_pd.Series(data=["A", "C"]))
     idx = pd.Series(data=["A", "C"])
     res_df = snow_df.reindex(index=idx)
-    # return res_df
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(res_df, nat_df)
 
 

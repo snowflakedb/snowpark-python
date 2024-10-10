@@ -336,14 +336,11 @@ def test_reindex_index_non_overlapping_different_types_index():
         {"prices": [100, 101, np.nan, 100, 89, 88]}, index=date_index
     )
 
-    def perform_reindex(series):
-        if isinstance(series, pd.Series):
-            return series.reindex(list("ABC"))
-        else:
-            return series.reindex(list("ABC"))
-
     eval_snowpark_pandas_result(
-        snow_series, native_series, perform_reindex, check_freq=False
+        snow_series,
+        native_series,
+        lambda series: series.reindex(list("ABC")),
+        check_freq=False,
     )
 
 

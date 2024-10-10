@@ -1169,7 +1169,7 @@ def convert_index_type_to_variant(
     frame_to_variant = {}
     for frame_id in frame_ids:
         frame_type = frame_id_to_type_map[frame_id]
-        if frame_type != VariantType:
+        if not isinstance(frame_type, VariantType):
             frame_to_variant[frame_id] = to_variant(frame_id)
     frame = frame.update_snowflake_quoted_identifiers_with_expressions(
         frame_to_variant
