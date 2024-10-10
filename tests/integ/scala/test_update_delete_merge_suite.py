@@ -8,6 +8,7 @@ import datetime
 
 import pytest
 
+from snowflake.connector.options import installed_pandas, pandas as pd
 from snowflake.snowpark import (
     DeleteResult,
     MergeResult,
@@ -21,6 +22,7 @@ from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkTableException
 from snowflake.snowpark.functions import (
     col,
+    lit,
     max as max_,
     mean,
     min as min_,
@@ -668,3 +670,27 @@ def test_merge_multi_operation(session):
         ],
     )
     assert target.sort(col("id")).collect() == [Row(1, "a")]
+
+
+@pytest.mark.skipif(
+    not installed_pandas,
+    reason="Test requires pandas.",
+)
+def test_snow_1694649_repro_merge_with_equal_null(session):
+    # Force temp table
+    df1 = session.create_dataframe(pd.DataFrame({"A": [0, 1], "B": ["a", "b"]}))
+    df2 = session.create_dataframe(pd.DataFrame({"A": [0, 1], "B": ["a", "c"]}))
+
+    df1.merge(
+        source=df2,
+        join_expr=df1["A"].equal_null(df2["A"]),
+        clauses=[
+            when_matched(
+                ~(df1["A"].equal_null(df2["A"])) & (df1["B"].equal_null(df2["B"]))
+            ).update({"A": lit(3)})
+        ],
+    )
+    assert session.table(df1.table_name).order_by("A").collect() == [
+        Row(0, "a"),
+        Row(1, "b"),
+    ]
