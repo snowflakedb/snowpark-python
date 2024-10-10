@@ -186,10 +186,10 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.ast_utils import (
     build_builtin_fn_apply,
+    build_call_table_function_apply,
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_python_val,
     build_expr_from_snowpark_column_or_sql_str,
-    build_table_fn_apply,
     create_ast_for_column,
     set_builtin_fn_alias,
     snowpark_expression_to_ast,
@@ -1454,8 +1454,7 @@ def explode(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__builtin = True
-        build_table_fn_apply(ast, "explode", col)
+        build_builtin_fn_apply(ast, "explode", col)
 
     func_call = snowflake.snowpark.table_function._ExplodeFunctionCall(col, lit(False))
     func_call._set_api_call_source("functions.explode")
@@ -1513,8 +1512,7 @@ def explode_outer(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__builtin = True
-        build_table_fn_apply(ast, "explode_outer", col)
+        build_builtin_fn_apply(ast, "explode_outer", col)
 
     func_call = snowflake.snowpark.table_function._ExplodeFunctionCall(col, lit(True))
     func_call._set_api_call_source("functions.explode_outer")
@@ -1600,8 +1598,7 @@ def flatten(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__builtin = True
-        build_table_fn_apply(ast, "flatten", col, path, outer, recursive, mode)
+        build_builtin_fn_apply(ast, "flatten", col, path, outer, recursive, mode)
 
     func_call = snowflake.snowpark.table_function.TableFunctionCall(
         "flatten",
@@ -9284,7 +9281,7 @@ def call_udf(udf_name: str, *args: ColumnOrLiteral, _emit_ast: bool = True) -> C
 
 @publicapi
 def call_table_function(
-    function_name: str,
+    function_name: Union[str, Iterable[str]],
     *args: ColumnOrLiteral,
     _emit_ast: bool = True,
     **kwargs: ColumnOrLiteral,
@@ -9307,13 +9304,11 @@ def call_table_function(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__call_table_fn = True
-        build_table_fn_apply(ast, function_name, *args, **kwargs)
+        build_call_table_function_apply(ast, function_name, *args, **kwargs)
 
     func_call = snowflake.snowpark.table_function.TableFunctionCall(
-        function_name, *args, **kwargs
+        function_name, *args, _ast=ast, **kwargs
     )
-    func_call._ast = ast
 
     return func_call
 
@@ -9339,8 +9334,7 @@ def table_function(function_name: str, _emit_ast: bool = True) -> Callable:
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        ast.apply_expr.fn.table_fn.call_type.table_fn_call_type__table_fn = True
-        build_table_fn_apply(ast, function_name)
+        build_builtin_fn_apply(ast, "table_function", function_name)
     fn._ast = ast
 
     return fn

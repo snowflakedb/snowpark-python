@@ -23,6 +23,11 @@ from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.types import ArrayType, MapType
 
 from ._internal.analyzer.snowflake_plan import SnowflakePlan
+from ._internal.ast_utils import (
+    build_expr_from_python_val,
+    build_expr_from_snowpark_column_or_col_name,
+    with_src_position,
+)
 
 
 class TableFunctionCall:
@@ -59,7 +64,6 @@ class TableFunctionCall:
         self._order_by = None
         self._aliases: Optional[Iterable[str]] = None
         self._api_call_source = None
-
         self._ast = _ast
 
     def _set_api_call_source(self, api_call_source):
@@ -90,9 +94,34 @@ class TableFunctionCall:
         Note that if this function is called but both ``partition_by`` and ``order_by`` are ``None``, the table function call will put all input rows into a single partition.
         If this function isn't called at all, the Snowflake database will use implicit partitioning.
         """
-        # TODO(oplaton): Extend over() to collect the AST.
+        ast = None
+        if _emit_ast:
+            ast = proto.Expr()
+            expr = with_src_position(ast.sp_table_fn_call_over)
+            expr.lhs.CopyFrom(self._ast)
+            if partition_by is not None:
+                if isinstance(partition_by, Iterable):
+                    for partition_clause in partition_by:
+                        build_expr_from_snowpark_column_or_col_name(
+                            expr.partition_by.add(), partition_clause
+                        )
+                else:
+                    build_expr_from_snowpark_column_or_col_name(
+                        expr.partition_by.add(), partition_by
+                    )
+            if order_by is not None:
+                if isinstance(order_by, Iterable):
+                    for order_clause in order_by:
+                        build_expr_from_snowpark_column_or_col_name(
+                            expr.order_by.add(), order_clause
+                        )
+                else:
+                    build_expr_from_snowpark_column_or_col_name(
+                        expr.order_by.add(), order_by
+                    )
+
         new_table_function = TableFunctionCall(
-            self.name, *self.arguments, **self.named_arguments
+            self.name, *self.arguments, _ast=ast, **self.named_arguments
         )
         new_table_function._over = True
 
@@ -136,12 +165,21 @@ class TableFunctionCall:
         Raises:
             ValueError: Raises error when the aliases are not unique after being canonicalized.
         """
-        # TODO(oplaton): Extend alias() to collect the AST.
+        ast = None
+        if _emit_ast:
+            ast = proto.Expr()
+            expr = with_src_position(ast.sp_table_fn_call_alias)
+            expr.lhs.CopyFrom(self._ast)
+            expr.aliases.variadic = True
+            for arg in aliases:
+                build_expr_from_python_val(expr.aliases.args.add(), arg)
+
         canon_aliases = [quote_name(col) for col in aliases]
         if len(set(canon_aliases)) != len(aliases):
             raise ValueError("All output column names after aliasing must be unique.")
 
         self._aliases = canon_aliases
+        self._ast = ast
         return self
 
     as_ = alias
