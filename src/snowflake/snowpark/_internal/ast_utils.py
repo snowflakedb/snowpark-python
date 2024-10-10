@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     CaseWhen,
     Expression,
+    FunctionExpression,
     Literal,
     MultipleExpression,
     Star,
@@ -304,7 +305,7 @@ def build_proto_from_struct_type(
         ast_field.nullable = field.nullable
 
 
-def _set_fn_name(name: Union[str, Iterable[str]], fn: proto.FnRefExpr) -> None:
+def _set_fn_name(name: Union[str, Iterable[str]], fn: proto.FnNameRefExpr) -> None:
     """
     Set the function name in the AST. The function name can be a string or an iterable of strings.
     Args:
@@ -353,7 +354,6 @@ def build_builtin_fn_apply(
     """
     expr = with_src_position(ast.apply_expr)
     _set_fn_name(builtin_name, expr.fn.builtin_fn)
-    with_src_position(expr.fn.builtin_fn)
     build_fn_apply_args(ast, *args, **kwargs)
 
 
@@ -399,53 +399,61 @@ def build_sproc_apply(
     build_fn_apply_args(ast, *args, **kwargs)
 
 
-def build_session_table_fn_apply(
+def build_call_table_function_apply(
     ast: proto.Expr,
-    name: Union[str, Iterable[str]],
+    name: str,
     *args: Tuple[Union[proto.Expr, Any]],
     **kwargs: Dict[str, Union[proto.Expr, Any]],
 ) -> None:
     """
-    Creates AST encoding for ApplyExpr(SessionTableFn(<name>), List(<args...>), Map(<kwargs...>)) for session table functions.
+    Creates AST encoding for
+        CallTableFunctionExpr(IndirectTableFnNameRef(<table_function_name>), List(<args...>), Map(<kwargs...>))
+      for indirect table functions called by name.
+
     Args:
         ast: Expr node to fill.
-        name: Name of the session table function to call.
+        name: Name of the table function to call.
         *args: Positional arguments to pass to function.
         **kwargs: Keyword arguments to pass to function.
+
     """
     expr = with_src_position(ast.apply_expr)
-    _set_fn_name(name, expr.fn.session_table_fn)
-    with_src_position(expr.fn.session_table_fn)
+    _set_fn_name(name, expr.fn.call_table_function_expr)
     build_fn_apply_args(ast, *args, **kwargs)
 
 
-def build_table_fn_apply(
+def build_indirect_table_fn_apply(
     ast: proto.Expr,
-    name: Union[str, Iterable[str], None],
-    *args: Tuple[Union[proto.Expr, Any]],
-    **kwargs: Dict[str, Union[proto.Expr, Any]],
+    func: Union[
+        str, List[str], "snowflake.snowpark.table_function.TableFunctionCall", Callable
+    ],
+    *func_arguments: ColumnOrName,
+    **func_named_arguments: ColumnOrName,
 ) -> None:
     """
-    Creates AST encoding for ApplyExpr(TableFn(<name>), List(<args...>), Map(<kwargs...>)) for table functions.
+    Creates AST encoding for ApplyExpr(<indirect_fn_ref>(<fn_name>), List(<args...>), Map(<kwargs...>)) for indirect
+    table function calls.
+
     Args:
         ast: Expr node to fill.
-        name: Name of the table function to call. The name can be None and is ignored for table function calls of type SessionTableFn.
+        func: The table function to call. Can be a string, a list of strings, or a Python object that designates the
+         function to call (e.g. TableFunctionCall or a Callable). The Python object must have an Assign statement
+          attached to its _ast_stmt field.
         *args: Positional arguments to pass to function.
         **kwargs: Keyword arguments to pass to function.
 
-    Requires that ast.apply_expr.fn.table_fn.call_type is set to a valid TableFnCallType.
     """
     expr = with_src_position(ast.apply_expr)
-    assert (
-        ast.apply_expr.fn.table_fn.call_type.WhichOneof("variant") is not None
-    ), f"Explicitly set the call type before calling this function {str(ast.apply_expr.fn.table_fn)}"
-    if not expr.fn.table_fn.call_type.table_fn_call_type__session_table_fn:
-        assert (
-            name is not None
-        ), f"Table function name must be provided {str(ast.apply_expr.fn.table_fn)}"
-        _set_fn_name(name, expr.fn.table_fn)
-    with_src_position(expr.fn.table_fn)
-    build_fn_apply_args(ast, *args, **kwargs)
+    if isinstance(
+        func, (snowflake.snowpark.table_function.TableFunctionCall, Callable)
+    ):
+        stmt = func._ast_stmt
+        fn_expr = expr.fn.indirect_table_fn_id_ref
+        fn_expr.id.bitfield1 = stmt.var_id.bitfield1
+    else:
+        fn_expr = expr.fn.indirect_table_fn_name_ref
+        _set_fn_name(func, fn_expr)
+    build_fn_apply_args(ast, *func_arguments, **func_named_arguments)
 
 
 def build_fn_apply_args(
@@ -832,6 +840,14 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
     elif isinstance(expr, Star):
         # Comes up in count(), handled there.
         return None
+    elif isinstance(expr, FunctionExpression):
+        # Snowpark pandas API has some usage where injecting the publicapi decorator would lead to issues.
+        # Directly translate here.
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast, expr.name, *tuple(map(snowpark_expression_to_ast, expr.children))
+        )
+        return ast
     else:
         raise NotImplementedError(
             f"Snowpark expr {expr} of type {type(expr)} is an expression with missing AST or for which an AST can not be auto-generated."
@@ -1192,6 +1208,27 @@ def build_udtf(
         t = ast.kwargs.add()
         t._1 = k
         build_expr_from_python_val(t._2, v)
+
+
+def add_intermediate_stmt(ast_batch: AstBatch, o: Any) -> None:
+    """
+    Helper function that takes an object AST as input and creates an assignment for it.
+
+    This is useful for capturing a potentially complex expression and referring to it from multiple places without
+    inlining it everywhere.
+
+    Args:
+        ast_batch: The AstBatch instance in which to create the assignment.
+        o: The input object. If the object is of type TableFunctionCall, or a callable created by
+         functions.table_function, it must have a field named _ast, of type proto.Expr.
+    """
+    if not isinstance(
+        o, (snowflake.snowpark.table_function.TableFunctionCall, Callable)
+    ):
+        return
+    stmt = ast_batch.assign()
+    stmt.expr.CopyFrom(o._ast)
+    o._ast_stmt = stmt
 
 
 def build_sproc(
