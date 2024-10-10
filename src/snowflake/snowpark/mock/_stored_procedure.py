@@ -331,7 +331,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         if sproc_name in self._registry and if_not_exists:
             ans = self._registry[sproc_name]
             ans._ast = ast
-            ans._ast_id = stmt.var_id.bitfield1
+            ans._ast_id = stmt.var_id.bitfield1 if _emit_ast else None
             return ans
 
         if sproc_name in self._registry and not replace:
