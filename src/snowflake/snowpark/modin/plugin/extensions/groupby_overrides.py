@@ -21,11 +21,8 @@
 
 """Implement GroupBy public API as pandas does."""
 
-import copy
-import functools
-import inspect
 from collections.abc import Hashable
-from typing import Any, Callable, Literal, Optional, Sequence, TypeVar, Union, cast
+from typing import Any, Callable, Literal, Optional, Sequence, Union
 
 import modin.pandas as pd
 import numpy as np  # noqa: F401
@@ -33,7 +30,6 @@ import numpy.typing as npt
 import pandas
 import pandas.core.groupby
 from modin.pandas import Series
-from modin.pandas.base import BasePandasDataset
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import AggFuncType, Axis, FillnaOptions, IndexLabel
 from pandas.core.dtypes.common import is_dict_like, is_list_like, is_numeric_dtype
@@ -92,55 +88,10 @@ _DEFAULT_BEHAVIOUR = {
     "_wrap_aggregation",
 }
 
-T = TypeVar("T", bound=Callable[..., Any])
-
-
-def _propagate_groupby_attrs(method: T) -> T:
-    """
-    Wrap a GroupBy method with a function that automatically deep-copies `self._df.attrs` if present.
-
-    This should be applied to all non-property methods.
-
-    Parameters
-    ----------
-    method : T
-        The method to wrap.
-
-    Returns
-    -------
-    T
-        The original method wrapped to propagate the `attrs` field of `self._df` to the result if necessary.
-    """
-
-    @functools.wraps(method)
-    def wrapper(self, *args, **kwargs):  # type: ignore
-        result = method(self, *args, **kwargs)
-        if isinstance(result, BasePandasDataset) and len(self._df.attrs):
-            # If the result of the method call is a modin.pandas object and `self.attrs` is
-            # not empty, perform a deep copy of `self.attrs`.
-            result.attrs = copy.deepcopy(self._df.attrs)
-        return result
-
-    # need cast to convince mypy that we are returning a function with the same
-    # signature as method.
-    return cast(T, wrapper)
-
-
-def _apply_propagate_annotation():
-    def wrapper(cls):
-        # Propagate `attrs` to all results if the result is a DF
-        for attr_name, attr_value in cls.__dict__.items():
-            if inspect.isfunction(attr_value):
-                setattr(cls, attr_name, _propagate_groupby_attrs(attr_value))
-        return cls
-
-    return wrapper
-
 
 @_inherit_docstrings(
     pandas.core.groupby.DataFrameGroupBy, modify_doc=doc_replace_dataframe_with_link
 )
-@_apply_propagate_annotation()
 class DataFrameGroupBy(metaclass=TelemetryMeta):
     _pandas_class = pandas.core.groupby.DataFrameGroupBy
 
