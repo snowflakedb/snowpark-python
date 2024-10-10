@@ -23,7 +23,7 @@ INSTALL_REQ_LIST = [
     CONNECTOR_DEPENDENCY,
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
     "typing-extensions>=4.1.0, <5.0.0",
-    "protobuf",
+    "protobuf>=5.28",
     "tzlocal",
     "pyyaml",
     "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
