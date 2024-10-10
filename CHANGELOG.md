@@ -1,5 +1,13 @@
 # Release History
 
+## 1.24.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Reduced the number of additional [describe queries](https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-example#retrieving-column-metadata) sent to the server to fetch the metadata of a DataFrame. It is still an experimental feature not enabled by default, and can be enabled by setting `session.reduce_describe_query_enabled` to `True`.
+
 ## 1.23.0 (TBD)
 
 ### Snowpark Python API Updates
