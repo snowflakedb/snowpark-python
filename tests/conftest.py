@@ -87,11 +87,14 @@ def cte_optimization_enabled(pytestconfig):
     return pytestconfig.getoption("enable_cte_optimization")
 
 
+MULTITHREADING_MODE_ENABLED = False
+
+
 @pytest.fixture(scope="session", autouse=True)
 def multithreading_mode(pytestconfig):
     enabled = pytestconfig.getoption("multithreading_mode")
-    if enabled:
-        os.environ["SNOWPARK_MULTITHREADING_MODE"] = "true"
+    global MULTITHREADING_MODE_ENABLED
+    MULTITHREADING_MODE_ENABLED = enabled
     return enabled
 
 
