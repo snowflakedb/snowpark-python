@@ -83,6 +83,7 @@ class PlanCompiler:
             complexity_score_before_compilation = get_complexity_score(self._plan)
             logical_plans: List[LogicalPlan] = [copy.deepcopy(self._plan)]
             plot_plan_if_enabled(self._plan, "original_plan")
+            plot_plan_if_enabled(logical_plans[0], "deep_copied_plan")
             deep_copy_end_time = time.time()
 
             # 2. create a code generator with the original plan
