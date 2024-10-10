@@ -2635,6 +2635,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             _filter_column_snowflake_quoted_id = (
                 modin_frame.data_column_snowflake_quoted_identifiers[-1]
             )
+        # convert index frame to variant type so it can be joined with a frame of differing type
         new_index_modin_frame = convert_index_type_to_variant(new_index_modin_frame)
         result_frame, result_frame_column_mapper = join_utils.join(
             new_index_modin_frame,

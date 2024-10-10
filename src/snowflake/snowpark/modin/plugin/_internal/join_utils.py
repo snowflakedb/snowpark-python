@@ -25,7 +25,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
 )
 from snowflake.snowpark.modin.plugin._typing import AlignTypeLit, JoinTypeLit
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
-from snowflake.snowpark.types import TimestampType, VariantType
+from snowflake.snowpark.types import VariantType
 
 
 class JoinKeyCoalesceConfig(Enum):
@@ -1169,7 +1169,7 @@ def convert_index_type_to_variant(
     frame_to_variant = {}
     for frame_id in frame_ids:
         frame_type = frame_id_to_type_map[frame_id]
-        if frame_type not in [VariantType, TimestampType]:
+        if frame_type != VariantType:
             frame_to_variant[frame_id] = to_variant(frame_id)
     frame = frame.update_snowflake_quoted_identifiers_with_expressions(
         frame_to_variant

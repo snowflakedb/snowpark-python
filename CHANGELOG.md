@@ -18,7 +18,6 @@
 #### Bug Fixes
 
 - Fixed a bug where registering a stored procedure or UDxF with type hints would give a warning `'NoneType' has no len() when trying to read default values from function`.
-- Fixed a bug where `reindex` failed when the new index is a Series with non-overlapping types from the original index.
 
 ### Snowpark pandas API Updates
 
@@ -68,6 +67,7 @@
 - Fixed a bug where `Resampler` methods on timedelta columns would produce integer results.
 - Fixed a bug where `pd.to_numeric()` would leave `Timedelta` inputs as `Timedelta` instead of converting them to integers.
 - Fixed `loc` set when setting a single row, or multiple rows, of a DataFrame with a Series value.
+- Fixed a bug where `reindex` failed when the new index is a Series with non-overlapping types from the original index.
 
 ### Snowpark Local Testing Updates
 

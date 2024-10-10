@@ -663,3 +663,15 @@ def test_reindex_mixed_index_type():
     nat_df = native_df.reindex(index=native_pd.Series(data=["A", 1]))
     res_df = snow_df.reindex(index=pd.Series(data=["A", 1]))
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(res_df, nat_df)
+
+
+@sql_count_checker(query_count=3, join_count=1)
+def test_reindex_int_timestamp_index_type():
+    native_df = native_pd.DataFrame({"prices": [100, 101, np.nan, 100, 89, 88]})
+    snow_df = pd.DataFrame(native_df)
+    datetime_series = native_pd.Series(
+        data=pd.date_range("1/1/2010", periods=6, freq="D")
+    )
+    nat_df = native_df.reindex(index=datetime_series)
+    res_df = snow_df.reindex(index=pd.Series(datetime_series))
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(res_df, nat_df)
