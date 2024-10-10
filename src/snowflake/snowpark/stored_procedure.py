@@ -599,7 +599,6 @@ class StoredProcedureRegistration:
             check_register_args(
                 TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
             )
-            native_app_params = kwargs.get("native_app_params", None)
 
             # register stored procedure
             return self._do_register_sp(
@@ -621,13 +620,13 @@ class StoredProcedureRegistration:
                 execute_as=execute_as,
                 api_call_source="StoredProcedureRegistration.register",
                 source_code_display=source_code_display,
-                anonymous=kwargs.get("anonymous", False),
+                anonymous=kwargs.pop("anonymous", False),
                 is_permanent=is_permanent,
                 # force_inline_code avoids uploading python file
                 # when we know the code is not too large. This is useful
                 # in pandas API to create stored procedures not registered by users.
-                force_inline_code=kwargs.get("force_inline_code", False),
-                native_app_params=native_app_params,
+                force_inline_code=kwargs.pop("force_inline_code", False),
+                native_app_params=kwargs.pop("native_app_params", None),
                 _emit_ast=_emit_ast,
                 **kwargs,
             )

@@ -259,6 +259,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         **kwargs,
     ) -> StoredProcedure:
         ast = None
+        stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.stored_procedure, stmt)
@@ -382,7 +383,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             execute_as=execute_as,
             strict=strict,
             _ast=ast,
-            _ast_id=stmt.var_id.bitfield1,
+            _ast_id=stmt.var_id.bitfield1 if _emit_ast else None,
         )
 
         self._registry[sproc_name] = sproc
