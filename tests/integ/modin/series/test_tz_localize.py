@@ -74,33 +74,33 @@ def test_tz_localize(tz):
 
 
 @pytest.mark.parametrize(
-    "axis, level, copy, ambiguous, nonexistent, exception",
+    "tz, axis, level, copy, ambiguous, nonexistent, tz, exception",
     [
-        (1, None, True, "raise", "raise", "UTC", ValueError),
-        ("columns", None, True, "raise", "raise", "UTC", ValueError),
-        (0, 1, None, "raise", "raise", "UTC", NotImplementedError),
-        (0, None, False, "raise", "raise", "UTC", NotImplementedError),
-        (0, None, True, "infer", "raise", "UTC", NotImplementedError),
-        (0, None, True, "NaT", "raise", "UTC", NotImplementedError),
+        ("UTC", 1, None, True, "raise", "raise", ValueError),
+        ("UTC", "columns", None, True, "raise", "raise", ValueError),
+        ("UTC", 0, 1, None, "raise", "raise", NotImplementedError),
+        ("UTC", 0, None, False, "raise", "raise", NotImplementedError),
+        ("UTC", 0, None, True, "infer", "raise", NotImplementedError),
+        ("UTC", 0, None, True, "NaT", "raise", NotImplementedError),
         (
+            "UTC",
             0,
             None,
             True,
             np.array([True, True, False]),
             "raise",
-            "UTC",
             NotImplementedError,
         ),
-        (0, None, True, "raise", "shift_forward", "UTC", NotImplementedError),
-        (0, None, True, "raise", "shift_backward", "UTC", NotImplementedError),
-        (0, None, True, "raise", "NaT", "UTC", NotImplementedError),
-        (0, None, True, "raise", pd.Timedelta("1h"), "UTC", NotImplementedError),
-        (0, None, True, "infer", "shift_forward", "UTC", NotImplementedError),
-        (0, None, True, "raise", "raise", "UTC+09:00", NotImplementedError),
+        ("UTC", 0, None, True, "raise", "shift_forward", NotImplementedError),
+        ("UTC", 0, None, True, "raise", "shift_backward", NotImplementedError),
+        ("UTC", 0, None, True, "raise", "NaT", NotImplementedError),
+        ("UTC", 0, None, True, "raise", pd.Timedelta("1h"), NotImplementedError),
+        ("UTC", 0, None, True, "infer", "shift_forward", NotImplementedError),
+        ("UTC+09:00", 0, None, True, "raise", "raise", NotImplementedError),
     ],
 )
 @sql_count_checker(query_count=0)
-def test_tz_localize_negative(axis, level, copy, ambiguous, nonexistent, tz, exception):
+def test_tz_localize_negative(tz, axis, level, copy, ambiguous, nonexistent, exception):
     datetime_index = native_pd.DatetimeIndex(
         [
             "2014-04-04 23:56:01.000000001",
