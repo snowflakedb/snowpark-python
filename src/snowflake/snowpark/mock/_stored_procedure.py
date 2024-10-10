@@ -169,8 +169,8 @@ class MockStoredProcedure(StoredProcedure):
             result = json.dumps(result, indent=2, cls=CUSTOM_JSON_ENCODER)
 
         if self._is_return_table:
-            # If the result is a Column or DataFrame object, the expression `eval` is performed in a later operation
-            # such as `collect` or `show`.
+            # If the result is a Column or DataFrame object, the `eval` of the stored procedure expression is performed
+            # in a later operation such as `collect` or `show`.
             result._ast = sproc_expr
         else:
             # If the result is a scalar, we can return it immediately. Perform the `eval` operation here.

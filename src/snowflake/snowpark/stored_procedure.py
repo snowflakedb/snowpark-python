@@ -93,9 +93,8 @@ class StoredProcedure:
         # If None, no ast will be emitted. Else, passed whenever sproc is invoked.
         self._ast = _ast
         self._ast_id = _ast_id
-        self._stmt = (
-            _stmt  # field to hold the assign statement for the stored procedure
-        )
+        # field to hold the assign statement for the stored procedure
+        self._stmt = _stmt
 
     def _validate_call(
         self,
@@ -630,6 +629,7 @@ class StoredProcedureRegistration:
                 force_inline_code=kwargs.get("force_inline_code", False),
                 native_app_params=native_app_params,
                 _emit_ast=_emit_ast,
+                **kwargs,
             )
 
     @publicapi

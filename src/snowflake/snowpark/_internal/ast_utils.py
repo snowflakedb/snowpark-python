@@ -380,7 +380,7 @@ def build_udaf_apply(
 def build_udtf_apply(
     ast: proto.Expr, udtf_id: int, *args: Tuple[Union[proto.Expr, Any]], **kwargs
 ) -> None:
-    """Builds call to UDTF into ast as a Snowpark IR expression."""
+    """Encodes a call to UDTF into ast as a Snowpark IR expression."""
     expr = with_src_position(ast.apply_expr)
     expr.fn.sp_fn_ref.id.bitfield1 = udtf_id
     build_fn_apply_args(ast, *args, **kwargs)
@@ -393,7 +393,7 @@ def build_sproc_apply(
     *args: Tuple[Union[proto.Expr, Any]],
     **kwargs,
 ) -> None:
-    """Builds call to stored procedure into ast as a Snowpark IR expression."""
+    """Encodes a call to stored procedure into ast as a Snowpark IR expression."""
     expr = with_src_position(ast.apply_expr)
     expr.fn.sp_fn_ref.id.bitfield1 = sproc_id
     build_fn_apply_args(ast, *args, **kwargs)
@@ -967,7 +967,6 @@ def build_udf(
     if name is not None:
         _set_fn_name(name, ast)
 
-    # TODO: to unparse/reference callables client-side - track them in ast_batch.
     build_proto_from_callable(
         ast.func, func, session._ast_batch if session is not None else None
     )
@@ -1219,7 +1218,6 @@ def build_sproc(
     **kwargs,
 ):
     """Helper function to encode stored procedure parameters (used in both regular and mock StoredProcedureRegistration)."""
-    # TODO: to unparse/reference callables client-side - track them in ast_batch.
 
     if sp_name is not None:
         _set_fn_name(sp_name, ast)
