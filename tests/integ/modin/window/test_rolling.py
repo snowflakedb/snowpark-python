@@ -19,7 +19,7 @@ from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
     create_test_series,
-    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
+    eval_snowpark_pandas_result,
 )
 from tests.integ.modin.window.utils import (
     agg_func,
@@ -27,16 +27,6 @@ from tests.integ.modin.window.utils import (
     agg_func_supported_for_timedelta,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-
-
-# Snowpark pandas does not yet propagate attrs through rolling
-def eval_snowpark_pandas_result(*args, **kwargs):
-    return _eval_snowpark_pandas_result(
-        *args,
-        test_attrs=False,
-        **kwargs,
-    )
-
 
 window = pytest.mark.parametrize("window", [1, 2, 3, 4, 6])
 min_periods = pytest.mark.parametrize("min_periods", [None, 1, 2])
