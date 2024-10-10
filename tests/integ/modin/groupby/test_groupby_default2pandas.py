@@ -16,7 +16,7 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN = re.escape(
     f"Snowpark pandas GroupBy.aggregate {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"

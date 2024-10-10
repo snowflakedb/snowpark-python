@@ -52,6 +52,7 @@ jobs:
         run: ls -lh dist
       - uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: wheel
           path: dist/
 
@@ -166,6 +167,7 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
           path: |
             .tox/.coverage
@@ -234,6 +236,7 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-disable-sql-simplifier
           path: |
             .tox/.coverage
@@ -302,6 +305,7 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-enable-cte-optimization
           path: |
             .tox/.coverage
@@ -348,11 +352,13 @@ jobs:
       - name: Publish html coverage
         uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: overall_cov_html
           path: .tox/htmlcov
       - name: Publish xml coverage
         uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: overall_cov_xml
           path: .tox/coverage.xml
       - uses: codecov/codecov-action@v1
@@ -385,5 +391,6 @@ jobs:
       - name: Upload html files
         uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: docs
           path: docs/build/html

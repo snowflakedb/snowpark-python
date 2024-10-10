@@ -8,6 +8,19 @@
 from enum import Enum
 from typing import Any
 
+from snowflake.snowpark.column import Column as SnowparkColumn
+from snowflake.snowpark.functions import (
+    builtin,
+    col,
+    iff,
+    make_interval,
+    stddev_pop,
+    sum as sum_,
+)
+from snowflake.snowpark.modin.plugin._internal.resample_utils import (
+    rule_to_snowflake_width_and_slice_unit,
+)
+from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 
 
@@ -78,34 +91,34 @@ def check_and_raise_error_rolling_window_supported_by_snowflake(
     step = rolling_kwargs.get("step")
 
     # Raise not implemented error for unsupported params
-    if not isinstance(window, int):
-        ErrorMessage.method_not_implemented_error(
-            name="Non-integer window", class_="Rolling"
+    if not isinstance(window, (int, str)):
+        ErrorMessage.not_implemented(
+            "Snowpark pandas does not yet support Rolling with windows that are not strings or integers"
         )
-    if min_periods is None or min_periods == 0:
-        ErrorMessage.method_not_implemented_error(
-            name=f"min_periods {min_periods}", class_="Rolling"
+    if min_periods == 0:
+        ErrorMessage.parameter_not_implemented_error(
+            parameter_name="min_periods = 0", method_name="Rolling"
         )
     if win_type:
-        ErrorMessage.method_not_implemented_error(
-            name="win_type", class_="Rolling"
+        ErrorMessage.parameter_not_implemented_error(
+            parameter_name="win_type", method_name="Rolling"
         )  # pragma: no cover
     if on:
-        ErrorMessage.method_not_implemented_error(
-            name="on", class_="Rolling"
+        ErrorMessage.parameter_not_implemented_error(
+            parameter_name="on", method_name="Rolling"
         )  # pragma: no cover
     if axis not in (0, "index"):
         # Note that this is deprecated since pandas 2.1.0
-        ErrorMessage.method_not_implemented_error(
-            name="axis = 1", class_="Rolling"
+        ErrorMessage.parameter_not_implemented_error(
+            parameter_name="axis = 1", method_name="Rolling"
         )  # pragma: no cover
     if closed:
-        ErrorMessage.method_not_implemented_error(
-            name="closed", class_="Rolling"
+        ErrorMessage.parameter_not_implemented_error(
+            parameter_name="closed", method_name="Rolling"
         )  # pragma: no cover
     if step:
-        ErrorMessage.method_not_implemented_error(
-            name="step", class_="Rolling"
+        ErrorMessage.parameter_not_implemented_error(
+            parameter_name="step", method_name="Rolling"
         )  # pragma: no cover
 
 
@@ -134,6 +147,132 @@ def check_and_raise_error_expanding_window_supported_by_snowflake(
 
     if axis not in (0, "index"):
         # Note that this is deprecated since pandas 2.1.0
-        ErrorMessage.method_not_implemented_error(
-            name="axis = 1", class_="Expanding"
+        ErrorMessage.parameter_not_implemented_error(
+            parameter_name="axis = 1", method_name="Expanding"
         )  # pragma: no cover
+
+
+def create_snowpark_interval_from_window(window: str) -> SnowparkColumn:
+    """
+    This function creates a Snowpark column consisting of an Interval Expression from a given
+    window string.
+
+    Parameters
+    ----------
+    window: str
+        The given window (e.g. '2s') that we want to use to create a Snowpark column Interval
+        Expression to pass to Window.range_between.
+
+    Returns
+    -------
+    Snowpark Column
+    """
+    slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(window)
+    if slice_width < 0:
+        ErrorMessage.not_implemented(
+            "Snowpark pandas 'Rolling' does not yet support negative time 'window' offset"
+        )
+    # Ensure all possible frequencies 'rule_to_snowflake_width_and_slice_unit' can output are
+    # accounted for before creating the Interval column
+    if slice_unit not in (
+        "second",
+        "minute",
+        "hour",
+        "day",
+        "week",
+        "month",
+        "quarter",
+        "year",
+    ):
+        raise AssertionError(
+            f"Snowpark pandas cannot map 'window' {window} to an offset"
+        )
+    seconds = slice_width - 1 if slice_unit == "second" else 0
+    minutes = slice_width - 1 if slice_unit == "minute" else 0
+    hours = slice_width - 1 if slice_unit == "hour" else 0
+    days = slice_width - 1 if slice_unit == "day" else 0
+    weeks = slice_width - 1 if slice_unit == "week" else 0
+    months = slice_width - 1 if slice_unit == "month" else 0
+    quarters = slice_width - 1 if slice_unit == "quarter" else 0
+    years = slice_width - 1 if slice_unit == "year" else 0
+    return make_interval(
+        seconds=seconds,
+        minutes=minutes,
+        hours=hours,
+        days=days,
+        weeks=weeks,
+        months=months,
+        quarters=quarters,
+        years=years,
+    )
+
+
+def get_rolling_corr_column(
+    quoted_identifier: str,
+    other_quoted_identifier: str,
+    window_expr: Any,
+    window: Any,
+) -> SnowparkColumn:
+    """
+    Get the correlation column for rolling corr calculations based on two input columns and given window.
+
+    Parameters
+    ----------
+    quoted_identifier: left column quoted identifier.
+    other_quoted_identifier: right column quoted identifier.
+    window_expr: WindowSpec object for rolling calculations.
+    window: size of the moving window.
+    """
+    # pearson correlation calculated using formula here: https://byjus.com/jee/correlation-coefficient/
+    # corr = top_exp / (count_exp * sig_exp)
+
+    # count of non-null values in the window
+    count_exp = builtin("count_if")(
+        col(quoted_identifier).is_not_null()
+        & col(other_quoted_identifier).is_not_null()
+    ).over(window_expr)
+
+    # std_prod_exp = std_pop(x)*std_pop(y)
+    std_prod_exp = stddev_pop(
+        iff(
+            col(quoted_identifier).is_null(),
+            pandas_lit(None),
+            col(other_quoted_identifier),
+        )
+    ).over(window_expr) * stddev_pop(
+        iff(
+            col(other_quoted_identifier).is_null(),
+            pandas_lit(None),
+            col(quoted_identifier),
+        )
+    ).over(
+        window_expr
+    )
+
+    # top expr = sum(x,y) - (sum(x)*sum(y) / n)
+    top_exp = (
+        sum_(col(quoted_identifier) * col(other_quoted_identifier)).over(window_expr)
+    ) - (
+        sum_(
+            iff(
+                col(quoted_identifier).is_null(),
+                pandas_lit(None),
+                col(other_quoted_identifier),
+            )
+        ).over(window_expr)
+        * (
+            sum_(
+                iff(
+                    col(other_quoted_identifier).is_null(),
+                    pandas_lit(None),
+                    col(quoted_identifier),
+                )
+            ).over(window_expr)
+        )
+    ) / count_exp
+    new_col = iff(
+        count_exp.__eq__(window) & (count_exp * std_prod_exp).__gt__(0),
+        top_exp / (count_exp * std_prod_exp),
+        pandas_lit(None),
+    )
+    return new_col

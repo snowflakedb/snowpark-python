@@ -12,14 +12,15 @@ from pandas.errors import SpecificationError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     ARRAY_DATA_AND_TYPE,
     MAP_DATA_AND_TYPE,
     MIXED_NUMERIC_STR_DATA_AND_TYPE,
     TIMESTAMP_DATA_AND_TYPE,
+    create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize(
@@ -164,7 +165,7 @@ def test_groupby_min_max_invalid_non_numeric_column(
         agg_func(df).to_pandas()
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_groupby_series_numeric_only_true(series_str):
     message = "SeriesGroupBy does not implement numeric_only"
     eval_snowpark_pandas_result(
@@ -177,7 +178,7 @@ def test_groupby_series_numeric_only_true(series_str):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_groupby_as_index_raises(series_str):
     eval_snowpark_pandas_result(
         series_str,
@@ -254,7 +255,7 @@ def test_groupby_as_index_false_axis_1_raises(df_multi):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_groupby_series_agg_dict_like_input_raise(series_str):
     eval_snowpark_pandas_result(
         series_str,
@@ -535,7 +536,10 @@ def test_groupby_agg_invalid_numeric_only(
     # treated as True. This behavior is confusing to customer, in Snowpark pandas, we do an
     # explicit type check, an errors it out if an invalid value is given.
     with pytest.raises(
-        ValueError, match=re.escape('For argument "numeric_only" expected type bool')
+        ValueError,
+        match=re.escape(
+            f"GroupBy aggregations like 'sum' take a 'numeric_only' argument that needs to be a bool, but a {type(numeric_only).__name__} value was passed in."
+        ),
     ):
         getattr(basic_snowpark_pandas_df.groupby("col1"), agg_method_name)(
             numeric_only=numeric_only
@@ -556,3 +560,15 @@ def test_groupby_agg_invalid_min_count(
         getattr(basic_snowpark_pandas_df.groupby("col1"), min_count_method)(
             min_count=min_count
         )
+
+
+@sql_count_checker(query_count=0)
+def test_timedelta_var_invalid():
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            [["key0", pd.Timedelta(1)]],
+        ),
+        lambda df: df.groupby(0).var(),
+        expect_exception=True,
+        expect_exception_type=TypeError,
+    )

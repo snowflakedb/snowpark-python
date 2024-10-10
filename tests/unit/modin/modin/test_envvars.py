@@ -90,6 +90,32 @@ def test_custom_help(make_custom_envvar):
     assert "custom var" in make_custom_envvar.get_help()
 
 
+def _init_doc_module():
+    # Put the docs_module on the path
+    sys.path.append(f"{os.path.dirname(__file__)}")
+    # We use base.py from upstream modin, so we need to initialize its doc module
+    # However, since using the environment variable causes an importlib.reload call,
+    # we need to manually call _inherit_docstrings (https://github.com/modin-project/modin/issues/7138)
+    from .docs_module import classes
+
+    # As a workaround for upstream modin bugs, we use our own _inherit_docstrings instead of the upstream
+    # function. We accordingly need to clear the docstring dictionary in testing because
+    # we manually called the annotation on initializing snowflake.snowpark.modin.plugin.
+    # snowflake.snowpark.modin.utils._attributes_with_docstrings_replaced.clear()
+    # TODO: once modin 0.31.0 is available, use the actual modin DocModule class
+    snowflake.snowpark.modin.utils._inherit_docstrings(
+        classes.BasePandasDataset,
+        overwrite_existing=True,
+    )(pd.base.BasePandasDataset)
+    DocModule.put("docs_module")
+
+
+DOC_OVERRIDE_XFAIL_REASON = (
+    "test docstring overrides currently cannot override real docstring overrides until "
+    "modin 0.31.0 is available"
+)
+
+
 class TestDocModule:
     """
     Test using a module to replace default docstrings.
@@ -99,11 +125,9 @@ class TestDocModule:
     which we need to fix in upstream modin.
     """
 
+    @pytest.mark.xfail(strict=True, reason=DOC_OVERRIDE_XFAIL_REASON)
     def test_overrides(self):
-        # Put the docs_module on the path
-        sys.path.append(f"{os.path.dirname(__file__)}")
-        DocModule.put("docs_module")
-
+        _init_doc_module()
         # Test for override
         # TODO(https://github.com/modin-project/modin/issues/7134): Upstream
         # the BasePandasDataset tests to modin.
@@ -142,13 +166,10 @@ class TestDocModule:
         # Test for pandas doc when function is not defined on module.
         assert pandas.read_table.__doc__ in pd.read_table.__doc__
 
+    @pytest.mark.xfail(strict=True, reason=DOC_OVERRIDE_XFAIL_REASON)
     def test_not_redefining_classes_modin_issue_7138(self):
         original_dataframe_class = pd.DataFrame
-
-        # Put the docs_module on the path
-        sys.path.append(f"{os.path.dirname(__file__)}")
-        DocModule.put("docs_module")
-
+        _init_doc_module()
         # Test for override
         assert (
             pd.DataFrame.apply.__doc__
@@ -157,22 +178,20 @@ class TestDocModule:
 
         assert pd.DataFrame is original_dataframe_class
 
+    @pytest.mark.xfail(strict=True, reason=DOC_OVERRIDE_XFAIL_REASON)
     def test_base_docstring_override_with_no_dataframe_or_series_class_modin_issue_7113(
         self,
     ):
         # TODO(https://github.com/modin-project/modin/issues/7113): Upstream
         # this test case to Modin. This test case tests scenario 1 from issue 7113.
-        sys.path.append(f"{os.path.dirname(__file__)}")
-        DocModule.put("docs_module_with_just_base")
+        _init_doc_module()
         assert pd.base.BasePandasDataset.astype.__doc__ == (
             "This is a test of the documentation module for BasePandasDataSet.astype."
         )
 
+    @pytest.mark.xfail(strict=True, reason=DOC_OVERRIDE_XFAIL_REASON)
     def test_base_property_not_overridden_in_either_subclass_modin_issue_7113(self):
-        # Put the docs_module on the path
-        sys.path.append(f"{os.path.dirname(__file__)}")
-        DocModule.put("docs_module")
-
+        _init_doc_module()
         assert (
             pd.base.BasePandasDataset.loc.__doc__
             == "This is a test of the documentation module for BasePandasDataset.loc."

@@ -6,14 +6,15 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_values_equal,
     create_test_series,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize(
@@ -32,6 +33,20 @@ from tests.integ.modin.utils import (
         [True, None, False, True, None],
         [1.1, "a", None] * 4,
         [native_pd.to_datetime("2023-12-01"), native_pd.to_datetime("1999-09-09")] * 2,
+        param(
+            [
+                native_pd.Timedelta(1),
+                native_pd.Timedelta(1),
+                native_pd.Timedelta(2),
+                None,
+                None,
+            ],
+            id="timedelta_with_nulls",
+        ),
+        param(
+            [native_pd.Timedelta(1), native_pd.Timedelta(1), native_pd.Timedelta(2)],
+            id="timedelta_without_nulls",
+        ),
     ],
 )
 @pytest.mark.parametrize("dropna", [True, False])

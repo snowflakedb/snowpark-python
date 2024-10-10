@@ -11,6 +11,7 @@ import numbers
 import operator
 import re
 import string
+import threading
 from decimal import Decimal
 from functools import partial, reduce
 from numbers import Real
@@ -23,6 +24,8 @@ import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import FunctionExpression
 from snowflake.snowpark.mock._options import numpy, pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
+    _TIMESTAMP_TYPE_MAPPING,
+    _TIMESTAMP_TYPE_TIMEZONE_MAPPING,
     ColumnEmulator,
     ColumnType,
     TableEmulator,
@@ -129,14 +132,17 @@ class MockedFunction:
 
 class MockedFunctionRegistry:
     _instance = None
+    _lock_init = threading.Lock()
 
     def __init__(self) -> None:
         self._registry = dict()
+        self._lock = threading.RLock()
 
     @classmethod
     def get_or_create(cls) -> "MockedFunctionRegistry":
-        if cls._instance is None:
-            cls._instance = MockedFunctionRegistry()
+        with cls._lock_init:
+            if cls._instance is None:
+                cls._instance = MockedFunctionRegistry()
         return cls._instance
 
     def get_function(
@@ -150,10 +156,11 @@ class MockedFunctionRegistry:
             distinct = func.is_distinct
         func_name = func_name.lower()
 
-        if func_name not in self._registry:
-            return None
+        with self._lock:
+            if func_name not in self._registry:
+                return None
 
-        function = self._registry[func_name]
+            function = self._registry[func_name]
 
         return function.distinct if distinct else function
 
@@ -168,7 +175,8 @@ class MockedFunctionRegistry:
             snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
         )
         mocked_function = MockedFunction(name, func_implementation, *args, **kwargs)
-        self._registry[name] = mocked_function
+        with self._lock:
+            self._registry[name] = mocked_function
         return mocked_function
 
     def unregister(
@@ -179,8 +187,9 @@ class MockedFunctionRegistry:
             snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
         )
 
-        if name in self._registry:
-            del self._registry[name]
+        with self._lock:
+            if name in self._registry:
+                del self._registry[name]
 
 
 class LocalTimezone:
@@ -483,6 +492,13 @@ def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
 @patch("sqrt")
 def mock_sqrt(column: ColumnEmulator):
     result = column.apply(math.sqrt)
+    result.sf_type = ColumnType(FloatType(), column.sf_type.nullable)
+    return result
+
+
+@patch("ln")
+def mock_ln(column: ColumnEmulator):
+    result = column.apply(math.log)
     result.sf_type = ColumnType(FloatType(), column.sf_type.nullable)
     return result
 
@@ -1014,7 +1030,11 @@ def mock_to_timestamp(
     try_cast: bool = False,
 ):
     result = mock_to_timestamp_ntz(column, fmt, try_cast)
-    result.sf_type = ColumnType(TimestampType(), column.sf_type.nullable)
+
+    result.sf_type = ColumnType(
+        TimestampType(_TIMESTAMP_TYPE_TIMEZONE_MAPPING[_TIMESTAMP_TYPE_MAPPING]),
+        column.sf_type.nullable,
+    )
     return result
 
 

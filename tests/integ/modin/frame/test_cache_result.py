@@ -10,11 +10,11 @@ import pytest
 from pandas.testing import assert_frame_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
 )
+from tests.integ.utils.sql_counter import SqlCounter
 
 
 def assert_empty_snowpark_pandas_equals_to_pandas(snow_df, native_df):

@@ -386,6 +386,25 @@ True
 Series([], dtype: bool)
 """
 
+_get_set_index_doc = """
+{desc}
+
+{parameters_or_returns}
+
+Note
+----
+When setting `DataFrame.index` or `Series.index` where the length of the
+`Series`/`DataFrame` object does not match with the new index's length,
+pandas raises a ValueError. Snowpark pandas does not raise this error;
+this operation is valid.
+When the `Series`/`DataFrame` object is longer than the new index,
+the `Series`/`DataFrame`'s new index is filled with `NaN` values for
+the "extra" elements. When the `Series`/`DataFrame` object is shorter than
+the new index, the extra values in the new index are ignored—`Series` and
+`DataFrame` stay the same length `n`, and use only the first `n` values of
+the new index.
+"""
+
 
 class BasePandasDataset:
     """
@@ -498,7 +517,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
+        Snowpark pandas :class:`~modin.pandas.DataFrame` or Snowpark pandas :class:`~modin.pandas.Series`
 
         Notes
         -----
@@ -566,7 +585,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        same type as caller (Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`)
+        same type as caller (Snowpark pandas :class:`~modin.pandas.DataFrame` or Snowpark pandas :class:`~modin.pandas.Series`)
 
         Examples
         --------
@@ -676,7 +695,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        copy : Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        copy : Snowpark pandas :class:`~modin.pandas.Series` or Snowpark pandas :class:`~modin.pandas.DataFrame`
             Object type matches caller.
 
         Examples
@@ -734,7 +753,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
+        Snowpark pandas :class:`~modin.pandas.Series`
             For each column/row the number of non-NA/null entries.
 
         See Also
@@ -1472,7 +1491,7 @@ class BasePandasDataset:
         With a scalar integer.
 
         >>> type(df.iloc[0])
-        <class 'snowflake.snowpark.modin.pandas.series.Series'>
+        <class 'modin.pandas.series.Series'>
         >>> df.iloc[0]
         a    1
         b    2
@@ -1492,8 +1511,6 @@ class BasePandasDataset:
         >>> df.iloc[[0]]
            a  b  c  d
         0  1  2  3  4
-        >>> type(df.iloc[[0]])
-        <class 'snowflake.snowpark.modin.pandas.dataframe.DataFrame'>
 
         >>> df.iloc[[0, 1]]
              a    b    c    d
@@ -1687,6 +1704,12 @@ class BasePandasDataset:
         - Special indexing for DatetimeIndex is unsupported in Snowpark pandas, e.g., `partial string indexing <https://pandas.pydata.org/docs/user_guide/timeseries.html#partial-string-indexing>`_.
         - While setting rows with duplicated index, Snowpark pandas won't raise ValueError for duplicate labels to avoid
           eager evaluation.
+        - When using ``.loc`` to set values with a Series key and Series item, the index of the item is ignored, and values are set positionally.
+        - pandas ``.loc`` may sometimes raise a ValueError when using ``.loc`` to set values in a DataFrame from a Series using a Series as the
+          column key, but Snowpark pandas ``.loc`` supports this type of operation according to the rules specified above.
+        - ``.loc`` with boolean indexers for columns is currently unsupported.
+        - When using ``.loc`` to set column values for a Series item, with a ``slice(None)`` for the row columns, Snowpark pandas
+          sets the value for each row from the Series.
 
         See Also
         --------
@@ -1813,6 +1836,15 @@ class BasePandasDataset:
         viper               0       0
         sidewinder          0       0
 
+        Setting the values with a Series item.
+
+        >>> df.loc["viper"] = pd.Series([99, 99], index=["max_speed", "shield"])
+        >>> df
+                    max_speed  shield
+        cobra              30      10
+        viper              99      99
+        sidewinder          0       0
+
         **Getting values on a DataFrame with an index that has integer labels**
 
         Another example using integers for the index
@@ -1910,6 +1942,40 @@ class BasePandasDataset:
                    mark ii          1       4
         viper      mark ii          7       1
 
+        Set column values from Series with Series key.
+
+        >>> df = pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
+        >>> df.loc[:, pd.Series(list("ABC"))] = pd.Series([-10, -20, -30])
+        >>> df
+            A   B   C
+        0 -10 -20 -30
+        1 -10 -20 -30
+        >>> df.loc[:, pd.Series(list("ABC"))] = pd.Series([10, 20, 30], index=list("CBA"))
+        >>> df
+            A   B   C
+        0  10  20  30
+        1  10  20  30
+        >>> df.loc[:, pd.Series(list("BAC"))] = pd.Series([-10, -20, -30], index=list("ABC"))
+        >>> df
+            A   B   C
+        0 -20 -10 -30
+        1 -20 -10 -30
+
+        Set column values from Series with list key.
+
+        >>> df.loc[:, list("ABC")] = pd.Series([1, 3, 5], index=list("CAB"))
+        >>> df
+           A  B  C
+        0  3  5  1
+        1  3  5  1
+
+        Set column values for all rows from Series item.
+
+        >>> df.loc[:, "A":"B"] = pd.Series([10, 20, 30], index=list("ABC"))
+        >>> df
+            A   B  C
+        0  10  20  1
+        1  10  20  1
         """
 
     @doc(
@@ -2024,7 +2090,6 @@ class BasePandasDataset:
 
         Examples
         --------
-        >>> import snowflake.snowpark.modin.pandas as pd
         >>> df = pd.DataFrame({'A': [4, 5, 6], 'B': [4, 1, 1]})
         >>> df.nunique()
         A    3
@@ -2816,6 +2881,7 @@ class BasePandasDataset:
         """
         Implement shared functionality between DataFrame and Series for shift. axis argument is only relevant for
         Dataframe, and should be 0 for Series.
+
         Args:
             periods : int | Sequence[int]
                 Number of periods to shift. Can be positive or negative. If an iterable of ints,
@@ -3594,3 +3660,21 @@ class BasePandasDataset:
         BasePandasDataset
             The result of the ufunc applied to the `BasePandasDataset`.
         """
+
+    @doc(
+        _get_set_index_doc,
+        desc="Get the index for this `Series`/`DataFrame`.",
+        parameters_or_returns="Returns\n-------\nIndex\n    The index for this `Series`/`DataFrame`.",
+    )
+    def _get_index():
+        pass
+
+    @doc(
+        _get_set_index_doc,
+        desc="Set the index for this `Series`/`DataFrame`.",
+        parameters_or_returns="Parameters\n----------\nnew_index : Index\n    The new index to set.",
+    )
+    def _set_index():
+        pass
+
+    index = property(_get_index, _set_index)

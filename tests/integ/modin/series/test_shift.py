@@ -8,8 +8,8 @@ import pytest
 from pandas._libs.lib import no_default
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 TEST_SERIES = [
     native_pd.Series(),
@@ -46,11 +46,7 @@ def test_series_with_values_shift(series, periods, fill_value):
         lambda s: s.shift(
             periods=periods,
             fill_value=pd.Timedelta(fill_value)
-            if isinstance(
-                s, native_pd.Series
-            )  # pandas does not support fill int to timedelta
-            and s.dtype == "timedelta64[ns]"
-            and fill_value is not no_default
+            if s.dtype == "timedelta64[ns]" and fill_value is not no_default
             else fill_value,
         ),
     )

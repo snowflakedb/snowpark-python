@@ -13,6 +13,7 @@ from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
+from snowflake.snowpark.types import StringType
 
 
 @pytest.fixture(scope="function")
@@ -22,6 +23,10 @@ def mock_single_col_query_compiler() -> SnowflakeQueryCompiler:
     mock_internal_frame.data_column_snowflake_quoted_identifiers = ['"A"']
     mock_internal_frame.snowflake_quoted_identifier_to_snowpark_pandas_type = {
         '"A"': None
+    }
+    mock_internal_frame.get_snowflake_type.return_value = [StringType()]
+    mock_internal_frame.quoted_identifier_to_snowflake_type.return_value = {
+        '"A"': StringType()
     }
     fake_query_compiler = SnowflakeQueryCompiler(mock_internal_frame)
 

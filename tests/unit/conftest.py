@@ -60,6 +60,7 @@ def mock_analyzer(mock_snowflake_plan) -> Analyzer:
 @pytest.fixture(scope="module")
 def mock_session(mock_analyzer) -> Session:
     fake_session = mock.create_autospec(Session)
+    fake_session._cte_optimization_enabled = False
     fake_session._analyzer = mock_analyzer
     mock_analyzer.session = fake_session
     return fake_session

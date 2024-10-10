@@ -43,6 +43,7 @@ Functions
     array_min
     array_position
     array_prepend
+    array_remove
     array_size
     array_slice
     array_sort
@@ -195,11 +196,13 @@ Functions
     length
     listagg
     lit
+    ln
     locate
     log
     lower
     lpad
     ltrim
+    make_interval
     max
     md5
     mean

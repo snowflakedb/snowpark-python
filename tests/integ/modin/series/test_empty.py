@@ -9,8 +9,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize(
@@ -44,7 +44,7 @@ def test_series_empty(args, kwargs):
     )
 
 
-@sql_count_checker(query_count=7)
+@sql_count_checker(query_count=5, join_count=2)
 def test_empty_series_type():
     def check_dtype(series):
         assert series.to_pandas().dtype == series.dtype

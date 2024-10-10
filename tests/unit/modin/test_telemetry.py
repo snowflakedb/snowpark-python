@@ -162,7 +162,9 @@ def test_snowpark_pandas_telemetry_method_error(error):
         telemetry_type=error_to_telemetry_type(error),
         loc_pref="mock_class",
         mock_arg=mock_arg,
-        error_msg="test" if isinstance(error, NotImplementedError) else None,
+        error_msg="test"
+        if isinstance(error, (AssertionError, NotImplementedError))
+        else None,
     )
 
 
@@ -170,6 +172,7 @@ def test_snowpark_pandas_telemetry_method_error(error):
     "error, telemetry_type",
     [
         (NotImplementedError, "snowpark_pandas_not_implemented_error"),
+        (AssertionError, "snowpark_pandas_assertion_error"),
         (TypeError, "snowpark_pandas_type_error"),
         (SpecificationError, "snowpark_pandas_specification_error"),
         (DatabaseError, "snowpark_pandas_database_error"),
@@ -183,7 +186,7 @@ def test_error_to_telemetry_type(error, telemetry_type):
 def test_check_standalone_function_snowpark_pandas_telemetry_decorator():
     # Create a temporary file with sample code
     code = """
-from snowflake.snowpark.modin import pandas as pd
+import modin.pandas as pd
 from modin.pandas.dataframe import DataFrame
 from modin.pandas.series import Series
 import test_decorator

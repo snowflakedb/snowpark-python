@@ -7,8 +7,12 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import assert_series_equal
+from tests.integ.modin.utils import (
+    assert_series_equal,
+    create_test_dfs,
+    eval_snowpark_pandas_result,
+)
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=1)
@@ -62,16 +66,22 @@ def test_skew_basic():
             },
             "kwargs": {"numeric_only": True, "skipna": True},
         },
+        {
+            "frame": {
+                "A": [pd.Timedelta(1)],
+            },
+            "kwargs": {
+                "numeric_only": True,
+            },
+        },
     ],
 )
 @sql_count_checker(query_count=1)
 def test_skew(data):
-    native_df = native_pd.DataFrame(data["frame"])
-    snow_df = pd.DataFrame(native_df)
-    assert_series_equal(
-        snow_df.skew(**data["kwargs"]),
-        native_df.skew(**data["kwargs"]),
-        rtol=1.0e-5,
+    eval_snowpark_pandas_result(
+        *create_test_dfs(data["frame"]),
+        lambda df: df.skew(**data["kwargs"]),
+        rtol=1.0e-5
     )
 
 
@@ -102,6 +112,14 @@ def test_skew(data):
                 "A": [1, 2, 3],
             },
             "kwargs": {"level": 2},
+        },
+        {
+            "frame": {
+                "A": [pd.Timedelta(1)],
+            },
+            "kwargs": {
+                "numeric_only": False,
+            },
         },
     ],
 )

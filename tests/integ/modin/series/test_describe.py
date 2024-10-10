@@ -8,12 +8,13 @@ import numpy as np
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_series_equal,
+    create_test_dfs,
     create_test_series,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize(
@@ -155,4 +156,19 @@ def test_describe_timestamps(data):
 def test_describe_multiindex(data, index):
     eval_snowpark_pandas_result(
         *create_test_series(data, index=index), lambda ser: ser.describe()
+    )
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.xfail(
+    strict=True,
+    raises=NotImplementedError,
+    reason="requires concat(), which we cannot do with Timedelta.",
+)
+def test_timedelta(timedelta_native_df):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            timedelta_native_df,
+        ),
+        lambda df: df["A"].describe(),
     )

@@ -15,6 +15,8 @@ import io
 import sys
 from io import RawIOBase
 
+from snowflake.snowpark._internal.utils import private_preview
+
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
@@ -44,6 +46,7 @@ class SnowflakeFile(RawIOBase):
         is_owner_file: bool = False,
         *,
         require_scoped_url: bool = True,
+        from_result_api: bool = False,
     ) -> None:
         super().__init__()
         # The URL/URI of the file to be opened by the SnowflakeFile object
@@ -121,6 +124,20 @@ class SnowflakeFile(RawIOBase):
         Returns false, file streams in stored procedures and UDFs are never interactive in Snowflake.
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+
+    @classmethod
+    @private_preview(version="1.22.1")
+    def open_new_result(cls, mode: str = "w") -> SnowflakeFile:
+        """
+        Returns a :class:`~snowflake.snowpark.file.SnowflakeFile`.
+        In UDF and Stored Procedures, the object works like a Python IOBase object and as a wrapper for an IO stream of remote files. The IO Stream is to support the file operations defined in this class.
+
+        This stream will open a writable result file that will be materialized when it's returned by a UDF or Stored Procedure. When the file is materialized then file_uri will be set to a scoped URL that temporarily references this file.
+
+        Args:
+            mode: A string used to mark the type of an IO stream.
+        """
+        return cls("new results file", mode, require_scoped_url=0, from_result_api=True)
 
     def read(self, size: int = -1) -> None:
         """

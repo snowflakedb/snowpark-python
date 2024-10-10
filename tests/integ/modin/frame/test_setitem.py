@@ -11,13 +11,13 @@ import pytest
 from modin.pandas.utils import is_scalar
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
     try_cast_to_snowpark_pandas_series,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 # these tests are from original pandas and modified slightly to cover more scenarios.
 # Original tests can be found in pandas/tests/copy_view/test_setitem.py.

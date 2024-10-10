@@ -6,13 +6,17 @@ import modin.pandas as pd
 import pandas as native_pd
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal, assert_series_equal
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=3)
 def test_pd_to_pandas():
-    data = {"a": [1, 2, 3], "b": ["x", "y", "z"]}
+    data = {
+        "a": [1, 2, 3],
+        "b": ["x", "y", "z"],
+        "c": native_pd.timedelta_range("2 days", periods=3),
+    }
     assert_frame_equal(
         pd.to_pandas(pd.DataFrame(data)),
         native_pd.DataFrame(data),
@@ -24,4 +28,8 @@ def test_pd_to_pandas():
         native_pd.Series(data["a"]),
         check_index_type=False,
         check_dtype=False,
+    )
+    assert_series_equal(
+        pd.to_pandas(pd.Series(data["c"])),
+        native_pd.Series(data["c"]),
     )

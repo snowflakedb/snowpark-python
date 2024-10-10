@@ -9,8 +9,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import assert_index_equal, assert_series_equal
+from tests.integ.utils.sql_counter import SqlCounter
 
 
 @pytest.mark.parametrize(
@@ -43,7 +43,8 @@ def test_getattr(name, expected_query_count, expected_join_count):
 @pytest.mark.parametrize(
     "name, expected_query_count",
     [
-        ("columns", 1),
+        # columns is whitelisted
+        ("columns", 0),
         ("unknown", 1),
         ("____id_pack__", 0),
         ("__name__", 0),

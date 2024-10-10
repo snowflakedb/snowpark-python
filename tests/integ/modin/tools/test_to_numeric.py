@@ -3,21 +3,23 @@
 #
 import contextlib
 import logging
+import re
 from datetime import date, time
 
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
 
 
@@ -69,6 +71,7 @@ def errors(request):
             None,
             "float64",
         ),  # <- deviate from pandas' behavior, pandas returns object
+        param([native_pd.Timedelta(1)], None, "int64", id="timedelta"),
     ],
 )
 @sql_count_checker(query_count=1)
@@ -113,6 +116,15 @@ def test_scalar_to_numeric(input, dtype):
         assert (np.isnan(snow) and np.isnan(native)) or snow == pytest.approx(native)
     else:
         assert snow == native
+
+
+@sql_count_checker(query_count=2)
+def test_scalar_timedelta_to_numeric():
+    # Test this case separately because of a bug in pandas: https://github.com/pandas-dev/pandas/issues/59944
+    input = native_pd.Timedelta(1)
+    with pytest.raises(TypeError, match=re.escape("Invalid object type at position 0")):
+        native_pd.to_numeric(input)
+    assert pd.to_numeric(input) == 1
 
 
 @sql_count_checker(query_count=2)

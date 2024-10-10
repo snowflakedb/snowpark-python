@@ -25,7 +25,7 @@ from typing import (
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
-    sum_node_complexities,
+    PlanState,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
@@ -93,10 +93,12 @@ from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     CopyIntoTableNode,
+    DynamicTableCreateMode,
     LogicalPlan,
     SaveMode,
     SnowflakeCreateTable,
     TableCreationSource,
+    WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateDynamicTableCommand,
@@ -227,7 +229,7 @@ class SnowflakePlan(LogicalPlan):
         # This field records all the CTE tables that are referred by the
         # current SnowflakePlan tree. This is needed for the final query
         # generation to generate the correct sql query with CTE definition.
-        referenced_ctes: Optional[Set[str]] = None,
+        referenced_ctes: Optional[Set[WithQueryBlock]] = None,
         *,
         session: "snowflake.snowpark.session.Session",
     ) -> None:
@@ -253,12 +255,17 @@ class SnowflakePlan(LogicalPlan):
         # In the placeholder query, subquery (child) is held by the ID of query plan
         # It is used for optimization, by replacing a subquery with a CTE
         self.placeholder_query = placeholder_query
-        # encode an id for CTE optimization
+        # encode an id for CTE optimization. This is generated based on the main
+        # query and the associated query parameters. We use this id for equality comparison
+        # to determine if two plans are the same.
         self._id = encode_id(queries[-1].sql, queries[-1].params)
-        self.referenced_ctes: Set[str] = (
+        self.referenced_ctes: Set[WithQueryBlock] = (
             referenced_ctes.copy() if referenced_ctes else set()
         )
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
+        # UUID for the plan to uniquely identify the SnowflakePlan object. We also use this
+        # to UUID track queries that are generated from the same plan.
+        self._uuid = str(uuid.uuid4())
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         if not isinstance(other, SnowflakePlan):
@@ -270,6 +277,10 @@ class SnowflakePlan(LogicalPlan):
 
     def __hash__(self) -> int:
         return hash(self._id) if self._id else super().__hash__()
+
+    @property
+    def uuid(self) -> str:
+        return self._uuid
 
     @property
     def execution_queries(self) -> Dict["PlanQueryType", List["Query"]]:
@@ -406,21 +417,34 @@ class SnowflakePlan(LogicalPlan):
         return self._output_dict
 
     @cached_property
-    def plan_height(self) -> int:
+    def num_duplicate_nodes(self) -> int:
+        duplicated_nodes, _ = find_duplicate_subtrees(self)
+        return len(duplicated_nodes)
+
+    @cached_property
+    def plan_state(self) -> Dict[PlanState, Any]:
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            SelectStatement,
+        )
+
         height = 0
+        num_selects_with_complexity_merged = 0
         current_level = [self]
         while len(current_level) > 0:
             next_level = []
             for node in current_level:
                 next_level.extend(node.children_plan_nodes)
+                if (
+                    isinstance(node, SelectStatement)
+                    and node._merge_projection_complexity_with_subquery
+                ):
+                    num_selects_with_complexity_merged += 1
             height += 1
             current_level = next_level
-        return height
-
-    @cached_property
-    def num_duplicate_nodes(self) -> int:
-        duplicated_nodes, _ = find_duplicate_subtrees(self)
-        return len(duplicated_nodes)
+        return {
+            PlanState.PLAN_HEIGHT: height,
+            PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: num_selects_with_complexity_merged,
+        }
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -431,15 +455,24 @@ class SnowflakePlan(LogicalPlan):
     @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         if self._cumulative_node_complexity is None:
-            self._cumulative_node_complexity = sum_node_complexities(
-                self.individual_node_complexity,
-                *(node.cumulative_node_complexity for node in self.children_plan_nodes),
-            )
+            # if source plan is available, the source plan complexity
+            # is the snowflake plan complexity.
+            if self.source_plan:
+                self._cumulative_node_complexity = (
+                    self.source_plan.cumulative_node_complexity
+                )
+            else:
+                self._cumulative_node_complexity = {}
         return self._cumulative_node_complexity
 
     @cumulative_node_complexity.setter
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
         self._cumulative_node_complexity = value
+
+    def reset_cumulative_node_complexity(self) -> None:
+        super().reset_cumulative_node_complexity()
+        if self.source_plan:
+            self.source_plan.reset_cumulative_node_complexity()
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
@@ -625,7 +658,7 @@ class SnowflakePlanBuilder:
             if post_action not in post_actions:
                 post_actions.append(copy.copy(post_action))
 
-        referenced_ctes: Set[str] = set()
+        referenced_ctes: Set[WithQueryBlock] = set()
         if (
             self.session.cte_optimization_enabled
             and self.session._query_compilation_stage_enabled
@@ -835,11 +868,18 @@ class SnowflakePlanBuilder:
         table_type: str,
         clustering_keys: Iterable[str],
         comment: Optional[str],
+        enable_schema_evolution: Optional[bool],
+        data_retention_time: Optional[int],
+        max_data_extension_time: Optional[int],
+        change_tracking: Optional[bool],
+        copy_grants: bool,
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         use_scoped_temp_objects: bool,
         creation_source: TableCreationSource,
         child_attributes: Optional[List[Attribute]],
+        iceberg_config: Optional[dict] = None,
+        table_exists: Optional[bool] = None,
     ) -> SnowflakePlan:
         """Returns a SnowflakePlan to materialize the child plan into a table.
 
@@ -850,6 +890,11 @@ class SnowflakePlanBuilder:
             table_type: temporary, transient, or permanent
             clustering_keys: list of clustering columns
             comment: comment associated with the table
+            enable_schema_evolution: whether to enable schema evolution
+            data_retention_time: data retention time in days
+            max_data_extension_time: max data extension time in days
+            change_tracking: whether to enable change tracking
+            copy_grants: whether to copy grants
             child: the SnowflakePlan that is being materialized into a table
             source_plan: the source plan of the child
             use_scoped_temp_objects: should we use scoped temp objects
@@ -861,6 +906,15 @@ class SnowflakePlanBuilder:
             child_attributes: child attributes will be none in the case of large query breakdown
                 where we use ctas query to create the table which does not need to know the column
                 metadata.
+            iceberg_config: A dictionary that can contain the following iceberg configuration values:
+                external_volume: specifies the identifier for the external volume where
+                    the Iceberg table stores its metadata files and data in Parquet format
+                catalog: specifies either Snowflake or a catalog integration to use for this table
+                base_location: the base directory that snowflake can write iceberg metadata and files to
+                catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
+                storage_serialization_policy: specifies the storage serialization policy for the table
+            table_exists: whether the table already exists in the database.
+                Only used for APPEND and TRUNCATE mode.
         """
         is_generated = creation_source in (
             TableCreationSource.CACHE_RESULT,
@@ -913,6 +967,14 @@ class SnowflakePlanBuilder:
                     table_type=table_type,
                     clustering_key=clustering_keys,
                     comment=comment,
+                    enable_schema_evolution=enable_schema_evolution,
+                    data_retention_time=data_retention_time,
+                    max_data_extension_time=max_data_extension_time,
+                    change_tracking=change_tracking,
+                    copy_grants=copy_grants,
+                    iceberg_config=iceberg_config,
+                    use_scoped_temp_objects=use_scoped_temp_objects,
+                    is_generated=is_generated,
                 ),
                 child,
                 source_plan,
@@ -932,8 +994,14 @@ class SnowflakePlanBuilder:
                 table_type=table_type,
                 clustering_key=clustering_keys,
                 comment=comment,
+                enable_schema_evolution=enable_schema_evolution,
+                data_retention_time=data_retention_time,
+                max_data_extension_time=max_data_extension_time,
+                change_tracking=change_tracking,
+                copy_grants=copy_grants,
                 use_scoped_temp_objects=use_scoped_temp_objects,
                 is_generated=is_generated,
+                iceberg_config=iceberg_config,
             )
 
             # so that dataframes created from non-select statements,
@@ -962,7 +1030,8 @@ class SnowflakePlanBuilder:
             )
 
         if mode == SaveMode.APPEND:
-            if self.session._table_exists(table_name):
+            assert table_exists is not None
+            if table_exists:
                 return self.build(
                     lambda x: insert_into_statement(
                         table_name=full_table_name,
@@ -977,7 +1046,8 @@ class SnowflakePlanBuilder:
                 return get_create_and_insert_plan(child, replace=False, error=False)
 
         elif mode == SaveMode.TRUNCATE:
-            if self.session._table_exists(table_name):
+            assert table_exists is not None
+            if table_exists:
                 return self.build(
                     lambda x: insert_into_statement(
                         full_table_name, x, [x.name for x in child.attributes], True
@@ -1088,6 +1158,13 @@ class SnowflakePlanBuilder:
         warehouse: str,
         lag: str,
         comment: Optional[str],
+        create_mode: DynamicTableCreateMode,
+        refresh_mode: Optional[str],
+        initialize: Optional[str],
+        clustering_keys: Iterable[str],
+        is_transient: bool,
+        data_retention_time: Optional[int],
+        max_data_extension_time: Optional[int],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
@@ -1097,10 +1174,35 @@ class SnowflakePlanBuilder:
         if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_SELECT_ONLY()
 
+        if create_mode == DynamicTableCreateMode.OVERWRITE:
+            replace = True
+            if_not_exists = False
+        elif create_mode == DynamicTableCreateMode.ERROR_IF_EXISTS:
+            replace = False
+            if_not_exists = False
+        elif create_mode == DynamicTableCreateMode.IGNORE:
+            replace = False
+            if_not_exists = True
+        else:
+            # should never reach here
+            raise ValueError(f"Unknown create mode: {create_mode}")  # pragma: no cover
+
         child = child.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: create_or_replace_dynamic_table_statement(
-                name, warehouse, lag, comment, x
+                name=name,
+                warehouse=warehouse,
+                lag=lag,
+                comment=comment,
+                replace=replace,
+                if_not_exists=if_not_exists,
+                refresh_mode=refresh_mode,
+                initialize=initialize,
+                clustering_keys=clustering_keys,
+                is_transient=is_transient,
+                data_retention_time=data_retention_time,
+                max_data_extension_time=max_data_extension_time,
+                child=x,
             ),
             child,
             source_plan,
@@ -1325,6 +1427,7 @@ class SnowflakePlanBuilder:
         *,
         copy_options: Dict[str, Any],
         format_type_options: Dict[str, Any],
+        iceberg_config: Optional[dict] = None,
     ) -> SnowflakePlan:
         # tracking usage of pattern, will refactor this function in future
         if pattern:
@@ -1358,6 +1461,7 @@ class SnowflakePlanBuilder:
                     create_table_statement(
                         full_table_name,
                         attribute_to_schema_string(attributes),
+                        iceberg_config=iceberg_config,
                     ),
                     # This is an exception. The principle is to avoid surprising behavior and most of the time
                     # it applies to temp object. But this perm table creation is also one place where we create
@@ -1546,18 +1650,25 @@ class SnowflakePlanBuilder:
             )
 
     def with_query_block(
-        self, name: str, child: SnowflakePlan, source_plan: LogicalPlan
+        self,
+        with_query_block: WithQueryBlock,
+        child: SnowflakePlan,
+        source_plan: LogicalPlan,
     ) -> SnowflakePlan:
         if not self._skip_schema_query:
             raise ValueError(
                 "schema query for WithQueryBlock is currently not supported"
             )
 
+        name = with_query_block.name
         new_query = project_statement([], name)
 
+        # note we do not propagate the query parameter of the child here,
+        # the query parameter will be propagate along with the definition during
+        # query generation stage.
         queries = child.queries[:-1] + [Query(sql=new_query)]
         # propagate the cte table
-        referenced_ctes = {name}.union(child.referenced_ctes)
+        referenced_ctes = {with_query_block}.union(child.referenced_ctes)
 
         return SnowflakePlan(
             queries,

@@ -50,10 +50,11 @@ def is_excluded_frontend_file(path):
     return False
 
 
-def pytest_addoption(parser):
+def pytest_addoption(parser, pluginmanager):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
     parser.addoption("--local_testing_mode", action="store_true", default=False)
     parser.addoption("--enable_cte_optimization", action="store_true", default=False)
+    parser.addoption("--skip_sql_count_check", action="store_true", default=False)
     parser.addoption("--enable-ast", action="store_true", default=False)
 
 
@@ -130,6 +131,17 @@ def cte_optimization_enabled(pytestconfig):
 
 def pytest_sessionstart(session):
     os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"] = "1"
+
+
+SKIP_SQL_COUNT_CHECK = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_skip_sql_count_check(pytestconfig):
+    skip = pytestconfig.getoption("skip_sql_count_check")
+    if skip:
+        global SKIP_SQL_COUNT_CHECK
+        SKIP_SQL_COUNT_CHECK = True
 
 
 @pytest.fixture(autouse=True)

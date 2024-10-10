@@ -8,7 +8,7 @@ import pytest
 from packaging import version
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker
 
 # As of writing, Snowpark pandas does not currently support numpy 2.x, but we have already
 # excised the np.NaN and np.float_ aliases from our codebase. When we eventually do support

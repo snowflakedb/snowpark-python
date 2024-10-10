@@ -10,13 +10,13 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import (
+from snowflake.snowpark.modin.plugin.extensions.utils import (
     create_empty_native_pandas_frame,
     try_convert_builtin_func_to_str,
     validate_and_try_convert_agg_func_arg_func_to_str,
 )
 
-# Tests for modin.pandas.utils
+# Tests for modin.plugin.extensions.utils
 
 
 @pytest.mark.parametrize("index_names", [["C"], ["C", "D"], [None]])

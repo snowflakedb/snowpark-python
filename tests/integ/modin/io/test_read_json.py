@@ -16,8 +16,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
 
 # Note: read_json operations have a high query count.
@@ -322,7 +322,7 @@ def test_read_json_malformed_file_negative():
     "parameter, argument",
     [
         ("orient", "records"),
-        ("typ", "frame"),
+        ("typ", "series"),
         ("dtype", True),
         ("convert_axes", True),
         ("convert_dates", True),

@@ -19,13 +19,13 @@ from snowflake.snowpark.modin.plugin.utils.exceptions import (
     SnowparkPandasErrorCode,
     SnowparkPandasException,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     BASIC_TYPE_DATA1,
     BASIC_TYPE_DATA2,
     VALID_SNOWFLAKE_COLUMN_NAMES_AND_ALIASES,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import Utils
 
 
@@ -386,7 +386,7 @@ def test_read_snowflake_query_connect_by(session):
                         CONNECT BY
                         manager_ID = PRIOR employee_id
                     ORDER BY employee_ID"""
-    native_df = native_pd.DataFrame(session.sql(SQL_QUERY).collect())
+    native_df = session.sql(SQL_QUERY).to_pandas()
     snow_df = (
         pd.read_snowflake(SQL_QUERY).sort_values("EMPLOYEE_ID").reset_index(drop=True)
     )

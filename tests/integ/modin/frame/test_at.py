@@ -5,8 +5,8 @@ import modin.pandas as pd
 import pytest
 from pandas.errors import IndexingError
 
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=2, join_count=2)
