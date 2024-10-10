@@ -1,3 +1,5 @@
+# Disablement reason: Need to register stored proc first. Else an exception is thrown.
+
 ## TEST CASE
 
 df = session.call("my_sproc", 1, "two", {"param1": 10, "param2": "twenty"}, True)
