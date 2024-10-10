@@ -54,7 +54,7 @@
 - Use SCOPED object for internal create temp tables. The SCOPED objects will be stored sproc scoped if created within stored sproc, otherwise will be session scoped, and the object will be automatically cleaned at the end of the scope.
 - Improved warning messages for operations that lead to materialization with inadvertent slowness.
 - Removed unnecessary warning message about `convert_dtype` in `Series.apply`.
-- Improved error message when passing an unknown timezone to `tz_convert` and `tz_localize` in `Series`, `DataFrame`, `Series.dt`, and `DatatimeIndex`.
+- Improved error message when passing an unknown timezone to `tz_convert` and `tz_localize` in `Series`, `DataFrame`, `Series.dt`, and `DatetimeIndex`.
 
 #### Bug Fixes
 

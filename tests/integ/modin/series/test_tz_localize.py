@@ -74,7 +74,7 @@ def test_tz_localize(tz):
 
 
 @pytest.mark.parametrize(
-    "tz, axis, level, copy, ambiguous, nonexistent, tz, exception",
+    "tz, axis, level, copy, ambiguous, nonexistent, exception",
     [
         ("UTC", 1, None, True, "raise", "raise", ValueError),
         ("UTC", "columns", None, True, "raise", "raise", ValueError),
