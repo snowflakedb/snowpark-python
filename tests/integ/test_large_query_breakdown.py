@@ -136,7 +136,9 @@ def test_large_query_breakdown_external_cte_ref(session):
     df2 = df2.group_by("B").agg(sum_distinct(col("A")).alias("A"))
     final_df = df1.union_all(df2)
 
-    check_result_with_and_without_breakdown(session, final_df)
+    with SqlCounter(query_count=3, describe_count=0):
+        check_result_with_and_without_breakdown(session, final_df)
+
     with patch.object(
         session._conn._telemetry_client, "send_query_compilation_summary_telemetry"
     ) as patch_send:
@@ -174,7 +176,8 @@ def test_breakdown_at_with_query_node(session):
     for i in range(5):
         final_df = final_df.with_column("A", col("A") + i + col("A"))
 
-    check_result_with_and_without_breakdown(session, final_df)
+    with SqlCounter(query_count=5, describe_count=0):
+        check_result_with_and_without_breakdown(session, final_df)
 
     queries = final_df.queries
     assert len(queries["queries"]) == 2
