@@ -258,7 +258,7 @@ class SnowflakePlan(LogicalPlan):
         # encode an id for CTE optimization. This is generated based on the main
         # query and the associated query parameters. We use this id for equality comparison
         # to determine if two plans are the same.
-        self._id = encode_id(queries[-1].sql, queries[-1].params)
+        self.encoded_id = encode_id(queries[-1].sql, queries[-1].params)
         self.referenced_ctes: Set[WithQueryBlock] = (
             referenced_ctes.copy() if referenced_ctes else set()
         )
@@ -266,17 +266,6 @@ class SnowflakePlan(LogicalPlan):
         # UUID for the plan to uniquely identify the SnowflakePlan object. We also use this
         # to UUID track queries that are generated from the same plan.
         self._uuid = str(uuid.uuid4())
-
-    def __eq__(self, other: "SnowflakePlan") -> bool:
-        if not isinstance(other, SnowflakePlan):
-            return False
-        if self._id is not None and other._id is not None:
-            return isinstance(other, SnowflakePlan) and self._id == other._id
-        else:
-            return super().__eq__(other)
-
-    def __hash__(self) -> int:
-        return hash(self._id) if self._id else super().__hash__()
 
     @property
     def uuid(self) -> str:
@@ -590,8 +579,8 @@ class SnowflakePlanBuilder:
             new_schema_query = schema_query or sql_generator(child.schema_query)
 
         placeholder_query = (
-            sql_generator(select_child._id)
-            if self.session._cte_optimization_enabled and select_child._id is not None
+            sql_generator(select_child.encoded_id)
+            if self.session._cte_optimization_enabled and select_child.encoded_id is not None
             else None
         )
 
