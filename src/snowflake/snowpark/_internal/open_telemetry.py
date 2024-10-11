@@ -63,12 +63,12 @@ def open_telemetry_context_manager(func, dataframe):
 @contextmanager
 def open_telemetry_udf_context_manager(
     registration_function,
-    func=None,
-    handler=None,
-    func_name=None,
-    handler_name=None,
-    name=None,
-    file_path=None,
+    func="",
+    handler="",
+    func_name="",
+    handler_name="",
+    name="",
+    file_path="",
 ):
     # trace when required package is installed
     if open_telemetry_found:
