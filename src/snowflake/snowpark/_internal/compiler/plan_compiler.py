@@ -116,10 +116,9 @@ class PlanCompiler:
                 large_query_breakdown = LargeQueryBreakdown(
                     self._plan.session, query_generator, logical_plans
                 )
-                logical_plans = large_query_breakdown.apply()
-                breakdown_failure_summary = (
-                    large_query_breakdown.breakdown_failure_summary
-                )
+                breakdown_result = large_query_breakdown.apply()
+                logical_plans = breakdown_result.logical_plans
+                breakdown_failure_summary = large_query_breakdown._breakdown_summary
 
             large_query_breakdown_end_time = time.time()
             complexity_scores_after_large_query_breakdown = [

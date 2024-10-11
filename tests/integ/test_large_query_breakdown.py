@@ -113,9 +113,10 @@ def test_no_valid_nodes_found(session, caplog):
 
 
 def test_large_query_breakdown_external_cte_ref(session):
+    session._cte_optimization_enabled = True
     if not session.sql_simplifier_enabled:
         set_bounds(session, 50, 90)
-    session._cte_optimization_enabled = True
+
     base_select = session.sql("select 1 as A, 2 as B")
     df1 = base_select.with_column("A", col("A") + lit(1))
     df2 = base_select.with_column("B", col("B") + lit(1))
@@ -143,13 +144,40 @@ def test_large_query_breakdown_external_cte_ref(session):
     patch_send.assert_called_once()
     _, kwargs = patch_send.call_args
     summary_value = kwargs["compilation_stage_summary"]
-    assert summary_value["breakdown_failure_summary"] == {
-        "num_nodes_invalid_due_to_external_cte_ref": 2,
-        "num_nodes_invalid_due_to_pipeline": 4,
-        "num_nodes_invalid_due_to_score": 25,
-        "num_partitions_without_valid_nodes": 1,
-        "num_partitions_invalid_due_to_external_cte_ref": 1,
-    }
+    assert summary_value["breakdown_failure_summary"] == [
+        {
+            "num_nodes_invalid_due_to_external_cte_ref": 2,
+            "num_nodes_invalid_due_to_pipeline": 4,
+            "num_nodes_invalid_due_to_score_below_lower_bound": 24,
+            "num_nodes_invalid_due_to_score_above_upper_bound": 1,
+            "num_valid_nodes_in_partition": 0,
+            "num_partitions_made": 0,
+        }
+    ]
+
+
+def test_breakdown_at_with_query_node(session):
+    session._cte_optimization_enabled = True
+    if not session.sql_simplifier_enabled:
+        pass
+
+    df0 = session.sql("select 1 as A, 2 as B")
+    for i in range(7):
+        df0 = df0.with_column("A", col("A") + i + col("A"))
+
+    union_df = df0.union_all(df0)
+    final_df = union_df.with_column("A", col("A") + 1)
+    for i in range(5):
+        final_df = final_df.with_column("A", col("A") + i + col("A"))
+
+    check_result_with_and_without_breakdown(session, final_df)
+
+    queries = final_df.queries
+    assert len(queries["queries"]) == 2
+    assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+    # SNOW-1734385: Remove it when the issue is fixed
+    assert "WITH SNOWPARK_TEMP_CTE_" in queries["queries"][0]
+    assert len(queries["post_actions"]) == 1
 
 
 def test_large_query_breakdown_with_cte_optimization(session):
@@ -190,10 +218,11 @@ def test_large_query_breakdown_with_cte_optimization(session):
     patch_send.assert_called_once()
     _, kwargs = patch_send.call_args
     summary_value = kwargs["compilation_stage_summary"]
-    assert summary_value["breakdown_failure_summary"] == {
-        "num_nodes_invalid_due_to_pipeline": 2,
-        "num_nodes_invalid_due_to_score": 1,
-    }
+    assert summary_value["breakdown_failure_summary"] == [
+        {
+            "num_partitions_made": 1,
+        }
+    ]
 
 
 def test_save_as_table(session, large_query_df):
