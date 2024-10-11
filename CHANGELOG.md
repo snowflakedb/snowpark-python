@@ -1,6 +1,16 @@
 # Release History
 
-## 1.23.0 (TBD)
+## 1.24.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+## 1.23.0 (2024-10-09)
 
 ### Snowpark Python API Updates
 
@@ -10,15 +20,14 @@
   - `make_interval`
 - Added support for using Snowflake Interval constants with `Window.range_between()` when the order by column is TIMESTAMP or DATE type.
 - Added support for file writes. This feature is currently in private preview.
-- Added support for `DataFrameGroupBy.fillna` and `SeriesGroupBy.fillna`.
-- Added support for constructing `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` arguments.
-- Added support for constructing `Series` and `DataFrame` objects with `index` and `column` values not present in `DataFrame`/`Series` `data`.
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
 - Added support for `Session.stored_procedure_profiler`.
 
 #### Improvements
 
 #### Bug Fixes
+
+- Fixed a bug where registering a stored procedure or UDxF with type hints would give a warning `'NoneType' has no len() when trying to read default values from function`.
 
 ### Snowpark pandas API Updates
 
@@ -29,10 +38,13 @@
 - Added support for `by`, `left_by`, `right_by`, `left_index`, and `right_index` for `pd.merge_asof`.
 - Added support for passing parameter `include_describe` to `Session.query_history`.
 - Added support for `DatetimeIndex.mean` and `DatetimeIndex.std` methods.
-- Added support for `Resampler.asfreq`, `Resampler.nunique`, and `Resampler.quantile`.
+- Added support for `Resampler.asfreq`, `Resampler.indices`, `Resampler.nunique`, and `Resampler.quantile`.
 - Added support for `resample` frequency `W`, `ME`, `YE` with `closed = "left"`.
 - Added support for `DataFrame.rolling.corr` and `Series.rolling.corr` for `pairwise = False` and int `window`.
 - Added support for string time-based `window` and `min_periods = None` for `Rolling`.
+- Added support for `DataFrameGroupBy.fillna` and `SeriesGroupBy.fillna`.
+- Added support for constructing `Series` and `DataFrame` objects with the lazy `Index` object as `data`, `index`, and `columns` arguments.
+- Added support for constructing `Series` and `DataFrame` objects with `index` and `column` values not present in `DataFrame`/`Series` `data`.
 - Added support for `pd.read_sas` (Uses native pandas for processing).
 - Added support for applying `rolling().count()` and `expanding().count()` to `Timedelta` series and columns.
 - Added support for `tz` in both `pd.date_range` and `pd.bdate_range`.
@@ -40,6 +52,9 @@
 - Added support for `errors="ignore"` in `pd.to_datetime`.
 - Added support for `DataFrame.tz_localize` and `Series.tz_localize`.
 - Added support for `DataFrame.tz_convert` and `Series.tz_convert`.
+- Added support for applying Snowpark Python functions (e.g., `sin`) in `Series.map`, `Series.apply`, `DataFrame.apply` and `DataFrame.applymap`.
+- Added support for `np.subtract`, `np.multiply`, `np.divide`, `np.true_divide`
+- Added support for tracking usages of `__array_ufunc__`
 
 #### Improvements
 
@@ -62,6 +77,17 @@
 - Fixed a bug where `Resampler` methods on timedelta columns would produce integer results.
 - Fixed a bug where `pd.to_numeric()` would leave `Timedelta` inputs as `Timedelta` instead of converting them to integers.
 - Fixed `loc` set when setting a single row, or multiple rows, of a DataFrame with a Series value.
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug where nullable columns were annotated wrongly.
+- Fixed a bug where the `date_add` and `date_sub` functions failed for `NULL` values.
+- Fixed a bug where `equal_null` could fail inside a merge statement.
+- Fixed a bug where `row_number` could fail inside a Window function.
+- Fixed a bug where updates could fail when the source is the result of a join.
+
 
 ## 1.22.1 (2024-09-11)
 This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for detailed release content.
@@ -180,7 +206,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 - Improve concat, join performance when operations are performed on series coming from the same dataframe by avoiding unnecessary joins.
 - Refactored `quoted_identifier_to_snowflake_type` to avoid making metadata queries if the types have been cached locally.
-- Improved `pd.to_datetime` to handle all local input cases. 
+- Improved `pd.to_datetime` to handle all local input cases.
 - Create a lazy index from another lazy index without pulling data to client.
 - Raised `NotImplementedError` for Index bitwise operators.
 - Display a more clear error message when `Index.names` is set to a non-like-like object.

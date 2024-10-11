@@ -47,8 +47,8 @@ IMPLEMENTED_AGG_METHODS = [
     "last",
     "quantile",
     "nunique",
+    "indices",
 ]
-IMPLEMENTED_MISC_METHODS = ["ffill"]
 SUPPORTED_RESAMPLE_RULES = ("second", "minute", "hour", "day", "week", "month", "year")
 RULE_SECOND_TO_DAY = ("second", "minute", "hour", "day")
 RULE_WEEK_TO_YEAR = ("week", "quarter", "month", "year")
@@ -439,9 +439,11 @@ def perform_resample_binning_on_frame(
     unnormalized_dates_set_to_bins = (
         dateadd("second", lit(normalization_amt), normalized_dates_set_to_bins)
         if slice_unit in RULE_SECOND_TO_DAY
-        else last_day(
-            dateadd("second", lit(normalization_amt), normalized_dates_set_to_bins),
-            slice_unit,
+        else to_timestamp_ntz(
+            last_day(
+                dateadd("second", lit(normalization_amt), normalized_dates_set_to_bins),
+                slice_unit,
+            )
         )
     )
     # frame:

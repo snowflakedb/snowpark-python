@@ -386,7 +386,7 @@ def test_read_snowflake_query_connect_by(session):
                         CONNECT BY
                         manager_ID = PRIOR employee_id
                     ORDER BY employee_ID"""
-    native_df = native_pd.DataFrame(session.sql(SQL_QUERY).collect())
+    native_df = session.sql(SQL_QUERY).to_pandas()
     snow_df = (
         pd.read_snowflake(SQL_QUERY).sort_values("EMPLOYEE_ID").reset_index(drop=True)
     )
