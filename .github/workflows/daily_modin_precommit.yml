@@ -143,9 +143,10 @@ jobs:
         run: python -m pip install tox
       - if: ${{ contains('macos', matrix.os.download_name) }}
         name: Run Snowpark pandas API doctests
-        run: python -m tox -e "py${PYTHON_VERSION}-doctest-snowparkpandasdoctest-modin-ci"
+        run: python -m tox -e "modin_pandas_version-py${PYTHON_VERSION}-doctest-snowparkpandasdoctest-modin-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
+          MODIN_PANDAS_PATCH_VERSION: 2.2.2  # TODO unpin when 2.2.3 is available in snowflake anaconda
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
@@ -153,9 +154,10 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       - name: Run Snowpark pandas API tests (excluding doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasdailynotdoctest-modin-ci"
+        run: python -m tox -e "modin_pandas_version-py${PYTHON_VERSION/\./}-snowparkpandasdailynotdoctest-modin-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
+          MODIN_PANDAS_PATCH_VERSION: 2.2.2  # TODO unpin when 2.2.3 is available in snowflake anaconda
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
