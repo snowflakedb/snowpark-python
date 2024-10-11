@@ -23,6 +23,7 @@ from snowflake.snowpark._internal.udf_utils import (
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 from snowflake.snowpark.mock._plan import calculate_expression
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
@@ -336,11 +337,11 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             if replace and if_not_exists:
                 raise ValueError("options replace and if_not_exists are incompatible")
 
-        if sproc_name in self._registry and if_not_exists:
-            ans = self._registry[sproc_name]
-            ans._ast = ast
-            ans._ast_id = stmt.var_id.bitfield1 if _emit_ast else None
-            return ans
+            if sproc_name in self._registry and if_not_exists:
+                ans = self._registry[sproc_name]
+                ans._ast = ast
+                ans._ast_id = stmt.var_id.bitfield1 if _emit_ast else None
+                return ans
 
             if sproc_name in self._registry and not replace:
                 raise SnowparkLocalTestingException(
@@ -384,17 +385,17 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             else:
                 sproc_imports = copy(self._session_level_imports)
 
-        sproc = MockStoredProcedure(
-            func,
-            return_type,
-            input_types,
-            sproc_name,
-            sproc_imports,
-            execute_as=execute_as,
-            strict=strict,
-            _ast=ast,
-            _ast_id=stmt.var_id.bitfield1 if _emit_ast else None,
-        )
+            sproc = MockStoredProcedure(
+                func,
+                return_type,
+                input_types,
+                sproc_name,
+                sproc_imports,
+                execute_as=execute_as,
+                strict=strict,
+                _ast=ast,
+                _ast_id=stmt.var_id.bitfield1 if _emit_ast else None,
+            )
 
             self._registry[sproc_name] = sproc
 

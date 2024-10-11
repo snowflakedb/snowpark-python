@@ -1217,6 +1217,7 @@ class DataFrame:
         # If snowflake.snowpark.modin.plugin was successfully imported, then modin.pandas is available
         import modin.pandas as pd  # isort: skip
         # fmt: on
+
         if _emit_ast:
             raise NotImplementedError(
                 "TODO SNOW-1672579: Support Snowpark pandas API handover."
@@ -4544,7 +4545,6 @@ class DataFrame:
             # Allow AST tests to pass.
             return []
 
-<<<<<<< HEAD
         if isinstance(name, str):
             formatted_name = name
         elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
@@ -4566,8 +4566,6 @@ class DataFrame:
 
         create_mode = str_to_enum(mode.lower(), DynamicTableCreateMode, "`mode`")
 
-=======
->>>>>>> 9b2b77e3e ([SNOW-1625268] Add `--enable-ast` merge gate, pass local-testing/integ testing for Snowpark python with flag disabled. (#2357))
         return self._do_create_or_replace_dynamic_table(
             name=formatted_name,
             warehouse=warehouse,

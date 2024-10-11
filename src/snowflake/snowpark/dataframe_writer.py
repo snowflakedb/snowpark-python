@@ -3,6 +3,7 @@
 #
 
 import sys
+from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints

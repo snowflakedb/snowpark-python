@@ -338,6 +338,9 @@ def test_cache_result(session):
     reason="SNOW-1709861 result_scan for show tables is flaky", strict=False
 )
 @pytest.mark.xfail(
+    reason="SNOW-1709861 result_scan for show tables is flaky", strict=False
+)
+@pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="This is testing query generation",
     run=False,
