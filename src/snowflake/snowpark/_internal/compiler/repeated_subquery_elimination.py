@@ -107,7 +107,6 @@ class RepeatedSubqueryElimination:
         self,
         root: TreeNode,
         duplicated_node_ids: Set[str],
-        # node_parents_map: Dict[TreeNode, Set[TreeNode]],
     ) -> LogicalPlan:
         """
         Replace all duplicated nodes with a WithQueryBlock (CTE node), to enable
@@ -129,9 +128,10 @@ class RepeatedSubqueryElimination:
                 node_parents_map[child].add(node)
                 stack1.append(child)
 
-        # tack node that is already visited to avoid repeated operation on the same node
+        # track node that is already visited to avoid repeated operation on the same node
         visited_nodes: Set[TreeNode] = set()
         updated_nodes: Set[TreeNode] = set()
+        # track the resolved WithQueryBlock node has been created for each duplicated node
         resolved_with_block_map: Dict[str, SnowflakePlan] = {}
 
         def _update_parents(
@@ -158,6 +158,8 @@ class RepeatedSubqueryElimination:
             # start the deduplication transformation use CTE
             if node.encoded_id in duplicated_node_ids:
                 if node.encoded_id in resolved_with_block_map:
+                    # if the corresponding CTE block has been created, use the existing
+                    # one.
                     resolved_with_block = resolved_with_block_map[node.encoded_id]
                 else:
                     # create a WithQueryBlock node

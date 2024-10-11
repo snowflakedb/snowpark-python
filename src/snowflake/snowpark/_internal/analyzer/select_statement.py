@@ -239,8 +239,6 @@ class Selectable(LogicalPlan, ABC):
         self._api_calls = api_calls.copy() if api_calls is not None else None
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
-        # self.encoded_id = encode_id(self.sql_query, self.query_params)
-
     @property
     @abstractmethod
     def sql_query(self) -> str:

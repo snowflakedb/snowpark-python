@@ -155,9 +155,6 @@ def count_number_of_ctes(query):
 def test_unary(session, action):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     df_action = action(df)
-    # df_res = df_action.union_all(df_action)
-    # df_res.count()
-    # print(df_res.queries)
     check_result(
         session,
         df_action,
@@ -808,7 +805,6 @@ def test_join_table_function(session):
     )
     df1 = df.join_table_function("split_to_table", df["addresses"], lit(" "))
     df_result = df1.join(df1.select("name", "addresses"), rsuffix="_y")
-    df_result.collect()
     check_result(
         session,
         df_result,
