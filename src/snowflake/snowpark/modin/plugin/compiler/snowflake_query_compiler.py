@@ -1436,6 +1436,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "NULL_IF": na_sep if na_sep else (),
                 "ESCAPE": _get_param("escapechar"),
                 "DATE_FORMAT": _get_param("date_format"),
+                "FIELD_OPTIONALLY_ENCLOSED_BY": '"',
             },
             header=_get_param("header"),
             single=True,
