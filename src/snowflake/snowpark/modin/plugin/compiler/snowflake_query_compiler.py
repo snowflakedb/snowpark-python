@@ -411,11 +411,24 @@ _TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED = (
     "ops for Rolling for this dtype timedelta64[ns] are not implemented"
 )
 
-# List of query methods where attrs should not be propagated from this query compiler to the result.
-_NO_COPY_ATTRS_METHODS = [
-    "concat",  # concat is special-cased since it checks all of its inputs
+# List of query compiler methods where attrs on the result should always be empty.
+_RESET_ATTRS_METHODS = [
     "agg",
+    "all",
+    "any",
     "compare",
+    "merge",
+    "value_counts",
+    "groupby_apply",
+    "groupby_agg",
+    "groupby_cumcount",
+    "groupby_cummax",
+    "groupby_cummin",
+    "groupby_rank",
+    "groupby_size",
+    "groupby_transform",
+    # resample, expanding, and rolling methods also do not propagate; we check them by prefix matching
+    # agg and crosstab are also handled separately
 ]
 
 
@@ -428,35 +441,51 @@ def _propagate_attrs_on_methods(cls):  # type: ignore
     to the output of the method, if the output is another query compiler.
     """
 
-    def method_decorator(method: T) -> T:
+    def propagate_attrs_decorator(method: T) -> T:
         @functools.wraps(method)
         def wrap(self, *args, **kwargs):  # type: ignore
             result = method(self, *args, **kwargs)
-            if isinstance(result, SnowflakeQueryCompiler):
+            if isinstance(result, SnowflakeQueryCompiler) and len(self._attrs):
                 result._attrs = copy.deepcopy(self._attrs)
             return result
 
         return typing.cast(T, wrap)
 
+    def reset_attrs_decorator(method: T) -> T:
+        @functools.wraps(method)
+        def wrap(self, *args, **kwargs):  # type: ignore
+            result = method(self, *args, **kwargs)
+            if isinstance(result, SnowflakeQueryCompiler) and len(self._attrs):
+                result._attrs = {}
+            return result
+
+        return typing.cast(T, wrap)
+
     for attr_name, attr_value in cls.__dict__.items():
-        if attr_name.startswith("_") or attr_name in _NO_COPY_ATTRS_METHODS:
+        # concat is handled explicitly because it checks all of its arguments
+        if attr_name.startswith("_") or attr_name == "concat":
             continue
-        if isinstance(attr_value, property):
+        if attr_name in _RESET_ATTRS_METHODS or any(
+            attr_name.startswith(prefix)
+            for prefix in ["resample", "expanding", "rolling"]
+        ):
+            setattr(cls, attr_name, reset_attrs_decorator(attr_value))
+        elif isinstance(attr_value, property):
             setattr(
                 cls,
                 attr_name,
                 property(
-                    method_decorator(
+                    propagate_attrs_decorator(
                         attr_value.fget
                         if attr_value.fget is not None
                         else attr_value.__get__
                     ),
-                    method_decorator(
+                    propagate_attrs_decorator(
                         attr_value.fset
                         if attr_value.fset is not None
                         else attr_value.__set__
                     ),
-                    method_decorator(
+                    propagate_attrs_decorator(
                         attr_value.fdel
                         if attr_value.fdel is not None
                         else attr_value.__delete__
@@ -464,7 +493,7 @@ def _propagate_attrs_on_methods(cls):  # type: ignore
                 ),
             )
         elif inspect.isfunction(attr_value):
-            setattr(cls, attr_name, method_decorator(attr_value))
+            setattr(cls, attr_name, propagate_attrs_decorator(attr_value))
     return cls
 
 
