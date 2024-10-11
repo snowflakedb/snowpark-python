@@ -7,6 +7,7 @@ import modin.pandas as pd
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
 
+from snowflake.snowpark import functions as sp_func
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 
@@ -154,9 +155,9 @@ numpy_to_pandas_universal_func_map = {
     "conjugate": NotImplemented,
     "exp": NotImplemented,
     "exp2": NotImplemented,
-    "log": NotImplemented,
-    "log2": NotImplemented,
-    "log10": NotImplemented,
+    "log": lambda obj, inputs: obj.apply(sp_func.ln),  # use built-in function
+    "log2": lambda obj, inputs: obj.apply(sp_func.log, base=2),
+    "log10": lambda obj, inputs: obj.apply(sp_func.log, base=10),
     "expm1": NotImplemented,
     "log1p": NotImplemented,
     "sqrt": NotImplemented,
