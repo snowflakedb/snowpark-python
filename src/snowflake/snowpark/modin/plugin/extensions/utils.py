@@ -7,17 +7,14 @@ File containing utilities for the extensions API.
 """
 from __future__ import annotations
 
-import copy
-import functools
 from collections.abc import Hashable, Sequence
 from types import BuiltinFunctionType
-from typing import Any, Callable, TypeVar, cast
+from typing import Any, Callable
 
 import modin.pandas as pd
 import numpy as np
 import pandas
 from modin.core.storage_formats import BaseQueryCompiler  # pragma: no cover
-from modin.pandas.base import BasePandasDataset
 from pandas._libs import lib
 from pandas._typing import AggFuncType, AggFuncTypeBase, AnyArrayLike, Axes, Scalar
 from pandas.core.dtypes.common import is_array_like, is_dict_like, is_list_like
@@ -586,37 +583,3 @@ def try_convert_index_to_native(index_like: Any) -> Any:
     if isinstance(index_like, Index):
         index_like = index_like.to_pandas()
     return index_like
-
-
-T = TypeVar("T", bound=Callable[..., Any])
-
-
-def propagate_self_attrs(method: T) -> T:
-    """
-    Wrap a BasePandasDataset/DataFrame/Series method with a function that automatically deep-copies self.attrs if present.
-
-    This should be applied to all non-property methods.
-
-    Parameters
-    ----------
-    method : T
-        The method to wrap.
-
-    Returns
-    -------
-    T
-        The original method wrapped to propagate the `attrs` field to the result if necessary.
-    """
-
-    @functools.wraps(method)
-    def wrapper(self, *args, **kwargs):  # type: ignore
-        result = method(self, *args, **kwargs)
-        if isinstance(result, BasePandasDataset) and len(self.attrs):
-            # If the result of the method call is a modin.pandas object and `self.attrs` is
-            # not empty, perform a deep copy of `self.attrs`.
-            result.attrs = copy.deepcopy(self.attrs)
-        return result
-
-    # need cast to convince mypy that we are returning a function with the same
-    # signature as method.
-    return cast(T, wrapper)

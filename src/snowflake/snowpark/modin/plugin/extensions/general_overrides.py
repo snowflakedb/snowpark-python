@@ -784,6 +784,7 @@ def crosstab(
 
     table = table.rename_axis(index=rownames_mapper, axis=0)
     table = table.rename_axis(columns=colnames_mapper, axis=1)
+    table.attrs = {}  # native pandas crosstab does not propagate attrs form the input
 
     return table
 
