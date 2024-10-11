@@ -6,7 +6,7 @@ import hashlib
 import logging
 import uuid
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Set, Union
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     SPACE,
@@ -62,7 +62,7 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
             for node in current_level:
                 id_count_map[node.encoded_id] += 1
                 for child in node.children_plan_nodes:
-                    id_parents_map[child.encoded_id].add(node)
+                    id_parents_map[child.encoded_id].add(node.encoded_id)
                     next_level.append(child)
             current_level = next_level
 
@@ -70,7 +70,7 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
         is_duplicate_node = id_count_map[node_id] > 1
         if is_duplicate_node:
             is_any_parent_unique_node = any(
-                id_count_map[node.encoded_id] == 1 for node in id_parents_map[node_id]
+                id_count_map[id] == 1 for id in id_parents_map[node_id]
             )
             if is_any_parent_unique_node:
                 return True
@@ -81,7 +81,9 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
         return False
 
     traverse(root)
-    duplicated_node = {node_id for node_id in id_count_map if is_duplicate_subtree(node_id)}
+    duplicated_node = {
+        node_id for node_id in id_count_map if is_duplicate_subtree(node_id)
+    }
     return duplicated_node
 
 
@@ -123,9 +125,9 @@ def create_cte_query(root: "TreeNode", duplicated_node_ids: Set[str]) -> str:
                 plan_to_query_map[node.encoded_id] = node.placeholder_query
                 for child in node.children_plan_nodes:
                     # replace the placeholder (id) with child query
-                    plan_to_query_map[node.encoded_id] = plan_to_query_map[node.encoded_id].replace(
-                        child.encoded_id, plan_to_query_map[child.encoded_id]
-                    )
+                    plan_to_query_map[node.encoded_id] = plan_to_query_map[
+                        node.encoded_id
+                    ].replace(child.encoded_id, plan_to_query_map[child.encoded_id])
 
             # duplicate subtrees will be converted CTEs
             if node.encoded_id in duplicated_node_ids:
@@ -134,7 +136,9 @@ def create_cte_query(root: "TreeNode", duplicated_node_ids: Set[str]) -> str:
                 table_name = random_name_for_temp_object(TempObjectType.CTE)
                 select_stmt = project_statement([], table_name)
                 duplicate_plan_to_table_name_map[node.encoded_id] = table_name
-                duplicate_plan_to_cte_map[node.encoded_id] = plan_to_query_map[node.encoded_id]
+                duplicate_plan_to_cte_map[node.encoded_id] = plan_to_query_map[
+                    node.encoded_id
+                ]
                 plan_to_query_map[node.encoded_id] = select_stmt
 
     build_plan_to_query_map_in_post_order(root)
@@ -144,16 +148,16 @@ def create_cte_query(root: "TreeNode", duplicated_node_ids: Set[str]) -> str:
         list(duplicate_plan_to_cte_map.values()),
         list(duplicate_plan_to_table_name_map.values()),
     )
-    final_query = with_stmt + SPACE + plan_to_query_map[root]
+    final_query = with_stmt + SPACE + plan_to_query_map[root.encoded_id]
     return final_query
 
 
 def encode_id(
-    query: str, query_params: Optional[Sequence[Any]] = None
+    node_type_name: str, query: str, query_params: Optional[Sequence[Any]] = None
 ) -> str:
     string = f"{query}#{query_params}" if query_params else query
     try:
-        return hashlib.sha256(string.encode()).hexdigest()[:10]
+        return hashlib.sha256(string.encode()).hexdigest()[:10] + node_type_name
     except Exception as ex:
         logging.warning(f"Encode SnowflakePlan ID failed: {ex}")
         return str(uuid.uuid4())

@@ -258,7 +258,9 @@ class SnowflakePlan(LogicalPlan):
         # encode an id for CTE optimization. This is generated based on the main
         # query and the associated query parameters. We use this id for equality comparison
         # to determine if two plans are the same.
-        self.encoded_id = encode_id(queries[-1].sql, queries[-1].params)
+        self.encoded_id = encode_id(
+            type(self).__name__, queries[-1].sql, queries[-1].params
+        )
         self.referenced_ctes: Set[WithQueryBlock] = (
             referenced_ctes.copy() if referenced_ctes else set()
         )
@@ -338,7 +340,7 @@ class SnowflakePlan(LogicalPlan):
             return self
 
         # if there is no duplicate node, no optimization will be performed
-        duplicate_plan_set, _ = find_duplicate_subtrees(self)
+        duplicate_plan_set = find_duplicate_subtrees(self)
         if not duplicate_plan_set:
             return self
 
@@ -580,7 +582,8 @@ class SnowflakePlanBuilder:
 
         placeholder_query = (
             sql_generator(select_child.encoded_id)
-            if self.session._cte_optimization_enabled and select_child.encoded_id is not None
+            if self.session._cte_optimization_enabled
+            and select_child.encoded_id is not None
             else None
         )
 
@@ -618,10 +621,10 @@ class SnowflakePlanBuilder:
             schema_query = sql_generator(left_schema_query, right_schema_query)
 
         placeholder_query = (
-            sql_generator(select_left._id, select_right._id)
+            sql_generator(select_left.encoded_id, select_right.encoded_id)
             if self.session._cte_optimization_enabled
-            and select_left._id is not None
-            and select_right._id is not None
+            and select_left.encoded_id is not None
+            and select_right.encoded_id is not None
             else None
         )
 
