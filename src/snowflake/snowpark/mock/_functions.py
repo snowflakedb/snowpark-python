@@ -1605,6 +1605,8 @@ def add_months(scalar, date, duration):
 
 
 def add_timedelta(unit, date, duration, scalar=1):
+    if date is None:
+        return date
     return date + datetime.timedelta(**{f"{unit}s": float(duration) * scalar})
 
 
