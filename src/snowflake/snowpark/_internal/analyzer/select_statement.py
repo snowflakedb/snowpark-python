@@ -5,9 +5,9 @@
 import sys
 from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
-from functools import cached_property
 from copy import copy, deepcopy
 from enum import Enum
+from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     AbstractSet,
@@ -254,9 +254,9 @@ class Selectable(LogicalPlan, ABC):
         pass
 
     @cached_property
-    def encoded_id(self) -> Optional[str]:
+    def encoded_id(self) -> str:
         """Returns the id of this Selectable logical plan."""
-        return encode_id(self.sql_query, self.query_params)
+        return encode_id(type(self).__name__, self.sql_query, self.query_params)
 
     @property
     @abstractmethod
@@ -497,13 +497,13 @@ class SelectSQL(Selectable):
     def placeholder_query(self) -> Optional[str]:
         return None
 
-    @property
-    def _id(self) -> Optional[str]:
+    @cached_property
+    def encoded_id(self) -> str:
         """
         Returns the id of this SelectSQL logical plan. The original SQL is used to encode its ID,
         which might be a non-select SQL.
         """
-        return encode_id(self.original_sql, self.query_params)
+        return encode_id(type(self).__name__, self.original_sql, self.query_params)
 
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
@@ -582,8 +582,8 @@ class SelectSnowflakePlan(Selectable):
     def placeholder_query(self) -> Optional[str]:
         return self._snowflake_plan.placeholder_query
 
-    @property
-    def encoded_id(self) -> Optional[str]:
+    @cached_property
+    def encoded_id(self) -> str:
         return self._snowflake_plan.encoded_id
 
     @property
@@ -784,9 +784,9 @@ class SelectStatement(Selectable):
         if (
             self.analyzer.session._cte_optimization_enabled
             and (not self.analyzer.session._query_compilation_stage_enabled)
-            and self.from_._id
+            and self.from_.encoded_id
         ):
-            placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
+            placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_.encoded_id}{analyzer_utils.RIGHT_PARENTHESIS}"
             self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
         else:
             where_clause = (
@@ -1420,9 +1420,9 @@ class SetStatement(Selectable):
     @property
     def placeholder_query(self) -> Optional[str]:
         if not self._placeholder_query:
-            sql = f"({self.set_operands[0].selectable._id})"
+            sql = f"({self.set_operands[0].selectable.encoded_id})"
             for i in range(1, len(self.set_operands)):
-                sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable._id})"
+                sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.encoded_id})"
             self._placeholder_query = sql
         return self._placeholder_query
 

@@ -2,8 +2,8 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, List, Optional, Set
 from collections import defaultdict
+from typing import Dict, List, Optional, Set
 
 from snowflake.snowpark._internal.analyzer.cte_utils import find_duplicate_subtrees
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
@@ -130,7 +130,7 @@ class RepeatedSubqueryElimination:
                 stack1.append(child)
 
         # tack node that is already visited to avoid repeated operation on the same node
-        # visited_nodes: Set[TreeNode] = set()
+        visited_nodes: Set[TreeNode] = set()
         updated_nodes: Set[TreeNode] = set()
         resolved_with_block_map: Dict[str, SnowflakePlan] = {}
 
@@ -151,8 +151,8 @@ class RepeatedSubqueryElimination:
 
         while stack2:
             node = stack2.pop()
-            # if node in visited_nodes:
-            #    continue
+            if node in visited_nodes:
+                continue
 
             # if the node is a duplicated node and deduplication is not done for the node,
             # start the deduplication transformation use CTE
@@ -176,6 +176,6 @@ class RepeatedSubqueryElimination:
                 # if the node is updated, make sure all nodes up to parent is updated
                 _update_parents(node, should_replace_child=False)
 
-            # visited_nodes.add(node)
+            visited_nodes.add(node)
 
         return root
