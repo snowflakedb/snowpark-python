@@ -795,6 +795,10 @@ class SelectStatement(Selectable):
             placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
             self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
         else:
+            # This part of code could potentially be triggered during a an
+            # ongoing resolve operation. Therefore, we need to save the intermediate
+            # subquery plans and restore them after we.
+            intermediate_subquery_plans = self.analyzer.subquery_plans
             self.analyzer.subquery_plans = []
             where_clause = (
                 f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
@@ -829,6 +833,8 @@ class SelectStatement(Selectable):
                         self.post_actions = []  # pragma: no cover
                     if query not in self.post_actions:
                         self.post_actions.append(query)
+
+            self.analyzer.subquery_plans = intermediate_subquery_plans
 
         return self._sql_query
 
