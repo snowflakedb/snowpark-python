@@ -1,0 +1,205 @@
+## TEST CASE
+
+from snowflake.snowpark.functions import sproc
+
+from snowflake.snowpark import DataFrame
+
+from snowflake.snowpark.types import IntegerType, StructField, StructType
+
+session.add_packages('snowflake-snowpark-python')
+
+import numpy as np
+
+import math
+
+# Example 1: Use stored procedure to copy data from one table to another.
+def my_copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
+    session.table(from_table).limit(count).write.save_as_table(to_table, mode="overwrite", table_type="temporary")
+    return "SUCCESS"
+
+my_copy_sp = session.sproc.register(my_copy, name="my_copy_sp", replace=True, comment="This is a comment")
+_ = session.sql("create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table (generator(rowCount => 100))").collect()
+
+# call using sql
+from_df = session.create_dataframe([1, 2, 3], schema=["a"])
+from_df.write.save_as_table("test_from", mode="overwrite", table_type="temporary")
+to_df = session.create_dataframe([-1, -2], schema=["a"])
+to_df.write.save_as_table("test_to", mode="overwrite", table_type="temporary")
+session.sql("call my_copy_sp('test_from', 'test_to', 10)").collect()
+session.table("test_to").count()
+
+# call using session.call API
+_ = session.sql("drop table if exists test_to").collect()
+session.call("my_copy_sp", "test_from", "test_to", 10)
+session.table("test_to").count()
+
+# Example 2: Create a temporary stored procedure from a lambda and call it.
+add_one_sp = sproc(
+    lambda session_, x: session_.sql(f"select {x} + 1").collect(),
+    return_type=IntegerType(),
+    input_types=[IntegerType()],
+    parallel=2,
+    execute_as="caller",
+)
+add_one_sp(1)
+
+# Example 3: Create a stored procedure with type hints and ``@sproc`` decorator and call it.
+def add_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> int:
+    return session_.sql(f"select {x} + {y}").collect()
+add_sp(session, 1, 2)
+
+# Example 4: Create a permanent stored procedure with a name and call it in SQL.
+_ = session.sql("create or replace temp stage mystage").collect()
+_ = session.sproc.register(
+     lambda session_, x, y: session_.sql(f"SELECT {x} * {y}").collect()[0][0],
+     return_type=IntegerType(),
+     input_types=[IntegerType(), IntegerType()],
+     is_permanent=True,
+     name="mul_sp",
+     replace=True,
+     stage_location="@mystage",
+)
+session.sql("call mul_sp(5, 6)").collect()
+
+# skip stored proc creation if it already exists
+_ = session.sproc.register(
+     lambda session_, x, y: session_.sql(f"SELECT {x} * {y} + 1").collect()[0][0],
+     return_type=IntegerType(),
+     input_types=[IntegerType(), IntegerType()],
+     is_permanent=True,
+     name="mul_sp",
+     if_not_exists=True,
+     stage_location="@mystage",
+)
+session.sql("call mul_sp(5, 6)").collect()
+
+# overwrite stored procedure
+_ = session.sproc.register(
+    lambda session_, x, y: session_.sql(f"SELECT {x} * {y} + 1").collect()[0][0],
+    return_type=IntegerType(),
+    input_types=[IntegerType(), IntegerType()],
+    is_permanent=True,
+    name="mul_sp",
+    replace=True,
+    stage_location="@mystage",
+    strict=True,
+    external_access_integrations=["s3"],
+    secrets={"a": "b", "c": "d"},
+)
+session.sql("call mul_sp(5, 6)").collect()
+
+# Example 5: Create a stored procedure with stored-procedure-level packages and call it.
+@sproc(packages=["snowflake-snowpark-python", "numpy"], statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+def sin_sp(_: snowflake.snowpark.Session, x: float) -> float:
+    return np.sin(x)
+sin_sp(0.5 * math.pi)
+
+# Example 6: Creating a table stored procedure with return type while defining return columns and datatypes.
+@sproc(return_type=StructType([StructField("A", IntegerType()), StructField("B", IntegerType())]), input_types=[IntegerType(), IntegerType()])
+def select_sp(session_, x, y):
+    return session_.sql(f"SELECT {x} as A, {y} as B")
+select_sp(1, 2).show()
+
+# Example 7: Creating a table stored procedure with return type with free return columns.
+@sproc(return_type=StructType(), input_types=[IntegerType(), IntegerType()], source_code_display=False, imports=[])
+def select_sp(session_, x, y):
+    return session_.sql(f"SELECT {x} as A, {y} as B")
+select_sp(1, 2).show()
+
+# Example 8: Creating a table stored procedure using implicit type hints.
+@sproc
+def select_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> DataFrame:
+    return session_.sql(f"SELECT {x} as A, {y} as B")
+select_sp(1, 2).show()
+
+
+## EXPECTED UNPARSER OUTPUT
+
+my_copy_sp = sproc(my_copy, name="my_copy_sp", replace=True, comment="This is a comment")
+
+_ = session.sql("create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table (generator(rowCount => 100))")
+
+_.collect()
+
+from_df = session.create_dataframe([1, 2, 3], schema=["a"])
+
+from_df.write.save_as_table("test_from", mode="overwrite", table_type="temporary")
+
+to_df = session.create_dataframe([-1, -2], schema=["a"])
+
+to_df.write.save_as_table("test_to", mode="overwrite", table_type="temporary")
+
+session.sql("call my_copy_sp('test_from', 'test_to', 10)").collect()
+
+session.table("test_to").count()
+
+_ = session.sql("drop table if exists test_to")
+
+_.collect()
+
+res11 = session.call("my_copy_sp", "test_from", "test_to", 10)
+
+session.table("test_from").limit(10, 0).write.save_as_table("test_to", mode="overwrite", table_type="temporary")
+
+my_copy_sp("test_from", "test_to", 10)
+
+session.table("test_to").count()
+
+add_one_sp = sproc(<lambda [1]>, return_type=IntegerType(), input_types=[IntegerType()], parallel=2, execute_as="caller")
+
+session.sql("select 1 + 1").collect()
+
+add_one_sp(1)
+
+session.sql("select 1 + 2").collect()
+
+_ = session.sql("create or replace temp stage mystage")
+
+_.collect()
+
+_ = sproc(<lambda [2]>, return_type=IntegerType(), input_types=[IntegerType()]IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True)
+
+session.sql("call mul_sp(5, 6)").collect()
+
+_ = sproc(<lambda [3]>, return_type=IntegerType(), input_types=[IntegerType()]IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", if_not_exists=True)
+
+session.sql("call mul_sp(5, 6)").collect()
+
+_ = sproc(<lambda [4]>, return_type=IntegerType(), input_types=[IntegerType()]IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, strict=True, external_access_integrations=["s3"], secrets={"a": "b"}{"c": "d"})
+
+session.sql("call mul_sp(5, 6)").collect()
+
+sproc(sin_sp, , statement_params={"SF_PARTNER": "FAKE_PARTNER"}packages=["snowflake-snowpark-python"]"numpy"])(1.5707963267948966)
+
+res34 = sproc(select_sp, return_type=StructType([StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()]IntegerType()])(1, 2)
+
+session.sql("SELECT 1 as A, 2 as B").show()
+
+res38 = sproc(select_sp, return_type=StructType([], structured=False), input_types=[IntegerType()]IntegerType()], source_code_display=False)(1, 2)
+
+session.sql("SELECT 1 as A, 2 as B").show()
+
+res42 = sproc(select_sp)(1, 2)
+
+session.sql("SELECT 1 as A, 2 as B").show()
+
+## EXPECTED ENCODED AST
+
+CnYKdApeqgxbChMKEVRoaXMgaXMgYSBjb21tZW50EgVvd25lciIJEgdteV9jb3B5Wg4KDAoKbXlfY29weV9zcGgEcAGIAQGSARoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoaxIMCgpteV9jb3B5X3NwGAEiAggBCrQBCrEBCqMB0gufARKAAWNyZWF0ZSBvciByZXBsYWNlIHRlbXAgdGFibGUgdGVzdF9mcm9tKHRlc3Rfc3RyIHZhcmNoYXIpIGFzIHNlbGVjdCByYW5kc3RyKDIwLCByYW5kb20oKSkgZnJvbSB0YWJsZSAoZ2VuZXJhdG9yKHJvd0NvdW50ID0+IDEwMCkpGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobBIDCgFfGAIiAggCCjMKMQonygYkCAEQARoCCAIyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShsEgAYAyICCAMKCBIGCAQSAggDEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgV
+CqsBCqgBCpQB8gWQAQprCmkKIboCHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKG8QAQohugIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobxACCiG6Ah4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShvEAMSBQoDCgFhGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobxIJCgdmcm9tX2RmGAUiAggFCjQKMgooqgolCgeCAgQKAggFGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUocBIAGAYiAggGClYKVApKogxHCAEaBWluZGV4MgIIBjoCIAFCGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShwUg0KCwoJdGVzdF9mcm9tWgl0ZW1wb3JhcnkSABgHIgIIBwoIEgYICBICCAcQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBU=
+CpcBCpQBCoIB8gV/CloKWAoqugInChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUocRD///////////8BCiq6AicKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShxEP7//////////wESBQoDCgFhGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUocRIHCgV0b19kZhgJIgIICQo0CjIKKKoKJQoHggIECgIICRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHISABgKIgIICgpUClIKSKIMRQgBGgVpbmRleDICCAo6AiABQhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoclILCgkKB3Rlc3RfdG9aCXRlbXBvcmFyeRIAGAsiAggLCggSBggMEgIICxABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFQ==
+ClgKVgpM0gtJEitjYWxsIG15X2NvcHlfc3AoJ3Rlc3RfZnJvbScsICd0ZXN0X3RvJywgMTApGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUocxIAGA0iAggNCjMKMQonygYkCAEQARoCCA0yGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShzEgAYDiICCA4KCBIGCA8SAggOEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgV
+CjwKOgow4gstEgsKCQoHdGVzdF90bxoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHQiAggBEgAYECICCBAKMQovCiXaBiIIARICCBAaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh0EgAYESICCBEKCBIGCBISAggREAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgV
+CkwKSgo90gs6Ehxkcm9wIHRhYmxlIGlmIGV4aXN0cyB0ZXN0X3RvGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodxIDCgFfGBMiAggTCjMKMQonygYkCAEQARoCCBMyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh3EgAYFCICCBQKCBIGCBUSAggUEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgV
+Cr0BCroBCq8BigGrAQoUQhJSAFoOCgwKCm15X2NvcHlfc3AaKrIMJwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHgSCXRlc3RfZnJvbRoosgwlChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoeBIHdGVzdF90bxohugIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoeBAKIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoeBIAGBYiAggWCq8BCqwBCqEBigGdAQoGOgQKAggBGiqyDCcKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh4Egl0ZXN0X2Zyb20aKLIMJQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHgSB3Rlc3RfdG8aIboCHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHgQCiIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHgSABgXIgIIFwo+CjwKMuILLxINCgsKCXRlc3RfZnJvbRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGgiAggBEgAYGCICCBgKNgo0CiqKCCcKB4ICBAoCCBgQCiIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGgSABgZIgIIGQo0CjIKKKoKJQoHggIECgIIGRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGgSABgaIgIIGgpUClIKSKIMRQgBGgVpbmRleDICCBo6AiABQhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoaFILCgkKB3Rlc3RfdG9aCXRlbXBvcmFyeRIAGBsiAggbCggSBggcEgIIGxABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFQ==
+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
+EAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgV
