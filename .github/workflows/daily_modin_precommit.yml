@@ -157,7 +157,8 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
+          # TODO SNOW-1733956: Remove --disable_cte_optimization when sql counts are fixed
+          PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
@@ -218,7 +219,8 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
+          # TODO SNOW-1733956: Remove --disable_cte_optimization when sql counts are fixed
+          PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier --disable_cte_optimization
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Run Snowpark pandas API tests (excluding doctests)
