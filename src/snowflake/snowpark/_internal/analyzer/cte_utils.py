@@ -127,7 +127,9 @@ def create_cte_query(root: "TreeNode", duplicated_node_ids: Set[str]) -> str:
                     # replace the placeholder (id) with child query
                     plan_to_query_map[node.encoded_id] = plan_to_query_map[
                         node.encoded_id
-                    ].replace(child.encoded_id, plan_to_query_map[child.encoded_id])
+                    ].replace(
+                        child.encoded_query_id, plan_to_query_map[child.encoded_id]
+                    )
 
             # duplicate subtrees will be converted CTEs
             if node.encoded_id in duplicated_node_ids:
@@ -150,6 +152,17 @@ def create_cte_query(root: "TreeNode", duplicated_node_ids: Set[str]) -> str:
     )
     final_query = with_stmt + SPACE + plan_to_query_map[root.encoded_id]
     return final_query
+
+
+def encoded_query_id(
+    query: str, query_params: Optional[Sequence[Any]] = None
+) -> Optional[str]:
+    string = f"{query}#{query_params}" if query_params else query
+    try:
+        return hashlib.sha256(string.encode()).hexdigest()[:10]
+    except Exception as ex:
+        logging.warning(f"Encode SnowflakePlan ID failed: {ex}")
+        return None
 
 
 def encode_id(
