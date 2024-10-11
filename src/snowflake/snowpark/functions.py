@@ -171,6 +171,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     CaseWhen,
     Expression,
     FunctionExpression,
+    Interval,
     ListAgg,
     Literal,
     MultipleExpression,
@@ -6111,6 +6112,56 @@ def array_append(
     return builtin("array_append", _emit_ast=_emit_ast)(a, e)
 
 
+def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
+    """Given a source ARRAY, returns an ARRAY with elements of the specified value removed.
+
+    Args:
+        array: name of column containing array.
+        element: element to be removed from the array. If the element is a VARCHAR, it needs
+            to be casted into VARIANT data type.
+
+    Examples::
+        >>> from snowflake.snowpark.types import VariantType
+        >>> df = session.create_dataframe([([1, '2', 3.1, 1, 1],)], ['data'])
+        >>> df.select(array_remove(df.data, 1).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |[          |
+        |  "2",     |
+        |  3.1      |
+        |]          |
+        -------------
+        <BLANKLINE>
+
+        >>> df.select(array_remove(df.data, lit('2').cast(VariantType())).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |[          |
+        |  1,       |
+        |  3.1,     |
+        |  1,       |
+        |  1        |
+        |]          |
+        -------------
+        <BLANKLINE>
+
+        >>> df.select(array_remove(df.data, None).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |NULL       |
+        -------------
+        <BLANKLINE>
+
+    See Also:
+        - `ARRAY <https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-array>`_ for more details on semi-structured arrays.
+    """
+    a = _to_col_if_str(array, "array_remove")
+    return builtin("array_remove")(a, element)
+
+
 @publicapi
 def array_cat(
     array1: ColumnOrName, array2: ColumnOrName, _emit_ast: bool = True
@@ -6758,6 +6809,25 @@ def vector_inner_product(
     v1 = _to_col_if_str(v1, "vector_inner_product")
     v2 = _to_col_if_str(v2, "vector_inner_product")
     return builtin("vector_inner_product", _emit_ast=_emit_ast)(v1, v2)
+
+
+def ln(c: ColumnOrLiteral) -> Column:
+    """Returns the natrual logarithm of given column expression.
+
+    Example::
+        >>> from snowflake.snowpark.functions import ln
+        >>> from math import e
+        >>> df = session.create_dataframe([[e]], schema=["ln_value"])
+        >>> df.select(ln(col("ln_value")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.0       |
+        ------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(c, "ln")
+    return builtin("ln")(c)
 
 
 @publicapi
@@ -9667,3 +9737,66 @@ def locate(
     _substr = lit(expr1)
     _str = _to_col_if_str(expr2, "locate")
     return builtin("charindex", _emit_ast=_emit_ast)(_substr, _str, lit(start_pos))
+
+
+def make_interval(
+    years: Optional[int] = None,
+    quarters: Optional[int] = None,
+    months: Optional[int] = None,
+    weeks: Optional[int] = None,
+    days: Optional[int] = None,
+    hours: Optional[int] = None,
+    minutes: Optional[int] = None,
+    seconds: Optional[int] = None,
+    milliseconds: Optional[int] = None,
+    microseconds: Optional[int] = None,
+    nanoseconds: Optional[int] = None,
+    mins: Optional[int] = None,
+    secs: Optional[int] = None,
+) -> Column:
+    """
+    Creates an interval column with the specified years, quarters, months, weeks, days, hours,
+    minutes, seconds, milliseconds, microseconds, and nanoseconds. You can find more details in
+    `Interval constants <https://docs.snowflake.com/en/sql-reference/data-types-datetime#interval-constants>`_.
+
+    INTERVAL is not a data type (that is, you can’t define a table column to be of data type INTERVAL).
+    Intervals can only be used in date, time, and timestamp arithmetic. For example,
+    ``df.select(make_interval(days=0))`` is not valid.
+
+    Example::
+
+        >>> import datetime
+        >>> from snowflake.snowpark.functions import to_date
+        >>>
+        >>> df = session.create_dataframe([datetime.datetime(2023, 8, 8, 1, 2, 3)], schema=["ts"])
+        >>> df.select(to_date(col("ts") + make_interval(days=10)).alias("next_day")).show()
+        --------------
+        |"NEXT_DAY"  |
+        --------------
+        |2023-08-18  |
+        --------------
+        <BLANKLINE>
+
+    You can also find some examples to use interval constants with :meth:`~snowflake.snowpark.Window.range_between`
+    method.
+    """
+    # for migration purpose
+    minutes = minutes or mins
+    seconds = seconds or secs
+
+    # create column
+    return Column(
+        Interval(
+            years,
+            quarters,
+            months,
+            weeks,
+            days,
+            hours,
+            minutes,
+            seconds,
+            milliseconds,
+            microseconds,
+            nanoseconds,
+        )
+    )
