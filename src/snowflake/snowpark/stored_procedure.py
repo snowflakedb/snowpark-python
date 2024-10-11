@@ -815,7 +815,7 @@ class StoredProcedureRegistration:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.udf, stmt)
+            ast = with_src_position(stmt.expr.stored_procedure, stmt)
             build_sproc(
                 ast,
                 func,
