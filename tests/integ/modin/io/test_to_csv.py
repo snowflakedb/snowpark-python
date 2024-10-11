@@ -92,7 +92,7 @@ def get_filepaths(kwargs: Any, test_name: str) -> Tuple[str, str]:
 @pytest.mark.parametrize("kwargs, is_compressed", SERIES_TEST_CASES)
 @sql_count_checker(query_count=1)
 def test_to_csv_series_local(kwargs, is_compressed):
-    native_series = native_pd.Series(["one", None, "two"], name="A")
+    native_series = native_pd.Series(["one", None, "", "two"], name="A")
     native_path, snow_path = get_filepaths(kwargs, "series_local")
 
     kwargs = kwargs.copy()
@@ -108,7 +108,7 @@ def test_to_csv_series_local(kwargs, is_compressed):
 @pytest.mark.parametrize("kwargs, is_compressed", DATAFRAME_TEST_CASES)
 @sql_count_checker(query_count=1)
 def test_to_csv_dataframe_local(kwargs, is_compressed):
-    native_df = native_pd.DataFrame({"A": ["one", "two", None], "B": [1, 2, 3]})
+    native_df = native_pd.DataFrame({"A": ["one", "", "two", None], "B": [4, 1, 2, 3]})
     native_path, snow_path = get_filepaths(kwargs, "dataframe_local")
 
     kwargs = kwargs.copy()
@@ -124,7 +124,7 @@ def test_to_csv_dataframe_local(kwargs, is_compressed):
 @pytest.mark.parametrize("kwargs, is_compressed", SERIES_TEST_CASES)
 @sql_count_checker(query_count=2)
 def test_to_csv_series_stage(sf_stage, session, kwargs, is_compressed):
-    native_series = native_pd.Series(["one", None, "two"], name="A")
+    native_series = native_pd.Series(["one", "", None, "two"], name="A")
     # None index name is not supported when writing to snowflake stage.
     native_series.index.name = "X"
     native_path, snow_path = get_filepaths(kwargs, "series_stage")
@@ -140,9 +140,11 @@ def test_to_csv_series_stage(sf_stage, session, kwargs, is_compressed):
         # Writing single column with null values has different behavior in snowpark
         # pandas as compared to native pandas. Null values are written as empty string
         # in snowpark pandas but in native pandas null values are written as a pair of
-        # duoble quotes "". Add na_rep param to match behavior in test.
+        # double quotes "". Add na_rep param to match behavior in test.
         # Bug filed in pandas: https://github.com/pandas-dev/pandas/issues/59116
-        kwargs["na_rep"] = '""'
+        pytest.skip(
+            "Snowpark pandas and native pandas behave differently in this case."
+        )
     pd.Series(native_series).to_csv(stage_location, **kwargs)
 
     # Download csv file from stage.
@@ -154,7 +156,7 @@ def test_to_csv_series_stage(sf_stage, session, kwargs, is_compressed):
 @pytest.mark.parametrize("kwargs, is_compressed", DATAFRAME_TEST_CASES)
 @sql_count_checker(query_count=2)
 def test_to_csv_dataframe_stage(sf_stage, session, kwargs, is_compressed):
-    native_df = native_pd.DataFrame({"A": ["one", "two", None], "B": [1, 2, 3]})
+    native_df = native_pd.DataFrame({"A": ["one", "two", None, ""], "B": [1, 2, 3, 0]})
     # None index name is not supported when writing to snowflake stage.
     native_df.index.set_names(["X"], inplace=True)
     native_path, snow_path = get_filepaths(kwargs, "dataframe_stage")
@@ -175,7 +177,7 @@ def test_to_csv_dataframe_stage(sf_stage, session, kwargs, is_compressed):
 
 @sql_count_checker(query_count=1)
 def test_to_csv_none_path():
-    native_df = native_pd.DataFrame({"A": ["one", "two", None], "B": [1, 2, 3]})
+    native_df = native_pd.DataFrame({"A": ["one", "", "two", None], "B": [1, 2, 3, 5]})
     # to_csv with None path_or_buf returns csv representation as string.
     native_result = native_df.to_csv(path_or_buf=None)
     snow_result = pd.DataFrame(native_df).to_csv(path_or_buf=None)
@@ -184,7 +186,7 @@ def test_to_csv_none_path():
 
 @sql_count_checker(query_count=0)
 def test_to_csv_unknown_compression(sf_stage, session):
-    native_df = native_pd.DataFrame({"A": ["one", "two", None], "B": [1, 2, 3]})
+    native_df = native_pd.DataFrame({"A": ["one", "", "two", None], "B": [1, 4, 2, 3]})
     kwargs = {"compression": "piedpiper"}
     native_path, snow_path = get_filepaths(kwargs, "unknown_compression")
 
@@ -214,7 +216,7 @@ def test_to_csv_unknown_compression(sf_stage, session):
 )
 @sql_count_checker(query_count=2)
 def test_to_csv_unsupported_params_default_value(sf_stage, session, kwargs):
-    native_df = native_pd.DataFrame({"A": ["one", "two", None], "B": [1, 2, 3]})
+    native_df = native_pd.DataFrame({"A": ["one", "", "two", None], "B": [1, 2, 5, 3]})
     # None index name is not supported when writing to snowflake stage.
     native_df.index.set_names(["X"], inplace=True)
     native_path, snow_path = get_filepaths(kwargs, "unsupported_params_default_value")
@@ -246,7 +248,7 @@ def test_to_csv_unsupported_params_default_value(sf_stage, session, kwargs):
 )
 @sql_count_checker(query_count=0)
 def test_to_csv_unsupported_params_error(sf_stage, session, kwargs):
-    native_df = native_pd.DataFrame({"A": ["one", "two", None], "B": [1, 2, 3]})
+    native_df = native_pd.DataFrame({"A": ["one", "", "two", None], "B": [9, 1, 2, 3]})
     # None index name is not supported when writing to snowflake stage.
     native_df.index.set_names(["X"], inplace=True)
     native_path, snow_path = get_filepaths(kwargs, "unsupported_params_default_value")
