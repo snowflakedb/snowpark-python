@@ -22,7 +22,7 @@ from typing import (
 )
 
 import snowflake.snowpark._internal.utils
-from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
+from snowflake.snowpark._internal.analyzer.cte_utils import encode_id, encoded_query_id
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     PlanState,
@@ -257,6 +257,11 @@ class Selectable(LogicalPlan, ABC):
     def encoded_id(self) -> str:
         """Returns the id of this Selectable logical plan."""
         return encode_id(type(self).__name__, self.sql_query, self.query_params)
+
+    @cached_property
+    def encoded_query_id(self) -> str:
+        """Returns the id of this Selectable logical plan."""
+        return encoded_query_id(self.sql_query, self.query_params)
 
     @property
     @abstractmethod
@@ -505,6 +510,14 @@ class SelectSQL(Selectable):
         """
         return encode_id(type(self).__name__, self.original_sql, self.query_params)
 
+    @cached_property
+    def encoded_query_id(self) -> str:
+        """
+        Returns the id of this SelectSQL logical plan. The original SQL is used to encode its ID,
+        which might be a non-select SQL.
+        """
+        return encoded_query_id(self.original_sql, self.query_params)
+
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
         return self._query_param
@@ -582,9 +595,13 @@ class SelectSnowflakePlan(Selectable):
     def placeholder_query(self) -> Optional[str]:
         return self._snowflake_plan.placeholder_query
 
+    # @cached_property
+    # def encoded_id(self) -> str:
+    #    return self._snowflake_plan.encoded_id
+
     @cached_property
-    def encoded_id(self) -> str:
-        return self._snowflake_plan.encoded_id
+    def encoded_query_id(self) -> str:
+        return self._snowflake_plan.encoded_query_id
 
     @property
     def schema_query(self) -> Optional[str]:
@@ -784,9 +801,9 @@ class SelectStatement(Selectable):
         if (
             self.analyzer.session._cte_optimization_enabled
             and (not self.analyzer.session._query_compilation_stage_enabled)
-            and self.from_.encoded_id
+            and self.from_.encoded_query_id
         ):
-            placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_.encoded_id}{analyzer_utils.RIGHT_PARENTHESIS}"
+            placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_.encoded_query_id}{analyzer_utils.RIGHT_PARENTHESIS}"
             self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
         else:
             where_clause = (
@@ -816,7 +833,7 @@ class SelectStatement(Selectable):
     def placeholder_query(self) -> str:
         if self._placeholder_query:
             return self._placeholder_query
-        from_clause = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_.encoded_id}{analyzer_utils.RIGHT_PARENTHESIS}"
+        from_clause = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_.encoded_query_id}{analyzer_utils.RIGHT_PARENTHESIS}"
         if not self.has_clause and not self.projection:
             self._placeholder_query = from_clause
             return self._placeholder_query
@@ -1420,9 +1437,9 @@ class SetStatement(Selectable):
     @property
     def placeholder_query(self) -> Optional[str]:
         if not self._placeholder_query:
-            sql = f"({self.set_operands[0].selectable.encoded_id})"
+            sql = f"({self.set_operands[0].selectable.encoded_query_id})"
             for i in range(1, len(self.set_operands)):
-                sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.encoded_id})"
+                sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.encoded_query_id})"
             self._placeholder_query = sql
         return self._placeholder_query
 

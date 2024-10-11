@@ -86,6 +86,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
 from snowflake.snowpark._internal.analyzer.cte_utils import (
     create_cte_query,
     encode_id,
+    encoded_query_id,
     find_duplicate_subtrees,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -261,6 +262,7 @@ class SnowflakePlan(LogicalPlan):
         self.encoded_id = encode_id(
             type(self).__name__, queries[-1].sql, queries[-1].params
         )
+        self.encoded_query_id = encoded_query_id(queries[-1].sql, queries[-1].params)
         self.referenced_ctes: Set[WithQueryBlock] = (
             referenced_ctes.copy() if referenced_ctes else set()
         )
@@ -581,9 +583,9 @@ class SnowflakePlanBuilder:
             new_schema_query = schema_query or sql_generator(child.schema_query)
 
         placeholder_query = (
-            sql_generator(select_child.encoded_id)
+            sql_generator(select_child.encoded_query_id)
             if self.session._cte_optimization_enabled
-            and select_child.encoded_id is not None
+            and select_child.encoded_query_id is not None
             else None
         )
 
@@ -621,10 +623,10 @@ class SnowflakePlanBuilder:
             schema_query = sql_generator(left_schema_query, right_schema_query)
 
         placeholder_query = (
-            sql_generator(select_left.encoded_id, select_right.encoded_id)
+            sql_generator(select_left.encoded_query_id, select_right.encoded_query_id)
             if self.session._cte_optimization_enabled
-            and select_left.encoded_id is not None
-            and select_right.encoded_id is not None
+            and select_left.encoded_query_id is not None
+            and select_right.encoded_query_id is not None
             else None
         )
 
