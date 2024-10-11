@@ -537,7 +537,7 @@ def handle_udf_expression(
             # however, we want NaT for the former case and None for the latter case.
             # using dtype object + function execution does not have the limitation
             # In the future maybe we could call fix_drift_between_column_sf_type_and_dtype in methods like set_sf_type.
-            # And these code would look like:
+            # The code would look like:
             # res=input.apply(...)
             # res.set_sf_type(ColumnType(exp.datatype, exp.nullable))  # fixes the drift and removes NaT
 
@@ -607,7 +607,7 @@ def handle_udaf_expression(
             )
             if coerce_result is None:
                 raise SnowparkLocalTestingException(
-                    f"UDF received input type {column_data.sf_type.datatype} for column {child.name}, but expected input type of {expected_type}"
+                    f"UDAF received input type {column_data.sf_type.datatype} for column {child.name}, but expected input type of {expected_type}"
                 )
 
             function_input[col_name] = cast_column_to(
@@ -678,7 +678,7 @@ def handle_udtf_expression(
         if join_with_input_columns:
             # Join input data with output data together.
             # For now carried out as horizontal concat. Need to address join case separately.
-            # suffix df accordinglt, todo proper check.
+            # suffix df accordingly, todo proper check.
             data = pd.concat(
                 (df.rename(columns={c: c + "_R" for c in df.columns}), data), axis=1
             )
@@ -758,6 +758,85 @@ def handle_udtf_expression(
         # Finish partition
         if hasattr(handler, "end_partition"):
             handler.end_partition()
+
+        return res
+
+
+def handle_sproc_expression(
+    exp: FunctionExpression,
+    input_data: Union[TableEmulator, ColumnEmulator],
+    analyzer: "MockAnalyzer",
+    expr_to_alias: Dict[str, str],
+    current_row=None,
+):
+    sproc_registry = analyzer.session.sproc
+    sproc_name = exp.sproc_name
+    sproc = sproc_registry.get_sproc(sproc_name)
+
+    with ImportContext(sproc_registry.get_sproc_imports(sproc_name)):
+        # Resolve handler callable
+        if type(sproc.func) is tuple:
+            module_name, handler_name = sproc.func
+            exec(f"from {module_name} import {handler_name}")
+            sproc_handler = eval(handler_name)
+        else:
+            sproc_handler = sproc.func
+
+        # Compute input data and validate typing
+        if len(exp.children) != len(sproc._input_types):
+            raise SnowparkLocalTestingException(
+                f"Expected {len(sproc._input_types)} arguments, but received {len(exp.children)}"
+            )
+
+        function_input = TableEmulator(index=input_data.index)
+        for child, expected_type in zip(exp.children, sproc._input_types):
+            col_name = analyzer.analyze(child, expr_to_alias)
+            column_data = calculate_expression(
+                child, input_data, analyzer, expr_to_alias
+            )
+
+            # Variant Data is often cast to specific python types when passed to a sproc.
+            if isinstance(expected_type, VariantType):
+                column_data = column_data.apply(coerce_variant_input)
+
+            coerce_result = get_coerce_result_type(
+                column_data.sf_type, ColumnType(expected_type, False)
+            )
+            if coerce_result is None:
+                raise SnowparkLocalTestingException(
+                    f"Stored procedure received input type {column_data.sf_type.datatype} for column {child.name}, but expected input type of {expected_type}"
+                )
+
+            function_input[col_name] = cast_column_to(
+                column_data, ColumnType(expected_type, False)
+            )
+
+        try:
+            res = sproc_handler(*function_input.values)
+            if sproc._is_return_table:
+                # Emulate a tabular result only if a table is returned. Else, return value is a scalar.
+                output_columns = sproc._output_schema.names
+                sf_types = {
+                    f.name: ColumnType(datatype=f.datatype, nullable=f.nullable)
+                    for f in sproc._output_schema.fields
+                }
+                sf_types_by_col_index = {
+                    idx: ColumnType(datatype=f.datatype, nullable=f.nullable)
+                    for idx, f in enumerate(sproc._output_schema.fields)
+                }
+                # Aliases? Use them then instead of output columns.
+                if exp.aliases:
+                    output_columns = exp.aliases
+                res = TableEmulator(
+                    data=res,
+                    columns=output_columns,
+                    sf_types=sf_types,
+                    sf_types_by_col_index=sf_types_by_col_index,
+                )
+        except Exception as err:
+            SnowparkLocalTestingException.raise_from_error(
+                err, error_message=f"Python Interpreter Error: {err}"
+            )
 
         return res
 
@@ -2584,6 +2663,7 @@ def calculate_expression(
             return handle_udaf_expression(exp, input_data, analyzer, expr_to_alias)
         else:
             return handle_udf_expression(exp, input_data, analyzer, expr_to_alias)
+
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking Expression {type(exp).__name__}",
         internal_feature_name=type(exp).__name__,

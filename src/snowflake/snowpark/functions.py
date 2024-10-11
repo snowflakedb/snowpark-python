@@ -9365,7 +9365,6 @@ def call_function(
         <BLANKLINE>
 
     """
-
     return _call_function(function_name, False, *args, _emit_ast=_emit_ast)
 
 
@@ -9600,9 +9599,6 @@ def sproc(
         2
     """
 
-    if _emit_ast:
-        raise NotImplementedError("TODO 1675257: support sprocs for AST.")
-
     # Initial check to make sure no unexpected args are passed in
     check_decorator_args(**kwargs)
 
@@ -9636,6 +9632,7 @@ def sproc(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            _emit_ast=_emit_ast,
             **kwargs,
         )
     else:
@@ -9658,6 +9655,7 @@ def sproc(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            _emit_ast=_emit_ast,
             **kwargs,
         )
 
