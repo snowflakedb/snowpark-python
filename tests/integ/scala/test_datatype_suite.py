@@ -132,6 +132,12 @@ STRUCTURED_TYPES_EXAMPLES = {
     ),
 }
 
+ICEBERG_CONFIG = {
+    "catalog": "SNOWFLAKE",
+    "external_volume": "python_connector_iceberg_exvol",
+    "base_location": "python_connector_merge_gate",
+}
+
 
 @pytest.fixture(scope="module")
 def structured_type_support(session, local_testing_mode):
@@ -424,8 +430,9 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
         )
 
 
-@pytest.mark.skip(
-    "SNOW-1356851: Skipping until iceberg testing infrastructure is added."
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
 )
 def test_structured_dtypes_iceberg(
     structured_type_session, local_testing_mode, structured_type_support
@@ -434,23 +441,13 @@ def test_structured_dtypes_iceberg(
         structured_type_support
         and iceberg_supported(structured_type_session, local_testing_mode)
     ):
-        pytest.mark.skip("Test requires iceberg support and structured type support.")
+        pytest.skip("Test requires iceberg support and structured type support.")
     query, expected_dtypes, expected_schema = STRUCTURED_TYPES_EXAMPLES[True]
 
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
     try:
-        structured_type_session.sql(
-            f"""
-        create iceberg table if not exists {table_name} (
-          map map(varchar, int),
-          obj object(A varchar, B float),
-          arr array(float)
-        )
-        CATALOG = 'SNOWFLAKE'
-        EXTERNAL_VOLUME = 'python_connector_iceberg_exvol'
-        BASE_LOCATION = 'python_connector_merge_gate';
-        """
-        ).collect()
+        create_df = structured_type_session.create_dataframe([], schema=expected_schema)
+        create_df.write.save_as_table(table_name, iceberg_config=ICEBERG_CONFIG)
         structured_type_session.sql(
             f"""
         insert into {table_name}
@@ -460,12 +457,55 @@ def test_structured_dtypes_iceberg(
         df = structured_type_session.table(table_name)
         assert df.schema == expected_schema
         assert df.dtypes == expected_dtypes
+
+        save_ddl = structured_type_session._run_query(
+            f"select get_ddl('table', '{table_name}')"
+        )
+        assert save_ddl[0][0] == (
+            f"create or replace ICEBERG TABLE {table_name.upper()} (\n\t"
+            "MAP MAP(STRING, LONG),\n\tOBJ OBJECT(A STRING, B DOUBLE),\n\tARR ARRAY(DOUBLE)\n)\n "
+            "EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n "
+            "BASE_LOCATION = 'python_connector_merge_gate/';"
+        )
+
     finally:
         structured_type_session.sql(f"drop table if exists {table_name}")
 
 
-@pytest.mark.skip(
-    "SNOW-1356851: Skipping until iceberg testing infrastructure is added."
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
+def test_structured_dtypes_iceberg_create_from_values(
+    structured_type_session, local_testing_mode, structured_type_support
+):
+    if not (
+        structured_type_support
+        and iceberg_supported(structured_type_session, local_testing_mode)
+    ):
+        pytest.skip("Test requires iceberg support and structured type support.")
+
+    _, __, expected_schema = STRUCTURED_TYPES_EXAMPLES[True]
+    table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
+    data = [
+        ({"x": 1}, {"A": "a", "B": 1}, [1, 1, 1]),
+        ({"x": 2}, {"A": "b", "B": 2}, [2, 2, 2]),
+    ]
+    try:
+        create_df = structured_type_session.create_dataframe(
+            data, schema=expected_schema
+        )
+        create_df.write.save_as_table(table_name, iceberg_config=ICEBERG_CONFIG)
+        assert structured_type_session.table(table_name).order_by(
+            col("ARR"), ascending=True
+        ).collect() == [Row(*d) for d in data]
+    finally:
+        structured_type_session.sql(f"drop table if exists {table_name}")
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
 )
 def test_structured_dtypes_iceberg_udf(
     structured_type_session, local_testing_mode, structured_type_support
@@ -474,7 +514,7 @@ def test_structured_dtypes_iceberg_udf(
         structured_type_support
         and iceberg_supported(structured_type_session, local_testing_mode)
     ):
-        pytest.mark.skip("Test requires iceberg support and structured type support.")
+        pytest.skip("Test requires iceberg support and structured type support.")
     query, expected_dtypes, expected_schema = STRUCTURED_TYPES_EXAMPLES[True]
 
     table_name = f"snowpark_structured_dtypes_udf_test{uuid.uuid4().hex[:5]}"
@@ -494,18 +534,8 @@ def test_structured_dtypes_iceberg_udf(
     )
 
     try:
-        structured_type_session.sql(
-            f"""
-        create iceberg table if not exists {table_name} (
-          map map(varchar, int),
-          obj object(A varchar, B float),
-          arr array(float)
-        )
-        CATALOG = 'SNOWFLAKE'
-        EXTERNAL_VOLUME = 'python_connector_iceberg_exvol'
-        BASE_LOCATION = 'python_connector_merge_gate';
-        """
-        ).collect()
+        create_df = structured_type_session.create_dataframe([], schema=expected_schema)
+        create_df.write.save_as_table(table_name, iceberg_config=ICEBERG_CONFIG)
         structured_type_session.sql(
             f"""
         insert into {table_name}

@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import logging
+import re
 from datetime import date, time
 from itertools import product
 
@@ -9,6 +10,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pandas import DatetimeTZDtype
 from pandas.core.arrays.boolean import BooleanDtype
 from pandas.core.arrays.floating import Float32Dtype, Float64Dtype
 from pandas.core.arrays.integer import (
@@ -32,12 +34,13 @@ from snowflake.snowpark.modin.plugin._internal.type_utils import (
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.types import _FractionalType, _IntegralType
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 def basic_types():
@@ -171,6 +174,11 @@ def test_astype_basic(from_dtype, to_dtype):
 )
 def test_astype_to_DatetimeTZDtype(from_dtype, to_tz):
     to_dtype = f"datetime64[ns, {to_tz}]"
+    offset_map = {
+        "UTC": "UTC",
+        "Asia/Tokyo": "UTC+09:00",
+        "America/Los_Angeles": "UTC-08:00",
+    }
     seed = (
         [True, False, False, True]
         # if isinstance(from_dtype, BooleanDtype)
@@ -187,23 +195,22 @@ def test_astype_to_DatetimeTZDtype(from_dtype, to_tz):
                 native_pd.Series(seed, dtype=from_dtype).astype(to_dtype)
     elif isinstance(from_dtype, StringDtype) or from_dtype is str:
         # Snowpark pandas use Snowflake auto format detection and the behavior can be different from native pandas
-        # to_pandas always convert timezone to the local timezone today, i.e., "America/Los_angeles"
         with SqlCounter(query_count=1):
             assert_snowpark_pandas_equal_to_pandas(
                 pd.Series(seed, dtype=from_dtype).astype(to_dtype),
                 native_pd.Series(
                     [
                         native_pd.Timestamp("1970-01-01 00:00:00", tz="UTC").tz_convert(
-                            "America/Los_Angeles"
+                            offset_map[to_tz]
                         ),
                         native_pd.Timestamp("1970-01-01 00:00:01", tz="UTC").tz_convert(
-                            "America/Los_Angeles"
+                            offset_map[to_tz]
                         ),
                         native_pd.Timestamp("1970-01-01 00:00:02", tz="UTC").tz_convert(
-                            "America/Los_Angeles"
+                            offset_map[to_tz]
                         ),
                         native_pd.Timestamp("1970-01-01 00:00:03", tz="UTC").tz_convert(
-                            "America/Los_Angeles"
+                            offset_map[to_tz]
                         ),
                     ]
                 ),
@@ -212,11 +219,9 @@ def test_astype_to_DatetimeTZDtype(from_dtype, to_tz):
                 # use dypte=str instead of StringDType
                 native_pd.Series(seed, dtype=str).astype(to_dtype)
     else:
-        with SqlCounter(query_count=1):
+        with SqlCounter(query_count=2):
             s = pd.Series(seed, dtype=from_dtype).astype(to_dtype)
-            # Snowflake timestamp_tz column's metadata does not contain the tzinfo so it cannot provide dtype as
-            # datetime64[ns, UTC], so its dtype returns datetime64 or <M8[ns]
-            assert s.dtype == np.dtype("<M8[ns]")
+            assert s.dtype == DatetimeTZDtype(tz=offset_map[to_tz])
             #
             # native_pd.Series([0,1,2], dtype="float64").astype("datetime64[ns, Asia/Tokyo]")
             # 0             1970-01-01 00:00:00+09:00
@@ -249,15 +254,15 @@ def test_astype_to_DatetimeTZDtype(from_dtype, to_tz):
                 ):
                     native_pd.Series(seed, dtype=from_dtype).astype(to_dtype)
                 expected_to_pandas = (
-                    native_pd.Series(seed, dtype=from_dtype).dt.tz_localize("UTC")
-                    # Snowpark pandas to_pandas() will convert timestamp_tz to default local timezone
-                    .dt.tz_convert("America/Los_Angeles")
+                    native_pd.Series(seed, dtype=from_dtype)
+                    .dt.tz_localize("UTC")
+                    .dt.tz_convert(offset_map[to_tz])
                 )
             else:
                 expected_to_pandas = (
-                    native_pd.Series(seed, dtype=from_dtype).astype(to_dtype)
-                    # Snowpark pandas to_pandas() will convert timestamp_tz to default local timezone
-                    .dt.tz_convert("America/Los_Angeles")
+                    native_pd.Series(seed, dtype=from_dtype)
+                    .astype(to_dtype)
+                    .dt.tz_convert(offset_map[to_tz])
                 )
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 s,
@@ -387,19 +392,57 @@ def test_python_datetime_astype_DatetimeTZDtype(seed):
             with pytest.raises(TypeError, match="cannot be converted"):
                 s.astype(to_dtype).to_pandas()
     else:
-        with SqlCounter(query_count=1):
+        with SqlCounter(query_count=2):
             snow = s.astype(to_dtype)
-            assert snow.dtype == np.dtype("<M8[ns]")
-            expected_to_pandas = (
-                native.astype(to_dtype)
-                # Snowpark pandas to_pandas() will convert timestamp_tz to default local timezone
-                .dt.tz_convert("America/Los_Angeles")
-            )
+            assert snow.dtype == to_dtype
+            expected_to_pandas = native.astype(to_dtype)
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 snow,
                 expected_to_pandas,
                 check_datetimelike_compat=True,
             )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize(
+    "data",
+    [[12345678, 9], [12345678, 2.6], [True, False], [1, "2"]],
+    ids=["int", "float", "boolean", "object"],
+)
+def test_astype_to_timedelta(data):
+    native_series = native_pd.Series(data)
+    snow_series = pd.Series(native_series)
+    eval_snowpark_pandas_result(
+        snow_series, native_series, lambda series: series.astype("timedelta64[ns]")
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_astype_to_timedelta_negative():
+    native_datetime_series = native_pd.Series(
+        data=[pd.to_datetime("2000-01-01"), pd.to_datetime("2001-01-01")]
+    )
+    snow_datetime_series = pd.Series(native_datetime_series)
+    with SqlCounter(query_count=0):
+        with pytest.raises(
+            TypeError,
+            match=re.escape("Cannot cast DatetimeArray to dtype timedelta64[ns]"),
+        ):
+            native_datetime_series.astype("timedelta64[ns]")
+        with pytest.raises(
+            TypeError,
+            match=re.escape(
+                "dtype datetime64[ns] cannot be converted to timedelta64[ns]"
+            ),
+        ):
+            snow_datetime_series.astype("timedelta64[ns]")
+    with SqlCounter(query_count=0):
+        snow_string_series = pd.Series(data=["2 days, 3 minutes"])
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape("dtype object cannot be converted to timedelta64[ns]"),
+        ):
+            snow_string_series.astype("timedelta64[ns]")
 
 
 @sql_count_checker(query_count=0)
