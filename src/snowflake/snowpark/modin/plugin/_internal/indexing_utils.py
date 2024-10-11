@@ -478,18 +478,11 @@ def get_frame_by_row_pos_slice_frame(
     # Row position column required for left and right bound comparison.
     frame = internal_frame.ensure_row_position_column()
     row_pos_col = col(frame.row_position_snowflake_quoted_identifier)
-    count_col_created = False
 
     def get_count_col() -> Column:
-        nonlocal count_col_created
         nonlocal frame
-        if not count_col_created:
-            # create a count column which will be used to check step
-            frame = frame.append_column(
-                "count", pandas_lit(1) + max_(row_pos_col).over()
-            )
-            count_col_created = True
-        return col(frame.data_column_snowflake_quoted_identifiers[-1])
+        frame = frame.ensure_row_count_column()
+        return col(frame.row_count_snowflake_quoted_identifier)
 
     ordering_columns = internal_frame.ordering_columns
     start, stop, step = key.start, key.stop, key.step
@@ -506,11 +499,13 @@ def get_frame_by_row_pos_slice_frame(
         # Switch start and stop; convert given slice key into a similar slice key with positive step.
         start, stop = stop, start
     if (stop is not None and stop >= 0) and (start is None or start >= 0):
-        limit_n = stop + 1 if step < 0 else stop
+        # set limit_n = abs(stop - start) // step when we exactly know how many rows it is going to return.
+        limit_n = stop
         if start is not None:
-            limit_n = limit_n - start
-            if limit_n < 0:
-                limit_n = 0
+            limit_n = abs(limit_n - start)
+        if step < 0 and start is None:
+            limit_n += 1  # e.g., df.iloc[1:None:-1] return 2 rows
+        limit_n = 1 + (limit_n - 1) // abs(step)
 
     if step < 0:
         # Set ascending to False if step is negative.
@@ -548,6 +543,7 @@ def get_frame_by_row_pos_slice_frame(
     filter_cond = left_bound_filter & right_bound_filter & step_bound_filter
     ordered_dataframe = frame.ordered_dataframe.filter(filter_cond)
     if limit_n is not None:
+        # adding limit to exit scanning the whole table if enough result has been found
         ordered_dataframe = ordered_dataframe.limit(limit_n, sort=False)
     ordered_dataframe = ordered_dataframe.sort(ordering_columns)
     return InternalFrame.create(
