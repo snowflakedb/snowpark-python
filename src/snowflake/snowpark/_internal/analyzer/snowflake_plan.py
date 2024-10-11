@@ -257,11 +257,14 @@ class SnowflakePlan(LogicalPlan):
         # It is used for optimization, by replacing a subquery with a CTE
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization. This is generated based on the main
-        # query and the associated query parameters. We use this id for equality comparison
-        # to determine if two plans are the same.
+        # query, query parameters and the node type. We use this id for equality
+        # comparison to determine if two plans are the same.
         self.encoded_id = encode_id(
             type(self).__name__, queries[-1].sql, queries[-1].params
         )
+        # encode id for the main query and query parameters, this is currently only used
+        # by the create_cte_query process.
+        # TODO (SNOW-1541096) remove this filed along removing the old cte implementation
         self.encoded_query_id = encoded_query_id(queries[-1].sql, queries[-1].params)
         self.referenced_ctes: Set[WithQueryBlock] = (
             referenced_ctes.copy() if referenced_ctes else set()
