@@ -3,8 +3,10 @@
 #
 
 from typing import Dict, List, Optional, Set
+from collections import defaultdict
 
 from snowflake.snowpark._internal.analyzer.cte_utils import find_duplicate_subtrees
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     WithQueryBlock,
@@ -87,10 +89,10 @@ class RepeatedSubqueryElimination:
             logical_plan = self._query_generator.resolve(logical_plan)
 
             # apply the CTE optimization on the resolved plan
-            duplicated_nodes, node_parents_map = find_duplicate_subtrees(logical_plan)
-            if len(duplicated_nodes) > 0:
+            duplicated_node_ids = find_duplicate_subtrees(logical_plan)
+            if len(duplicated_node_ids) > 0:
                 deduplicated_plan = self._replace_duplicate_node_with_cte(
-                    logical_plan, duplicated_nodes, node_parents_map
+                    logical_plan, duplicated_node_ids
                 )
                 final_logical_plans.append(deduplicated_plan)
             else:
@@ -104,8 +106,8 @@ class RepeatedSubqueryElimination:
     def _replace_duplicate_node_with_cte(
         self,
         root: TreeNode,
-        duplicated_nodes: Set[TreeNode],
-        node_parents_map: Dict[TreeNode, Set[TreeNode]],
+        duplicated_node_ids: Set[str],
+        # node_parents_map: Dict[TreeNode, Set[TreeNode]],
     ) -> LogicalPlan:
         """
         Replace all duplicated nodes with a WithQueryBlock (CTE node), to enable
@@ -117,17 +119,20 @@ class RepeatedSubqueryElimination:
         This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
         """
 
+        node_parents_map: Dict[TreeNode, Set[TreeNode]] = defaultdict(set)
         stack1, stack2 = [root], []
 
         while stack1:
             node = stack1.pop()
             stack2.append(node)
             for child in reversed(node.children_plan_nodes):
+                node_parents_map[child].add(node)
                 stack1.append(child)
 
         # tack node that is already visited to avoid repeated operation on the same node
-        visited_nodes: Set[TreeNode] = set()
+        # visited_nodes: Set[TreeNode] = set()
         updated_nodes: Set[TreeNode] = set()
+        resolved_with_block_map: Dict[str, SnowflakePlan] = {}
 
         def _update_parents(
             node: TreeNode,
@@ -146,27 +151,31 @@ class RepeatedSubqueryElimination:
 
         while stack2:
             node = stack2.pop()
-            if node in visited_nodes:
-                continue
+            # if node in visited_nodes:
+            #    continue
 
             # if the node is a duplicated node and deduplication is not done for the node,
             # start the deduplication transformation use CTE
-            if node in duplicated_nodes:
-                # create a WithQueryBlock node
-                with_block = WithQueryBlock(
-                    name=random_name_for_temp_object(TempObjectType.CTE), child=node
-                )
-                with_block._is_valid_for_replacement = True
+            if node.encoded_id in duplicated_node_ids:
+                if node.encoded_id in resolved_with_block_map:
+                    resolved_with_block = resolved_with_block_map[node.encoded_id]
+                else:
+                    # create a WithQueryBlock node
+                    with_block = WithQueryBlock(
+                        name=random_name_for_temp_object(TempObjectType.CTE), child=node
+                    )
+                    with_block._is_valid_for_replacement = True
 
-                resolved_with_block = self._query_generator.resolve(with_block)
+                    resolved_with_block = self._query_generator.resolve(with_block)
+                    resolved_with_block_map[node.encoded_id] = resolved_with_block
+                    self._total_number_ctes += 1
                 _update_parents(
                     node, should_replace_child=True, new_child=resolved_with_block
                 )
-                self._total_number_ctes += 1
             elif node in updated_nodes:
                 # if the node is updated, make sure all nodes up to parent is updated
                 _update_parents(node, should_replace_child=False)
 
-            visited_nodes.add(node)
+            # visited_nodes.add(node)
 
         return root

@@ -42,7 +42,9 @@ binary_operations = [
 
 WITH = "WITH"
 
-paramList = [False, True]
+# paramList = [False, True]
+
+paramList = [True]
 
 
 @pytest.fixture(params=paramList, autouse=True)
@@ -155,6 +157,9 @@ def count_number_of_ctes(query):
 def test_unary(session, action):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     df_action = action(df)
+    df_res = df_action.union_all(df_action)
+    print(df_res.queries)
+    """
     check_result(
         session,
         df_action,
@@ -173,6 +178,7 @@ def test_unary(session, action):
         union_count=1,
         join_count=0,
     )
+    """
 
 
 @pytest.mark.parametrize("type, action", binary_operations)

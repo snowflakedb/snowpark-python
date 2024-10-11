@@ -5,9 +5,9 @@
 import sys
 from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
+from functools import cached_property
 from copy import copy, deepcopy
 from enum import Enum
-from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     AbstractSet,
@@ -239,16 +239,7 @@ class Selectable(LogicalPlan, ABC):
         self._api_calls = api_calls.copy() if api_calls is not None else None
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
-    def __eq__(self, other: "Selectable") -> bool:
-        if not isinstance(other, Selectable):
-            return False
-        if self._id is not None and other._id is not None:
-            return type(self) is type(other) and self._id == other._id
-        else:
-            return super().__eq__(other)
-
-    def __hash__(self) -> int:
-        return hash(self._id) if self._id else super().__hash__()
+        # self.encoded_id = encode_id(self.sql_query, self.query_params)
 
     @property
     @abstractmethod
@@ -263,7 +254,7 @@ class Selectable(LogicalPlan, ABC):
         pass
 
     @cached_property
-    def _id(self) -> Optional[str]:
+    def encoded_id(self) -> Optional[str]:
         """Returns the id of this Selectable logical plan."""
         return encode_id(self.sql_query, self.query_params)
 
@@ -592,8 +583,8 @@ class SelectSnowflakePlan(Selectable):
         return self._snowflake_plan.placeholder_query
 
     @property
-    def _id(self) -> Optional[str]:
-        return self._snowflake_plan._id
+    def encoded_id(self) -> Optional[str]:
+        return self._snowflake_plan.encoded_id
 
     @property
     def schema_query(self) -> Optional[str]:
@@ -825,7 +816,7 @@ class SelectStatement(Selectable):
     def placeholder_query(self) -> str:
         if self._placeholder_query:
             return self._placeholder_query
-        from_clause = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
+        from_clause = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_.encoded_id}{analyzer_utils.RIGHT_PARENTHESIS}"
         if not self.has_clause and not self.projection:
             self._placeholder_query = from_clause
             return self._placeholder_query
