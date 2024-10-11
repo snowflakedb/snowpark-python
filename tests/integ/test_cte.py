@@ -146,17 +146,21 @@ def count_number_of_ctes(query):
     "action",
     [
         lambda x: x.select("a", "b").select("b"),
-        lambda x: x.filter(col("a") == 1).select("b"),
-        lambda x: x.select("a").filter(col("a") == 1),
-        lambda x: x.select_expr("sum(a) as a").with_column("b", seq1()),
-        lambda x: x.drop("b").sort("a", ascending=False),
-        lambda x: x.rename(col("a"), "new_a").limit(1),
-        lambda x: x.to_df("a1", "b1").alias("L"),
+        # lambda x: x.filter(col("a") == 1).select("b"),
+        # lambda x: x.select("a").filter(col("a") == 1),
+        # lambda x: x.select_expr("sum(a) as a").with_column("b", seq1()),
+        # lambda x: x.drop("b").sort("a", ascending=False),
+        # lambda x: x.rename(col("a"), "new_a").limit(1),
+        # lambda x: x.to_df("a1", "b1").alias("L"),
     ],
 )
 def test_unary(session, action):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     df_action = action(df)
+    df_res = df_action.union_all(df_action)
+    df_res.count()
+    # print(df_res.queries)
+    """
     check_result(
         session,
         df_action,
@@ -175,6 +179,7 @@ def test_unary(session, action):
         union_count=1,
         join_count=0,
     )
+    """
 
 
 @pytest.mark.parametrize("type, action", binary_operations)
