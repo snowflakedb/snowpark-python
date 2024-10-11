@@ -445,10 +445,15 @@ class TableEmulator(PandasDataframeType):
 
     def copy(self, deep=True):
         ans = super().copy(deep)
-        ans.sf_types = self.sf_types.copy()
-        ans._null_rows_idxs_map = self._null_rows_idxs_map.copy()
-        ans.sf_types_by_col_index = self.sf_types_by_col_index.copy()
-        ans.sorted_by = self.sorted_by.copy()
+        # Without the hasattr this fails.
+        if hasattr(self, "sf_types"):
+            ans.sf_types = self.sf_types.copy()
+        if hasattr(self, "_null_rows_idxs_map"):
+            ans._null_rows_idxs_map = self._null_rows_idxs_map.copy()
+        if hasattr(self, "sf_types_by_col_index"):
+            ans.sf_types_by_col_index = self.sf_types_by_col_index.copy()
+        if hasattr(self, "sorted_by"):
+            ans.sorted_by = self.sorted_by.copy()
         return ans
 
 

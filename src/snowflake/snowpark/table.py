@@ -303,7 +303,7 @@ class Table(DataFrame):
             )
         else:
             plan = snowflake_table_plan
-        super().__init__(session, plan, ast_stmt=_ast_stmt)
+        super().__init__(session, plan, _ast_stmt=_ast_stmt)
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
         self._is_temp_table_for_cleanup = is_temp_table_for_cleanup

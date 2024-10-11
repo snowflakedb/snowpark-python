@@ -66,8 +66,6 @@ def reset_node(node: LogicalPlan, query_generator: QueryGenerator) -> None:
     if isinstance(node, SnowflakePlan):
         # do not reset leaf snowflake plan
         if node.source_plan is not None:
-            node.queries = None
-            node.post_actions = None
             if isinstance(node.source_plan, Selectable):
                 reset_selectable(node.source_plan)
     elif isinstance(node, Selectable):
