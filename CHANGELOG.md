@@ -29,7 +29,7 @@
 - Added support for 'Service' domain to `session.lineage.trace` API.
 
 #### Improvements
-- Improved  `snowflake.snowpark.functions` to support double and varchar.
+- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use it with a string.
 
 #### Bug Fixes
 
