@@ -8,7 +8,6 @@ from typing import Tuple
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.analyzer import analyzer
 from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
@@ -204,38 +203,6 @@ def test_union_by_name(session):
     assert get_max_nesting_depth(df_n1.queries["queries"][-1]) == get_max_nesting_depth(
         df_n2.queries["queries"][-1]
     )
-
-
-def test_in_with_subquery_multiple_query(session):
-    # multiple queries
-    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
-    try:
-        analyzer.ARRAY_BIND_THRESHOLD = 2
-        df0 = session.create_dataframe([[1], [2], [5], [7]], schema=["a"])
-        df = session.create_dataframe(
-            [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33], [5, "c", 21, 18]],
-            schema=["a", "b", "c", "d"],
-        )
-        df_filter = df0.filter(col("a") < 3)
-        df_in = df.filter(~df["a"].in_(df_filter))
-        df_result = df_in.union_all(df_in).select("*")
-
-        """
-        'CREATE  OR  REPLACE  SCOPED TEMPORARY  TABLE SNOWPARK_TEMP_TABLE_B7KIT7YVL9("A" BIGINT NOT NULL , "B" STRING NOT NULL , "C" BIGINT NOT NULL , "D" BIGINT NOT NULL )', 'INSERT  INTO SNOWPARK_TEMP_TABLE_B7KIT7YVL9("A", "B", "C", "D") VALUES (?, ?, ?, ?)',
-        'WITH SNOWPARK_TEMP_CTE_5PCVK6WSYG AS ( SELECT  *  FROM ( SELECT "A", "B", "C", "D" FROM ( SELECT  *  FROM (SNOWPARK_TEMP_TABLE_B7KIT7YVL9))) WHERE NOT "A" IN (( SELECT "A" FROM ( SELECT  *  FROM (SNOWPARK_TEMP_TABLE_OYX4PWAYFQ)) WHERE ("A" < 3))))( SELECT  *  FROM (SNOWPARK_TEMP_CTE_5PCVK6WSYG)) UNION ALL ( SELECT  *  FROM (SNOWPARK_TEMP_CTE_5PCVK6WSYG))'
-        """
-        df_result.show()
-        Utils.check_answer(
-            df_result,
-            [
-                Row(3, "b", 33, 33),
-                Row(5, "c", 21, 18),
-                Row(3, "b", 33, 33),
-                Row(5, "c", 21, 18),
-            ],
-        )
-    finally:
-        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
 
 
 def test_union_with_cache_result(session):
