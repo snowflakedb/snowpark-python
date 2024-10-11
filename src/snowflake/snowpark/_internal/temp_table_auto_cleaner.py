@@ -8,6 +8,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Dict
 
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
+from snowflake.snowpark._internal.utils import is_in_stored_procedure
 
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session  # pragma: no cover
@@ -68,13 +69,28 @@ class TempTableAutoCleaner:
         logging.debug(f"Ready to drop {common_log_text}")
         query_id = None
         try:
-            async_job = self.session.sql(
-                f"drop table if exists {name} /* internal query to drop unused temp table */",
-            )._internal_collect_with_tag_no_telemetry(
-                block=False, statement_params={DROP_TABLE_STATEMENT_PARAM_NAME: name}
-            )
-            query_id = async_job.query_id
-            logging.debug(f"Dropping {common_log_text} with query id {query_id}")
+            if (
+                is_in_stored_procedure()
+                and not self.session._conn._get_client_side_session_parameter(
+                    "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
+                )
+            ):
+                warning_message = "Drop table requires async query which is not supported in stored procedure yet"
+                logging.warning(warning_message)
+                self.session._conn._telemetry_client.send_temp_table_cleanup_abnormal_exception_telemetry(
+                    self.session.session_id,
+                    name,
+                    str(warning_message),
+                )
+                return
+            with self.session.connection.cursor() as cursor:
+                async_job_query_id = cursor.execute_async(
+                    command=f"drop table if exists {name}",
+                    _statement_params={DROP_TABLE_STATEMENT_PARAM_NAME: name},
+                )["queryId"]
+                logging.debug(
+                    f"Dropping {common_log_text} with query id {async_job_query_id}"
+                )
         except Exception as ex:  # pragma: no cover
             warning_message = f"Failed to drop {common_log_text}, exception: {ex}"
             logging.warning(warning_message)
