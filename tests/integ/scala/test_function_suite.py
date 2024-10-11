@@ -2930,6 +2930,10 @@ def test_array_remove(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
+    reason="array_remove is not yet supported in local testing mode.",
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_cat is not yet supported in local testing mode.",
 )
 def test_array_cat(session):
@@ -4269,6 +4273,449 @@ def test_to_array(session):
         integer1.select(to_array("a")),
         [Row("[\n  1\n]"), Row("[\n  2\n]"), Row("[\n  3\n]")],
         sort=False,
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array("age", "age"))
+
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  4,\n  4\n]"),
+            Row("[\n  2,\n  2\n]"),
+            Row("[\n  5,\n  5\n]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array([actual.age, actual.age]))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  4,\n  4\n]"),
+            Row("[\n  2,\n  2\n]"),
+            Row("[\n  5,\n  5\n]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array(actual.age, actual.age))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  4,\n  4\n]"),
+            Row("[\n  2,\n  2\n]"),
+            Row("[\n  5,\n  5\n]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array("age", actual.age))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  4,\n  4\n]"),
+            Row("[\n  2,\n  2\n]"),
+            Row("[\n  5,\n  5\n]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array(actual.age, "age"))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  4,\n  4\n]"),
+            Row("[\n  2,\n  2\n]"),
+            Row("[\n  5,\n  5\n]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array(actual.age, actual.name))
+    Utils.check_answer(
+        actual,
+        [
+            Row('[\n  4,\n  "Eva"\n]'),
+            Row('[\n  2,\n  "Alice"\n]'),
+            Row('[\n  5,\n  "Bob"\n]'),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array(actual.name, actual.name))
+    Utils.check_answer(
+        actual,
+        [
+            Row('[\n  "Eva",\n  "Eva"\n]'),
+            Row('[\n  "Alice",\n  "Alice"\n]'),
+            Row('[\n  "Bob",\n  "Bob"\n]'),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array("name", "name"))
+    Utils.check_answer(
+        actual,
+        [
+            Row('[\n  "Eva",\n  "Eva"\n]'),
+            Row('[\n  "Alice",\n  "Alice"\n]'),
+            Row('[\n  "Bob",\n  "Bob"\n]'),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array("LITERAL_2_INT", "LITERAL_5_FLOAT"))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  2,\n  6.300000000000000e+00\n]"),
+            Row("[\n  2,\n  5.000000000000000e+00\n]"),
+            Row("[\n  2,\n  5.000000000000000e+00\n]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array("LITERAL_2_INT", "AGE"))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  2,\n  4\n]"),
+            Row("[\n  2,\n  2\n]"),
+            Row("[\n  2,\n  5\n]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array("LITERAL_2_FLOAT", actual.age))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  2.100000000000000e+00,\n  4\n]"),
+            Row("[\n  2.000000000000000e+00,\n  2\n]"),
+            Row("[\n  2.000000000000000e+00,\n  5\n]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array(actual.age, "LITERAL_5_INT"))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  4,\n  5\n]"),
+            Row("[\n  2,\n  5\n]"),
+            Row("[\n  5,\n  5\n]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array("age", "LITERAL_5_INT"))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  4,\n  5\n]"),
+            Row("[\n  2,\n  5\n]"),
+            Row("[\n  5,\n  5\n]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array("age", "LITERAL_2_FLOAT"))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  4,\n  2.100000000000000e+00\n]"),
+            Row("[\n  2,\n  2.000000000000000e+00\n]"),
+            Row("[\n  5,\n  2.000000000000000e+00\n]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array("age", "LITERAL_5_FLOAT"))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  4,\n  6.300000000000000e+00\n]"),
+            Row("[\n  2,\n  5.000000000000000e+00\n]"),
+            Row("[\n  5,\n  5.000000000000000e+00\n]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array("LITERAL_2_INT", "age"))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  2,\n  4\n]"),
+            Row("[\n  2,\n  2\n]"),
+            Row("[\n  2,\n  5\n]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [
+            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
+            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
+            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
+        ],
+        [
+            "name",
+            "age",
+            "double_value",
+            "LITERAL_2_INT",
+            "LITERAL_5_INT",
+            "LITERAL_2_FLOAT",
+            "LITERAL_5_FLOAT",
+        ],
+    )
+    actual = actual.select(to_array("LITERAL_2_FLOAT", "age"))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  2.100000000000000e+00,\n  4\n]"),
+            Row("[\n  2.000000000000000e+00,\n  2\n]"),
+            Row("[\n  2.000000000000000e+00,\n  5\n]"),
+        ],
     )
 
 
