@@ -63,6 +63,21 @@ from snowflake.snowpark.session import Session
 _logger = logging.getLogger(__name__)
 
 
+class LargeQueryBreakdownResult:
+    # the resulting logical plans after large query breakdown
+    logical_plans: List[LogicalPlan]
+    # breakdown summary for each root plan
+    breakdown_summary: List[dict]
+
+    def __init__(
+        self,
+        logical_plans: List[LogicalPlan],
+        breakdown_summary: List[dict],
+    ) -> None:
+        self.logical_plans = logical_plans
+        self.breakdown_summary = breakdown_summary
+
+
 class LargeQueryBreakdown:
     r"""Optimization to break down large query plans into smaller partitions based on
     estimated complexity score of the plan nodes.
@@ -129,9 +144,9 @@ class LargeQueryBreakdown:
         # This is used to track the number of partitions we could not breakdown because we
         # could not find any valid nodes. We also track if we could have broken down the plan
         # only if externally referenced CTEs were considered valid.
-        self.breakdown_failure_summary = defaultdict(int)
+        self._breakdown_summary: list = list()
 
-    def apply(self) -> List[LogicalPlan]:
+    def apply(self) -> LargeQueryBreakdownResult:
         if is_active_transaction(self.session):
             # Skip optimization if the session is in an active transaction.
             _logger.debug(
@@ -141,7 +156,7 @@ class LargeQueryBreakdown:
                 self.session.session_id,
                 SkipLargeQueryBreakdownCategory.ACTIVE_TRANSACTION.value,
             )
-            return self.logical_plans
+            return LargeQueryBreakdownResult(self.logical_plans, [])
 
         resulting_plans = []
         for logical_plan in self.logical_plans:
@@ -152,7 +167,7 @@ class LargeQueryBreakdown:
             partition_plans = self._try_to_breakdown_plan(resolved_plan)
             resulting_plans.extend(partition_plans)
 
-        return resulting_plans
+        return LargeQueryBreakdownResult(resulting_plans, self._breakdown_summary)
 
     def _try_to_breakdown_plan(self, root: TreeNode) -> List[LogicalPlan]:
         """Method to breakdown a single plan into smaller partitions based on
@@ -195,12 +210,23 @@ class LargeQueryBreakdown:
             return [root]
 
         plans = []
-        # TODO: SNOW-1617634 Have a one pass algorithm to find the valid node for partitioning
+        final_partition_breakdown_summary = {}
         while complexity_score > self.complexity_score_upper_bound:
-            child = self._find_node_to_breakdown(root)
+            child, validity_statistics = self._find_node_to_breakdown(root)
             if child is None:
+                final_partition_breakdown_summary = {
+                    k.value: validity_statistics.get(k, 0)
+                    for k in [
+                        CompilationStageTelemetryField.INVALID_DUE_TO_SCORE_ABOVE_UPPER_BOUND,
+                        CompilationStageTelemetryField.INVALID_DUE_TO_SCORE_BELOW_LOWER_BOUND,
+                        CompilationStageTelemetryField.INVALID_DUE_TO_NON_PIPELINE_BREAKER,
+                        CompilationStageTelemetryField.INVALID_DUE_TO_EXTERNAL_CTE_REF,
+                        CompilationStageTelemetryField.VALID_NODE_IN_PARTITION,
+                    ]
+                }
                 _logger.debug(
-                    f"Could not find a valid node for partitioning. Skipping with root {complexity_score=}"
+                    f"Could not find a valid node for partitioning. "
+                    f"Skipping with root {complexity_score=} {final_partition_breakdown_summary=}"
                 )
                 break
 
@@ -208,10 +234,17 @@ class LargeQueryBreakdown:
             plans.append(partition)
             complexity_score = get_complexity_score(root)
 
+        final_partition_breakdown_summary[
+            CompilationStageTelemetryField.NUM_PARTITIONS_MADE.value
+        ] = len(plans)
+        self._breakdown_summary.append(final_partition_breakdown_summary)
+
         plans.append(root)
         return plans
 
-    def _find_node_to_breakdown(self, root: TreeNode) -> Optional[TreeNode]:
+    def _find_node_to_breakdown(
+        self, root: TreeNode
+    ) -> Tuple[Optional[TreeNode], dict]:
         """This method traverses the plan tree and partitions the plan based if a valid partition node
         if found. The steps involved are:
 
@@ -222,7 +255,7 @@ class LargeQueryBreakdown:
         current_level = [root]
         candidate_node = None
         candidate_score = -1  # start with -1 since score is always > 0
-        invalid_due_to_external_cte_ref_encountered = False
+        current_node_validity_statistics = defaultdict(int)
 
         while current_level:
             next_level = []
@@ -230,10 +263,13 @@ class LargeQueryBreakdown:
                 assert isinstance(node, (Selectable, SnowflakePlan))
                 for child in node.children_plan_nodes:
                     self._parent_map[child].add(node)
-                    reason_if_invalid, score = self._is_node_valid_to_breakdown(
+                    validity_status, score = self._is_node_valid_to_breakdown(
                         child, root
                     )
-                    if reason_if_invalid is None:
+                    if (
+                        validity_status
+                        == CompilationStageTelemetryField.VALID_NODE_IN_PARTITION
+                    ):
                         # If the score for valid node is higher than the last candidate,
                         # update the candidate node and score.
                         if score > candidate_score:
@@ -242,26 +278,15 @@ class LargeQueryBreakdown:
                     else:
                         # don't traverse subtrees if parent is a valid candidate
                         next_level.append(child)
-                        self.breakdown_failure_summary[reason_if_invalid.value] += 1
-                        if (
-                            reason_if_invalid
-                            == CompilationStageTelemetryField.INVALID_DUE_TO_EXTERNAL_CTE_REF
-                        ):
-                            invalid_due_to_external_cte_ref_encountered = True
+
+                    # Update the statistics for the current node.
+                    current_node_validity_statistics[validity_status] += 1
 
             current_level = next_level
 
-        if candidate_node is None:
-            self.breakdown_failure_summary[
-                CompilationStageTelemetryField.NUM_PARTITIONS_WITHOUT_VALID_NODES.value
-            ] += 1
-            self.breakdown_failure_summary[
-                CompilationStageTelemetryField.NUM_PARTITIONS_INVALID_DUE_TO_EXTERNAL_CTE_REF.value
-            ] += (1 if invalid_due_to_external_cte_ref_encountered else 0)
-
         # If no valid node is found, candidate_node will be None.
         # Otherwise, return the node with the highest complexity score.
-        return candidate_node
+        return candidate_node, current_node_validity_statistics
 
     def _get_partitioned_plan(self, root: TreeNode, child: TreeNode) -> SnowflakePlan:
         """This method takes cuts the child out from the root, creates a temp table plan for the
@@ -295,33 +320,39 @@ class LargeQueryBreakdown:
 
     def _is_node_valid_to_breakdown(
         self, node: TreeNode, root: TreeNode
-    ) -> Tuple[Optional[CompilationStageTelemetryField], int]:
+    ) -> Tuple[CompilationStageTelemetryField, int]:
         """Method to check if a node is valid to breakdown based on complexity score and node type.
 
         Returns:
             A tuple of =>
                 CompilationStageTelemetryField: indicating the primary reason
-                    for invalidity if the node is not valid else None.
+                    for invalidity if the node is invalid.
                 int: the complexity score of the node.
         """
         score = get_complexity_score(node)
         is_valid = True
-        reason_if_invalid = None
-        if not (
-            self.complexity_score_lower_bound
-            < score
-            < self.complexity_score_upper_bound
-        ):
+        validity_status = CompilationStageTelemetryField.VALID_NODE_IN_PARTITION
+        if score < self.complexity_score_lower_bound:
             is_valid = False
-            reason_if_invalid = CompilationStageTelemetryField.INVALID_DUE_TO_SCORE
+            validity_status = (
+                CompilationStageTelemetryField.INVALID_DUE_TO_SCORE_BELOW_LOWER_BOUND
+            )
+
+        if score > self.complexity_score_upper_bound:
+            is_valid = False
+            validity_status = (
+                CompilationStageTelemetryField.INVALID_DUE_TO_SCORE_ABOVE_UPPER_BOUND
+            )
 
         if is_valid and not self._is_node_pipeline_breaker(node):
             is_valid = False
-            reason_if_invalid = CompilationStageTelemetryField.INVALID_DUE_TO_PIPELINE
+            validity_status = (
+                CompilationStageTelemetryField.INVALID_DUE_TO_NON_PIPELINE_BREAKER
+            )
 
         if is_valid and self._contains_external_cte_ref(node, root):
             is_valid = False
-            reason_if_invalid = (
+            validity_status = (
                 CompilationStageTelemetryField.INVALID_DUE_TO_EXTERNAL_CTE_REF
             )
 
@@ -330,7 +361,7 @@ class LargeQueryBreakdown:
                 f"Added node of type {type(node)} with score {score} to pipeline breaker list."
             )
 
-        return reason_if_invalid, score
+        return validity_status, score
 
     def _contains_external_cte_ref(self, node: TreeNode, root: TreeNode) -> bool:
         """Method to check if a node contains a CTE in its subtree that is also referenced
@@ -342,7 +373,11 @@ class LargeQueryBreakdown:
                             /    \
                         node2    node3
                        /    |      |
-                   node4   WithQueryBlock
+                   node4  SelectSnowflakePlan
+                                |
+                           SnowflakePlan
+                                |
+                           WithQueryBlock
                                 |
                               node6
 
@@ -356,6 +391,14 @@ class LargeQueryBreakdown:
         number of times each unique WithQueryBlock node is referenced in the subtree compared
         to the number of times it is referenced in the root node.
         """
+        if isinstance(node, SnowflakePlan) and isinstance(
+            node.source_plan, WithQueryBlock
+        ):
+            return False
+
+        if isinstance(node, SelectSnowflakePlan):
+            return self._contains_external_cte_ref(node.snowflake_plan, root)
+
         for with_query_block, node_count in node.referenced_ctes.items():
             root_count = root.referenced_ctes[with_query_block]
             if node_count != root_count:

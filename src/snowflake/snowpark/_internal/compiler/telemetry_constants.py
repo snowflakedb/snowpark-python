@@ -43,13 +43,16 @@ class CompilationStageTelemetryField(Enum):
     )
     COMPLEXITY_SCORE_BEFORE_COMPILATION = "complexity_score_before_compilation"
     COMPLEXITY_SCORE_BOUNDS = "complexity_score_bounds"
-    INVALID_DUE_TO_SCORE = "num_nodes_invalid_due_to_score"
-    INVALID_DUE_TO_PIPELINE = "num_nodes_invalid_due_to_pipeline"
-    INVALID_DUE_TO_EXTERNAL_CTE_REF = "num_nodes_invalid_due_to_external_cte_ref"
-    NUM_PARTITIONS_INVALID_DUE_TO_EXTERNAL_CTE_REF = (
-        "num_partitions_invalid_due_to_external_cte_ref"
+    VALID_NODE_IN_PARTITION = "num_valid_nodes_in_partition"
+    INVALID_DUE_TO_SCORE_BELOW_LOWER_BOUND = (
+        "num_nodes_invalid_due_to_score_below_lower_bound"
     )
-    NUM_PARTITIONS_WITHOUT_VALID_NODES = "num_partitions_without_valid_nodes"
+    INVALID_DUE_TO_SCORE_ABOVE_UPPER_BOUND = (
+        "num_nodes_invalid_due_to_score_above_upper_bound"
+    )
+    INVALID_DUE_TO_NON_PIPELINE_BREAKER = "num_nodes_invalid_due_to_pipeline"
+    INVALID_DUE_TO_EXTERNAL_CTE_REF = "num_nodes_invalid_due_to_external_cte_ref"
+    NUM_PARTITIONS_MADE = "num_partitions_made"
 
 
 class SkipLargeQueryBreakdownCategory(Enum):
