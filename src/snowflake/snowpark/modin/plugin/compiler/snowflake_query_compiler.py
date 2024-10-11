@@ -414,21 +414,15 @@ _TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED = (
 
 # List of query compiler methods where attrs on the result should always be empty.
 _RESET_ATTRS_METHODS = [
-    "agg",
-    "all",
-    "any",
     "compare",
     "merge",
     "value_counts",
-    "groupby_apply",
-    "groupby_agg",
     "groupby_cumcount",
     "groupby_cummax",
     "groupby_cummin",
     "groupby_rank",
     "groupby_size",
-    "groupby_transform",
-    # resample, expanding, and rolling methods also do not propagate; we check them by prefix matching
+    # expanding, and rolling methods also do not propagate; we check them by prefix matching
     # agg and crosstab are also handled separately
 ]
 
@@ -467,8 +461,7 @@ def _propagate_attrs_on_methods(cls):  # type: ignore
         if attr_name.startswith("_") or attr_name == "concat":
             continue
         if attr_name in _RESET_ATTRS_METHODS or any(
-            attr_name.startswith(prefix)
-            for prefix in ["resample", "expanding", "rolling"]
+            attr_name.startswith(prefix) for prefix in ["expanding", "rolling"]
         ):
             setattr(cls, attr_name, reset_attrs_decorator(attr_value))
         elif isinstance(attr_value, property):
