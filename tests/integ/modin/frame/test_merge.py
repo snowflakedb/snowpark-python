@@ -276,6 +276,7 @@ def _verify_merge(
 
 
 @pytest.mark.parametrize("on", ["A", "B", ["A", "B"], ("A", "B")])
+@pytest.mark.modin_sp_precommit
 @sql_count_checker(query_count=3, join_count=1)
 def test_merge_on(left_df, right_df, on, how, sort):
     _verify_merge(left_df, right_df, how, on=on, sort=sort)
