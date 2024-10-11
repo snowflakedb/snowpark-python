@@ -9,6 +9,7 @@
 ### Snowpark pandas API Updates
 
 #### New Features
+- Added numpy compatibility support for `np.float_power`, `np.mod`, `np.remainder`, `np.greater`, `np.greater_equal`, `np.less`, `np.less_equal`, `np.not_equal`, and `np.equal`.
 
 ## 1.23.0 (2024-10-09)
 
@@ -54,8 +55,8 @@
 - Added support for `DataFrame.tz_localize` and `Series.tz_localize`.
 - Added support for `DataFrame.tz_convert` and `Series.tz_convert`.
 - Added support for applying Snowpark Python functions (e.g., `sin`) in `Series.map`, `Series.apply`, `DataFrame.apply` and `DataFrame.applymap`.
-- Added support for `np.subtract`, `np.multiply`, `np.divide`, `np.true_divide`
-- Added support for tracking usages of `__array_ufunc__`
+- Added support for `np.subtract`, `np.multiply`, `np.divide`, and `np.true_divide`.
+- Added support for tracking usages of `__array_ufunc__`.
 
 #### Improvements
 
