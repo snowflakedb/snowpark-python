@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
     """
-    Returns a set containing all duplicate subtrees in query plan tree.
+    Returns a set of TreeNode encoded_id that indicates all duplicate subtrees in query plan tree.
     The root of a duplicate subtree is defined as a duplicate node, if
         - it appears more than once in the tree, AND
         - one of its parent is unique (only appear once) in the tree, OR
@@ -50,7 +50,6 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
     """
     id_count_map = defaultdict(int)
     id_parents_map = defaultdict(set)
-    # node_parents_map = defaultdict(set)
 
     def traverse(root: "TreeNode") -> None:
         """
@@ -157,6 +156,14 @@ def create_cte_query(root: "TreeNode", duplicated_node_ids: Set[str]) -> str:
 def encoded_query_id(
     query: str, query_params: Optional[Sequence[Any]] = None
 ) -> Optional[str]:
+    """
+    Encode the query and its query parameter into an id using sha256.
+
+
+    Returns:
+        If encode succeed, return the first 10 encoded value.
+        Otherwise, return None
+    """
     string = f"{query}#{query_params}" if query_params else query
     try:
         return hashlib.sha256(string.encode()).hexdigest()[:10]
@@ -168,9 +175,15 @@ def encoded_query_id(
 def encode_id(
     node_type_name: str, query: str, query_params: Optional[Sequence[Any]] = None
 ) -> str:
-    string = f"{query}#{query_params}" if query_params else query
-    try:
-        return hashlib.sha256(string.encode()).hexdigest()[:10] + node_type_name
-    except Exception as ex:
-        logging.warning(f"Encode SnowflakePlan ID failed: {ex}")
+    """
+    Encode given query, query parameters and the node type into an id.
+
+    If query and query parameters can be encoded successfully using sha256,
+    return the encoded query id + node_type_name.
+    Otherwise, generate a uuid.
+    """
+    query_id = encoded_query_id(query, query_params)
+    if query_id is not None:
+        return query_id + node_type_name
+    else:
         return str(uuid.uuid4())

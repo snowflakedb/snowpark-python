@@ -260,7 +260,7 @@ class Selectable(LogicalPlan, ABC):
 
     @cached_property
     def encoded_query_id(self) -> str:
-        """Returns the id of this Selectable logical plan."""
+        """Returns the id of the queries for this Selectable logical plan."""
         return encoded_query_id(self.sql_query, self.query_params)
 
     @property
@@ -594,10 +594,6 @@ class SelectSnowflakePlan(Selectable):
     @property
     def placeholder_query(self) -> Optional[str]:
         return self._snowflake_plan.placeholder_query
-
-    # @cached_property
-    # def encoded_id(self) -> str:
-    #    return self._snowflake_plan.encoded_id
 
     @cached_property
     def encoded_query_id(self) -> str:
