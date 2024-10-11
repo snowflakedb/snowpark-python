@@ -27,6 +27,11 @@
 
 ### Snowpark pandas API Updates
 
+### Dependency Updates
+
+- Updated `modin` from 0.28.1 to 0.30.1.
+- Added support for `pandas` 2.2.2 and 2.2.3.
+
 #### New Features
 
 - Added support for `np.subtract`, `np.multiply`, `np.divide`, and `np.true_divide`.
@@ -90,11 +95,6 @@
 - Fixed a bug where registering a stored procedure or UDxF with type hints would give a warning `'NoneType' has no len() when trying to read default values from function`.
 
 ### Snowpark pandas API Updates
-
-### Dependency Updates
-
-- Updated `modin` from 0.28.1 to 0.30.1.
-- Added support for `pandas` 2.2.2 and 2.2.3.
 
 #### New Features
 
