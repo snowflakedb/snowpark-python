@@ -33,6 +33,7 @@ def eval_result_and_query_with_no_join(
     "n",
     [1, None, 0, -1, -10, 5, 10],
 )
+@pytest.mark.modin_sp_precommit
 @sql_count_checker(query_count=2)
 def test_head_tail(n, default_index_snowpark_pandas_df, default_index_native_df):
     eval_snowpark_pandas_result(
