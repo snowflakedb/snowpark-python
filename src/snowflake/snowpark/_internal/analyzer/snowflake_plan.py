@@ -490,10 +490,6 @@ class SnowflakePlan(LogicalPlan):
             )
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
-        if (self_id := id(self)) in memodict:
-            # return the memoized copy if it exists
-            return memodict[self_id]
-
         if self.source_plan:
             copied_source_plan = copy.deepcopy(self.source_plan, memodict)
         else:

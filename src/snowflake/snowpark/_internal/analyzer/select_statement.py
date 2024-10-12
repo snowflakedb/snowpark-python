@@ -403,9 +403,6 @@ class SelectableEntity(Selectable):
         self.entity = entity
 
     def __deepcopy__(self, memodict={}) -> "SelectableEntity":  # noqa: B006
-        if (self_id := id(self)) in memodict:
-            # return the memoized copy if it exists
-            return memodict[self_id]
         copied = SelectableEntity(
             deepcopy(self.entity, memodict), analyzer=self.analyzer
         )
@@ -480,9 +477,6 @@ class SelectSQL(Selectable):
             self._query_param = params
 
     def __deepcopy__(self, memodict={}) -> "SelectSQL":  # noqa: B006
-        if (self_id := id(self)) in memodict:
-            # return the memoized copy if it exists
-            return memodict[self_id]
         copied = SelectSQL(
             sql=self.original_sql,
             # when convert_to_select is True, a describe call might be triggered
@@ -575,9 +569,6 @@ class SelectSnowflakePlan(Selectable):
                 self._query_params.extend(query.params)
 
     def __deepcopy__(self, memodict={}) -> "SelectSnowflakePlan":  # noqa: B006
-        if (self_id := id(self)) in memodict:
-            # return the memoized copy if it exists
-            return memodict[self_id]
         copied = SelectSnowflakePlan(
             snowflake_plan=deepcopy(self._snowflake_plan, memodict),
             analyzer=self.analyzer,
@@ -704,9 +695,6 @@ class SelectStatement(Selectable):
         return new
 
     def __deepcopy__(self, memodict={}) -> "SelectStatement":  # noqa: B006
-        if (self_id := id(self)) in memodict:
-            # return the memoized copy if it exists
-            return memodict[self_id]
         copied = SelectStatement(
             projection=deepcopy(self.projection, memodict),
             from_=deepcopy(self.from_, memodict),
@@ -1318,9 +1306,6 @@ class SelectTableFunction(Selectable):
         self._api_calls = self._snowflake_plan.api_calls
 
     def __deepcopy__(self, memodict={}) -> "SelectTableFunction":  # noqa: B006
-        if (self_id := id(self)) in memodict:
-            # return the memoized copy if it exists
-            return memodict[self_id]
         copied = SelectTableFunction(
             func_expr=deepcopy(self.func_expr, memodict),
             snowflake_plan=deepcopy(self._snowflake_plan, memodict),
@@ -1328,7 +1313,6 @@ class SelectTableFunction(Selectable):
         )
         # copy over the other selectable fields, the snowflake plan has already been set correctly.
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
-
         return copied
 
     @property
@@ -1390,9 +1374,6 @@ class SetStatement(Selectable):
             self._nodes.append(operand.selectable)
 
     def __deepcopy__(self, memodict={}) -> "SetStatement":  # noqa: B006
-        if (self_id := id(self)) in memodict:
-            # return the memoized copy if it exists
-            return memodict[self_id]
         copied = SetStatement(
             *deepcopy(self.set_operands, memodict), analyzer=self.analyzer
         )

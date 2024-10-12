@@ -414,6 +414,12 @@ def test_deepcopy_no_duplicate(session, generator):
         plan_memo = id(plan)
         identifier_tuple = (plan_id, plan_type)
 
+        local_deepcopy_memo = {}
+        first_deepcopy = copy.deepcopy(plan, local_deepcopy_memo)
+        second_deepcopy = copy.deepcopy(plan, local_deepcopy_memo)
+        assert plan_memo in local_deepcopy_memo
+        assert first_deepcopy is second_deepcopy
+
         if identifier_tuple not in plan_id_map:
             plan_id_map[identifier_tuple] = plan_memo
         else:
