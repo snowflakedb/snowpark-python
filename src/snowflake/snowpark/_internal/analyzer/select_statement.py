@@ -797,7 +797,7 @@ class SelectStatement(Selectable):
         else:
             # This part of code could potentially be triggered during a an
             # ongoing resolve operation. Therefore, we need to save the intermediate
-            # subquery plans and restore them after we.
+            # subquery plans and restore them after.
             intermediate_subquery_plans = self.analyzer.subquery_plans
             self.analyzer.subquery_plans = []
             where_clause = (
@@ -833,7 +833,6 @@ class SelectStatement(Selectable):
                         self.post_actions = []  # pragma: no cover
                     if query not in self.post_actions:
                         self.post_actions.append(query)
-
             self.analyzer.subquery_plans = intermediate_subquery_plans
 
         return self._sql_query
@@ -846,6 +845,9 @@ class SelectStatement(Selectable):
         if not self.has_clause and not self.projection:
             self._placeholder_query = from_clause
             return self._placeholder_query
+
+        intermediate_subquery_plans = self.analyzer.subquery_plans
+        self.analyzer.subquery_plans = []
 
         where_clause = (
             f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
@@ -868,6 +870,20 @@ class SelectStatement(Selectable):
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         self._placeholder_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+
+        for plan in self.analyzer.subquery_plans:
+            for query in plan.queries[:-1]:
+                if self.pre_actions is None:
+                    self.pre_actions = []  # pragma: no cover
+                if query not in self.pre_actions:
+                    self.pre_actions.append(query)
+            for query in plan.post_actions:
+                if self.post_actions is None:
+                    self.post_actions = []  # pragma: no cover
+                if query not in self.post_actions:
+                    self.post_actions.append(query)
+        self.analyzer.subquery_plans = intermediate_subquery_plans
+
         return self._placeholder_query
 
     @property
