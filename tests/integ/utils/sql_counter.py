@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import functools
 import inspect
 import os
 import re
@@ -11,7 +12,6 @@ import traceback
 from typing import Dict, List, Optional, Union
 
 import pytest
-from decorator import decorator
 
 from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.session import Session
@@ -364,9 +364,7 @@ class SqlCounter:
         self.session = None
 
 
-@decorator
 def sql_count_checker(
-    func,
     no_check=None,
     high_count_expected=False,
     high_count_reason=None,
@@ -380,13 +378,6 @@ def sql_count_checker(
     **kwargs,
 ):
     """SqlCounter decorator that automatically validates the sql counts when test finishes."""
-    sql_counter = SqlCounter(
-        no_check=no_check,
-        log_stack_trace=False,
-        high_count_expected=high_count_expected,
-        high_count_reason=high_count_reason,
-    )
-
     all_args = inspect.getargvalues(inspect.currentframe())
     count_kwargs = {
         key: value
@@ -395,15 +386,29 @@ def sql_count_checker(
         )
     }
 
-    result = func(*args, **kwargs)
-    try:
-        sql_counter.expects(**count_kwargs)
-    finally:
-        try:
-            sql_counter.close()
-        except Exception:
-            pass
-    return result
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            sql_counter = SqlCounter(
+                no_check=no_check,
+                log_stack_trace=False,
+                high_count_expected=high_count_expected,
+                high_count_reason=high_count_reason,
+            )
+
+            result = func(*args, **kwargs)
+            try:
+                sql_counter.expects(**count_kwargs)
+            finally:
+                try:
+                    sql_counter.close()
+                except Exception:
+                    pass
+            return result
+
+        return wrapper
+
+    return decorator
 
 
 def get_readable_sql_count_values(tr):

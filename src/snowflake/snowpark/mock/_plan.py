@@ -12,7 +12,7 @@ import uuid
 from collections.abc import Iterable
 from enum import Enum
 from functools import cached_property, partial, reduce
-from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -96,6 +96,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     UnresolvedAttribute,
     WithinGroup,
 )
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
     Query,
@@ -206,9 +207,12 @@ class MockExecutionPlan(LogicalPlan):
         return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
 
     @cached_property
-    def plan_height(self) -> int:
+    def plan_state(self) -> Dict[PlanState, Any]:
         # dummy return
-        return -1
+        return {
+            PlanState.PLAN_HEIGHT: -1,
+            PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: -1,
+        }
 
     @cached_property
     def num_duplicate_nodes(self) -> int:
@@ -1289,7 +1293,7 @@ def execute_mock_plan(
             join_condition = calculate_expression(
                 source_plan.join_expr, cartesian_product, analyzer, expr_to_alias
             )
-            join_result = cartesian_product[join_condition]
+            join_result = cartesian_product[join_condition].reset_index(drop=True)
             join_result.sf_types = cartesian_product.sf_types
 
             # TODO [GA]: # ERROR_ON_NONDETERMINISTIC_MERGE is by default True, raise error if
@@ -1711,7 +1715,7 @@ def calculate_expression(
                 exp.datatype = StringType(len(exp.value))
             res = ColumnEmulator(
                 data=[exp.value for _ in range(len(input_data))],
-                sf_type=ColumnType(exp.datatype, False),
+                sf_type=ColumnType(exp.datatype, nullable=exp.value is None),
                 dtype=object,
             )
             res.index = input_data.index
@@ -2001,8 +2005,10 @@ def calculate_expression(
 
         # Process partition_by clause
         if window_spec.partition_spec:
+            # Remove duplicate keys while maintaining order
+            keys = list(dict.fromkeys([exp.name for exp in window_spec.partition_spec]))
             res = res.groupby(
-                [exp.name for exp in window_spec.partition_spec],
+                keys,
                 sort=False,
                 as_index=False,
             )
@@ -2029,10 +2035,14 @@ def calculate_expression(
                 indexer = EntireWindowIndexer()
                 rolling = res.rolling(indexer)
                 windows = [ordered.loc[w.index] for w in rolling]
+                # rolling can unpredictably change the index of the data
+                # apply a trivial function to materialize the final index
+                res_index = list(rolling.count().index)
 
         elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
             indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
             res = res.rolling(indexer)
+            res_index = list(res.count().index)
             windows = [w for w in res]
 
         elif isinstance(window_spec.frame_spec.frame_type, RangeFrame):
@@ -2062,6 +2072,7 @@ def calculate_expression(
                 isinstance(lower, UnboundedPreceding),
                 isinstance(upper, UnboundedFollowing),
             )
+
         # compute window function:
         if isinstance(window_function, (FunctionExpression,)):
             res_cols = []

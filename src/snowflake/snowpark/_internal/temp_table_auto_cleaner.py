@@ -56,7 +56,12 @@ class TempTableAutoCleaner:
             self.ref_count_map[name] -= 1
             current_ref_count = self.ref_count_map[name]
         if current_ref_count == 0:
-            if self.session.auto_clean_up_temp_table_enabled:
+            if (
+                self.session.auto_clean_up_temp_table_enabled
+                # if the session is already closed before garbage collection,
+                # we have no way to drop the table
+                and not self.session._conn.is_closed()
+            ):
                 self.drop_table(name)
         elif current_ref_count < 0:
             logging.debug(
@@ -91,12 +96,13 @@ class TempTableAutoCleaner:
         """
         Stops the cleaner (no-op) and sends the telemetry.
         """
-        self.session._conn._telemetry_client.send_temp_table_cleanup_telemetry(
-            self.session.session_id,
-            temp_table_cleaner_enabled=self.session.auto_clean_up_temp_table_enabled,
-            num_temp_tables_cleaned=self.num_temp_tables_cleaned,
-            num_temp_tables_created=self.num_temp_tables_created,
-        )
+        if not self.session._conn.is_closed():
+            self.session._conn._telemetry_client.send_temp_table_cleanup_telemetry(
+                self.session.session_id,
+                temp_table_cleaner_enabled=self.session.auto_clean_up_temp_table_enabled,
+                num_temp_tables_cleaned=self.num_temp_tables_cleaned,
+                num_temp_tables_created=self.num_temp_tables_created,
+            )
 
     @property
     def num_temp_tables_created(self) -> int:
