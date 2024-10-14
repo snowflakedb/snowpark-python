@@ -680,10 +680,14 @@ class UDAFRegistration:
             is_permanent=is_permanent,
         )
 
-        if (not custom_python_runtime_version_allowed) and (self._session is not None):
-            check_python_runtime_version(
+        runtime_version_from_requirement = None
+        if self._session is not None:
+            runtime_version_from_requirement = (
                 self._session._runtime_version_from_requirement
             )
+
+        if not custom_python_runtime_version_allowed:
+            check_python_runtime_version(runtime_version_from_requirement)
 
         raised = False
         try:
@@ -710,6 +714,7 @@ class UDAFRegistration:
                 statement_params=statement_params,
                 comment=comment,
                 native_app_params=native_app_params,
+                runtime_version=runtime_version_from_requirement,
             )
         # an exception might happen during registering a udaf
         # (e.g., a dependency might not be found on the stage),
