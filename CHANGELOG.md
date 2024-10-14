@@ -4,11 +4,14 @@
 
 ### Snowpark Python API Updates
 
+- Updated `Session` class to be thread-safe. This allows concurrent dataframe transformations, dataframe actions, UDF and store procedure registration, and concurrent file uploads.
+
 #### New Features
 
 ### Snowpark pandas API Updates
 
 #### New Features
+
 - Added numpy compatibility support for `np.float_power`, `np.mod`, `np.remainder`, `np.greater`, `np.greater_equal`, `np.less`, `np.less_equal`, `np.not_equal`, and `np.equal`.
 
 ## 1.23.0 (2024-10-09)
@@ -23,7 +26,7 @@
 - Added support for file writes. This feature is currently in private preview.
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
 - Added support for `Session.stored_procedure_profiler`.
-- Added support for 'Service' domain to `session.lineage.trace` API. 
+- Added support for 'Service' domain to `session.lineage.trace` API.
 
 #### Improvements
 
