@@ -193,6 +193,10 @@ def test_iceberg(session, local_testing_mode):
         session.table(table_name).drop_table()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'schema_query'",
+)
 def test_writer_options(session, temp_stage):
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [7, 8]], schema=["a", "b"])
 
@@ -216,6 +220,10 @@ def test_writer_options(session, temp_stage):
     assert (files[0].name).lower() == f"{temp_stage.lower()}/test_mixed_options"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'schema_query'",
+)
 def test_writer_partition_by(session, temp_stage):
     df = session.create_dataframe(
         [[1, "a"], [1, "b"], [2, "c"], [2, "d"]], schema=["a", "b"]
