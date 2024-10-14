@@ -4,6 +4,8 @@
 
 ### Snowpark Python API Updates
 
+- Updated `Session` class to be thread-safe. This allows concurrent query submission, dataframe operations, UDF and store procedure registration, and concurrent file uploads.
+
 #### New Features
 
 ### Snowpark pandas API Updates
@@ -17,14 +19,13 @@
 
 #### New Features
 
-- Updated `Session` class to be thread-safe. This allows concurrent query submission, dataframe operations, UDF and store procedure registration, and concurrent file uploads.
 - Added the following new functions in `snowflake.snowpark.functions`:
   - `make_interval`
 - Added support for using Snowflake Interval constants with `Window.range_between()` when the order by column is TIMESTAMP or DATE type.
 - Added support for file writes. This feature is currently in private preview.
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
 - Added support for `Session.stored_procedure_profiler`.
-- Added support for 'Service' domain to `session.lineage.trace` API. 
+- Added support for 'Service' domain to `session.lineage.trace` API.
 
 #### Improvements
 
