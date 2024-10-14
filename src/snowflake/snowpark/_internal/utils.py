@@ -161,6 +161,14 @@ COPY_OPTIONS = {
     "LOAD_UNCERTAIN_FILES",
 }
 
+COPY_INTO_LOCATION_OPTIONS = {
+    "OVERWRITE",
+    "SINGLE",
+    "MAX_FILE_SIZE",
+    "INCLUDE_QUERY_ID",
+    "DETAILED_OUTPUT",
+}
+
 NON_FORMAT_TYPE_OPTIONS = {
     "PATTERN",
     "VALIDATION_MODE",
@@ -791,6 +799,22 @@ def get_copy_into_table_options(
         elif k not in NON_FORMAT_TYPE_OPTIONS:
             file_format_type_options[k] = v
     return file_format_type_options, copy_options
+
+
+def get_copy_into_location_options(
+    options: Dict[str, Any]
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Method that extracts options for COPY INTO LOCATION command into file
+    format type options and copy into location options.
+    """
+    file_format_type_options = options.get("FORMAT_TYPE_OPTIONS", {})
+    copy_into_location_options = options.get("COPY_INTO_LOCATION_OPTIONS", {})
+    for k, v in options.items():
+        if k in COPY_INTO_LOCATION_OPTIONS:
+            copy_into_location_options[k] = v
+        elif k not in NON_FORMAT_TYPE_OPTIONS:
+            file_format_type_options[k] = v
+    return file_format_type_options, copy_into_location_options
 
 
 def get_aliased_option_name(
