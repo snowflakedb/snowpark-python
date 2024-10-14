@@ -171,6 +171,31 @@ def test_save_as_table(session, large_query_df):
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
+def test_variable_binding(session):
+    if not session.sql_simplifier_enabled:
+        set_bounds(session, 40, 80)
+
+    df1 = session.sql(
+        "select $1 as A, $2 as B from values (?,?), (?,?)", params=[1, "a", 2, "b"]
+    )
+    df2 = session.sql(
+        "select $1 as A, $2 as B from values (?,?), (?,?)", params=[3, "c", 4, "d"]
+    )
+
+    for i in range(7):
+        df1 = df1.with_column("A", col("A") + i + col("A"))
+        df2 = df2.with_column("A", col("A") + i + col("A"))
+    df1 = df1.group_by("B").agg(sum_distinct(col("A")).alias("A"))
+    df2 = df2.group_by("B").agg(sum_distinct(col("A")).alias("A"))
+    final_df = df1.union_all(df2)
+
+    check_result_with_and_without_breakdown(session, final_df)
+    with SqlCounter(query_count=1, describe_count=0):
+        queries = final_df.queries
+    assert len(queries["queries"]) == 2
+    assert len(queries["post_actions"]) == 1
+
+
 def test_update_delete_merge(session, large_query_df):
     if not session.sql_simplifier_enabled:
         pytest.skip(
@@ -520,9 +545,10 @@ def test_plotter(session, large_query_df, enabled):
             if not enabled:
                 return
 
-            assert mock_render.call_count == 4
+            assert mock_render.call_count == 5
             expected_files = [
                 "original_plan",
+                "deep_copied_plan",
                 "cte_optimized_plan_0",
                 "large_query_breakdown_plan_0",
                 "large_query_breakdown_plan_1",
