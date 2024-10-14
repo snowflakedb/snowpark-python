@@ -109,6 +109,11 @@ def verify_copied_selectable(
         assert copied_state is None
         assert original_state is None
 
+    # verify memoization works correctly
+    original_id = id(original_selectable)
+    memo = {original_id: copied_selectable}
+    assert copy.deepcopy(original_selectable, memo) is copied_selectable
+
 
 def test_selectable_entity():
     analyzer = mock.create_autospec(Analyzer)

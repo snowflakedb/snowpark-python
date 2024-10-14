@@ -157,6 +157,8 @@ class ServerConnection:
         options: Dict[str, Union[int, str]],
         conn: Optional[SnowflakeConnection] = None,
     ) -> None:
+        self._lock = threading.RLock()
+        self._thread_store = threading.local()
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self._add_application_parameters()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
@@ -172,10 +174,11 @@ class ServerConnection:
                 pass
 
         # thread safe param protection
-        self._thread_safe_session_enabled = self._get_client_side_session_parameter(
-            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
-        ) or self._lower_case_parameters.get(
-            "python_snowpark_enable_thread_safe_session", False
+        self._thread_safe_session_enabled = self._lower_case_parameters.get(
+            "python_snowpark_enable_thread_safe_session",
+            self._get_client_side_session_parameter(
+                "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
+            ),
         )
         self._lock = (
             threading.RLock() if self._thread_safe_session_enabled else DummyLock()

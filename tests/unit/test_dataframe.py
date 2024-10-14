@@ -16,7 +16,9 @@ from snowflake.snowpark import (
 )
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.dataframe import _get_unaliased
 from snowflake.snowpark.exceptions import SnowparkCreateDynamicTableException
@@ -305,3 +307,15 @@ def test_session():
 
     assert df.session == fake_session
     assert df.session._session_id == fake_session._session_id
+
+
+def test_table_source_plan(sql_simplifier_enabled):
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    session._sql_simplifier_enabled = sql_simplifier_enabled
+    t = session.table("table")
+    assert isinstance(
+        t._plan.source_plan,
+        SelectStatement if sql_simplifier_enabled else SnowflakeTable,
+    )
