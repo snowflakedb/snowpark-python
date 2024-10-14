@@ -131,6 +131,14 @@ class WithQueryBlock(LogicalPlan):
         self.name = name
         self.children.append(child)
 
+    @property
+    def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        # Each WithQueryBlock is replaced by SELECT * FROM cte_name and adds
+        # WITH cte_name AS (child) to the query.
+        # The complexity score for the child is adjusted during query complexity
+        # calculation.
+        return {PlanNodeCategory.WITH_QUERY: 1, PlanNodeCategory.COLUMN: 1}
+
 
 class SnowflakeValues(LeafNode):
     def __init__(
@@ -215,6 +223,7 @@ class SnowflakeCreateTable(LogicalPlan):
         change_tracking: Optional[bool] = None,
         copy_grants: bool = False,
         iceberg_config: Optional[dict] = None,
+        table_exists: Optional[bool] = None,
     ) -> None:
         super().__init__()
 
@@ -236,6 +245,9 @@ class SnowflakeCreateTable(LogicalPlan):
         self.change_tracking = change_tracking
         self.copy_grants = copy_grants
         self.iceberg_config = iceberg_config
+        # whether the table already exists in the database
+        # determines the compiled SQL for APPEND and TRUNCATE mode
+        self.table_exists = table_exists
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:

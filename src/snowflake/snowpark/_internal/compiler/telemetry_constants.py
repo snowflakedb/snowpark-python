@@ -6,6 +6,15 @@ from enum import Enum
 
 
 class CompilationStageTelemetryField(Enum):
+    # dataframe query stats that are used for the
+    # new compilation stage optimizations
+    QUERY_PLAN_HEIGHT = "query_plan_height"
+    QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED = (
+        "query_plan_num_selects_with_complexity_merged"
+    )
+    QUERY_PLAN_NUM_DUPLICATE_NODES = "query_plan_num_duplicate_nodes"
+    QUERY_PLAN_COMPLEXITY = "query_plan_complexity"
+
     # types
     TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED = (
         "snowpark_large_query_breakdown_optimization_skipped"
@@ -28,6 +37,9 @@ class CompilationStageTelemetryField(Enum):
     COMPLEXITY_SCORE_AFTER_LARGE_QUERY_BREAKDOWN = (
         "complexity_score_after_large_query_breakdown"
     )
+
+    # keys for repeated subquery elimination
+    CTE_NODE_CREATED = "cte_node_created"
 
 
 class SkipLargeQueryBreakdownCategory(Enum):
