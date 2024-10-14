@@ -48,7 +48,6 @@ from pandas._typing import (
     TimedeltaConvertibleTypes,
     TimestampConvertibleTypes,
 )
-from pandas.api.types import is_timedelta64_dtype
 from pandas.core.common import apply_if_callable
 from pandas.core.dtypes.common import (
     is_dict_like,
@@ -1900,17 +1899,19 @@ def pct_change(
     if not isinstance(periods, int):
         raise TypeError(f"periods must be an int. got {type(periods)} instead")
 
-    if (
-        kwargs["axis"] == 1
-        and any(is_timedelta64_dtype(t) for t in self._get_dtypes())
-        and not all(is_timedelta64_dtype(t) for t in self._get_dtypes())
-    ):
-        # pct_change() between timedelta and a non-timedelta type is invalid.
-        raise TypeError(_TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE)
+    column_is_timedelta_type = [
+        self._query_compiler.is_timedelta64_dtype(i, is_index=False)
+        for i in range(len(self._query_compiler.columns))
+    ]
+
+    if kwargs["axis"] == 1:
+        if any(column_is_timedelta_type) and not all(column_is_timedelta_type):
+            # pct_change() between timedelta and a non-timedelta type is invalid.
+            raise TypeError(_TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE)
 
     # Attempting to match pandas error behavior here
-    for dtype in self._get_dtypes():
-        if not is_numeric_dtype(dtype) and not is_timedelta64_dtype(dtype):
+    for i, dtype in enumerate(self._get_dtypes()):
+        if not is_numeric_dtype(dtype) and not column_is_timedelta_type[i]:
             raise TypeError(
                 f"cannot perform pct_change on non-numeric column with dtype {dtype}"
             )
