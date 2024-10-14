@@ -480,6 +480,10 @@ def get_frame_by_row_pos_slice_frame(
     row_pos_col = col(frame.row_position_snowflake_quoted_identifier)
 
     def get_count_col() -> Column:
+        """
+        The purpose of this helper function is to avoid creating row count column if it is not needed. Creating row
+        count column will cause the query to scan the whole table.
+        """
         nonlocal frame
         frame = frame.ensure_row_count_column()
         return col(frame.row_count_snowflake_quoted_identifier)
@@ -543,7 +547,8 @@ def get_frame_by_row_pos_slice_frame(
     filter_cond = left_bound_filter & right_bound_filter & step_bound_filter
     ordered_dataframe = frame.ordered_dataframe.filter(filter_cond)
     if limit_n is not None:
-        # adding limit to exit scanning the whole table if enough result has been found
+        # adding limit here could improve performance when the filter is applied directly on a table, because it can
+        # exit the scanning of table once enough record is found
         ordered_dataframe = ordered_dataframe.limit(limit_n, sort=False)
     ordered_dataframe = ordered_dataframe.sort(ordering_columns)
     return InternalFrame.create(
