@@ -14515,6 +14515,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler with all `to_replace` values replaced by `value`.
         """
+        # Propagating client-side types through replace() is complicated.
+        # Timedelta columns may change types after replace(), and non-timedelta
+        # columns may contain timedelta columns after replace().
+        self._raise_not_implemented_error_for_timedelta()
+
         if method is not lib.no_default:
             ErrorMessage.not_implemented(
                 "Snowpark pandas replace API does not support 'method' parameter"
@@ -14623,6 +14628,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             value_map = {i: value for i in identifiers}  # type: ignore
         elif value != lib.no_default:
             raise TypeError(f"Unsupported value type: {type(value)}")
+
+        def _scalar_belongs_to_timedelta_classes(s: Any) -> bool:
+            return any(
+                issubclass(type(s), timedelta_class)
+                for timedelta_class in TimedeltaType.types_to_convert_with_from_pandas
+            )
+
+        # Raise if the new values in `value` include timedelta.
+        if any(
+            (
+                isinstance(v, list)
+                and any(_scalar_belongs_to_timedelta_classes(vv) for vv in v)
+            )
+            or _scalar_belongs_to_timedelta_classes(v)
+            for v in value_map.values()
+        ):
+            ErrorMessage.not_implemented_for_timedelta("replace")
 
         replaced_column_exprs = {}
         for identifier, to_replace in replace_map.items():
@@ -15114,7 +15136,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_frame)
 
-    @snowpark_pandas_type_immutable_check
     def round(
         self, decimals: Union[int, Mapping, "pd.Series"] = 0, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
@@ -15133,6 +15154,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         BaseQueryCompiler
             QueryCompiler with rounded values.
         """
+        # DataFrame.round() and Series.round() ignore non-numeric columns like
+        # timedelta. We raise a Snowflake error for non-numeric, non-timedelta
+        # columns like strings, but we have to detect timedelta separately
+        # because its underlying representation is an integer. Without this
+        # check, we'd round the integer representation of the timedelta instead
+        # of leaving the timedelta unchanged.
+        self._raise_not_implemented_error_for_timedelta()
+
         if isinstance(decimals, pd.Series):
             raise ErrorMessage.not_implemented(
                 "round with decimals of type Series is not yet supported"
