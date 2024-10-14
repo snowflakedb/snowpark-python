@@ -77,12 +77,14 @@ class PlanCompiler:
 
     def compile(self) -> Dict[PlanQueryType, List[Query]]:
         if self.should_start_query_compilation():
+            session = self._plan.session
             # preparation for compilation
             # 1. make a copy of the original plan
             start_time = time.time()
             complexity_score_before_compilation = get_complexity_score(self._plan)
             logical_plans: List[LogicalPlan] = [copy.deepcopy(self._plan)]
             plot_plan_if_enabled(self._plan, "original_plan")
+            plot_plan_if_enabled(logical_plans[0], "deep_copied_plan")
             deep_copy_end_time = time.time()
 
             # 2. create a code generator with the original plan
@@ -92,7 +94,7 @@ class PlanCompiler:
             # 3. apply each optimizations if needed
             # CTE optimization
             cte_start_time = time.time()
-            if self._plan.session.cte_optimization_enabled:
+            if session.cte_optimization_enabled:
                 repeated_subquery_eliminator = RepeatedSubqueryElimination(
                     logical_plans, query_generator
                 )
@@ -112,9 +114,12 @@ class PlanCompiler:
 
             # Large query breakdown
             breakdown_failure_summary = {}
-            if self._plan.session.large_query_breakdown_enabled:
+            if session.large_query_breakdown_enabled:
                 large_query_breakdown = LargeQueryBreakdown(
-                    self._plan.session, query_generator, logical_plans
+                    session,
+                    query_generator,
+                    logical_plans,
+                    session.large_query_breakdown_complexity_bounds,
                 )
                 breakdown_result = large_query_breakdown.apply()
                 logical_plans = breakdown_result.logical_plans
@@ -135,7 +140,6 @@ class PlanCompiler:
             cte_time = cte_end_time - cte_start_time
             large_query_breakdown_time = large_query_breakdown_end_time - cte_end_time
             total_time = time.time() - start_time
-            session = self._plan.session
             summary_value = {
                 TelemetryField.CTE_OPTIMIZATION_ENABLED.value: session.cte_optimization_enabled,
                 TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: session.large_query_breakdown_enabled,
@@ -159,8 +163,7 @@ class PlanCompiler:
             return queries
         else:
             final_plan = self._plan
-            if self._plan.session.cte_optimization_enabled:
-                final_plan = final_plan.replace_repeated_subquery_with_cte()
+            final_plan = final_plan.replace_repeated_subquery_with_cte()
             return {
                 PlanQueryType.QUERIES: final_plan.queries,
                 PlanQueryType.POST_ACTIONS: final_plan.post_actions,
