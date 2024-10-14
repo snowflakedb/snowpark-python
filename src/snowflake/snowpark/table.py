@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Sample
 from snowflake.snowpark._internal.ast_utils import (
+    build_expr_from_dict_str_str,
     build_expr_from_snowpark_column,
     build_expr_from_snowpark_column_or_python_val,
     debug_check_missing_ast,
@@ -523,10 +524,7 @@ class Table(DataFrame):
             if source is not None:
                 source._set_ast_ref(ast.source)
             if statement_params is not None:
-                for k, v in statement_params.items():
-                    t = ast.statement_params.add()
-                    t._1 = k
-                    t._2 = v
+                build_expr_from_dict_str_str(ast.statement_params, statement_params)
             ast.block = block
 
             self._session._ast_batch.eval(stmt)
@@ -653,10 +651,7 @@ class Table(DataFrame):
             if source is not None:
                 source._set_ast_ref(ast.source)
             if statement_params is not None:
-                for k, v in statement_params.items():
-                    t = ast.statement_params.add()
-                    t._1 = k
-                    t._2 = v
+                build_expr_from_dict_str_str(ast.statement_params, statement_params)
             ast.block = block
 
             self._session._ast_batch.eval(stmt)
@@ -842,10 +837,7 @@ class Table(DataFrame):
                         )
 
             if statement_params is not None:
-                for k, v in statement_params.items():
-                    t = ast.statement_params.add()
-                    t._1 = k
-                    t._2 = v
+                build_expr_from_dict_str_str(ast.statement_params, statement_params)
             ast.block = block
 
             self._session._ast_batch.eval(stmt)
