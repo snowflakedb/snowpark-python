@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import inspect
 import json
 import sys
 from collections import namedtuple
@@ -14,10 +15,11 @@ import pandas as native_pd
 from pandas._typing import AggFuncType
 from pandas.api.types import is_scalar
 
+from snowflake.snowpark import functions
 from snowflake.snowpark._internal.type_utils import PYTHON_TO_SNOW_TYPE_MAPPINGS
 from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
 from snowflake.snowpark.column import Column as SnowparkColumn
-from snowflake.snowpark.functions import builtin, col, dense_rank, udf, udtf
+from snowflake.snowpark.functions import builtin, col, dense_rank, sin, udf, udtf
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
@@ -29,6 +31,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     parse_snowflake_object_construct_identifier_to_map,
 )
+from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
@@ -57,6 +60,10 @@ DEFAULT_UDTF_PARTITION_SIZE = 1000
 # those functions.
 # https://github.com/cloudpipe/cloudpickle?tab=readme-ov-file#overriding-pickles-serialization-mechanism-for-importable-constructs
 cloudpickle.register_pickle_by_value(sys.modules[__name__])
+
+SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY = {
+    sin,
+}
 
 
 class GroupbyApplySortMethod(Enum):
@@ -1356,3 +1363,15 @@ def groupby_apply_sort_method(
             else GroupbyApplySortMethod.GROUP_KEY_APPEARANCE_ORDER
         )
     )
+
+
+def is_supported_snowpark_python_function(func: AggFuncType) -> bool:
+    """Return True if the `func` is a supported Snowpark Python function."""
+    func_module = inspect.getmodule(func)
+    if functions != func_module:
+        return False
+    if func not in SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY:
+        ErrorMessage.not_implemented(
+            f"Snowpark Python function `{func.__name__}` is not supported yet."
+        )
+    return True

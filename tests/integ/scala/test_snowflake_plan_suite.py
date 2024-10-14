@@ -190,7 +190,10 @@ def test_execution_queries_and_post_actions(session):
 )
 def test_plan_height(session, temp_table, sql_simplifier_enabled):
     df1 = session.table(temp_table)
-    assert df1._plan.plan_state[PlanState.PLAN_HEIGHT] == 1
+    if sql_simplifier_enabled:
+        assert df1._plan.plan_state[PlanState.PLAN_HEIGHT] == 2
+    else:
+        assert df1._plan.plan_state[PlanState.PLAN_HEIGHT] == 1
 
     df2 = session.create_dataframe([(1, 20), (3, 40)], schema=["a", "c"])
     df3 = session.create_dataframe(
@@ -305,6 +308,11 @@ def test_create_scoped_temp_table(session):
             .sql
             == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))  '
         )
+        inner_select_sql = (
+            f" SELECT  *  FROM {table_name}"
+            if session._sql_simplifier_enabled
+            else f" SELECT  *  FROM ({table_name})"
+        )
         assert (
             session._plan_builder.save_as_table(
                 table_name=[temp_table_name],
@@ -326,7 +334,7 @@ def test_create_scoped_temp_table(session):
             )
             .queries[0]
             .sql
-            == f" CREATE  TEMPORARY  TABLE  {temp_table_name}    AS  SELECT  *  FROM ( SELECT  *  FROM ({table_name}))"
+            == f" CREATE  TEMPORARY  TABLE  {temp_table_name}    AS  SELECT  *  FROM ({inner_select_sql})"
         )
         expected_sql = f' CREATE  TEMPORARY  TABLE  {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         assert expected_sql in (
