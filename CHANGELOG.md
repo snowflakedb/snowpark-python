@@ -60,6 +60,7 @@
 - Added support for applying Snowpark Python functions (e.g., `sin`) in `Series.map`, `Series.apply`, `DataFrame.apply` and `DataFrame.applymap`.
 - Added support for `np.subtract`, `np.multiply`, `np.divide`, and `np.true_divide`.
 - Added support for tracking usages of `__array_ufunc__`.
+- Added support for `DataFrameGroupBy.bfill`, `SeriesGroupBy.bfill`, `DataFrameGroupBy.ffill`, and `SeriesGroupBy.ffill`.
 
 #### Improvements
 
