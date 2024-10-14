@@ -220,10 +220,8 @@ def test_writer_options(session, temp_stage):
     assert result[0].rows_unloaded == 4
 
     # mixed case with format type option and copy option
-    result = (
-        df.write.option("single", True)
-        .option("compression", "None")
-        .csv(f"@{temp_stage}/test_mixed_options")
+    result = df.write.options({"single": True, "compression": "None"}).csv(
+        f"@{temp_stage}/test_mixed_options"
     )
     assert result[0].rows_unloaded == 4
     files = session.sql(f"list @{temp_stage}/test_mixed_options").collect()
