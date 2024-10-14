@@ -194,7 +194,7 @@ def test_query_history_with_multi_thread_and_describe(session):
             _, _ = wait(works, return_when=ALL_COMPLETED)
     thread_numbers = set()
     for query in query_history.queries:
-        if getattr(query, "is_describe", False):
+        if query.is_describe:
             assert query.sql_text.split(" ")[-1] == str(query.thread_id)
         thread_numbers.add(query.thread_id)
     assert len(thread_numbers) == 2
