@@ -6,8 +6,7 @@
 
 #### New Features
 
-- Updated `Session` class to be thread-safe. This allows concurrent query submission, dataframe operations, UDF and store procedure registration, and concurret file uploads.
-  - One limitation is that updating `Session` configurations inside multiple-threads may cause other active thread to break. Please update `Session` configurations before starting multiple threads.
+- Updated `Session` class to be thread-safe. This allows concurrent query submission, dataframe operations, UDF and store procedure registration, and concurrent file uploads.
 - Added the following new functions in `snowflake.snowpark.functions`:
   - `make_interval`
 - Added support for using Snowflake Interval constants with `Window.range_between()` when the order by column is TIMESTAMP or DATE type.

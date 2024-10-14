@@ -1238,11 +1238,7 @@ def create_python_udf_or_sp(
     native_app_params: Optional[Dict[str, Any]] = None,
     runtime_version: Optional[str] = None,
 ) -> None:
-    runtime_version = (
-        f"{sys.version_info[0]}.{sys.version_info[1]}"
-        if not runtime_version
-        else runtime_version
-    )
+    runtime_version = runtime_version or f"{sys.version_info[0]}.{sys.version_info[1]}"
 
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
