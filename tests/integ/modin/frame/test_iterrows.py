@@ -8,8 +8,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_series_equal, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 # To generate seeded random data.
 rng = np.random.default_rng(12345)
@@ -53,6 +53,7 @@ def assert_iterators_equal(snowpark_iterator, native_iterator):
         ),
         # empty df
         native_pd.DataFrame([]),
+        native_pd.DataFrame({"ts": native_pd.timedelta_range(10, periods=4)}),
     ],
 )
 def test_df_iterrows(native_df):

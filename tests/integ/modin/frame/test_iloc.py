@@ -18,14 +18,14 @@ from pandas.errors import IndexingError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.frame.test_head_tail import eval_result_and_query_with_no_join
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_snowpark_pandas_equal_to_pandas,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
 
 # default_index_snowpark_pandas_df and default_index_native_df have size of axis_len x axis_len
@@ -2646,7 +2646,7 @@ def test_df_iloc_set_with_mixed_types_fail(
         [TEST_ITEMS_DATA_2X2, None, [("e", 5), ("f", 6)], 3],
     ],
 )
-def test_df_iloc_set_with_multi_index(
+def test_df_iloc_set_with_multiindex(
     row_key,
     row_key_index,
     col_key,
@@ -2710,15 +2710,17 @@ def test_df_iloc_set_with_multi_index(
         native_items.columns = pd.MultiIndex.from_tuples(item_columns)
 
     if row_key_index:
-        snow_row_key = pd.Series(row_key, index=pd.Index(row_key_index))
-        native_row_key = native_pd.Series(row_key, index=pd.Index(row_key_index))
+        # Using native pandas index since row_key[2] is a MultiIndex object.
+        snow_row_key = pd.Series(row_key, index=native_pd.Index(row_key_index))
+        native_row_key = native_pd.Series(row_key, index=native_pd.Index(row_key_index))
     else:
         snow_row_key = row_key
         native_row_key = row_key
 
     if col_key_index:
-        snow_col_key = pd.Series(col_key, index=pd.Index(col_key_index))
-        native_col_key = native_pd.Series(col_key, index=pd.Index(col_key_index))
+        # Using native pandas index since col_key[2] is a MultiIndex object.
+        snow_col_key = pd.Series(col_key, index=native_pd.Index(col_key_index))
+        native_col_key = native_pd.Series(col_key, index=native_pd.Index(col_key_index))
     else:
         snow_col_key = col_key
         native_col_key = col_key
@@ -3205,3 +3207,48 @@ def test_raise_set_cell_with_list_like_value_error():
         s.iloc[0] = [0, 0]
     with pytest.raises(NotImplementedError):
         s.to_frame().iloc[0, 0] = [0, 0]
+
+
+@sql_count_checker(query_count=1, join_count=3)
+@pytest.mark.parametrize("index", [list("ABC"), [0, 1, 2]])
+def test_df_iloc_set_row_from_series(index):
+    native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
+    snow_df = pd.DataFrame(native_df)
+
+    def ilocset(df):
+        series = (
+            pd.Series([1, 4, 9], index=index)
+            if isinstance(df, pd.DataFrame)
+            else native_pd.Series([1, 4, 9], index=index)
+        )
+        df.iloc[1] = series
+        return df
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        ilocset,
+    )
+
+
+@sql_count_checker(query_count=1, join_count=3)
+@pytest.mark.parametrize("index", [[3, 4, 5], [0, 1, 2], list("ABC")])
+@pytest.mark.parametrize("columns", [None, list("ABC")])
+def test_df_iloc_full_set_row_from_series(columns, index):
+    native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=columns)
+    snow_df = pd.DataFrame(native_df)
+
+    def ilocset(df):
+        series = (
+            pd.Series([1, 4, 9], index=index)
+            if isinstance(df, pd.DataFrame)
+            else native_pd.Series([1, 4, 9], index=index)
+        )
+        df.iloc[:] = series
+        return df
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        ilocset,
+    )

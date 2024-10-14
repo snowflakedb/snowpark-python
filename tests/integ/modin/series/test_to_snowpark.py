@@ -12,7 +12,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     extract_pandas_label_from_snowflake_quoted_identifier,
 )
 from snowflake.snowpark.types import LongType, StringType
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.fixture(scope="module")

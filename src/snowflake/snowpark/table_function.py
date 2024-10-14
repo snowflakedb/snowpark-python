@@ -95,7 +95,7 @@ class TableFunctionCall:
         If this function isn't called at all, the Snowflake database will use implicit partitioning.
         """
         ast = None
-        if _emit_ast:
+        if _emit_ast and self._ast:
             ast = proto.Expr()
             expr = with_src_position(ast.sp_table_fn_call_over)
             expr.lhs.CopyFrom(self._ast)

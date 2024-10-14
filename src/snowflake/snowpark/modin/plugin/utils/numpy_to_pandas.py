@@ -3,9 +3,10 @@
 #
 from typing import Any, Optional, Union
 
-import snowflake.snowpark.modin.pandas as pd
-from snowflake.snowpark.modin.pandas.base import BasePandasDataset
-from snowflake.snowpark.modin.pandas.utils import is_scalar
+import modin.pandas as pd
+from modin.pandas.base import BasePandasDataset
+from modin.pandas.utils import is_scalar
+
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 
@@ -118,17 +119,112 @@ numpy_to_pandas_func_map = {"where": where_mapper}
 # ndarrays in an element by element fashion with a lambda which performs
 # the same function on the input type. These functions are called from
 # the __array_ufunc__ function
+#
+# Functions which are not implemented are explicitly listed here as
+# well to provide the reader with an understanding of the current
+# breadth. If a new ufunc is defined by numpy the absence of that
+# function from this list also implies that is it NotImplemented
+#
+# Numpy ufunc Reference
 # https://numpy.org/doc/stable/reference/ufuncs.html
 numpy_to_pandas_universal_func_map = {
-    "add": lambda obj, inputs, kwargs: obj.__add__(*inputs, **kwargs),
-    "logical_and": lambda obj, inputs, kwargs: obj.astype("bool").__and__(
-        *map_to_bools(inputs), **kwargs
+    # Math functions
+    "add": lambda obj, inputs: obj.__add__(*inputs),
+    "subtract": lambda obj, inputs: obj.__sub__(*inputs),
+    "multiply": lambda obj, inputs: obj.__mul__(*inputs),
+    "divide": lambda obj, inputs: obj.__truediv__(*inputs),  # same as true_divide
+    "logaddexp": NotImplemented,
+    "logaddexp2": NotImplemented,
+    "true_divide": lambda obj, inputs, kwargs: obj.__truediv__(*inputs),
+    "floor_divide": NotImplemented,
+    "negative": NotImplemented,
+    "positive": NotImplemented,
+    "power": NotImplemented,
+    "float_power": NotImplemented,
+    "remainder": NotImplemented,
+    "mod": NotImplemented,
+    "fmod": NotImplemented,
+    "divmod": NotImplemented,
+    "absolute": NotImplemented,
+    "fabs": NotImplemented,
+    "rint": NotImplemented,
+    "sign": NotImplemented,
+    "heaviside": NotImplemented,  # heaviside step function
+    "conj": NotImplemented,  # same as conjugate
+    "conjugate": NotImplemented,
+    "exp": NotImplemented,
+    "exp2": NotImplemented,
+    "log": NotImplemented,
+    "log2": NotImplemented,
+    "log10": NotImplemented,
+    "expm1": NotImplemented,
+    "log1p": NotImplemented,
+    "sqrt": NotImplemented,
+    "square": NotImplemented,
+    "cbrt": NotImplemented,  # Cube root
+    "reciprocal": NotImplemented,
+    "gcd": NotImplemented,
+    "lcm": NotImplemented,
+    # trigonometric functions
+    "sin": NotImplemented,
+    "cos": NotImplemented,
+    "tan": NotImplemented,
+    "arcsin": NotImplemented,
+    "arccos": NotImplemented,
+    "arctan": NotImplemented,
+    "arctan2": NotImplemented,
+    "hypot": NotImplemented,
+    "sinh": NotImplemented,
+    "cosh": NotImplemented,
+    "tanh": NotImplemented,
+    "arcsinh": NotImplemented,
+    "arccosh": NotImplemented,
+    "arctanh": NotImplemented,
+    "degrees": NotImplemented,
+    "radians": NotImplemented,
+    "deg2rad": NotImplemented,
+    "rad2deg": NotImplemented,
+    # bitwise operations
+    "bitwise_and": NotImplemented,
+    "bitwise_or": NotImplemented,
+    "bitwise_xor": NotImplemented,
+    "invert": NotImplemented,
+    "left_shift": NotImplemented,
+    "right_shift": NotImplemented,
+    # comparison functions
+    "greater": NotImplemented,
+    "greater_equal": NotImplemented,
+    "less": NotImplemented,
+    "less_equal": NotImplemented,
+    "not_equal": NotImplemented,
+    "equal": NotImplemented,
+    "logical_and": lambda obj, inputs: obj.astype("bool").__and__(
+        *map_to_bools(inputs)
     ),
-    "logical_or": lambda obj, inputs, kwargs: obj.astype("bool").__or__(
-        *map_to_bools(inputs), **kwargs
+    "logical_or": lambda obj, inputs: obj.astype("bool").__or__(*map_to_bools(inputs)),
+    "logical_not": lambda obj, inputs: ~obj.astype("bool"),
+    "logical_xor": lambda obj, inputs: obj.astype("bool").__xor__(
+        *map_to_bools(inputs)
     ),
-    "logical_not": lambda obj, inputs, kwargs: ~obj.astype("bool"),
-    "logical_xor": lambda obj, inputs, kwargs: obj.astype("bool").__xor__(
-        *map_to_bools(inputs), **kwargs
-    ),
+    "maximum": NotImplemented,
+    "minimum": NotImplemented,
+    "fmax": NotImplemented,
+    "fmin": NotImplemented,
+    # floating functions
+    "isfinite": NotImplemented,
+    "isinf": NotImplemented,
+    "isnan": NotImplemented,
+    "isnat": NotImplemented,
+    "fabs": NotImplemented,
+    "signbit": NotImplemented,
+    "copysign": NotImplemented,
+    "nextafter": NotImplemented,
+    "spacing": NotImplemented,
+    "modf": NotImplemented,
+    "ldexp": NotImplemented,
+    "frexp": NotImplemented,
+    "fmod": NotImplemented,
+    "floor": NotImplemented,
+    "ceil": NotImplemented,
+    "trunc": NotImplemented,
 }

@@ -9,8 +9,8 @@ import pytest
 from pandas import Index, MultiIndex
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.fixture(scope="function")
@@ -71,6 +71,18 @@ def test_drop_list_like(native_df, labels):
 
 
 @pytest.mark.parametrize(
+    "labels", [Index(["red", "green"]), np.array(["red", "green"])]
+)
+@sql_count_checker(query_count=1)
+def test_drop_timedelta(native_df, labels):
+    native_df_dt = native_df.astype({"red": "timedelta64[ns]"})
+    snow_df = pd.DataFrame(native_df_dt)
+    eval_snowpark_pandas_result(
+        snow_df, native_df_dt, lambda df: df.drop(labels, axis=1)
+    )
+
+
+@pytest.mark.parametrize(
     "labels, axis, expected_query_count",
     [
         ([], 0, 1),
@@ -108,7 +120,7 @@ def test_drop_duplicate_columns(native_df, labels):
 
 @pytest.mark.parametrize(
     "labels, expected_query_count, expected_join_count",
-    [([], 3, 1), (1, 4, 2), (2, 4, 2), ([1, 2], 5, 3)],
+    [([], 1, 1), (1, 2, 2), (2, 2, 2), ([1, 2], 3, 3)],
 )
 def test_drop_duplicate_row_labels(
     native_df, labels, expected_query_count, expected_join_count

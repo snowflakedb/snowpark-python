@@ -14,8 +14,8 @@ import pytest
 from modin.pandas import Index, MultiIndex, Series
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_index_equal, assert_series_equal
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
 
 
@@ -52,7 +52,7 @@ class TestRename:
         renamed = ser.rename({"b": "foo", "d": "bar"})
         assert_index_equal(renamed.index, native_pd.Index(["a", "foo", "c", "bar"]))
 
-    @sql_count_checker(query_count=1, join_count=0)
+    @sql_count_checker(query_count=0)
     def test_rename_retain_index_name(self):
         # index with name
         renamer = Series(
@@ -130,7 +130,7 @@ class TestRename:
         ser.rename(ix, inplace=True)
         assert ser.name is ix
 
-    @sql_count_checker(query_count=1)
+    @sql_count_checker(query_count=0)
     def test_rename_callable(self):
         # GH 17407
         ser = Series(range(1, 6), index=Index(range(2, 7), name="IntIndex"))

@@ -10,7 +10,6 @@ import uuid
 import pytest
 
 from snowflake.snowpark.lineage import LineageDirection
-from tests.utils import IS_NOT_ON_GITHUB
 
 try:
     import pandas as pd
@@ -62,7 +61,6 @@ def remove_created_on_field(df):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="SNOW-1633773")
 def test_lineage_trace(session):
     """
     Tests lineage.trace API on multiple cases.

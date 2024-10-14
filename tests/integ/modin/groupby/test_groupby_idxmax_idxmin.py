@@ -8,16 +8,27 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.groupby.conftest import multiindex_data
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import running_on_public_ci
 
 
-@pytest.mark.parametrize("grouping_columns", ["B", ["A", "B"]])
+@pytest.mark.parametrize(
+    "grouping_columns",
+    [
+        pytest.param(
+            "B",
+            marks=pytest.mark.xfail(
+                reason="SNOW-1270521: `idxmax/idxmin` results in a non-deterministic ordering when tiebreaking values"
+            ),
+        ),
+        ["A", "B"],
+    ],
+)
 @pytest.mark.parametrize("skipna", [False, True])
 @pytest.mark.parametrize("func", ["idxmax", "idxmin"])
 @sql_count_checker(query_count=1)
@@ -158,3 +169,22 @@ def test_df_groupby_idxmax_idxmin_on_groupby_axis_1_default_to_pandas(func):
     native_res = df.groupby(by=grouper, axis=1).idxmax(axis=0)
     snow_res = pd.DataFrame(df).groupby(by=grouper, axis=1).idxmax(axis=0)
     assert_frame_equal(native_res, snow_res, check_index_type=False)
+
+
+@pytest.mark.parametrize("agg_func", ["idxmin", "idxmax"])
+@pytest.mark.parametrize("by", ["A", "B"])
+@sql_count_checker(query_count=1)
+def test_timedelta(agg_func, by):
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(
+                ["1 days 06:05:01.00003", "16us", "nan", "16us"]
+            ),
+            "B": [8, 8, 12, 10],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: getattr(df.groupby(by), agg_func)()
+    )

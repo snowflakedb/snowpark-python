@@ -9,8 +9,8 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.index.conftest import NATIVE_INDEX_UNIQUE_TEST_DATA
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_index_equal
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_UNIQUE_TEST_DATA)

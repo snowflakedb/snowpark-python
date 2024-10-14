@@ -19,8 +19,8 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import assert_frame_equal
+from tests.integ.utils.sql_counter import SqlCounter
 from tests.utils import Utils
 
 

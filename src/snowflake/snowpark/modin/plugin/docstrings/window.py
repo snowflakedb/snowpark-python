@@ -39,7 +39,7 @@ engine_kwargs : dict, default None {ek}
 
 Returns
 -------
-:class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+:class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
     Computed {win_type} {fname} of values.
 
 Examples
@@ -70,9 +70,9 @@ Returns
 -------
 Scalar
     Case when `Series.agg` is called with a single function.
-:class:`~snowflake.snowpark.modin.pandas.Series`
+:class:`~modin.pandas.Series`
     Case when `DataFrame.agg` is called with a single function.
-:class:`~snowflake.snowpark.modin.pandas.DataFrame`
+:class:`~modin.pandas.DataFrame`
     Case when `DataFrame.agg` is called with several functions.
 
 {examples}
@@ -128,7 +128,7 @@ class Rolling:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed rolling count of values.
 
         Examples
@@ -499,7 +499,39 @@ class Rolling:
         pass
 
     def corr():
-        pass
+        """
+        Calculate the rolling correlation.
+
+        Parameters
+        ----------
+        other : Series or DataFrame, optional
+            If not supplied then will default to self and produce pairwise output.
+        pairwise : bool, default None
+            If False then only matching columns between self and other will be used and the output will be a DataFrame.
+            If True then all pairwise combinations will be calculated and the output will be a MultiIndexed DataFrame
+            in the case of DataFrame inputs. In the case of missing elements, only complete pairwise observations
+            will be used.
+        ddof : int, default 1
+            Delta Degrees of Freedom. The divisor used in calculations is ``N - ddof``,
+            where ``N`` represents the number of elements.
+        numeric_only : bool, default False
+            Include only float, int, boolean columns.
+
+        Returns
+        -------
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
+            Return type is the same as the original object with np.float64 dtype.
+
+        Examples
+        --------
+        >>> df1 = pd.DataFrame({"col1": [1, 4, 3]})
+        >>> df2 = pd.DataFrame({"col1": [1, 6, 3]})
+        >>> df1.rolling(window=3, min_periods=3).corr(other=df2,pairwise=None, numeric_only=True)
+               col1
+        0       NaN
+        1       NaN
+        2  0.953821
+        """
 
     def cov():
         pass
@@ -540,7 +572,7 @@ class Rolling:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Return type is the same as the original object with np.float64 dtype.
 
         Examples
@@ -570,7 +602,7 @@ class Expanding:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed expanding count of values.
 
         Examples
@@ -827,7 +859,7 @@ class Expanding:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Return type is the same as the original object with np.float64 dtype.
 
         Examples

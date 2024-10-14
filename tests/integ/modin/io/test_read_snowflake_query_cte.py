@@ -3,13 +3,14 @@
 #
 import modin.pandas as pd
 import pandas as native_pd
+import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import TempObjectType
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import Utils
 
 
@@ -164,6 +165,7 @@ def test_read_snowflake_query_cte_with_cross_language_sproc(session):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
+@pytest.mark.modin_sp_precommit
 @sql_count_checker(query_count=5, sproc_count=1)
 def test_read_snowflake_query_cte_with_python_anonymous_sproc(session):
     # create table name

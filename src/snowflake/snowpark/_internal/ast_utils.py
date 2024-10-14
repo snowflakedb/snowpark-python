@@ -9,6 +9,7 @@ import logging
 import os
 import platform
 import sys
+import typing
 from functools import reduce
 from logging import getLogger
 from pathlib import Path
@@ -379,9 +380,22 @@ def build_udaf_apply(
 def build_udtf_apply(
     ast: proto.Expr, udtf_id: int, *args: Tuple[Union[proto.Expr, Any]], **kwargs
 ) -> None:
-    """Builds call to UDTF into ast as Snowpark IR expression."""
+    """Encodes a call to UDTF into ast as a Snowpark IR expression."""
     expr = with_src_position(ast.apply_expr)
     expr.fn.sp_fn_ref.id.bitfield1 = udtf_id
+    build_fn_apply_args(ast, *args, **kwargs)
+
+
+def build_sproc_apply(
+    ast: proto.Expr,
+    sproc_id: int,
+    statement_params: Optional[Dict[str, str]] = None,
+    *args: Tuple[Union[proto.Expr, Any]],
+    **kwargs,
+) -> None:
+    """Encodes a call to stored procedure into ast as a Snowpark IR expression."""
+    expr = with_src_position(ast.apply_expr)
+    expr.fn.sp_fn_ref.id.bitfield1 = sproc_id
     build_fn_apply_args(ast, *args, **kwargs)
 
 
@@ -969,7 +983,6 @@ def build_udf(
     if name is not None:
         _set_fn_name(name, ast)
 
-    # TODO: to unparse/reference callables client-side - track them in ast_batch.
     build_proto_from_callable(
         ast.func, func, session._ast_batch if session is not None else None
     )
@@ -1216,3 +1229,84 @@ def add_intermediate_stmt(ast_batch: AstBatch, o: Any) -> None:
     stmt = ast_batch.assign()
     stmt.expr.CopyFrom(o._ast)
     o._ast_stmt = stmt
+
+
+def build_sproc(
+    ast: proto.StoredProcedure,
+    func: Union[Callable, Tuple[str, str]],
+    return_type: Optional[DataType],
+    input_types: Optional[List[DataType]],
+    sp_name: str,
+    stage_location: Optional[str] = None,
+    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    packages: Optional[List[Union[str, ModuleType]]] = None,
+    replace: bool = False,
+    if_not_exists: bool = False,
+    parallel: int = 4,
+    strict: bool = False,
+    external_access_integrations: Optional[List[str]] = None,
+    secrets: Optional[Dict[str, str]] = None,
+    comment: Optional[str] = None,
+    statement_params: Optional[Dict[str, str]] = None,
+    execute_as: typing.Literal["caller", "owner"] = "owner",
+    source_code_display: bool = True,
+    is_permanent: bool = False,
+    session=None,
+    **kwargs,
+):
+    """Helper function to encode stored procedure parameters (used in both regular and mock StoredProcedureRegistration)."""
+
+    if sp_name is not None:
+        _set_fn_name(sp_name, ast)
+
+    build_proto_from_callable(
+        ast.func, func, session._ast_batch if session is not None else None
+    )
+
+    if return_type is not None:
+        return_type._fill_ast(ast.return_type)
+    if input_types is not None and len(input_types) != 0:
+        for input_type in input_types:
+            input_type._fill_ast(ast.input_types.list.add())
+    ast.is_permanent = is_permanent
+    if stage_location is not None:
+        ast.stage_location = stage_location
+    if imports is not None and len(imports) != 0:
+        for import_ in imports:
+            import_expr = proto.SpTableName()
+            build_sp_table_name(import_expr, import_)
+            ast.imports.append(import_expr)
+    if packages is not None and len(packages) != 0:
+        for package in packages:
+            if isinstance(package, ModuleType):
+                raise NotImplementedError
+            ast.packages.append(package)
+    ast.replace = replace
+    ast.if_not_exists = if_not_exists
+    ast.parallel = parallel
+
+    if statement_params is not None and len(statement_params) != 0:
+        for k, v in statement_params.items():
+            t = ast.statement_params.add()
+            t._1 = k
+            t._2 = v
+
+    ast.execute_as = execute_as
+    ast.source_code_display = source_code_display
+    ast.strict = strict
+    if (
+        external_access_integrations is not None
+        and len(external_access_integrations) != 0
+    ):
+        ast.external_access_integrations.extend(external_access_integrations)
+    if secrets is not None and len(secrets) != 0:
+        for k, v in secrets.items():
+            t = ast.secrets.add()
+            t._1 = k
+            t._2 = v
+    if comment is not None:
+        ast.comment.value = comment
+    for k, v in kwargs.items():
+        t = ast.kwargs.add()
+        t._1 = k
+        build_expr_from_python_val(t._2, v)

@@ -9,14 +9,21 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize(
     "dataframe_input, test_case_name",
     [
-        ({"A": [1, 2, 3], "B": [4, 5, 6]}, "simple non-empty"),
+        (
+            {
+                "A": [1, 2, 3],
+                "B": [4, 5, 6],
+                "C": native_pd.timedelta_range(1, periods=3),
+            },
+            "simple non-empty",
+        ),
         ({"A": [], "B": []}, "empty column"),
         ({"A": [np.nan]}, "np nan column"),
     ],

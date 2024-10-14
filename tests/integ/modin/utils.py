@@ -22,7 +22,7 @@ from pandas.core.dtypes.inference import is_scalar
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.utils import SupportsPublicToPandas
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import StructField, StructType
@@ -249,10 +249,10 @@ def assert_snowpark_pandas_equal_to_pandas(
     Raises:
         AssertionError if the converted dataframe does not match with the original one
     """
-    assert isinstance(snow, (DataFrame, Series, Index))
+    assert isinstance(snow, (DataFrame, Series, Index)), f"Got type: {type(snow)}"
     assert isinstance(
         expected_pandas, (native_pd.DataFrame, native_pd.Series, native_pd.Index)
-    )
+    ), f"Got type: {type(expected_pandas)}"
     # Due to server-side compression, only check that index values are equivalent and ignore the
     # index types. Snowpark pandas will use the smallest possible dtype (typically int8), while
     # native pandas will default to int64.

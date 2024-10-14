@@ -7,8 +7,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 # TODO: SNOW-782594 Add tests for categorical data.
 
@@ -178,3 +178,13 @@ def test_sort_values_repeat(snow_series):
         snow_series.to_pandas(),
         lambda s: s.sort_values().sort_values(ascending=False),
     )
+
+
+@sql_count_checker(query_count=1)
+def test_sort_values_shared_name_with_index():
+    # Bug fix: SNOW-1649780
+    native_series = native_pd.Series(
+        [1, 3, 2], name="X", index=native_pd.Index([2, 1, 3], name="X")
+    )
+    snow_series = pd.Series(native_series)
+    eval_snowpark_pandas_result(snow_series, native_series, lambda s: s.sort_values())

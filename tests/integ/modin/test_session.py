@@ -16,8 +16,8 @@ from snowflake.snowpark.session import (
     _get_active_sessions,
     _remove_session,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import running_on_jenkins, running_on_public_ci
 
 NO_ACTIVE_SESSION_ERROR_PATTERN = (

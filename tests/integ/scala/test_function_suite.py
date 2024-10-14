@@ -36,6 +36,7 @@ from snowflake.snowpark.functions import (
     array_intersection,
     array_position,
     array_prepend,
+    array_remove,
     array_size,
     array_slice,
     array_to_string,
@@ -2825,6 +2826,34 @@ def test_array_append(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
+    reason="array_remove is not yet supported in local testing mode.",
+)
+def test_array_remove(session):
+    Utils.check_answer(
+        [
+            Row("[\n  2,\n  3\n]"),
+            Row("[\n  6,\n  7\n]"),
+        ],
+        TestData.array1(session).select(
+            array_remove(array_remove(col("arr1"), lit(1)), lit(8))
+        ),
+        sort=False,
+    )
+
+    Utils.check_answer(
+        [
+            Row("[\n  2,\n  3\n]"),
+            Row("[\n  6,\n  7\n]"),
+        ],
+        TestData.array1(session).select(
+            array_remove(array_remove(col("arr1"), 1), lit(8))
+        ),
+        sort=False,
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_cat is not yet supported in local testing mode.",
 )
 def test_array_cat(session):
@@ -3857,6 +3886,35 @@ def test_convert_timezone(session, local_testing_mode):
             ],
         )
 
+        df = TestData.datetime_primitives1(session).select("timestamp", "timestamp_ntz")
+
+        Utils.check_answer(
+            df.select(
+                *[
+                    convert_timezone(lit("UTC"), col, lit("Asia/Shanghai"))
+                    for col in df.columns
+                ]
+            ),
+            [
+                Row(
+                    datetime(2024, 2, 1, 4, 0),
+                    datetime(2017, 2, 24, 4, 0, 0, 456000),
+                )
+            ],
+        )
+
+        df = TestData.datetime_primitives1(session).select(
+            "timestamp_ltz", "timestamp_tz"
+        )
+        with pytest.raises(SnowparkSQLException):
+            # convert_timezone function does not accept non-TimestampTimeZone.NTZ datetime
+            df.select(
+                *[
+                    convert_timezone(lit("UTC"), col, lit("Asia/Shanghai"))
+                    for col in df.columns
+                ]
+            ).collect()
+
         LocalTimezone.set_local_timezone()
 
 
@@ -4598,13 +4656,13 @@ def test_dense_rank(session):
 
 
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
-def test_lag(session, col_z, local_testing_mode):
+def test_lag(session, col_z):
     Utils.check_answer(
         TestData.xyz(session).select(
             lag(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(0), Row(10), Row(1), Row(0), Row(1)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4612,7 +4670,7 @@ def test_lag(session, col_z, local_testing_mode):
             lag(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4620,7 +4678,7 @@ def test_lag(session, col_z, local_testing_mode):
             lag(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4628,18 +4686,18 @@ def test_lag(session, col_z, local_testing_mode):
             lag(col_z, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(10), Row(1), Row(3), Row(1), Row(3)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
 
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
-def test_lead(session, col_z, local_testing_mode):
+def test_lead(session, col_z):
     Utils.check_answer(
         TestData.xyz(session).select(
             lead(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(0), Row(3), Row(0)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4647,7 +4705,7 @@ def test_lead(session, col_z, local_testing_mode):
             lead(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4655,7 +4713,7 @@ def test_lead(session, col_z, local_testing_mode):
             lead(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
 

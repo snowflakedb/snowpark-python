@@ -11,8 +11,8 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_index_equal, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 def assert_reindex_result_equal(
@@ -128,9 +128,7 @@ def test_ordered_index_unordered_new_index():
 @pytest.mark.parametrize("limit", [None, 1, 2, 100])
 @pytest.mark.parametrize("method", ["bfill", "backfill", "pad", "ffill"])
 def test_datetime_with_fill(limit, method):
-    query_count = 2
-    join_count = 2
-    with SqlCounter(query_count=query_count, join_count=join_count):
+    with SqlCounter(query_count=2 if limit is None else 3, join_count=2):
         native_date_index = native_pd.date_range("1/1/2010", periods=6, freq="D")
         snow_date_index = pd.date_range("1/1/2010", periods=6, freq="D")
         assert_reindex_result_equal(

@@ -131,6 +131,14 @@ class WithQueryBlock(LogicalPlan):
         self.name = name
         self.children.append(child)
 
+    @property
+    def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        # Each WithQueryBlock is replaced by SELECT * FROM cte_name and adds
+        # WITH cte_name AS (child) to the query.
+        # The complexity score for the child is adjusted during query complexity
+        # calculation.
+        return {PlanNodeCategory.WITH_QUERY: 1, PlanNodeCategory.COLUMN: 1}
+
 
 class SnowflakeValues(LeafNode):
     def __init__(
@@ -145,13 +153,36 @@ class SnowflakeValues(LeafNode):
         self.schema_query = schema_query
 
     @property
+    def is_large_local_data(self) -> bool:
+        from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
+
+        return len(self.data) * len(self.output) >= ARRAY_BIND_THRESHOLD
+
+    @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        if self.is_large_local_data:
+            # When the number of literals exceeds the threshold, we generate 3 queries:
+            # 1. create table query
+            # 2. insert into table query
+            # 3. select * from table query
+            # We only consider the complexity from the final select * query since other queries
+            # are built based on it.
+            return {
+                PlanNodeCategory.COLUMN: 1,
+            }
+
+        # If we stay under the threshold, we generate a single query:
         # select $1, ..., $m FROM VALUES (r11, r12, ..., r1m), (rn1, ...., rnm)
-        # TODO: use ARRAY_BIND_THRESHOLD
         return {
             PlanNodeCategory.COLUMN: len(self.output),
             PlanNodeCategory.LITERAL: len(self.data) * len(self.output),
         }
+
+
+class DynamicTableCreateMode(Enum):
+    OVERWRITE = "overwrite"
+    ERROR_IF_EXISTS = "errorifexists"
+    IGNORE = "ignore"
 
 
 class SaveMode(Enum):
@@ -186,6 +217,13 @@ class SnowflakeCreateTable(LogicalPlan):
         table_type: str = "",
         clustering_exprs: Optional[Iterable[Expression]] = None,
         comment: Optional[str] = None,
+        enable_schema_evolution: Optional[bool] = None,
+        data_retention_time: Optional[int] = None,
+        max_data_extension_time: Optional[int] = None,
+        change_tracking: Optional[bool] = None,
+        copy_grants: bool = False,
+        iceberg_config: Optional[dict] = None,
+        table_exists: Optional[bool] = None,
     ) -> None:
         super().__init__()
 
@@ -201,6 +239,15 @@ class SnowflakeCreateTable(LogicalPlan):
         self.clustering_exprs = clustering_exprs or []
         self.comment = comment
         self.creation_source = creation_source
+        self.enable_schema_evolution = enable_schema_evolution
+        self.data_retention_time = data_retention_time
+        self.max_data_extension_time = max_data_extension_time
+        self.change_tracking = change_tracking
+        self.copy_grants = copy_grants
+        self.iceberg_config = iceberg_config
+        # whether the table already exists in the database
+        # determines the compiled SQL for APPEND and TRUNCATE mode
+        self.table_exists = table_exists
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -261,6 +308,7 @@ class CopyIntoTableNode(LeafNode):
         user_schema: Optional[StructType] = None,
         cur_options: Optional[Dict[str, Any]] = None,  # the options of DataFrameReader
         create_table_from_infer_schema: bool = False,
+        iceberg_config: Optional[dict] = None,
     ) -> None:
         super().__init__()
         self.table_name = table_name
@@ -276,6 +324,7 @@ class CopyIntoTableNode(LeafNode):
         self.user_schema = user_schema
         self.cur_options = cur_options
         self.create_table_from_infer_schema = create_table_from_infer_schema
+        self.iceberg_config = iceberg_config
 
 
 class CopyIntoLocationNode(LogicalPlan):

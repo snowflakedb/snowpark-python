@@ -11,8 +11,8 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.fixture(scope="function")
@@ -145,6 +145,23 @@ def test_fillna_invalid_method_negative():
 def test_value_scalar(test_fillna_df):
     eval_snowpark_pandas_result(
         pd.DataFrame(test_fillna_df),
+        test_fillna_df,
+        lambda df: df.fillna(1),
+    )
+
+
+@sql_count_checker(query_count=2)
+def test_timedelta_value_scalar(test_fillna_df):
+    timedelta_df = test_fillna_df.astype("timedelta64[ns]")
+    eval_snowpark_pandas_result(
+        pd.DataFrame(timedelta_df),
+        timedelta_df,
+        lambda df: df.fillna(pd.Timedelta(1)),  # dtype keeps to be timedelta64[ns]
+    )
+
+    # Snowpark pandas dtype will be changed to int in this case
+    eval_snowpark_pandas_result(
+        pd.DataFrame(timedelta_df),
         test_fillna_df,
         lambda df: df.fillna(1),
     )

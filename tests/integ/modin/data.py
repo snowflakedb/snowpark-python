@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import pandas as native_pd
 
 RAW_NA_DF_DATA_TEST_CASES = [
     ({"A": [1, 2, 3], "B": [4, 5, 6]}, "numeric-no"),
@@ -16,9 +17,18 @@ RAW_NA_DF_DATA_TEST_CASES = [
     ({"A": [True, 1, "X"], "B": ["Y", 3.14, False]}, "mixed"),
     ({"A": [True, None, "X"], "B": [None, 3.14, None]}, "mixed-mixed-1"),
     ({"A": [None, 1, None], "B": ["Y", None, False]}, "mixed-mixed-2"),
+    (
+        {
+            "A": [None, native_pd.Timedelta(2), None],
+            "B": [native_pd.Timedelta(4), None, native_pd.Timedelta(6)],
+        },
+        "timedelta-mixed-1",
+    ),
 ]
 
 RAW_NA_DF_SERIES_TEST_CASES = [
     (list(df_data.values()), test_case)
-    for (df_data, test_case) in RAW_NA_DF_DATA_TEST_CASES
+    for (df_data, test_case) in RAW_NA_DF_DATA_TEST_CASES[
+        :1
+    ]  # "timedelta-mixed-1" is not json serializable
 ]

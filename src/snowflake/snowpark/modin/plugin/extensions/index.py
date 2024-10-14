@@ -23,34 +23,46 @@
 
 from __future__ import annotations
 
+import inspect
 from functools import cached_property
 from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 
 import modin
 import numpy as np
 import pandas as native_pd
+from modin.pandas import DataFrame, Series
+from modin.pandas.base import BasePandasDataset
 from pandas import get_option
 from pandas._libs import lib
 from pandas._libs.lib import is_list_like, is_scalar
-from pandas._typing import ArrayLike, DateTimeErrorChoices, DtypeObj, NaPosition
+from pandas._typing import ArrayLike, DateTimeErrorChoices, DtypeObj, NaPosition, Scalar
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
-from pandas.core.dtypes.common import is_datetime64_any_dtype, pandas_dtype
+from pandas.core.dtypes.common import (
+    is_bool_dtype,
+    is_datetime64_any_dtype,
+    is_float_dtype,
+    is_integer_dtype,
+    is_numeric_dtype,
+    is_object_dtype,
+    pandas_dtype,
+)
 from pandas.core.dtypes.inference import is_hashable
 
-from snowflake.snowpark.modin.pandas import DataFrame, Series
-from snowflake.snowpark.modin.pandas.base import BasePandasDataset
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import DateTimeOrigin
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     index_not_implemented,
 )
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.modin.plugin.utils.warning_message import (
+    WarningMessage,
+    materialization_warning,
+)
 from snowflake.snowpark.types import ArrayType
 
 _CONSTRUCTOR_DEFAULTS = {
@@ -59,6 +71,35 @@ _CONSTRUCTOR_DEFAULTS = {
     "name": None,
     "tupleize_cols": True,
 }
+
+
+class IndexParent:
+    def __init__(self, parent: DataFrame | Series) -> None:
+        """
+        Initialize the IndexParent object.
+
+        IndexParent is used to keep track of the parent object that the Index is a part of.
+        It tracks the parent object and the parent object's query compiler at the time of creation.
+
+        Parameters
+        ----------
+        parent : DataFrame or Series
+            The parent object that the Index is a part of.
+        """
+        assert isinstance(parent, (DataFrame, Series))
+        self._parent = parent
+        self._parent_qc = parent._query_compiler
+
+    def check_and_update_parent_qc_index_names(self, names: list) -> None:
+        """
+        Update the Index and its parent's index names if the query compiler associated with the parent is
+        different from the original query compiler recorded, i.e., an inplace update has been applied to the parent.
+        """
+        if self._parent._query_compiler is self._parent_qc:
+            new_query_compiler = self._parent_qc.set_index_names(names)
+            self._parent._update_inplace(new_query_compiler=new_query_compiler)
+            # Update the query compiler after naming operation.
+            self._parent_qc = new_query_compiler
 
 
 class Index(metaclass=TelemetryMeta):
@@ -104,22 +145,29 @@ class Index(metaclass=TelemetryMeta):
         from snowflake.snowpark.modin.plugin.extensions.datetime_index import (
             DatetimeIndex,
         )
+        from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (
+            TimedeltaIndex,
+        )
 
-        if query_compiler:
-            dtype = query_compiler.index_dtypes[0]
-            if dtype == np.dtype("datetime64[ns]"):
-                return DatetimeIndex(query_compiler=query_compiler)
-        elif isinstance(data, BasePandasDataset):
-            if data.ndim != 1:
-                raise ValueError("Index data must be 1 - dimensional")
-            dtype = data.dtype
-            if dtype == np.dtype("datetime64[ns]"):
-                return DatetimeIndex(data, dtype, copy, name, tupleize_cols)
-        else:
-            index = native_pd.Index(data, dtype, copy, name, tupleize_cols)
-            if isinstance(index, native_pd.DatetimeIndex):
-                return DatetimeIndex(data)
-        return object.__new__(cls)
+        kwargs = {
+            "dtype": dtype,
+            "copy": copy,
+            "name": name,
+            "tupleize_cols": tupleize_cols,
+        }
+        query_compiler = cls._init_query_compiler(
+            data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs
+        )
+        if query_compiler.is_datetime64_any_dtype(idx=0, is_index=True):
+            return DatetimeIndex(query_compiler=query_compiler)
+        if query_compiler.is_timedelta64_dtype(idx=0, is_index=True):
+            return TimedeltaIndex(query_compiler=query_compiler)
+        index = object.__new__(cls)
+        # Initialize the Index
+        index._query_compiler = query_compiler
+        # `_parent` keeps track of the parent object that this Index is a part of.
+        index._parent = None
+        return index
 
     def __init__(
         self,
@@ -167,30 +215,23 @@ class Index(metaclass=TelemetryMeta):
         >>> pd.Index([1, 2, 3], dtype="uint8")
         Index([1, 2, 3], dtype='int64')
         """
-        kwargs = {
-            "dtype": dtype,
-            "copy": copy,
-            "name": name,
-            "tupleize_cols": tupleize_cols,
-        }
-        self._init_index(data, _CONSTRUCTOR_DEFAULTS, query_compiler, **kwargs)
+        # Index is already initialized in __new__ method. We keep this method only for
+        # docstring generation.
 
-    def _init_index(
-        self,
+    @classmethod
+    def _init_query_compiler(
+        cls,
         data: ArrayLike | native_pd.Index | Series | None,
         ctor_defaults: dict,
         query_compiler: SnowflakeQueryCompiler = None,
         **kwargs: Any,
-    ):
-        # `_parent` keeps track of any Series or DataFrame that this Index is a part of.
-        self._parent = None
+    ) -> SnowflakeQueryCompiler:
         if query_compiler:
             # Raise warning if `data` is query compiler with non-default arguments.
             for arg_name, arg_value in kwargs.items():
                 assert (
                     arg_value == ctor_defaults[arg_name]
                 ), f"Non-default argument '{arg_name}={arg_value}' when constructing Index with query compiler"
-            self._query_compiler = query_compiler
         elif isinstance(data, BasePandasDataset):
             if data.ndim != 1:
                 raise ValueError("Index data must be 1 - dimensional")
@@ -200,15 +241,17 @@ class Index(metaclass=TelemetryMeta):
             )
             if series_has_no_name:
                 idx.name = None
-            self._query_compiler = idx._query_compiler
+            query_compiler = idx._query_compiler
+        elif isinstance(data, Index):
+            query_compiler = data._query_compiler
         else:
-            self._query_compiler = DataFrame(
-                index=self._NATIVE_INDEX_TYPE(data=data, **kwargs)
+            query_compiler = DataFrame(
+                index=cls._NATIVE_INDEX_TYPE(data=data, **kwargs)
             )._query_compiler
-        if len(self._query_compiler.columns):
-            self._query_compiler = self._query_compiler.drop(
-                columns=self._query_compiler.columns
-            )
+
+        if len(query_compiler.columns):
+            query_compiler = query_compiler.drop(columns=query_compiler.columns)
+        return query_compiler
 
     def __getattr__(self, key: str) -> Any:
         """
@@ -236,21 +279,34 @@ class Index(metaclass=TelemetryMeta):
                 if hasattr(native_index, key):
                     # Any methods that not supported by the current Index.py but exist in a
                     # native pandas index object should raise a not implemented error for now.
-                    raise ErrorMessage.not_implemented(
-                        f"Index.{key} is not yet implemented"
-                    )
+                    ErrorMessage.not_implemented(f"Index.{key} is not yet implemented")
             raise err
+
+    def _set_parent(self, parent: Series | DataFrame) -> None:
+        """
+        Set the parent object and its query compiler.
+
+        Parameters
+        ----------
+        parent : Series or DataFrame
+            The parent object that the Index is a part of.
+        """
+        self._parent = IndexParent(parent)
 
     def _binary_ops(self, method: str, other: Any) -> Index:
         if isinstance(other, Index):
             other = other.to_series().reset_index(drop=True)
-        return self.__constructor__(
-            self.to_series().reset_index(drop=True).__getattr__(method)(other)
-        )
+        series = getattr(self.to_series().reset_index(drop=True), method)(other)
+        qc = series._query_compiler
+        qc = qc.set_index_from_columns(qc.columns, include_index=False)
+        # Use base constructor to ensure that the correct type is returned.
+        idx = Index(query_compiler=qc)
+        idx.name = series.name
+        return idx
 
     def _unary_ops(self, method: str) -> Index:
         return self.__constructor__(
-            self.to_series().reset_index(drop=True).__getattr__(method)()
+            getattr(self.to_series().reset_index(drop=True), method)()
         )
 
     def __add__(self, other: Any) -> Index:
@@ -316,6 +372,57 @@ class Index(metaclass=TelemetryMeta):
     def __lt__(self, other: Any) -> Index:
         return self._binary_ops("lt", other)
 
+    def __or__(self, other: Any) -> Index:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __and__(self, other: Any) -> Index:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __xor__(self, other: Any) -> Index:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __lshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rand__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __ror__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rxor__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rlshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    def __rrshift__(self, n: int) -> int:
+        ErrorMessage.not_implemented(
+            f"Index.{inspect.currentframe().f_code.co_name} is not yet implemented"
+        )
+
+    @materialization_warning
     def to_pandas(
         self,
         *,
@@ -342,12 +449,6 @@ class Index(metaclass=TelemetryMeta):
         Returns: Type of the instance.
         """
         return type(self)
-
-    def _set_parent(self, parent: Series | DataFrame):
-        """
-        Set the parent object of the current Index to a given Series or DataFrame.
-        """
-        self._parent = parent
 
     @property
     def values(self) -> ArrayLike:
@@ -376,8 +477,7 @@ class Index(metaclass=TelemetryMeta):
         return self.to_pandas().values
 
     @property
-    @index_not_implemented()
-    def is_monotonic_increasing(self) -> None:
+    def is_monotonic_increasing(self) -> bool:
         """
         Return a boolean if the values are equal or increasing.
 
@@ -389,12 +489,20 @@ class Index(metaclass=TelemetryMeta):
         See Also
         --------
         Index.is_monotonic_decreasing : Check if the values are equal or decreasing
+
+        Examples
+        --------
+        >>> pd.Index([1, 2, 3]).is_monotonic_increasing
+        True
+        >>> pd.Index([1, 2, 2]).is_monotonic_increasing
+        True
+        >>> pd.Index([1, 3, 2]).is_monotonic_increasing
+        False
         """
-        # TODO: SNOW-1458134 implement is_monotonic_increasing
+        return self.to_series().is_monotonic_increasing
 
     @property
-    @index_not_implemented()
-    def is_monotonic_decreasing(self) -> None:
+    def is_monotonic_decreasing(self) -> bool:
         """
         Return a boolean if the values are equal or decreasing.
 
@@ -406,8 +514,17 @@ class Index(metaclass=TelemetryMeta):
         See Also
         --------
         Index.is_monotonic_increasing : Check if the values are equal or increasing
+
+        Examples
+        --------
+        >>> pd.Index([3, 2, 1]).is_monotonic_decreasing
+        True
+        >>> pd.Index([3, 2, 2]).is_monotonic_decreasing
+        True
+        >>> pd.Index([3, 1, 2]).is_monotonic_decreasing
+        False
         """
-        # TODO: SNOW-1458134 implement is_monotonic_decreasing
+        return self.to_series().is_monotonic_decreasing
 
     @property
     def is_unique(self) -> bool:
@@ -645,10 +762,11 @@ class Index(metaclass=TelemetryMeta):
         if not is_hashable(value):
             raise TypeError(f"{type(self).__name__}.name must be a hashable type")
         self._query_compiler = self._query_compiler.set_index_names([value])
+        # Update the name of the parent's index only if an inplace update is performed on
+        # the parent object, i.e., the parent's current query compiler matches the originally
+        # recorded query compiler.
         if self._parent is not None:
-            self._parent._update_inplace(
-                new_query_compiler=self._parent._query_compiler.set_index_names([value])
-            )
+            self._parent.check_and_update_parent_qc_index_names([value])
 
     def _get_names(self) -> list[Hashable]:
         """
@@ -669,11 +787,15 @@ class Index(metaclass=TelemetryMeta):
         ------
         TypeError if each name is not hashable.
         """
+        if not is_list_like(values):
+            raise ValueError("Names must be a list-like")
+        if isinstance(values, Index):
+            values = values.to_list()
         self._query_compiler = self._query_compiler.set_index_names(values)
+        # Update the name of the parent's index only if the parent's current query compiler
+        # matches the recorded query compiler.
         if self._parent is not None:
-            self._parent._update_inplace(
-                new_query_compiler=self._parent._query_compiler.set_index_names(values)
-            )
+            self._parent.check_and_update_parent_qc_index_names(values)
 
     names = property(fset=_set_names, fget=_get_names)
 
@@ -1016,6 +1138,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458146 implement delete
 
+    @index_not_implemented()
     def drop(
         self,
         labels: Any,
@@ -1039,16 +1162,8 @@ class Index(metaclass=TelemetryMeta):
         ------
         KeyError
             If all labels are not found in the selected axis
-
-        Examples
-        --------
-        >>> idx = pd.Index(['a', 'b', 'c'])
-        >>> idx.drop(['a'])
-        Index(['b', 'c'], dtype='object')
         """
         # TODO: SNOW-1458146 implement drop
-        WarningMessage.index_to_pandas_warning("drop")
-        return self.__constructor__(self.to_pandas().drop(labels=labels, errors=errors))
 
     @index_not_implemented()
     def drop_duplicates(self) -> None:
@@ -1074,6 +1189,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458147 implement drop_duplicates
 
+    @index_not_implemented()
     def duplicated(self, keep: Literal["first", "last", False] = "first") -> np.ndarray:
         """
         Indicate duplicate index values.
@@ -1102,35 +1218,8 @@ class Index(metaclass=TelemetryMeta):
         --------
         Series.duplicated : Equivalent method on pandas.Series.
         DataFrame.duplicated : Equivalent method on pandas.DataFrame.
-
-        Examples
-        --------
-        By default, for each set of duplicated values, the first occurrence is
-        set to False and all others to True:
-
-        >>> idx = pd.Index(['lama', 'cow', 'lama', 'beetle', 'lama'])
-        >>> idx.duplicated()
-        array([False, False,  True, False,  True])
-
-        which is equivalent to
-
-        >>> idx.duplicated(keep='first')
-        array([False, False,  True, False,  True])
-
-        By using 'last', the last occurrence of each set of duplicated values
-        is set on False and all others on True:
-
-        >>> idx.duplicated(keep='last')
-        array([ True, False,  True, False, False])
-
-        By setting keep on ``False``, all duplicates are True:
-
-        >>> idx.duplicated(keep=False)
-        array([ True, False,  True, False,  True])
         """
         # TODO: SNOW-1458147 implement duplicated
-        WarningMessage.index_to_pandas_warning("duplicated")
-        return self.to_pandas().duplicated(keep=keep)
 
     def equals(self, other: Any) -> bool:
         """
@@ -1256,8 +1345,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458138 implement insert
 
-    @index_not_implemented()
-    def is_boolean(self) -> None:
+    def is_boolean(self) -> bool:
         """
         Check if the Index only consists of booleans.
 
@@ -1277,11 +1365,24 @@ class Index(metaclass=TelemetryMeta):
         is_object : Check if the Index is of the object dtype (deprecated).
         is_categorical : Check if the Index holds categorical data.
         is_interval : Check if the Index holds Interval objects (deprecated).
-        """
-        # TODO: SNOW-1458123 implement is_boolean
 
-    @index_not_implemented()
-    def is_floating(self) -> None:
+        Examples
+        --------
+        >>> idx = pd.Index([True, False, True])
+        >>> idx.is_boolean()
+        True
+
+        >>> idx = pd.Index(["True", "False", "True"])
+        >>> idx.is_boolean()
+        False
+
+        >>> idx = pd.Index([True, False, "True"])
+        >>> idx.is_boolean()
+        False
+        """
+        return is_bool_dtype(self.dtype)
+
+    def is_floating(self) -> bool:
         """
         Check if the Index is a floating type.
 
@@ -1294,7 +1395,7 @@ class Index(metaclass=TelemetryMeta):
         Returns
         -------
         bool
-            Whether or not the Index only consists of only consists of floats, NaNs, or
+            Whether the Index only consists of only consists of floats, NaNs, or
             a mix of floats, integers, or NaNs.
 
         See Also
@@ -1305,11 +1406,28 @@ class Index(metaclass=TelemetryMeta):
         is_object : Check if the Index is of the object dtype. (deprecated).
         is_categorical : Check if the Index holds categorical data (deprecated).
         is_interval : Check if the Index holds Interval objects (deprecated).
-        """
-        # TODO: SNOW-1458123 implement is_floating
 
-    @index_not_implemented()
-    def is_integer(self) -> None:
+        Examples
+        --------
+        >>> idx = pd.Index([1.0, 2.0, 3.0, 4.0])
+        >>> idx.is_floating()
+        True
+
+        >>> idx = pd.Index([1.0, 2.0, np.nan, 4.0])
+        >>> idx.is_floating()
+        True
+
+        >>> idx = pd.Index([1, 2, 3, 4, np.nan])
+        >>> idx.is_floating()
+        True
+
+        >>> idx = pd.Index([1, 2, 3, 4])
+        >>> idx.is_floating()
+        False
+        """
+        return is_float_dtype(self.dtype)
+
+    def is_integer(self) -> bool:
         """
         Check if the Index only consists of integers.
 
@@ -1319,7 +1437,7 @@ class Index(metaclass=TelemetryMeta):
         Returns
         -------
         bool
-            Whether or not the Index only consists of integers.
+            Whether the Index only consists of integers.
 
         See Also
         --------
@@ -1329,8 +1447,22 @@ class Index(metaclass=TelemetryMeta):
         is_object : Check if the Index is of the object dtype. (deprecated).
         is_categorical : Check if the Index holds categorical data (deprecated).
         is_interval : Check if the Index holds Interval objects (deprecated).
+
+        Examples
+        --------
+        >>> idx = pd.Index([1, 2, 3, 4])
+        >>> idx.is_integer()
+        True
+
+        >>> idx = pd.Index([1.0, 2.0, 3.0, 4.0])
+        >>> idx.is_integer()
+        False
+
+        >>> idx = pd.Index(["Apple", "Mango", "Watermelon"])
+        >>> idx.is_integer()
+        False
         """
-        # TODO: SNOW-1458123 implement is_integer
+        return is_integer_dtype(self.dtype)
 
     @index_not_implemented()
     def is_interval(self) -> None:
@@ -1343,7 +1475,7 @@ class Index(metaclass=TelemetryMeta):
         Returns
         -------
         bool
-            Whether or not the Index holds Interval objects.
+            Whether the Index holds Interval objects.
 
         See Also
         --------
@@ -1355,10 +1487,8 @@ class Index(metaclass=TelemetryMeta):
         is_object : Check if the Index is of the object dtype. (deprecated).
         is_categorical : Check if the Index holds categorical data (deprecated).
         """
-        # TODO: SNOW-1458123 implement is_interval
 
-    @index_not_implemented()
-    def is_numeric(self) -> None:
+    def is_numeric(self) -> bool:
         """
         Check if the Index only consists of numeric data.
 
@@ -1368,7 +1498,7 @@ class Index(metaclass=TelemetryMeta):
         Returns
         -------
         bool
-            Whether or not the Index only consists of numeric data.
+            Whether the Index only consists of numeric data.
 
         See Also
         --------
@@ -1378,11 +1508,32 @@ class Index(metaclass=TelemetryMeta):
         is_object : Check if the Index is of the object dtype. (deprecated).
         is_categorical : Check if the Index holds categorical data (deprecated).
         is_interval : Check if the Index holds Interval objects (deprecated).
-        """
-        # TODO: SNOW-1458123 implement is_numeric
 
-    @index_not_implemented()
-    def is_object(self) -> None:
+        Examples
+        --------
+        >>> idx = pd.Index([1.0, 2.0, 3.0, 4.0])
+        >>> idx.is_numeric()
+        True
+
+        >>> idx = pd.Index([1, 2, 3, 4.0])
+        >>> idx.is_numeric()
+        True
+
+        >>> idx = pd.Index([1, 2, 3, 4])
+        >>> idx.is_numeric()
+        True
+
+        >>> idx = pd.Index([1, 2, 3, 4.0, np.nan])
+        >>> idx.is_numeric()
+        True
+
+        >>> idx = pd.Index([1, 2, 3, 4.0, np.nan, "Apple"])
+        >>> idx.is_numeric()
+        False
+        """
+        return is_numeric_dtype(self.dtype) and not is_bool_dtype(self.dtype)
+
+    def is_object(self) -> bool:
         """
         Check if the Index is of the object dtype.
 
@@ -1392,7 +1543,7 @@ class Index(metaclass=TelemetryMeta):
         Returns
         -------
         bool
-            Whether or not the Index is of the object dtype.
+            Whether the Index is of the object dtype.
 
         See Also
         --------
@@ -1402,11 +1553,26 @@ class Index(metaclass=TelemetryMeta):
         is_numeric : Check if the Index only consists of numeric data (deprecated).
         is_categorical : Check if the Index holds categorical data (deprecated).
         is_interval : Check if the Index holds Interval objects (deprecated).
-        """
-        # TODO: SNOW-1458123 implement is_object
 
-    @index_not_implemented()
-    def min(self) -> None:
+        Examples
+        --------
+        >>> idx = pd.Index(["Apple", "Mango", "Watermelon"])
+        >>> idx.is_object()
+        True
+
+        >>> idx = pd.Index(["Apple", "Mango", 2.0])
+        >>> idx.is_object()
+        True
+
+        >>> idx = pd.Index([1.0, 2.0, 3.0, 4.0])
+        >>> idx.is_object()
+        False
+        """
+        return is_object_dtype(self.dtype)
+
+    def min(
+        self, axis: int | None = None, skipna: bool = True, *args: Any, **kwargs: Any
+    ) -> Scalar:
         """
         Return the minimum value of the Index.
 
@@ -1429,11 +1595,24 @@ class Index(metaclass=TelemetryMeta):
         Index.max : Return the maximum value of the object.
         Series.min : Return the minimum value in a Series.
         DataFrame.min : Return the minimum values in a DataFrame.
-        """
-        # TODO: SNOW-1458127 implement min
 
-    @index_not_implemented()
-    def max(self) -> None:
+        Examples
+        --------
+        >>> idx = pd.Index([3, 2, 1])
+        >>> idx.min()
+        1
+
+        >>> idx = pd.Index(['c', 'b', 'a'])
+        >>> idx.min()
+        'a'
+        """
+        if axis:
+            raise ValueError("Axis must be None or 0 for Index objects")
+        return self.to_series().min(skipna=skipna, **kwargs)
+
+    def max(
+        self, axis: int | None = None, skipna: bool = True, *args: Any, **kwargs: Any
+    ) -> Scalar:
         """
         Return the maximum value of the Index.
 
@@ -1456,8 +1635,20 @@ class Index(metaclass=TelemetryMeta):
         Index.min : Return the minimum value in an Index.
         Series.max : Return the maximum value in a Series.
         DataFrame.max : Return the maximum values in a DataFrame.
+
+        Examples
+        --------
+        >>> idx = pd.Index([3, 2, 1])
+        >>> idx.max()
+        3
+
+        >>> idx = pd.Index(['c', 'b', 'a'])
+        >>> idx.max()
+        'c'
         """
-        # TODO: SNOW-1458127 implement max
+        if axis:
+            raise ValueError("Axis must be None or 0 for Index objects")
+        return self.to_series().max(skipna=skipna, **kwargs)
 
     def reindex(
         self,
@@ -1554,15 +1745,14 @@ class Index(metaclass=TelemetryMeta):
             "_is_index": True,
         }
 
-        internal_data_types = (
-            self._query_compiler._modin_frame.quoted_identifier_to_snowflake_type()
-        )
         internal_index_column = (
             self._query_compiler._modin_frame.index_column_snowflake_quoted_identifiers[
                 0
             ]
         )
-        internal_index_type = internal_data_types[internal_index_column]
+        internal_index_type = self._query_compiler._modin_frame.get_snowflake_type(
+            internal_index_column
+        )
         if isinstance(internal_index_type, ArrayType):
             raise NotImplementedError(
                 "Snowpark pandas does not support `reindex` with tuple-like Index values."
@@ -2002,6 +2192,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458139 implement hasnans
 
+    @materialization_warning
     def tolist(self) -> list:
         """
         Return a list of the values.
@@ -2060,6 +2251,7 @@ class Index(metaclass=TelemetryMeta):
             builtin :meth:`sorted` function, with the notable difference that
             this `key` function should be *vectorized*. It should expect an
             ``Index`` and return an ``Index`` of the same shape.
+            This parameter is not yet supported.
 
         Returns
         -------
@@ -2194,6 +2386,7 @@ class Index(metaclass=TelemetryMeta):
             )
         )
 
+    @index_not_implemented()
     def union(self, other: Any, sort: bool = False) -> Index:
         """
         Form the union of two Index objects.
@@ -2221,30 +2414,11 @@ class Index(metaclass=TelemetryMeta):
         -------
         Index
             The Index that represents the union between the two indexes
-
-        Examples
-        --------
-        Union matching dtypes
-
-        >>> idx1 = pd.Index([1, 2, 3, 4])
-        >>> idx2 = pd.Index([3, 4, 5, 6])
-        >>> idx1.union(idx2)
-        Index([1, 2, 3, 4, 5, 6], dtype='int64')
-
-        Union mismatched dtypes
-
-        >>> idx1 = pd.Index(['a', 'b', 'c', 'd'])
-        >>> idx2 = pd.Index([1, 2, 3, 4])
-        >>> idx1.union(idx2)
-        Index(['a', 'b', 'c', 'd', 1, 2, 3, 4], dtype='object')
         """
         # TODO: SNOW-1458149 implement union w/o sort
         # TODO: SNOW-1468240 implement union w/ sort
-        WarningMessage.index_to_pandas_warning("union")
-        return self.__constructor__(
-            self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort)
-        )
 
+    @index_not_implemented()
     def difference(self, other: Any, sort: Any = None) -> Index:
         """
         Return a new Index with elements of index not in `other`.
@@ -2268,22 +2442,10 @@ class Index(metaclass=TelemetryMeta):
         -------
         Index
             An index object that represents the difference between the two indexes.
-
-        Examples
-        --------
-        >>> idx1 = pd.Index([2, 1, 3, 4])
-        >>> idx2 = pd.Index([3, 4, 5, 6])
-        >>> idx1.difference(idx2)
-        Index([1, 2], dtype='int64')
-        >>> idx1.difference(idx2, sort=False)
-        Index([2, 1], dtype='int64')
         """
         # TODO: SNOW-1458152 implement difference
-        WarningMessage.index_to_pandas_warning("difference")
-        return self.__constructor__(
-            self.to_pandas().difference(try_convert_index_to_native(other), sort=sort)
-        )
 
+    @index_not_implemented()
     def get_indexer_for(self, target: Any) -> Any:
         """
         Guaranteed return of an indexer even when non-unique.
@@ -2295,13 +2457,6 @@ class Index(metaclass=TelemetryMeta):
         -------
         np.ndarray[np.intp]
             List of indices.
-
-        Examples
-        --------
-        Note Snowpark pandas converts np.nan, pd.NA, pd.NaT to None
-        >>> idx = pd.Index([np.nan, 'var1', np.nan])
-        >>> idx.get_indexer_for([None])
-        array([0, 2])
         """
         WarningMessage.index_to_pandas_warning("get_indexer_for")
         return self.to_pandas().get_indexer_for(target=target)
@@ -2314,6 +2469,7 @@ class Index(metaclass=TelemetryMeta):
         tup = self.to_pandas()._get_indexer_strict(key=key, axis_name=axis_name)
         return self.__constructor__(tup[0]), tup[1]
 
+    @index_not_implemented()
     def get_level_values(self, level: int | str) -> Index:
         """
         Return an Index of values for requested level.
@@ -2334,17 +2490,6 @@ class Index(metaclass=TelemetryMeta):
         Notes
         -----
         For Index, level should be 0, since there are no multiple levels.
-
-        Examples
-        --------
-        >>> idx = pd.Index(list('abc'))
-        >>> idx
-        Index(['a', 'b', 'c'], dtype='object')
-
-        Get level values by supplying `level` as integer:
-
-        >>> idx.get_level_values(0)
-        Index(['a', 'b', 'c'], dtype='object')
         """
         WarningMessage.index_to_pandas_warning("get_level_values")
         return self.__constructor__(self.to_pandas().get_level_values(level=level))
@@ -2390,6 +2535,7 @@ class Index(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1458153 implement isin
 
+    @index_not_implemented()
     def slice_indexer(
         self,
         start: Hashable | None = None,
@@ -2422,14 +2568,6 @@ class Index(metaclass=TelemetryMeta):
         Notes
         -----
         This function assumes that the data is sorted, so use at your own peril
-
-        Examples
-        --------
-        This is a method on all index types. For example you can do:
-
-        >>> idx = pd.Index(list('abcd'))
-        >>> idx.slice_indexer(start='b', end='c')
-        slice(1, 3, None)
         """
         WarningMessage.index_to_pandas_warning("slice_indexer")
         return self.to_pandas().slice_indexer(start=start, end=end, step=step)
@@ -2458,6 +2596,7 @@ class Index(metaclass=TelemetryMeta):
         WarningMessage.index_to_pandas_warning("_summary")
         return self.to_pandas()._summary(name=name)
 
+    @materialization_warning
     def __array__(self, dtype: Any = None) -> np.ndarray:
         """
         The array interface, return the values.
@@ -2501,9 +2640,11 @@ class Index(metaclass=TelemetryMeta):
         name_repr = f", name='{self.name}'" if self.name else ""
         # Length is displayed only when the number of elements is greater than the number of elements to display.
         length_repr = f", length={length_of_index}" if too_many_elem else ""
-        # The frequency is displayed only for DatetimeIndex.
+        # The frequency is displayed for DatetimeIndex and TimedeltaIndex
         # TODO: SNOW-1625233 update freq_repr; replace None with the correct value.
-        freq_repr = ", freq=None" if "DatetimeIndex" in class_name else ""
+        freq_repr = (
+            ", freq=None" if class_name in ("DatetimeIndex", "TimedeltaIndex") else ""
+        )
 
         repr = (
             class_name
@@ -2628,7 +2769,6 @@ class Index(metaclass=TelemetryMeta):
         0    AStrSeries
         dtype: object
         """
-        WarningMessage.index_to_pandas_warning("str")
         return self.to_pandas().str
 
     def _to_datetime(

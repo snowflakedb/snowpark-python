@@ -62,23 +62,12 @@ class SnowpandasSessionHolder(ModuleType):
             raise
 
     def __setattr__(self, attr: str, value: Any) -> None:
-        # If this module is modin.pandas, delegate the attribute to snowflake.snowpark.modin.pandas
-        if self.__package__ == "modin.pandas" and attr == "session":
-            import snowflake.snowpark.modin.pandas as spd
-
-            setattr(spd, attr, value)
-            return
         if attr == "session":
             self._session = value
         else:
             super().__setattr__(attr, value)
 
     def __getattr__(self, name: str) -> Any:
-        # If this module is modin.pandas, delegate the attribute to snowflake.snowpark.modin.pandas
-        if self.__package__ == "modin.pandas" and name == "session":
-            import snowflake.snowpark.modin.pandas as spd
-
-            return getattr(spd, name)
         return (
             self._get_active_session()
             if name == "session"

@@ -7,6 +7,7 @@ from typing import AbstractSet, Dict, List, Optional
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     derive_dependent_columns,
+    derive_dependent_columns_with_duplication,
 )
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
@@ -22,6 +23,9 @@ class GroupingSet(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.group_by_exprs)
+
+    def dependent_column_names_with_duplication(self) -> List[str]:
+        return derive_dependent_columns_with_duplication(*self.group_by_exprs)
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -44,6 +48,10 @@ class GroupingSetsExpression(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         flattened_args = [exp for sublist in self.args for exp in sublist]
         return derive_dependent_columns(*flattened_args)
+
+    def dependent_column_names_with_duplication(self) -> List[str]:
+        flattened_args = [exp for sublist in self.args for exp in sublist]
+        return derive_dependent_columns_with_duplication(*flattened_args)
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:

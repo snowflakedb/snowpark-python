@@ -10,8 +10,8 @@ from snowflake.snowpark._internal.utils import (
     PIVOT_DEFAULT_ON_NULL_WARNING,
     PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize("data", [list("abca"), list("mxyzptlk")])

@@ -64,7 +64,7 @@ if __name__ == "__main__":
         telemetry_decorator_name="snowpark_pandas_telemetry_standalone_function_decorator",
     )
     check_standalone_function_snowpark_pandas_telemetry_decorator(
-        target_file="src/snowflake/snowpark/modin/pandas/general.py",
+        target_file="src/snowflake/snowpark/modin/plugin/extensions/general_overrides.py",
         telemetry_decorator_name="snowpark_pandas_telemetry_standalone_function_decorator",
     )
     check_standalone_function_snowpark_pandas_telemetry_decorator(

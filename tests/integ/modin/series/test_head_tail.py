@@ -4,8 +4,8 @@
 import pytest
 
 from tests.integ.modin.frame.test_head_tail import eval_result_and_query_with_no_join
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize(

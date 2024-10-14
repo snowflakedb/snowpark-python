@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import inspect
 import json
 import sys
 from collections import namedtuple
@@ -14,10 +15,11 @@ import pandas as native_pd
 from pandas._typing import AggFuncType
 from pandas.api.types import is_scalar
 
+from snowflake.snowpark import functions
 from snowflake.snowpark._internal.type_utils import PYTHON_TO_SNOW_TYPE_MAPPINGS
 from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
 from snowflake.snowpark.column import Column as SnowparkColumn
-from snowflake.snowpark.functions import builtin, col, dense_rank, udf, udtf
+from snowflake.snowpark.functions import builtin, col, dense_rank, sin, udf, udtf
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
@@ -29,6 +31,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     parse_snowflake_object_construct_identifier_to_map,
 )
+from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
@@ -58,6 +61,10 @@ DEFAULT_UDTF_PARTITION_SIZE = 1000
 # https://github.com/cloudpipe/cloudpickle?tab=readme-ov-file#overriding-pickles-serialization-mechanism-for-importable-constructs
 cloudpickle.register_pickle_by_value(sys.modules[__name__])
 
+SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY = {
+    sin,
+}
+
 
 class GroupbyApplySortMethod(Enum):
     """
@@ -81,7 +88,7 @@ class GroupbyApplySortMethod(Enum):
 
 def check_return_variant_and_get_return_type(func: Callable) -> tuple[bool, DataType]:
     """Check whether the function returns a variant in Snowflake, and get its return type."""
-    return_type, _ = get_types_from_type_hints(func, TempObjectType.FUNCTION)
+    return_type = deduce_return_type_from_function(func)
     if return_type is None or isinstance(
         return_type, (VariantType, PandasSeriesType, PandasDataFrameType)
     ):
@@ -390,6 +397,7 @@ def create_udtf_for_groupby_apply(
     series_groupby: bool,
     by_types: list[DataType],
     existing_identifiers: list[str],
+    force_list_like_to_series: bool = False,
 ) -> UserDefinedTableFunction:
     """
     Create a UDTF from the Python function for groupby.apply.
@@ -480,6 +488,7 @@ def create_udtf_for_groupby_apply(
     series_groupby: Whether we are performing a SeriesGroupBy.apply() instead of DataFrameGroupBy.apply()
     by_types: The snowflake types of the by columns.
     existing_identifiers: List of existing column identifiers; these are omitted when creating new column identifiers.
+    force_list_like_to_series: Force the function result to series if it is list-like
 
     Returns
     -------
@@ -490,7 +499,9 @@ def create_udtf_for_groupby_apply(
     # Get the length of this list outside the vUDTF function because the vUDTF
     # doesn't have access to the Snowpark module, which defines these types.
     num_by = len(by_types)
-    from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+    from snowflake.snowpark.modin.plugin.extensions.utils import (
+        try_convert_index_to_native,
+    )
 
     data_column_index = try_convert_index_to_native(data_column_index)
 
@@ -553,6 +564,17 @@ def create_udtf_for_groupby_apply(
             # https://github.com/snowflakedb/snowpandas/pull/823/files#r1507286892
             input_object = input_object.infer_objects()
             func_result = func(input_object, *args, **kwargs)
+            if (
+                force_list_like_to_series
+                and not isinstance(func_result, native_pd.Series)
+                and native_pd.api.types.is_list_like(func_result)
+            ):
+                if len(func_result) == 1:
+                    func_result = func_result[0]
+                else:
+                    func_result = native_pd.Series(func_result)
+                    if len(func_result) == len(df.index):
+                        func_result.index = df.index
             if isinstance(func_result, native_pd.Series):
                 if series_groupby:
                     func_result_as_frame = func_result.to_frame()
@@ -682,7 +704,9 @@ def create_udf_for_series_apply(
     # Snowpark function with annotations, extract underlying func to wrap.
     if isinstance(func, UserDefinedFunction):
         # Ensure return_type specified is identical.
-        assert func._return_type == return_type
+        assert (
+            func._return_type == return_type
+        ), f"UserDefinedFunction has invalid return type {func.return_type} vs. {return_type}"
 
         # Append packages from function.
         if func._packages:
@@ -752,7 +776,7 @@ def handle_missing_value_in_variant(value: Any) -> Any:
 
 def convert_numpy_int_result_to_int(value: Any) -> Any:
     """
-    If the result is a numpy int, convert it to a python int.
+    If the result is a numpy int (or bool), convert it to a python int (or bool.)
 
     Use this function to make UDF results JSON-serializable. numpy ints are not
     JSON-serializable, but python ints are. Note that this function cannot make
@@ -770,9 +794,14 @@ def convert_numpy_int_result_to_int(value: Any) -> Any:
 
     Returns
     -------
-    int(value) if the value is a numpy int, otherwise the value.
+    int(value) if the value is a numpy int,
+    bool(value) if the value is a numpy bool, otherwise the value.
     """
-    return int(value) if np.issubdtype(type(value), np.integer) else value
+    return (
+        int(value)
+        if np.issubdtype(type(value), np.integer)
+        else (bool(value) if np.issubdtype(type(value), np.bool_) else value)
+    )
 
 
 def deduce_return_type_from_function(
@@ -885,7 +914,7 @@ def get_metadata_from_groupby_apply_pivot_result_column_names(
     input:
 
     get_metadata_from_groupby_apply_pivot_result_column_names([
-                 # this representa a data column named ('a', 'group_key') at position 0
+                 # this represents a data column named ('a', 'group_key') at position 0
                  '"\'{""0"": ""a"", ""1"": ""group_key"", ""data_pos"": 0, ""names"": [""c1"", ""c2""]}\'"',
                  # this represents a data column named  ('b', 'int_col') at position 1
                 '"\'{""0"": ""b"", ""1"": ""int_col"", ""data_pos"": 1, ""names"": [""c1"", ""c2""]}\'"',
@@ -1108,7 +1137,9 @@ def groupby_apply_pivot_result_to_final_ordered_dataframe(
             #       in GROUP_KEY_APPEARANCE_ORDER) and assign the
             #       label i to all rows that came from func(group_i).
             [
-                original_row_position_snowflake_quoted_identifier
+                col(original_row_position_snowflake_quoted_identifier).as_(
+                    new_index_identifier
+                )
                 if sort_method is GroupbyApplySortMethod.ORIGINAL_ROW_ORDER
                 else (
                     dense_rank().over(
@@ -1332,3 +1363,15 @@ def groupby_apply_sort_method(
             else GroupbyApplySortMethod.GROUP_KEY_APPEARANCE_ORDER
         )
     )
+
+
+def is_supported_snowpark_python_function(func: AggFuncType) -> bool:
+    """Return True if the `func` is a supported Snowpark Python function."""
+    func_module = inspect.getmodule(func)
+    if functions != func_module:
+        return False
+    if func not in SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY:
+        ErrorMessage.not_implemented(
+            f"Snowpark Python function `{func.__name__}` is not supported yet."
+        )
+    return True

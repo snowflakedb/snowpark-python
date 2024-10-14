@@ -1,25 +1,25 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.modin.pandas.utils import (
-    ensure_index,
-    try_convert_index_to_native,
-)
 from snowflake.snowpark.modin.plugin._internal.utils import (
     create_ordered_dataframe_with_readonly_temp_table,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from snowflake.snowpark.modin.plugin.extensions.utils import (
+    ensure_index,
+    try_convert_index_to_native,
+)
 from tests.integ.modin.utils import assert_index_equal
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize("columns", [["A", "b", "C"], ['"a"', '"B"', '"c"']])

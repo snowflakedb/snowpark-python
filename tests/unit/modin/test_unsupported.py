@@ -23,7 +23,6 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
         ["read_hdf", {"path_or_buf": ""}],
         ["read_feather", {"path": ""}],
         ["read_stata", {"filepath_or_buffer": ""}],
-        ["read_sas", {"filepath_or_buffer": ""}],
         ["read_pickle", {"filepath_or_buffer": ""}],
         ["read_sql", {"sql": "", "con": ""}],
         ["read_fwf", {"filepath_or_buffer": ""}],
@@ -44,12 +43,9 @@ def test_unsupported_io(io_method, kwargs):
     "general_method, kwargs",
     [
         ["merge_ordered", {"left": "", "right": ""}],
-        ["merge_asof", {"left": "", "right": ""}],
         ["value_counts", {"values": ""}],
-        ["crosstab", {"index": "", "columns": ""}],
         ["lreshape", {"data": "", "groups": ""}],
         ["wide_to_long", {"df": "", "stubnames": "", "i": "", "j": ""}],
-        ["to_timedelta", {"arg": ""}],
     ],
 )
 def test_unsupported_general(general_method, kwargs):
@@ -60,27 +56,42 @@ def test_unsupported_general(general_method, kwargs):
 @pytest.mark.parametrize(
     "df_method, kwargs",
     [
+        ["align", {"other": ""}],
         ["asof", {"where": ""}],
+        ["at_time", {"time": ""}],
+        ["between_time", {"start_time": "", "end_time": ""}],
         ["bool", {}],
         ["boxplot", {}],
+        ["clip", {}],
+        ["combine", {"other": "", "func": ""}],
+        ["combine_first", {"other": ""}],
         ["corrwith", {"other": ""}],
         ["cov", {}],
         ["dot", {"other": ""}],
         ["droplevel", {"level": ""}],
         ["eval", {"expr": "xxx"}],
         ["ewm", {}],
+        ["clip", {}],
+        ["combine", {"other": "", "func": ""}],
+        ["combine_first", {"other": ""}],
         ["filter", {}],
         ["from_dict", {"data": ""}],
         ["from_records", {"data": ""}],
         ["hist", {}],
+        ["infer_objects", {}],
         ["interpolate", {}],
         ["isetitem", {"loc": "", "value": ""}],
+        ["kurt", {}],
+        ["kurtosis", {}],
+        ["mode", {}],
         ["pipe", {"func": ""}],
         ["pop", {"item": ""}],
         ["prod", {}],
         ["product", {}],
         ["query", {"expr": ""}],
+        ["reindex_like", {"other": ""}],
         ["reorder_levels", {"order": ""}],
+        ["sem", {}],
         ["set_flags", {}],
         ["style", {}],
         ["swapaxes", {"axis1": "", "axis2": ""}],
@@ -105,6 +116,7 @@ def test_unsupported_general(general_method, kwargs):
         ["to_timestamp", {}],
         ["to_xarray", {}],
         ["to_xml", {}],
+        ["transform", {"func": [[], {}]}],
         ["truncate", {}],
         ["xs", {"key": ""}],
         ["__dataframe__", {}],
@@ -122,34 +134,47 @@ def test_unsupported_df(df_method, kwargs):
 @pytest.mark.parametrize(
     "series_method, kwargs",
     [
+        ["align", {"other": ""}],
         ["argmax", {}],
         ["argmin", {}],
         ["argsort", {}],
         ["array", {}],
         ["asof", {"where": ""}],
+        ["at_time", {"time": ""}],
         ["autocorr", {}],
         ["between", {"left": "", "right": ""}],
+        ["between_time", {"start_time": "", "end_time": ""}],
         ["bool", {}],
+        ["clip", {}],
+        ["combine", {"other": "", "func": ""}],
+        ["combine_first", {"other": ""}],
         ["corr", {"other": ""}],
         ["cov", {"other": ""}],
         ["divmod", {"other": ""}],
         ["dot", {"other": ""}],
         ["droplevel", {"level": ""}],
         ["ewm", {}],
+        ["explode", {}],
         ["factorize", {}],
         ["filter", {}],
         ["hist", {}],
+        ["infer_objects", {}],
         ["interpolate", {}],
         ["item", {}],
+        ["kurt", {}],
+        ["kurtosis", {}],
+        ["mode", {}],
         ["nbytes", {}],
         ["pipe", {"func": ""}],
         ["pop", {"item": ""}],
         ["prod", {}],
         ["ravel", {}],
+        ["reindex_like", {"other": ""}],
         ["reorder_levels", {"order": ""}],
         ["repeat", {"repeats": ""}],
         ["rdivmod", {"other": ""}],
         ["searchsorted", {"value": ""}],
+        ["sem", {}],
         ["set_flags", {}],
         ["swapaxes", {"axis1": "", "axis2": ""}],
         ["swaplevel", {}],
@@ -165,6 +190,7 @@ def test_unsupported_df(df_method, kwargs):
         ["to_string", {}],
         ["to_timestamp", {}],
         ["to_xarray", {}],
+        ["transform", {"func": ""}],
         ["truncate", {}],
         ["view", {}],
         ["xs", {"key": ""}],
@@ -177,17 +203,3 @@ def test_unsupported_series(series_method, kwargs):
 
     with pytest.raises(NotImplementedError):
         getattr(mock_df, series_method)(**kwargs)
-
-
-@pytest.mark.parametrize(
-    "series_method, kwargs",
-    [["items", {}]],
-)
-def test_unsupported_series_generator(series_method, kwargs):
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    mock_df = Series(query_compiler=mock_query_compiler)
-
-    with pytest.raises(NotImplementedError):
-        for x in getattr(mock_df, series_method)(**kwargs):
-            x + 1

@@ -12,8 +12,8 @@ from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     NOT_IMPLEMENTED_DATEOFFSET_STRINGS,
     UNSUPPORTED_DATEOFFSET_STRINGS,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize("index_col", [["datecol", "B"], ["A", "B"], ["A"]])
@@ -73,6 +73,20 @@ def test_resample_not_yet_implemented_freq(freq):
 
     with pytest.raises(NotImplementedError):
         snow_df.resample(freq).min().to_pandas()
+
+
+@sql_count_checker(query_count=0)
+def test_resample_not_yet_implemented_closed():
+    snow_df = pd.DataFrame(
+        {"A": np.random.randn(15)},
+        index=native_pd.date_range("2020-01-01", periods=15, freq="1D"),
+    )
+
+    with pytest.raises(
+        NotImplementedError,
+        match="resample with rule offset 3ME is only implemented with closed='left'",
+    ):
+        snow_df.resample("3ME").min().to_pandas()
 
 
 @pytest.mark.parametrize(
@@ -154,3 +168,13 @@ def test_resample_tz_negative():
         match="Cannot subtract tz-naive and tz-aware datetime-like objects.",
     ):
         snow_df.resample("2D").min()
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="SNOW-1704430")
+def test_resample_sum_timedelta_with_duplicate_column_label_changes_type_to_int():
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            [[pd.Timedelta(1), 2]], columns=["a", "a"], index=[pd.Timestamp(1)]
+        ),
+        lambda df: df.resample("1s").sum(),
+    )

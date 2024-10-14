@@ -112,6 +112,7 @@ def test_used_scoped_temp_object():
 def test_close_exception():
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
+    fake_connection._telemetry_client = mock.Mock()
     fake_connection.is_closed = MagicMock(return_value=False)
     exception_msg = "Mock exception for session.cancel_all"
     fake_connection.run_query = MagicMock(side_effect=Exception(exception_msg))
@@ -243,6 +244,39 @@ def test_resolve_package_terms_not_accepted():
         session._resolve_packages(
             ["random_package_name"], validate_package=True, include_pandas=False
         )
+
+
+def test_resolve_packages_side_effect():
+    """Python stored procedure depends on this behavior to add packages to the session."""
+
+    def mock_get_information_schema_packages(table_name: str):
+        result = MagicMock()
+        result.filter().group_by().agg()._internal_collect_with_tag.return_value = [
+            ("random_package_name", json.dumps(["1.0.0"]))
+        ]
+        return result
+
+    fake_connection = mock.create_autospec(ServerConnection)
+    fake_connection._conn = mock.Mock()
+    session = Session(fake_connection)
+    session.table = MagicMock(name="session.table")
+    session.table.side_effect = mock_get_information_schema_packages
+
+    existing_packages = {}
+
+    resolved_packages = session._resolve_packages(
+        ["random_package_name"],
+        existing_packages_dict=existing_packages,
+        validate_package=True,
+        include_pandas=False,
+    )
+
+    assert (
+        len(resolved_packages) == 2
+    ), resolved_packages  # random_package_name and cloudpickle
+    assert (
+        len(existing_packages) == 1
+    ), existing_packages  # {"random_package_name": "random_package_name"}
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")

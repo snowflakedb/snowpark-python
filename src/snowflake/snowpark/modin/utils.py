@@ -1171,7 +1171,7 @@ def validate_int_kwarg(value: int, arg_name: str, float_allowed: bool = False) -
 def doc_replace_dataframe_with_link(_obj: Any, doc: str) -> str:
     """
     Helper function to be passed as the `modify_doc` parameter to `_inherit_docstrings`. This replaces
-    all unqualified instances of "DataFrame" with ":class:`~snowflake.snowpark.pandas.DataFrame`" to
+    all unqualified instances of "DataFrame" with ":class:`~modin.pandas.DataFrame`" to
     prevent it from linking automatically to snowflake.snowpark.DataFrame: see SNOW-1233342.
 
     To prevent it from overzealously replacing examples in doctests or already-qualified paths, it
@@ -1180,7 +1180,7 @@ def doc_replace_dataframe_with_link(_obj: Any, doc: str) -> str:
     """
     return re.sub(
         r"(?<=\s)DataFrame(?=[\s,])",
-        ":class:`~snowflake.snowpark.modin.pandas.DataFrame`",
+        ":class:`~modin.pandas.DataFrame`",
         doc,
     )
 

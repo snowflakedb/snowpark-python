@@ -38,15 +38,15 @@ func : function, str, list or dict
 
 Returns
 -------
-scalar, Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+scalar, Snowpark pandas :class:`~modin.pandas.Series` or Snowpark pandas :class:`~modin.pandas.DataFrame`
 
     The return can be:
 
     * scalar : when Snowpark pandas Series.agg is called with single function
-    * Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` : when Snowpark pandas DataFrame.agg is called with a single function
-    * Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` : when Snowpark pandas DataFrame.agg is called with several functions
+    * Snowpark pandas :class:`~modin.pandas.Series` : when Snowpark pandas DataFrame.agg is called with a single function
+    * Snowpark pandas :class:`~modin.pandas.DataFrame` : when Snowpark pandas DataFrame.agg is called with several functions
 
-    Return scalar, Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`.
+    Return scalar, Snowpark pandas :class:`~modin.pandas.Series` or Snowpark pandas :class:`~modin.pandas.DataFrame`.
 
 Notes
 -----

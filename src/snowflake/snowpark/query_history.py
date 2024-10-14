@@ -12,6 +12,18 @@ class QueryRecord(NamedTuple):
 
     query_id: str
     sql_text: str
+    is_describe: bool = None
+    thread_id: int = None
+
+    def __repr__(self) -> str:
+        if self.is_describe is None and self.thread_id is None:
+            return f"QueryRecord(query_id={self.query_id}, sql_text={self.sql_text})"
+        elif self.is_describe is not None and self.thread_id is None:
+            return f"QueryRecord(query_id={self.query_id}, sql_text={self.sql_text}, is_describe={self.is_describe})"
+        elif self.is_describe is None and self.thread_id is not None:
+            return f"QueryRecord(query_id={self.query_id}, sql_text={self.sql_text}, thread_id={self.thread_id})"
+        else:
+            return f"QueryRecord(query_id={self.query_id}, sql_text={self.sql_text}, is_describe={self.is_describe}, thread_id={self.thread_id})"
 
 
 class QueryListener:
@@ -36,9 +48,16 @@ class QueryHistory(QueryListener):
         :meth:`snowflake.snowpark.Session.query_history`.
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+    def __init__(
+        self,
+        session: "snowflake.snowpark.session.Session",
+        include_describe: bool = False,
+        include_thread_id: bool = False,
+    ) -> None:
         self.session = session
         self._queries: List[QueryRecord] = []
+        self._include_describe = include_describe
+        self._include_thread_id = include_thread_id
 
     def __enter__(self):
         return self
@@ -52,6 +71,14 @@ class QueryHistory(QueryListener):
     @property
     def queries(self) -> List[QueryRecord]:
         return self._queries
+
+    @property
+    def include_describe(self) -> bool:
+        return self._include_describe
+
+    @property
+    def include_thread_id(self) -> bool:
+        return self._include_thread_id
 
 
 class AstListener(QueryListener):

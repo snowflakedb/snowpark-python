@@ -107,6 +107,7 @@ from snowflake.snowpark.functions import (
     json_extract_path_text,
     least,
     lit,
+    ln,
     log,
     months_between,
     negate,
@@ -1816,17 +1817,27 @@ def test_date_operations_negative(session):
 
 def test_date_add_date_sub(session):
     df = session.createDataFrame(
-        [("2019-01-23"), ("2019-06-24"), ("2019-09-20")], ["date"]
+        [
+            ("2019-01-23"),
+            ("2019-06-24"),
+            ("2019-09-20"),
+            (None),
+        ],
+        ["date"],
     )
     df = df.withColumn("date", to_date("date"))
-    res = df.withColumn("date", date_add("date", 4)).collect()
-    assert res[0].DATE == datetime.date(2019, 1, 27)
-    assert res[1].DATE == datetime.date(2019, 6, 28)
-    assert res[2].DATE == datetime.date(2019, 9, 24)
-    res = df.withColumn("date", date_sub("date", 4)).collect()
-    assert res[0].DATE == datetime.date(2019, 1, 19)
-    assert res[1].DATE == datetime.date(2019, 6, 20)
-    assert res[2].DATE == datetime.date(2019, 9, 16)
+    assert df.withColumn("date", date_add("date", 4)).collect() == [
+        Row(datetime.date(2019, 1, 27)),
+        Row(datetime.date(2019, 6, 28)),
+        Row(datetime.date(2019, 9, 24)),
+        Row(None),
+    ]
+    assert df.withColumn("date", date_sub("date", 4)).collect() == [
+        Row(datetime.date(2019, 1, 19)),
+        Row(datetime.date(2019, 6, 20)),
+        Row(datetime.date(2019, 9, 16)),
+        Row(None),
+    ]
 
 
 @pytest.mark.skipif(
@@ -2240,3 +2251,11 @@ def test_negative_function_call(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sum_(col("a"))).collect()
         assert "is not recognized" in str(ex_info)
+
+
+def test_ln(session):
+    from math import e
+
+    df = session.create_dataframe([[e]], schema=["ln_value"])
+    res = df.select(ln(col("ln_value")).alias("result")).collect()
+    assert res[0][0] == 1.0

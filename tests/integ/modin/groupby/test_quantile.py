@@ -9,8 +9,8 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
 
 
@@ -64,6 +64,14 @@ from tests.utils import running_on_public_ci
         # ),
         # All NA
         ([np.nan] * 5, [np.nan] * 5),
+        pytest.param(
+            pd.timedelta_range(
+                "1 days",
+                "5 days",
+            ),
+            pd.timedelta_range("1 second", "5 second"),
+            id="timedelta",
+        ),
     ],
 )
 @pytest.mark.parametrize("q", [0, 0.5, 1])

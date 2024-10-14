@@ -7,7 +7,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter
+from tests.integ.utils.sql_counter import SqlCounter
 
 
 @pytest.mark.parametrize(
@@ -22,6 +22,10 @@ from tests.integ.modin.sql_counter import SqlCounter
         native_pd.Series([5, 6, 7, 8], index=["i", "am", "iron", "man"]),
         native_pd.Series([None, None, 2], index=[None, 1, 2]),
         native_pd.Series([None, None, 2], index=[None, None, None]),
+        pytest.param(
+            native_pd.Series([None, None, pd.Timedelta(2)], index=[None, 1, 2]),
+            id="timedelta",
+        ),
     ],
 )
 def test_first_and_last_valid_index_series(native_series):
