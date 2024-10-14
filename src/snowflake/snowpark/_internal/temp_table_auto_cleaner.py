@@ -8,6 +8,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Dict
 
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
+from snowflake.snowpark._internal.utils import DummyLock
 
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session  # pragma: no cover
@@ -33,7 +34,11 @@ class TempTableAutoCleaner:
         # this dict will still be maintained even if the cleaner is stopped (`stop()` is called)
         self.ref_count_map: Dict[str, int] = defaultdict(int)
         # Lock to protect the ref_count_map
-        self.lock = threading.RLock()
+        self.lock = (
+            threading.RLock()
+            if session._conn._thread_safe_session_enabled
+            else DummyLock()
+        )
 
     def add(self, table: SnowflakeTable) -> None:
         with self.lock:
