@@ -52,9 +52,9 @@ df3 = df.cache_result()
 
 df4 = df.cache_result(statement_params={"foo": "bar"})
 
-res6 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour"[comment==foo, mode="overwrite"])
+res6 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo", mode="overwrite"])
 
-res7 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour"[comment==foo, mode="errorifexists", refresh_mode=AUTO, initialize=ON_CREATE, clustering_keys=["A"], is_transient=True, data_retention_time=10, max_data_extension_time=20])
+res7 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo", mode="errorifexists", refresh_mode="AUTO", initialize="ON_CREATE", clustering_keys=["A"], is_transient=True, data_retention_time=10, max_data_extension_time=20])
 
 ## EXPECTED ENCODED AST
 
