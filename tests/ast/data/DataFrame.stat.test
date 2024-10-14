@@ -66,7 +66,7 @@ ct2 = df.stat.crosstab("key", "value", statement_params={"a": "b"})
 
 df = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=["name", "age"])
 
-sample_df = df.stat.sample_by("name", {"Bob": 0.5}{"Nico": 1.0})
+sample_df = df.stat.sample_by("name", {"Bob": 0.5, "Nico": 1.0})
 
 ## EXPECTED ENCODED AST
 

@@ -165,7 +165,7 @@ _ = sproc(<lambda [3]>, return_type=IntegerType(), input_types=[IntegerType(), I
 
 session.sql("call mul_sp(5, 6)").collect()
 
-_ = sproc(<lambda [4]>, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, strict=True, external_access_integrations=["s3"], secrets={"a": "b"}{"c": "d"})
+_ = sproc(<lambda [4]>, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, strict=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"})
 
 session.sql("call mul_sp(5, 6)").collect()
 

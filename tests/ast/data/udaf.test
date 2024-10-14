@@ -82,8 +82,8 @@ class PythonTopK:
 
 u2 = udaf(PythonTopK, return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True,
           stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, if_not_exists=False, parallel=8,
-          statement_params={'a':'b'}, immutable=True, external_access_integrations=['s3'], secrets={'a':'c'},
-          comment='test udaf', force_inline_code=True)
+          statement_params={'a':'b', 'd':'e'}, immutable=True, external_access_integrations=['s3'],
+          secrets={'a':'c', 'e':'f'}, comment='test udaf', force_inline_code=True)
 
 df.agg(u2("a"))
 
@@ -97,11 +97,11 @@ df = df.to_df("a", "b")
 
 df.agg(sum_udaf("a")).collect()
 
-u2 = udaf(PythonTopK, return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True, stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, parallel=8, statement_params=, statement_params={"a": "b"}, external_access_integrations=["s3"], secrets={"a": "c"}, immutable=True, comment="test udaf", source_code_display=True)
+u2 = udaf(PythonTopK, return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True, stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, parallel=8, statement_params=, statement_params={"a": "b", "d": "e"}, external_access_integrations=["s3"], secrets={"a": "c", "e": "f"}, immutable=True, comment="test udaf", source_code_display=True)
 
 res3 = df.agg(u2("a"))
 
 ## EXPECTED ENCODED AST
 
 Cp8BCpwBCocB2gyDARoPEg1QeXRob25TdW1VREFGOgQKAmABSjgKE3NvdXJjZV9jb2RlX2Rpc3BsYXkSIcIBHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKG4QAVILCgkKB3N1bV9pbnRgBGgBcgJgAYIBGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShuEgoKCHN1bV91ZGFmGAEiAggBCtQDCtEDCsID8gW+AwqfAwqcAwplygJiChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodhIhugIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodhABEiG6Ah4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh2EAMKZcoCYgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHYSIboCHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHYQARIhugIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodhAECmXKAmIKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh2EiG6Ah4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh2EAISIboCHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHYQBQplygJiChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodhIhugIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodhACEiG6Ah4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh2EAYaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh2EgQKAmRmGAIiAggCCkAKPgowwgktCgFhCgFiEgeCAgQKAggCGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodiABEgQKAmRmGAMiAggDCoYBCoMBCnn6BXYKB4ICBAoCCAMSTwpLigFICgY6BAoCCAEaIrIMHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHgSAWEiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh4EAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh4EgAYBCICCAQKMwoxCifKBiQIARABGgIIBDIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHgSABgFIgIIBQoIEgYIBhICCAUQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBc=
-CtYBCtMBCsQB2gzAAQoLCgl0ZXN0IHVkYWYSAnMzGg4IARIKUHl0aG9uVG9wSygBMgkKBwoFbnVtcHk6BAoCYAFAAUo5ChNzb3VyY2VfY29kZV9kaXNwbGF5EiLCAR8KGxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSiqARABUgkKBwoFdG9wX2taBW51bXB5YAhoAXICYAF6BgoBYRIBY4IBGxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSiqAYoBAwoBQJIBBgoBYRIBYhIECgJ1MhgHIgIIBwqJAQqGAQp8+gV5CgeCAgQKAggDElEKTYoBSgoGOgQKAggHGiOyDCAKGxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSivARIBYSIbGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKK8BEAEaGxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSivARIAGAgiAggIEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
+CucBCuQBCtUB2gzRAQoLCgl0ZXN0IHVkYWYSAnMzGg4IARIKUHl0aG9uVG9wSygBMgkKBwoFbnVtcHk6BAoCYAFAAUo5ChNzb3VyY2VfY29kZV9kaXNwbGF5EiLCAR8KGxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSiqARABUgkKBwoFdG9wX2taBW51bXB5YAhoAXICYAF6BgoBYRIBY3oGCgFlEgFmggEbGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKKoBigEDCgFAkgEGCgFhEgFikgEGCgFkEgFlEgQKAnUyGAciAggHCokBCoYBCnz6BXkKB4ICBAoCCAMSUQpNigFKCgY6BAoCCAcaI7IMIAobGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKK8BEgFhIhsaFlNSQ19QT1NJVElPTl9URVNUX01PREUorwEQARobGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKK8BEgAYCCICCAgQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBc=
