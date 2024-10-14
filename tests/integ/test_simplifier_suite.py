@@ -1365,3 +1365,7 @@ def test_select_limit_orderby(session):
     # sql simplification is applied, order by is in front of the limit
     expected_query = """SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING)) ORDER BY "A" ASC NULLS FIRST LIMIT 2"""
     assert df2.queries["queries"][0] == expected_query
+
+    df3 = df.select("a", "b").limit(2, offset=1).sort(col("a"))
+    expected_query = """SELECT  *  FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING)) LIMIT 2 OFFSET 1) ORDER BY "A" ASC NULLS FIRST"""
+    assert df3.queries["queries"][0] == expected_query
