@@ -7,6 +7,7 @@ from typing import AbstractSet, Dict, List, Optional
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     derive_dependent_columns,
+    derive_dependent_columns_with_duplication,
 )
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
@@ -71,6 +72,9 @@ class SpecifiedWindowFrame(WindowFrame):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.lower, self.upper)
 
+    def dependent_column_names_with_duplication(self) -> List[str]:
+        return derive_dependent_columns_with_duplication(self.lower, self.upper)
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.LOW_IMPACT
@@ -99,6 +103,11 @@ class WindowSpecDefinition(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(
+            *self.partition_spec, *self.order_spec, self.frame_spec
+        )
+
+    def dependent_column_names_with_duplication(self) -> List[str]:
+        return derive_dependent_columns_with_duplication(
             *self.partition_spec, *self.order_spec, self.frame_spec
         )
 
@@ -138,6 +147,11 @@ class WindowExpression(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.window_function, self.window_spec)
 
+    def dependent_column_names_with_duplication(self) -> List[str]:
+        return derive_dependent_columns_with_duplication(
+            self.window_function, self.window_spec
+        )
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.WINDOW
@@ -170,6 +184,9 @@ class RankRelatedFunctionExpression(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, self.default)
+
+    def dependent_column_names_with_duplication(self) -> List[str]:
+        return derive_dependent_columns_with_duplication(self.expr, self.default)
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
