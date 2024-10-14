@@ -15153,7 +15153,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         # DataFrame.round() and Series.round() ignore non-numeric columns like
         # timedelta. We raise a Snowflake error for non-numeric, non-timedelta
-        # columnns like strings, but we have to detect timedelta separately
+        # columns like strings, but we have to detect timedelta separately
         # because its underlying representation is an integer. Without this
         # check, we'd round the integer representation of the timedelta instead
         # of leaving the timedelta unchanged.
