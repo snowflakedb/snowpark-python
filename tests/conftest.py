@@ -91,7 +91,7 @@ MULTITHREADING_MODE_ENABLED = False
 
 
 @pytest.fixture(scope="session", autouse=True)
-def multithreading_mode(pytestconfig):
+def multithreading_mode_enabled(pytestconfig):
     enabled = pytestconfig.getoption("multithreading_mode")
     global MULTITHREADING_MODE_ENABLED
     MULTITHREADING_MODE_ENABLED = enabled

@@ -682,6 +682,9 @@ class WarningHelper:
 
 # TODO: SNOW-1720855: Remove DummyLock and DummyThreadLocal after the rollout
 class DummyLock:
+    """This is a dummy lock that is used in place of threading.Rlock when multithreading is
+    disabled."""
+
     def __enter__(self):
         pass
 
@@ -690,6 +693,9 @@ class DummyLock:
 
 
 class DummyThreadLocal:
+    """This is a dummy thread local class that is used in place of threading.local when
+    multithreading is disabled."""
+
     pass
 
 
