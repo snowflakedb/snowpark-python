@@ -8,12 +8,16 @@ ans = session.write_pandas(df, "test_table")
 
 ans2 = session.write_pandas(df, "test", schema="a", database="b", chunk_size=7, compression="brotli", on_error="ignore", parallel=10, quote_identifiers=False, auto_create_table=True, create_temp_table=True, overwrite=True, table_type="temp", random=90)
 
+ans3 = session.write_pandas(df, "test", schema="a", database="b", chunk_size=7, compression="brotli", on_error="ignore", parallel=10, quote_identifiers=False, auto_create_table=True, create_temp_table=True, overwrite=True, table_type="temp", use_logical_type=False, random=90)
+
 ## EXPECTED UNPARSER OUTPUT
 
 ans = session.write_pandas(pandas.DataFrame(<not shown>)), "test_table")
 
 ans2 = session.write_pandas(pandas.DataFrame(<not shown>)), "test", database="b", schema="a", chunk_size=7, compression="brotli", on_error="ignore", parallel=10, quote_identifiers=False, auto_create_table=True, create_temp_table=True, overwrite=True, table_type="temporary", random=90)
 
+ans3 = session.write_pandas(pandas.DataFrame(<not shown>)), "test", database="b", schema="a", chunk_size=7, compression="brotli", on_error="ignore", parallel=10, quote_identifiers=False, auto_create_table=True, create_temp_table=True, overwrite=True, table_type="temporary", random=90, use_logical_type=False)
+
 ## EXPECTED ENCODED AST
 
-CnMKcQpikgxfGgRnemlwKhYSFAoSChAKDgoMInRlc3RfdGFibGUiOg9hYm9ydF9zdGF0ZW1lbnRIBFABWhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXmIOCgwKCnRlc3RfdGFibGUSBQoDYW5zGAEiAggBCqwBCqkBCpgBkgyUAQgBEgIIBxoGYnJvdGxpIAEqEhIQCg4KDAoKCghiLmEudGVzdDIrCgZyYW5kb20SIboCHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGAQWjoGaWdub3JlQAFICloaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGBiDhIMCgFiCgFhCgR0ZXN0agl0ZW1wb3JhcnkSBgoEYW5zMhgCIgIIAhABGhESDwoNCgVmaW5hbBADGAkgEiIEEAEYFw==
+CnMKcQpikgxfGgRnemlwKhYSFAoSChAKDgoMInRlc3RfdGFibGUiOg9hYm9ydF9zdGF0ZW1lbnRIBFABWhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXmIOCgwKCnRlc3RfdGFibGUSBQoDYW5zGAEiAggBCqwBCqkBCpgBkgyUAQgBEgIIBxoGYnJvdGxpIAEqEhIQCg4KDAoKCghiLmEudGVzdDIrCgZyYW5kb20SIboCHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGAQWjoGaWdub3JlQAFICloaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGBiDhIMCgFiCgFhCgR0ZXN0agl0ZW1wb3JhcnkSBgoEYW5zMhgCIgIIAgrhAQreAQrNAZIMyQEIARICCAcaBmJyb3RsaSABKhISEAoOCgwKCgoIYi5hLnRlc3QyKwoGcmFuZG9tEiG6Ah4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShiEFoyMwoQdXNlX2xvZ2ljYWxfdHlwZRIfwgEcChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoYjoGaWdub3JlQAFICloaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGJiDhIMCgFiCgFhCgR0ZXN0agl0ZW1wb3JhcnkSBgoEYW5zMxgDIgIIAxABGhESDwoNCgVmaW5hbBADGAkgEiIEEAEYFw==
