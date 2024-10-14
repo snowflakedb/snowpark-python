@@ -1310,3 +1310,17 @@ def build_sproc(
         t = ast.kwargs.add()
         t._1 = k
         build_expr_from_python_val(t._2, v)
+
+
+def build_expr_from_dict_str_str(
+    ast_dict: proto.Tuple_String_String, dict_str_str: Dict[str, str]
+) -> None:
+    """Populate the AST strutcure with dictionary for str -> str.
+    Args:
+        ast_dict (proto.Tuple_String_String: An ast representation for key, value pairs
+        dict_str_str (Dict[str, str]): The dictionary mapping str to str.
+    """
+    for k, v in dict_str_str.items():
+        t = ast_dict.add()
+        t._1 = k
+        t._2 = v
