@@ -8,6 +8,11 @@
 
 #### New Features
 
+#### Improvements
+- Disables sql simplification when sort is performed after limit. 
+  - Improve performance of generated query since limit stops table scanning as soon as number of record is satisfied.
+  - Note before sort after limit and limit after sort will always return top k result, but now sort after limit will no longer return deterministic result.
+
 ### Snowpark pandas API Updates
 
 #### New Features
