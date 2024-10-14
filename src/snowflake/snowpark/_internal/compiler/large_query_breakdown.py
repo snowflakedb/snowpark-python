@@ -151,6 +151,7 @@ class LargeQueryBreakdown:
     def _should_skip_optimization_for_session(
         self,
     ) -> Optional[SkipLargeQueryBreakdownCategory]:
+        """Method to check if the optimization should be skipped based on the session state."""
         if self.session.get_current_database() is None:
             # Skip optimization if there is no active database.
             _logger.debug(
