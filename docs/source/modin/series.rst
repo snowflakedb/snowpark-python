@@ -66,6 +66,7 @@ Series
     :toctree: pandas_api/
 
     Series.iloc
+    Series.items
     Series.loc
     Series.__iter__
     Series.keys

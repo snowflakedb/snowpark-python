@@ -10,6 +10,7 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import schema_value_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
     Query,
@@ -189,46 +190,57 @@ def test_execution_queries_and_post_actions(session):
 )
 def test_plan_height(session, temp_table, sql_simplifier_enabled):
     df1 = session.table(temp_table)
-    assert df1._plan.plan_height == 1
+    if sql_simplifier_enabled:
+        assert df1._plan.plan_state[PlanState.PLAN_HEIGHT] == 2
+    else:
+        assert df1._plan.plan_state[PlanState.PLAN_HEIGHT] == 1
 
     df2 = session.create_dataframe([(1, 20), (3, 40)], schema=["a", "c"])
     df3 = session.create_dataframe(
         [(2, "twenty two"), (4, "forty four"), (4, "forty four")], schema=["b", "d"]
     )
-    assert df2._plan.plan_height == 2
-    assert df2._plan.plan_height == 2
+    assert df2._plan.plan_state[PlanState.PLAN_HEIGHT] == 2
+    assert df2._plan.plan_state[PlanState.PLAN_HEIGHT] == 2
 
     filter1 = df1.where(col("a") > 1)
-    assert filter1._plan.plan_height == 2
+    assert filter1._plan.plan_state[PlanState.PLAN_HEIGHT] == 2
 
     join1 = filter1.join(df2, on=["a"])
-    assert join1._plan.plan_height == 4
+    assert join1._plan.plan_state[PlanState.PLAN_HEIGHT] == 4
 
     aggregate1 = df3.distinct()
     if sql_simplifier_enabled:
-        assert aggregate1._plan.plan_height == 4
+        assert aggregate1._plan.plan_state[PlanState.PLAN_HEIGHT] == 4
     else:
-        assert aggregate1._plan.plan_height == 3
+        assert aggregate1._plan.plan_state[PlanState.PLAN_HEIGHT] == 3
 
     join2 = join1.join(aggregate1, on=["b"])
-    assert join2._plan.plan_height == 6
+    assert join2._plan.plan_state[PlanState.PLAN_HEIGHT] == 6
 
     split_to_table = table_function("split_to_table")
     table_function1 = join2.select("a", "b", split_to_table("d", lit(" ")))
-    assert table_function1._plan.plan_height == 8
+    assert table_function1._plan.plan_state[PlanState.PLAN_HEIGHT] == 8
 
     filter3 = join2.where(col("a") > 1)
     filter4 = join2.where(col("a") < 1)
     if sql_simplifier_enabled:
-        assert filter3._plan.plan_height == filter4._plan.plan_height == 6
+        assert (
+            filter3._plan.plan_state[PlanState.PLAN_HEIGHT]
+            == filter4._plan.plan_state[PlanState.PLAN_HEIGHT]
+            == 6
+        )
     else:
-        assert filter3._plan.plan_height == filter4._plan.plan_height == 7
+        assert (
+            filter3._plan.plan_state[PlanState.PLAN_HEIGHT]
+            == filter4._plan.plan_state[PlanState.PLAN_HEIGHT]
+            == 7
+        )
 
     union1 = filter3.union_all_by_name(filter4)
     if sql_simplifier_enabled:
-        assert union1._plan.plan_height == 8
+        assert union1._plan.plan_state[PlanState.PLAN_HEIGHT] == 8
     else:
-        assert union1._plan.plan_height == 9
+        assert union1._plan.plan_state[PlanState.PLAN_HEIGHT] == 9
 
 
 def test_plan_num_duplicate_nodes_describe_query(session, temp_table):
@@ -296,6 +308,11 @@ def test_create_scoped_temp_table(session):
             .sql
             == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))  '
         )
+        inner_select_sql = (
+            f" SELECT  *  FROM {table_name}"
+            if session._sql_simplifier_enabled
+            else f" SELECT  *  FROM ({table_name})"
+        )
         assert (
             session._plan_builder.save_as_table(
                 table_name=[temp_table_name],
@@ -317,7 +334,7 @@ def test_create_scoped_temp_table(session):
             )
             .queries[0]
             .sql
-            == f" CREATE  TEMPORARY  TABLE  {temp_table_name}    AS  SELECT  *  FROM ( SELECT  *  FROM ({table_name}))"
+            == f" CREATE  TEMPORARY  TABLE  {temp_table_name}    AS  SELECT  *  FROM ({inner_select_sql})"
         )
         expected_sql = f' CREATE  TEMPORARY  TABLE  {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         assert expected_sql in (

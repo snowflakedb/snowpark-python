@@ -30,6 +30,7 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import sql_expr
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.row import Row
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -167,8 +168,9 @@ class DataFrameWriter:
 
             create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``.
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
-                        and ``transient``. An empty string means to create a permanent table. Learn more about table
-                        types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
+                        and ``transient``. An empty string means to create a permanent table. Not applicable
+                        for iceberg tables. Learn more about table types
+                        `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
             clustering_keys: Specifies one or more columns or column expressions in the table as the clustering key.
                 See `Clustering Keys & Clustered Tables <https://docs.snowflake.com/en/user-guide/tables-clustering-keys#defining-a-clustering-key-for-a-table>`_
                 for more details.
@@ -255,6 +257,19 @@ class DataFrameWriter:
                     f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
                 )
 
+            session = self._dataframe._session
+            if not isinstance(session._conn, MockServerConnection) and save_mode in [
+                SaveMode.APPEND,
+                SaveMode.TRUNCATE,
+            ]:
+                # whether the table already exists in the database
+                # determines the compiled SQL for APPEND and TRUNCATE mode
+                # if the table does not exist, we need to create it first;
+                # if the table exists, we can skip the creation step and insert data directly
+                table_exists = session._table_exists(table_name)
+            else:
+                table_exists = None
+
             create_table_logic_plan = SnowflakeCreateTable(
                 table_name,
                 column_names,
@@ -270,8 +285,8 @@ class DataFrameWriter:
                 change_tracking,
                 copy_grants,
                 iceberg_config,
+                table_exists,
             )
-            session = self._dataframe._session
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
             result = session._conn.execute(
                 snowflake_plan,

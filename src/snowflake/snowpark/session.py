@@ -108,6 +108,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
+    private_preview,
     quote_name,
     random_name_for_temp_object,
     strip_double_quotes_in_like_statement_in_table_name,
@@ -161,6 +162,7 @@ from snowflake.snowpark.mock._udf import MockUDFRegistration
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
+from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -613,6 +615,8 @@ class Session:
         self._conf = self.RuntimeConfig(self, options or {})
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
+        self._sp_profiler = StoredProcedureProfiler(session=self)
+
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -3307,6 +3311,15 @@ class Session:
         See details of how to use this object in :class:`stored_procedure.StoredProcedureRegistration`.
         """
         return self._sp_registration
+
+    @property
+    @private_preview(version="1.23.0")
+    def stored_procedure_profiler(self) -> StoredProcedureProfiler:
+        """
+        Returns a :class:`stored_procedure_profiler.StoredProcedureProfiler` object that you can use to profile stored procedures.
+        See details of how to use this object in :class:`stored_procedure_profiler.StoredProcedureProfiler`.
+        """
+        return self._sp_profiler
 
     def _infer_is_return_table(
         self, sproc_name: str, *args: Any, log_on_exception: bool = False

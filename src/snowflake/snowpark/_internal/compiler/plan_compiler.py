@@ -4,7 +4,7 @@
 
 import copy
 import time
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
@@ -81,16 +81,16 @@ class PlanCompiler:
             # preparation for compilation
             # 1. make a copy of the original plan
             start_time = time.time()
-            complexity_score_before_compilation = get_complexity_score(
-                self._plan.cumulative_node_complexity
-            )
+            complexity_score_before_compilation = get_complexity_score(self._plan)
             logical_plans: List[LogicalPlan] = [copy.deepcopy(self._plan)]
             plot_plan_if_enabled(self._plan, "original_plan")
+            plot_plan_if_enabled(logical_plans[0], "deep_copied_plan")
             deep_copy_end_time = time.time()
 
             # 2. create a code generator with the original plan
             query_generator = create_query_generator(self._plan)
 
+            extra_optimization_status: Dict[str, Any] = {}
             # 3. apply each optimizations if needed
             # CTE optimization
             cte_start_time = time.time()
@@ -98,12 +98,16 @@ class PlanCompiler:
                 repeated_subquery_eliminator = RepeatedSubqueryElimination(
                     logical_plans, query_generator
                 )
-                logical_plans = repeated_subquery_eliminator.apply()
+                elimination_result = repeated_subquery_eliminator.apply()
+                logical_plans = elimination_result.logical_plans
+                # add the extra repeated subquery elimination status
+                extra_optimization_status[
+                    CompilationStageTelemetryField.CTE_NODE_CREATED.value
+                ] = elimination_result.total_num_of_ctes
 
             cte_end_time = time.time()
             complexity_scores_after_cte = [
-                get_complexity_score(logical_plan.cumulative_node_complexity)
-                for logical_plan in logical_plans
+                get_complexity_score(logical_plan) for logical_plan in logical_plans
             ]
             for i, plan in enumerate(logical_plans):
                 plot_plan_if_enabled(plan, f"cte_optimized_plan_{i}")
@@ -120,8 +124,7 @@ class PlanCompiler:
 
             large_query_breakdown_end_time = time.time()
             complexity_scores_after_large_query_breakdown = [
-                get_complexity_score(logical_plan.cumulative_node_complexity)
-                for logical_plan in logical_plans
+                get_complexity_score(logical_plan) for logical_plan in logical_plans
             ]
             for i, plan in enumerate(logical_plans):
                 plot_plan_if_enabled(plan, f"large_query_breakdown_plan_{i}")
@@ -146,6 +149,8 @@ class PlanCompiler:
                 CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION.value: complexity_scores_after_cte,
                 CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_LARGE_QUERY_BREAKDOWN.value: complexity_scores_after_large_query_breakdown,
             }
+            # add the extra optimization status
+            summary_value.update(extra_optimization_status)
             session._conn._telemetry_client.send_query_compilation_summary_telemetry(
                 session_id=session.session_id,
                 plan_uuid=self._plan.uuid,
