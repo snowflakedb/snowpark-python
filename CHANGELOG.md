@@ -8,12 +8,14 @@
   - `option`
   - `options`
   - `partition_by`
+- Updated `Session` class to be thread-safe. This allows concurrent dataframe transformations, dataframe actions, UDF and store procedure registration, and concurrent file uploads.
 
 #### New Features
 
 ### Snowpark pandas API Updates
 
 #### New Features
+
 - Added numpy compatibility support for `np.float_power`, `np.mod`, `np.remainder`, `np.greater`, `np.greater_equal`, `np.less`, `np.less_equal`, `np.not_equal`, and `np.equal`.
 
 ## 1.23.0 (2024-10-09)
@@ -73,6 +75,7 @@
 - Use SCOPED object for internal create temp tables. The SCOPED objects will be stored sproc scoped if created within stored sproc, otherwise will be session scoped, and the object will be automatically cleaned at the end of the scope.
 - Improved warning messages for operations that lead to materialization with inadvertent slowness.
 - Removed unnecessary warning message about `convert_dtype` in `Series.apply`.
+- Improved generated SQL query for `head` and `iloc` when the row key is a slice.
 
 #### Bug Fixes
 
@@ -84,6 +87,9 @@
 - Fixed a bug where `Resampler` methods on timedelta columns would produce integer results.
 - Fixed a bug where `pd.to_numeric()` would leave `Timedelta` inputs as `Timedelta` instead of converting them to integers.
 - Fixed `loc` set when setting a single row, or multiple rows, of a DataFrame with a Series value.
+- Fixed a bug where `DataFrame` and `Series` `pct_change()` would raise `TypeError` when input contained timedelta columns.
+- Fixed a bug where `replace()` would sometimes propagate `Timedelta` types incorrectly through `replace()`. Instead raise `NotImplementedError` for `replace()` on `Timedelta`.
+- Fixed a bug where `DataFrame` and `Series` `round()` would raise `AssertionError` for `Timedelta` columns. Instead raise `NotImplementedError` for `round()` on `Timedelta`.
 
 ### Snowpark Local Testing Updates
 
