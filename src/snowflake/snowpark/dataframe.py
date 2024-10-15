@@ -3993,6 +3993,11 @@ class DataFrame:
                     entry = expr.copy_options.add()
                     entry._1 = k
                     build_expr_from_python_val(entry._2, copy_options[k])
+            if iceberg_config is not None:
+                for k, v in iceberg_config.items():
+                    t = expr.iceberg_config.add()
+                    t._1 = k
+                    t._2 = v
             self._set_ast_ref(expr.df)
 
         # TODO: Support copy_into_table in MockServerConnection.
