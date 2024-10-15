@@ -26,6 +26,7 @@ from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     PlanState,
+    merge_referenced_ctes,
     subtract_complexities,
     sum_node_complexities,
 )
@@ -1482,11 +1483,7 @@ class SetStatement(Selectable):
         # and sum up the reference counts
         merged_ctes = dict()
         for node in self._nodes:
-            for with_query_block, count in node.referenced_ctes.items():
-                if with_query_block in merged_ctes:
-                    merged_ctes[with_query_block] += count
-                else:
-                    merged_ctes[with_query_block] = count
+            merged_ctes = merge_referenced_ctes(merged_ctes, node.referenced_ctes)
         return merged_ctes
 
 
