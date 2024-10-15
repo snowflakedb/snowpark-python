@@ -156,11 +156,13 @@ class RepeatedSubqueryElimination:
 
             # if the node is a duplicated node and deduplication is not done for the node,
             # start the deduplication transformation use CTE
-            if node.encoded_id in duplicated_node_ids:
-                if node.encoded_id in resolved_with_block_map:
+            if node.encoded_node_id_with_query in duplicated_node_ids:
+                if node.encoded_node_id_with_query in resolved_with_block_map:
                     # if the corresponding CTE block has been created, use the existing
                     # one.
-                    resolved_with_block = resolved_with_block_map[node.encoded_id]
+                    resolved_with_block = resolved_with_block_map[
+                        node.encoded_node_id_with_query
+                    ]
                 else:
                     # create a WithQueryBlock node
                     with_block = WithQueryBlock(
@@ -169,7 +171,9 @@ class RepeatedSubqueryElimination:
                     with_block._is_valid_for_replacement = True
 
                     resolved_with_block = self._query_generator.resolve(with_block)
-                    resolved_with_block_map[node.encoded_id] = resolved_with_block
+                    resolved_with_block_map[
+                        node.encoded_node_id_with_query
+                    ] = resolved_with_block
                     self._total_number_ctes += 1
                 _update_parents(
                     node, should_replace_child=True, new_child=resolved_with_block
