@@ -1315,7 +1315,7 @@ def build_sproc(
 def build_expr_from_dict_str_str(
     ast_dict: proto.Tuple_String_String, dict_str_str: Dict[str, str]
 ) -> None:
-    """Populate the AST strutcure with dictionary for str -> str.
+    """Populate the AST structure with dictionary for str -> str.
 
     Args:
         ast_dict (proto.Tuple_String_String: An ast representation for key, value pairs
