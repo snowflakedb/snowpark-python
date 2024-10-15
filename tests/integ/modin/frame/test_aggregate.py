@@ -158,7 +158,14 @@ def test_corr_negative(numeric_native_df, method):
 @sql_count_checker(query_count=1)
 def test_string_sum(data, numeric_only_kwargs):
     eval_snowpark_pandas_result(
-        *create_test_dfs(data), lambda df: df.sum(**numeric_only_kwargs)
+        *create_test_dfs(data),
+        lambda df: df.sum(**numeric_only_kwargs),
+        # apparently, pandas doesn't propagate attrs if the frame is empty
+        # which happens if numeric_only=True and all columns are strings
+        test_attrs=not (
+            numeric_only_kwargs.get("numeric_only", False)
+            and isinstance(data["col1"][0], str)
+        ),
     )
 
 

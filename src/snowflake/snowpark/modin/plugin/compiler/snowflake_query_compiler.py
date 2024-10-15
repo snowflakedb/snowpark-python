@@ -415,14 +415,23 @@ _TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED = (
 _RESET_ATTRS_METHODS = [
     "compare",
     "merge",
+    "pivot",
     "value_counts",
+    "dataframe_to_datetime",
+    "series_to_datetime",
+    "to_numeric",
+    "dt_isocalendar",
+    "groupby_agg",
+    "groupby_all",
+    "groupby_any",
+    "groupby_apply",  # also covers groupby.transform
     "groupby_cumcount",
     "groupby_cummax",
     "groupby_cummin",
     "groupby_rank",
     "groupby_size",
-    # expanding, and rolling methods also do not propagate; we check them by prefix matching
-    # agg and crosstab are also handled separately
+    # expanding, resample, and rolling methods also do not propagate; we check them by prefix matching
+    # agg, crosstab, and concat depend on their inputs, and are handled separately
 ]
 
 
@@ -457,10 +466,12 @@ def _propagate_attrs_on_methods(cls):  # type: ignore
 
     for attr_name, attr_value in cls.__dict__.items():
         # concat is handled explicitly because it checks all of its arguments
-        if attr_name.startswith("_") or attr_name == "concat":
+        # agg is handled explicitly because it sometimes resets and sometimes propagates
+        if attr_name.startswith("_") or attr_name in ["concat", "agg"]:
             continue
         if attr_name in _RESET_ATTRS_METHODS or any(
-            attr_name.startswith(prefix) for prefix in ["expanding", "rolling"]
+            attr_name.startswith(prefix)
+            for prefix in ["expanding", "rolling", "resample"]
         ):
             setattr(cls, attr_name, reset_attrs_decorator(attr_value))
         elif isinstance(attr_value, property):
@@ -6099,6 +6110,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         query_compiler = self
+        initial_attrs = self._attrs
         if numeric_only:
             # drop off the non-numeric data columns if the data column if numeric_only is configured to be True
             query_compiler = drop_non_numeric_data_columns(
@@ -6515,6 +6527,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             result = result.transpose_single_row()
             # Set the single column's name to MODIN_UNNAMED_SERIES_LABEL
             result = result.set_columns([MODIN_UNNAMED_SERIES_LABEL])
+        # native pandas clears attrs if the aggregation was a list, but propagates it otherwise
+        if is_list_like(func):
+            result._attrs = {}
+        else:
+            result._attrs = copy.deepcopy(initial_attrs)
         return result
 
     def insert(
