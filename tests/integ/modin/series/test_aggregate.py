@@ -399,6 +399,7 @@ class TestTimedelta:
                 comparator=validate_scalar_result
                 if is_scalar
                 else assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+                test_attrs=False,  # native pandas is inconsistent about whether it propagates attrs
             )
 
     @sql_count_checker(query_count=0)
