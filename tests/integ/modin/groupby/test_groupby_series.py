@@ -92,6 +92,7 @@ def test_groupby_agg_series(agg_func, sort):
         series,
         series.to_pandas(),
         perform_groupby,
+        test_attrs=False,  # native pandas is inconsistent about whether it propagates attrs
     )
 
 
@@ -149,6 +150,7 @@ def test_groupby_agg_series_named_agg(aggs, sort):
         series,
         series.to_pandas(),
         lambda se: se.groupby(by="grp_col", sort=sort).agg(**aggs),
+        test_attrs=False,  # native pandas is inconsistent about whether it propagates attrs
     )
 
 
