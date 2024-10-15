@@ -10,6 +10,7 @@ import statistics
 import typing
 import uuid
 from collections.abc import Iterable
+from datetime import timedelta
 from enum import Enum
 from functools import cached_property, partial, reduce
 from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union
@@ -87,6 +88,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     FunctionExpression,
     InExpression,
+    Interval,
     Like,
     ListAgg,
     Literal,
@@ -2661,6 +2663,17 @@ def calculate_expression(
             return handle_udaf_expression(exp, input_data, analyzer, expr_to_alias)
         else:
             return handle_udf_expression(exp, input_data, analyzer, expr_to_alias)
+    elif isinstance(exp, Interval):
+        if not keep_literal:
+            res = ColumnEmulator(
+                data=[exp.values_dict for _ in range(len(input_data))],
+                sf_type=ColumnType(exp.datatype, nullable=True),
+            )
+        else:
+            # In Snowflake, Interval fields use "singular" names, e.g. "day" instead of "days",
+            # while Python uses the plural form.
+            plural_values_dict = {k + "s": v for k, v in exp.values_dict.items()}
+            return timedelta(*plural_values_dict)
 
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking Expression {type(exp).__name__}",
