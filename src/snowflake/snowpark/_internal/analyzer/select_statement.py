@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
 from copy import copy, deepcopy
 from enum import Enum
-from functools import cached_property
+from functools import cached_property, reduce
 from typing import (
     TYPE_CHECKING,
     AbstractSet,
@@ -1481,10 +1481,9 @@ class SetStatement(Selectable):
     def referenced_ctes(self) -> Dict[WithQueryBlock, int]:
         # get a union of referenced cte tables from all child nodes
         # and sum up the reference counts
-        merged_ctes = dict()
-        for node in self._nodes:
-            merged_ctes = merge_referenced_ctes(merged_ctes, node.referenced_ctes)
-        return merged_ctes
+        return reduce(
+            merge_referenced_ctes, [node.referenced_ctes for node in self._nodes]
+        )
 
 
 class DeriveColumnDependencyError(Exception):
