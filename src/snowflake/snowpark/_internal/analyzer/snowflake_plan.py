@@ -25,7 +25,6 @@ from typing import (
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     PlanState,
-    merge_referenced_ctes,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
@@ -87,6 +86,7 @@ from snowflake.snowpark._internal.analyzer.cte_utils import (
     create_cte_query,
     encode_id,
     find_duplicate_subtrees,
+    merge_referenced_ctes,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
