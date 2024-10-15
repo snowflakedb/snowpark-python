@@ -242,13 +242,16 @@ class MockServerConnection:
                     Row(status=f"Table {name} successfully created.")
                 ]  # TODO: match message
 
-        def drop_table(self, name: Union[str, Iterable[str]]) -> None:
+        def drop_table(self, name: Union[str, Iterable[str]], **kwargs) -> None:
             with self._lock:
                 current_schema = self.conn._get_current_parameter("schema")
                 current_database = self.conn._get_current_parameter("database")
                 name = get_fully_qualified_name(name, current_schema, current_database)
                 if name in self.table_registry:
                     self.table_registry.pop(name)
+
+                # Notify query listeners.
+                self.conn.notify_mock_query_record_listener(kwargs)
 
         def create_or_replace_view(
             self, execution_plan: MockExecutionPlan, name: Union[str, Iterable[str]]
@@ -700,14 +703,17 @@ class MockServerConnection:
             rows = [rows] if to_iter else rows
 
         # Notify query listeners.
+        self.notify_mock_query_record_listener(kwargs)
+
+        return iter(rows) if to_iter else rows
+
+    def notify_mock_query_record_listener(self, kwargs: Dict[Any, Any]):
         notify_kwargs = {"requestId": str(uuid.uuid4())}
         if "_dataframe_ast" in kwargs:
             notify_kwargs["dataframeAst"] = kwargs["_dataframe_ast"]
         from snowflake.snowpark.query_history import QueryRecord
 
         self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)
-
-        return iter(rows) if to_iter else rows
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
