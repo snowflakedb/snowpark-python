@@ -1077,6 +1077,7 @@ def test_df_iloc_get_key_scalar(
     multiindex_native,
     native_df_with_multiindex_columns,
 ):
+    # Use test_attrs=False in all of these eval functions because iloc_helper may return a new empty native series
 
     # Check whether DataFrame.iloc[key] and DataFrame.iloc[:, key] works with integer scalar keys.
     def iloc_helper(df):
@@ -1107,6 +1108,7 @@ def test_df_iloc_get_key_scalar(
             default_index_snowpark_pandas_df,
             default_index_native_df,
             iloc_helper,
+            test_attrs=False,
         )
 
     # test df with non-default index
@@ -1116,6 +1118,7 @@ def test_df_iloc_get_key_scalar(
             default_index_snowpark_pandas_df.set_index("D"),
             default_index_native_df.set_index("D"),
             iloc_helper,
+            test_attrs=False,
         )
 
     query_count = determine_query_count()
@@ -1130,6 +1133,7 @@ def test_df_iloc_get_key_scalar(
             native_df,
             iloc_helper,
             check_index_type=False,  # some tests don't match index type with pandas
+            test_attrs=False,
         )
 
     # test df with MultiIndex on columns
@@ -1144,6 +1148,7 @@ def test_df_iloc_get_key_scalar(
                 native_df_with_multiindex_columns,
                 iloc_helper,
                 check_index_type=False,
+                test_attrs=False,
             )
         else:
             eval_snowpark_pandas_result(  # df result
@@ -1152,6 +1157,7 @@ def test_df_iloc_get_key_scalar(
                 iloc_helper,
                 check_index_type=False,
                 check_column_type=False,
+                test_attrs=False,
             )
 
     # test df with MultiIndex on both index and columns
@@ -1164,6 +1170,7 @@ def test_df_iloc_get_key_scalar(
                 native_df,
                 iloc_helper,
                 check_index_type=False,
+                test_attrs=False,
             )
         else:  # df result
             eval_snowpark_pandas_result(
@@ -1172,6 +1179,7 @@ def test_df_iloc_get_key_scalar(
                 iloc_helper,
                 check_index_type=False,
                 check_column_type=False,
+                test_attrs=False,
             )
 
 
