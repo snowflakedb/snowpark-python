@@ -571,6 +571,30 @@ def test_reindex_multiindex_negative(axis):
             snow_df.T.reindex(columns=[1, 2, 3])
 
 
+@sql_count_checker(query_count=0)
+@pytest.mark.xfail(strict=True, raises=NotImplementedError)
+def test_reindex_timedelta_axis_0_negative():
+    native_df = native_pd.DataFrame(
+        np.arange(9).reshape((3, 3)), index=list("ABC")
+    ).astype("timedelta64[ns]")
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df.reindex(axis=0, labels=list("CAB"))
+    )
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.xfail(strict=True, raises=NotImplementedError)
+def test_reindex_timedelta_axis_1_negative():
+    native_df = native_pd.DataFrame(
+        np.arange(9).reshape((3, 3)), columns=list("ABC")
+    ).astype("timedelta64[ns]")
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df.reindex(axis=1, labels=list("CAB"))
+    )
+
+
 @sql_count_checker(query_count=1, join_count=1)
 def test_reindex_with_index_name():
     native_df = native_pd.DataFrame(

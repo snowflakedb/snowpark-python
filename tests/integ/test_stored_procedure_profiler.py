@@ -197,13 +197,13 @@ def test_query_history_destroyed_after_finish_profiling(
     profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
     assert (
         profiler_session.stored_procedure_profiler._query_history
-        in profiler_session._conn._query_listeners
+        in profiler_session._conn._query_listener
     )
 
     profiler_session.stored_procedure_profiler.disable()
     assert (
         profiler_session.stored_procedure_profiler._query_history
-        not in profiler_session._conn._query_listeners
+        not in profiler_session._conn._query_listener
     )
 
     profiler_session.stored_procedure_profiler.register_modules()
