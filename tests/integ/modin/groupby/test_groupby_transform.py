@@ -12,6 +12,11 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
+pytestmark = pytest.mark.skipif(
+    native_pd.__version__ == "2.2.3",
+    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
+)
+
 
 @pytest.mark.parametrize("dropna", [True, False])
 @pytest.mark.parametrize("as_index", [True, False])
