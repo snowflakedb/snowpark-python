@@ -22,7 +22,10 @@ from typing import (
 )
 
 import snowflake.snowpark._internal.utils
-from snowflake.snowpark._internal.analyzer.cte_utils import encode_id, encoded_query_id
+from snowflake.snowpark._internal.analyzer.cte_utils import (
+    encode_node_id_with_query,
+    encoded_query_id,
+)
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     PlanState,
@@ -252,14 +255,20 @@ class Selectable(LogicalPlan, ABC):
         pass
 
     @cached_property
-    def encoded_id(self) -> str:
-        """Returns the id of this Selectable logical plan."""
-        return encode_id(type(self).__name__, self.sql_query, self.query_params)
+    def encoded_node_id_with_query(self) -> str:
+        """
+        Returns an encoded node id of this Selectable logical plan.
+
+        Note that the encoding algorithm uses queries as content, and returns the same id for
+        two selectable node with same queries. This is currently used by repeated subquery
+        elimination to detect two nodes with same query, please use it with careful.
+        """
+        return encode_node_id_with_query(self)
 
     @cached_property
     def encoded_query_id(self) -> Optional[str]:
-        """Returns the id of the queries for this Selectable logical plan."""
-        return encoded_query_id(self.sql_query, self.query_params)
+        """Returns an encoded id of the queries for this Selectable logical plan."""
+        return encoded_query_id(self)
 
     @property
     @abstractmethod
@@ -499,22 +508,6 @@ class SelectSQL(Selectable):
     @property
     def placeholder_query(self) -> Optional[str]:
         return None
-
-    @cached_property
-    def encoded_id(self) -> str:
-        """
-        Returns the id of this SelectSQL logical plan. The original SQL is used to encode its ID,
-        which might be a non-select SQL.
-        """
-        return encode_id(type(self).__name__, self.original_sql, self.query_params)
-
-    @cached_property
-    def encoded_query_id(self) -> Optional[str]:
-        """
-        Returns the id of this SelectSQL logical plan. The original SQL is used to encode its ID,
-        which might be a non-select SQL.
-        """
-        return encoded_query_id(self.original_sql, self.query_params)
 
     @property
     def query_params(self) -> Optional[Sequence[Any]]:

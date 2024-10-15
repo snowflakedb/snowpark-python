@@ -4,9 +4,8 @@
 
 import hashlib
 import logging
-import uuid
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Optional, Sequence, Set, Union
+from typing import TYPE_CHECKING, Optional, Set, Union
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     SPACE,
@@ -59,29 +58,34 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
         while len(current_level) > 0:
             next_level = []
             for node in current_level:
-                id_count_map[node.encoded_id] += 1
+                id_count_map[node.encoded_node_id_with_query] += 1
                 for child in node.children_plan_nodes:
-                    id_parents_map[child.encoded_id].add(node.encoded_id)
+                    id_parents_map[child.encoded_node_id_with_query].add(
+                        node.encoded_node_id_with_query
+                    )
                     next_level.append(child)
             current_level = next_level
 
-    def is_duplicate_subtree(node_id: str) -> bool:
-        is_duplicate_node = id_count_map[node_id] > 1
+    def is_duplicate_subtree(encoded_node_id_with_query: str) -> bool:
+        is_duplicate_node = id_count_map[encoded_node_id_with_query] > 1
         if is_duplicate_node:
             is_any_parent_unique_node = any(
-                id_count_map[id] == 1 for id in id_parents_map[node_id]
+                id_count_map[id] == 1
+                for id in id_parents_map[encoded_node_id_with_query]
             )
             if is_any_parent_unique_node:
                 return True
             else:
-                has_multi_parents = len(id_parents_map[node_id]) > 1
+                has_multi_parents = len(id_parents_map[encoded_node_id_with_query]) > 1
                 if has_multi_parents:
                     return True
         return False
 
     traverse(root)
     duplicated_node = {
-        node_id for node_id in id_count_map if is_duplicate_subtree(node_id)
+        encoded_node_id_with_query
+        for encoded_node_id_with_query in id_count_map
+        if is_duplicate_subtree(encoded_node_id_with_query)
     }
     return duplicated_node
 
@@ -111,36 +115,41 @@ def create_cte_query(root: "TreeNode", duplicated_node_ids: Set[str]) -> str:
 
         while stack2:
             node = stack2.pop()
-            if node.encoded_id in plan_to_query_map:
+            if node.encoded_node_id_with_query in plan_to_query_map:
                 continue
 
             if not node.children_plan_nodes or not node.placeholder_query:
-                plan_to_query_map[node.encoded_id] = (
+                plan_to_query_map[node.encoded_node_id_with_query] = (
                     node.sql_query
                     if isinstance(node, Selectable)
                     else node.queries[-1].sql
                 )
             else:
-                plan_to_query_map[node.encoded_id] = node.placeholder_query
+                plan_to_query_map[
+                    node.encoded_node_id_with_query
+                ] = node.placeholder_query
                 for child in node.children_plan_nodes:
                     # replace the placeholder (id) with child query
-                    plan_to_query_map[node.encoded_id] = plan_to_query_map[
-                        node.encoded_id
-                    ].replace(
-                        child.encoded_query_id, plan_to_query_map[child.encoded_id]
+                    plan_to_query_map[
+                        node.encoded_node_id_with_query
+                    ] = plan_to_query_map[node.encoded_node_id_with_query].replace(
+                        child.encoded_query_id,
+                        plan_to_query_map[child.encoded_node_id_with_query],
                     )
 
             # duplicate subtrees will be converted CTEs
-            if node.encoded_id in duplicated_node_ids:
+            if node.encoded_node_id_with_query in duplicated_node_ids:
                 # when a subquery is converted a CTE to with clause,
                 # it will be replaced by `SELECT * from TEMP_TABLE` in the original query
                 table_name = random_name_for_temp_object(TempObjectType.CTE)
                 select_stmt = project_statement([], table_name)
-                duplicate_plan_to_table_name_map[node.encoded_id] = table_name
-                duplicate_plan_to_cte_map[node.encoded_id] = plan_to_query_map[
-                    node.encoded_id
-                ]
-                plan_to_query_map[node.encoded_id] = select_stmt
+                duplicate_plan_to_table_name_map[
+                    node.encoded_node_id_with_query
+                ] = table_name
+                duplicate_plan_to_cte_map[
+                    node.encoded_node_id_with_query
+                ] = plan_to_query_map[node.encoded_node_id_with_query]
+                plan_to_query_map[node.encoded_node_id_with_query] = select_stmt
 
     build_plan_to_query_map_in_post_order(root)
 
@@ -149,13 +158,11 @@ def create_cte_query(root: "TreeNode", duplicated_node_ids: Set[str]) -> str:
         list(duplicate_plan_to_cte_map.values()),
         list(duplicate_plan_to_table_name_map.values()),
     )
-    final_query = with_stmt + SPACE + plan_to_query_map[root.encoded_id]
+    final_query = with_stmt + SPACE + plan_to_query_map[root.encoded_node_id_with_query]
     return final_query
 
 
-def encoded_query_id(
-    query: str, query_params: Optional[Sequence[Any]] = None
-) -> Optional[str]:
+def encoded_query_id(node) -> Optional[str]:
     """
     Encode the query and its query parameter into an id using sha256.
 
@@ -164,6 +171,21 @@ def encoded_query_id(
         If encode succeed, return the first 10 encoded value.
         Otherwise, return None
     """
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectSQL
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+
+    if isinstance(node, SnowflakePlan):
+        query = node.queries[-1].sql
+        query_params = node.queries[-1].params
+    elif isinstance(node, SelectSQL):
+        # For SelectSql, The original SQL is used to encode its ID,
+        # which might be a non-select SQL.
+        query = node.original_sql
+        query_params = node.query_params
+    else:
+        query = node.sql_query
+        query_params = node.query_params
+
     string = f"{query}#{query_params}" if query_params else query
     try:
         return hashlib.sha256(string.encode()).hexdigest()[:10]
@@ -172,18 +194,17 @@ def encoded_query_id(
         return None
 
 
-def encode_id(
-    node_type_name: str, query: str, query_params: Optional[Sequence[Any]] = None
-) -> str:
+def encode_node_id_with_query(node: "TreeNode") -> str:
     """
-    Encode given query, query parameters and the node type into an id.
+    Encode a for the given TreeNode.
 
     If query and query parameters can be encoded successfully using sha256,
     return the encoded query id + node_type_name.
-    Otherwise, generate a uuid.
+    Otherwise, return the original node id.
     """
-    query_id = encoded_query_id(query, query_params)
+    query_id = encoded_query_id(node)
     if query_id is not None:
-        return query_id + node_type_name
+        node_type_name = type(node).__name__
+        return f"{query_id}_{node_type_name}"
     else:
-        return str(uuid.uuid4())
+        return str(id(node))
