@@ -70,6 +70,7 @@ def test_basic_single_group_row_groupby(
         snowpark_pandas_groupby,
         pandas_groupby,
         result_compatible_agg_method,
+        test_attrs=False,  # native pandas is inconsistent about whether it propagates attrs
     )
 
 

@@ -421,16 +421,16 @@ _RESET_ATTRS_METHODS = [
     "series_to_datetime",
     "to_numeric",
     "dt_isocalendar",
-    "groupby_agg",
     "groupby_all",
     "groupby_any",
-    "groupby_apply",  # also covers groupby.transform
     "groupby_cumcount",
     "groupby_cummax",
     "groupby_cummin",
+    "groupby_cumsum",
+    "groupby_nunique",
     "groupby_rank",
     "groupby_size",
-    # expanding, resample, and rolling methods also do not propagate; we check them by prefix matching
+    # expanding and rolling methods also do not propagate; we check them by prefix matching
     # agg, crosstab, and concat depend on their inputs, and are handled separately
 ]
 
@@ -470,8 +470,7 @@ def _propagate_attrs_on_methods(cls):  # type: ignore
         if attr_name.startswith("_") or attr_name in ["concat", "agg"]:
             continue
         if attr_name in _RESET_ATTRS_METHODS or any(
-            attr_name.startswith(prefix)
-            for prefix in ["expanding", "rolling", "resample"]
+            attr_name.startswith(prefix) for prefix in ["expanding", "rolling"]
         ):
             setattr(cls, attr_name, reset_attrs_decorator(attr_value))
         elif isinstance(attr_value, property):
