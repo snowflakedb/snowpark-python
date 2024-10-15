@@ -591,23 +591,30 @@ def test_concurrent_update_on_sensitive_configs(session, config, value, caplog):
 
 
 @pytest.mark.parametrize("is_enabled", [True, False])
-def test_num_cursors_created(db_parameters, is_enabled):
+def test_num_cursors_created(db_parameters, is_enabled, local_testing_mode):
+    if is_enabled and local_testing_mode:
+        pytest.skip("Multithreading is enabled by default in local testing mode")
+
     num_workers = 5 if is_enabled else 1
     new_db_parameters = db_parameters.copy()
     new_db_parameters["PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION"] = is_enabled
     new_session = Session.builder.configs(new_db_parameters).create()
 
-    def run_query(session_, thread_id):
-        assert session_.sql(f"SELECT {thread_id} as A").collect()[0][0] == thread_id
+    try:
 
-    with patch.object(
-        new_session._conn._telemetry_client, "send_cursor_created_telemetry"
-    ) as mock_telemetry:
-        with ThreadPoolExecutor(max_workers=num_workers) as executor:
-            for i in range(10):
-                executor.submit(run_query, new_session, i)
+        def run_query(session_, thread_id):
+            assert session_.sql(f"SELECT {thread_id} as A").collect()[0][0] == thread_id
 
-    # when multithreading is enabled, each worker will create a cursor
-    # otherwise, we will use the same cursor created by the main thread
-    # thus creating 0 new cursors.
-    assert mock_telemetry.call_count == (num_workers if is_enabled else 0)
+        with patch.object(
+            new_session._conn._telemetry_client, "send_cursor_created_telemetry"
+        ) as mock_telemetry:
+            with ThreadPoolExecutor(max_workers=num_workers) as executor:
+                for i in range(10):
+                    executor.submit(run_query, new_session, i)
+
+        # when multithreading is enabled, each worker will create a cursor
+        # otherwise, we will use the same cursor created by the main thread
+        # thus creating 0 new cursors.
+        assert mock_telemetry.call_count == (num_workers if is_enabled else 0)
+    finally:
+        new_session.close()
