@@ -312,6 +312,7 @@ def test_session():
 def test_table_source_plan(sql_simplifier_enabled):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
+    mock_connection._thread_safe_session_enabled = True
     session = snowflake.snowpark.session.Session(mock_connection)
     session._sql_simplifier_enabled = sql_simplifier_enabled
     t = session.table("table")
