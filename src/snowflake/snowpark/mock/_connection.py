@@ -244,7 +244,8 @@ class MockServerConnection:
 
         def drop_table(self, name: Union[str, Iterable[str]], **kwargs) -> None:
             with self._lock:
-                current_schema = self.conn._get_current_parameter("schema")
+                with self._lock:
+                    current_schema = self.conn._get_current_parameter("schema")
                 current_database = self.conn._get_current_parameter("database")
                 name = get_fully_qualified_name(name, current_schema, current_database)
                 if name in self.table_registry:

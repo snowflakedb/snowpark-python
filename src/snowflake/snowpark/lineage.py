@@ -124,6 +124,7 @@ class _UserDomain:
 
     FEATURE_VIEW = "FEATURE_VIEW"
     MODEL = "MODEL"
+    SERVICE = "SERVICE"
 
 
 class _SnowflakeDomain:
@@ -137,6 +138,7 @@ class _SnowflakeDomain:
     DATASET = "DATASET"
     VIEW = "VIEW"
     COLUMN = "COLUMN"
+    SNOWSERVICE_INSTANCE = "SNOWSERVICE_INSTANCE"
 
 
 class _DGQLQueryBuilder:
@@ -149,6 +151,7 @@ class _DGQLQueryBuilder:
     USER_TO_SYSTEM_DOMAIN_MAP = {
         _UserDomain.FEATURE_VIEW: _SnowflakeDomain.TABLE,
         _UserDomain.MODEL: _SnowflakeDomain.MODULE,
+        _UserDomain.SERVICE: _SnowflakeDomain.SNOWSERVICE_INSTANCE,
     }
 
     @staticmethod
@@ -268,10 +271,6 @@ class Lineage:
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
-        self._user_to_system_domain_map = {
-            _UserDomain.FEATURE_VIEW: _SnowflakeDomain.TABLE,
-            _UserDomain.MODEL: _SnowflakeDomain.MODULE,
-        }
         self._versioned_object_domains = {
             _UserDomain.FEATURE_VIEW,
             _UserDomain.MODEL,

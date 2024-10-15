@@ -210,29 +210,29 @@ class MockUDFRegistration(UDFRegistration):
             if packages:
                 pass  # NO-OP
 
-        # register
-        self._registry[udf_name] = MockUserDefinedFunction(
-            func,
-            return_type,
-            input_types,
-            udf_name,
-            strict=strict,
-            packages=packages,
-            use_session_imports=imports is None,
-            _ast=ast,
-            _ast_id=stmt.var_id.bitfield1 if stmt else None,
-        )
+            # register
+            self._registry[udf_name] = MockUserDefinedFunction(
+                func,
+                return_type,
+                input_types,
+                udf_name,
+                strict=strict,
+                packages=packages,
+                use_session_imports=imports is None,
+                _ast=ast,
+                _ast_id=stmt.var_id.bitfield1 if stmt else None,
+            )
 
-        if type(func) is tuple:  # update file registration
-            module_name = self._import_file(func[0], udf_name=udf_name)
+            if type(func) is tuple:  # update file registration
+                module_name = self._import_file(func[0], udf_name=udf_name)
             self._registry[udf_name].func = (module_name, func[1])
 
-        if imports is not None:
-            for _import in imports:
-                if type(_import) is str:
-                    self._import_file(_import, udf_name=udf_name)
-                else:
-                    local_path, import_path = _import
-                    self._import_file(local_path, import_path, udf_name=udf_name)
+            if imports is not None:
+                for _import in imports:
+                    if type(_import) is str:
+                        self._import_file(_import, udf_name=udf_name)
+                    else:
+                        local_path, import_path = _import
+                        self._import_file(local_path, import_path, udf_name=udf_name)
 
-        return self._registry[udf_name]
+            return self._registry[udf_name]

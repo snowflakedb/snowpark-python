@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import logging
+import threading
 import weakref
 from collections import defaultdict
 from typing import TYPE_CHECKING, Dict
@@ -31,9 +32,12 @@ class TempTableAutoCleaner:
         # to its reference count for later temp table management
         # this dict will still be maintained even if the cleaner is stopped (`stop()` is called)
         self.ref_count_map: Dict[str, int] = defaultdict(int)
+        # Lock to protect the ref_count_map
+        self.lock = threading.RLock()
 
     def add(self, table: SnowflakeTable) -> None:
-        self.ref_count_map[table.name] += 1
+        with self.lock:
+            self.ref_count_map[table.name] += 1
         # the finalizer will be triggered when it gets garbage collected
         # and this table will be dropped finally
         _ = weakref.finalize(table, self._delete_ref_count, table.name)
@@ -43,8 +47,10 @@ class TempTableAutoCleaner:
         Decrements the reference count of a temporary table,
         and if the count reaches zero, puts this table in the queue for cleanup.
         """
-        self.ref_count_map[name] -= 1
-        if self.ref_count_map[name] == 0:
+        with self.lock:
+            self.ref_count_map[name] -= 1
+            current_ref_count = self.ref_count_map[name]
+        if current_ref_count == 0:
             if (
                 self.session.auto_clean_up_temp_table_enabled
                 # if the session is already closed before garbage collection,
@@ -52,9 +58,9 @@ class TempTableAutoCleaner:
                 and not self.session._conn.is_closed()
             ):
                 self.drop_table(name)
-        elif self.ref_count_map[name] < 0:
+        elif current_ref_count < 0:
             logging.debug(
-                f"Unexpected reference count {self.ref_count_map[name]} for table {name}"
+                f"Unexpected reference count {current_ref_count} for table {name}"
             )
 
     def drop_table(self, name: str) -> None:  # pragma: no cover
@@ -95,9 +101,11 @@ class TempTableAutoCleaner:
 
     @property
     def num_temp_tables_created(self) -> int:
-        return len(self.ref_count_map)
+        with self.lock:
+            return len(self.ref_count_map)
 
     @property
     def num_temp_tables_cleaned(self) -> int:
         # TODO SNOW-1662536: we may need a separate counter for the number of tables cleaned when parameter is enabled
-        return sum(v == 0 for v in self.ref_count_map.values())
+        with self.lock:
+            return sum(v == 0 for v in self.ref_count_map.values())

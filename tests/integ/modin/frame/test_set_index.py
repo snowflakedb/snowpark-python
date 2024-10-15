@@ -5,20 +5,36 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import assert_frame_equal, eval_snowpark_pandas_result
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
+@pytest.fixture(
+    scope="function",
+    params=[
+        param(
+            {"a": [1, 2, 2], "b": [3, 4, 5], ("c", "d"): [0, 0, 1]}, id="frame_of_ints"
+        ),
+        param(
+            {
+                "a": native_pd.to_timedelta([1, 2, 2]),
+                "b": [3, 4, 5],
+                ("c", "d"): [0, 0, 1],
+            },
+            id="frame_of_ints_and_timedelta",
+        ),
+    ],
+)
+def native_df(request):
+    return native_pd.DataFrame(request.param)
+
+
 @pytest.fixture
-def snow_df():
-    return pd.DataFrame({"a": [1, 2, 2], "b": [3, 4, 5], ("c", "d"): [0, 0, 1]})
-
-
-@pytest.fixture(scope="function")
-def native_df():
-    return native_pd.DataFrame({"a": [1, 2, 2], "b": [3, 4, 5], ("c", "d"): [0, 0, 1]})
+def snow_df(native_df):
+    return pd.DataFrame(native_df)
 
 
 @pytest.fixture(params=[True, False])
@@ -32,12 +48,39 @@ def drop(request):
 
 
 @sql_count_checker(query_count=1, join_count=2)
-def test_set_index_multiindex(snow_df, native_df):
-    index = native_pd.MultiIndex.from_tuples([(5, 4), (4, 5), (5, 5)])
+@pytest.mark.parametrize(
+    "pandas_index",
+    [
+        param(
+            native_pd.MultiIndex.from_tuples([(5, 4), (4, 5), (5, 5)]), id="ints_index"
+        ),
+        param(
+            native_pd.MultiIndex.from_tuples(
+                [(pd.Timedelta(5), 4), (pd.Timedelta(4), 5), (pd.Timedelta(5), 5)]
+            ),
+            id="timedelta_and_int_index",
+        ),
+    ],
+)
+def test_set_index_multiindex(snow_df, native_df, pandas_index):
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
-        lambda df: df.set_index(index),
+        lambda df: df.set_index(pandas_index),
+    )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_set_index_timedelta_index(snow_df, native_df):
+    values = native_pd.to_timedelta([1, 2, 3])
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.set_index(
+            pd.TimedeltaIndex(values)
+            if isinstance(df, pd.DataFrame)
+            else native_pd.TimedeltaIndex(values)
+        ),
     )
 
 
@@ -81,7 +124,10 @@ def test_set_index_multiindex_columns(snow_df):
 
 
 @sql_count_checker(query_count=1, join_count=1)
-def test_set_index_different_index_length(snow_df):
+def test_set_index_different_index_length():
+    # pandas raises an error for this case, but we instead join the index to
+    # the current dataframe on row position.
+    snow_df = pd.DataFrame({"a": [1, 2, 2], "b": [3, 4, 5], ("c", "d"): [0, 0, 1]})
     index = pd.Index([1, 2])
     actual_df = snow_df.set_index(index)
     expected_df = native_pd.DataFrame(
@@ -175,7 +221,11 @@ def test_set_index_append_to_multiindex(keys, drop, native_df):
 
 
 @sql_count_checker(query_count=1)
-def test_set_index_duplicate_label_in_dataframe_negative(snow_df, drop):
+def test_set_index_duplicate_label_in_dataframe_negative(drop):
+    # note that we are not using the mixed-type dataframe from the snow_df
+    # fixture because we want to avoid
+    # https://github.com/pandas-dev/pandas/issues/30965
+    snow_df = pd.DataFrame({"a": [1, 2, 2], "b": [3, 4, 5], ("c", "d"): [0, 0, 1]})
     # rename to create df with columns ['a', 'a', ('c', 'd')]
     snow_df = snow_df.rename(columns={"b": "a"})
     # Verify error for native pandas.

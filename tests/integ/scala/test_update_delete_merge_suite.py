@@ -8,7 +8,7 @@ import datetime
 
 import pytest
 
-from snowflake.connector.options import installed_pandas, pandas as pd
+from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import (
     DeleteResult,
     MergeResult,
@@ -678,6 +678,8 @@ def test_merge_multi_operation(session):
 )
 def test_snow_1694649_repro_merge_with_equal_null(session):
     # Force temp table
+    import pandas as pd
+
     df1 = session.create_dataframe(pd.DataFrame({"A": [0, 1], "B": ["a", "b"]}))
     df2 = session.create_dataframe(pd.DataFrame({"A": [0, 1], "B": ["a", "c"]}))
 

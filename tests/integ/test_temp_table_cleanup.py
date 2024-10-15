@@ -37,12 +37,14 @@ def setup(session):
 def wait_for_drop_table_sql_done(session: Session, caplog, expect_drop: bool) -> None:
     # Loop through captured logs and search for the pattern
     pattern = r"Dropping .* with query id ([0-9a-f\-]+)"
+    matches = []
     for record in caplog.records:
         match = re.search(pattern, record.message)
         if match:
             query_id = match.group(1)
-            break
-    else:
+            matches.append(query_id)
+
+    if len(matches) == 0:
         if expect_drop:
             pytest.fail("No drop table sql found in logs")
         else:
@@ -50,9 +52,10 @@ def wait_for_drop_table_sql_done(session: Session, caplog, expect_drop: bool) ->
             return
 
     caplog.clear()
-    async_job = session.create_async_job(query_id)
-    # Wait for the async job to finish
-    _ = async_job.result()
+    for query_id in matches:
+        async_job = session.create_async_job(query_id)
+        # Wait for the async job to finish
+        _ = async_job.result()
 
 
 def test_basic(session, caplog):

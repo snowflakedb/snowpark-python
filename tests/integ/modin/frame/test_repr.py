@@ -21,8 +21,18 @@ _DATAFRAMES_TO_TEST = [
             {
                 "Animal": ["Falcon", "Falcon", "Parrot", "Parrot"],
                 "Max Speed": [380.0, 370.0, 24.0, 26.0],
+                "Timedelta": [
+                    pd.Timedelta(1, unit="ns"),
+                    pd.Timedelta(microseconds=1),
+                    pd.Timedelta(milliseconds=-1),
+                    pd.Timedelta(days=9999, hours=10, minutes=30, seconds=10),
+                ],
             }
         ),
+        1,
+    ),
+    (
+        native_pd.DataFrame([1, 2], index=[pd.Timedelta(1), pd.Timedelta(-1)]),
         1,
     ),
     (

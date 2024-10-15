@@ -311,7 +311,7 @@ def test_dataFrame_printSchema(capfd):
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
     df = session.create_dataframe([[1, ""], [3, None]])
-    df._plan.attributes = [
+    df._plan._attributes = [
         Attribute("A", IntegerType(), False),
         Attribute("B", StringType()),
     ]

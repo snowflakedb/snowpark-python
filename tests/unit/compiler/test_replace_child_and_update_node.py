@@ -130,7 +130,9 @@ def verify_snowflake_plan(plan: SnowflakePlan, expected_plan: SnowflakePlan) -> 
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
-def test_logical_plan(using_snowflake_plan, mock_query, new_plan, mock_query_generator):
+def test_logical_plan(
+    using_snowflake_plan, mock_query, mock_session, new_plan, mock_query_generator
+):
     def get_children(plan):
         if isinstance(plan, SnowflakePlan):
             return plan.children_plan_nodes
@@ -156,7 +158,7 @@ def test_logical_plan(using_snowflake_plan, mock_query, new_plan, mock_query_gen
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
             placeholder_query=None,
-            session=None,
+            session=mock_session,
         )
     else:
         join_plan = src_join_plan

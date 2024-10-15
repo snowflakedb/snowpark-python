@@ -76,24 +76,33 @@ def test_tz_localize(tz):
 
 
 @pytest.mark.parametrize(
-    "axis, level, copy, ambiguous, nonexistent, exception",
+    "tz, axis, level, copy, ambiguous, nonexistent, exception",
     [
-        (1, None, None, "raise", "raise", NotImplementedError),
-        ("columns", None, None, "raise", "raise", NotImplementedError),
-        (0, 1, None, "raise", "raise", NotImplementedError),
-        (0, None, False, "raise", "raise", NotImplementedError),
-        (0, None, True, "infer", "raise", NotImplementedError),
-        (0, None, True, "NaT", "raise", NotImplementedError),
-        (0, None, True, np.array([True, True, False]), "raise", NotImplementedError),
-        (0, None, True, "raise", "shift_forward", NotImplementedError),
-        (0, None, True, "raise", "shift_backward", NotImplementedError),
-        (0, None, True, "raise", "NaT", NotImplementedError),
-        (0, None, True, "raise", pd.Timedelta("1h"), NotImplementedError),
-        (0, None, True, "infer", "shift_forward", NotImplementedError),
+        ("UTC", 1, None, None, "raise", "raise", NotImplementedError),
+        ("UTC", "columns", None, None, "raise", "raise", NotImplementedError),
+        ("UTC", 0, 1, None, "raise", "raise", NotImplementedError),
+        ("UTC", 0, None, False, "raise", "raise", NotImplementedError),
+        ("UTC", 0, None, True, "infer", "raise", NotImplementedError),
+        ("UTC", 0, None, True, "NaT", "raise", NotImplementedError),
+        (
+            "UTC",
+            0,
+            None,
+            True,
+            np.array([True, True, False]),
+            "raise",
+            NotImplementedError,
+        ),
+        ("UTC", 0, None, True, "raise", "shift_forward", NotImplementedError),
+        ("UTC", 0, None, True, "raise", "shift_backward", NotImplementedError),
+        ("UTC", 0, None, True, "raise", "NaT", NotImplementedError),
+        ("UTC", 0, None, True, "raise", pd.Timedelta("1h"), NotImplementedError),
+        ("UTC", 0, None, True, "infer", "shift_forward", NotImplementedError),
+        ("UTC+09:00", 0, None, None, "raise", "raise", NotImplementedError),
     ],
 )
 @sql_count_checker(query_count=0)
-def test_tz_localize_negative(axis, level, copy, ambiguous, nonexistent, exception):
+def test_tz_localize_negative(tz, axis, level, copy, ambiguous, nonexistent, exception):
     datetime_index = native_pd.DatetimeIndex(
         [
             "2014-04-04 23:56:01.000000001",
@@ -108,7 +117,7 @@ def test_tz_localize_negative(axis, level, copy, ambiguous, nonexistent, excepti
 
     with pytest.raises(exception):
         snow_df.tz_localize(
-            tz="UTC",
+            tz=tz,
             axis=axis,
             level=level,
             copy=copy,
