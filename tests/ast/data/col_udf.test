@@ -43,9 +43,9 @@ add_two = udf(<lambda [1]>, return_type=IntegerType(), input_types=[IntegerType(
 
 df.select(call_udf("add_two", col("A")).as_("a_Ans")).collect()
 
-param_udf = udf(<lambda [2]>, return_type=VariantType(), input_types=[IntegerType(), FloatType()], name="param_udf", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], replace=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b"}{"c": "d"}, immutable=True, comment="some udf")
+param_udf = udf(<lambda [2]>, return_type=VariantType(), input_types=[IntegerType(), FloatType()], name="param_udf", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], replace=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, immutable=True, comment="some udf")
 
-param_udf2 = udf(<lambda [3]>, return_type=VariantType(), input_types=[IntegerType(), FloatType()], name="param_udf2", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], if_not_exists=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b"}{"c": "d"}, immutable=True, comment="some udf")
+param_udf2 = udf(<lambda [3]>, return_type=VariantType(), input_types=[IntegerType(), FloatType()], name="param_udf2", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], if_not_exists=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, immutable=True, comment="some udf")
 
 res5 = df.select(param_udf(col("A"), col("A")))
 

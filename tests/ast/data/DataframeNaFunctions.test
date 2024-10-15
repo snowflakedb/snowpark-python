@@ -46,7 +46,7 @@ drop6 = df.na.drop("any", 42, ["NUM"])
 
 fill1 = df.na.fill(42)
 
-fill2 = df.na.fill({"NUM": 42, "STR": "abc"}})
+fill2 = df.na.fill({"NUM": 42, "STR": "abc"})
 
 fill3 = df.na.fill(42, ["NUM"])
 
