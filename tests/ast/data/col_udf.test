@@ -51,6 +51,229 @@ res5 = df.select(param_udf(col("A"), col("A")))
 
 ## EXPECTED ENCODED AST
 
+<<<<<<< HEAD
 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
+=======
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "udf": {
+            "func": {
+              "name": "<lambda>"
+            },
+            "input_types": {
+              "list": [
+                {
+                  "sp_integer_type": true
+                }
+              ]
+            },
+            "parallel": "4",
+            "return_type": {
+              "sp_integer_type": true
+            },
+            "source_code_display": true,
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "94"
+            }
+          }
+        },
+        "symbol": "add_one",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_create_dataframe": {
+            "data": {
+              "sp_dataframe_data__list": {
+                "vs": [
+                  {
+                    "int64_val": {
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "96"
+                      },
+                      "v": "1"
+                    }
+                  },
+                  {
+                    "int64_val": {
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "96"
+                      },
+                      "v": "2"
+                    }
+                  },
+                  {
+                    "int64_val": {
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "96"
+                      },
+                      "v": "3"
+                    }
+                  }
+                ]
+              }
+            },
+            "schema": {
+              "sp_dataframe_schema__list": {
+                "vs": [
+                  "a"
+                ]
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "96"
+            }
+          }
+        },
+        "symbol": "df",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_select__columns": {
+            "cols": [
+              {
+                "sp_column_alias": {
+                  "col": {
+                    "apply_expr": {
+                      "fn": {
+                        "sp_fn_ref": {
+                          "id": {
+                            "bitfield1": "1"
+                          }
+                        }
+                      },
+                      "pos_args": [
+                        {
+                          "apply_expr": {
+                            "fn": {
+                              "builtin_fn": {
+                                "name": {
+                                  "fn_name_flat": {
+                                    "name": "col"
+                                  }
+                                }
+                              }
+                            },
+                            "pos_args": [
+                              {
+                                "string_val": {
+                                  "src": {
+                                    "file": "SRC_POSITION_TEST_MODE",
+                                    "start_line": "98"
+                                  },
+                                  "v": "a"
+                                }
+                              }
+                            ],
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "98"
+                            }
+                          }
+                        }
+                      ],
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "98"
+                      }
+                    }
+                  },
+                  "name": "ans",
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "98"
+                  },
+                  "variant_is_as": true
+                }
+              }
+            ],
+            "df": {
+              "sp_dataframe_ref": {
+                "id": {
+                  "bitfield1": "2"
+                }
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "98"
+            },
+            "variadic": true
+          }
+        },
+        "symbol": "",
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "3"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_collect": {
+            "block": true,
+            "case_sensitive": true,
+            "id": {
+              "bitfield1": "3"
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "98"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "4",
+        "var_id": {
+          "bitfield1": "4"
+        }
+      }
+    },
+    {
+      "eval": {
+        "uid": "5",
+        "var_id": {
+          "bitfield1": "4"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}
+>>>>>>> 66d50cff3 (SNOW-1738538 Update expectation files to json ast output so more stable & readable)

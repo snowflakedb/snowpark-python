@@ -11,4 +11,106 @@ df = df.select(col("num"))
 
 ## EXPECTED ENCODED AST
 
+<<<<<<< HEAD
 Cl8KXQpPggxMEioKKAomInRoZSNxdWkuY2sjYnJvLnduIyIiRm94IiJ3b24ndCNqdW1wISIaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZIgIIARIECgJkZhgBIgIIAQqPAQqMAQp+ggl7ClKSAU8KCxoJCgcKBQoDY29sGiT6DCEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgaEgNudW0iGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgaEgeCAgQKAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGiABEgQKAmRmGAIiAggCEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
+=======
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "sp_table": {
+            "name": {
+              "sp_table_name_flat": {
+                "name": "\"the#qui.ck#bro.wn#\"\"Fox\"\"won't#jump!\""
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "90"
+            },
+            "variant": {
+              "sp_session_table": true
+            }
+          }
+        },
+        "symbol": "df",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_select__columns": {
+            "cols": [
+              {
+                "apply_expr": {
+                  "fn": {
+                    "builtin_fn": {
+                      "name": {
+                        "fn_name_flat": {
+                          "name": "col"
+                        }
+                      }
+                    }
+                  },
+                  "pos_args": [
+                    {
+                      "string_val": {
+                        "src": {
+                          "file": "SRC_POSITION_TEST_MODE",
+                          "start_line": "91"
+                        },
+                        "v": "num"
+                      }
+                    }
+                  ],
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "91"
+                  }
+                }
+              }
+            ],
+            "df": {
+              "sp_dataframe_ref": {
+                "id": {
+                  "bitfield1": "1"
+                }
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "91"
+            },
+            "variadic": true
+          }
+        },
+        "symbol": "df",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}
+>>>>>>> 66d50cff3 (SNOW-1738538 Update expectation files to json ast output so more stable & readable)

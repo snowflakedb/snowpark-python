@@ -36,6 +36,7 @@ df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, log_on_except
 
 ## EXPECTED ENCODED AST
 
+<<<<<<< HEAD
 Cj8KPQovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGSICCAESBAoCZGYYASICCAEKMwoxCifSBiQIARABGgIIATIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBsSABgCIgIIAgoIEgYIAxICCAIQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
 CjEKLwol0gYiEAEaAggBMhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHRIAGAQiAggECggSBggFEgIIBBABGhESDwoNCgVmaW5hbBADGAkgEiIEEAEYFw==
 Ck8KTQpD0gZACAEQARoCCAEyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfOhoKClNGX1BBUlRORVISDEZBS0VfUEFSVE5FUhIAGAYiAggGCggSBggHEgIIBhABGhESDwoNCgVmaW5hbBADGAkgEiIEEAEYFw==
@@ -44,3 +45,108 @@ CjMKMQon0gYkEAEaAggBKAEyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgjEgAYCiICCAoKCBIGCAsS
 Ck8KTQpD0gZAEAEaAggBKAEyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSglOhoKClNGX1BBUlRORVISDEZBS0VfUEFSVE5FUhIAGAwiAggMCggSBggNEgIIDBABGhESDwoNCgVmaW5hbBADGAkgEiIEEAEYFw==
 Ck8KTQpD0gZAGgIIASABKAEyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgnOhoKClNGX1BBUlRORVISDEZBS0VfUEFSVE5FUhIAGA4iAggOCggSBggPEgIIDhABGhESDwoNCgVmaW5hbBADGAkgEiIEEAEYFw==
 EAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
+=======
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "sp_table": {
+            "name": {
+              "sp_table_name_flat": {
+                "name": "test_table"
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "90"
+            },
+            "variant": {
+              "sp_session_table": true
+            }
+          }
+        },
+        "symbol": "df",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_collect": {
+            "block": true,
+            "case_sensitive": true,
+            "id": {
+              "bitfield1": "1"
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "92"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "eval": {
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_collect": {
+            "case_sensitive": true,
+            "id": {
+              "bitfield1": "1"
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "94"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "4",
+        "var_id": {
+          "bitfield1": "4"
+        }
+      }
+    },
+    {
+      "eval": {
+        "uid": "5",
+        "var_id": {
+          "bitfield1": "4"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}
+>>>>>>> 66d50cff3 (SNOW-1738538 Update expectation files to json ast output so more stable & readable)

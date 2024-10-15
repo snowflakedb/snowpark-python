@@ -24,4 +24,123 @@ r = session.range(1, None, 2)
 
 ## EXPECTED ENCODED AST
 
+<<<<<<< HEAD
 CjQKMgol+goiEhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRgKIgIIARIDCgFyGAEiAggBCjgKNgop+gomCgIIChIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBsYASICCAESAwoBchgCIgIIAgo4CjYKKfoKJgoCCAoSGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdGAEiAggCEgMKAXIYAyICCAMKNAoyCiX6CiISGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfGAEiAggBEgMKAXIYBCICCAQKNAoyCiX6CiISGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSghGAEiAggCEgMKAXIYBSICCAUQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
+=======
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "sp_range": {
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "90"
+            },
+            "start": "10",
+            "step": "1"
+          }
+        },
+        "symbol": "r",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_range": {
+            "end": "10",
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "92"
+            },
+            "start": "1",
+            "step": "1"
+          }
+        },
+        "symbol": "r",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_range": {
+            "end": "10",
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "94"
+            },
+            "start": "1",
+            "step": "2"
+          }
+        },
+        "symbol": "r",
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "3"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_range": {
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "96"
+            },
+            "start": "1",
+            "step": "1"
+          }
+        },
+        "symbol": "r",
+        "uid": "4",
+        "var_id": {
+          "bitfield1": "4"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_range": {
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "98"
+            },
+            "start": "1",
+            "step": "2"
+          }
+        },
+        "symbol": "r",
+        "uid": "5",
+        "var_id": {
+          "bitfield1": "5"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}
+>>>>>>> 66d50cff3 (SNOW-1738538 Update expectation files to json ast output so more stable & readable)

@@ -5,6 +5,7 @@
 import base64
 import datetime
 import importlib.util
+import json
 import logging
 import os
 import pathlib
@@ -22,6 +23,8 @@ import google.protobuf
 import pytest
 from dateutil.tz import tzlocal
 
+from google.protobuf.json_format import MessageToJson, Parse
+
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
 TEST_DIR = pathlib.Path(__file__).parent
@@ -33,7 +36,7 @@ DATA_DIR = TEST_DIR / "data"
 class TestCase:
     filename: str
     source: str
-    expected_ast_base64: str
+    expected_ast_encoded: str
     expected_ast_unparsed: str
     __test__: bool = False  # Add this to suppress pytest collection warning.
 
@@ -61,7 +64,7 @@ def parse_file(file):
         )
 
     try:
-        expected_ast_base64_start = src.index("## EXPECTED ENCODED AST\n")
+        expected_ast_encoded_start = src.index("## EXPECTED ENCODED AST\n")
     except ValueError:
         raise ValueError(
             "Required header ## EXPECTED ENCODED AST missing in the file: " + file.name
@@ -69,14 +72,14 @@ def parse_file(file):
 
     test_case = "".join(src[test_case_start + 1 : expected_ast_unparsed_start])
     expected_ast_unparsed = "".join(
-        src[expected_ast_unparsed_start + 1 : expected_ast_base64_start]
+        src[expected_ast_unparsed_start + 1 : expected_ast_encoded_start]
     )
-    expected_ast_base64 = "".join(src[expected_ast_base64_start + 1 :])
+    expected_ast_encoded = "".join(src[expected_ast_encoded_start + 1 :])
 
     return TestCase(
         os.path.basename(file.name),
         test_case,
-        expected_ast_base64,
+        expected_ast_encoded,
         expected_ast_unparsed,
     )
 
@@ -226,7 +229,7 @@ def test_ast(session, tables, test_case):
                     "## EXPECTED UNPARSER OUTPUT\n\n",
                     actual.strip(),
                     "\n\n## EXPECTED ENCODED AST\n\n",
-                    base64_str.strip(),
+                    ast_to_output(base64_str.strip()),
                     "\n",
                 ]
             )
@@ -234,13 +237,8 @@ def test_ast(session, tables, test_case):
         try:
             # Protobuf serialization is non-deterministic (cf. https://gist.github.com/kchristidis/39c8b310fd9da43d515c4394c3cd9510)
             # Therefore unparse from base64, and then check equality using deterministic (python) protobuf serialization.
-            actual_message = proto.Request()
-            actual_message.ParseFromString(base64.b64decode(base64_str.strip()))
-
-            expected_message = proto.Request()
-            expected_message.ParseFromString(
-                base64.b64decode(test_case.expected_ast_base64.strip())
-            )
+            actual_message = base64_str_to_request(base64_str.strip())
+            expected_message = ast_to_request(test_case.expected_ast_encoded.strip())
 
             # Actual and expected may have been encoded by different client language versions, e.g. Python 3.8.10 and
             # Python 3.9.3. Make comparison here client-language agnostic by removing the data from the message.
@@ -332,6 +330,35 @@ def override_time_zone(tz_name: str = "EST") -> None:
 
     tz_name = datetime.datetime.now(tzlocal()).tzname()
     logging.debug(f"Local time zone is now: {tz_name}.")
+
+
+def base64_str_to_request(base64_str: str) -> proto.Request:
+    message = proto.Request()
+    message.ParseFromString(base64.b64decode(base64_str.strip()))
+    return message
+
+
+def base64_str_to_json_str(base64_str: str) -> str:
+    message = base64_str_to_request(base64_str)
+    json_str = MessageToJson(message, preserving_proto_field_name=True)
+    return json_str
+
+
+def json_str_to_request(json_str) -> proto.Request:
+    request = Parse(json_str, proto.Request())
+    return request
+
+
+AST_TO_OUTPUT_MAP = { 'json': base64_str_to_json_str, 'b64': lambda x: x, }
+AST_TO_REQUEST_MAP = { 'json': json_str_to_request, 'b64': base64_str_to_request, }
+
+
+def ast_to_output(ast: str) -> str:
+    return AST_TO_OUTPUT_MAP[pytest.encoding](ast)
+
+
+def ast_to_request(ast: str) -> proto.Request():
+    return AST_TO_REQUEST_MAP[pytest.encoding](ast)
 
 
 if __name__ == "__main__":

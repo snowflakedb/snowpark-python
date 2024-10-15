@@ -17,4 +17,108 @@ non_variadic = df.to_df(["one", "two"])
 
 ## EXPECTED ENCODED AST
 
+<<<<<<< HEAD
 Cj8KPQovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGSICCAESBAoCZGYYASICCAEKSgpICjTKCTEKA29uZQoDdHdvEgeCAgQKAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGyABEgoKCHZhcmlhZGljGAIiAggCCkwKSgoyygkvCgNvbmUKA3R3bxIHggIECgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB0SDgoMbm9uX3ZhcmlhZGljGAMiAggDEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
+=======
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "sp_table": {
+            "name": {
+              "sp_table_name_flat": {
+                "name": "test_table"
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "90"
+            },
+            "variant": {
+              "sp_session_table": true
+            }
+          }
+        },
+        "symbol": "df",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_to_df": {
+            "col_names": [
+              "one",
+              "two"
+            ],
+            "df": {
+              "sp_dataframe_ref": {
+                "id": {
+                  "bitfield1": "1"
+                }
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "92"
+            },
+            "variadic": true
+          }
+        },
+        "symbol": "variadic",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_to_df": {
+            "col_names": [
+              "one",
+              "two"
+            ],
+            "df": {
+              "sp_dataframe_ref": {
+                "id": {
+                  "bitfield1": "1"
+                }
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "94"
+            }
+          }
+        },
+        "symbol": "non_variadic",
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "3"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}
+>>>>>>> 66d50cff3 (SNOW-1738538 Update expectation files to json ast output so more stable & readable)

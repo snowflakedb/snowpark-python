@@ -103,5 +103,327 @@ res3 = df.agg(u2("a"))
 
 ## EXPECTED ENCODED AST
 
+<<<<<<< HEAD
 Cp8BCpwBCocBog2DARoPEg1QeXRob25TdW1VREFGOgQKAmABSjgKE3NvdXJjZV9jb2RlX2Rpc3BsYXkSIcoBHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKC0QAVILCgkKB3N1bV9pbnRgBGgBcgJgAYIBGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgtEgoKCHN1bV91ZGFmGAEiAggBCtQDCtEDCsID+gW+AwqfAwqcAwpl0gJiChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoNRIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoNRABEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSg1EAMKZdICYgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKDUSIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKDUQARIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoNRAECmXSAmIKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSg1EiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSg1EAISIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKDUQBQpl0gJiChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoNRIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoNRACEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSg1EAYaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSg1EgQKAmRmGAIiAggCCkAKPgowygktCgFhCgFiEgeCAgQKAggCGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoNSABEgQKAmRmGAMiAggDCoYBCoMBCnmCBnYKB4ICBAoCCAMSTwpLkgFICgY6BAoCCAEaIvoMHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKDcSAWEiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSg3EAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSg3EgAYBCICCAQKMwoxCifSBiQIARABGgIIBDIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKDcSABgFIgIIBQoIEgYIBhICCAUQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
 CuUBCuIBCtMBog3PAQoLCgl0ZXN0IHVkYWYSAnMzGg4IARIKUHl0aG9uVG9wSygBMgkKBwoFbnVtcHk6BAoCYAFAAUo4ChNzb3VyY2VfY29kZV9kaXNwbGF5EiHKAR4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShpEAFSCQoHCgV0b3Bfa1oFbnVtcHlgCGgBcgJgAXoGCgFhEgFjegYKAWUSAWaCARoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoaYoBAwoBQJIBBgoBYRIBYpIBBgoBZBIBZRIECgJ1MhgHIgIIBwqGAQqDAQp5ggZ2CgeCAgQKAggDEk8KS5IBSAoGOgQKAggHGiL6DB8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShuEgFhIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobhABGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobhIAGAgiAggIEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
+=======
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "udaf": {
+            "handler": {
+              "name": "PythonSumUDAF"
+            },
+            "input_types": {
+              "list": [
+                {
+                  "sp_integer_type": true
+                }
+              ]
+            },
+            "kwargs": [
+              {
+                "_1": "source_code_display",
+                "_2": {
+                  "bool_val": {
+                    "src": {
+                      "file": "SRC_POSITION_TEST_MODE",
+                      "start_line": "110"
+                    },
+                    "v": true
+                  }
+                }
+              }
+            ],
+            "name": {
+              "fn_name_flat": {
+                "name": "sum_int"
+              }
+            },
+            "parallel": "4",
+            "replace": true,
+            "return_type": {
+              "sp_integer_type": true
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "110"
+            }
+          }
+        },
+        "symbol": "sum_udaf",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_create_dataframe": {
+            "data": {
+              "sp_dataframe_data__list": {
+                "vs": [
+                  {
+                    "list_val": {
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "118"
+                      },
+                      "vs": [
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "118"
+                            },
+                            "v": "1"
+                          }
+                        },
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "118"
+                            },
+                            "v": "3"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "list_val": {
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "118"
+                      },
+                      "vs": [
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "118"
+                            },
+                            "v": "1"
+                          }
+                        },
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "118"
+                            },
+                            "v": "4"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "list_val": {
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "118"
+                      },
+                      "vs": [
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "118"
+                            },
+                            "v": "2"
+                          }
+                        },
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "118"
+                            },
+                            "v": "5"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "list_val": {
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "118"
+                      },
+                      "vs": [
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "118"
+                            },
+                            "v": "2"
+                          }
+                        },
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "118"
+                            },
+                            "v": "6"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "118"
+            }
+          }
+        },
+        "symbol": "df",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_to_df": {
+            "col_names": [
+              "a",
+              "b"
+            ],
+            "df": {
+              "sp_dataframe_ref": {
+                "id": {
+                  "bitfield1": "2"
+                }
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "118"
+            },
+            "variadic": true
+          }
+        },
+        "symbol": "df",
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "3"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_agg": {
+            "df": {
+              "sp_dataframe_ref": {
+                "id": {
+                  "bitfield1": "3"
+                }
+              }
+            },
+            "exprs": {
+              "args": [
+                {
+                  "apply_expr": {
+                    "fn": {
+                      "sp_fn_ref": {
+                        "id": {
+                          "bitfield1": "1"
+                        }
+                      }
+                    },
+                    "pos_args": [
+                      {
+                        "string_val": {
+                          "src": {
+                            "file": "SRC_POSITION_TEST_MODE",
+                            "start_line": "120"
+                          },
+                          "v": "a"
+                        }
+                      }
+                    ],
+                    "src": {
+                      "file": "SRC_POSITION_TEST_MODE",
+                      "start_line": "120"
+                    }
+                  }
+                }
+              ],
+              "variadic": true
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "120"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "4",
+        "var_id": {
+          "bitfield1": "4"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_collect": {
+            "block": true,
+            "case_sensitive": true,
+            "id": {
+              "bitfield1": "4"
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "120"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "5",
+        "var_id": {
+          "bitfield1": "5"
+        }
+      }
+    },
+    {
+      "eval": {
+        "uid": "6",
+        "var_id": {
+          "bitfield1": "5"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}
+>>>>>>> 66d50cff3 (SNOW-1738538 Update expectation files to json ast output so more stable & readable)

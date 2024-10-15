@@ -14,4 +14,197 @@ df = df.unpivot("sales", "month", ["jan", "feb"])
 
 ## EXPECTED ENCODED AST
 
+<<<<<<< HEAD
 CsUDCsIDCrMD+gWvAwr1AgryAgq4AZoNtAEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEAESLPoMKQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkSC2VsZWN0cm9uaWNzEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEGQSIsICHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkQyAEKtAGaDbABChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRACEij6DCUKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEgdjbG90aGVzEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEGQSIsICHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkQrAISGQoXCgVlbXBpZAoEZGVwdAoDamFuCgNmZWIaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEgQKAmRmGAEiAggBCpQBCpEBCoIBigp/CiT6DCEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdEgNqYW4KJPoMIQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB0SA2ZlYhIHggIECgIIARoFbW9udGgiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdKgVzYWxlcxIECgJkZhgCIgIIAhABGhESDwoNCgVmaW5hbBADGAkgEiIEEAEYFw==
+=======
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "sp_create_dataframe": {
+            "data": {
+              "sp_dataframe_data__list": {
+                "vs": [
+                  {
+                    "tuple_val": {
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "90"
+                      },
+                      "vs": [
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "90"
+                            },
+                            "v": "1"
+                          }
+                        },
+                        {
+                          "string_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "90"
+                            },
+                            "v": "electronics"
+                          }
+                        },
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "90"
+                            },
+                            "v": "100"
+                          }
+                        },
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "90"
+                            },
+                            "v": "200"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "tuple_val": {
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "90"
+                      },
+                      "vs": [
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "90"
+                            },
+                            "v": "2"
+                          }
+                        },
+                        {
+                          "string_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "90"
+                            },
+                            "v": "clothes"
+                          }
+                        },
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "90"
+                            },
+                            "v": "100"
+                          }
+                        },
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "90"
+                            },
+                            "v": "300"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "schema": {
+              "sp_dataframe_schema__list": {
+                "vs": [
+                  "empid",
+                  "dept",
+                  "jan",
+                  "feb"
+                ]
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "90"
+            }
+          }
+        },
+        "symbol": "df",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_unpivot": {
+            "column_list": [
+              {
+                "string_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "94"
+                  },
+                  "v": "jan"
+                }
+              },
+              {
+                "string_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "94"
+                  },
+                  "v": "feb"
+                }
+              }
+            ],
+            "df": {
+              "sp_dataframe_ref": {
+                "id": {
+                  "bitfield1": "1"
+                }
+              }
+            },
+            "name_column": "month",
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "94"
+            },
+            "value_column": "sales"
+          }
+        },
+        "symbol": "df",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}
+>>>>>>> 66d50cff3 (SNOW-1738538 Update expectation files to json ast output so more stable & readable)

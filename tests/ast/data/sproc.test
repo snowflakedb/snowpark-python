@@ -185,6 +185,7 @@ session.sql("SELECT 1 as A, 2 as B").show()
 
 ## EXPECTED ENCODED AST
 
+<<<<<<< HEAD
 CnYKdApe8gxbChMKEVRoaXMgaXMgYSBjb21tZW50EgVvd25lciIJEgdteV9jb3B5Wg4KDAoKbXlfY29weV9zcGgEcAGIAQGSARoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoKhIMCgpteV9jb3B5X3NwGAEiAggBCrQBCrEBCqMB8gufARKAAWNyZWF0ZSBvciByZXBsYWNlIHRlbXAgdGFibGUgdGVzdF9mcm9tKHRlc3Rfc3RyIHZhcmNoYXIpIGFzIHNlbGVjdCByYW5kc3RyKDIwLCByYW5kb20oKSkgZnJvbSB0YWJsZSAoZ2VuZXJhdG9yKHJvd0NvdW50ID0+IDEwMCkpGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoKxIDCgFfGAIiAggCCjMKMQon0gYkCAEQARoCCAIyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgrEgAYAyICCAMKCBIGCAQSAggDEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
 CqsBCqgBCpQB+gWQAQprCmkKIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKC4QAQohwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoLhACCiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSguEAMSBQoDCgFhGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoLhIJCgdmcm9tX2RmGAUiAggFCjQKMgoosgolCgeCAgQKAggFGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoLxIAGAYiAggGClgKVgpM6gxJCAEiBWluZGV4WgIIBmoCIAFyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgvggENCgsKCXRlc3RfZnJvbYoBCXRlbXBvcmFyeRIAGAciAggHCggSBggIEgIIBxABGhESDwoNCgVmaW5hbBADGAkgEiIEEAEYFw==
 CpcBCpQBCoIB+gV/CloKWAoqwgInChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoMBD///////////8BCirCAicKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgwEP7//////////wESBQoDCgFhGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoMBIHCgV0b19kZhgJIgIICQo0CjIKKLIKJQoHggIECgIICRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKDESABgKIgIICgpWClQKSuoMRwgBIgVpbmRleFoCCApqAiABchoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoMYIBCwoJCgd0ZXN0X3RvigEJdGVtcG9yYXJ5EgAYCyICCAsKCBIGCAwSAggLEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
@@ -203,3 +204,222 @@ CoQBCoEBCnfyDHQSBW93bmVyIgoIBRIGc2luX3NwYhlzbm93Zmxha2Utc25vd3BhcmstcHl0aG9uYgVu
 ClMKUQpH8gxEEgVvd25lciINCAcSCXNlbGVjdF9zcDoICgJgAQoCYAFoBHoDqgEAkgEaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKH8SABhBIgIIQQp8CnoKcJIBbQoGOgQKAghBGiLCAh8KGxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSiBARABGiLCAh8KGxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSiBARACIhsaFlNSQ19QT1NJVElPTl9URVNUX01PREUogQESABhCIgIIQgpDCkEKN/ILNBIVU0VMRUNUIDEgYXMgQSwgMiBhcyBCGhsaFlNSQ19QT1NJVElPTl9URVNUX01PREUogAESABhDIgIIQwoTChEKB5IJBAoCCEMSABhEIgIIRAoIEgYIRRICCEQQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
 CkgKRgo88gw5EgVvd25lciINCAgSCXNlbGVjdF9zcGgEiAEBkgEbGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKIUBEgAYRiICCEYKfAp6CnCSAW0KBjoECgIIRhoiwgIfChsaFlNSQ19QT1NJVElPTl9URVNUX01PREUohwEQARoiwgIfChsaFlNSQ19QT1NJVElPTl9URVNUX01PREUohwEQAiIbGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKIcBEgAYRyICCEcKQwpBCjfyCzQSFVNFTEVDVCAxIGFzIEEsIDIgYXMgQhobGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKIYBEgAYSCICCEgKEwoRCgeSCQQKAghIEgAYSSICCEkKCBIGCEoSAghJEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
 EAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
+=======
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "stored_procedure": {
+            "comment": "This is a comment",
+            "execute_as": "owner",
+            "func": {
+              "name": "my_copy"
+            },
+            "name": {
+              "fn_name_flat": {
+                "name": "my_copy_sp"
+              }
+            },
+            "parallel": "4",
+            "replace": true,
+            "source_code_display": true,
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "107"
+            }
+          }
+        },
+        "symbol": "my_copy_sp",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_sql": {
+            "query": "create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table (generator(rowCount => 100))",
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "108"
+            }
+          }
+        },
+        "symbol": "_",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_collect": {
+            "block": true,
+            "case_sensitive": true,
+            "id": {
+              "bitfield1": "2"
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "108"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "3"
+        }
+      }
+    },
+    {
+      "eval": {
+        "uid": "4",
+        "var_id": {
+          "bitfield1": "3"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_create_dataframe": {
+            "data": {
+              "sp_dataframe_data__list": {
+                "vs": [
+                  {
+                    "int64_val": {
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "111"
+                      },
+                      "v": "1"
+                    }
+                  },
+                  {
+                    "int64_val": {
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "111"
+                      },
+                      "v": "2"
+                    }
+                  },
+                  {
+                    "int64_val": {
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "111"
+                      },
+                      "v": "3"
+                    }
+                  }
+                ]
+              }
+            },
+            "schema": {
+              "sp_dataframe_schema__list": {
+                "vs": [
+                  "a"
+                ]
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "111"
+            }
+          }
+        },
+        "symbol": "from_df",
+        "uid": "5",
+        "var_id": {
+          "bitfield1": "5"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_write": {
+            "df": {
+              "sp_dataframe_ref": {
+                "id": {
+                  "bitfield1": "5"
+                }
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "112"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "6",
+        "var_id": {
+          "bitfield1": "6"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_write_table": {
+            "block": true,
+            "column_order": "index",
+            "id": {
+              "bitfield1": "6"
+            },
+            "mode": {
+              "sp_save_mode_overwrite": true
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "112"
+            },
+            "table_name": {
+              "sp_table_name_flat": {
+                "name": "test_from"
+              }
+            },
+            "table_type": "temporary"
+          }
+        },
+        "symbol": "",
+        "uid": "7",
+        "var_id": {
+          "bitfield1": "7"
+        }
+      }
+    },
+    {
+      "eval": {
+        "uid": "8",
+        "var_id": {
+          "bitfield1": "7"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}
+>>>>>>> 66d50cff3 (SNOW-1738538 Update expectation files to json ast output so more stable & readable)

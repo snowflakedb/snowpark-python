@@ -23,7 +23,142 @@ df.count(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
 
 ## EXPECTED ENCODED AST
 
+<<<<<<< HEAD
 CoYBCoMBCnX6BXIKKBImCiQKIgogCh5TTk9XUEFSS19URU1QX1RBQkxFXzIzSkU0MEdCNk4SKhIoCiYKFQoFCgMiQSISCpoBBwoFCICAgAgYAQoNCgUKAyJCIhICaAEYARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBwSBAoCZGYYASICCAEKMQovCiXiBiIIARICCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgeEgAYAiICCAIKCBIGCAMSAggCEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
 Ci8KLQoj4gYgEgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCASABgEIgIIBAoIEgYIBRICCAQQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
 CksKSQo/4gY8EgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCIiGgoKU0ZfUEFSVE5FUhIMRkFLRV9QQVJUTkVSEgAYBiICCAYKCBIGCAcSAggGEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
 EAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
+=======
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "sp_create_dataframe": {
+            "data": {
+              "sp_dataframe_data__pandas": {
+                "v": {
+                  "temp_table": {
+                    "sp_table_name_flat": {
+                      "name": "SNOWPARK_TEMP_TABLE_T6BCFFOK8B"
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "sp_dataframe_schema__struct": {
+                "v": {
+                  "fields": [
+                    {
+                      "column_identifier": {
+                        "name": "\"A\""
+                      },
+                      "data_type": {
+                        "sp_string_type": {
+                          "length": "16777216"
+                        }
+                      },
+                      "nullable": true
+                    },
+                    {
+                      "column_identifier": {
+                        "name": "\"B\""
+                      },
+                      "data_type": {
+                        "sp_long_type": true
+                      },
+                      "nullable": true
+                    }
+                  ]
+                }
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "93"
+            }
+          }
+        },
+        "symbol": "df",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_count": {
+            "block": true,
+            "id": {
+              "bitfield1": "1"
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "95"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "eval": {
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_count": {
+            "id": {
+              "bitfield1": "1"
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "97"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "4",
+        "var_id": {
+          "bitfield1": "4"
+        }
+      }
+    },
+    {
+      "eval": {
+        "uid": "5",
+        "var_id": {
+          "bitfield1": "4"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}
+>>>>>>> 66d50cff3 (SNOW-1738538 Update expectation files to json ast output so more stable & readable)

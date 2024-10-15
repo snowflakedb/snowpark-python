@@ -18,4 +18,405 @@ df3 = session.generator(seq8(0), uniform(lit(1), lit(10), lit(2)), rowcount=0, t
 
 ## EXPECTED ENCODED AST
 
+<<<<<<< HEAD
 CtkBCtYBCsYB0grCAQpQkgFNCgsaCQoHCgUKA2NvbBoi+gwfChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGxIBQSIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBsKUJIBTQoLGgkKBwoFCgNjb2waIvoMHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBsSAUIiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgbGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGygBEgUKA2RmMRgBIgIIAQqwAwqtAwqdA9IKmQMKUJIBTQoMGgoKCAoGCgRzZXExGiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdEAEiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdCqQCkgGgAgoPGg0KCwoJCgd1bmlmb3JtGk+SAUwKCxoJCgcKBQoDbGl0GiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdEAEiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdGk+SAUwKCxoJCgcKBQoDbGl0GiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdEAoiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdGk+SAUwKCxoJCgcKBQoDbGl0GiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdEAIiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHRADGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHSgBEgUKA2RmMhgCIgIIAgquAwqrAwqbA9IKlwMKTpIBSwoMGgoKCAoGCgRzZXE4Gh/CAhwKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHwqkApIBoAIKDxoNCgsKCQoHdW5pZm9ybRpPkgFMCgsaCQoHCgUKA2xpdBohwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHxABIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHxpPkgFMCgsaCQoHCgUKA2xpdBohwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHxAKIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHxpPkgFMCgsaCQoHCgUKA2xpdBohwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHxACIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHyIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB8aGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfIAEoARIFCgNkZjMYAyICCAMQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
+=======
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "sp_generator": {
+            "columns": [
+              {
+                "apply_expr": {
+                  "fn": {
+                    "builtin_fn": {
+                      "name": {
+                        "fn_name_flat": {
+                          "name": "col"
+                        }
+                      }
+                    }
+                  },
+                  "pos_args": [
+                    {
+                      "string_val": {
+                        "src": {
+                          "file": "SRC_POSITION_TEST_MODE",
+                          "start_line": "92"
+                        },
+                        "v": "A"
+                      }
+                    }
+                  ],
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "92"
+                  }
+                }
+              },
+              {
+                "apply_expr": {
+                  "fn": {
+                    "builtin_fn": {
+                      "name": {
+                        "fn_name_flat": {
+                          "name": "col"
+                        }
+                      }
+                    }
+                  },
+                  "pos_args": [
+                    {
+                      "string_val": {
+                        "src": {
+                          "file": "SRC_POSITION_TEST_MODE",
+                          "start_line": "92"
+                        },
+                        "v": "B"
+                      }
+                    }
+                  ],
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "92"
+                  }
+                }
+              }
+            ],
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "92"
+            },
+            "variadic": true
+          }
+        },
+        "symbol": "df1",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_generator": {
+            "columns": [
+              {
+                "apply_expr": {
+                  "fn": {
+                    "builtin_fn": {
+                      "name": {
+                        "fn_name_flat": {
+                          "name": "seq1"
+                        }
+                      }
+                    }
+                  },
+                  "pos_args": [
+                    {
+                      "int64_val": {
+                        "src": {
+                          "file": "SRC_POSITION_TEST_MODE",
+                          "start_line": "94"
+                        },
+                        "v": "1"
+                      }
+                    }
+                  ],
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "94"
+                  }
+                }
+              },
+              {
+                "apply_expr": {
+                  "fn": {
+                    "builtin_fn": {
+                      "name": {
+                        "fn_name_flat": {
+                          "name": "uniform"
+                        }
+                      }
+                    }
+                  },
+                  "pos_args": [
+                    {
+                      "apply_expr": {
+                        "fn": {
+                          "builtin_fn": {
+                            "name": {
+                              "fn_name_flat": {
+                                "name": "lit"
+                              }
+                            }
+                          }
+                        },
+                        "pos_args": [
+                          {
+                            "int64_val": {
+                              "src": {
+                                "file": "SRC_POSITION_TEST_MODE",
+                                "start_line": "94"
+                              },
+                              "v": "1"
+                            }
+                          }
+                        ],
+                        "src": {
+                          "file": "SRC_POSITION_TEST_MODE",
+                          "start_line": "94"
+                        }
+                      }
+                    },
+                    {
+                      "apply_expr": {
+                        "fn": {
+                          "builtin_fn": {
+                            "name": {
+                              "fn_name_flat": {
+                                "name": "lit"
+                              }
+                            }
+                          }
+                        },
+                        "pos_args": [
+                          {
+                            "int64_val": {
+                              "src": {
+                                "file": "SRC_POSITION_TEST_MODE",
+                                "start_line": "94"
+                              },
+                              "v": "10"
+                            }
+                          }
+                        ],
+                        "src": {
+                          "file": "SRC_POSITION_TEST_MODE",
+                          "start_line": "94"
+                        }
+                      }
+                    },
+                    {
+                      "apply_expr": {
+                        "fn": {
+                          "builtin_fn": {
+                            "name": {
+                              "fn_name_flat": {
+                                "name": "lit"
+                              }
+                            }
+                          }
+                        },
+                        "pos_args": [
+                          {
+                            "int64_val": {
+                              "src": {
+                                "file": "SRC_POSITION_TEST_MODE",
+                                "start_line": "94"
+                              },
+                              "v": "2"
+                            }
+                          }
+                        ],
+                        "src": {
+                          "file": "SRC_POSITION_TEST_MODE",
+                          "start_line": "94"
+                        }
+                      }
+                    }
+                  ],
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "94"
+                  }
+                }
+              }
+            ],
+            "row_count": "3",
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "94"
+            },
+            "variadic": true
+          }
+        },
+        "symbol": "df2",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_generator": {
+            "columns": [
+              {
+                "apply_expr": {
+                  "fn": {
+                    "builtin_fn": {
+                      "name": {
+                        "fn_name_flat": {
+                          "name": "seq8"
+                        }
+                      }
+                    }
+                  },
+                  "pos_args": [
+                    {
+                      "int64_val": {
+                        "src": {
+                          "file": "SRC_POSITION_TEST_MODE",
+                          "start_line": "96"
+                        }
+                      }
+                    }
+                  ],
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "96"
+                  }
+                }
+              },
+              {
+                "apply_expr": {
+                  "fn": {
+                    "builtin_fn": {
+                      "name": {
+                        "fn_name_flat": {
+                          "name": "uniform"
+                        }
+                      }
+                    }
+                  },
+                  "pos_args": [
+                    {
+                      "apply_expr": {
+                        "fn": {
+                          "builtin_fn": {
+                            "name": {
+                              "fn_name_flat": {
+                                "name": "lit"
+                              }
+                            }
+                          }
+                        },
+                        "pos_args": [
+                          {
+                            "int64_val": {
+                              "src": {
+                                "file": "SRC_POSITION_TEST_MODE",
+                                "start_line": "96"
+                              },
+                              "v": "1"
+                            }
+                          }
+                        ],
+                        "src": {
+                          "file": "SRC_POSITION_TEST_MODE",
+                          "start_line": "96"
+                        }
+                      }
+                    },
+                    {
+                      "apply_expr": {
+                        "fn": {
+                          "builtin_fn": {
+                            "name": {
+                              "fn_name_flat": {
+                                "name": "lit"
+                              }
+                            }
+                          }
+                        },
+                        "pos_args": [
+                          {
+                            "int64_val": {
+                              "src": {
+                                "file": "SRC_POSITION_TEST_MODE",
+                                "start_line": "96"
+                              },
+                              "v": "10"
+                            }
+                          }
+                        ],
+                        "src": {
+                          "file": "SRC_POSITION_TEST_MODE",
+                          "start_line": "96"
+                        }
+                      }
+                    },
+                    {
+                      "apply_expr": {
+                        "fn": {
+                          "builtin_fn": {
+                            "name": {
+                              "fn_name_flat": {
+                                "name": "lit"
+                              }
+                            }
+                          }
+                        },
+                        "pos_args": [
+                          {
+                            "int64_val": {
+                              "src": {
+                                "file": "SRC_POSITION_TEST_MODE",
+                                "start_line": "96"
+                              },
+                              "v": "2"
+                            }
+                          }
+                        ],
+                        "src": {
+                          "file": "SRC_POSITION_TEST_MODE",
+                          "start_line": "96"
+                        }
+                      }
+                    }
+                  ],
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "96"
+                  }
+                }
+              }
+            ],
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "96"
+            },
+            "time_limit_seconds": "1",
+            "variadic": true
+          }
+        },
+        "symbol": "df3",
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "3"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}
+>>>>>>> 66d50cff3 (SNOW-1738538 Update expectation files to json ast output so more stable & readable)
